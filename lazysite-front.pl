@@ -84,9 +84,26 @@ unless ( defined $cgibin && length $cgibin ) {
 }
 
 # 'static' and 'processor' both end at the processor: it already serves content
-# statics (_serve_content_static), so the front door does not reimplement byte
-# ranges, conditional GETs or content types - three things that are easy to get
-# subtly wrong and that the engine already gets right.
+# statics (_serve_content_static), so the front door does not reimplement that
+# path.
+#
+# SM388: THIS COMMENT USED TO NAME THREE THINGS "the engine already gets right"
+# - byte ranges, conditional GETs and content types - and two of the three were
+# not implemented anywhere. A justification resting on a capability that does
+# not exist is worse than no justification, because it stops the next reader
+# looking.
+#
+# What is true now:
+#
+#   content types     yes, %STATIC_CT
+#   conditional GET   yes, weak ETag + If-None-Match (SM388)
+#   byte ranges       NO. Media seeking fails wherever the engine answers a
+#                     static, and a Range request gets the whole file with a
+#                     200. Not fixed here; recorded so the gap is visible from
+#                     the place that used to deny it.
+#
+# The reason for not reimplementing them at the front door is unchanged and
+# still good: one implementation is easier to keep correct than two.
 my $target =
     ( $decision->{surface} eq 'cgi' )
     ? "$cgibin/$decision->{target}"

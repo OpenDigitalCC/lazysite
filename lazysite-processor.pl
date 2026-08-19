@@ -2789,6 +2789,46 @@ sub _serve_content_static {
     # response is written and the caller stops, which is what a refusal needs.
     return 1 if _acl_refused( $real, $uri // ( $ENV{REDIRECT_URL} // '' ) );
 
+    # SM388: CONDITIONAL GET, which is what makes SM387's revalidation cheap.
+    #
+    # SM387 settled that an engine-served static must revalidate: it is public
+    # now and can be protected at any moment, so a long cache would outlive the
+    # protection in a visitor's browser. That decision is right and it has a
+    # cost - and without a validator the cost is a FULL RE-DOWNLOAD on every
+    # navigation, which is the expensive way to be correct.
+    #
+    # A validator makes revalidation a 304 with no body: the operator still gets
+    # protection that takes effect immediately, and the visitor stops paying for
+    # it in bytes.
+    #
+    # WEAK, from mtime and size, because that is what this can honestly assert.
+    # A strong validator claims byte-identity, and two writes inside one second
+    # would break that claim; W/ says "semantically the same", which mtime and
+    # size do support. Cheaper than hashing the file on every request, which on
+    # a shared host is the cost this is trying to remove.
+    my @st   = stat($real);
+    my $etag = @st ? sprintf( 'W/"%x-%x"', $st[9], $st[7] ) : undef;
+
+    if ( defined $etag ) {
+        my $inm = $ENV{HTTP_IF_NONE_MATCH} // '';
+        # A client may send several, and may send them weak.
+        for my $candidate ( split /\s*,\s*/, $inm ) {
+            $candidate =~ s/^\s+|\s+$//g;
+            next unless length $candidate;
+            next unless $candidate eq $etag || $candidate eq '*';
+            $ACCESS_REC{s} //= 304;
+            $ACCESS_REC{b} = 0;
+            print "Status: 304 Not Modified\n";
+            print "$_\n" for _security_headers();
+            print "ETag: $etag\n";
+            print( _acl_governed($real)
+                ? "Cache-Control: no-store\n"
+                : "Cache-Control: no-cache, must-revalidate\n" );
+            print "\n";
+            return 1;
+        }
+    }
+
     open my $fh, '<', $real or return 0;
     binmode $fh;
     my $data = do { local $/; <$fh> };
@@ -2830,6 +2870,7 @@ sub _serve_content_static {
     print( _acl_governed($real)
         ? "Cache-Control: no-store\n"
         : "Cache-Control: no-cache, must-revalidate\n" );
+    print "ETag: $etag\n" if defined $etag;    # SM388
     print "\n";
     print $data;
     return 1;

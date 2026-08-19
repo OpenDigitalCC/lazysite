@@ -43,8 +43,27 @@ my ($dir_block)   = $src =~ m{\nsub _lazysite_dir_for \{\n(.*?)\n\}\n}s;
 
 ok( $route_block, 'the processor carries its routing table in one sub' );
 ok( $dir_block,   'and its engine-dir resolver' );
-plan skip_all => 'processor structure changed; fix the extraction above'
-    unless $route_block && $dir_block;
+# SM388: A FAILURE, NOT A SKIP.
+#
+# This was `plan skip_all`, which fires exactly when the processor's structure
+# changes - that is, when the copy this test pins may have drifted. So the one
+# condition that makes the check most necessary was the condition that turned it
+# off, on the serving path.
+#
+# A skip reads as "nothing to check here" to anyone scanning a run. Absence of
+# evidence being read as a pass is the defect SM319 exists for, and t/tools/41
+# pins the same discipline for the ACL probe: a path that cannot measure must
+# say so in a way that is not mistaken for success.
+unless ( $route_block && $dir_block ) {
+    fail('front-door route parity could not be checked');
+    diag( "The extraction above did not find _front_route or _lazysite_dir_for.\n"
+            . "That means the processor's structure changed - which is exactly\n"
+            . "when the front door's copy of the routing table is most likely to\n"
+            . "have drifted from it. Fix the extraction, then re-read what the\n"
+            . 'two now disagree about.' );
+    done_testing();
+    exit 0;
+}
 
 unlike( $route_block, qr/Lazysite::/,
     'the copy loads no Lazysite module (ADR 0001) - which is WHY it is a copy '

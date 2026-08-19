@@ -121,6 +121,24 @@ Naming the commit: AFTER it lands, never before
   deliver a Hestia template. Now verified on four vhosts, asserted on the BODY
   rather than the status.
 
+## Unreleased
+
+- SM388 (PENDING) **a comment claiming a capability that did not exist, and a
+  skip that fired when it was most needed.** `lazysite-front.pl` justified not
+  reimplementing the static path on the grounds that the engine "already gets
+  right" byte ranges, conditional GETs and content types - and `Range`, `ETag`,
+  `If-None-Match` and `Last-Modified` appeared **zero times** in the processor.
+  A justification resting on a capability that is not there stops the next
+  reader looking. **Fixed rather than withdrawn**, because SM387 made every
+  engine-served static revalidate and without a validator each revalidation was
+  a full re-download: weak ETag from mtime and size, `If-None-Match` answered
+  with a 304 carrying no body and the full security header set. Byte ranges
+  remain absent and the comment now says so. Separately, `t/lint/42`'s
+  `skip_all` fired precisely when the processor's structure changed - the
+  condition that makes front-door route parity most worth checking - so the
+  check turned itself off exactly when it mattered, on the serving path. It is a
+  failure now.
+
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
 Cut after a pre-beta promotion review read the whole line read-only and
