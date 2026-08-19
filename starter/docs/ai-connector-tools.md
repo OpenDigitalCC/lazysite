@@ -223,9 +223,14 @@ move_file `{ from, to }`
 delete_file `{ path }`
 : Delete a file. Audited as `delete`.
 
-set_permissions `{ path, read, write }`
+set_permissions `{ path, read, write, draft }`
 : Set the per-file ACL - owner plus comma-separated read/write lists (users or
-  `@groups`).
+  `@groups`), and the draft flag. **A partial update: omitted fields keep their
+  current value.** Setting a read list on a draft section leaves it draft -
+  still a 404 - so the API equivalent of the Publish button is
+  `{"draft": false}` alongside your grants. A field agent replicated the UI
+  flow, granted access, and the section kept 404ing; least surprise says the
+  trap gets named where the tool is learned.
 
 bind_form `{ form, handler }`
 : Wire a form to delivery by referencing an existing handler from

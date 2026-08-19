@@ -713,7 +713,7 @@ my %TOOLS = (
         run => sub { action_delete( $_[0]->{path}, $_[1] ) },
     },
     set_permissions => {
-        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), and the draft flag. A folder prefix (a path ending in /) gates or hides every page and asset beneath it.',
+        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), and the draft flag. A folder prefix (a path ending in /) gates or hides every page and asset beneath it. PARTIAL UPDATE: fields you omit keep their current value - so setting a read list on a DRAFT section leaves it draft (still a 404). The API equivalent of the Publish button is {"draft": false} alongside your grants.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {

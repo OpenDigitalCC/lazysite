@@ -60,6 +60,15 @@ Naming the commit: AFTER it lands, never before
   its first assertion PASSED on the word "Authoring" in the navigation menu -
   an expectation-based body check passing on chrome while the feature did
   nothing; a differential comparison of the two bodies told the truth.
+- Docs (PENDING) **set_permissions names the publish flow.** A field agent set
+  a read list on a draft section and it kept 404ing: the tool is a PARTIAL
+  update - omitted fields keep their value - so granting access does not clear
+  draft, and the API equivalent of the Publish button is `{"draft": false}`
+  alongside the grants. The semantics were already documented on the `draft`
+  parameter and were right; what was missing is the composite named where the
+  trap springs. Tool description + ai-connector-tools.md; behaviour unchanged,
+  deliberately - auto-clearing draft on a grant would be the tool guessing an
+  intent it was not given.
 
 - SM407, SM408 (c810e38, a9f7093; filings only) **three records stopped in the same
 - SM413 (PENDING, filing only) **the homepage reports a version three releases
