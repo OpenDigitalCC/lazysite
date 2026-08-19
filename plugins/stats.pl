@@ -1251,11 +1251,11 @@ sub _save_export_cache {
     my ($c) = @_;
     my $dir = "$DOCROOT/lazysite/cache";
     return unless -d $dir;
-    my $tmp = _cache_path() . ".$$";
-    open my $fh, '>', $tmp or return;
-    print {$fh} encode_json($c);
-    close $fh;
-    rename $tmp, _cache_path();
+    # SM404: through the checked writer. Not canonical - this file is written on
+    # every export and is the largest of the three, so the sort is a cost with
+    # no reader: nothing compares it byte for byte, and a repair reads the day
+    # files rather than this.
+    _write_file_atomic( _cache_path(), encode_json($c) );
     return;
 }
 
@@ -1281,13 +1281,37 @@ sub _monthly_dir { return _stats_dir() . '/monthly' }
 #
 # Canonical ordering makes these files comparable by anybody, with no tooling -
 # which is what a repair somebody has to trust actually requires.
-sub _write_json_atomic {
-    my ( $path, $data ) = @_;
+# SM404: ATOMIC IN THE RENAME, NOT IN THE WRITE - which is the half that matters
+# when a disk fills.
+#
+# This checked neither the print nor the close, then renamed. A write that ran
+# out of space produced a TRUNCATED temp file, and the rename promoted it over a
+# good one - while the function returned 1. The main page-cache writer in the
+# processor has had checked print AND checked close since SM020, and a pre-beta
+# review praised it for exactly this property; the stats writers never gained it.
+#
+# It matters most here of all three callers. The durable day files are written
+# ONCE and never rewritten - a past day is immutable - so a torn day file is
+# permanent, where a torn cache merely rebuilds.
+#
+# close() is checked separately and is not redundant: a buffered write can
+# succeed at print() and fail at the flush that close() performs, which is
+# precisely the disk-full case.
+sub _write_file_atomic {
+    my ( $path, $text ) = @_;
     my $tmp = "$path.$$";
     open my $fh, '>', $tmp or return 0;
-    print {$fh} JSON::PP->new->canonical->encode($data);
-    close $fh;
-    return rename( $tmp, $path ) ? 1 : 0;
+    my $ok = print {$fh} $text;
+    $ok = 0 unless close $fh;
+    unless ($ok) { unlink $tmp; return 0 }
+    return 1 if rename $tmp, $path;
+    unlink $tmp;
+    return 0;
+}
+
+sub _write_json_atomic {
+    my ( $path, $data ) = @_;
+    return _write_file_atomic( $path, JSON::PP->new->canonical->encode($data) );
 }
 
 sub _read_json_file {
@@ -2117,16 +2141,14 @@ sub _trails_flush {
         my @all = ( @{ $existing || [] }, @$rows );
         @all = @all[ 0 .. $TRAIL_VISITOR_CAP - 1 ] if @all > $TRAIL_VISITOR_CAP;
 
-        my $tmp = "$f.$$";
-        if ( open my $wh, '>', $tmp ) {
-            print {$wh} JSON::PP->new->canonical->encode( {
-                    date           => $day,
-                    retention_days => $keep,
-                    trails         => \@all,
-            } );
-            close $wh;
-            rename $tmp, $f or unlink $tmp;
-        }
+        # SM404: this writer had the same unchecked defect, and it was added by
+        # SM393 - written to match the local style, which is how a defect
+        # propagates once it is the house pattern.
+        _write_json_atomic( $f, {
+                date           => $day,
+                retention_days => $keep,
+                trails         => \@all,
+        } );
     }
     delete $cache->{trails};
     return;
