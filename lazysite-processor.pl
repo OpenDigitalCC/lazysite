@@ -6617,7 +6617,26 @@ sub _inline_script_hashes {
     while ( $html =~ m{<script\b([^>]*)>(.*?)</script\s*>}gis ) {
         my ( $attrs, $body ) = ( $1, $2 );
         next if $attrs =~ /\bsrc\s*=/i;    # covered by 'self'
-        my $b64 = encode_base64( sha256($body), '' );
+            # SM384: HASH THE BYTES THE BROWSER RECEIVES, NOT THE CHARACTERS.
+            #
+            # A TT-rendered response is a CHARACTER string. Digest::SHA operates on
+            # bytes and DIES on a wide character - "Wide character in subroutine
+            # entry" - so a single non-ASCII character anywhere inside an inline
+            # script aborted the response mid-headers and the browser got a 200 with
+            # an empty body. On the manager that is every page, in the DEFAULT
+            # report-only mode, because the manager's own scripts carry non-ASCII.
+            #
+            # And the quieter half: U+0080-U+00FF does not die. It hashes the
+            # LATIN-1 byte where the browser hashes the two UTF-8 bytes it actually
+            # received, so the hash simply does not match and the script is refused
+            # with no error anywhere.
+            #
+            # Found by driving a real browser against a real manager. Nothing in
+            # this suite renders a manager page end to end through the real layout,
+            # which is why every test passed.
+        my $bytes = $body;
+        utf8::encode($bytes) if utf8::is_utf8($bytes);
+        my $b64 = encode_base64( sha256($bytes), '' );
         next if $seen{$b64}++;
         push @hashes, "'sha256-$b64'";
     }

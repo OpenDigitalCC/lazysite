@@ -56,6 +56,22 @@ Naming the commit: AFTER it lands, never before
   and Perl ate them as capture variables - producing an empty result that looked
   exactly like the shell failing.
 
+## Unreleased
+
+- SM384 (PENDING) **the CSP hash died on any non-ASCII character in an inline
+  script.** `Digest::SHA` operates on bytes and dies on a wide character; a
+  TT-rendered response is a CHARACTER string. So one non-ASCII character inside
+  an inline `<script>` aborted the response mid-headers and the browser got a
+  **200 with an empty body** - and because the manager's own scripts carry
+  non-ASCII and report-only is the DEFAULT, the manager was down in every mode
+  except `csp: off`. The quieter tier: U+0080-U+00FF does not die, it hashes the
+  latin-1 byte where the browser hashes two UTF-8 bytes, so the script is
+  silently refused. **No test saw it** because nothing renders a manager page end
+  to end through the real layout and every fixture's inline script was ASCII -
+  the shipped catalogue was clean by luck, not design. Found by driving a real
+  browser against a real manager, while the 0.10.15 cut was running; the cut was
+  stopped before tagging and no version was burned.
+
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
 Cut after a pre-beta promotion review read the whole line read-only and
