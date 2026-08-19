@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM399 (PENDING) **the operator can see the journeys.** SM393 recorded the
+- SM399 (c1f48db) **the operator can see the journeys.** SM393 recorded the
   ordered trails and SM394 gave an agent a way to read them; the operator - the
   person the manager exists for - still could not see them at all. A **Visitor
   journeys** panel on the Stats page, fed by a new parameterised plugin action.
@@ -64,7 +64,7 @@ Naming the commit: AFTER it lands, never before
   found in itself, a CSS-class check that scanned only the script and missed a
   bad class on the card markup.
 
-- SM394 (PENDING) **the trails have a reader.** SM393 recorded the ordered trails
+- SM394 (37442e4) **the trails have a reader.** SM393 recorded the ordered trails
   and nothing could read them: the agent that asked has no host access and sees
   only what `analyse_visitors` returns, so the data accumulated for nobody.
   `analyse_visitors` gains `trails=YYYY-MM-DD` on both channels (MCP tool and
@@ -82,7 +82,7 @@ Naming the commit: AFTER it lands, never before
   page being LEFT, absent for the exit page, and must never be reported as
   reading time. `t/unit/plugins/15` asserts it against six sabotages. Open: the
   manager Stats page still has no trails view.
-- SM389 close-out (PENDING) **the four second-order findings, closed.** Each with
+- SM389 close-out (a4c0950) **the four second-order findings, closed.** Each with
   a test confirmed to fail against the unfixed code.
   **Registry regeneration was a stampede**: TTL expiry happens at an instant, so
   every request arriving after it ran a full site scan concurrently - measured at
@@ -122,7 +122,7 @@ Naming the commit: AFTER it lands, never before
   own pid: verified immune to 30 stray perl processes, and still failing on a
   real leak of 8 children.
 
-- SM393 (PENDING) **the ordered trail is recorded, and it expires.** SM336
+- SM393 (e9b7e0c) **the ordered trail is recorded, and it expires.** SM336
   deliberately kept sequence as aggregates - "a flow reconstructed without
   retaining anybody's path". That is reversed on purpose: aggregates can be
   recomputed from retained logs whenever the analysis improves, **order cannot**,
@@ -147,7 +147,7 @@ Naming the commit: AFTER it lands, never before
   commitment**, which said the store held "aggregates only, never per-visitor
   records" and had stopped being true.
 
-- SM383 (PENDING) **the release stage stamped one half of a pair.** SM375 taught
+- SM383 (07879d3) **the release stage stamped one half of a pair.** SM375 taught
   `release.sh` to stamp `VERSION` and left `NEXT_VERSION` alone, so a stage
   cutting 0.10.15 carried `VERSION=0.10.15` **and** `NEXT_VERSION=0.10.15` - and
   the next release would have proposed a version already cut, which SM064 says
@@ -161,7 +161,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM384 (PENDING) **the CSP hash died on any non-ASCII character in an inline
+- SM384 (a19ca72) **the CSP hash died on any non-ASCII character in an inline
   script.** `Digest::SHA` operates on bytes and dies on a wide character; a
   TT-rendered response is a CHARACTER string. So one non-ASCII character inside
   an inline `<script>` aborted the response mid-headers and the browser got a
@@ -177,7 +177,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM385 (PENDING) **the NOT CONFIRMED summary overwrote the stated reason with a
+- SM385 (a17a6c9) **the NOT CONFIRMED summary overwrote the stated reason with a
   guess.** In the real 0.10.15 deploy the probe declined and said why - running
   as root, where protecting content would leave root-owned files in the site
   tree - and three lines later the summary recommended `lazysite repair`, which
@@ -187,7 +187,7 @@ Naming the commit: AFTER it lands, never before
   probe gave, keeping the repair advice only for the case where no reason was
   given - which is real, and dropping it would trade one wrong summary for
   another.
-- SM386 (PENDING) **the path scrub removed the one thing a caller could act on.**
+- SM386 (8192654) **the path scrub removed the one thing a caller could act on.**
   SM378 made the snapshot refusal say why; a partner agent then hit it for real
   and got `tar: <path>: Cannot open: Permission denied`, which names nothing -
   they could not tell the private store from the render cache from a lock file.
@@ -197,7 +197,7 @@ Naming the commit: AFTER it lands, never before
   never - `<site>/lazysite/cache/x` and `<private>/upcoming/a.pdf` keep their
   shape, a path outside the site keeps only its tail. Nothing is disclosed that
   a caller cannot already list.
-- SM381 correction (PENDING) **the tar exit-1 fix did not explain the field
+- SM381 correction (8192654) **the tar exit-1 fix did not explain the field
   failure, and the claim is withdrawn.** The fix is real and stands - a busy site
   genuinely could not be snapshotted, 3 of 3 refusals before and 0 of 3 after.
   But retried on 0.10.15 the refusal names **exit 2, Permission denied**, not
@@ -206,7 +206,7 @@ Naming the commit: AFTER it lands, never before
   a demonstrated permission difference between the two snapshot paths rather
   than an inference: `site_backup` succeeded at 09:24:01Z and 09:24:38Z with the
   apply's internal snapshot failing between them, same host, same account.
-- SM387 (PENDING) **engine-served statics revalidate, and that is a choice.**
+- SM387 (2e48fe4) **engine-served statics revalidate, and that is a choice.**
   After the SM283 proxy template went on edge, `/lazysite-assets/...`,
   `/favicon.ico` and `/assets/lazysite-chrome.js` all moved from
   `max-age=315360000` to `no-cache, must-revalidate` - reported from the field
@@ -217,7 +217,7 @@ Naming the commit: AFTER it lands, never before
   filings to understand.** The reasoning now sits at the decision rather than
   being inferable from its absence, and the ten-year cache is recorded as a
   property of the front-end fast path rather than of lazysite.
-- SM374 note (PENDING) **the proxy fix is inert until the host's template copy is
+- SM374 note (2e48fe4) **the proxy fix is inert until the host's template copy is
   refreshed** - and while it is stale the failure is identical to the bug. The
   first application on edge failed with the same 421 on three domains because an
   older template was still in Hestia's directory. A package upgrade does not
@@ -226,7 +226,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- Operator docs (PENDING) **the upgrade notes stopped at 0.10.10, and the
+- Operator docs (5976c14) **the upgrade notes stopped at 0.10.10, and the
   channel default was documented backwards.** `UPGRADE.md` gains a 0.10.15
   section carrying the four things a package cannot do - re-apply access rules
   AFTER the upgrade, the proxy template (where **a stale copy fails identically
@@ -236,7 +236,7 @@ Naming the commit: AFTER it lands, never before
   `update_channel` line REFUSES a beta or edge build. Anyone sizing a
   pre-release rollout from that paragraph would have overestimated its reach.
   The beta rung is documented for the first time.
-- SM388 (PENDING) **a comment claiming a capability that did not exist, and a
+- SM388 (c7e048b) **a comment claiming a capability that did not exist, and a
   skip that fired when it was most needed.** `lazysite-front.pl` justified not
   reimplementing the static path on the grounds that the engine "already gets
   right" byte ranges, conditional GETs and content types - and `Range`, `ETag`,
@@ -254,7 +254,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM288 follow-through (PENDING) **the widening now has its release note and its
+- SM288 follow-through (33f7207) **the widening now has its release note and its
   pre-report.** `@group` entries were silently inert on MCP and the control API
   before SM288, so honouring them widens effective access on live sites -
   intended, and still a permission change an operator should see rather than
@@ -265,7 +265,7 @@ Naming the commit: AFTER it lands, never before
   a fourth answer to "which groups is this account in" - the defect SM288
   removes - and reporting DIRECT membership only would be worse than silence: it
   would tell an operator somebody does not gain access when they do.
-- SM389 (PENDING) **a static was read whole into a persistent worker.** One
+- SM389 (33f7207) **a static was read whole into a persistent worker.** One
   request for a large upload sized that worker to the file and kept it there,
   with nothing capping it - WebDAV accepts 64m bodies and an operator publishing
   video has no reason to think fetching their own file is a memory event. Now
@@ -280,7 +280,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM390 (PENDING) **the agent opt-out promised exclusion and delivers
+- SM390 (406b75d) **the agent opt-out promised exclusion and delivers
   classification.** The MCP connector tells every partner that setting
   `lazysite-agent/<partner-id>` keeps their hits "out of the visitor
   analytics". It keeps them out of the **human** class; they are still counted,
@@ -293,7 +293,7 @@ Naming the commit: AFTER it lands, never before
   that did not promote. Neither reproduces - the sweep gives `human 0, scanner
   21` in a clean fixture on both ingest paths - so the trigger logic is not the
   defect and the remaining variable is state carried between export runs.
-- SM391 (PENDING) **the visitor classifiers are data, not code.** Every pattern
+- SM391 (8e3af55) **the visitor classifiers are data, not code.** Every pattern
   in the stats plugin is a signature list and signature lists date - SM332 is
   what that costs, where `/wp-login.php` was caught and its modern replacement
   `/wp-json/batch/v1` was caught by nothing, because changing a pattern meant
@@ -305,7 +305,7 @@ Naming the commit: AFTER it lands, never before
   rather than replaces, because replacing meant an operator adding one crawler
   signature would silently lose `curl`, `wget` and the rest, showing up as a
   quiet rise in the human count rather than an error.
-- SM392 (PENDING) **one sweep behind a shared address reclassified everyone
+- SM392 (dfb30f6) **one sweep behind a shared address reclassified everyone
   behind it.** `_visitor_key` is `hmac(ymd|ip)` - date and address, no actor -
   so the unit being promoted to `scanner` was AN ADDRESS. Eleven AI user-agents
   on real 200 pages, **Googlebot included as a control**, all came back scanner.
@@ -318,7 +318,7 @@ Naming the commit: AFTER it lands, never before
   human 0. **Two worse fixes are asserted against:** weakening the promotion,
   and putting the user-agent in the COUNTING token, which would make one person
   with two browsers into two visitors.
-- SM392 note (PENDING) originally filed as: **a promoted visitor token masks every later
+- SM392 note (dfb30f6) originally filed as: **a promoted visitor token masks every later
   classification from that source.** Eleven AI user-agents, including Googlebot
   on a 200, all came back `scanner` because the token had been promoted earlier.
   SM213 classifies per visitor deliberately, and the same stickiness means a
