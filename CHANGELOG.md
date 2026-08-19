@@ -42,9 +42,29 @@ Naming the commit: AFTER it lands, never before
   not. SM354's own entry went stale in its own landing, which is how this
   paragraph came to be written.
 
-## Unreleased
+## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
-- SM382 (PENDING) **the engine's chrome 404s on a content-rooted secondary
+Cut after a pre-beta promotion review read the whole line read-only and
+filed what it found. Most of this release is that review's list, and the
+theme running through it is a **claim that had stopped being true**.
+
+The comment on `_security_headers` said "every response path here calls
+this". It had been wrong for longer than the defect it described - five
+refusals, five redirects, the 500, the registry outputs and two
+cross-origin-readable endpoints each printed their own. Two documents
+said the engine deliberately emits no CSP; both were false the moment it
+started emitting one. The CSP itself shipped enforcing with no way to
+turn it down, and would have silently disabled the manager's own
+controls in a browser, where nothing in the suite looks.
+
+**The safety snapshot is the one to take if you run a busy site.** It
+refused on any site with traffic, because tar exits 1 for "a file
+changed while I read it" and that was treated as fatal - so the thing
+that makes an apply reversible failed precisely on the sites where
+reversibility matters.
+
+
+- SM382 (2162d75) **the engine's chrome 404s on a content-rooted secondary
   domain.** SM352 moved the engine's own script and stylesheet into `/assets/`,
   which ship into the docroot; static resolution is content-root scoped, so a
   secondary domain looks under its own root and 404s. **Nothing reports it** -
@@ -56,7 +76,7 @@ Naming the commit: AFTER it lands, never before
   test asserts a non-engine file is still refused, and widening the list to a
   prefix fails it.
 
-- SM379 (PENDING) **the deploy watcher exits after a deploy, with the SUCCESS
+- SM379 (93a2e52) **the deploy watcher exits after a deploy, with the SUCCESS
   code.** `set -e` is a shell option, not a function-local one: `deploy()` ended
   `set +e; ssh ...; rc=$?; set -e; return "$rc"`, and that final `set -e` took
   effect immediately - so the function returned non-zero with `-e` freshly
@@ -164,7 +184,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM352 follow-up (PENDING) **the CSP test that step 5 left failing, and the
+- SM352 follow-up (b4c02de, 98c6c60) **the CSP test that step 5 left failing, and the
   routing check that replaces what SM377 cost us.** Step 5 landed with
   `t/integration/44` red: it asserted "no enforcing CSP, because the engine would
   violate it", which was correct until the engine stopped inlining. **It was
@@ -185,7 +205,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM380 (PENDING) **the CSP shipped enforcing, with no way to turn it down.**
+- SM380 (3439f33, ec4a492) **the CSP shipped enforcing, with no way to turn it down.**
   Step 5 emitted one enforcing policy on every HTML response, no config key, no
   report-only mode. **A CSP hash covers a `<script>` BLOCK and not an inline
   event-handler ATTRIBUTE**, and the manager's own pages are built on `onclick=`
@@ -197,7 +217,7 @@ Naming the commit: AFTER it lands, never before
   site that flips to enforce gets what it was already reporting. An unrecognised
   value reads as report-only, never off. Converting the manager to
   `addEventListener` remains before a manager surface can be enforced.
-- SM381 follow-up (PENDING) **and every other path that answered without them.**
+- SM381 follow-up (ec4a492) **and every other path that answered without them.**
   The audit did not stop at 402/403: five redirects, the 500, the registry
   outputs and two cross-origin-readable `.well-known` endpoints also printed
   their own status line and no header set. The comment claiming "every response
@@ -211,7 +231,7 @@ Naming the commit: AFTER it lands, never before
   `csp: enforce` - its pages carry 186 inline handlers, 127 of them generated
   inside JS strings, and converting those without a browser in the loop risks
   the silent dead button this whole item is about.
-- SM381 (PENDING) **five refusal paths carried no security headers, two wrote
+- SM381 (3439f33) **five refusal paths carried no security headers, two wrote
   into the wrong docroot, and the safety snapshot failed because the site was
   live.** `serve_402`, `serve_403`, the ACL static refusal, the manager-access
   refusal and `forbidden()` all printed their own headers - so the responses a

@@ -43,6 +43,7 @@ tone: medium
 2026-08-15 | (unrecorded) | tier-release | PASS, 380 files | Recovered from `tmp/gate-result.txt` before it was lost. The commit was not recorded, which is exactly the gap this register closes.
 2026-08-19 | 187b689 | full suite -j4 | FAIL, 438 files | perlcritic: unreachable code and two unchecked opens, both introduced by the SM381 work in that commit. Fixed in the commit that follows.
 2026-08-19 | 6f62c4f | full suite -j4 | **PASS, 438 files, 8050 tests** | The pre-cut run for items 1-8 of the pre-beta review: CSP rollout mode, the refusal paths, the snapshot fix, and this register.
+2026-08-19 | 2162d75 | full suite -j4 | **PASS, 438 files, 8045 tests** | SM382, the engine chrome on a content-rooted secondary domain. Branched from main rather than from the row above, which is why the count differs - each branch carried only its own tests.
 ---
 ```
 
