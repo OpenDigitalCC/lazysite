@@ -1624,6 +1624,61 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.10.16** (2026-08-19, EDGE) - **The build says which commit it validated.**
+  A release's manifest now carries `validated: {commit, files, tests}` naming the
+  exact gated commit, mirrored in a committed `docs/releases/GATE-LOG.md` row
+  (SM400) - so "is this build what it claims" is answerable from the artefact.
+  Forms gain structured answers (SM401): `radio:`, `checklist:` and
+  `checklist-qty:` rules alongside `select:`, with quoted multi-word options
+  across all four. The form handler stops recording an identity it cannot verify
+  (SM402): submission metadata now says how it was captured rather than naming an
+  unverified account. The stats writers become atomic in the write, not just the
+  rename (SM404) - a disk-full no longer promotes a truncated day file over a
+  good one. And six standing decisions are recorded where they belong, including
+  the seven-class visitor model (an assistant fetching for a person is a visit; a
+  training crawler is not) and behaviour-beats-declaration (SM405, decided ahead
+  of build).
+- **0.10.15** (2026-08-19, EDGE) - **The security header set stops being a claim.**
+  A Content-Security-Policy ships enforcing, with an operator dial and a
+  hash-based allowance for the one inline script pattern shipped layouts use
+  (SM379/SM380, SM384 fixing the hash on non-ASCII scripts). Every response path
+  now passes the header choke point - including 402/403 (which also rendered
+  into the wrong docroot on multi-domain instances), the registries, and the
+  `.well-known` endpoints (SM381). Engine chrome resolves on content-rooted
+  secondary domains (SM382). Engine-served statics revalidate (SM387). The
+  release stage stamps VERSION and NEXT_VERSION together (SM383).
+- **0.10.14** (2026-08-18, EDGE) - **A cache clear that deleted pages, and the
+  second copies.** Anyone running 0.10.13 or earlier on a migrated site should
+  take this one: `invalidate_cache("/")` DELETED the homepage rather than
+  clearing it, and the defect repaired its own symptom on the next render.
+  Alongside: the engine and the site side stop inlining scripts (SM352, the
+  ground the CSP stands on), `preview a path as the public sees it`, the notice
+  store readable remotely, release.sh reduced to two commands, and the coverage
+  gate sharded so it runs at last.
+- **0.10.13** (2026-08-17, EDGE) - **The control reported success, and had not
+  done the work.** Cache invalidation now distinguishes cleared /
+  nothing-cached / no-such-path instead of reporting success unconditionally
+  (SM367). One answer per question whichever channel asked - API and MCP parity
+  - with a published action reference. Visitor analytics gain device class and
+  opt-in internal search terms (SM336), and a visit gains a boundary and a
+  sequence, the ground the later trails stand on.
+- **0.10.12** (2026-08-16, EDGE) - **The numbers say what they mean.** A
+  statistics release from a partner-agent review of a live instance's own
+  traffic: every item is a number that was reported confidently while
+  describing something other than its name. The headline visitor number FALLS,
+  and that is the fix. Aggregates carry their counting basis so a change of
+  rules is distinguishable from a change of traffic (SM338).
+- **0.10.11** (2026-08-16, EDGE) - **Protecting content works from the surfaces
+  built to do it.** The 0.10.10 field pass measured SM283 closed from outside -
+  every protected file gating, the whole store private - and found only the
+  OPERATOR could get a site into that state: the partner-agent and API surfaces
+  could not. This release is that, plus the structural change stopping it
+  recurring.
+- **0.10.10** (2026-08-15, EDGE) - **What the engine reports, and what a visitor
+  actually receives.** Field-test follow-ups from the 0.10.9 pass: reporting
+  surfaces aligned with served reality, the access pickers that name a person
+  the same way in four places, and no operator action required - nothing here
+  changes a rule or a stored format.
 - **0.10.9** (2026-08-14, EDGE) - **The sweep that finishes the 0.10.8 move.**
   `lazysite acl reapply` (SM296/SM286) re-issues every stored access rule so its
   content actually leaves the document root - the upgrade action no package can
@@ -1904,8 +1959,8 @@ Newest first; releases are git tags.
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.10.9 (the EDGE line in which the front end stopped making content
-decisions: protected content moved out of the document root, the routing table
-moved inside the engine, and the upgrade sweep that completes it shipped). For the authoritative detail
+to v0.10.16 (the EDGE line's beta candidate era: the front end makes no content
+decisions, the security header set is enforced rather than claimed, the
+statistics say what they mean, and a build names the commit it validated). For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding
 `SMxxx` feature-request.*

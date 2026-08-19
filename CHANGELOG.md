@@ -142,6 +142,15 @@ Naming the commit: AFTER it lands, never before
   a verdict it never computed would be the SM377 class. The status-gated SM192
   rule (SPA-manifest probe is noise only on 404) is asserted in both
   directions, and operator overrides are proven honoured by sabotage.
+- SM407 (PENDING, docs only) **the feature timeline catches up.** FEATURES.md's
+  Part XIII gains the seven missing release entries, 0.10.10 through 0.10.16 -
+  the compliance gate had been warning `newest release entry is 0.10.9` since
+  the 0.10.16 cut, and the content was current while the per-release framing
+  was not, so a reader could not tell whether the file described the build they
+  were running. The synthesis anchor at the foot moves to v0.10.16. NOTE FOR
+  LANDING ORDER: t/lint/62 and t/lint/63 are red on main because v0.10.16 is
+  tagged while its changelog section and version bump sit on the post-release
+  branch - land claude/0-10-16-post-release first and the tier goes green.
 
 - SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**
