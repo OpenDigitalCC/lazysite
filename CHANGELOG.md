@@ -44,6 +44,31 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM393 (PENDING) **the ordered trail is recorded, and it expires.** SM336
+  deliberately kept sequence as aggregates - "a flow reconstructed without
+  retaining anybody's path". That is reversed on purpose: aggregates can be
+  recomputed from retained logs whenever the analysis improves, **order cannot**,
+  and once the event ring rolls it is gone for good. The ring is also shortest
+  where it matters most - its retention is a function of volume, not time, so the
+  busiest sites keep the least history. Per closed visit, per day, in
+  `lazysite/stats/trails/YYYY-MM-DD.json`: ordered path sequence, entry, exit,
+  distinct-page depth, per-step gap (the dwell on the page being left) and the
+  class as it was at the time. Day files stay aggregates only. The deletion ships
+  WITH the recording rather than after it - 40 steps per visitor, 2000 visitors
+  per day, `trails_retention_days` default 30, `trails: off` to disable - because
+  a retention that arrives later is a retention nobody has. Crawlers open no visit
+  and leave no trail. Three defects were found building it: the flush was absent
+  from the path `--export` actually takes; its `mkdir` used `File::Path`, which
+  this plugin never loads, so it died inside an `eval` and the directory was never
+  created; and `cmd_recount` would have written every visit in the window twice,
+  because trail files are appended to rather than summed. A fourth came out of
+  sabotaging the test - expiry sat below the "nothing new to write" return, so a
+  site whose traffic stopped would have kept everything for ever; it now runs
+  first and unconditionally. `t/unit/plugins/13` asserts all of it against seven
+  sabotages, and `t/unit/plugins/14` the configuration surface against four more. Docs: `FEATURES.md` gains the feature and **amends the privacy
+  commitment**, which said the store held "aggregates only, never per-visitor
+  records" and had stopped being true.
+
 - SM383 (PENDING) **the release stage stamped one half of a pair.** SM375 taught
   `release.sh` to stamp `VERSION` and left `NEXT_VERSION` alone, so a stage
   cutting 0.10.15 carried `VERSION=0.10.15` **and** `NEXT_VERSION=0.10.15` - and

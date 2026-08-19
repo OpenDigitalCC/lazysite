@@ -480,6 +480,14 @@ sub _compile_rules {
 
 # Month-name map for log-date parsing. Declared up here (like the regexes above)
 # so it is assigned BEFORE the dispatch below ever calls export_stats().
+# SM393: trail caps, declared here with the other module constants rather than
+# beside the code that uses them. This file warns three times that a `my` read
+# by a sub earlier in the file is a compile error under strict - for its regexes
+# and its month map - and it caught this too, on the third occasion in one day.
+our $TRAIL_STEP_CAP          = 40;       # steps kept per visitor per day
+our $TRAIL_VISITOR_CAP       = 2_000;    # visitors kept per day
+our $TRAIL_RETENTION_DEFAULT = 30;       # days
+
 my @MONTHS_X = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my %MON_X    = map { $MONTHS_X[$_] => $_ } 0 .. 11;
 
@@ -883,6 +891,8 @@ sub scan_first_party {
     my $cache = _load_export_cache() || {};
     _export_ingest_first_party( $cfg, $cache, \@files );
     _persist_durable( $cache, $cfg );
+    _trails_flush( $cache, $cfg );    # SM393: before the cache is saved, so a
+                                      # written trail is never held twice
     _save_export_cache($cache);
 
     my $out = _page_view_from_buckets( $cfg, $cache, $window );
@@ -1025,6 +1035,8 @@ sub scan_stats {
         return $ingested;
     }
     _persist_durable( $cache, $cfg );
+    _trails_flush( $cache, $cfg );    # SM393: before the cache is saved, so a
+                                      # written trail is never held twice
     _save_export_cache($cache);
 
     my $out = _page_view_from_buckets( $cfg, $cache, $window );
@@ -1764,6 +1776,9 @@ sub _sessionise {
             last     => $path,
             n        => 1,
             ref_host => $ref_host,
+            # SM393: the ordered trail. See _trail_record for why this is
+            # stored where every other sequence fact here is an aggregate.
+            steps => [ { p => $path, t => $now, c => ( $r->{class} // '' ) } ],
         };
 
         # Bounded like every other per-token map here. A sweep arriving under
@@ -1782,8 +1797,186 @@ sub _sessionise {
     }
     $b->{dwell}{ _dwell_bucket( $now - ( $s->{t} // $now ) ) }++;
 
+    # SM393: capped per visitor. A trail longer than this is a crawl, and the
+    # shape of a crawl is already answered by the class - keeping 200 steps of
+    # it would cost the store without telling anyone anything.
+    push @{ $s->{steps} }, { p => $path, t => $now, c => ( $r->{class} // '' ) }
+        if @{ $s->{steps} || [] } < $TRAIL_STEP_CAP;
+
     $s->{last} = $path;
     $s->{t}    = $now;
+    return;
+}
+
+# ---------------------------------------------------------------------------
+# SM393: TRAILS - the ordered sequence, recorded rather than reconstructed.
+#
+# THIS REVERSES A STATED DESIGN CHOICE, and it should be read as a reversal
+# rather than an addition. The comment on the day bucket says of the sequence
+# aggregates: "A hundred visitors going / -> /products -> /contact is one
+# counter of 100 on each edge, NOT a hundred stored journeys: it reconstructs a
+# flow without retaining anybody's path." That was a deliberate and defensible
+# position and it is being changed on purpose.
+#
+# WHY. Aggregates can be recomputed from retained logs whenever the analysis
+# improves - that is what SM338's basis stamp manages. ORDER cannot. Once the
+# event ring rolls, "this visitor read pricing, then case studies, then left
+# from contact" is unreconstructable from any rollup, for ever.
+#
+# And the ring is smaller than it looks, in the wrong direction: retention is a
+# function of VOLUME, not time. Measured on edge at 8 events/hour it spans 26
+# days; at 200/hour about 24 hours; at 1000/hour about 5 hours. So the busiest
+# sites - the ones with real visitors - keep the LEAST history, and anyone
+# judging the window from a quiet instance concludes it is generous.
+#
+# WHY NOW rather than at beta: beta is when sites get real visitors. Recording
+# that starts at beta means the launch month - the period an operator most wants
+# to understand - is the month with no sequence data.
+#
+# WHAT KEEPS THIS INSIDE THE NO-TRACKER COMMITMENT: the visitor token is already
+# computed, already keyed to a rotating daily salt, and retains nothing
+# identifying. What is new is the ORDER, which is the most person-adjacent thing
+# the platform holds even pseudonymously - so it is capped, and it EXPIRES.
+# A stated retention is easier to defend than an unstated one, and the deletion
+# ships with the recording rather than after it.
+
+sub _trails_dir { return "$DOCROOT/lazysite/stats/trails" }
+
+sub _trails_enabled {
+    my ($cfg) = @_;
+    my $v = $cfg->{trails};
+    return 1 unless defined $v && length $v;    # on by default
+    return ( lc $v eq 'off' || lc $v eq 'false' || $v eq '0' ) ? 0 : 1;
+}
+
+sub _trail_retention_days {
+    my ($cfg) = @_;
+    my $d = ( $cfg->{trails_retention_days} || $TRAIL_RETENTION_DEFAULT ) + 0;
+    $d = $TRAIL_RETENTION_DEFAULT if $d < 1;
+    return $d;
+}
+
+# Hold a completed visit in the cache. Written to its day file at the end of the
+# run, so a visit is one record rather than one append per step.
+sub _trail_record {
+    my ( $cache, $s ) = @_;
+    return unless ref $s eq 'HASH' && $s->{day};
+    my $steps = $s->{steps} || [];
+    return unless @$steps;
+
+    my $day = $cache->{trails}{ $s->{day} } ||= [];
+    return if @$day >= $TRAIL_VISITOR_CAP;
+
+    # The gap belongs to the step being LEFT, which is what separates reading
+    # from scanning - and is what distinguishes a person from an agent when the
+    # user-agent does not.
+    my @out;
+    for my $i ( 0 .. $#$steps ) {
+        my $gap
+            = $i < $#$steps
+            ? ( $steps->[ $i + 1 ]{t} - $steps->[$i]{t} )
+            : undef;
+        push @out,
+            {
+            p => $steps->[$i]{p},
+            c => $steps->[$i]{c},
+            ( defined $gap ? ( gap => $gap ) : () ),
+            };
+    }
+
+    # Distinct pages, so a reload is not another page. Built with a plain loop
+    # rather than a map into an anonymous hash, which the critic profile reads
+    # as a map in void context.
+    my %distinct;
+    $distinct{ $_->{p} } = 1 for @$steps;
+
+    push @$day, {
+        entry => $s->{first},
+        exit  => $s->{last},
+        depth => scalar( keys %distinct ),
+        steps => \@out,
+    };
+    return;
+}
+
+# Write the collected trails to their day files, and expire old ones.
+#
+# THE DELETION SHIPS WITH THE RECORDING. A retention that arrives later is a
+# retention nobody has, and this is the most person-adjacent data the platform
+# holds - capped, pseudonymous, and now finite.
+sub _trails_flush {
+    my ( $cache, $cfg ) = @_;
+    my $dir = _trails_dir();
+
+    my $keep = _trail_retention_days($cfg);
+
+    # EXPIRY RUNS FIRST, AND UNCONDITIONALLY. It used to sit at the end, below
+    # the "nothing new to write" return - so a site whose traffic stopped, or
+    # one that switched trails off, kept everything it had ever recorded for
+    # ever. A retention that only runs when there is fresh data to write is not
+    # a retention. Today's file is never past the cutoff, so expiring before
+    # writing is safe.
+    _trails_expire( $dir, $keep );
+
+    unless ( _trails_enabled($cfg) ) {
+        delete $cache->{trails};
+        return;
+    }
+    return unless ref $cache->{trails} eq 'HASH' && keys %{ $cache->{trails} };
+
+    # Plain mkdir per level, as _ensure_dirs does: File::Path is not loaded
+    # here, and make_path inside an eval fails silently and takes the trails
+    # with it.
+    for my $d ( _stats_dir(), $dir ) { -d $d or mkdir $d }
+    return unless -d $dir;
+
+    for my $day ( sort keys %{ $cache->{trails} } ) {
+        my $rows = $cache->{trails}{$day} or next;
+        next unless @$rows;
+        my $f = "$dir/$day.json";
+
+        # Append to the day rather than replace it: an export runs many times a
+        # day and each sees only the visits that closed since the last one.
+        my $existing = [];
+        if ( open my $rh, '<', $f ) {
+            local $/;
+            my $doc = eval { JSON::PP::decode_json( <$rh> // '{}' ) };
+            close $rh;
+            $existing = $doc->{trails} if ref $doc eq 'HASH' && ref $doc->{trails} eq 'ARRAY';
+        }
+        my @all = ( @{ $existing || [] }, @$rows );
+        @all = @all[ 0 .. $TRAIL_VISITOR_CAP - 1 ] if @all > $TRAIL_VISITOR_CAP;
+
+        my $tmp = "$f.$$";
+        if ( open my $wh, '>', $tmp ) {
+            print {$wh} JSON::PP->new->canonical->encode( {
+                    date           => $day,
+                    retention_days => $keep,
+                    trails         => \@all,
+            } );
+            close $wh;
+            rename $tmp, $f or unlink $tmp;
+        }
+    }
+    delete $cache->{trails};
+    return;
+}
+
+# EXPIRE. By filename, which is the day the file describes - no stat, no clock
+# skew, and a file whose name is not a date is left alone rather than guessed
+# at. Separate from the write so it can run on every export, including the ones
+# with nothing to write.
+sub _trails_expire {
+    my ( $dir, $keep ) = @_;
+    return unless -d $dir;
+    my $cutoff = _day_str( time() - $keep * 86_400 );
+    if ( opendir my $dh, $dir ) {
+        for my $e ( readdir $dh ) {
+            next unless $e =~ /\A(\d{4}-\d{2}-\d{2})\.json\z/;
+            unlink "$dir/$e" if $1 lt $cutoff;
+        }
+        closedir $dh;
+    }
     return;
 }
 
@@ -1794,6 +1987,7 @@ sub _close_session {
 
     $b->{sessions}++;
     $b->{depth}{ _depth_bucket( $s->{n} ) }++;
+    _trail_record( $cache, $s );    # SM393
 
     # Entry and exit. The exit page is the one a content owner can act on: it
     # names where the argument fails.
@@ -2079,6 +2273,13 @@ sub cmd_recount {
     # them fresh rather than treating them as already present.
     for my $d (@days) {
         my $path = _daily_dir() . "/$d.json";
+        unlink $path if -f $path;
+    }
+    # SM393: and the trail files, for the same reason and a sharper one - a
+    # trail file is APPENDED to, not summed, so a recount that left them in
+    # place would write every visit in the window a second time.
+    for my $d (@days) {
+        my $path = _trails_dir() . "/$d.json";
         unlink $path if -f $path;
     }
     # The months those days belong to must be rebuilt too, or a month keeps a
@@ -2383,6 +2584,8 @@ sub _export_assemble {
     # every call - which is the write amplification the write-once rule existed
     # to avoid, reintroduced by the fix for it.
     _persist_durable( $cache, $cfg ); # SM213: mirror the day-buckets to the durable store
+    _trails_flush( $cache, $cfg );    # SM393: this is the path --export takes,
+                                      # so a trail recorded here is written here
     _save_export_cache($cache);
 
     # --- assemble the window view from the day-buckets ---

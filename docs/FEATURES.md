@@ -965,11 +965,27 @@ a token that probes a non-existent path is marked a `scanner` and its whole sess
 the probe; 404s split into plausible missing pages (kept by path) vs a junk
 scanner-chorus count.
 
+**Visitor trails** (SM393): the aggregates above answer *how many* took each step
+but cannot answer *in what order* - and order is the one fact that cannot be
+recomputed later, because once the bounded event ring rolls it is gone for good.
+So the ordered sequence is now recorded per visit, per day, in its own files under
+`lazysite/stats/trails/YYYY-MM-DD.json`: entry page, exit page, distinct-page
+depth, the per-step gap (the dwell on the page being left), and the visitor class
+as it was at the time. **This reverses an earlier deliberate design choice** and is
+documented as a reversal, not an addition - the sequence aggregates were built
+precisely so a flow could be reconstructed without retaining anybody's path.
+The limits ship with the recording rather than after it: 40 steps per visitor, 2000
+visitors per day, a stated retention (`trails_retention_days`, default 30) enforced
+on **every** export including the ones with nothing new to write, and `trails: off`
+to disable. Crawlers never open a visit and so leave no trail at all.
+
 **Privacy commitment.** lazysite **installs no trackers**: no analytics
 JavaScript, no beacons, no analytics cookies, no fingerprinting, no third-party
 requests. Analytics are derived only from data the server already receives while
-serving a page, aggregated and IP-anonymised at write. The durable day files hold
-**aggregates only, never per-visitor records**, and visitor keys are daily-salted
+serving a page, aggregated and IP-anonymised at write. The durable **day** files
+hold aggregates only; the separate **trail** files above are the one per-visit
+record the platform keeps, and they are pseudonymous, capped and expiring by
+default rather than as an option. Visitor keys are daily-salted
 so they cannot become long-term identifiers (returning-visitor signal exists only
 within a salt period - the accepted cost). The scope of the assurance is precise:
 lazysite ships nothing that instruments a visitor; a site owner remains free to add
