@@ -19,6 +19,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
+use POSIX      qw(strftime);
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
@@ -143,7 +144,23 @@ subtest 'the snapshot an apply names restores the pre-apply site' => sub {
 # takes a safety snapshot before restoring, so rolling an apply back promptly
 # destroyed the very artefact being restored FROM, then "restored" the state the
 # operator was trying to undo.
-subtest 'backups taken in the same second do not overwrite each other' => sub {
+# SM406: THIS SUBTEST DID NOT FORCE THE RACE IT IS NAMED AFTER.
+#
+# It took two backups back to back and asserted the second carried a `-N`
+# disambiguator - which is only true if both landed in the SAME second. Each
+# call tars a fixture tree, so on a loaded machine the pair straddles a second
+# boundary, the second backup gets a fresh stamp, and `_claim_name` correctly
+# returns it WITHOUT a suffix. The engine is right and the assertion fails.
+#
+# It passed 25 of 25 on an idle host and failed the 0.10.16 release gate, which
+# is the one run where the machine is guaranteed to be busy. A test that only
+# fails when the machine is loaded is worse than one that always fails: it looks
+# like flakiness, and the reflex is to re-run rather than to read it.
+#
+# So the collision is now CONSTRUCTED rather than hoped for. The two halves are
+# separated because they need different things: name uniqueness holds however
+# the clock falls, and the suffix needs a real collision.
+subtest 'two backups never overwrite each other' => sub {
     my $d = fixture();
     my $a = Lazysite::Manager::Backups::action_backup_create('manual');
     my $b = Lazysite::Manager::Backups::action_backup_create('manual');
@@ -155,13 +172,38 @@ subtest 'backups taken in the same second do not overwrite each other' => sub {
     ok( -f "$d/lazysite/backups/$a->{name}", 'the first still exists' );
     ok( -f "$d/lazysite/backups/$b->{name}", 'and so does the second' );
 
-    # The disambiguator keeps lexical order stable, so listings and retention
-    # sweeps still see them in the order they were taken.
-    like( $b->{name}, qr/-\d+\.tar\.gz\z/, 'the later one carries the suffix' );
-
     # Their digests must describe their own bytes, not a shared sidecar.
     ok( -f "$d/lazysite/backups/$a->{name}.sha256", 'the first has its sidecar' );
     ok( -f "$d/lazysite/backups/$b->{name}.sha256", 'and the second has its own' );
+};
+
+subtest 'a backup colliding with an existing stamp takes the next suffix' => sub {
+    my $d   = fixture();
+    my $dir = "$d/lazysite/backups";
+    make_path($dir) unless -d $dir;
+
+    # Occupy the name THIS second would produce, so the collision is a fact of
+    # the fixture rather than an accident of timing. The retry covers the one
+    # case that remains: the clock ticking between our stamp and the claim.
+    my ( $name, $stamp );
+    for ( 1 .. 5 ) {
+        $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
+        my $taken = "$dir/lazysite-manual-$stamp.tar.gz";
+        open my $fh, '>', $taken or die $!;
+        close $fh;
+        my $r = Lazysite::Manager::Backups::action_backup_create('manual');
+        ok( $r->{ok}, 'the backup succeeded despite the name being taken' );
+        $name = $r->{name};
+        last if $name =~ /\A\Qlazysite-manual-$stamp\E-\d+\.tar\.gz\z/;
+        unlink $taken;
+    }
+
+    # The disambiguator keeps lexical order stable, so listings and retention
+    # sweeps still see them in the order they were taken.
+    like( $name, qr/\A\Qlazysite-manual-$stamp\E-2\.tar\.gz\z/,
+        'it takes the next free suffix rather than overwriting' );
+    ok( -f "$dir/$name",        'and the file is really there' );
+    ok( -f "$dir/$name.sha256", 'with its own sidecar' );
 };
 
 # SM268 03-F10: call the verifier through can(), so a tree WITHOUT it fails these
@@ -317,7 +359,7 @@ subtest 'inspect answers what an apply would do to a named target' => sub {
     # Without a target, inspect is unchanged - a manifest and nothing more. The
     # dry run must be opt-in, or every existing caller pays for a tree walk.
     my $plain = package_inspect($pkg);
-    ok( $plain->{ok}, 'inspect still works with no target' );
+    ok( $plain->{ok},       'inspect still works with no target' );
     ok( !$plain->{compare}, 'and reports no comparison unless one is asked for' );
 
     # sites/target already holds index.md, and the package carries one, so the

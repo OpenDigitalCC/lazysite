@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM406 (PENDING) **a subtest named for a race it never forced.** The 0.10.16
+  edge cut FAILED its gate in `t/unit/manager/60`, subtest 5, and `release.sh`
+  correctly refused to release - nothing tagged, nothing built. That subtest,
+  *"backups taken in the same second"*, took two backups back to back and hoped
+  they landed in the same second: `_claim_name` stamps from `gmtime` at call
+  time and each call tars a fixture tree, so a pair straddling a second boundary
+  gets a fresh stamp, no `-N` suffix, and a correct engine fails the assertion.
+  It never ESTABLISHED the condition its own name describes - the same class as
+  a fixture whose non-ASCII string was secretly ASCII. The collision is now
+  constructed: the subtest occupies the filename this second would produce, then
+  asserts the next free suffix is claimed, with a bounded retry for the clock
+  ticking mid-claim. The two properties are separated because they need
+  different setup - names never collide however the clock falls; the suffix
+  needs a real collision.
+  **The cause of the gate failure is NOT established, and this entry does not
+  claim it.** A full serial re-run, exactly as `release.sh` invokes it, PASSED
+  against the unmodified test, so the failure is intermittent and seen once. The
+  diagnostics were lost because the release was piped through `tail -40` - my
+  error on a 70-minute run, and the process fix (capture to a file, tail the
+  file) matters more than the test fix.
+
 - SM404 (PENDING) **three writers renamed a torn file over a good one.**
   `_write_json_atomic` was atomic in the rename and not in the write: it checked
   neither the print nor the close, so a write that ran out of space produced a
