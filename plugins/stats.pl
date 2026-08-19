@@ -42,6 +42,10 @@ while (@ARGV) {
     elsif ( $a eq '--action' )      { $arg{action}      = shift @ARGV }    # SM399
     elsif ( $a eq '--choice' )      { $arg{choice}      = shift @ARGV }    # SM399
     elsif ( $a eq '--docroot' )     { $arg{docroot}     = shift @ARGV }
+    elsif ( $a eq '--classify' )    { $arg{classify}    = 1 }              # SM392
+    elsif ( $a eq '--ua' )          { $arg{ua}          = shift @ARGV }    # SM392
+    elsif ( $a eq '--path' )        { $arg{path}        = shift @ARGV }    # SM392
+    elsif ( $a eq '--status' )      { $arg{status}      = shift @ARGV }    # SM392
 }
 my $DOCROOT = $arg{docroot} || $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
 
@@ -635,6 +639,44 @@ if ( $arg{recount} ) {
 # docroot would be worse than none.
 _compile_rules();
 
+# SM392: ASK THE CLASSIFIER DIRECTLY. Testing the ai class from outside needs
+# a clean visitor token, and an agent that has done ANY probing cannot get one
+# until its token rolls at UTC midnight - the partner agent doing the field
+# validation measured that as one clean run per day. This answers the question
+# without generating traffic: the same classify(), the same compiled rules, the
+# same operator overrides from stats.conf, no log line written.
+#
+# LINE-LEVEL ONLY, and the output says so: `scanner` is a visitor-level
+# promotion computed over a day of traffic (SM213/SM332) and cannot be answered
+# for one line - a tool that pretended otherwise would be the SM377 class,
+# reporting a verdict it never computed.
+if ( $arg{classify} ) {
+    my $path = $arg{path} // '';
+    unless ( length $path ) {
+        print encode_json( { ok => 0,
+                error => 'usage: --classify --path PATH [--ua UA] [--status N] --docroot DIR' } );
+        exit 0;
+    }
+    my $ua     = $arg{ua} // '';
+    my $status = ( defined $arg{status} && $arg{status} =~ /\A\d{3}\z/ )
+        ? 0 + $arg{status} : undef;
+    my $cfg   = read_conf();
+    my $class = classify( $path, $ua,
+        _split_csv( $cfg->{ai_user_agents} ),
+        _split_csv( $cfg->{noise_paths} ), $status );
+    print encode_json( {
+            ok     => 1,
+            class  => $class,
+            device => _device_class($ua),
+            path   => $path,
+            ua     => $ua,
+            ( defined $status ? ( status => $status ) : () ),
+            note => 'line-level verdict: scanner is a visitor-level promotion '
+                . 'computed over a day of traffic and cannot be answered for one line',
+    } );
+    exit 0;
+}
+
 if ( $arg{export} ) {
     # SM213: --export always ingests + refreshes the durable per-day store, then
     # returns either the window view (default) or a specific durable slice:
@@ -672,7 +714,7 @@ if ( defined $arg{action} ) {
     exit 0;
 }
 
-print encode_json( { ok => 0, error => 'usage: --describe | --scan --docroot DIR | --resolve-log --docroot DIR' } );
+print encode_json( { ok => 0, error => 'usage: --describe | --scan --docroot DIR | --resolve-log --docroot DIR | --classify --path PATH [--ua UA] [--status N] --docroot DIR' } );
 exit 0;
 
 sub read_conf {

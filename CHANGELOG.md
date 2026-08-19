@@ -127,6 +127,21 @@ Naming the commit: AFTER it lands, never before
   shared cache file every later visitor receives (the cache-poisoning shape,
   not an SEO nit). Sabotage-verified against the pre-SM371 state: with the
   sanitiser call removed from serve_402, the subtest fails.
+- SM392 follow-through (PENDING) **the classifier is askable.** Testing the
+  `ai` class from outside needs a clean visitor token, and an agent that has
+  done ANY probing cannot get one until its token rolls at UTC midnight - the
+  partner agent doing the field validation measured that as one clean run per
+  day, and it invalidated an eleven-agent classification test. `--classify
+  --path PATH [--ua UA] [--status N] --docroot DIR` answers from the same
+  classify(), the same compiled rules and the same stats.conf overrides,
+  writing no log line and NO STATE - the test drives that with a recursive
+  before/after listing on a fresh docroot, after its first version snapshotted
+  a fixture other subtests had already polluted and a write-on-every-call
+  sabotage passed. Line-level only, and the output says so: `scanner` is a
+  visitor-level promotion computed over a day of traffic, and a tool implying
+  a verdict it never computed would be the SM377 class. The status-gated SM192
+  rule (SPA-manifest probe is noise only on 404) is asserted in both
+  directions, and operator overrides are proven honoured by sabotage.
 
 - SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**
