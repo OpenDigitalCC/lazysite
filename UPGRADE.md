@@ -1,6 +1,83 @@
 # Upgrade notes
 
-## Upgrading to 0.10.10 from 0.10.0, 0.10.8 or 0.10.9 (READ THIS ONE)
+## Upgrading to 0.10.15 from 0.10.10-0.10.14 (READ THIS ONE)
+
+The package upgrade does the code. **Four things it cannot do**, and the
+order matters.
+
+### 1. Re-apply access rules, AFTER the upgrade
+
+From 0.10.8 protecting content MOVES it out of the served tree - but
+only on the act of protecting. Any section protected on an earlier
+version still has its files in the document root, with the rule honoured
+for pages and the files public.
+
+```bash
+lazysite acl reapply --docroot <docroot>
+```
+
+After the upgrade, never before: it re-issues stored rules through the
+new code. It changes no rule. `NOT MOVED: <path>` in the output means
+the rule was stored and nothing moved, which is the condition it exists
+to find.
+
+### 2. The proxy template, which a package cannot deliver
+
+`lazysite-proxy` is a Hestia template. **A package upgrade does not
+install or update one**, and 0.10.15 corrects a defect in it (SM374)
+that returns **421 on every request** to a TLS domain.
+
+::: widebox
+**While the host's copy is stale the failure is identical to the bug.**
+An operator who applies the fix, sees 421, and concludes the fix does
+not work has been misled by their own template directory. Confirm the
+copy on the host is the new one before drawing any conclusion from a
+421.
+:::
+
+```bash
+v-change-web-domain-proxy-tpl <user> <domain> lazysite-proxy
+```
+
+Test on the **body**, not the status: without a correct `Host` the
+backend serves its default vhost with a 200, so a status check cannot
+say which site answered.
+
+### 3. The private store, if it does not exist yet
+
+Creating it is a root action. `lazysite-check` reports whether the
+engine can write to it; if the store is missing on a site that protects
+anything, create it before re-applying rules.
+
+### 4. Verify from outside, as the site user
+
+```bash
+lazysite check --check-acl https://<domain>
+```
+
+**Not as root.** The probe protects a fixture to measure it, and doing
+that as root would leave root-owned files in the site tree - so it
+declines and says so (SM377). The reason it gives is the one to act on;
+the summary no longer overwrites it with a guess (SM385).
+
+### What changed that you will see
+
+- **A Content-Security-Policy now ships**, `report-only` by default.
+  `csp: enforce | report-only | off` in `lazysite.conf`. **Do not set
+  `enforce` yet** - the manager's controls use inline handlers a CSP
+  hash cannot cover, so the manager is held at report-only regardless
+  until they are converted.
+- **Engine-served statics revalidate** rather than caching for a decade
+  (SM387), and now carry an ETag so revalidation costs a 304 rather than
+  a re-download (SM388). The ten-year cache was a property of the
+  front-end fast path, not of lazysite.
+- **402 and 403 pages** carry the full header set and resolve their own
+  domain's content root - on a multi-domain instance they were rendering
+  into the primary's docroot.
+- **A backup of a live site no longer fails** because a visitor arrived
+  mid-snapshot (SM381).
+
+## Upgrading to 0.10.10 from 0.10.0, 0.10.8 or 0.10.9
 
 The fleet spans **0.10.0** (stable) and the edge line, and every one of them
 needs the same operator action after upgrading. It is not delivered by the

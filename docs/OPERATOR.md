@@ -41,13 +41,44 @@ sudo bash installers/hestia/lazysite-hestia-update-all.sh          # fleet code+
 Upgrades preserve edited content (the seed/conffile model) and skip unwritable
 files non-fatally.
 
-**Update channel.** Each site has an `update_channel` (`edge` default, or
-`stable`); a `stable` site skips out-of-channel (edge) builds. Set or move it
-without hand-editing the conf, and loop over docroots for a whole fleet:
+**Update channel.** Each site has an `update_channel`, and it names the
+**minimum maturity the site will accept**. The ladder is
+`edge` < `beta` < `stable`:
+
+```datatable
+columns: Setting | Accepts
+widths: 3.0cm | X
+bold: 1
+tone: medium
+---
+`edge` | every release, including pre-release builds
+`beta` | beta and stable builds; skips edge
+`stable` | stable builds only
+---
+```
+
+::: widebox
+**The default is `stable`, not `edge`** - and this paragraph said the
+opposite until 2026-08-19. SM356 changed it: the default used to fail
+OPEN, accepting every build when the conf could not be read, when the
+line was missing, and when the value was unrecognised - so
+`update_channel: stabel` silently meant *the most permissive setting
+available*. It now falls to the most restrictive rung, and an
+unrecognised value is reported rather than quietly corrected.
+
+The consequence for a rollout: **a site with no `update_channel` line
+refuses a beta or edge build.** Before assuming a pre-release reaches
+the fleet, check what each site actually accepts rather than what the
+default used to be.
+:::
+
+Set or move it without hand-editing the conf, and loop over docroots for
+a whole fleet:
 
 ```bash
-install.pl --channel stable --docroot <docroot>   # pin to stable (customer rollout)
-install.pl --channel edge   --docroot <docroot>   # back to edge
+install.pl --channel stable --docroot <docroot>   # customer rollout
+install.pl --channel beta   --docroot <docroot>   # bedded-in candidate
+install.pl --channel edge   --docroot <docroot>   # every build
 ```
 
 Force one specific out-of-channel upgrade through the policy with `--force`

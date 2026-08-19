@@ -123,6 +123,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- Operator docs (PENDING) **the upgrade notes stopped at 0.10.10, and the
+  channel default was documented backwards.** `UPGRADE.md` gains a 0.10.15
+  section carrying the four things a package cannot do - re-apply access rules
+  AFTER the upgrade, the proxy template (where **a stale copy fails identically
+  to the bug**), the root-created private store, and outside-in verification as
+  the site user rather than root. And `OPERATOR.md` said the `update_channel`
+  default was `edge`: SM356 made it **stable**, so a site with no
+  `update_channel` line REFUSES a beta or edge build. Anyone sizing a
+  pre-release rollout from that paragraph would have overestimated its reach.
+  The beta rung is documented for the first time.
 - SM388 (PENDING) **a comment claiming a capability that did not exist, and a
   skip that fired when it was most needed.** `lazysite-front.pl` justified not
   reimplementing the static path on the grounds that the engine "already gets
