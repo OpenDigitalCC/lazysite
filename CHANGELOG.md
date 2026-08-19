@@ -150,6 +150,27 @@ Naming the commit: AFTER it lands, never before
   broken every backup on the platform this ships to - in the code whose whole
   job is making things recoverable.
 
+## Unreleased
+
+- SM352 follow-up (PENDING) **the CSP test that step 5 left failing, and the
+  routing check that replaces what SM377 cost us.** Step 5 landed with
+  `t/integration/44` red: it asserted "no enforcing CSP, because the engine would
+  violate it", which was correct until the engine stopped inlining. **It was
+  missed because that branch was gated on `t/lint` and `t/unit` only** - the
+  argument for running the whole suite before a landing rather than the suites
+  that look relevant. And SM377's fix cost the ACL probe its ability to see a
+  bypassing front end, because protecting properly leaves nothing for one to
+  serve. A different question answers it with no protected content at all: since
+  SM352 every response the engine writes carries its header set, so their ABSENCE
+  on a static is the signature of something else having answered it. Two GETs,
+  no ACL, no fixtures. **The page request is load-bearing** - without it "no
+  headers on a static" cannot be told from an engine setting no headers anywhere,
+  and `t/integration/59` includes a plain static server precisely so that
+  deleting the control fails a test. It reports ROUTING, not access: protected
+  content has left the served tree, so what such a front end serves is public and
+  served correctly, and overstating that is how the original probe misled an
+  operator.
+
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 
 **Anyone running 0.10.13 or earlier on a migrated site should take this one.**

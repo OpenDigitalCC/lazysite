@@ -135,12 +135,33 @@ subtest 'Permissions-Policy denies what the platform never uses' => sub {
         'while the capabilities a page might legitimately want are untouched' );
 };
 
-subtest 'and no enforcing CSP, because the engine would violate it' => sub {
-    # t/lint/56 holds the inventory - ten across the engine, eight of them in the processor.
-    # Emitting a policy the engine breaks on every page would be a security
-    # header that says something the response does not do.
+subtest 'and an enforcing CSP, now that the engine stopped inlining' => sub {
+    # THIS SUBTEST USED TO ASSERT THE OPPOSITE, and was right to: while the
+    # engine inlined ten script and style blocks of its own, emitting a policy
+    # it broke on every page would have been a security header saying something
+    # the response does not do.
+    #
+    # SM352 steps 1-5 removed the engine's own inlining and hashed what remains,
+    # so the policy is now honest. The fact changed; the assertion changes with
+    # it.
+    #
+    # IT WAS ALSO MISSED WHEN STEP 5 LANDED. That branch was gated on t/lint and
+    # t/unit only, so this integration file never ran and main went red - which
+    # is the argument for the full suite before a landing rather than the suites
+    # that seem relevant.
     my $out = run_processor( $docroot, '/' );
-    unlike( $out, qr/^Content-Security-Policy:/mi, 'absent, deliberately' );
+    like( $out, qr/^Content-Security-Policy:/mi,
+        'present on an HTML response' );
+    unlike( $out, qr/^Content-Security-Policy-Report-Only:/mi,
+        'and enforcing, not report-only - a report-only header with nowhere '
+            . 'to report is inert' );
+
+    my ($csp) = $out =~ /^Content-Security-Policy:\s*(.+?)\s*$/mi;
+    unlike( $csp, qr/script-src[^;]*'unsafe-inline'/,
+        'script-src does not permit inline wholesale' )
+        or diag( 'Inline script is covered by HASHING what the response '
+            . 'actually contains. unsafe-inline would permit an injection '
+            . 'exactly as readily as a layout.' );
 };
 
 done_testing();

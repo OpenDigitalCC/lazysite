@@ -984,6 +984,9 @@ sub run_checks {
     # --- 8b. does the front end actually respect the ACL? (SM285) ---------------
     run_acl_probe( $opt{check_acl} ) if defined $opt{check_acl};
 
+    # --- 8b2. does the engine see static requests at all? (SM377 follow-up) -----
+    report_engine_sees_statics( $opt{check_acl} ) if defined $opt{check_acl};
+
     # --- 8c. who an @group ACL entry now admits (SM288) -------------------------
     report_group_acl_reach();
 
@@ -2164,6 +2167,153 @@ sub _probe_unprotect {
         Lazysite::Manager::Files::action_acl_remove( "/$name/", 'local' );
         1;
     } ? 1 : 0;
+}
+
+# SM377 FOLLOW-UP: detect a bypassing front end WITHOUT any protected content.
+#
+# Fixing SM377 cost the probe this. It now protects the way the engine does,
+# which MOVES content out of the document root - so a front end answering
+# statics on its own has nothing left to serve and looks identical to one
+# routing correctly. The detection was lost precisely because the probe got
+# honest.
+#
+# THE ENGINE'S OWN HEADERS ANSWER IT DIRECTLY. Since SM352 every response the
+# engine writes carries the security header set, so their ABSENCE on a static is
+# the signature of something else having answered it. No ACL, no fixture files,
+# no credentials, nothing to clean up - two GETs.
+#
+# THE PAGE REQUEST IS LOAD-BEARING and is the first thing a later reader will
+# delete as redundant. Without it, "no headers on a static" is ambiguous between
+# a bypassing front end and an engine setting no headers anywhere. The page
+# establishes that this instance does set them, so the static's silence means
+# something. Same shape as the pre-protection fetch in the gating fixture: the
+# step that exists to create the confusable case looks like waste until it is
+# gone.
+#
+# NOT HSTS, AND NOT CSP, though a field measurement used HSTS. HSTS is emitted
+# only over TLS and CSP only on HTML, so either would report a bypass on a
+# plain-HTTP instance or against any static at all. The unconditional markers
+# are the ones to compare.
+#
+# WHAT THIS DOES NOT SAY, stated because the last probe's inference is what went
+# wrong: it does NOT mean content is exposed. Protected content has left the
+# served tree (SM286), so a front end answering statics is answering public
+# files, correctly. This is the PRECONDITION for SM283-shaped exposure, and a
+# fact about ROUTING rather than about access control.
+sub report_engine_sees_statics {
+    my ($url) = @_;
+    return unless defined $url && $url =~ m{^https?://\S+$};
+    $url =~ s{/+$}{};
+
+    my @markers = ( 'x-content-type-options', 'permissions-policy' );
+
+    my ( $pcode, $phead ) = _probe_head("$url/");
+    unless ( ( $pcode // '' ) =~ /^[23]/ ) {
+        report( 'WARN', 'ROUTING CHECK SKIPPED: the site root did not answer' );
+        return;
+    }
+    my $page_has = scalar grep { $phead =~ /^\Q$_\E:/mi } @markers;
+
+    unless ( $page_has == @markers ) {
+        # The engine is not setting them anywhere, so a static's silence would
+        # mean nothing. A different fault, and not this check's to diagnose.
+        report( 'WARN',
+            'ROUTING CHECK SKIPPED: the engine is not setting its response '
+                . 'headers on a page either, so a static cannot be compared '
+                . 'against it - check the installed release first' );
+        return;
+    }
+
+    my $asset = _probe_static_url($url);
+    unless ( defined $asset ) {
+        report( 'WARN',
+            'ROUTING CHECK SKIPPED: no static asset found to compare against' );
+        return;
+    }
+
+    my ( $scode, $shead ) = _probe_head($asset);
+    unless ( ( $scode // '' ) =~ /^2/ ) {
+        report( 'WARN',
+            'ROUTING CHECK SKIPPED: the static asset did not answer' );
+        return;
+    }
+    my $static_has = scalar grep { $shead =~ /^\Q$_\E:/mi } @markers;
+
+    if ($static_has) {
+        report( 'OK',
+            'the engine answers static requests: a page and a static asset '
+                . 'both carry its response headers, so nothing is intercepting '
+                . 'statics ahead of it' );
+        return;
+    }
+
+    # A fact about ROUTING. Deliberately says nothing about access control:
+    # protected content has left the served tree, so what this front end is
+    # answering is public files, correctly.
+    report( 'WARN',
+        'static requests are answered WITHOUT the engine: a page carries the '
+            . 'engine response headers and a static asset carries none, so '
+            . 'something in front is serving statics directly',
+        'not an exposure on its own - protected content has been moved out of '
+            . 'the served tree, so what is being served is public. It is the '
+            . 'precondition for the SM283 family, and it means engine security '
+            . 'headers, ACL decisions and cache behaviour do not apply to '
+            . 'statics. The lazysite-proxy template routes them back.' );
+    return;
+}
+
+# A HEAD request, returning ( status, headers ). Separate from _probe_get
+# because this compares HEADERS and has no interest in bodies - and a HEAD
+# cannot be answered from a body cache in a way that hides the difference.
+sub _probe_head {
+    my ($u) = @_;
+    my @cmd = (
+        'curl', '-sSI',                    '-k', '--max-time', '8',
+        '-H',   'Cache-Control: no-cache', '-H', 'Pragma: no-cache',
+        '-w',   "\n%{http_code}",          $u,
+    );
+    open my $ph, '-|', @cmd or return ( '', '' );
+    my $out = do { local $/; <$ph> };
+    close $ph;
+    return ( '', '' ) unless defined $out;
+    my $code = '';
+    if ( $out =~ s/\n(\d{3})\s*\z// ) { $code = $1 }
+    return ( $code, $out );
+}
+
+# A static asset this site actually serves, found from the docroot rather than
+# guessed - a guessed path that 404s would be indistinguishable from a bypass.
+sub _probe_static_url {
+    my ($url) = @_;
+    my $d = $opt{docroot};
+    for my $dir ( "$d/lazysite-assets", "$d/assets", $d ) {
+        next unless -d $dir;
+        my @found;
+        _collect_statics( $dir, \@found, 0 );
+        next unless @found;
+        my $rel = $found[0];
+        $rel =~ s{\A\Q$d\E/}{};
+        return "$url/$rel";
+    }
+    return undef;
+}
+
+sub _collect_statics {
+    my ( $dir, $out, $depth ) = @_;
+    return if @$out || $depth > 3;
+    opendir my $dh, $dir or return;
+    my @entries = sort grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+    closedir $dh;
+    for my $e (@entries) {
+        my $p = "$dir/$e";
+        next if $e eq 'lazysite';    # the engine tree is never served
+        if    ( -d $p ) { _collect_statics( $p, $out, $depth + 1 ) }
+        elsif ( $e =~ /\.(?:css|js|png|jpg|jpeg|gif|svg|webp)\z/i ) {
+            push @$out, $p;
+        }
+        return if @$out;
+    }
+    return;
 }
 
 sub run_acl_probe {

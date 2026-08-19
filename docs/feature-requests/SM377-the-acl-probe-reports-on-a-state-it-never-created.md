@@ -192,6 +192,55 @@ is held outside the document root, with no public copy left beside it" -
 so the exposure question is answered; what is unanswered is whether the
 front end *would* serve such a copy if one appeared.
 
+# The replacement detection, and it needs no protected content
+
+The open item above is closed by a different question: **does the engine
+see static requests at all?**
+
+Since SM352 every response the engine writes carries the security header
+set, so their **absence on a static** is the signature of something else
+having answered it. Two GETs, no ACL, no fixture files, no credentials,
+nothing to clean up.
+
+```datatable
+columns: Page | Static | What it means
+widths: 2.2cm | 2.2cm | X
+bold: 1
+tone: medium
+---
+headers | headers | The engine answers statics. Nothing is intercepting them
+headers | **none** | **Something else answers statics.** The engine never sees those requests
+none | none | The engine is not setting headers at all - a different fault, and the check DECLINES rather than guessing
+---
+```
+
+::: widebox
+**The page request is load-bearing and is the first thing a later reader
+will delete as redundant.** Without it, "no headers on a static" is
+ambiguous between a bypassing front end and an engine setting no headers
+anywhere - and the check reports a false bypass. `t/integration/59`
+therefore includes a plain static server with no engine behind it at
+all, and removing the control makes that case fail. Same shape as the
+pre-protection fetch: the step that exists to create the confusable case
+looks like waste until it is gone.
+:::
+
+**Not HSTS, and not CSP**, though the field measurement used HSTS. HSTS
+is emitted only over TLS and CSP only on HTML, so either would report a
+bypass on a plain-HTTP instance or against any static at all. The
+unconditional markers - `X-Content-Type-Options` and
+`Permissions-Policy` - are the ones to compare.
+
+**It says nothing about access control**, and the reported line says so:
+protected content has left the served tree, so a front end answering
+statics is answering public files, correctly. This is the *precondition*
+for SM283-shaped exposure. Overstating it is precisely how the original
+probe misled an operator, and `t/integration/59` asserts that no
+exposure is claimed on the strength of it.
+
+Specified by the site agent from outside, measured on edge/0.10.14, and
+reproduced here against a real nginx.
+
 # Related
 
 [[SM368]] (the discriminator this inherits, and the same defect shape),
