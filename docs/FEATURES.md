@@ -1624,6 +1624,16 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.10.17** (2026-08-19, EDGE) - **The beta candidate, built from the field's
+  own findings.** The multi-domain site-package apply works: its safety snapshot
+  scopes to the target's content root instead of tarring the whole docroot
+  (SM412, field-diagnosed by the partner agent it blocked). The visitor
+  classifier is askable without generating traffic (`--classify`, SM392).
+  Session verification is one module with one chain (SM411), ready for the
+  surfaces that cannot sit behind the auth wrapper. Contract plugins are born
+  disabled and DISABLED MEANS OFF (SM409/ADR 0009); legacy plugins are
+  untouched. Plus the 402 fix proven against its field case, the publish-flow
+  trap named in the connector docs, and this timeline itself (SM407).
 - **0.10.16** (2026-08-19, EDGE) - **The build says which commit it validated.**
   A release's manifest now carries `validated: {commit, files, tests}` naming the
   exact gated commit, mirrored in a committed `docs/releases/GATE-LOG.md` row
@@ -1959,7 +1969,7 @@ Newest first; releases are git tags.
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.10.16 (the EDGE line's beta candidate era: the front end makes no content
+to v0.10.17 (the EDGE line's beta candidate era: the front end makes no content
 decisions, the security header set is enforced rather than claimed, the
 statistics say what they mean, and a build names the commit it validated). For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding

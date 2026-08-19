@@ -1,5 +1,18 @@
 # Upgrade notes
 
+## Upgrading to 0.10.17 from 0.10.16
+
+**No new operator action.** The multi-domain apply fix (SM412), the plugin
+enabled-gate (SM409 - gates only contract-declaring plugins, of which none
+ship yet), and the session-verification module move (SM411) all travel in the
+package with behaviour preserved for existing sites. New diagnostic worth
+knowing: `plugins/stats.pl --classify --path P [--ua UA] [--status N]
+--docroot D` answers the visitor classifier from the command line without
+touching the stats.
+
+**Coming from 0.10.14 or earlier: the 0.10.15 section's four manual steps
+remain your list.**
+
 ## Upgrading to 0.10.16 from 0.10.15
 
 **No new operator action.** Everything 0.10.16 changes travels in the

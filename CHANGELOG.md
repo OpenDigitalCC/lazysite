@@ -44,7 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM414, SM415 (PENDING, filings only) **two of the three interactive features
+## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
+
+Cut the same evening its contents landed, from an overnight round driven
+almost entirely by a partner agent's field passes: the multi-domain apply that
+refused (SM412), the classifier that could not be asked (SM392), the two
+features that silently require JavaScript (SM414/SM415, filed with decisions
+held), the publish-flow trap (set_permissions), and the quantified stale-render
+data (SM413). The landing was rehearsed before it happened - all ten branches
+merged in a scratch worktree with a full gate over the result - and the
+rehearsal caught four integration defects no per-branch test could see,
+recorded in their own entries. Gate: 467 files, 8,470 tests; the manifest's
+`validated` block names b03bece.
+
+
+- SM414, SM415 (1cac06b, filings only) **two of the three interactive features
   require JavaScript, and the third proves they need not.** From the site
   agent's beta-readiness field pass on 0.10.16. Search: a results page is
   byte-identical for a real query and a nonsense one - ?q= is never read
@@ -60,7 +74,7 @@ Naming the commit: AFTER it lands, never before
   its first assertion PASSED on the word "Authoring" in the navigation menu -
   an expectation-based body check passing on chrome while the feature did
   nothing; a differential comparison of the two bodies told the truth.
-- Docs (PENDING) **set_permissions names the publish flow.** A field agent set
+- Docs (36abb3f) **set_permissions names the publish flow.** A field agent set
   a read list on a draft section and it kept 404ing: the tool is a PARTIAL
   update - omitted fields keep their value - so granting access does not clear
   draft, and the API equivalent of the Publish button is `{"draft": false}`
@@ -71,7 +85,7 @@ Naming the commit: AFTER it lands, never before
   intent it was not given.
 
 - SM407, SM408 (c810e38, a9f7093; filings only) **three records stopped in the same
-- SM413 (PENDING, filing only) **the homepage reports a version three releases
+- SM413 (2880069, 0de5231; filing only) **the homepage reports a version three releases
   old.** On edge.explore, `/` reports 0.10.13 while every other page reports
   the current build, surviving releases and cache clears - counted by the site
   agent across three releases, cause not established. Possibly the same
@@ -81,7 +95,7 @@ Naming the commit: AFTER it lands, never before
   discriminate between suspects. Investigation owned by the release manager;
   the beta promotion record carries either its explanation or an explicit
   waiver citing this ref.
-- SM409 (PENDING) **disabled means off - for plugins that opt in.** The
+- SM409 (fc13d40) **disabled means off - for plugins that opt in.** The
   plugins: list used to drive only the Plugin Manager listing (its parse lived
   inline in action_plugin_list, consumed by nothing on any execution path), so
   an operator who disabled a plugin changed a page, not the site. Per the
@@ -97,7 +111,7 @@ Naming the commit: AFTER it lands, never before
   refused exactly that cleanup (caught during implementation). Driven by two
   real fixture plugins whose action writes a witness file, so ran/refused are
   facts on disk; three sabotages bite.
-- SM412 (PENDING) **the apply's safety snapshot scopes to the target.** On a
+- SM412 (7d9d67d) **the apply's safety snapshot scopes to the target.** On a
   multi-domain instance, site_apply to a content-rooted domain snapshotted the
   WHOLE docroot - including the primary domain's tree, which the calling
   account could not read and the apply would never touch - so the apply was
@@ -115,7 +129,7 @@ Naming the commit: AFTER it lands, never before
   which without validation succeeds and archives foreign content into a
   self-service-downloadable backup. The sabotage matrix caught it; the test
   forces that case and asserts the refusal comes from validation.
-- SM371 close-out (PENDING, test only) **the 402 fix stops shipping untested.**
+- SM371 close-out (6f1989b, test only) **the 402 fix stops shipping untested.**
   The 0.10.14 validation found `/402.html` carrying a visitor-supplied query
   string in its canonical, pointing at the payment-gated page the visitor had
   just been refused - and the changelog admitted the fix shipped untested,
@@ -127,7 +141,7 @@ Naming the commit: AFTER it lands, never before
   shared cache file every later visitor receives (the cache-poisoning shape,
   not an SEO nit). Sabotage-verified against the pre-SM371 state: with the
   sanitiser call removed from serve_402, the subtest fails.
-- SM392 follow-through (PENDING) **the classifier is askable.** Testing the
+- SM392 follow-through (070b29a) **the classifier is askable.** Testing the
   `ai` class from outside needs a clean visitor token, and an agent that has
   done ANY probing cannot get one until its token rolls at UTC midnight - the
   partner agent doing the field validation measured that as one clean run per
@@ -142,7 +156,7 @@ Naming the commit: AFTER it lands, never before
   a verdict it never computed would be the SM377 class. The status-gated SM192
   rule (SPA-manifest probe is noise only on 404) is asserted in both
   directions, and operator overrides are proven honoured by sabotage.
-- SM407 (PENDING, docs only) **the feature timeline catches up.** FEATURES.md's
+- SM407 (8e1ba22, docs only) **the feature timeline catches up.** FEATURES.md's
   Part XIII gains the seven missing release entries, 0.10.10 through 0.10.16 -
   the compliance gate had been warning `newest release entry is 0.10.9` since
   the 0.10.16 cut, and the content was current while the per-release framing
@@ -151,7 +165,7 @@ Naming the commit: AFTER it lands, never before
   LANDING ORDER: t/lint/62 and t/lint/63 are red on main because v0.10.16 is
   tagged while its changelog section and version bump sit on the post-release
   branch - land claude/0-10-16-post-release first and the tier goes green.
-- SM411 (PENDING) **one verification chain, in one module.** Session-cookie
+- SM411 (b03bece) **one verification chain, in one module.** Session-cookie
   verification moves from lazysite-auth.pl into Lazysite::Auth::Session
   (beside the CSRF tokens it shares a secret with), and the wrapper delegates.
   Extracted because SM410's audit found the data endpoint would repeat SM402's
