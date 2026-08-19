@@ -45,6 +45,18 @@ Naming the commit: AFTER it lands, never before
 ## Unreleased
 
 - SM407, SM408 (c810e38, a9f7093; filings only) **three records stopped in the same
+- SM413 (PENDING, filing only) **the homepage reports a version three releases
+  old.** On edge.explore, `/` reports 0.10.13 while every other page reports
+  the current build, surviving releases and cache clears - counted by the site
+  agent across three releases, cause not established. Possibly the same
+  mechanism as SM371's cache-clear-surviving canonical. Filed with the
+  assembled observations, a suspects list from the cache work's prior art
+  (marked as prior art, NOT evidence), and the three read-only questions that
+  discriminate between suspects. Investigation owned by the release manager;
+  the beta promotion record carries either its explanation or an explicit
+  waiver citing this ref.
+
+- SM407, SM408 (PENDING, filings only) **three records stopped in the same
   week.** Surfaced as advisories by the compliance gate during the 0.10.16 edge
   cut; none blocks a cut and none blocked this one. `FEATURES.md`'s newest
   release entry is 0.10.9 while 0.10.16 was being cut - the CONTENT is current
