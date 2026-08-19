@@ -1,5 +1,27 @@
 # Upgrade notes
 
+## Upgrading to 0.10.16 from 0.10.15
+
+**No new operator action.** Everything 0.10.16 changes travels in the
+package: build provenance in the release manifest (SM400), structured
+form answers (SM401 - an authoring feature, nothing to migrate), the
+form handler recording capture method instead of an unverifiable
+identity (SM402 - existing stored submissions are unchanged; only new
+submissions carry the new field), checked stats writers (SM404), and a
+deterministic release gate (SM406).
+
+**If you are coming from 0.10.14 or earlier, the 0.10.15 section below
+is still your list** - its four manual steps (ACL re-apply, the proxy
+template, the CSP decision, the front-door check) are cumulative and
+none of them is superseded here. Do them once, at whatever version you
+land on.
+
+One thing to KNOW rather than do: from this release the artefact can
+prove which commit its gate validated - `release-manifest.json` carries
+`validated: {commit, files, tests}` and the repo's
+`docs/releases/GATE-LOG.md` holds the matching row. If you verify builds
+before rollout, that is the field to check.
+
 ## Upgrading to 0.10.15 from 0.10.10-0.10.14 (READ THIS ONE)
 
 The package upgrade does the code. **Four things it cannot do**, and the
