@@ -3,8 +3,8 @@ title: "SM381: the refusal paths bypass the header choke point, and the snapshot
 subtitle: "402, 403 and three other refusals printed their own headers and carried none of the baseline set; two of them also rendered into the PRIMARY docroot on a multi-domain instance. And the safety snapshot treated tar's 'some files differ' warning as fatal, which is why a busy site could not be snapshotted at all."
 brand: plain
 standard-margins: true
-status: shipped
-status-note: "FIXED 2026-08-19 on claude/sm380-csp-rollout-mode, before the cut. Found by the pre-beta review. FIVE refusal paths now route through output_page; 402 and 403 resolve the DOMAIN's content root as SM253 did for the 404; the error-page writer gained the checked write and umask the main cache writer has documented 300 lines above it since SM020. AND THE FIELD FAILURE IS EXPLAINED, not merely diagnosable: tar exits 1 for 'some files differ' and the snapshot treated that as fatal, so one visitor triggering a render during the tar refused the whole apply. Reproduced 3 times out of 3 with the old behaviour and 0 out of 3 with the fix."
+status: partial
+status-note: "FIXED 2026-08-19 on claude/sm380-csp-rollout-mode, before the cut. Found by the pre-beta review. FIVE refusal paths now route through output_page; 402 and 403 resolve the DOMAIN's content root as SM253 did for the 404; the error-page writer gained the checked write and umask the main cache writer has documented 300 lines above it since SM020. THE TAR EXIT-1 FIX IS REAL AND STANDS (3 of 3 refusals before, 0 of 3 after) - a busy site genuinely could not be snapshotted. BUT THE CLAIM THAT IT EXPLAINED THE FIELD FAILURE IS WITHDRAWN, 2026-08-19: retried on 0.10.15 the refusal names exit 2, Permission denied, not exit 1. The exit-1 story fitted every symptom, which is why both the review and I believed it. The field failure is STILL OPEN and is now a demonstrated permission difference between the two snapshot paths rather than an inference - see the correction section."
 ---
 
 # Part 1: five refusals with no security headers
@@ -77,6 +77,48 @@ put a half-written page into a site - and accepts exit 1 **only when the
 archive is present, non-empty and readable as a gzip stream**. A warning
 plus a valid archive is a backup; a warning plus a broken one is still a
 failure.
+
+# CORRECTION 2026-08-19: this did NOT fix the field failure
+
+Part 4 above says the tar warning "explains" the blocked migration. It
+does not, and the claim is withdrawn here rather than quietly amended.
+
+Retried on 0.10.15, the refusal now names its cause - which is what
+[[SM378]] was for - and the cause is **exit 2, Permission denied**, not
+exit 1:
+
+```
+Refusing to apply: safety snapshot failed - tar exited 2
+tar: <path>: Cannot open: Permission denied
+```
+
+::: widebox
+**Exit 1 was a real defect and a real fix.** A busy site genuinely could
+not be snapshotted, it is genuinely fixed, and the reproduction stands:
+3 of 3 refusals before, 0 of 3 after. What was wrong was the further
+claim that it explained the field report. It fitted every symptom, which
+is precisely why both of us believed it.
+:::
+
+The contradiction is now sharper rather than merely repeated. Measured
+in one minute, same host, same account:
+
+```datatable
+columns: Call | Result
+widths: 6.0cm | X
+bold: 1
+tone: medium
+---
+`site_backup` manual, 09:24:01Z | ok, 9,792 bytes
+`site_apply` internal snapshot | **Permission denied**
+`site_backup` manual, 09:24:38Z | ok, 9,797 bytes
+---
+```
+
+Yesterday "the two paths differ" was an inference from an opaque
+failure. Today the failure names a permission fault, so the two paths
+demonstrably run with different access to the same files. That is a fact
+somebody can chase, and it is still open.
 
 # Part 5: two adjacent defects in the same function
 

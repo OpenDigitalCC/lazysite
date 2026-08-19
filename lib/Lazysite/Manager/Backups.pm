@@ -304,11 +304,42 @@ sub action_backup_delete {
 sub _scrub_paths {
     my ($text) = @_;
     return '' unless defined $text;
+
+    # SM386: KEEP THE SITE-RELATIVE PATH. It is the whole diagnostic value and
+    # it discloses nothing a caller cannot already list.
+    #
+    # The first version replaced the docroot with <site> and then ran a generic
+    # absolute-path rule that ate what was left, so every message came out as
+    # "<site><path>" or "<path>". A partner agent chasing a Permission denied
+    # from tar could not tell whether it was failing on the private store, the
+    # cache, a lock file, or something under lazysite/ it should not be reading
+    # at all - which is the one thing needed to act.
+    #
+    # The generic rule's lookbehind excluded "<" and not ">", so it matched the
+    # relative remainder immediately after the placeholder it had just written.
+    # A guard that does not cover its own output.
+    #
+    # RELATIVE ALWAYS, ABSOLUTE NEVER. A path inside the site keeps its shape
+    # under a placeholder root; a path outside keeps only its last two segments,
+    # which names the artefact without describing the host's layout.
     my $priv = Lazysite::Private::private_root($DOCROOT);
-    for my $root ( grep { defined && length } ( $priv, $DOCROOT ) ) {
-        $text =~ s{\Q$root\E/?}{<site>/}g;
+    my @roots;
+    push @roots, [ $priv,    '<private>' ] if defined $priv    && length $priv;
+    push @roots, [ $DOCROOT, '<site>' ]    if defined $DOCROOT && length $DOCROOT;
+
+    # Longest first: the private store is a SIBLING of the docroot on some
+    # layouts and a child on none, but ordering by length keeps this correct if
+    # that ever changes.
+    for my $r ( sort { length( $b->[0] ) <=> length( $a->[0] ) } @roots ) {
+        my ( $root, $label ) = @$r;
+        $text =~ s{\Q$root\E(?=/|\s|\z|:)}{$label}g;
     }
-    $text =~ s{(?<![\w<])/(?:[\w.\-]+/)+[\w.\-]*}{<path>}g;
+
+    # Anything still absolute is outside the site. Keep the tail so the reader
+    # can tell a lock file from a library, and drop the rest.
+    $text =~ s{(?<![\w<>])(/(?:[\w.\-]+/)*)([\w.\-]+/[\w.\-]+)}{<outside>/$2}g;
+    $text =~ s{(?<![\w<>/])/[\w.\-]+(?=\s|:|\z)}{<outside>}g;
+
     $text =~ s/\s+\z//;
     my @lines = split /\n/, $text;
     @lines = @lines[ 0 .. 2 ] if @lines > 3;    # the first fault, not the flood

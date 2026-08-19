@@ -84,6 +84,25 @@ Naming the commit: AFTER it lands, never before
   probe gave, keeping the repair advice only for the case where no reason was
   given - which is real, and dropping it would trade one wrong summary for
   another.
+- SM386 (PENDING) **the path scrub removed the one thing a caller could act on.**
+  SM378 made the snapshot refusal say why; a partner agent then hit it for real
+  and got `tar: <path>: Cannot open: Permission denied`, which names nothing -
+  they could not tell the private store from the render cache from a lock file.
+  **The guard did not cover its own output:** the docroot was replaced with
+  `<site>` and a generic absolute-path rule then matched the relative remainder,
+  because its lookbehind excluded `<` and not `>`. Now relative always, absolute
+  never - `<site>/lazysite/cache/x` and `<private>/upcoming/a.pdf` keep their
+  shape, a path outside the site keeps only its tail. Nothing is disclosed that
+  a caller cannot already list.
+- SM381 correction (PENDING) **the tar exit-1 fix did not explain the field
+  failure, and the claim is withdrawn.** The fix is real and stands - a busy site
+  genuinely could not be snapshotted, 3 of 3 refusals before and 0 of 3 after.
+  But retried on 0.10.15 the refusal names **exit 2, Permission denied**, not
+  exit 1. The exit-1 story fitted every reported symptom, which is exactly why
+  both the review and I believed it. The field failure is still open, and is now
+  a demonstrated permission difference between the two snapshot paths rather
+  than an inference: `site_backup` succeeded at 09:24:01Z and 09:24:38Z with the
+  apply's internal snapshot failing between them, same host, same account.
 
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
