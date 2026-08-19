@@ -66,6 +66,18 @@ promotion review of 0.10.14 noted that two findings were masked by this
 file and that the mask had been added post-tag - correctly observing that
 nobody had yet chosen it *for this promotion*.
 
+2026-08-19, standing
+: **Compliance work is deferred and tracked, not abandoned.** The release
+  manager's instruction: keep the items visible, let nothing block on them, and
+  treat them as required only on an explicit say-so. The compliance tool already
+  behaves exactly this way - it reports on every cut and blocks only where a
+  channel makes it matter - so no new mechanism was added and none is needed.
+
+: One consequence, stated rather than left to be discovered: **a stable cut will
+  still block on the declaration of conformity.** That is the design, and the
+  deferral does not change it. The two CRA dates - 2026-09-11 - are likewise
+  outside the reach of any switch in this file.
+
 2026-08-19, edge to beta
 : **Keep `signoff_required: no` and promote on it.** A conscious release-
   manager call, not an inherited default. It is consistent with the

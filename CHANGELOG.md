@@ -61,7 +61,15 @@ Naming the commit: AFTER it lands, never before
   than merely a log line. "We looked and no trigger fired" is a valid entry; an
   absent entry is not. Common cause: 0.10.9 was cut 2026-08-14 and seven releases
   followed in five days, which is not a cadence that per-release human records
-  survive by accident.
+  survive by accident. **DEFERRED 2026-08-19 by the release manager**, with the
+  work still required: keep both tracked, block nothing on them, and treat them
+  as required on an explicit say-so. Recorded with a date and an owner because an
+  undated deferral is indistinguishable from the drift that produced all three.
+  No new mechanism was needed - `lazysite-compliance.pl` already reports them on
+  every cut and blocks only where the channel makes it matter, so "when I say it
+  is required" and "at a stable cut" coincide by construction. Stated rather than
+  left to be discovered: a **stable cut will still block** on the declaration,
+  and the 2026-09-11 CRA dates are outside the reach of any switch.
 
 - SM406 (PENDING) **a subtest named for a race it never forced.** The 0.10.16
   edge cut FAILED its gate in `t/unit/manager/60`, subtest 5, and `release.sh`
