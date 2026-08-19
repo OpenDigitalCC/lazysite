@@ -979,6 +979,16 @@ visitors per day, a stated retention (`trails_retention_days`, default 30) enfor
 on **every** export including the ones with nothing new to write, and `trails: off`
 to disable. Crawlers never open a visit and so leave no trail at all.
 
+They are readable through the same gate as everything else (SM394):
+`analyse_visitors` gains `trails=YYYY-MM-DD`, and `index` gains `trail_days` so a
+caller can discover which days exist rather than guess - read from the directory
+rather than the index file, because trails expire where the rollups do not and an
+index entry would outlive the file it names. The reply is capped at 200 visits and
+**states the size of the day as well as the size of the answer**, so a partial
+sample is never mistaken for a whole one; a day with no trails says whether it was
+never recorded or has expired, rather than falling through to the rollups' generic
+"no stats for that day".
+
 **Privacy commitment.** lazysite **installs no trackers**: no analytics
 JavaScript, no beacons, no analytics cookies, no fingerprinting, no third-party
 requests. Analytics are derived only from data the server already receives while

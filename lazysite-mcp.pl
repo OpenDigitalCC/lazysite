@@ -272,6 +272,12 @@ sub _stats_export {
         @sel = ( '--month', $opt->{month} );
     }
 
+    # SM394: one day's recorded trails, same strict shape and same exec-arg
+    # handling - the value never reaches a shell.
+    elsif ( defined $opt->{trails} && $opt->{trails} =~ /^\d{4}-\d{2}-\d{2}$/ ) {
+        @sel = ( '--trails', $opt->{trails} );
+    }
+
     my ( $out, $in );
     my $pid = eval {
         open2( $out, $in, $^X, $tool, '--export',
@@ -989,7 +995,7 @@ my %TOOLS = (
         run => sub { _audit_site() },
     },
     analyse_visitors => {
-        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day and per-month totals, a people/AI-assistant/bot/noise/scanner traffic breakdown (scanner = a visitor that probed a non-existent path, so its whole session - including a spoofed referrer - is excluded from people), top pages, referrers, status codes, a not_found split (plausible missing pages vs a junk scanner-chorus count), auth_refused (paths a visitor was TURNED AWAY from rather than paths that were missing - a file here that should be public means an access rule is refusing it, which is how a mis-scoped ACL surfaces), a device breakdown, and - ONLY where the operator has switched it on - the top internal SEARCH TERMS visitors typed, which are people\'s own words rather than facts about a page and are held to terms used by at least three separate visits, and a bounded recent event SAMPLE - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). The aggregates are complete over data_from..window.to and durably stored one file per day (SM213); "events"/"sample" is a recent sample, not the dataset - use data_from and the sample.{from,to,count} fields to tell them apart. Selectors: index (the days+months index), day=YYYY-MM-DD (one day\'s rollup), month=YYYY-MM (one month\'s rollup); otherwise a windowed view. Read /docs/ai-briefing-stats to interpret the fields, then answer the operator\'s question (trends, month-on-month, rising/falling pages, AI-crawler share). Heuristic and not authenticated.',
+        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day and per-month totals, a people/AI-assistant/bot/noise/scanner traffic breakdown (scanner = a visitor that probed a non-existent path, so its whole session - including a spoofed referrer - is excluded from people), top pages, referrers, status codes, a not_found split (plausible missing pages vs a junk scanner-chorus count), auth_refused (paths a visitor was TURNED AWAY from rather than paths that were missing - a file here that should be public means an access rule is refusing it, which is how a mis-scoped ACL surfaces), a device breakdown, and - ONLY where the operator has switched it on - the top internal SEARCH TERMS visitors typed, which are people\'s own words rather than facts about a page and are held to terms used by at least three separate visits, and a bounded recent event SAMPLE - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). The aggregates are complete over data_from..window.to and durably stored one file per day (SM213); "events"/"sample" is a recent sample, not the dataset - use data_from and the sample.{from,to,count} fields to tell them apart. Selectors: index (the days+months index, plus trail_days - which days have trails), day=YYYY-MM-DD (one day\'s rollup), month=YYYY-MM (one month\'s rollup), trails=YYYY-MM-DD (one day\'s recorded visit trails - the ORDERED page sequence per visit, which the aggregates above cannot answer); otherwise a windowed view. Read /docs/ai-briefing-stats to interpret the fields, then answer the operator\'s question (trends, month-on-month, rising/falling pages, AI-crawler share). Heuristic and not authenticated.',
         cap         => 'analytics',
         inputSchema => { type => 'object',
             properties => {
@@ -997,6 +1003,7 @@ my %TOOLS = (
                 index => { type => 'boolean', description => 'Return the days + months index instead of a window.' },
                 day => { type => 'string', description => 'A specific day (YYYY-MM-DD) - returns that day\'s durable rollup.' },
                 month => { type => 'string', description => 'A specific month (YYYY-MM) - returns that month\'s durable rollup.' },
+                trails => { type => 'string', description => 'A specific day (YYYY-MM-DD) - returns that day\'s recorded VISIT TRAILS: the ordered page sequence per visit, with entry, exit, distinct-page depth, the gap after each step and the visitor class at the time. Use index to see which days have trails; they expire (30 days by default) where the rollups do not.' },
             },
             additionalProperties => JSON::PP::false },
         run => sub { _stats_export( $_[0] ) },

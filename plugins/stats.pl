@@ -35,6 +35,7 @@ while (@ARGV) {
     elsif ( $a eq '--day' )         { $arg{day}         = shift @ARGV }    # SM213
     elsif ( $a eq '--month' )       { $arg{month}       = shift @ARGV }    # SM213
     elsif ( $a eq '--index' )       { $arg{index}       = 1 }              # SM213
+    elsif ( $a eq '--trails' )      { $arg{trails}      = shift @ARGV }    # SM394
     elsif ( $a eq '--recount' )     { $arg{recount}     = 1 }              # SM339
     elsif ( $a eq '--apply' )       { $arg{apply}       = 1 }              # SM339
     elsif ( $a eq '--resolve-log' ) { $arg{resolve_log} = 1 }
@@ -485,6 +486,7 @@ sub _compile_rules {
 # by a sub earlier in the file is a compile error under strict - for its regexes
 # and its month map - and it caught this too, on the third occasion in one day.
 our $TRAIL_STEP_CAP          = 40;       # steps kept per visitor per day
+our $TRAIL_RESPONSE_CAP      = 200;      # visits returned by --trails in one reply
 our $TRAIL_VISITOR_CAP       = 2_000;    # visitors kept per day
 our $TRAIL_RETENTION_DEFAULT = 30;       # days
 
@@ -617,15 +619,17 @@ _compile_rules();
 if ( $arg{export} ) {
     # SM213: --export always ingests + refreshes the durable per-day store, then
     # returns either the window view (default) or a specific durable slice:
-    #   --index           the days + months index
+    #   --index            the days + months index, and which days have trails
     #   --day  YYYY-MM-DD  one day's durable rollup
     #   --month YYYY-MM    one month's durable rollup
+    #   --trails YYYY-MM-DD  one day's recorded trails (SM394)
     my $view = export_stats( $arg{window} );    # ingest + persist durable files
     my $out =
-        $arg{index}           ? _read_stats_index()
-        : defined $arg{day}   ? _read_daily( $arg{day} )
-        : defined $arg{month} ? _read_monthly( $arg{month} )
-        :                       $view;
+        $arg{index}            ? _read_stats_index()
+        : defined $arg{day}    ? _read_daily( $arg{day} )
+        : defined $arg{month}  ? _read_monthly( $arg{month} )
+        : defined $arg{trails} ? _read_trails( $arg{trails} )
+        :                        $view;
     print encode_json( $out // { ok => JSON::PP::false, error => 'No stats for that day/month yet.' } );
     exit 0;
 }
@@ -1553,7 +1557,67 @@ sub _read_monthly {
 
 sub _read_stats_index {
     my $r = _read_json_file( _stats_dir() . '/index.json' );
-    return $r // { ok => JSON::PP::false, error => 'No stats index yet.' };
+    return { ok => JSON::PP::false, error => 'No stats index yet.' } unless $r;
+
+    # SM394: which days have trails, so a caller can discover them rather than
+    # guess at dates. Read from the DIRECTORY and not from the index file: trail
+    # files expire on their own schedule, so an index entry would outlive the
+    # file it names and send callers after days that are gone.
+    $r->{trail_days} = _trail_days();
+    return $r;
+}
+
+sub _trail_days {
+    my $dir = _trails_dir();
+    return [] unless -d $dir;
+    my @d;
+    if ( opendir my $dh, $dir ) {
+        @d = sort map { /\A(\d{4}-\d{2}-\d{2})\.json\z/ ? $1 : () } readdir $dh;
+        closedir $dh;
+    }
+    return \@d;
+}
+
+# SM394: one day's recorded trails, for the caller that cannot read the disk.
+#
+# SM393 recorded the trails and nothing could read them: the agent that asked
+# for them has no host access and sees only what this export returns, so the
+# data accumulated for nobody. This is the read side.
+#
+# THE RESPONSE CAP IS DECLARED. The file holds up to $TRAIL_VISITOR_CAP visits
+# and handing all of them back in one body is a payload nobody asked for - but a
+# truncated list that looks complete is worse than a short one, so the reply
+# always states how many visits the day HOLDS as well as how many it returned.
+sub _read_trails {
+    my ($day) = @_;
+    return { ok => JSON::PP::false, error => 'Bad day (want YYYY-MM-DD).' }
+        unless defined $day && $day =~ /^\d{4}-\d{2}-\d{2}$/;
+
+    # Its own answer rather than a fallthrough to the generic "No stats for that
+    # day/month yet", which is wrong twice over here: trails are neither, and a
+    # day whose trails have EXPIRED is a different thing from one that was never
+    # recorded. The reply points at the index rather than leaving the caller to
+    # guess which it was.
+    my $r = _read_json_file( _trails_dir() . "/$day.json" )
+        or return {
+        ok    => JSON::PP::false,
+        error => "No trails for $day - never recorded, or expired. "
+            . "The index lists the days that have them, as trail_days.",
+        };
+    my @t         = ref $r->{trails} eq 'ARRAY' ? @{ $r->{trails} } : ();
+    my $total     = scalar @t;
+    my $truncated = $total > $TRAIL_RESPONSE_CAP;
+    @t = @t[ 0 .. $TRAIL_RESPONSE_CAP - 1 ] if $truncated;
+
+    return {
+        ok             => JSON::PP::true,
+        date           => $r->{date} // $day,
+        retention_days => $r->{retention_days},
+        visits         => $total,
+        returned       => scalar @t,
+        truncated      => $truncated ? JSON::PP::true : JSON::PP::false,
+        trails         => \@t,
+    };
 }
 
 # SM213: two-pass tally of a parsed batch into the day-buckets, shared by both

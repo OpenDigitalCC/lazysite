@@ -85,6 +85,40 @@ noise
 When the operator asks about "traffic" or "visitors", they almost always mean the
 **human** class. Call out the AI share separately when it is interesting.
 
+## Trails: the order people went in
+
+The aggregates answer *how many* took each step. They cannot answer *in what
+order* one visit went, because a transition count of 100 on an edge is not a
+hundred stored journeys. `trails=YYYY-MM-DD` returns the recorded visits for
+that day instead:
+
+```
+visits           how many visits the day HOLDS
+returned         how many this reply contains
+truncated        true when returned < visits - the reply is capped at 200
+trails[]         one entry per visit
+  entry          first page of the visit
+  exit           last page
+  depth          DISTINCT pages, so a reload is not another page
+  steps[]        the ordered sequence, repeats included
+    p            the path
+    c            the visitor class AS IT WAS at the time
+    gap          seconds until the next step; ABSENT on the last step
+```
+
+Two things to keep straight when you use it:
+
+- **Trails expire and the rollups do not.** Default retention is 30 days. Call
+  `index` and read `trail_days` to see which days actually have them - do not
+  guess a date. A day with none says so, and says whether it was never recorded
+  or has expired.
+- **`truncated` means you are looking at part of a day.** Say so if you report
+  from it; do not describe a capped sample as the day's behaviour.
+
+Trails are the most person-adjacent data here. They are pseudonymous and
+capped, they are still a single visitor's path, and the rules under "What you
+must NOT claim" apply to them with more force rather than less.
+
 ## What you can report on
 
 - Trend over the window: is human traffic rising or falling? Quantify it from
@@ -96,13 +130,21 @@ When the operator asks about "traffic" or "visitors", they almost always mean th
 - AI-assistant interest: the `ai` share and its trend - useful as AI search grows.
 - Health: 404 spikes (broken links, missing pages), unusual status patterns.
 - Anomalies: day-to-day spikes or drops worth a closer look.
+- Journeys, from `trails`: the common entry points, where visits end, how deep
+  people go, and which sequences recur - the questions the aggregates cannot
+  answer.
 
 ## What you must NOT claim
 
 - Not authenticated identity. These are heuristics over log lines, not logged-in
   sessions - say "approximately" and never name or profile an individual.
-- No conversions, time-on-page, scroll depth, or anything needing JavaScript or
-  cookies - lazysite uses none for analytics.
+- No conversions, scroll depth, or anything needing JavaScript or cookies -
+  lazysite uses none for analytics.
+- Not time-on-page. A trail's `gap` is the interval between two requests, which
+  is a *lower bound* on the dwell for the page being left and nothing more: it
+  cannot see a page read in a background tab, and there is no gap at all for the
+  exit page, which is where a visit usually ends. Report it as "at least N
+  seconds before moving on", never as how long somebody spent reading.
 - No PII. You do not have IPs or personal data, by design; do not infer them.
 
 ## Style

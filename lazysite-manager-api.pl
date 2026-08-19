@@ -1223,7 +1223,8 @@ elsif ( $action eq 'version' )      { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {
     $result = action_analyse_visitors(
         window => $params{window}, day   => $params{day},
-        month  => $params{month},  index => $params{index} );
+        month  => $params{month},  index => $params{index},
+        trails => $params{trails} );
 }
 elsif ( $action eq 'whoami' )                { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
@@ -2923,6 +2924,12 @@ sub action_analyse_visitors {
     }
     elsif ( defined $opt{month} && $opt{month} =~ /^\d{4}-\d{2}$/ ) {
         @sel = ( '--month', $opt{month} );
+    }
+
+    # SM394: one day's recorded trails. Same strict shape and same exec-arg
+    # handling as the selectors above - the value never reaches a shell.
+    elsif ( defined $opt{trails} && $opt{trails} =~ /^\d{4}-\d{2}-\d{2}$/ ) {
+        @sel = ( '--trails', $opt{trails} );
     }
 
     my ( $out, $in );

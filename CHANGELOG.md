@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM394 (PENDING) **the trails have a reader.** SM393 recorded the ordered trails
+  and nothing could read them: the agent that asked has no host access and sees
+  only what `analyse_visitors` returns, so the data accumulated for nobody.
+  `analyse_visitors` gains `trails=YYYY-MM-DD` on both channels (MCP tool and
+  control API), validated to a strict shape and passed as an exec argument like
+  the SM213 selectors, and `index` gains `trail_days`. That list is read from the
+  DIRECTORY rather than the index file, because trails expire where the rollups
+  do not and an index entry would outlive the file it names. The reply is capped
+  at 200 visits and **states the size of the day as well as the size of the
+  answer**, so a partial sample cannot pass for a whole one; a day with no trails
+  says whether it was never recorded or has expired instead of falling through to
+  the rollups' generic "no stats for that day/month". `t/lint/58` failed on the
+  `Actions.pm` parameter list without being asked to, which is the SM350 pin
+  working. Docs: the agent briefing gains a trails section and **amends its
+  "no time-on-page" claim** - a step gap is a lower bound on the dwell for the
+  page being LEFT, absent for the exit page, and must never be reported as
+  reading time. `t/unit/plugins/15` asserts it against six sabotages. Open: the
+  manager Stats page still has no trails view.
+
 - SM393 (PENDING) **the ordered trail is recorded, and it expires.** SM336
   deliberately kept sequence as aggregates - "a flow reconstructed without
   retaining anybody's path". That is reversed on purpose: aggregates can be
