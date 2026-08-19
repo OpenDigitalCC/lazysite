@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
+use File::Temp  qw(tempdir);
 use Digest::SHA qw(hmac_sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
@@ -18,27 +18,27 @@ use TestHelper qw(repo_root);
     return '/' unless defined $next && length $next;
     # H-1: reject protocol-relative and backslash forms before the main
     # character-class check. Otherwise //evil.com matches \A/[\w/.-]*\z.
-    return '/' if $next =~ m{\A(?://|\\)};
+    return '/' if $next     =~ m{\A(?://|\\)};
     return '/' unless $next =~ m{\A/[\w/.-]*\z};
     return $next;
 };
 
 # --- allowed paths ---
-is( sanitise_next('/about'),         '/about',         'relative path accepted' );
-is( sanitise_next('/docs/install'),  '/docs/install',  'subpath accepted' );
-is( sanitise_next('/a-b_c.d'),       '/a-b_c.d',       'safe chars allowed' );
+is( sanitise_next('/about'),        '/about',        'relative path accepted' );
+is( sanitise_next('/docs/install'), '/docs/install', 'subpath accepted' );
+is( sanitise_next('/a-b_c.d'),      '/a-b_c.d',      'safe chars allowed' );
 
 # --- rejected patterns → / ---
 is( sanitise_next('https://evil.com'), '/', 'absolute URL rejected' );
 
-is( sanitise_next('//evil.com'),   '/', 'protocol-relative //host rejected' );
-is( sanitise_next('///evil.com'),  '/', 'triple-slash rejected' );
-is( sanitise_next('\\evil.com'),   '/', 'backslash rejected' );
+is( sanitise_next('//evil.com'),  '/', 'protocol-relative //host rejected' );
+is( sanitise_next('///evil.com'), '/', 'triple-slash rejected' );
+is( sanitise_next('\\evil.com'),  '/', 'backslash rejected' );
 
-is( sanitise_next('../../../etc'),     '/', 'path traversal rejected' );
-is( sanitise_next(''),                 '/', 'empty string → /' );
-is( sanitise_next(undef),              '/', 'undef → /' );
-is( sanitise_next('javascript:void'),  '/', 'javascript: scheme rejected' );
+is( sanitise_next('../../../etc'),    '/', 'path traversal rejected' );
+is( sanitise_next(''),                '/', 'empty string → /' );
+is( sanitise_next(undef),             '/', 'undef → /' );
+is( sanitise_next('javascript:void'), '/', 'javascript: scheme rejected' );
 
 # --- cookie signing shape: payload:hex64 ---
 {
@@ -46,7 +46,7 @@ is( sanitise_next('javascript:void'),  '/', 'javascript: scheme rejected' );
     my $payload = 'alice:1234567890:admins';
     my $sig     = hmac_sha256_hex( $payload, $secret );
     is( length $sig, 64, 'hmac_sha256_hex signature is 64 hex chars' );
-    my $cookie  = "$payload:$sig";
+    my $cookie = "$payload:$sig";
     like( $cookie, qr/^.+:[a-f0-9]{64}$/, 'cookie matches expected shape' );
 
     # Tamper detection
@@ -65,7 +65,17 @@ is( sanitise_next('javascript:void'),  '/', 'javascript: scheme rejected' );
     ok( -f $auth_src, 'lazysite-auth.pl exists' );
     open my $fh, '<', $auth_src; my $src = do { local $/; <$fh> }; close $fh;
     like( $src, qr/sub sanitise_next/, 'sanitise_next defined in source' );
-    like( $src, qr/COOKIE_MAX\s*=\s*86400/, 'cookie max-age is 24h' );
+    # SM411: the lifetime constant lives in Lazysite::Auth::Session now,
+    # beside the verifier that depends on it; the script assigns from it.
+    like( $src, qr/COOKIE_MAX\s*=\s*SESSION_COOKIE_MAX/,
+        'the script takes its max-age from the one definition' );
+    my $mod_src = do {
+        open my $mh, '<', "$FindBin::Bin/../../../lib/Lazysite/Auth/Session.pm"
+            or die $!;
+        local $/; <$mh>;
+    };
+    like( $mod_src, qr/SESSION_COOKIE_MAX\s*\{\s*return 86400\s*\}/,
+        'cookie max-age is 24h' );
 }
 
 done_testing();

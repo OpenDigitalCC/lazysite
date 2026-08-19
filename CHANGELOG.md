@@ -151,6 +151,28 @@ Naming the commit: AFTER it lands, never before
   LANDING ORDER: t/lint/62 and t/lint/63 are red on main because v0.10.16 is
   tagged while its changelog section and version bump sit on the post-release
   branch - land claude/0-10-16-post-release first and the tier goes green.
+- SM411 (PENDING) **one verification chain, in one module.** Session-cookie
+  verification moves from lazysite-auth.pl into Lazysite::Auth::Session
+  (beside the CSRF tokens it shares a secret with), and the wrapper delegates.
+  Extracted because SM410's audit found the data endpoint would repeat SM402's
+  defect by spec - routed by the front door but NOT wrapped, trusting
+  X-Remote-User as the client sent it - and self-validation beats wrapping
+  because wrapping needs fleet template edits, whose staleness SM374 measured.
+  THE RISK OF EXTRACTION WAS QUIET WEAKENING: auth.pl carried TWO verifiers,
+  the full chain in the wrapper and a SUBSET in _session_identity that skipped
+  the disabled-account and revoked-session checks; packaging the subset would
+  have handed every future caller the gap. The module carries the FULL chain -
+  parse, HMAC, both SM141 payload shapes, expiry, SM071 disabled, SM141
+  revoked (sid and not_before), and SEC-2026-07 M5's fresh group resolution -
+  and _session_identity now delegates, making logout STRICTER: a disabled
+  account's logout is the unauthenticated no-op path (the cookie still
+  clears), and a revoked session cannot re-revoke itself. Verification is
+  READ-ONLY - it never mints the secret; minting stays with login. One
+  incidental honesty fix: the wrapper's "cookie valid" log line used to show
+  the cookie-baked groups while the header carried the fresh set; it now logs
+  what is granted. t/unit/auth/14 drives every stage with real state files
+  and three sabotages confirmed to bite: the subset packaged, groups from the
+  cookie, and a verify that mints.
 
 - SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**

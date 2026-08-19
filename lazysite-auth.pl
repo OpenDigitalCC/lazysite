@@ -21,7 +21,10 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util             qw(log_event const_eq);
+use Lazysite::Util          qw(log_event const_eq);
+use Lazysite::Auth::Session qw(
+    verify_session_cookie account_disabled load_user_groups
+    SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
@@ -62,8 +65,9 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
-$Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
-$Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
+$Lazysite::Audit::LAZYSITE_DIR         = $LAZYSITE_DIR;
+$Lazysite::Auth::Settings::AUTH_DIR    = $AUTH_DIR;
+$Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;        # SM411
 
 # Record a material authentication event in the audit trail (login/logout, claim,
 # token exchange/rotate), in addition to the application log. Origin defaults to
@@ -120,8 +124,10 @@ sub _bad_url_deny {
     print "403 Forbidden\n";
     exit 0;
 }
-my $COOKIE_NAME = 'lazysite_auth';
-my $COOKIE_MAX  = 86400;             # 24 hours
+# SM411: the name and lifetime live in Lazysite::Auth::Session, beside the
+# verifier that depends on them - this script mints with the same pair.
+my $COOKIE_NAME = SESSION_COOKIE_NAME;
+my $COOKIE_MAX  = SESSION_COOKIE_MAX;
 
 # H-3: login rate limiting (per-IP, sliding window)
 my $LOGIN_RATE_DB = "$AUTH_DIR/.login-rate.db";
@@ -352,24 +358,17 @@ sub handle_login {
 sub _session_user { return ( _session_identity() )[0] }
 
 # Verify the session cookie and return ( $user, $sid ) - $sid is '' for a
-# legacy (pre-SM141) user:ts:groups cookie. Returns ( '', '' ) if the cookie is
-# absent, unsigned, tampered, or expired.
+# legacy (pre-SM141) user:ts:groups cookie. Returns ( '', '' ) on any failure.
+#
+# SM411: delegates to the one verification chain in Lazysite::Auth::Session.
+# This is deliberately STRICTER than the sub it replaces, which skipped the
+# disabled-account and revoked-session checks: a disabled account's logout is
+# now the unauthenticated no-op path (the cookie still clears), and a revoked
+# session cannot re-revoke itself. Neither loses anything a user could want.
 sub _session_identity {
-    my $cookie = read_cookie($COOKIE_NAME);
-    return ( '', '' ) unless $cookie;
-    my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
-    return ( '', '' ) unless $payload && $sig;
-    $payload = uri_decode_simple($payload);
-    my $secret = load_auth_secret();
-    return ( '', '' ) unless const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
-    # SM141: user and ts lead BOTH payload shapes (user:ts:sid:groups and the
-    # legacy user:ts:groups); the sid is the 3rd field ONLY in the 4-field shape
-    # (exactly 16 hex), else it is the legacy groups field and not a sid.
-    my ( $user, $ts, $third ) = split /:/, $payload, 4;
-    return ( '', '' )
-        unless defined $ts && $ts =~ /^\d+$/ && ( time() - $ts ) < $COOKIE_MAX;
-    my $sid = ( defined $third && $third =~ /\A[0-9a-f]{16}\z/ ) ? $third : '';
-    return ( $user // '', $sid );
+    my ($ident) = verify_session_cookie();
+    return ( '',             '' ) unless $ident;
+    return ( $ident->{user}, $ident->{sid} );
 }
 
 sub handle_logout {
@@ -753,91 +752,70 @@ sub _send_setup_email {
 }
 
 sub handle_request {
-    my $cookie = read_cookie($COOKIE_NAME);
+    # SM411: one verification chain, in Lazysite::Auth::Session, shared with
+    # every surface that must turn a cookie into an identity without being
+    # behind this wrapper (the SM402 lesson: the form handler trusted
+    # X-Remote-User as the client sent it because it had no way to verify).
+    # This wrapper keeps its per-stage log lines - they are how auth failures
+    # have always been diagnosed - and the success block keeps setting the
+    # trusted headers the children consume.
+    my ( $ident, $why, %detail ) = verify_session_cookie();
 
-    if ( !$cookie ) {
+    if ($ident) {
+        # C-1: these headers come from our HMAC-verified cookie, not from the
+        # client. Set LAZYSITE_AUTH_TRUSTED=1 so the processor accepts them.
+        $ENV{HTTP_X_REMOTE_USER} = $ident->{user};
+
+        # SEC-2026-07 (M5): groups are the module's FRESH resolution from the
+        # groups file, never the (HMAC-signed but possibly stale) set baked
+        # into the cookie at login - a demoted admin must not keep privileged
+        # groups until the cookie expires. (The log line used to show the
+        # cookie-baked set while the header carried the fresh one; it now
+        # logs what is actually granted.)
+        $ENV{HTTP_X_REMOTE_GROUPS}  = $ident->{groups};
+        $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
+
+        # SM141: pass the caller's session id to the children (processor /
+        # manager-api) so the Sessions page can mark "this session". A legacy
+        # cookie has none.
+        $ENV{LAZYSITE_AUTH_SID} = $ident->{sid} if length $ident->{sid};
+
+        # Flag passwordless accounts so the admin bar can warn.
+        # Checked per-request so setting a password clears it immediately.
+        my $users = load_users();
+        $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'
+            if exists $users->{ $ident->{user} }
+            && !length $users->{ $ident->{user} };
+
+        log_event( 'INFO', $uri, 'auth: cookie valid',
+            user => $ident->{user}, groups => $ident->{groups} );
+    }
+    elsif ( $why eq 'no-cookie' ) {
         log_event( 'INFO', $uri, 'auth: no cookie' );
     }
-    else {
-        my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
-        if ( !( $payload && $sig ) ) {
-            log_event( 'WARN', $uri, 'auth: cookie malformed' );
-        }
-        else {
-            $payload = uri_decode_simple($payload);
-            my $secret   = load_auth_secret();
-            my $expected = hmac_sha256_hex( $payload, $secret );
-
-            # M-5: constant-time signature comparison
-            unless ( const_eq( $sig, $expected ) ) {
-                log_event( 'WARN', $uri, 'auth: signature mismatch' );
-            }
-            else {
-                # SM141: two payload shapes are valid. Current cookies are
-                # user:ts:sid:groups (sid exactly 16 hex); legacy cookies
-                # minted before the session registry are user:ts:groups and
-                # stay valid until natural expiry. Groups can contain commas
-                # but never colons, so a limit-4 split plus the sid shape
-                # check disambiguates.
-                my @f = split /:/, $payload, 4;
-                my ( $user, $ts, $sid, $groups );
-                if ( @f == 4 && defined $f[2] && $f[2] =~ /\A[0-9a-f]{16}\z/ ) {
-                    ( $user, $ts, $sid, $groups ) = @f;
-                }
-                else {
-                    ( $user, $ts, $groups ) = split /:/, $payload, 3;
-                    $sid = '';
-                }
-                $groups //= '';
-
-                if ( !defined $ts || $ts !~ /^\d+$/ || ( time() - $ts ) >= $COOKIE_MAX ) {
-                    log_event( 'WARN', $uri, 'auth: cookie expired or malformed ts', ts => $ts // 'undef' );
-                }
-                elsif ( account_disabled($user) ) {
-                    # SM071: reject an existing cookie for a now-disabled
-                    # account; no trusted headers are set, so the request is
-                    # treated as unauthenticated.
-                    log_event( 'WARN', $uri, 'auth: account disabled', user => $user );
-                }
-                elsif ( _session_revoked( $user, $ts, $sid ) ) {
-                    # SM141: an operator signed this session out (revoked
-                    # sid) or signed the user out everywhere (not_before).
-                    # No trusted headers are set, so the request is treated
-                    # as unauthenticated. Legacy cookies carry no sid but do
-                    # carry ts, so not_before kills them too.
-                    log_event( 'WARN', $uri, 'auth: session revoked', user => $user );
-                }
-                else {
-                    # C-1: these headers come from our HMAC-verified cookie,
-                    # not from the client. Set LAZYSITE_AUTH_TRUSTED=1 so
-                    # the processor accepts them.
-                    $ENV{HTTP_X_REMOTE_USER} = $user;
-
-                    # SEC-2026-07 (M5): re-resolve the account's CURRENT group
-                    # membership per request rather than trusting the (HMAC-
-                    # signed but possibly stale) groups baked into the cookie at
-                    # login - otherwise a demoted admin keeps privileged groups
-                    # until the cookie expires (up to 24h). The groups file is
-                    # the same source of truth login reads, so a promotion also
-                    # takes effect immediately.
-                    $ENV{HTTP_X_REMOTE_GROUPS}  = load_user_groups($user);
-                    $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
-
-                    # SM141: pass the caller's session id to the children
-                    # (processor / manager-api) so the Sessions page can mark
-                    # "this session". A legacy cookie has none.
-                    $ENV{LAZYSITE_AUTH_SID} = $sid if length $sid;
-
-                    # Flag passwordless accounts so the admin bar can warn.
-                    # Checked per-request so setting a password clears it immediately.
-                    my $users = load_users();
-                    $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'
-                        if exists $users->{$user} && !length $users->{$user};
-
-                    log_event( 'INFO', $uri, 'auth: cookie valid', user => $user, groups => $groups );
-                }
-            }
-        }
+    elsif ( $why eq 'malformed' ) {
+        log_event( 'WARN', $uri, 'auth: cookie malformed' );
+    }
+    elsif ( $why eq 'signature' ) {
+        log_event( 'WARN', $uri, 'auth: signature mismatch' );
+    }
+    elsif ( $why eq 'expired' ) {
+        log_event( 'WARN', $uri, 'auth: cookie expired or malformed ts',
+            ts => $detail{ts} // 'undef' );
+    }
+    elsif ( $why eq 'disabled' ) {
+        # SM071: reject an existing cookie for a now-disabled account; no
+        # trusted headers are set, so the request is treated as
+        # unauthenticated.
+        log_event( 'WARN', $uri, 'auth: account disabled',
+            user => $detail{user} );
+    }
+    elsif ( $why eq 'revoked' ) {
+        # SM141: an operator signed this session out (revoked sid) or signed
+        # the user out everywhere (not_before). Legacy cookies carry no sid
+        # but do carry ts, so not_before kills them too.
+        log_event( 'WARN', $uri, 'auth: session revoked',
+            user => $detail{user} );
     }
 
     # Exec processor. LAZYSITE_PROCESSOR names the real CGI target (the
@@ -919,19 +897,6 @@ sub ui_enabled {
 # tools/lazysite-users.pl). Fails open (not disabled) on a missing or
 # corrupt file, matching ui_enabled, so a damaged file cannot lock the
 # operator out.
-sub account_disabled {
-    my ($username) = @_;
-    my $path = "$AUTH_DIR/user-settings.json";
-    return 0 unless -f $path;
-    open my $fh, '<:raw', $path or return 0;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    require JSON::PP;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return 0 unless ref $data eq 'HASH';
-    my $s = $data->{$username};
-    return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
-}
 
 # SM071 Phase 2: a credential with an access-token expiry in the past is
 # treated as invalid. Read-only consumer; fails open (not expired) on a
@@ -1055,55 +1020,7 @@ sub _session_register {
 # file = treat as EMPTY but WARN loudly (the spec's fail-open-with-alarm
 # decision: a corrupt file must not lock everyone out; lazysite-check
 # probes the file so the alarm is actionable).
-sub _session_revoked {
-    my ( $user, $ts, $sid ) = @_;
-    my $path = "$AUTH_DIR/revoked.json";
-    return 0 unless -f $path;
 
-    my $data;
-    if ( open my $fh, '<:raw', $path ) {
-        my $raw = do { local $/; <$fh> };
-        close $fh;
-        require JSON::PP;
-        $data = eval { JSON::PP::decode_json( $raw // '' ) };
-    }
-    unless ( ref $data eq 'HASH' ) {
-        log_event( 'WARN', $user,
-            'revoked.json unreadable or corrupt - treating as empty (NO session is revoked); '
-                . 'run lazysite-check and repair or remove the file' );
-        return 0;
-    }
-
-    my $sids = ref $data->{sids} eq 'HASH' ? $data->{sids} : {};
-    return 1 if length($sid) && exists $sids->{$sid};
-
-    my $nb = ref $data->{not_before} eq 'HASH' ? $data->{not_before} : {};
-    return 1
-        if defined $nb->{$user}
-        && $nb->{$user} =~ /^\d+$/
-        && $ts < $nb->{$user};
-    return 0;
-}
-
-sub load_user_groups {
-    my ($username) = @_;
-    my $path = "$AUTH_DIR/groups";
-    return '' unless -f $path;
-
-    open( my $fh, '<:utf8', $path ) or return '';
-    my @groups;
-    while (<$fh>) {
-        chomp;
-        s/^\s+|\s+$//g;
-        next if /^#/ || !length;
-        my ( $group, $members ) = split /:\s*/, $_, 2;
-        next unless defined $members;
-        my @m = map { s/^\s+|\s+$//gr } split /,/, $members;
-        push @groups, $group if grep { $_ eq $username } @m;
-    }
-    close $fh;
-    return join( ',', @groups );
-}
 
 sub load_auth_secret {
     my $path = "$AUTH_DIR/.secret";
