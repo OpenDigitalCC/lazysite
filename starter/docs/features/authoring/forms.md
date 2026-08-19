@@ -43,6 +43,18 @@ The name must be alphanumeric with hyphens and underscores. Without
 - `password` - masked input
 - `textarea` - renders as a textarea
 - `select:opt1,opt2,opt3` - renders as a dropdown
+- `radio:opt1,opt2,opt3` - the same choice as a radio group, with every option
+  visible. Better than a dropdown on a page of short questions answered in
+  sequence, where a hidden list makes a mis-pick easy and silent
+- `checklist:opt1,opt2` - checkboxes; the submission carries every ticked value
+- `checklist-qty:opt1,opt2` - checkboxes with a quantity box beside each. The
+  submission reads `opt1=60; opt2=40`, and an option ticked without a quantity
+  keeps its bare label. This is the shape of a "which ones, and how many"
+  answer, and it removes the free-text box people otherwise type it into
+- **Option labels may be quoted**: `select:"Smith, John","Jones"`. Quoting is
+  only needed for a label containing a **comma** - spaces and brackets have
+  always worked unquoted. Put any of these list rules LAST among a field's
+  rules, since each takes the rest of the line
 - `pattern:REGEX` - HTML5 validation pattern. Example: `phone | Phone | tel pattern:[0-9+()-]{7,20}`
 - `placeholder:TEXT` - greyed-out hint text inside the field
 - `max:N` - maxlength for text inputs (default 1000); the max **value** for `number`

@@ -60,6 +60,35 @@ Naming the commit: AFTER it lands, never before
   failing stand-in is refused **with a control** showing the naive form would
   have passed.
 
+- SM401 (PENDING) **form rules for structured answers, and two silent losses.**
+  From an inbox filing: an office team answering ~300 structured questions whose
+  shape - "which of these, and how many of each" - the field vocabulary could not
+  express, so it went in a free-text box. Adds `radio:`, `checklist:` and
+  `checklist-qty:` (submitting `A=60; B=40`, with the quantity carried in the
+  field NAME so the handler needs no schema). Two defects found while building,
+  **both of which produced a form that worked and quietly held different data
+  from what was entered**: an option containing a comma split in two
+  (`select:"Smith, John","Jones"` offered three choices, two wrong), and
+  `parse_post` OVERWROTE a repeated field name, so any multi-select would have
+  kept only the last tick. `required` is deliberately not applied to a checkbox
+  group - the browser reads it as *this box*, so it would demand every option.
+  Two of the filing's asks were **already implemented** and are reported back
+  rather than rebuilt: quoted labels with spaces or brackets, and `number` with
+  `min:`/`max:`. The rate-limit exemption was NOT built as asked - see below - and
+  a per-form `rate_limit:` ships instead. Docs: both form references.
+
+- SM402 (PENDING, filing only) **the form handler tags submissions with a header
+  nobody verified.** Found while scoping SM401's rate-limit exemption, which
+  would have trusted the same header for a security decision. `form-handler.pl`
+  is not behind the auth wrapper - the templates front only the processor and
+  the manager API - so `HTTP_X_REMOTE_USER` arrives as the client sent it, and
+  `_auth_user` on a stored submission can be set by the submitter. It grants
+  nothing (every capability gate is on a wrapped surface), so this is a false
+  ATTRIBUTION rather than an escalation, but a field that can be set by the
+  person it names is worse than an absent one. Filed rather than fixed: the three
+  candidate fixes have different blast radii and one of them touches the auth
+  spine, which is a release-manager call.
+
 - SM399 (c1f48db) **the operator can see the journeys.** SM393 recorded the
   ordered trails and SM394 gave an agent a way to read them; the operator - the
   person the manager exists for - still could not see them at all. A **Visitor

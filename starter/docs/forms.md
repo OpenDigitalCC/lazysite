@@ -88,6 +88,20 @@ label as button text.
 `select:opt1,opt2,opt3`
 : Renders as a `<select>` dropdown with the given options.
 
+`radio:opt1,opt2,opt3`
+: The same choice with every option visible, rather than hidden behind a click.
+
+`checklist:opt1,opt2`
+: Checkboxes. The submission carries every ticked value.
+
+`checklist-qty:opt1,opt2`
+: Checkboxes with a quantity box beside each; the submission reads
+  `opt1=60; opt2=40`. An option ticked with no quantity keeps its bare label.
+
+Option labels containing a **comma** must be quoted - `select:"Smith, John",Jones`.
+Spaces and brackets need no quoting. A list rule takes the rest of the line, so
+put it last among a field's rules.
+
 `max:N`
 : Sets `maxlength` attribute. Default is 1000 if not specified.
 
@@ -293,6 +307,8 @@ and 2 hours after the form was rendered. Prevents replay attacks.
 
 **Rate limiting** - maximum 5 submissions per IP per hour. Uses
 `DB_File` for persistence.
+
+The ceiling is per form: `rate_limit: 200` in the form's config raises it, and `rate_limit: off` removes it. Five an hour is right for a public contact form and wrong for an authenticated team working through a set of data-entry pages from one office address. Set it only on a form whose access is already controlled another way - the limit is what protects an open form from being used as a relay.
 
 **Header injection prevention** - CR/LF characters stripped from
 all fields.

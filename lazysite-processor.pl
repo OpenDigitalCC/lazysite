@@ -3529,6 +3529,45 @@ sub load_form_secret {
     return $s;
 }
 
+# SM401: split a rule's option list, respecting quotes.
+#
+# It was `split /,/`, with quotes stripped afterwards - so a quoted option
+# containing a COMMA became two options. `select:"Smith, John","Jones"` rendered
+# three choices, two of them wrong, and nothing said so: the form worked, it just
+# offered the wrong answers. Spaces and parentheses inside a quoted option were
+# always fine and still are; the comma is the case that was broken.
+sub _form_options {
+    my ($raw) = @_;
+    my @out;
+    my $cur = '';
+    my $q   = 0;
+    for my $ch ( split //, $raw ) {
+        if ( $ch eq '"' ) { $q = !$q; next }
+        elsif ( $ch eq ',' && !$q ) { push @out, $cur; $cur = ''; next }
+        $cur .= $ch;
+    }
+    push @out, $cur;
+    my @clean;
+    for my $o (@out) {
+        $o =~ s/\A\s+|\s+\z//g;
+        push @clean, $o if length $o;
+    }
+    return \@clean;
+}
+
+# Escape an option for use as BOTH an attribute value and visible text. The two
+# were previously interpolated raw, so an option containing a quote or an
+# ampersand produced broken markup on a page an author controls.
+sub _form_attr {
+    my ($v) = @_;
+    $v = '' unless defined $v;
+    $v =~ s/&/&amp;/g;
+    $v =~ s/</&lt;/g;
+    $v =~ s/>/&gt;/g;
+    $v =~ s/"/&quot;/g;
+    return $v;
+}
+
 sub convert_fenced_form {
     my ( $text, $meta ) = @_;
     $meta //= {};
@@ -3612,7 +3651,12 @@ sub _render_form {
             # select: takes the REST of the line - its comma-separated options may
             # contain spaces, so put select: last among a field's rules. (Quotes
             # around the list or an option are tolerated and stripped on render.)
-            if    ( $rs =~ s/^(select:.*)\z//s )        { push @rule_tokens, $1; }
+            # SM401: radio/checklist/checklist-qty take the REST of the line for
+            # the same reason select: does - their comma-separated options may
+            # contain spaces, so they go last among a field's rules.
+            if ( $rs =~ s/^((?:select|radio|checklist|checklist-qty):.*)\z//s ) {
+                push @rule_tokens, $1;
+            }
             elsif ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// ) { push @rule_tokens, "$1$2"; }
             elsif ( $rs =~ s/^(\S+)// )                 { push @rule_tokens, $1; }
             else                                        { last; }
@@ -3622,14 +3666,20 @@ sub _render_form {
             elsif ( $r eq 'optional' ) { $rules{optional} = 1; }
             elsif ( $r eq 'email' )    { $rules{type}     = 'email'; }
             elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type} = $1; }
-            elsif ( $r eq 'textarea' )          { $rules{textarea} = 1; }
-            elsif ( $r eq 'file' )              { $rules{file}     = 1; }
-            elsif ( $r eq 'multiple' )          { $rules{multiple} = 1; }
-            elsif ( $r =~ /^accept:(.+)/ )      { $rules{accept}   = $1; }
-            elsif ( $r =~ /^select:(.+)/ )      { $rules{select}   = [ split /,/, $1 ]; }
-            elsif ( $r =~ /^max:(\d+)/ )        { $rules{max}      = $1; }
-            elsif ( $r =~ /^min:(\d+)/ )        { $rules{min}      = $1; }
-            elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern}  = $1; }
+            elsif ( $r eq 'textarea' )     { $rules{textarea} = 1; }
+            elsif ( $r eq 'file' )         { $rules{file}     = 1; }
+            elsif ( $r eq 'multiple' )     { $rules{multiple} = 1; }
+            elsif ( $r =~ /^accept:(.+)/ ) { $rules{accept}   = $1; }
+            elsif ( $r =~ /^select:(.+)/ ) { $rules{select}   = _form_options($1); }
+            elsif ( $r =~ /^radio:(.+)/ )  { $rules{radio}    = _form_options($1); }
+            elsif ( $r =~ /^checklist-qty:(.+)/ ) {
+                $rules{checklist} = _form_options($1);
+                $rules{qty}       = 1;
+            }
+            elsif ( $r =~ /^checklist:(.+)/ )   { $rules{checklist} = _form_options($1); }
+            elsif ( $r =~ /^max:(\d+)/ )        { $rules{max}       = $1; }
+            elsif ( $r =~ /^min:(\d+)/ )        { $rules{min}       = $1; }
+            elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern}   = $1; }
             elsif ( $r =~ /^placeholder:(.+)/ ) { $rules{placeholder} = $1; }
         }
         my $ph_attr = '';
@@ -3664,13 +3714,51 @@ sub _render_form {
             $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
             $field_html .= qq(      <option value="">-- Select --</option>\n);
             for my $opt ( @{ $rules{select} } ) {
-                $opt =~ s/^\s+|\s+$//g;
-                $opt =~ s/^"+//; $opt =~ s/"+$//; # tolerate a quoted option list / option
-                $opt =~ s/^\s+|\s+$//g;
-                next unless length $opt;
-                $field_html .= qq(      <option value="$opt">$opt</option>\n);
+                my $e = _form_attr($opt);
+                $field_html .= qq(      <option value="$e">$e</option>\n);
             }
             $field_html .= qq(    </select>\n);
+        }
+
+        # SM401: radio and checklist. A select hides its options behind a click,
+        # which is right for a long list and wrong for a page of short questions
+        # answered in sequence - every option stays visible and a mis-pick is
+        # obvious rather than silent.
+        elsif ( $rules{radio} ) {
+            $field_html = qq(    <div class="form-options" role="radiogroup">\n);
+            my $i = 0;
+            for my $opt ( @{ $rules{radio} } ) {
+                my $e  = _form_attr($opt);
+                my $id = "$name-" . $i++;
+                $field_html
+                    .= qq(      <label class="form-option" for="$id">)
+                    . qq(<input type="radio" name="$name" id="$id" value="$e"$req_attr> $e</label>\n);
+            }
+            $field_html .= qq(    </div>\n);
+        }
+        elsif ( $rules{checklist} ) {
+
+            # NO `required` ON A CHECKBOX GROUP. On radio inputs the browser
+            # treats required as "one of the group"; on checkboxes it means THIS
+            # box, so marking them all required would demand every option be
+            # ticked - the opposite of what a multi-select means.
+            $field_html = qq(    <div class="form-options">\n);
+            my $i = 0;
+            for my $opt ( @{ $rules{checklist} } ) {
+                my $e  = _form_attr($opt);
+                my $id = "$name-" . $i++;
+                $field_html
+                    .= qq(      <label class="form-option" for="$id">)
+                    . qq(<input type="checkbox" name="$name" id="$id" value="$e"> $e);
+
+                # The quantity travels in the NAME, so the handler can fold it
+                # back without being told the form's field types.
+                $field_html .= qq( <input type="number" class="form-option-qty")
+                    . qq( name="$name~qty~$e" min="0" step="1" aria-label="$e quantity">)
+                    if $rules{qty};
+                $field_html .= qq(</label>\n);
+            }
+            $field_html .= qq(    </div>\n);
         }
         else {
             my $type  = $rules{type} || 'text';

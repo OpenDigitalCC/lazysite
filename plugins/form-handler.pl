@@ -95,7 +95,7 @@ eval {
 
     check_honeypot( $form{_hp}          // '' );
     check_timestamp( $form{_ts}         // '', $form{_tk} // '', load_form_secret() );
-    check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0' );
+    check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0', $conf->{rate_limit} );
 
     # Binary uploads: reject up front (before any handler runs) if the form does
     # not accept files, or a file breaks the form's size / type / count limits.
@@ -255,6 +255,16 @@ sub load_form_conf {
         };
     }
 
+    # SM401: per-form submission ceiling, submissions per address per hour.
+    # Absent leaves the shipped default of 5; `off` (or 0) removes the limit for
+    # a form whose access is already controlled another way.
+    my $rate_limit;
+    if ( my ($rl) = $text =~ /^\s*rate_limit\s*:\s*(\S+)/m ) {
+        $rate_limit = ( lc $rl eq 'off' || lc $rl eq 'none' ) ? 0
+            : ( $rl =~ /^\d+$/ ) ? $rl + 0
+            :                      undef;
+    }
+
     # SM216: per-form quarantine scoring config. quarantine defaults ON - a false
     # positive still arrives (just unannounced, under the Quarantine filter), so
     # cheap heuristics are safe on by default. spam_keywords is a comma-separated
@@ -269,6 +279,7 @@ sub load_form_conf {
         quarantine         => ( defined $q  ? $q      : 'on' ),
         spam_keywords      => ( defined $kw ? $kw     : '' ),
         spam_url_threshold => ( defined $ut ? $ut + 0 : 2 ),
+        rate_limit         => $rate_limit,    # SM401; undef = default
     };
 }
 
@@ -713,10 +724,59 @@ sub parse_post {
             $v //= '';
             $v =~ s/\+/ /g;
             $v =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-            $form{$k} = sanitise_header( $v, 10000 );
+            $v = sanitise_header( $v, 10000 );
+
+            # SM401: a REPEATED key accumulates rather than overwriting.
+            #
+            # One name submitted several times is how HTML has always expressed a
+            # multi-select, and this assignment kept only the last one - so a
+            # checkbox group silently lost every tick but the final one. Silently,
+            # because the submission still arrived and still looked well-formed.
+            # Nothing shipped depended on the old behaviour: a field submitted
+            # once is unaffected, and a field submitted twice was losing data.
+            if ( exists $form{$k} && length $form{$k} ) {
+                $form{$k} .= "; $v" if length $v;
+            }
+            else {
+                $form{$k} = $v;
+            }
         }
     }
+    _fold_quantities( \%form );
     return %form;
+}
+
+# SM401: fold `field~qty~OPTION` inputs back into their field.
+#
+# checklist-qty asks a question the flat name/value shape cannot carry: WHICH
+# options, and HOW MANY of each. The alternative was to teach this handler the
+# form's field types, which it does not have and should not - the page defines
+# the form, the handler receives it. Encoding the relationship in the NAME keeps
+# the handler generic: it needs no schema, only a rule.
+#
+# A quantity is kept only when its option was actually ticked, so unticking a box
+# and leaving a number behind - which is exactly what a person does when they
+# change their mind - does not submit a quantity for something they deselected.
+sub _fold_quantities {
+    my ($form) = @_;
+    my %qty;
+    for my $k ( keys %$form ) {
+        next unless $k =~ /\A(.+)~qty~(.+)\z/s;
+        my ( $base, $opt ) = ( $1, $2 );
+        my $v = $form->{$k};
+        delete $form->{$k};
+        next unless defined $v && $v =~ /\A\s*\d+\s*\z/ && $v + 0 > 0;
+        $qty{$base}{$opt} = $v + 0;
+    }
+    for my $base ( keys %qty ) {
+        my @ticked = grep { length } split /\s*;\s*/, ( $form->{$base} // '' );
+        my @out;
+        for my $opt (@ticked) {
+            push @out, exists $qty{$base}{$opt} ? "$opt=$qty{$base}{$opt}" : $opt;
+        }
+        $form->{$base} = join '; ', @out if @out;
+    }
+    return;
 }
 
 # --- Security ---
@@ -737,9 +797,30 @@ sub check_timestamp {
     reject('Submission expired')  if $age > 7200;
 }
 
+# SM401: the limit is PER FORM, and the default is unchanged.
+#
+# Five an hour per address is right for a public contact form and wrong for an
+# authenticated office team working through twenty-five data-entry pages from one
+# office address - which is a real deployment, not a hypothetical.
+#
+# WHY NOT "EXEMPT LOGGED-IN USERS", WHICH IS WHAT WAS ASKED FOR. This handler is
+# NOT behind the auth wrapper: the templates front only lazysite-processor.pl and
+# lazysite-manager-api.pl with it, and /cgi-bin/ is otherwise a plain ScriptAlias.
+# So HTTP_X_REMOTE_USER arrives here exactly as the client sent it. Exempting on
+# it would mean any request carrying `X-Remote-User: anything` skipped the limit -
+# turning a spam control into a header away from useless. See SM402 for the
+# related finding that the same header is already trusted for ATTRIBUTION here.
+#
+# An operator setting `rate_limit:` on the one gated form they built is explicit,
+# auditable, and needs no trust decision about a header nobody verified.
 sub check_rate_limit {
-    my ($ip) = @_;
+    my ( $ip, $limit ) = @_;
     return unless $ip;
+
+    # Absent = 5, the shipped default. 0 or `off` = no limit, for a form whose
+    # access is already controlled by something better than an address count.
+    $limit = defined $limit ? $limit : 5;
+    return if $limit <= 0;
     _ensure_dir_for("$FORMS_DIR/.rate-limit.db");
     my %db;
     tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db",
@@ -747,7 +828,7 @@ sub check_rate_limit {
     my $hour  = int( time() / 3600 );
     my $key   = "$ip:$hour";
     my $count = $db{$key} || 0;
-    if ( $count >= 5 ) { untie %db; reject('Rate limit exceeded'); }
+    if ( $count >= $limit ) { untie %db; reject('Rate limit exceeded'); }
     $db{$key} = $count + 1;
     for my $k ( keys %db ) {
         delete $db{$k} if $k =~ /:(\d+)$/ && $1 < $hour - 1;
