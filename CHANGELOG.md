@@ -175,6 +175,22 @@ Naming the commit: AFTER it lands, never before
   with neither file touched since, so they were resolved by the follow-up's CODE
   and not by rewriting the tests to agree. One command settles it.
 
+## Unreleased
+
+- SM390 (PENDING) **the agent opt-out promised exclusion and delivers
+  classification.** The MCP connector tells every partner that setting
+  `lazysite-agent/<partner-id>` keeps their hits "out of the visitor
+  analytics". It keeps them out of the **human** class; they are still counted,
+  as `bot`. A partner followed the instruction, found its own traffic in the
+  export, and reasonably concluded the opt-out was broken. **The behaviour is
+  better than the promise** - dropping agent traffic entirely would leave an
+  operator unable to see what their own tooling did - so the sentence is
+  corrected rather than the code. Two related field symptoms are recorded as
+  NOT understood: agent-UA requests appearing as `human`, and an SM332 sweep
+  that did not promote. Neither reproduces - the sweep gives `human 0, scanner
+  21` in a clean fixture on both ingest paths - so the trigger logic is not the
+  defect and the remaining variable is state carried between export runs.
+
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
 Cut after a pre-beta promotion review read the whole line read-only and

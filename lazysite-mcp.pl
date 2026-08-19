@@ -2652,9 +2652,18 @@ if ( $method eq 'initialize' ) {
                 . 'documentation pages - call describe_capabilities for the full index '
                 . '(under "docs") or read /docs/ rather than assuming a feature is '
                 . 'absent because no tool advertises it. '
+                # SM390: this said "so your hits stay out of the visitor
+                # analytics", which is not what happens. The UA moves you out
+                # of the HUMAN class into `bot` - you are still counted, in a
+                # class an operator can see and filter. Measured from the
+                # field, where a partner following this instruction found its
+                # traffic present in the export and reasonably concluded the
+                # opt-out was broken. It is not broken; the sentence was.
                 . 'When you screenshot or QA the live site, set '
-                . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
-                . 'the visitor analytics.'
+                . 'your User-Agent to lazysite-agent/<partner-id>. That keeps your '
+                . 'hits out of the HUMAN visitor counts - they are recorded as '
+                . 'bot traffic rather than dropped, so an operator can still see '
+                . 'what their tooling did.'
                 . _mcp_language_note(),
     } );
 }
