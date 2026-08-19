@@ -62,6 +62,42 @@ subtest 'and it happens before everything that READS that file' => sub {
 # THE LINE ITSELF, RUN. Extracted from release.sh rather than retyped, so this
 # drives the shipped code and not a copy of it that could agree with a broken
 # original.
+subtest 'the pair moves together, so the stage never contradicts itself' => sub {
+    # SM383. VERSION and NEXT_VERSION are a pair - "last released" and "the one
+    # after". SM375 taught this script to stamp VERSION and left NEXT_VERSION
+    # alone, so a stage cutting 0.10.15 carried VERSION=0.10.15 AND
+    # NEXT_VERSION=0.10.15, and the next release would have proposed a version
+    # already cut. Burned versions are never reused (SM064).
+    #
+    # t/lint/63 caught it by failing the release, which is the gate doing its
+    # job. The defect was stamping one half of a pair, in the change that
+    # existed because the pair had drifted.
+    like( $src, qr/> "\$STAGE\/NEXT_VERSION"/,
+        'release.sh stamps NEXT_VERSION as well' )
+        or diag( 'A stage whose NEXT_VERSION is not ahead of its VERSION fails '
+            . 't/lint/63 during the release gate - which is how this was '
+            . 'found, and it stops the cut.' );
+
+    my ($line) = $src =~ /^(STAGE_NEXT=.*)$/m;
+    ok( $line, 'the next version is derived rather than typed' ) or return;
+
+    # RUN IT, on the real line, for a version whose successor crosses no
+    # boundary and one that does.
+    #
+    # Written to a FILE rather than interpolated into backticks: the line
+    # contains awk's $1, $2 and $3, and Perl ate them as capture variables -
+    # which produced an empty result and looked exactly like the shell failing.
+    my $dir = tempdir( CLEANUP => 1 );
+    for my $case ( [ '0.10.15', '0.10.16' ], [ '1.2.9', '1.2.10' ] ) {
+        my ( $v, $want ) = @$case;
+        open my $sh, '>', "$dir/n.sh" or die $!;
+        print {$sh} "VERSION=\"\$1\"\n", $line, "\n", 'printf %s "$STAGE_NEXT"', "\n";
+        close $sh;
+        chomp( my $got = `sh \Q$dir/n.sh\E \Q$v\E 2>/dev/null` );
+        is( $got, $want, "$v -> $want" );
+    }
+};
+
 subtest 'the extracted stamp actually rewrites a stale file' => sub {
     my ($line) = $src =~ /^(printf\s+'%s\\n'\s+"\$VERSION"\s*>\s*"\$STAGE\/VERSION")\s*$/m;
     ok( $line, 'the stamp is one self-contained line' ) or return;

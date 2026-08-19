@@ -42,6 +42,20 @@ Naming the commit: AFTER it lands, never before
   not. SM354's own entry went stale in its own landing, which is how this
   paragraph came to be written.
 
+## Unreleased
+
+- SM383 (PENDING) **the release stage stamped one half of a pair.** SM375 taught
+  `release.sh` to stamp `VERSION` and left `NEXT_VERSION` alone, so a stage
+  cutting 0.10.15 carried `VERSION=0.10.15` **and** `NEXT_VERSION=0.10.15` - and
+  the next release would have proposed a version already cut, which SM064 says
+  is never reused. `t/lint/63` caught it by failing the release gate, which is
+  the gate working; the defect was stamping one half of a pair **in the very
+  change that existed because the pair had drifted**. Both now move together, as
+  `tools/bump-version.pl` has always done. The test runs the real derivation
+  line from a FILE rather than backticks, because it contains awk's `$1`/`$2`/`$3`
+  and Perl ate them as capture variables - producing an empty result that looked
+  exactly like the shell failing.
+
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
 Cut after a pre-beta promotion review read the whole line read-only and

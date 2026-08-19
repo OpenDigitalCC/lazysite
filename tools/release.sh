@@ -405,6 +405,23 @@ git -C "$STAGE" checkout --quiet --detach "$TARGET_SHA"
 echo "==> Stamping VERSION at $VERSION (was $(cat "$STAGE/VERSION" 2>/dev/null || echo none))"
 printf '%s\n' "$VERSION" > "$STAGE/VERSION"
 
+# SM383: NEXT_VERSION MOVES WITH IT, or the stage contradicts itself.
+#
+# VERSION and NEXT_VERSION are a PAIR - "the last released version" and "the one
+# after it" - and tools/bump-version.pl advances both together for that reason.
+# SM375 taught this script to stamp VERSION and left NEXT_VERSION alone, so a
+# stage cutting 0.10.15 had VERSION=0.10.15 and NEXT_VERSION=0.10.15: the next
+# release would propose a version already cut, and burned versions are never
+# reused (SM064).
+#
+# t/lint/63 caught it by failing the release, which is the gate working - but it
+# is worth being precise about what went wrong. The defect was not the lint. It
+# was stamping one half of a pair and leaving the other, in the very change that
+# existed because the pair had drifted.
+STAGE_NEXT=$(printf '%s' "$VERSION" | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
+echo "==> Stamping NEXT_VERSION at $STAGE_NEXT (the pair moves together)"
+printf '%s\n' "$STAGE_NEXT" > "$STAGE/NEXT_VERSION"
+
 # --- precondition: sbom-deps.json exists at target ---
 
 if [ ! -f "$STAGE/dist/config/sbom-deps.json" ]; then
