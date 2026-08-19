@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM382 (PENDING) **the engine's chrome 404s on a content-rooted secondary
+  domain.** SM352 moved the engine's own script and stylesheet into `/assets/`,
+  which ship into the docroot; static resolution is content-root scoped, so a
+  secondary domain looks under its own root and 404s. **Nothing reports it** -
+  the frame suppression, the SM099 auth-control sync and the form handling do
+  not fail, they never load, and the site otherwise renders perfectly. Measured
+  on a two-root fixture: 200 primary, 404 secondary. Engine-owned assets now
+  resolve from the docroot by an EXPLICIT LIST of paths rather than a prefix,
+  because a general fallback would be a way out of the SM151 confinement - the
+  test asserts a non-engine file is still refused, and widening the list to a
+  prefix fails it.
+
 - SM379 (PENDING) **the deploy watcher exits after a deploy, with the SUCCESS
   code.** `set -e` is a shell option, not a function-local one: `deploy()` ended
   `set +e; ssh ...; rc=$?; set -e; return "$rc"`, and that final `set -e` took

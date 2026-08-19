@@ -2530,6 +2530,25 @@ sub main {
         return;
     }
 
+    # SM382: THE ENGINE'S OWN ASSETS ARE NOT SITE CONTENT, so they resolve from
+    # the DOCROOT even for a domain with its own content root.
+    #
+    # SM352 moved the engine's chrome out of inline blocks and into
+    # /assets/lazysite-chrome.{css,js}, which ship into the docroot. Static
+    # resolution is content-root scoped and refuses anything outside it, so on a
+    # content-rooted secondary domain the bundle 404s - and the frame
+    # suppression, the SM099 auth-control sync and the form submit and
+    # multi-step handling all stop, silently, because the script never loads.
+    # Measured on a two-root fixture: 200 on the primary, 404 on the secondary.
+    #
+    # NARROW ON PURPOSE. This is an explicit list of engine-owned paths, not a
+    # general fallback to the docroot - a general one would be a way out of the
+    # content-root confinement that SM151 exists to enforce, which is the
+    # opposite of what this file spends its effort on.
+    if ( $croot ne $DOCROOT && _is_engine_asset($uri) ) {
+        return if _serve_content_static( $DOCROOT, $base, $uri );
+    }
+
     # SM293 step 3: a generated registry (sitemap.xml, llms.txt, the feeds) is
     # served from here rather than written into the document root. Before the
     # alias lookup and the 404, because these are real URLs the site publishes -
@@ -2736,6 +2755,17 @@ sub confine_content_root {
 # considered (clean page URLs are extensionless and handled by the .md path).
 # Binary-safe (raw read/write). Confined to $root via realpath, so a symlink
 # under the content root cannot escape it.
+# The engine's own assets, by exact path. A list rather than a prefix: a prefix
+# would let a future file under /assets/ inherit an exemption nobody decided to
+# give it.
+sub _is_engine_asset {
+    my ($uri) = @_;
+    return 0 unless defined $uri;
+    $uri =~ s/\?.*\z//;
+    return ( $uri eq '/assets/lazysite-chrome.css'
+            || $uri eq '/assets/lazysite-chrome.js' ) ? 1 : 0;
+}
+
 sub _serve_content_static {
     my ( $root, $rel, $uri ) = @_;
     return 0 unless length $rel;
