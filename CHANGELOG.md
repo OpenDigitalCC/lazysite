@@ -171,6 +171,37 @@ Naming the commit: AFTER it lands, never before
   served correctly, and overstating that is how the original probe misled an
   operator.
 
+## Unreleased
+
+- SM380 (PENDING) **the CSP shipped enforcing, with no way to turn it down.**
+  Step 5 emitted one enforcing policy on every HTML response, no config key, no
+  report-only mode. **A CSP hash covers a `<script>` BLOCK and not an inline
+  event-handler ATTRIBUTE**, and the manager's own pages are built on `onclick=`
+  - cache, audit, sessions, plugins - so the shipped policy silently stopped an
+  operator's controls firing. No test could have caught it: the failure is a
+  browser declining to run a handler, on a page the suite renders and never
+  executes. Now `csp: enforce | report-only | off` in `lazysite.conf`,
+  defaulting to **report-only**, with the policy identical in either mode so a
+  site that flips to enforce gets what it was already reporting. An unrecognised
+  value reads as report-only, never off. Converting the manager to
+  `addEventListener` remains before a manager surface can be enforced.
+- SM381 (PENDING) **five refusal paths carried no security headers, two wrote
+  into the wrong docroot, and the safety snapshot failed because the site was
+  live.** `serve_402`, `serve_403`, the ACL static refusal, the manager-access
+  refusal and `forbidden()` all printed their own headers - so the responses a
+  scanner is most likely to reach were the ones without nosniff, frame options,
+  HSTS or CSP, while the comment on `_security_headers` claimed every path called
+  it. 402 and 403 also resolved no content root, so on a multi-domain instance
+  **domain B's refusal page was rendered into domain A's docroot and served to
+  both** - the defect SM253 fixed for the 404, never carried to its neighbours.
+  The error-page writer gained the checked write and umask the main cache writer
+  has documented since SM020. **And the field snapshot failure is explained
+  rather than merely diagnosable:** tar exits 1 for "some files differ" and the
+  snapshot treated that as fatal, so one visitor triggering a render during the
+  tar refused the whole apply - 3 of 3 refusals with the old behaviour, 0 of 3
+  with the fix, which predicts every reported symptom including why a quiet-moment
+  manual backup always worked.
+
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 
 **Anyone running 0.10.13 or earlier on a migrated site should take this one.**

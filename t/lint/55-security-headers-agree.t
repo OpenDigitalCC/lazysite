@@ -25,6 +25,8 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
 use Digest::SHA               qw(sha256);
+use File::Temp                qw(tempdir);
+use File::Path                qw(make_path);
 use MIME::Base64              qw(encode_base64);
 use TestHelper                qw(repo_root);
 use Lazysite::SecurityHeaders ();
@@ -53,13 +55,30 @@ my $FIXTURE = <<'HTML';
 </head><body>hello</body></html>
 HTML
 
+# The extracted copy reads this to find lazysite.conf. Given a value up front so
+# the subtests that do not care about the mode do not emit uninitialised-value
+# warnings on every call - noise that would hide a real warning later. Pointing
+# at a path that does not exist is deliberate: _conf_value returns undef, which
+# is the "no conf" case, which is report-only.
+{
+    no warnings 'once';    ## no critic (ProhibitNoWarnings)
+    $ProcessorHeadersUnderTest::LAZYSITE_DIR = '/nonexistent-for-this-test';
+}
+
 subtest 'the processor carries the copy, and it agrees' => sub {
     my $pkg = 'ProcessorHeadersUnderTest';
-    for my $name (qw(_security_headers _inline_script_hashes _content_security_policy)) {
+    for my $name (
+        qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value)
+        )
+    {
         my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
         ok( $sub, "lazysite-processor.pl carries its own $name" ) or return;
+        # _conf_value reads $LAZYSITE_DIR, a package global in the processor's
+        # own main::. Declared here so the extracted copy compiles under strict
+        # in its own package - and so the fixture below can point it at a
+        # temporary conf.
         eval "package $pkg; use Digest::SHA qw(sha256); "
-            . "use MIME::Base64 qw(encode_base64); $sub 1;"
+            . "use MIME::Base64 qw(encode_base64); our \$LAZYSITE_DIR; $sub 1;"
             or do { fail("could not evaluate $name: $@"); return };
     }
 
@@ -82,6 +101,33 @@ subtest 'the processor carries the copy, and it agrees' => sub {
                     . 'The engine would answer one set on the front door and '
                     . 'another on every page it renders.' );
         }
+    }
+};
+
+subtest 'the two agree on every CSP mode, including a typo' => sub {
+    # SM380. The processor reads the mode from lazysite.conf and the module
+    # takes it as an argument, so they cannot be compared without giving each
+    # its own input. What must match is the DECISION: which header name, or
+    # none - and that a value neither recognises falls to report-only rather
+    # than off, since a typo silently disabling a security header is the
+    # direction SM356 found failing open.
+    my $dir = tempdir( CLEANUP => 1 );
+    make_path("$dir/lazysite");
+    local $ProcessorHeadersUnderTest::LAZYSITE_DIR = "$dir/lazysite";
+
+    for my $case ( [ '', 'report-only' ], [ 'report-only', 'report-only' ],
+        [ 'enforce', 'enforce' ], [ 'off', 'off' ], [ 'wibble', 'report-only' ] )
+    {
+        my ( $written, $want ) = @$case;
+        open my $cf, '>', "$dir/lazysite/lazysite.conf" or die $!;
+        print {$cf} ( length $written ? "csp: $written\n" : "site_name: x\n" );
+        close $cf;
+
+        my $proc = ProcessorHeadersUnderTest::_csp_mode();
+        my $mod  = Lazysite::SecurityHeaders::csp_mode(
+            length $written ? $written : undef );
+        is( $proc, $want, "processor reads '$written' as $want" );
+        is( $mod,  $want, "and the module agrees" );
     }
 };
 

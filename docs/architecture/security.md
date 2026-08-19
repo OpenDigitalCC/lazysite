@@ -471,14 +471,39 @@ Vary: Cookie
   `ttl: N`.
 - `no-cache, must-revalidate` as the default for rendered pages.
 
-Not emitted by the processor (set at web server level, because the
-policy depends on site-specific and deployment-specific factors):
+Emitted by the processor since SM352, on every response the engine
+answers:
 
-- `Content-Security-Policy` - site-specific (depends on which
-  external resources pages load; embedded oEmbed, fonts, analytics
-  etc.).
-- `Strict-Transport-Security` - should only be set over HTTPS, and
-  the operator controls whether HTTPS is in use.
+- `Content-Security-Policy` (or `-Report-Only`) - on HTML only, since a
+  stylesheet has no script to govern. The policy is strict where
+  injection happens and permissive where author content lives:
+  `script-src` carries a **hash of every inline script in the response**
+  rather than `unsafe-inline`, because 22 of the 23 shipped layouts
+  inline one; `object-src`, `base-uri`, `form-action` and
+  `frame-ancestors` are locked down; `img-src`, `media-src` and
+  `frame-src` allow `https:` so an author referencing an image on
+  another host is not treated as an incident. `style-src` still permits
+  inline, recorded rather than dressed up: a hash cannot cover a
+  `style=""` attribute and author content produces those.
+- The **mode** is `csp: enforce | report-only | off` in `lazysite.conf`,
+  defaulting to **report-only**. A hash does not cover an inline
+  event-handler attribute, and the manager's own pages use `onclick=`,
+  so an enforcing default would stop an operator's controls firing. An
+  unrecognised value reads as report-only, never off.
+- `Strict-Transport-Security` - emitted only over TLS, `max-age=300`
+  deliberately short, with neither `includeSubDomains` nor `preload`.
+
+The paragraph this replaced said both belonged at web server level
+because the policy is site-specific. SM286 settled that the other way:
+"belongs in the vhost config" is the reasoning that produced SM248,
+SM268 H17 and SM283 - correct engine, front end never told.
+
+The earlier text also noted that HSTS "should only be set over HTTPS,
+and the operator controls whether HTTPS is in use". That reasoning is
+intact and is exactly what the engine now does - it reads the same
+`HTTPS` environment variable the session cookie uses for its Secure
+flag, so a front end that does not set it simply gets no HSTS, which is
+the safe direction to fail.
 
 ## Rate limiting
 

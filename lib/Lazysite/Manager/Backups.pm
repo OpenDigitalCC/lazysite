@@ -315,11 +315,40 @@ sub _scrub_paths {
     return join '; ', @lines;
 }
 
+# Is the archive a readable gzip stream? A tar warning is only acceptable if
+# what it produced can actually be restored, and "the file exists and is not
+# empty" does not establish that.
+sub _gzip_ok {
+    my ($path) = @_;
+    my $pid = fork();
+    return 0 unless defined $pid;
+    if ( !$pid ) {
+        open STDOUT, '>', '/dev/null';
+        open STDERR, '>', '/dev/null';
+        exec( 'gzip', '-t', $path ) or exit 127;
+    }
+    waitpid $pid, 0;
+    return ( $? == 0 ) ? 1 : 0;
+}
+
 sub action_backup_create {
     my ($kind) = @_;
     $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
     my $dir = _dir();
-    make_path($dir) unless -d $dir;
+
+    # SM381: CHECKED. An unchecked make_path meant a permissions failure here
+    # surfaced two frames later as "could not claim a filename", which names the
+    # wrong thing entirely - the directory could not be made, and the operator
+    # was sent to look at filenames.
+    unless ( -d $dir ) {
+        make_path($dir);
+        unless ( -d $dir ) {
+            return { ok => 0,
+                error  => 'Backup failed: cannot create the backup directory',
+                reason => 'cannot create the backup directory',
+                detail => _scrub_paths("$dir: $!") };
+        }
+    }
     # All backup artefacts carry the `lazysite-` namespace prefix so they are
     # unmistakably ours (and sort together): lazysite-<kind>-<UTCstamp>.tar.gz.
     # The name is claimed atomically - see _claim_name for why a check-then-create
@@ -339,6 +368,16 @@ sub action_backup_create {
         ? ( '--exclude=./lazysite/backups', '--exclude=./lazysite/cache',
         '--exclude=./lazysite-assets' )
         : ( '--exclude=./lazysite', '--exclude=./lazysite-assets' );
+
+    # SM381: THE RENDER CACHE'S TEMPFILES, which exist for milliseconds and are
+    # renamed away. The processor writes "<page>.html.tmp.<pid>" into the
+    # DOCROOT and renames it into place, so a visitor arriving mid-backup lets
+    # tar enumerate a temp file that is gone before tar opens it. tar then exits
+    # non-zero for a file nobody wanted archived.
+    #
+    # Excluded rather than only tolerated, because the file is genuinely not
+    # wanted in a backup: restoring one would put a half-written page into a site.
+    push @excludes, '--exclude=*.tmp.[0-9]*';
 
     # SM286: the private content store is CONTENT, and it lives outside the
     # docroot - so a tar of the docroot alone silently stops backing up every
@@ -372,23 +411,33 @@ sub action_backup_create {
     # tar exiting non-zero is a tar problem; a missing archive after a zero exit
     # is a filesystem or permissions problem; a zero-byte archive means tar
     # believed it wrote something and did not.
-    # LIST FORM, NO SHELL. An earlier draft of this reached for `sh -c` to get
-    # the redirect and used a bashism (${@:3}) that dash - Debian's /bin/sh -
-    # does not understand, which would have broken every backup on the platform
-    # this ships to. STDERR is redirected in this process instead, so tar is
-    # still exec'd directly with its arguments as a list.
+    # LIST FORM, NO SHELL, AND THE REDIRECT IN THE CHILD ONLY.
+    #
+    # An earlier draft reached for `sh -c` to get the redirect and used a
+    # bashism (${@:3}) that dash - Debian's /bin/sh - does not understand, which
+    # would have broken every backup on the platform this ships to.
+    #
+    # The draft after THAT redirected this process's STDERR around the system()
+    # call, which is a hazard in a persistent worker (SM381): for the duration
+    # of a multi-second tar every unrelated warning in the process goes to a
+    # temp file that is then deleted, and if the call dies between the two
+    # opens, STDERR stays redirected for the life of the worker.
+    #
+    # fork/exec redirects in the CHILD, so the parent's STDERR is never touched.
     my $err_file = "$out.err";
-    my $rc;
-    {
-        open my $saved_err, '>&', \*STDERR or die "cannot save STDERR: $!";
-        if ( open STDERR, '>', $err_file ) {
-            $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store );
-            open STDERR, '>&', $saved_err or die "cannot restore STDERR: $!";
-        }
-        else {
-            $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store );
-        }
-        close $saved_err;
+    my $rc       = 0;
+    my $pid      = fork();
+    if ( !defined $pid ) {
+        $rc = -1;
+    }
+    elsif ( !$pid ) {
+        open STDERR, '>', $err_file or exit 127;
+        exec( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store )
+            or exit 127;
+    }
+    else {
+        waitpid $pid, 0;
+        $rc = $?;
     }
     my $tar_err = '';
     if ( open my $eh, '<', $err_file ) {
@@ -398,7 +447,29 @@ sub action_backup_create {
     }
     unlink $err_file;
 
-    if ( $rc != 0 || !-f $out || -z $out ) {
+    # SM381: TAR EXIT 1 IS "SOME FILES DIFFER", NOT A FAILURE.
+    #
+    # tar uses 1 for a warning - a file changed or vanished while being read -
+    # and 2 for a fatal error. Treating both as fatal is why a busy site could
+    # not be snapshotted: one visitor triggering a render during the tar
+    # produced exit 1 and the whole apply refused. It explains every symptom the
+    # field reported - intermittent, traffic-correlated, and invisible to a
+    # manual backup taken at a quiet moment.
+    #
+    # The archive still has to be USABLE before a warning is accepted: present,
+    # non-empty, and readable as a gzip stream. A warning plus a valid archive
+    # is a backup; a warning plus a broken one is a failure.
+    my $status = $rc >> 8;
+    my $usable = ( -f $out && !-z $out && _gzip_ok($out) ) ? 1 : 0;
+    my $warned = ( $status == 1 && $usable ) ? 1 : 0;
+
+    if ($warned) {
+        log_event( 'INFO', 'backup-create',
+            'tar reported changed files during the snapshot; archive verified',
+            file => $name, user => $auth_user );
+    }
+
+    if ( ( $rc != 0 && !$warned ) || !-f $out || -z $out ) {
         # Drop the placeholder we claimed, or a failed snapshot sits in the
         # listing as a zero-byte tarball that reads as a usable one.
         unlink $out;

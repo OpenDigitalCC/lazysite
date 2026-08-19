@@ -399,9 +399,19 @@ pool degrades visibly rather than serving stale or empty pages.
 ## Why it is out of reach
 
 The processor's headers are asserted in the suite. What a browser receives is the
-processor's set **plus whatever the front end adds, strips or overrides** - and
-CSP and HSTS are deliberately vhost concerns, so they are absent from the engine
-by design.
+processor's set **plus whatever the front end adds, strips or overrides**.
+
+CSP and HSTS are no longer vhost concerns: since SM352 the engine emits both.
+HSTS only over TLS, and the CSP only on HTML, in the mode `lazysite.conf` sets -
+`csp: enforce | report-only | off`, defaulting to **report-only**.
+
+That default is the thing to check by hand, because the suite cannot: a CSP
+hash covers a `<script>` **block** and NOT an inline event-handler attribute,
+and the manager's own pages use `onclick=`. So under `csp: enforce` the
+manager's cache, audit, sessions and plugins controls may silently stop firing -
+in the browser, with nothing in the response to say so. **Walk the manager with
+the console open before setting a site to enforce**, and confirm zero CSP
+violations.
 
 ## The pass
 
@@ -410,8 +420,11 @@ curl -sSI https://example.test/ | sort
 curl -sSI https://example.test/no-such-page | sort
 ```
 
-The 404 must carry the same baseline set as the 200 (SM253). Confirm CSP and
-HSTS are present if the vhost is meant to emit them - the engine will not.
+The 404 must carry the same baseline set as the 200 (SM253), and that now
+includes the CSP and - over TLS - HSTS, because the engine emits them itself.
+
+**402 and 403 are the ones to check by hand**, not the 404: they were found
+printing their own headers and carrying none of the baseline set (SM381).
 
 # Static files under access control (SM223)
 

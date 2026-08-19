@@ -13,11 +13,11 @@ use Cwd    qw(realpath);
 use Encode qw(decode);
 # Socket + URI moved to Lazysite::Fetch (SM096): they backed only the SSRF guard,
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
-use JSON::PP    qw(encode_json decode_json);
-use Digest::SHA   qw(hmac_sha256_hex sha256);
-use MIME::Base64 qw(encode_base64);    # SM352: CSP script hashes
-use POSIX       qw(strftime);
-use Fcntl       qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access log
+use JSON::PP     qw(encode_json decode_json);
+use Digest::SHA  qw(hmac_sha256_hex sha256);
+use MIME::Base64 qw(encode_base64);                # SM352: CSP script hashes
+use POSIX        qw(strftime);
+use Fcntl        qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access log
 
 my $LOG_COMPONENT = 'processor';
 
@@ -970,12 +970,13 @@ sub _acl_refused {
         log_event( 'WARN', $uri, 'static refused by ACL', user => $user );
         $ACCESS_REC{s} //= 403;
         $ACCESS_REC{ar} = 1;
-        binmode( STDOUT, ':utf8' );
-        print "Status: 403 Forbidden\r\n";
-        print "Cache-Control: no-store\r\n";
-        print "Content-Type: text/html; charset=utf-8\r\n\r\n";
-        print "<!DOCTYPE html><html><body><h1>Forbidden</h1>"
-            . "<p>You do not have access to this file.</p></body></html>\n";
+        # SM381: through output_page. This is an ACCESS REFUSAL on a static,
+        # which makes it one of the responses most worth carrying the header
+        # set rather than least.
+        return output_page(
+            "<!DOCTYPE html><html><body><h1>Forbidden</h1>"
+                . "<p>You do not have access to this file.</p></body></html>\n",
+            'text/html; charset=utf-8', undef, 1, '403 Forbidden' );
         return 1;
     }
 
@@ -1178,10 +1179,8 @@ sub _serve_manager_forbidden {
     my $site         = _esc_html( $sv->{site_name} // 'this site' );
     my $who          = _esc_html($auth_user);
     $ACCESS_REC{s} //= 403;    # SM140
-    binmode( STDOUT, ':utf8' );
-    print "Status: 403 Forbidden\r\n";
-    print "Content-Type: text/html; charset=utf-8\r\n\r\n";
-    print <<"HTML";
+                               # SM381: through output_page, like every other refusal.
+    my $body = <<"HTML";
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Manager access not permitted</title></head>
 <body style="font-family:system-ui,sans-serif;max-width:520px;margin:3em auto;padding:0 1em;line-height:1.5;">
@@ -1195,19 +1194,37 @@ permitted to use the manager interface.</p>
 <a href="/logout">sign out</a> in the meantime.</p>
 </body></html>
 HTML
-    return;
+    return output_page( $body, 'text/html; charset=utf-8', undef, 1,
+        '403 Forbidden' );
 }
 
 sub serve_403 {
     my ($auth_result) = @_;
-    my $md_path = _system_page_md('403') // "$DOCROOT/403.md";          # SM201 fallback
+
+    # SM381: THE DOMAIN'S CONTENT ROOT, and through output_page.
+    #
+    # Two defects, both of which SM253 already fixed for the 404 and neither of
+    # which was carried across:
+    #
+    #   the ROOT   _system_page_md was called with no content root and the cache
+    #              slot was hard-coded to $DOCROOT, so on a multi-domain
+    #              instance domain B's 403 was RENDERED INTO domain A's docroot
+    #              and then served to both. One site's branding and navigation
+    #              shown to a visitor refused on another.
+    #   the HEADERS this printed its own status line and content type, so the
+    #              two responses a scanner is most likely to reach carried no
+    #              nosniff, no frame options, no HSTS and no CSP. The comment on
+    #              _security_headers claimed every response path called it; it
+    #              was not true of these two.
+    my $croot   = _request_croot();
+    my $md_path = _system_page_md( '403', $croot ) // "$DOCROOT/403.md";    # SM201
 
     $ACCESS_REC{s} //= 403;    # SM140
     $ACCESS_REC{ar} = 1;       # SM223: an ACCESS refusal, not a missing page
     binmode( STDOUT, ':utf8' );
 
     if ( -f $md_path ) {
-        my $html_path = "$DOCROOT/403.html";
+        my $html_path = "$croot/403.html";
         my $page      = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
 
         # SM371: an error page is not the canonical version of anything, and the
@@ -1215,27 +1232,31 @@ sub serve_403 {
         $page = _sanitise_not_found($page);
         _rewrite_if_changed( $html_path, $page ) if -f $html_path;
 
-        print "Status: 403 Forbidden\r\n";
-        print "Content-type: text/html; charset=utf-8\r\n";
-        print "Cache-Control: no-store, private\r\n\r\n";
-        print $page;
+        # SM381: through output_page, which carries the baseline header set and
+        # records the byte count for analytics. no-store/private is what
+        # output_page already emits for an auth-protected response, which this
+        # is by definition.
+        return output_page( $page, 'text/html; charset=utf-8', undef, 1,
+            '403 Forbidden' );
     }
-    else {
-        print "Status: 403 Forbidden\r\n";
-        print "Content-type: text/html; charset=utf-8\r\n";
-        print "Cache-Control: no-store, private\r\n\r\n";
-        my $lang = _chrome_lang();
-        print qq{<!DOCTYPE html><html lang="$lang"><head><meta charset="utf-8">};
-        print "<title>403 Forbidden</title></head><body>";
-        print '<h1>' . _chrome('forbidden.title') . '</h1>';
-        if ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' ) {
-            print '<p>' . _chrome('forbidden.insufficient') . '</p>';
-        }
-        else {
-            print '<p>' . _chrome('auth.required') . '</p>';
-        }
-        print "</body></html>";
-    }
+    # SM381: the bare fallback goes through output_page too. It is the path a
+    # site reaches before 403.md exists - a fresh install - so leaving it
+    # printing its own headers would mean the responses least likely to be
+    # noticed are the ones without the header set.
+    my $lang = _chrome_lang();
+    my $body
+        = qq{<!DOCTYPE html><html lang="$lang"><head><meta charset="utf-8">}
+        . '<title>403 Forbidden</title></head><body>'
+        . '<h1>' . _chrome('forbidden.title') . '</h1>'
+        . '<p>'
+        . (
+        ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' )
+        ? _chrome('forbidden.insufficient')
+        : _chrome('auth.required')
+        )
+        . '</p></body></html>';
+    return output_page( $body, 'text/html; charset=utf-8', undef, 1,
+        '403 Forbidden' );
 }
 
 # --- Payment ---
@@ -1328,7 +1349,11 @@ sub serve_402 {
 
     binmode( STDOUT, ':utf8' );
 
-    my $md_path = _system_page_md('402') // "$DOCROOT/402.md";    # SM201 fallback
+    # SM381: the domain's content root, as SM253 did for the 404. Called with no
+    # root, the first of _system_page_md's three tiers collapsed into the second
+    # and a secondary domain rendered its 402 into the PRIMARY's docroot.
+    my $croot   = _request_croot();
+    my $md_path = _system_page_md( '402', $croot ) // "$DOCROOT/402.md";    # SM201
     if ( -f $md_path ) {
         # Set payment context for TT rendering
         %PAYMENT_CONTEXT = (
@@ -1339,7 +1364,7 @@ sub serve_402 {
             payment_address     => $payment_result->{address}     // '',
             payment_description => $payment_result->{description} // '',
         );
-        my $html_path = "$DOCROOT/402.html";
+        my $html_path = "$croot/402.html";
         my $page      = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
 
         # SM371: the worse of the two. A canonical here points at content the
@@ -1350,24 +1375,21 @@ sub serve_402 {
         $page = _sanitise_not_found($page);
         _rewrite_if_changed( $html_path, $page ) if -f $html_path;
 
-        print "Status: 402 Payment Required\r\n";
-        print "Content-type: text/html; charset=utf-8\r\n";
-        print "X-Payment-Response: $x_payment\r\n";
-        print "Cache-Control: no-store, private\r\n\r\n";
-        print $page;
+        # SM381: through output_page, so the baseline header set reaches the
+        # response a payment-gated visitor actually receives.
+        return output_page( $page, 'text/html; charset=utf-8', undef, 1,
+            '402 Payment Required', ["X-Payment-Response: $x_payment"] );
     }
-    else {
-        print "Status: 402 Payment Required\r\n";
-        print "Content-type: text/html; charset=utf-8\r\n";
-        print "X-Payment-Response: $x_payment\r\n";
-        print "Cache-Control: no-store, private\r\n\r\n";
-        print "<!DOCTYPE html><html><head><title>Payment Required</title></head><body>";
-        print "<h1>Payment Required</h1>";
-        print "<p>This content requires payment of ";
-        print( ( $payment_result->{amount} // '0' ) . " "
-                . ( $payment_result->{currency} // 'USD' ) );
-        print ".</p></body></html>";
-    }
+
+    my $body
+        = '<!DOCTYPE html><html><head><title>Payment Required</title></head><body>'
+        . '<h1>Payment Required</h1>'
+        . '<p>This content requires payment of '
+        . ( ( $payment_result->{amount} // '0' ) . ' '
+            . ( $payment_result->{currency} // 'USD' ) )
+        . '.</p></body></html>';
+    return output_page( $body, 'text/html; charset=utf-8', undef, 1,
+        '402 Payment Required', ["X-Payment-Response: $x_payment"] );
 }
 
 # --- The front door (SM294) ---
@@ -6435,7 +6457,10 @@ sub output_page {
     # SM253: $status lets a non-200 response (the 404 path) share this function,
     # and therefore the baseline security headers. Optional and last, so every
     # existing caller keeps emitting 200 unchanged.
-    my ( $content, $content_type, $ttl, $auth_protected, $status ) = @_;
+    # SM381: $extra carries response headers only one caller has - the 402's
+    # X-Payment-Response. Optional and last for the same reason $status was:
+    # every existing caller is unchanged.
+    my ( $content, $content_type, $ttl, $auth_protected, $status, $extra ) = @_;
     $content_type //= 'text/html; charset=utf-8';
     $status       //= '200 OK';
 
@@ -6474,6 +6499,7 @@ sub output_page {
     # the engine - which is what a report-only collector would otherwise have
     # had to discover from live traffic, for a fact the source already states.
     print "$_\n" for _security_headers( html => $content );          # SM352
+    print "$_\n" for @{ $extra || [] };                              # SM381
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
@@ -6498,10 +6524,9 @@ sub output_page {
 
 sub forbidden {
     $ACCESS_REC{s} //= 403;    # SM140
-    binmode( STDOUT, ':utf8' );
-    print "Status: 403 Forbidden\n";
-    print "Content-type: text/plain; charset=utf-8\n\n";
-    print "403 Forbidden\n";
+                               # SM381: through output_page like every other refusal.
+    return output_page( "403 Forbidden\n", 'text/plain; charset=utf-8',
+        undef, 1, '403 Forbidden' );
 }
 
 # SM352: the response security headers.
@@ -6582,11 +6607,54 @@ sub _security_headers {
     push @h, 'Strict-Transport-Security: max-age=300' if $ENV{HTTPS};
 
     # Only on HTML: a stylesheet or an image has no script to govern.
+    #
+    # SM380: the MODE is a site decision and the default is REPORT-ONLY. Step 5
+    # shipped this enforcing with no way to turn it down, and a CSP hash covers
+    # a <script> BLOCK and NOT an inline event-handler attribute - so an
+    # enforcing policy silently stops the manager's own onclick= controls
+    # firing, which no processor-driven test can see because the failure is in a
+    # browser.
     if ( defined $opt{html} ) {
-        push @h, 'Content-Security-Policy: '
-            . _content_security_policy( _inline_script_hashes( $opt{html} ) );
+        my $mode = _csp_mode();
+        if ( $mode ne 'off' ) {
+            my $name
+                = $mode eq 'enforce'
+                ? 'Content-Security-Policy'
+                : 'Content-Security-Policy-Report-Only';
+            push @h, "$name: "
+                . _content_security_policy( _inline_script_hashes( $opt{html} ) );
+        }
     }
     return @h;
+}
+
+# The CSP mode from lazysite.conf. A deliberate copy of
+# Lazysite::SecurityHeaders::_csp_mode (ADR 0001), pinned by t/lint/55.
+#
+# AN UNRECOGNISED VALUE IS REPORT-ONLY, NOT OFF. A typo must not silently
+# disable the header - the direction SM356 found failing open on the update
+# channel, where a misspelling granted rather than refused.
+sub _csp_mode {
+    my $v = _conf_value('csp');
+    return 'report-only' unless defined $v && length $v;
+    $v = lc $v;
+    $v =~ s/^\s+|\s+$//g;
+    $v = 'report-only' if $v eq 'report_only' || $v eq 'reportonly';
+    return ( grep { $_ eq $v } qw(enforce report-only off) ) ? $v : 'report-only';
+}
+
+# A raw string value from lazysite.conf. _conf_flag_enabled answers yes/no; this
+# answers "what did they write", which a three-way setting needs.
+sub _conf_value {
+    my ($key) = @_;
+    open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" or return undef;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\Q$key\E\s*:\s*(\S+)/;
+        close $fh;
+        return $1;
+    }
+    close $fh;
+    return undef;
 }
 
 # SM190: is a lazysite.conf service flag enabled? A tiny standalone reader - the
@@ -6735,10 +6803,33 @@ sub _rewrite_if_changed {
     my ( $path, $content ) = @_;
     my $current = eval { read_file($path) };
     return if defined $current && $current eq $content;
-    my $tmp = "$path.$$";
-    open my $fh, '>:utf8', $tmp or return;
-    print {$fh} $content;
-    close $fh;
+
+    # SM381: THE CHECKED WRITE THE MAIN CACHE WRITER DOCUMENTS 300 LINES ABOVE.
+    #
+    # This is the writer for the cached 404/402/403 files and it checked neither
+    # print nor close before renaming into place - the SM020 torn-page defect
+    # that writer guards against, in the same file, on the response most likely
+    # to be reached by a scanner. A disk-full mid-write renamed a TRUNCATED
+    # error page into place, and it was then served from cache.
+    #
+    # It also omitted _cache_umask(), so a rewritten error page landed
+    # non-group-writable in the mixed www-data/site-user case and the other
+    # identity could not manage it afterwards.
+    my $old_umask = _cache_umask();
+    my $tmp       = "$path.tmp.$$";
+    open my $fh, '>:utf8', $tmp or do {
+        umask $old_umask;
+        return;
+    };
+    my $wrote = print {$fh} $content;
+    umask $old_umask;
+    unless ( close($fh) && $wrote ) {
+        unlink $tmp;
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'error page write failed; keeping the previous cache',
+            path => $path );
+        return;
+    }
     rename $tmp, $path or unlink $tmp;
     return;
 }

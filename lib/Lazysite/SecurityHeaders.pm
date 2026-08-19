@@ -51,7 +51,9 @@ package Lazysite::SecurityHeaders;
 use strict;
 use warnings;
 
-our @EXPORT_OK = qw(security_headers content_security_policy inline_script_hashes);
+our @EXPORT_OK = qw(security_headers content_security_policy inline_script_hashes csp_mode);
+
+sub csp_mode { return _csp_mode(@_) }
 use Exporter 'import';
 use Digest::SHA  qw(sha256);
 use MIME::Base64 qw(encode_base64);
@@ -86,6 +88,23 @@ our @DENIED_FEATURES = qw(
     accelerometer browsing-topics camera display-capture geolocation
     gyroscope magnetometer microphone midi payment usb xr-spatial-tracking
 );
+
+# The three modes, and an unrecognised value is REPORT-ONLY rather than off.
+#
+# A typo must not silently disable the header - that is the direction SM356
+# found failing open on the update channel, where a misspelling granted rather
+# than refused. Reporting is the safe reading of "I meant to set this and got
+# the word wrong".
+our @CSP_MODES = qw(enforce report-only off);
+
+sub _csp_mode {
+    my ($v) = @_;
+    return 'report-only' unless defined $v && length $v;
+    $v = lc $v;
+    $v =~ s/^\s+|\s+$//g;
+    $v = 'report-only' if $v eq 'report_only' || $v eq 'reportonly';
+    return ( grep { $_ eq $v } @CSP_MODES ) ? $v : 'report-only';
+}
 
 sub _permissions_policy {
     return join ', ', map { "$_=()" } @DENIED_FEATURES;
@@ -206,17 +225,34 @@ sub security_headers {
     );
     push @h, "Strict-Transport-Security: max-age=$HSTS_MAX_AGE" if $opt{https};
 
-    # ENFORCING, not report-only. A report-only header with nowhere to report is
-    # inert, and building somewhere to report to would have meant standing up an
-    # unauthenticated cross-origin write endpoint to discover something
-    # t/lint/56 already answers completely rather than representatively.
-    #
     # Only on HTML. A stylesheet or an image has no script to govern, and a CSP
     # on a static asset is a header nothing reads.
+    #
+    # THE MODE IS A SITE DECISION, AND THE DEFAULT IS REPORT-ONLY (SM380).
+    #
+    # Step 5 shipped this enforcing with no way to turn it down, and that was
+    # wrong for a reason the tests could not see: a CSP hash covers a <script>
+    # BLOCK and does not cover an inline event-handler ATTRIBUTE. The manager's
+    # own pages are built on onclick= - cache invalidation, audit, sessions,
+    # plugins - so an enforcing policy silently stops the operator's controls
+    # firing. Nothing in a processor-driven test notices, because the failure
+    # happens in a browser.
+    #
+    # So: report-only by default, which reports without breaking anything, and
+    # `csp: enforce` when a site has been walked and is known clean. `csp: off`
+    # exists because a header that cannot be turned off is one an operator will
+    # work around by other means.
     if ( $opt{html} ) {
-        push @h,
-            'Content-Security-Policy: '
-            . content_security_policy( script_hashes => $opt{script_hashes} );
+        my $mode = _csp_mode( $opt{csp_mode} );
+        if ( $mode ne 'off' ) {
+            my $name
+                = $mode eq 'enforce'
+                ? 'Content-Security-Policy'
+                : 'Content-Security-Policy-Report-Only';
+            push @h,
+                "$name: "
+                . content_security_policy( script_hashes => $opt{script_hashes} );
+        }
     }
     return @h;
 }

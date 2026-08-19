@@ -158,7 +158,14 @@ subtest 'and the CSP is honest about every one of them' => sub {
     };
 
     like( $src, qr/Content-Security-Policy/,
-        'an enforcing CSP is emitted' );
+        'a CSP is emitted' );
+
+    # SM380: the MODE is a site decision - report-only by default, `enforce`
+    # once walked, `off` because a header that cannot be turned off is one an
+    # operator routes around. The inventory cares that the policy is HONEST
+    # about what the engine emits, not which of the two header names carries it.
+    like( $src, qr/Content-Security-Policy-Report-Only/,
+        'and report-only is available as the default rollout mode' );
 
     my ($policy) = $src =~ /sub _content_security_policy \{(.*?)\n\}/s;
     ok( $policy, 'the policy is assembled in one place' ) or return;

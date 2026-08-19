@@ -135,7 +135,7 @@ subtest 'Permissions-Policy denies what the platform never uses' => sub {
         'while the capabilities a page might legitimately want are untouched' );
 };
 
-subtest 'and an enforcing CSP, now that the engine stopped inlining' => sub {
+subtest 'and a CSP, report-only by default, now the engine stopped inlining' => sub {
     # THIS SUBTEST USED TO ASSERT THE OPPOSITE, and was right to: while the
     # engine inlined ten script and style blocks of its own, emitting a policy
     # it broke on every page would have been a security header saying something
@@ -150,13 +150,16 @@ subtest 'and an enforcing CSP, now that the engine stopped inlining' => sub {
     # is the argument for the full suite before a landing rather than the suites
     # that seem relevant.
     my $out = run_processor( $docroot, '/' );
-    like( $out, qr/^Content-Security-Policy:/mi,
-        'present on an HTML response' );
-    unlike( $out, qr/^Content-Security-Policy-Report-Only:/mi,
-        'and enforcing, not report-only - a report-only header with nowhere '
-            . 'to report is inert' );
+    like( $out, qr/^Content-Security-Policy(?:-Report-Only)?:/mi,
+        'a policy is emitted on an HTML response' );
 
-    my ($csp) = $out =~ /^Content-Security-Policy:\s*(.+?)\s*$/mi;
+    # SM380: report-only is the DEFAULT, because a hash does not cover an
+    # inline event-handler attribute and the manager is built on onclick=.
+    # `csp: enforce` is the opt-in once a site has been walked.
+    like( $out, qr/^Content-Security-Policy-Report-Only:/mi,
+        'and it is report-only until the site opts in' );
+
+    my ($csp) = $out =~ /^Content-Security-Policy(?:-Report-Only)?:\s*(.+?)\s*$/mi;
     unlike( $csp, qr/script-src[^;]*'unsafe-inline'/,
         'script-src does not permit inline wholesale' )
         or diag( 'Inline script is covered by HASHING what the response '

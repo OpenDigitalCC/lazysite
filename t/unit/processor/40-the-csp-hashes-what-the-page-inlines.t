@@ -54,19 +54,28 @@ close $md;
 unlink "$docroot/index.html";
 my $out = run_processor( $docroot, '/' );
 
-my ($csp) = $out =~ /^Content-Security-Policy:\s*(.+?)\s*$/mi;
+my ($csp) = $out =~ /^Content-Security-Policy(?:-Report-Only)?:\s*(.+?)\s*$/mi;
 
-subtest 'the header is present and enforcing' => sub {
-    ok( $csp, 'Content-Security-Policy is emitted on an HTML response' )
+subtest 'the header is present, and report-only by default' => sub {
+    ok( $csp, 'a CSP is emitted on an HTML response' )
         or do { diag($out); return };
-    unlike( $out, qr/^Content-Security-Policy-Report-Only:/mi,
-        'and it is the enforcing header, not report-only' )
-        or diag( 'A report-only header with nowhere to report is inert - it '
-            . 'is a policy that has been written down rather than applied.' );
+
+    # SM380 CHANGED THE DEFAULT, and this subtest changes with it. Step 5
+    # shipped enforcing with no way to turn it down, and a hash covers a
+    # <script> BLOCK and not an inline event-handler ATTRIBUTE - so an
+    # enforcing default silently stops the manager's own onclick= controls
+    # firing, in a browser, where no test here can see it.
+    like( $out, qr/^Content-Security-Policy-Report-Only:/mi,
+        'report-only until a site opts in to enforce' )
+        or diag( 'An enforcing default is a policy applied to sites nobody has '
+            . 'walked. Report-only reports without breaking anything, which is '
+            . 'what a rollout window is for.' );
 };
 
 subtest 'script-src carries the hash of what the page actually inlined' => sub {
     plan skip_all => 'no CSP' unless $csp;
+    # The POLICY is identical in either mode - only the header name differs, so
+    # a site that flips to enforce gets exactly what it was already reporting.
     my $want = "'sha256-" . encode_base64( sha256($SCRIPT), '' ) . "'";
     like( $csp, qr/\Q$want\E/,
         'the layout\'s inline script is hashed into script-src' )
