@@ -44,6 +44,8 @@ tone: medium
 2026-08-19 | 187b689 | full suite -j4 | FAIL, 438 files | perlcritic: unreachable code and two unchecked opens, both introduced by the SM381 work in that commit. Fixed in the commit that follows.
 2026-08-19 | 6f62c4f | full suite -j4 | **PASS, 438 files, 8050 tests** | The pre-cut run for items 1-8 of the pre-beta review: CSP rollout mode, the refusal paths, the snapshot fix, and this register.
 2026-08-19 | 2162d75 | full suite -j4 | **PASS, 438 files, 8045 tests** | SM382, the engine chrome on a content-rooted secondary domain. Branched from main rather than from the row above, which is why the count differs - each branch carried only its own tests.
+2026-08-19 | a19ca72 | tier-release (in `release.sh`) | **PASS - v0.10.15 cut** | Third attempt. The first two aborted before tagging and burned no version: `t/lint/63` on a stage whose NEXT_VERSION was not ahead of its stamped VERSION (SM383), then SM384 stopped by hand when a partner agent found the CSP hash dying on non-ASCII.
+2026-08-19 | a19ca72 | full suite -j4 | PASS, 440 files, 8070 tests | The SM384 branch gate, immediately before the successful cut.
 ---
 ```
 
