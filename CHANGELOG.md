@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM400 (PENDING) **a release records which commit it validated.** The gate's
+  summary went to a terminal and to `tmp/gate-result.txt`, which is gitignored,
+  so nothing durable said what had been gated - a promotion review reached "the
+  build that would go to beta is not the build that was validated" and nothing
+  cheap could disprove it. Two records now: `release-manifest.json` gains a
+  `validated` block (commit, files, tests) so the ARTEFACT attests its own gate,
+  and `docs/releases/GATE-LOG.md` answers the same question for whoever has the
+  repo rather than the tarball. release.sh reads prove's own summary and
+  **refuses to release if it cannot**, because a blank row looks like a record.
+  No `result` field: release.sh exits before that line on failure, so it could
+  only ever say PASS. The sharp part is the pipe - `if ! ( ... | tee f )` tests
+  TEE's status, which would have made the release gate a control that reports
+  success without checking; `set -o pipefail` fixes it and `t/tools/34` asserts a
+  failing stand-in is refused **with a control** showing the naive form would
+  have passed.
+
 - SM399 (c1f48db) **the operator can see the journeys.** SM393 recorded the
   ordered trails and SM394 gave an agent a way to read them; the operator - the
   person the manager exists for - still could not see them at all. A **Visitor

@@ -480,12 +480,36 @@ fi
 # the STAGED tests - a gate quietly testing the developer's working copy
 # against the release candidate's tests. That is a worse failure than the one
 # being fixed, because it passes.
+# SM400: CAPTURE WHAT THE GATE ACTUALLY SAID, not just whether it passed.
+#
+# The gate's own summary line - files, tests, result - went to the terminal and
+# nowhere else, so nothing durable recorded WHICH COMMIT had been validated. A
+# promotion review three days later found the only record was tmp/gate-result.txt,
+# which is gitignored, and had to reconstruct the answer from commit dates. The
+# counts are captured here, carried into the manifest below so the ARTEFACT
+# attests its own gate, and appended to a tracked log at the end.
+#
+# tee, and then PIPESTATUS - `if ! ( ... | tee f )` tests TEE's exit status, and
+# tee succeeds whatever prove did. That is the failure mode this whole gate
+# exists to prevent, one layer up: a check that reports success without checking.
+GATE_OUT="$STAGE/.gate-output.txt"
 echo "==> Running full test suite"
-if ! ( cd "$STAGE" && prove -lr t/ ); then
+if ! ( cd "$STAGE" && set -o pipefail && prove -lr t/ 2>&1 | tee "$GATE_OUT" ); then
     echo "release.sh: test suite failed; not releasing." >&2
     echo "release.sh: staging dir retained: $STAGE" >&2
     exit 1
 fi
+
+# "Files=455, Tests=8266, ..." - prove's own summary, read rather than recomputed.
+GATE_FILES=$(sed -n 's/^Files=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
+GATE_TESTS=$(sed -n 's/^Files=[0-9]*, Tests=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
+if [ -z "$GATE_FILES" ] || [ -z "$GATE_TESTS" ]; then
+    echo "release.sh: could not read the gate summary from prove output." >&2
+    echo "release.sh: refusing to record a release as validated without it." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
 
 # --- performance gate (eight-dimension review D4) ---
 # Committed baseline in dist/config/bench-baseline.json; fails on a gross
@@ -521,7 +545,10 @@ if ! perl "$STAGE/tools/build-manifest.pl" \
         --staged  "$STAGE" \
         --out     "$STAGE/release-manifest.json" \
         --version "$VERSION" \
-        --channel "$CHANNEL" ; then
+        --channel "$CHANNEL" \
+        --commit      "$TARGET_SHA" \
+        --gate-files  "$GATE_FILES" \
+        --gate-tests  "$GATE_TESTS" ; then
     echo "release.sh: manifest build failed; not releasing." >&2
     echo "release.sh: staging dir retained: $STAGE" >&2
     exit 1
@@ -741,6 +768,43 @@ for deb in "$DIST_DIR"/*_"$VERSION"-1_all.deb; do
     [ -f "$deb" ] && cp "$deb" "$FINAL_DIST/"
 done
 
+# --- the tracked gate record (SM400) ---
+#
+# The manifest inside the artefact already attests the gate. This is the copy
+# that answers the same question WITHOUT the artefact, because the question is
+# always asked later and by someone who has the repo rather than the tarball.
+#
+# APPENDED, NEVER COMMITTED. This script does not commit and does not push
+# (SM303), and a release is the worst moment to start churning git. The operator
+# lands it with everything else; the reminder below is deliberately the last
+# thing printed after the summary so it is not scrolled past.
+GATE_LOG="$ORIGIN/docs/releases/GATE-LOG.md"
+mkdir -p "$ORIGIN/docs/releases"
+if [ ! -f "$GATE_LOG" ]; then
+    {
+        printf -- '---\n'
+        printf 'title: "lazysite - release gate record"\n'
+        printf 'subtitle: "Which commit each release was validated at, newest last. Appended by tools/release.sh."\n'
+        printf 'brand: plain\n'
+        printf 'standard-margins: true\n'
+        printf -- '---\n\n'
+        printf '# Why this file exists\n\n'
+        printf 'A promotion review could establish which VERSION was being proposed and not\n'
+        printf 'which COMMIT had been validated: the gate summary went to a terminal and to\n'
+        printf '`tmp/gate-result.txt`, which is gitignored. "The build that would go to beta is\n'
+        printf 'not the build that was validated" was a reasonable conclusion and nothing cheap\n'
+        printf 'could disprove it.\n\n'
+        printf 'Every row is written by `tools/release.sh` after its gate passed and before it\n'
+        printf 'tagged, so a row exists only for a build that was actually gated. The same facts\n'
+        printf 'travel inside the artefact, in `release-manifest.json` under `validated`.\n\n'
+        printf '| Version | Channel | Commit | Files | Tests | Gated (UTC) |\n'
+        printf '|---|---|---|---|---|---|\n'
+    } > "$GATE_LOG"
+fi
+printf '| %s | %s | `%s` | %s | %s | %s |\n' \
+    "$VERSION" "$CHANNEL" "$TARGET_SHA" "$GATE_FILES" "$GATE_TESTS" \
+    "$(date -u '+%Y-%m-%d %H:%M')" >> "$GATE_LOG"
+
 # --- cleanup ---
 
 rm -rf "$STAGE"
@@ -757,3 +821,7 @@ done
 if [ "$NO_FETCH" = 1 ]; then
     printf "    tag:     LOCAL AND UNPUSHED - tools/release.sh publish $VERSION\n"
 fi
+printf "    gate:    %s files, %s tests\n" "$GATE_FILES" "$GATE_TESTS"
+echo ""
+echo "==> UNCOMMITTED: docs/releases/GATE-LOG.md gained a row for $VERSION."
+echo "    Commit it, or the next promotion review has no record of what was gated."

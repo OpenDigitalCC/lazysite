@@ -22,6 +22,9 @@ my %opt = (
     check             => 0,
     config            => undef,
     channel           => undef,
+    commit            => undef,    # SM400
+    gate_files        => undef,    # SM400
+    gate_tests        => undef,    # SM400
     security_critical => 0,
     help              => 0,
 );
@@ -32,6 +35,9 @@ Getopt::Long::GetOptions(
     'check'             => \$opt{check},
     'config=s'          => \$opt{config},
     'channel=s'         => \$opt{channel},
+    'commit=s'          => \$opt{commit},              # SM400
+    'gate-files=i'      => \$opt{gate_files},          # SM400
+    'gate-tests=i'      => \$opt{gate_tests},          # SM400
     'security-critical' => \$opt{security_critical},
     'help'              => \$opt{help},
 ) or die usage();
@@ -307,6 +313,28 @@ sub generate_manifest {
     # SM139: a security-critical release declares itself in the manifest; the
     # field is present only when set, so ordinary manifests are unchanged.
     $manifest->{security_critical} = JSON::PP::true() if $opt{security_critical};
+
+    # SM400: THE ARTEFACT ATTESTS ITS OWN GATE.
+    #
+    # A promotion review could establish which VERSION was being proposed and
+    # not which COMMIT had been validated, because the gate's summary went to a
+    # terminal and an untracked file. "The build that would go to beta is not
+    # the build that was validated" was a reasonable conclusion and nobody could
+    # cheaply disprove it.
+    #
+    # There is no `result` field. release.sh exits before this line if the gate
+    # fails, so the only value it could ever hold is PASS - and a field that can
+    # only say one thing reads as evidence while carrying none.
+    #
+    # Present only when supplied, exactly as security_critical is, so a manifest
+    # built by hand or by --check is unchanged. --check compares the files array
+    # against disk and never looks at the top-level keys, so this cannot make a
+    # rebuilt manifest disagree with a shipped one.
+    $manifest->{validated} = {
+        commit => $opt{commit},
+        files  => $opt{gate_files} + 0,
+        tests  => $opt{gate_tests} + 0,
+    } if defined $opt{commit} && defined $opt{gate_files} && defined $opt{gate_tests};
 
     write_canonical_json( $opt{out}, $manifest );
     print STDERR "build-manifest: wrote $opt{out} (" . scalar(@manifest_files) . " files)\n";
