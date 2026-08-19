@@ -16,16 +16,16 @@
   "areas": [
     {
       "id": "authz-cookie-vs-token",
-      "last_covered": "round-1",
+      "last_covered": "round-3",
       "note": "capability gating parity between the cookie/manager path and the token %need map"
     },
     {
       "id": "csrf",
-      "last_covered": "round-1"
+      "last_covered": "round-3"
     },
     {
       "id": "path-confinement",
-      "last_covered": "round-1",
+      "last_covered": "round-3",
       "note": "boundary-safe containment; the bare index() prefix bug class"
     },
     {
@@ -35,7 +35,7 @@
     },
     {
       "id": "xss-injection",
-      "last_covered": "round-1",
+      "last_covered": "round-3",
       "note": "manager DOM sinks, front-matter, uploads; no CSP"
     },
     {
@@ -49,7 +49,7 @@
     },
     {
       "id": "webdav-mcp-tokens",
-      "last_covered": "round-1",
+      "last_covered": "round-3",
       "note": "channel gating, dav_scope, token verification"
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "id": "deployment-misconfig",
-      "last_covered": "round-1",
+      "last_covered": "round-3",
       "note": "vhost templates, Hestia, privilege model, systemd, file perms"
     },
     {
@@ -410,6 +410,139 @@
         },
         "note": "All critical/high/medium findings fixed and covered by regression tests. Low/info: XSS-escape + dev-server + systemd items fixed; login-throttle and OAuth-register hardening deferred (availability trade-off / not exploitable); secret-file chmod TOCTOU accepted (shielded by the 02770 dir); CSRF session-scope mitigated by M4 revoke-on-logout. H5c uploads: active server-content blocked, .html/.svg/.js remain publishable content with a CSP follow-up."
       }
+    },
+    {
+      "id": "round-2",
+      "date": "2026-07-21",
+      "ref": "SEC-2026-07",
+      "target": "0.9.8 (beta)",
+      "fixes_released_in": "0.9.9",
+      "agents": null,
+      "scope": "Private report against the manager file layer and the cookie-manager capability gate. Narrower than round 1 by design: a follow-up on the path-confinement and authz-parity themes round 1 named, not a fresh sweep. Recorded here from CHANGELOG 0.9.9 and the SM268 report's back-reference to its F1 fix; the report itself was delivered privately and is not in the repo.",
+      "areas_covered": [
+        "path-confinement",
+        "authz-cookie-vs-token"
+      ],
+      "areas_not_covered": [
+        "dos-resource-exhaustion",
+        "timing-side-channels",
+        "concurrency-races",
+        "supply-chain-deps"
+      ],
+      "root_cause_themes": [
+        "B (recurrence): path confinement matched against the REQUESTED path rather than the canonical resolved one - the same class round 1 recorded, at a different layer",
+        "A (recurrence): a capability gate that resolves a grant and never surfaces it to the cookie path, so the grant is inert rather than refused"
+      ],
+      "summary": {
+        "critical": 1,
+        "high": 2,
+        "medium": 1,
+        "low": 0
+      },
+      "findings": [
+        {
+          "id": "F1",
+          "severity": "critical",
+          "area": "path-confinement",
+          "title": "Manager file-editor blocklist matched the requested path, not the canonical resolved one: a content-authoring account could traverse to engine-owned files under lazysite/",
+          "verified": true,
+          "status": "fixed",
+          "fixed_in": "0.9.9",
+          "note": "Reported privately, advisory to follow. SM268 later re-tested validate_path and every caller and found the fix sound and load-bearing."
+        },
+        {
+          "id": "F2",
+          "severity": "high",
+          "area": "authz-cookie-vs-token",
+          "title": "file-download / file-zip-download enforced neither the per-file read ACL nor dav_scope, so a delegated editor could pull a file restricted away from them",
+          "verified": true,
+          "status": "fixed",
+          "fixed_in": "0.9.9"
+        },
+        {
+          "id": "F3",
+          "severity": "high",
+          "area": "authz-cookie-vs-token",
+          "title": "manage_domains / feedback / read_submissions grants resolved but were never surfaced to the cookie-manager gate, so each shipped inert (read_submissions inert in 0.9.8)",
+          "verified": true,
+          "status": "fixed",
+          "fixed_in": "0.9.9",
+          "note": "An inert grant is a security defect in the quiet direction: the operator believes access was given and the audit trail says so."
+        },
+        {
+          "id": "F4",
+          "severity": "medium",
+          "area": "authz-cookie-vs-token",
+          "title": "The account/group roster (principals) was ungated, letting any account enumerate every account and group",
+          "verified": true,
+          "status": "fixed",
+          "fixed_in": "0.9.9"
+        }
+      ]
+    },
+    {
+      "id": "round-3",
+      "date": "2026-08-05",
+      "ref": "SM268",
+      "target": "0.10.4 (edge), plus the unmerged SM195 branch",
+      "fixes_released_in": "0.10.5",
+      "agents": 4,
+      "scope": "Four independent adversarial reviews in parallel, each with a throwaway instance and each told to PROVE findings rather than assert them, and to record what held as well as what broke: 01 acl-read-path, 02 capability-model, 03 installer-and-artefacts, 04 authoring-surfaces. Run as a pre-release gate - the release was blocked until every finding was closed.",
+      "areas_covered": [
+        "authz-cookie-vs-token",
+        "path-confinement",
+        "xss-injection",
+        "webdav-mcp-tokens",
+        "deployment-misconfig",
+        "csrf"
+      ],
+      "areas_not_covered": [
+        "dos-resource-exhaustion",
+        "timing-side-channels",
+        "concurrency-races",
+        "supply-chain-deps",
+        "ssrf",
+        "rce-exec-primitives",
+        "multi-tenant-isolation",
+        "dev-server",
+        "plugins"
+      ],
+      "root_cause_themes": [
+        "E (NEW, and the result that matters most): a guard that exists at one layer and is never REACHED from the layer that matters. SM195's capability ceiling was injected only when !_is_operator(), and Acl::_is_operator returns true for anyone holding manage_users - exactly the population the ceiling bounds. t/unit/users/23 passed because it drives the users tool directly and supplies the actor itself. Both halves individually correct, so the suite cannot see it. Same shape as runtime_files being declared, read and never carried.",
+        "A (recurrence): capability-gate parity between the surface that enforces and the surface that is used"
+      ],
+      "summary": {
+        "critical": 3,
+        "high": 17,
+        "medium": 13,
+        "low": 2
+      },
+      "counting_note": "The four reports contained 26 reproduced defects (3 critical, 9 high at report time). The closed tally is 35 - C1-C3, H1-H17, M1-M13, L1-L2 - because further findings surfaced while the reported ones were being proved and fixed (H17 was found while proving H15 and appears in no report). Both numbers are correct about different moments; the filing's subtitle quotes the first and its status-note the second.",
+      "what_held": [
+        "validate_path and every caller: symlinks, absolute paths, encoded separators, a superset-sibling docroot and traversal all refused - round 2's F1 fix sound and load-bearing",
+        "All of WebDAV, including MOVE/COPY destinations, put through the full authorise chain after decoding - the strictest of the three authoring surfaces",
+        "Token/cookie channel separation, the CORS refusal, and %MUTATING CSRF coverage",
+        "Filesystem-path disclosure: 56 MCP invocations, valid and error-triggering, produced zero leaks"
+      ],
+      "qualified_dispositions": [
+        "M13 MITIGATED rather than fixed: reinterpreting an ACL key by content root would break the agreement between the four surfaces that write them, so it is documented and detected by audit_site instead",
+        "M11 ships without the total-bytes cap the reviewer also asked for: the number differs per host, and a wrong default either fills the disk anyway or deletes an operator's snapshot on a small machine"
+      ],
+      "findings_location": "docs/feature-requests/SM268-security-review-2026-08.md carries the full per-finding register. The reports themselves (2,048 lines, with live reproductions) are deliberately not committed."
     }
-  ]
+  ],
+  "never_covered": {
+    "areas": [
+      "dos-resource-exhaustion",
+      "timing-side-channels",
+      "concurrency-races",
+      "supply-chain-deps"
+    ],
+    "note": "Areas no review round has ever covered. Two of them sit on the surfaces that take the most hostile input - the serving path and the manager API - which is the reason to name them here rather than leave the absence to be inferred from the rounds. This list is derived from the rounds above: an area appears here only while no round claims it.",
+    "touched_outside_a_round": [
+      "dos-resource-exhaustion: SM389/SM396 bounded the front-door relay's request body, SM389 stopped a static being slurped whole into a persistent worker, and SM395 replaced the registry regeneration stampede with a single regenerator. Incident-driven and partial - not a review of the class.",
+      "concurrency-races: 0.9.9 fixed non-atomic writers in the config and auth stores after a data-loss report, and SM395 added the registry lock. Again incident-driven, not a sweep."
+    ],
+    "caution": "Work done outside a round is NOT coverage. It fixes what was noticed; a round is what looks for what was not."
+  }
 }

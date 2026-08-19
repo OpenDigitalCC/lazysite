@@ -40,6 +40,19 @@ events           [ { t, class, path, status, visitor } ]   recent requests
 events_capped    true if the event stream hit its size limit
 ```
 
+A day rollup (`day=YYYY-MM-DD`) additionally carries:
+
+```
+registry_hits    n                              generated registries served
+registry_by      { "sitemap.xml": n, ... }       which one, and how often
+```
+
+These are the engine's generated files - the sitemap and the feeds - fetched
+mostly by crawlers. They are counted **beside** `pageviews` and never inside it:
+a sitemap fetch is not a page view, and folding it in would inflate the one
+figure an operator reads as "people". Read them as interest from search engines
+and AI crawlers rather than as traffic.
+
 ### auth_refused
 
 Paths a visitor was **turned away from** - a page or file that exists and that an

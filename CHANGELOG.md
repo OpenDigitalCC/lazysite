@@ -62,6 +62,45 @@ Naming the commit: AFTER it lands, never before
   page being LEFT, absent for the exit page, and must never be reported as
   reading time. `t/unit/plugins/15` asserts it against six sabotages. Open: the
   manager Stats page still has no trails view.
+- SM389 close-out (PENDING) **the four second-order findings, closed.** Each with
+  a test confirmed to fail against the unfixed code.
+  **Registry regeneration was a stampede**: TTL expiry happens at an instant, so
+  every request arriving after it ran a full site scan concurrently - measured at
+  12 of 12. A non-blocking lock picks one; the rest serve the file stale, which is
+  what a TTL cache is for, and only a cold start with nothing to serve makes them
+  wait. Registry hits also **recorded nothing at all** - the one served path that
+  did not - so a crawler fetching `/sitemap.xml` was invisible; they now log on
+  their own channel and are counted BESIDE `pageviews`, never inside it, for the
+  SM329 reason.
+  **The front-door relay held whatever a client sent**: a declared
+  `CONTENT_LENGTH` was trusted whatever it said, and with no `CONTENT_LENGTH` at
+  all - chunked encoding, which the client chooses - the body was slurped whole.
+  Either sizes a persistent FastCGI worker permanently. Now bounded both ways,
+  capped at 64 MiB, following `manager_upload_max_mb` **up** so raising the upload
+  limit still works (`front_max_body_mb` overrides), and refusing an oversize
+  declared length before allocating.
+  **The Apache templates carried no body cap** while every nginx template capped
+  at 64m; they gain `LimitRequestBody`, and real Apache parses them in the test,
+  because a misspelled directive looks like protection and refuses to start the
+  server. Recorded rather than glossed: SM286 wants these files shorter, and a
+  byte ceiling is a resource guard rather than a routing decision.
+  **The security register recorded round 1 only**, for a month - so every area
+  read `last_covered: round-1` when two later rounds had both looked at them. It
+  gains round 2 (2026-07-21, fixed in 0.9.9) and round 3 (SM268, fixed in 0.10.5),
+  and `t/lint/64` now DERIVES `last_covered` and `never_covered` from the rounds
+  so the file cannot claim coverage it has not got. The four never-covered classes
+  the derivation produces match the four the review counted independently. Work
+  done outside a round is recorded as not being coverage.
+  Tests: `t/unit/processor/46` (12-of-12 stampede vs exactly 1, forked and
+  counted), `t/unit/processor/47`, `t/unit/plugins/16`, `t/tools/33`, `t/lint/64`.
+  One latent fault in the SUITE fell out of this: `t/unit/processor/14` asserted
+  "the process count did not balloon" by counting **every perl process on the
+  host**, so it measured the machine rather than the manager-api's own children.
+  It survived only because nothing else on the box ran perl - until a sibling
+  test that forks a dozen workers ran beside it under `prove -j` and it failed
+  for something another test was doing. It now walks the process tree from its
+  own pid: verified immune to 30 stray perl processes, and still failing on a
+  real leak of 8 children.
 
 - SM393 (PENDING) **the ordered trail is recorded, and it expires.** SM336
   deliberately kept sequence as aggregates - "a flow reconstructed without

@@ -989,6 +989,26 @@ sample is never mistaken for a whole one; a day with no trails says whether it w
 never recorded or has expired, rather than falling through to the rollups' generic
 "no stats for that day".
 
+**Generated registries are counted, and bounded** (SM389). Serving a sitemap or a
+feed was the one served path that recorded nothing at all, so a crawler fetching
+`/sitemap.xml` every few hours left no trace: the day rollup now carries
+`registry_hits` and `registry_by`, on their own channel and deliberately **outside**
+`pageviews` - a sitemap fetch is not a page view. Generation is also bounded: TTL
+expiry used to be a stampede, with every request arriving after the expiry instant
+running a full site scan concurrently, and a **non-blocking lock now picks one**
+while the rest serve the file stale, which is what a TTL cache is for. Only a cold
+start with nothing to serve makes the losers wait.
+
+**Request bodies are bounded at both layers** (SM389). The front-door relay trusted
+a declared `CONTENT_LENGTH` whatever it said, and slurped an **unbounded** body when
+there was none - chunked transfer encoding, which the client chooses. Either sizes
+a persistent FastCGI worker to the body permanently. The relay now caps at 64 MiB,
+following `manager_upload_max_mb` **up** so raising the upload limit still works
+(`front_max_body_mb` overrides), and refuses an oversize declared length before
+allocating. The shipped Apache templates gained `LimitRequestBody` to match the
+`client_max_body_size` every nginx template already carried - Apache buffers the
+body before the engine sees it, so the engine's own cap cannot protect it.
+
 **Privacy commitment.** lazysite **installs no trackers**: no analytics
 JavaScript, no beacons, no analytics cookies, no fingerprinting, no third-party
 requests. Analytics are derived only from data the server already receives while

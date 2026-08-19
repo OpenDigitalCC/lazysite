@@ -38,6 +38,18 @@
     ServerName __DOMAIN__
     DocumentRoot __DOCROOT__
 
+    # SM389: cap the request body, at the same 64m every nginx template here
+    # already carries. Without it Apache buffers whatever a client sends before
+    # the engine ever sees the request, so the engine's own cap cannot protect
+    # Apache's memory - only its own.
+    #
+    # THIS IS NOT A ROUTING DECISION. SM286 says the front end decides nothing
+    # and these files shrink; a byte ceiling is a resource guard, it matches what
+    # nginx has had all along, and the asymmetry was the defect. Raise it if you
+    # raise manager_upload_max_mb - the engine follows that setting up, and this
+    # line does not.
+    LimitRequestBody 67108864
+
     # Strip client-supplied trust headers (docs/architecture/security.md):
     # a client must never smuggle an identity past the auth wrapper. The
     # engine also refuses them unless vouched for (SM293 step 4), so this

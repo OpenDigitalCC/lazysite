@@ -15,9 +15,11 @@ use Encode qw(decode);
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
 use JSON::PP     qw(encode_json decode_json);
 use Digest::SHA  qw(hmac_sha256_hex sha256);
-use MIME::Base64 qw(encode_base64);                # SM352: CSP script hashes
+use MIME::Base64 qw(encode_base64);             # SM352: CSP script hashes
 use POSIX        qw(strftime);
-use Fcntl        qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access log
+use Fcntl        qw(O_WRONLY O_APPEND O_CREAT LOCK_EX LOCK_NB LOCK_UN);
+# SM140: first-party access log
+# SM389: one registry regenerator
 
 my $LOG_COMPONENT = 'processor';
 
@@ -1497,6 +1499,69 @@ sub _front_cgibin {
     return "$parent/cgi-bin";
 }
 
+# SM389: read the request body, bounded. Returns ( $body, $too_big ).
+#
+# Its own sub rather than inline in the relay so it can be DRIVEN by a test with
+# a real filehandle. The behaviour being claimed here is "a hostile body does not
+# size this worker", and that is not a claim a source-text match can settle.
+sub _read_request_body {
+    my ($cap) = @_;
+    my $body  = '';
+    my $len   = ( $ENV{CONTENT_LENGTH} || 0 ) + 0;
+
+    if ( $len > 0 ) {
+
+        # Refuse before allocating, as the manager's upload path already does.
+        # Reading it in order to find out how big it is would BE the defect.
+        return ( '', 1 ) if $len > $cap;
+        my $got = 0;
+        while ( $got < $len ) {
+            my $n = read STDIN, $body, $len - $got, $got;
+            last if !defined $n || $n == 0;
+            $got += $n;
+        }
+        return ( $body, 0 );
+    }
+
+    return ( '', 0 )
+        unless ( $ENV{REQUEST_METHOD} // 'GET' ) =~ /\A(?:POST|PUT|PATCH)\z/;
+
+    # No declared length - chunked transfer encoding, which the CLIENT chooses.
+    # Read in bounded chunks and stop one byte past the cap: that is enough to
+    # know it is over, and finding out HOW far over would mean reading it all,
+    # which is the thing being prevented.
+    my $got = 0;
+    while ( $got <= $cap ) {
+        my $n = read STDIN, $body, 65_536, $got;
+        last if !defined $n || $n == 0;
+        $got += $n;
+    }
+    return ( '',    1 ) if $got > $cap;
+    return ( $body, 0 );
+}
+
+# SM389: how much request body the relay will hold in memory.
+#
+# THIS IS A MEMORY BACKSTOP, NOT A POLICY GATE. Policy lives downstream - the
+# manager's manager_upload_max_mb, the form handler's upload_max_kb, WebDAV's
+# own limit - and each refuses with an error that names the setting the operator
+# can change. The relay must never be the thing that quietly refuses a body
+# those layers would have accepted.
+#
+# So it follows the upload limit UP. An operator who raises
+# manager_upload_max_mb is entitled to have uploads work; a fixed ceiling
+# underneath it would present as "uploads broke after a config change" with
+# nothing pointing at this function. front_max_body_mb overrides both, for the
+# operator who wants the backstop somewhere else entirely.
+sub _front_body_cap {
+    my $mb = 64;                                                # generous default ceiling
+    my $up = ( _conf_value('manager_upload_max_mb') || 0 ) + 0;
+    $mb = $up if $up > $mb;
+    my $own = ( _conf_value('front_max_body_mb') || 0 ) + 0;
+    $mb = $own if $own > 0;
+    return $mb * 1024 * 1024;
+}
+
 sub _front_fail {
     my ( $status, $text ) = @_;
     $ACCESS_REC{s}  = $status;
@@ -1553,21 +1618,15 @@ sub _front_relay {
 
     # Read the request body before forking: it comes off this worker's tied FCGI
     # STDIN, which the child cannot inherit.
-    my $body = '';
-    my $len  = ( $ENV{CONTENT_LENGTH} || 0 ) + 0;
-    if ( $len > 0 ) {
-        my $got = 0;
-        while ( $got < $len ) {
-            my $n = read STDIN, $body, $len - $got, $got;
-            last if !defined $n || $n == 0;
-            $got += $n;
-        }
-    }
-    elsif ( ( $ENV{REQUEST_METHOD} // 'GET' ) =~ /\A(?:POST|PUT|PATCH)\z/ ) {
-        local $/;
-        my $slurp = <STDIN>;
-        $body = defined $slurp ? $slurp : '';
-    }
+    #
+    # SM389: BOUNDED, both ways. A declared CONTENT_LENGTH was trusted whatever
+    # it said, and a request with no CONTENT_LENGTH at all - chunked transfer
+    # encoding, which a client chooses, not the operator - was slurped whole
+    # under `local $/`. Either one sizes this worker to the body, and the worker
+    # PERSISTS: the memory does not come back when the request ends.
+    my ( $body, $too_big ) = _read_request_body( _front_body_cap() );
+    return _front_fail( '413 Payload Too Large', 'lazysite: request body too large' )
+        if $too_big;
 
     pipe my $from_kid, my $kid_out or
         return _front_fail( '500 Internal Server Error', 'lazysite: pipe' );
@@ -5324,14 +5383,20 @@ sub _serve_registry {
     return 0 if -f "$root/$name";
 
     my $path = _registry_cache_path( $root, $name );
-    if ( !-f $path || ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL ) {
-        eval { update_registries() };
-        log_event( 'WARN', $uri, 'registry generation failed', error => $@ ) if $@;
-    }
+    _regenerate_registries_once( $path, $uri )
+        if !-f $path || ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL;
 
     open my $fh, '<:utf8', $path or return 0;
     my $body = do { local $/; <$fh> };
     close $fh;
+
+    # SM389: and it is a served request, so it goes in the access log. Registry
+    # hits were the one served path that recorded nothing at all - a crawler
+    # fetching sitemap.xml every few hours was invisible, which is exactly the
+    # traffic an operator would want to see. Its own channel rather than 'page':
+    # a sitemap fetch is not a page view and must not inflate one.
+    $ACCESS_REC{s}  = 200;
+    $ACCESS_REC{ch} = 'registry';
 
     # An explicit Status line, like every other served path here. CGI defaults
     # to 200 without one, so omitting it works and then reads as a missing
@@ -5342,6 +5407,57 @@ sub _serve_registry {
     print "Cache-Control: public, max-age=$REGISTRY_TTL\r\n\r\n";
     print $body;
     return 1;
+}
+
+# SM389: one regenerator, not N.
+#
+# TTL expiry is a stampede. The cached file goes stale at an INSTANT, and every
+# request arriving after that instant saw the same old mtime and ran
+# update_registries() - a full site scan each - concurrently. The cost scales
+# with traffic precisely when traffic is what made it stale, and a site big
+# enough for the scan to be slow is a site with enough requests to pile up.
+#
+# A non-blocking lock picks ONE. The losers do not wait and do not regenerate:
+# they serve the stale file, which is the entire premise of a TTL cache and is
+# what the operator accepted by setting a TTL at all. A few more seconds of
+# staleness on a sitemap is not a defect; N concurrent site scans is.
+#
+# The one case a loser cannot serve through is no file at all - a cold start, or
+# the first request after a cache clear. There it waits for the winner, because
+# there is nothing to be stale WITH.
+sub _regenerate_registries_once {
+    my ( $path, $uri ) = @_;
+
+    my $regen = sub {
+        eval { update_registries() };
+        log_event( 'WARN', $uri, 'registry generation failed', error => $@ ) if $@;
+    };
+
+    # No lock file, no lock - fall back to the old behaviour rather than
+    # declining to serve. A herd is a cost; not answering is a fault.
+    open my $lh, '>>', "$path.lock" or return $regen->();
+
+    if ( flock $lh, LOCK_EX | LOCK_NB ) {
+
+        # Re-check UNDER the lock. A winner may have finished between the stat
+        # that sent us here and the lock we just took, and regenerating again on
+        # its fresh output is the same herd in slow motion.
+        $regen->()
+            if !-f $path || ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL;
+        flock $lh, LOCK_UN;
+        close $lh;
+        return;
+    }
+
+    # Somebody else is regenerating.
+    if ( -f $path ) { close $lh; return }    # serve it stale
+
+    # Nothing to serve. Wait for the winner rather than joining it - a blocking
+    # lock here is one process waiting, where the alternative is N scans.
+    flock $lh, LOCK_EX;
+    flock $lh, LOCK_UN;
+    close $lh;
+    return;
 }
 
 sub scan_pages {

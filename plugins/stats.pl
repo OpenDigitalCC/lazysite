@@ -1285,6 +1285,13 @@ sub _day_rollup {
         asset_hits       => ( $bucket->{asset_hits}       // 0 ),    # SM329
         scanner_inferred => ( $bucket->{scanner_inferred} // 0 ),    # SM332
 
+        # SM389: generated registries. Reported beside pageviews and NOT folded
+        # into them, for the SM329 reason - a sitemap fetch is not a page view,
+        # and the figure an operator reads as "people" must not quietly include
+        # crawlers collecting a file the engine generated for them.
+        registry_hits => ( $bucket->{registry_hits} // 0 ),
+        registry_by   => ( $bucket->{registry_by}   // {} ),
+
         # SM338: what these numbers mean, carried WITH them. A reader comparing
         # this day to another has to be able to tell whether the comparison is
         # valid, and the answer cannot live in a changelog they would have to
@@ -1639,6 +1646,14 @@ sub _new_day_bucket {
         nf_plausible     => {}, nf_junk => 0,  auth_refused => {},
         asset_hits       => 0,    # SM329
         scanner_inferred => 0,    # SM332
+
+        # SM389: generated registries (sitemap.xml, the feeds). Their own
+        # counters and NOT part of hits: a crawler fetching a sitemap is not a
+        # page view, and folding it into one would inflate exactly the figure an
+        # operator reads as "people". Recorded because it is real traffic that
+        # was previously invisible - the one served path that logged nothing.
+        registry_hits => 0,
+        registry_by   => {},
 
         # SM335: the manager Stats page reports these two and the durable
         # rollup did not, which is one of the reasons the page carried its own
@@ -2538,7 +2553,20 @@ sub _export_ingest_first_party {
             $pos += length $line;
             my $r = eval { JSON::PP::decode_json($line) } or next;
             next unless ref $r eq 'HASH' && defined $r->{t};
-            next if ( $r->{ch} // 'page' ) ne 'page';    # operator traffic out
+            # SM389: registries are counted, then dropped from the page path -
+            # they are neither operator traffic nor a page view.
+            my $ch = $r->{ch} // 'page';
+            if ( $ch eq 'registry' ) {
+                my @rt = gmtime( $r->{t} );
+                my $rd = sprintf '%04d-%02d-%02d', $rt[5] + 1900, $rt[4] + 1, $rt[3];
+                my $rb = $cache->{days}{$rd} ||= _new_day_bucket();
+                $rb->{registry_hits}++;
+                ( my $rn = ( $r->{p} // '' ) ) =~ s{\A.*/}{};
+                $rn =~ s/\?.*\z//;
+                $rb->{registry_by}{$rn}++ if length $rn && keys %{ $rb->{registry_by} } < 32;
+                next;
+            }
+            next if $ch ne 'page';    # operator traffic out
             my $st = ( $r->{s} // 0 ) + 0;
             my @dt = gmtime( $r->{t} );
             push @batch, {

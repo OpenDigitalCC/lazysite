@@ -4,7 +4,7 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use JSON::PP qw(decode_json);
+use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
@@ -20,12 +20,12 @@ my $root = repo_root();
 
 # We need the plugin discovery to find scripts at $DOCROOT/..  — set up
 # a fake repo structure that points back at the real scripts.
-my $tmp = tempdir( CLEANUP => 1 );
+my $tmp       = tempdir( CLEANUP => 1 );
 my $fake_root = "$tmp/fake-repo";
 my $docroot   = "$fake_root/public_html";
 make_path( "$docroot/lazysite/cache",
-           "$fake_root/tools",
-           "$fake_root/plugins" );
+    "$fake_root/tools",
+    "$fake_root/plugins" );
 
 # Symlink each discoverable script so plugin-list can spawn them.
 # D022: plugins moved under plugins/ (form-handler, form-smtp, log,
@@ -39,7 +39,7 @@ for my $rel ( qw(
     plugins/payment-demo.pl
     plugins/log.pl
     plugins/audit.pl
-) ) {
+    ) ) {
     symlink "$root/$rel", "$fake_root/$rel";
 }
 
@@ -48,9 +48,33 @@ open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: Test\n";
 close $cf;
 
+# Count OUR OWN perl descendants, not the machine's.
+#
+# This counted every perl process on the host, which is a measurement of the
+# machine rather than of this test. The assertion below means "did the
+# manager-api leak the children it spawned"; a global count answers a different
+# question and answers it wrongly the moment anything else on the box runs perl.
+# It survived only because nothing else did - until a sibling test that forks a
+# dozen workers ran alongside it under `prove -j`, and this test failed for
+# something another test was doing. Walk the process tree from THIS pid instead,
+# so the number belongs to the thing being asserted about.
 sub count_perl_procs {
-    my @lines = split /\n/, `ps -eo pid,command 2>/dev/null`;
-    return scalar grep { /\bperl\b/ && !/grep/ } @lines;
+    my @lines = split /\n/, `ps -eo pid,ppid,command 2>/dev/null`;
+    my ( %child, %cmd );
+    for my $l (@lines) {
+        next unless $l =~ /^\s*(\d+)\s+(\d+)\s+(.*)$/;
+        push @{ $child{$2} }, $1;
+        $cmd{$1} = $3;
+    }
+    my $n = 0;
+    my @q = ($$);
+    while (@q) {
+        my $pid = shift @q;
+        push @q, @{ $child{$pid} || [] };
+        next if $pid == $$;
+        $n++ if ( $cmd{$pid} // '' ) =~ /\bperl\b/ && ( $cmd{$pid} // '' ) !~ /grep/;
+    }
+    return $n;
 }
 
 my $before = count_perl_procs();
