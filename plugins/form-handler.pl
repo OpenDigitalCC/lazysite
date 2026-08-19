@@ -86,9 +86,29 @@ eval {
     $name =~ s/[^a-zA-Z0-9_-]//g;
     reject('Missing form name') unless $name;
 
-    # Tag submission with the authenticated user if present
-    my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-    $form{_auth_user} = $auth_user if length $auth_user;
+    # SM402: this handler reads NO identity from the request, because it has no
+    # way to verify one.
+    #
+    # It is not behind the auth wrapper - the shipped templates front only
+    # lazysite-processor.pl and lazysite-manager-api.pl, and /cgi-bin/ is
+    # otherwise a plain ScriptAlias - so the processor's trust-header stripping
+    # never runs for it and HTTP_X_REMOTE_USER arrives exactly as the client
+    # sent it. There is no configuration under which it could be trusted here:
+    # `auth_proxy_trusted` is consulted by the processor, on the request the
+    # processor handles, and this handler cannot tell a proxied identity from an
+    # invented one.
+    #
+    # It used to be recorded twice. `_auth_user` on the submission was DEAD -
+    # every delivery target skips _-prefixed keys, so it never reached a stored
+    # record, an email or a webhook. The audit entry was not: an unverifiable
+    # name went into the actor column of lazysite/logs/audit.log, the shared
+    # trail every other surface writes to with an identity it HAS verified.
+    # A forged name there is a false record in the one artefact whose whole
+    # purpose is to say who did something.
+    #
+    # A public form submission has no verified actor, so it is recorded as
+    # having none. The address is still logged, which is the fact that is
+    # actually known.
 
     my $conf     = load_form_conf($name);
     my %handlers = load_handlers();
@@ -141,9 +161,9 @@ eval {
     }
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
-    _audit_submission( $name, $auth_user, $ENV{REMOTE_ADDR} // '' );
-    # SM216: a quarantined (suspect) submission is stored but does NOT ring the
-    # bell - the operator finds it under the Submissions Quarantine filter.
+    _audit_submission( $name, '', $ENV{REMOTE_ADDR} // '' );    # SM402: no verified actor
+        # SM216: a quarantined (suspect) submission is stored but does NOT ring the
+        # bell - the operator finds it under the Submissions Quarantine filter.
     _notify_submission($name) unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
     respond_ok('Thank you - your message has been sent.');

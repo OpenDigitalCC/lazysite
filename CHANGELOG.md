@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM402 (PENDING) **the form handler recorded an identity it could not verify -
+  and the filing had the exposure in the wrong place.** `form-handler.pl` is not
+  behind the auth wrapper, so `HTTP_X_REMOTE_USER` reaches it exactly as the
+  client sent it. SM402 said an operator would see a spoofable name in a
+  submissions list. **They would not**: every delivery target - file, SMTP,
+  webhook, and the separate form-smtp plugin - skips `_`-prefixed keys, so
+  `_auth_user` never reached a stored record, an email or a webhook. It was
+  DEAD. Checking that found the live one, which the filing missed: the same
+  unverified header went into the **actor column of `lazysite/logs/audit.log`**,
+  the shared trail that manager-api, dav, mcp, oauth and the users tool write to
+  with an identity they HAVE verified - a forged name sitting indistinguishably
+  beside real ones, in the one artefact whose purpose is to say who did
+  something. So dropping only the dead field would have looked like the fix and
+  left the live one in place. The handler now reads **no** identity from the
+  request: a public submission has no verified actor and is recorded as having
+  none, while the submitting address is still audited because that is the fact
+  actually known. Nothing is lost - `auth_proxy_trusted` is consulted by the
+  PROCESSOR, on the request the processor handles, so there was no configuration
+  under which this script could have trusted the header. `t/unit/forms/07`
+  asserts the header is not read, the audit entry carries no actor, the address
+  is still recorded, and the delivery targets still skip `_`-prefixed keys - the
+  property that made the dead field harmless.
+
 - SM400 (PENDING) **a release records which commit it validated.** The gate's
   summary went to a terminal and to `tmp/gate-result.txt`, which is gitignored,
   so nothing durable said what had been gated - a promotion review reached "the
