@@ -97,6 +97,24 @@ Naming the commit: AFTER it lands, never before
   refused exactly that cleanup (caught during implementation). Driven by two
   real fixture plugins whose action writes a witness file, so ran/refused are
   facts on disk; three sabotages bite.
+- SM412 (PENDING) **the apply's safety snapshot scopes to the target.** On a
+  multi-domain instance, site_apply to a content-rooted domain snapshotted the
+  WHOLE docroot - including the primary domain's tree, which the calling
+  account could not read and the apply would never touch - so the apply was
+  refused with permission denied while site_backup of the same domain
+  succeeded 26 seconds later, because site_backup scopes and the snapshot did
+  not. Field-diagnosed by the partner agent it blocked (edge2.explore);
+  SM378's carried detail is what made the diagnosis possible from outside.
+  action_backup_create gains an optional docroot-relative root, the apply
+  passes its target content_root, and the snapshot now covers exactly the
+  blast radius of the operation it guards; the primary keeps the whole-content
+  snapshot and 'full' refuses a scope by definition. The scope validates like
+  any path input - and the test's first version asserted bare refusal of
+  traversal, which a DELETED validation also produces (tar fails on a missing
+  dir); the case that matters is traversal to an EXISTING outside directory,
+  which without validation succeeds and archives foreign content into a
+  self-service-downloadable backup. The sabotage matrix caught it; the test
+  forces that case and asserts the refusal comes from validation.
 
 - SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**

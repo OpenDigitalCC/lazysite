@@ -366,9 +366,59 @@ sub _gzip_ok {
 }
 
 sub action_backup_create {
-    my ($kind) = @_;
+    my ( $kind, %opt ) = @_;
     $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
     my $dir = _dir();
+
+    # SM412: an optional docroot-relative SCOPE. The safety snapshot before a
+    # site-package apply used to tar the whole docroot whatever the target - so
+    # on a multi-domain instance, applying to a content-rooted domain
+    # (sites/edge2) tried to read the PRIMARY domain's tree, which the calling
+    # account could not and the apply would never touch. Diagnosed in the field
+    # by the partner agent the refusal blocked: same host, same account,
+    # site_backup scoped correctly while the apply's snapshot resolved upward,
+    # 26 seconds apart with opposite results.
+    #
+    # The snapshot's job is to cover the BLAST RADIUS of the operation it
+    # guards, and package_apply writes only under the target content_root - so
+    # that subtree is what a scoped snapshot carries. Restore is an overlay
+    # extract, so a scoped archive restores exactly its own subtree.
+    #
+    # Same validation posture as package_apply's own content_root: relative,
+    # no traversal, must exist. 'full' never scopes - it is the whole-site DR
+    # artefact by definition.
+    my $root = $opt{root} // '';
+    if ( length $root ) {
+        return { ok => 0,
+            error  => 'Backup failed: a full backup cannot be scoped',
+            reason => 'a full backup cannot be scoped' }
+            if $kind eq 'full';
+        return { ok => 0,
+            error  => 'Backup failed: invalid scope',
+            reason => 'invalid scope',
+            detail => _scrub_paths($root) }
+            if $root =~ m{\.\.} || $root =~ m{\A/} || $root !~ m{\A[\w][\w/.-]*\z};
+
+        # A scope that does not exist yet has an EMPTY blast radius - the
+        # first apply into a freshly registered domain creates its content
+        # root. There is nothing the operation can destroy, so the honest
+        # snapshot is a recorded no-op, not a refusal (t/unit/manager/35
+        # caught the refusal breaking exactly that first-time apply).
+        # A scope that exists as a non-directory is a broken state and stays
+        # a refusal.
+        unless ( -e "$DOCROOT/$root" ) {
+            log_event( 'INFO', 'backup-create',
+                'scoped snapshot skipped - the scope does not exist yet',
+                root => $root, user => $auth_user );
+            return { ok => 1, name => '',
+                note => 'nothing to snapshot: the scope does not exist yet' };
+        }
+        return { ok => 0,
+            error  => 'Backup failed: scope is not a directory',
+            reason => 'scope is not a directory',
+            detail => _scrub_paths("$DOCROOT/$root") }
+            unless -d "$DOCROOT/$root";
+    }
 
     # SM381: CHECKED. An unchecked make_path meant a permissions failure here
     # surfaced two frames later as "could not claim a filename", which names the
@@ -413,6 +463,17 @@ sub action_backup_create {
     # wanted in a backup: restoring one would put a half-written page into a site.
     push @excludes, '--exclude=*.tmp.[0-9]*';
 
+    # SM412: a scoped snapshot carries the target subtree and nothing else. The
+    # lazysite/-infra excludes are irrelevant (the member set never enters it)
+    # but the tempfile exclude still matters - the render cache writes into
+    # content dirs too. The private store is NOT carried: apply never writes
+    # there, so it is outside the blast radius this snapshot exists to cover.
+    my $member = '.';
+    if ( length $root ) {
+        @excludes = ('--exclude=*.tmp.[0-9]*');
+        $member   = "./$root";
+    }
+
     # SM286: the private content store is CONTENT, and it lives outside the
     # docroot - so a tar of the docroot alone silently stops backing up every
     # gated section. That is worse than the exposure the store removes, and it
@@ -427,7 +488,7 @@ sub action_backup_create {
     # 2026-08-13, but breaking it for no gain would still be a choice with a
     # cost and none of the benefit.)
     my @store;
-    my $priv = Lazysite::Private::private_root($DOCROOT);
+    my $priv = length($root) ? undef : Lazysite::Private::private_root($DOCROOT);
     if ( defined $priv && -d $priv ) {
         my $parent = dirname($priv);
         my $leaf   = basename($priv);
@@ -466,7 +527,7 @@ sub action_backup_create {
     }
     elsif ( !$pid ) {
         open STDERR, '>', $err_file or exit 127;
-        exec( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store )
+        exec( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, $member, @store )
             or exit 127;
     }
     else {
@@ -517,8 +578,12 @@ sub action_backup_create {
             ( length $tar_err ? ( detail => _scrub_paths($tar_err) ) : () ) };
     }
     log_event( 'INFO', 'backup-create',
-        ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
-        file => $name, user => $auth_user );
+        ( $kind eq 'full' ? 'full system snapshot'
+            : length $root ? 'scoped snapshot'
+            : 'docroot snapshot'
+        ),
+        file => $name, user => $auth_user,
+        ( length $root ? ( root => $root ) : () ) );
     my $sha = write_sha256($out);
 
     # After the snapshot exists and carries its digest, never before: expiring an

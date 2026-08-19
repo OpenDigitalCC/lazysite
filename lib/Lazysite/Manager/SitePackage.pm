@@ -632,7 +632,16 @@ sub apply_and_configure {
         require Lazysite::Manager::Backups;
         local $Lazysite::Manager::Backups::DOCROOT      = $DOCROOT;
         local $Lazysite::Manager::Backups::LAZYSITE_DIR = _lz();
-        my $safety = Lazysite::Manager::Backups::action_backup_create('prerestore');
+        # SM412: SCOPE THE SNAPSHOT TO THE BLAST RADIUS. This used to snapshot
+        # the whole docroot whatever the target, which on a multi-domain
+        # instance meant reading the PRIMARY domain's tree to protect an apply
+        # into sites/<target> - refused with permission denied for an account
+        # that could never read (and never needed) that tree. package_apply
+        # writes only under $croot, so $croot is what the snapshot carries.
+        # An empty $croot (the primary/base site) keeps the full content
+        # snapshot, which for that target IS the blast radius.
+        my $safety = Lazysite::Manager::Backups::action_backup_create(
+            'prerestore', ( length $croot ? ( root => $croot ) : () ) );
 
         # SM378: CARRY THE CAUSE. This discarded $safety->{error} and returned a
         # bare 'safety snapshot failed', which turns a diagnosable fault into a
