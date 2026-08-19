@@ -70,6 +70,27 @@ Naming the commit: AFTER it lands, never before
   is required" and "at a stable cut" coincide by construction. Stated rather than
   left to be discovered: a **stable cut will still block** on the declaration,
   and the 2026-09-11 CRA dates are outside the reach of any switch.
+- SM409, SM410, ADR 0009 (PENDING, planning only - no engine code) **the typed
+  data layer is audited and mapped, and the plugin contract has a direction.**
+  The two inbox briefs (data plugin + full-screen data manager, 1,089 lines)
+  audited against the tree with every "CC confirms" marker resolved. Two spec
+  claims corrected before they could become rework: "site_backup already
+  captures the SQLite store" is true only for FULL backups - content backups
+  exclude ./lazysite and site packages copy content/nav/layout only, so a
+  migrated site would silently arrive without its database; and the endpoint's
+  "CSRF per the manager-api pattern" assumed an identity it would not have -
+  lazysite-data.pl would be routed but NOT wrapped, the SM402 defect
+  reintroduced by spec, resolved by extracting Lazysite::Auth::Session (SM411,
+  closing SM402's open item) so the endpoint self-validates. ADR 0009 records
+  the sequencing decision: plugins declare what they own and disabled means
+  off, with the data plugin built as the contract's first conforming
+  implementation and existing plugins migrating post-stable - a contract
+  extracted from one demanding plugin beats one designed in the abstract and
+  retrofitted seven times. SM409 files the fix pulled forward: **a disabled
+  plugin still runs** - the plugins: list drives the listing, not execution -
+  which is the recurring reports-one-thing-does-another class applied to the
+  plugin system. Briefs archived; BACKLOG's database-plugin sketch superseded
+  (its per-visitor schemas are exactly what the settled boundary excludes).
 
 - SM406 (PENDING) **a subtest named for a race it never forced.** The 0.10.16
   edge cut FAILED its gate in `t/unit/manager/60`, subtest 5, and `release.sh`

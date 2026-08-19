@@ -94,10 +94,10 @@ before work starts.
       for both manager and content access), whether built-in and external users
       coexist (mixed mode) or external replaces the local store, and account
       lifecycle when the IdP disables a user.
-- **Database plugin** - pluggable storage (JSON file / SQLite / DBI) with a
-  "form -> DB" write path. Named schemas (session, profile, basket, log,
-  comments, + arbitrary); values readable and writable in TT, enabling
-  author-built dynamic content.
+- **Database plugin** - SUPERSEDED by [[SM410]] (typed data layer, audited
+  2026-08-19). The sketch's per-visitor schemas (session, profile, basket) are
+  what the settled boundary excludes; its TT read/write idea survives as the
+  `db:` binding and `writable=` declaration with the trust direction fixed.
 - **AI-filter plugin** - send data plus an instruction to an AI vendor
   (selectable vendor + dev key in settings) for form review, moderation, and
   other transform tasks.
