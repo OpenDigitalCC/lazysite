@@ -44,7 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM374 (PENDING) **the SSL proxy template reaches the wrong vhost, or none.**
+- SM379 (PENDING) **the deploy watcher exits after a deploy, with the SUCCESS
+  code.** `set -e` is a shell option, not a function-local one: `deploy()` ended
+  `set +e; ssh ...; rc=$?; set -e; return "$rc"`, and that final `set -e` took
+  effect immediately - so the function returned non-zero with `-e` freshly
+  re-enabled and the caller's own `set +e` undone from underneath it. The failing
+  command was then the CALL, and the watcher exited. **It exited with the
+  updater's own status, which is what hid it:** status 2 is SM344's "rollout
+  succeeded, the fleet has findings", so the watcher deployed, printed the
+  success text, and died. Measured against the real function with the transport
+  stubbed - original survives only a clean deploy (exits on 2 and on 9), fixed
+  survives all three. **This is why 0.10.14 sat in `dist/` unnoticed**, and it
+  retracts the baseline-swallow hypothesis: the watcher was not mis-computing a
+  baseline, it was not running. A failure arm reading "skipping (bump again to
+  retry)" turns out to have been unreachable for the same reason - a message
+  reassuring an operator the watcher is still going could only be printed by a
+  watcher that was not.
+
+- SM374 (81bef5b) **the SSL proxy template reaches the wrong vhost, or none.**
   Applied to edge as the runbook documents, `lazysite-proxy` returned **421 on
   every request** - pages, MCP, WebDAV and the control API - until it was rolled
   back. The hop to Apache is TLS addressed by IP, and nginx defaults
@@ -60,7 +77,7 @@ Naming the commit: AFTER it lands, never before
   requests, under two front-end conditions - one setting no proxy defaults, one
   setting `Host` globally - because a template that only works behind a
   particular front end's globals is the dependency SM286 exists to remove.
-- SM375 (PENDING) **VERSION sat five releases behind, and the compliance gate
+- SM375 (1cbd5ce) **VERSION sat five releases behind, and the compliance gate
   believed it.** The file read `0.10.9` while 0.10.10 through 0.10.14 shipped.
   `tools/bump-version.pl` exists for exactly this defect - its header records the
   2026 review that found the same file stuck at 0.2.18 during the 0.3.x releases -
@@ -78,7 +95,7 @@ Naming the commit: AFTER it lands, never before
   stamp's ORDERING - a stamp after any reader leaves the same wrong answers while
   looking right in a diff - and runs the stamp line extracted from release.sh
   rather than a copy of it.
-- SM376 (PENDING) **a promoted account is still drawn under its creator, with no
+- SM376 (775ec90) **a promoted account is still drawn under its creator, with no
   control to move it.** Reported from the manager UI on 0.10.14: a user "still
   doesn't have the option to move to top level" - and both halves of that were
   true at once. `account-promote` clears `managed_by` to the EMPTY STRING;
@@ -95,7 +112,7 @@ Naming the commit: AFTER it lands, never before
   the CLI actually writes - including a reassigned account, because a fix that
   collapsed into "always use created_by" would pass the promoted case and
   silently stop showing reassignment.
-- SM377 (PENDING) **the ACL probe now establishes the state it measures.** It
+- SM377 (683a862, f82c5cc, 222c3d9) **the ACL probe now establishes the state it measures.** It
   gated by writing `acls.json` and nothing else; the engine protects by MOVING
   content into the private store, so the probe's files stayed in the document
   root, a front end serving statics by extension served them CORRECTLY - nothing
@@ -115,7 +132,7 @@ Naming the commit: AFTER it lands, never before
   `t/integration/58`'s cache stub was found to record that it had served and
   then re-read from disk, which models nothing - it now holds the BYTES, which
   is what `open_file_cache` does and why residue exists in the field.
-- SM378 (PENDING) **a refused snapshot now says why.** `site_apply` stopped with
+- SM378 (541465a) **a refused snapshot now says why.** `site_apply` stopped with
   "Refusing to apply: safety snapshot failed" - no path, no errno, no detail -
   while `site_backup` on the SAME host succeeded in both directions minutes
   later, including after the apply had failed. **The cause was not missing, it
