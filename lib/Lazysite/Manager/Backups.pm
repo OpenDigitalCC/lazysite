@@ -323,8 +323,11 @@ sub _gzip_ok {
     my $pid = fork();
     return 0 unless defined $pid;
     if ( !$pid ) {
-        open STDOUT, '>', '/dev/null';
-        open STDERR, '>', '/dev/null';
+        # Checked, because an unchecked open here would leave gzip's chatter on
+        # the caller's STDOUT - and in a CGI worker that means diagnostic text
+        # in the middle of a response body.
+        open STDOUT, '>', '/dev/null' or exit 127;
+        open STDERR, '>', '/dev/null' or exit 127;
         exec( 'gzip', '-t', $path ) or exit 127;
     }
     waitpid $pid, 0;

@@ -56,13 +56,37 @@ as report-only rather than off: a typo must not silently disable a
 security header, which is the direction [[SM356]] found the update
 channel failing.
 
+# The manager is never enforced, whatever the site is set to
+
+Measured: the manager's pages carry **186 inline event handlers** - 59 in
+static markup and **127 generated inside JS strings with interpolated
+arguments**. Converting those blind, with no browser in the loop, risks
+exactly the failure this filing is about: a button that silently does
+nothing.
+
+So `enforce` is downgraded to report-only for any request under
+`manager_path`, and a site can enforce for its visitors - which is where
+the value is - without betting the operator's own controls on an
+unverified conversion.
+
+::: widebox
+**Report-only there rather than a looser manager policy.**
+`script-src 'unsafe-inline'` for the manager would also break nothing,
+and would weaken the one surface where an injection reaches an
+operator's session. Reporting weakens nothing and records the debt.
+:::
+
 # What remains
 
-The manager's `onclick=` handlers still need converting to
-`addEventListener` wiring before a manager surface can be enforced. That
-is the larger, cleaner change and it coordinates with the `t/lint/56`
-inventory. Until then, **walk the manager with the browser console open
-before setting any site to `enforce`** - recorded in `MANUAL-CHECKS.md`.
+The 186 handlers still want converting to `addEventListener` wiring, and
+the 127 generated ones mean restructuring the JS that builds the markup
+rather than a search and replace. It is the larger, cleaner change, it
+coordinates with the `t/lint/56` inventory, and **it needs a browser in
+the loop** - which is why it is not in this branch.
+
+Until then the manager is report-only by construction, so nothing
+breaks; what is lost is enforcement on the surface that would benefit
+most.
 
 # Verification
 

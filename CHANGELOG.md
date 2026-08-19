@@ -185,6 +185,20 @@ Naming the commit: AFTER it lands, never before
   site that flips to enforce gets what it was already reporting. An unrecognised
   value reads as report-only, never off. Converting the manager to
   `addEventListener` remains before a manager surface can be enforced.
+- SM381 follow-up (PENDING) **and every other path that answered without them.**
+  The audit did not stop at 402/403: five redirects, the 500, the registry
+  outputs and two cross-origin-readable `.well-known` endpoints also printed
+  their own status line and no header set. The comment claiming "every response
+  path here calls this" had been wrong for longer than the defect it described -
+  a comment asserting completeness is a claim like any other, and this one went
+  unchecked because it read like a description of the code beneath it.
+  `t/lint/55` now proves it mechanically, skipping comments because the
+  corrected comment quotes the string the check searches for. Also: a tracked
+  `docs/gate-register.md`, because the only evidence of the last green full gate
+  was a gitignored scratch file, and the manager is held at report-only under
+  `csp: enforce` - its pages carry 186 inline handlers, 127 of them generated
+  inside JS strings, and converting those without a browser in the loop risks
+  the silent dead button this whole item is about.
 - SM381 (PENDING) **five refusal paths carried no security headers, two wrote
   into the wrong docroot, and the safety snapshot failed because the site was
   live.** `serve_402`, `serve_403`, the ACL static refusal, the manager-access

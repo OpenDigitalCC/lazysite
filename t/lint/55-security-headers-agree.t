@@ -68,7 +68,7 @@ HTML
 subtest 'the processor carries the copy, and it agrees' => sub {
     my $pkg = 'ProcessorHeadersUnderTest';
     for my $name (
-        qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value)
+        qw(_security_headers _inline_script_hashes _content_security_policy _csp_mode _conf_value _is_manager_request)
         )
     {
         my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
@@ -131,6 +131,45 @@ subtest 'the two agree on every CSP mode, including a typo' => sub {
     }
 };
 
+subtest 'the manager is never enforced, whatever the site is set to' => sub {
+    # SM380. A CSP hash covers a <script> BLOCK and not an inline event-handler
+    # ATTRIBUTE, and the manager's pages carry 186 of those - 59 in static
+    # markup, 127 generated inside JS strings with interpolated arguments. So
+    # enforcing on the manager stops an operator's controls firing, silently, in
+    # a browser, where nothing in this suite can see it.
+    #
+    # Report-only there rather than a looser manager policy: 'unsafe-inline'
+    # would break nothing either and would weaken the one surface where an
+    # injection reaches an operator's session.
+    my $dir = tempdir( CLEANUP => 1 );
+    make_path("$dir/lazysite");
+    open my $cf, '>', "$dir/lazysite/lazysite.conf" or die $!;
+    print {$cf} "csp: enforce\n";
+    close $cf;
+    local $ProcessorHeadersUnderTest::LAZYSITE_DIR = "$dir/lazysite";
+
+    my $html = '<html><body>x</body></html>';
+
+    {
+        local $ENV{REDIRECT_URL} = '/';
+        my @h = ProcessorHeadersUnderTest::_security_headers( html => $html );
+        ok( ( grep { /^Content-Security-Policy:/ } @h ),
+            'a site page under csp: enforce is ENFORCED' );
+    }
+
+    for my $uri ( '/manager/', '/manager/users', '/manager' ) {
+        local $ENV{REDIRECT_URL} = $uri;
+        my @h = ProcessorHeadersUnderTest::_security_headers( html => $html );
+        ok( ( grep { /^Content-Security-Policy-Report-Only:/ } @h ),
+            "$uri is report-only even so" )
+            or diag( 'Enforcing here disables the cache, audit, sessions and '
+                . 'plugins controls, and the operator gets no error - the '
+                . 'button simply does nothing.' );
+        ok( !( grep { /^Content-Security-Policy:/ } @h ),
+            "and carries no enforcing header" );
+    }
+};
+
 subtest 'the hashes are what a browser would compute' => sub {
     # Computed here from first principles rather than by calling the thing under
     # test, because a hash that is wrong in both copies agrees with itself
@@ -168,6 +207,47 @@ subtest 'HSTS is short, unqualified, and secure-only' => sub {
     my @plain = Lazysite::SecurityHeaders::security_headers( https => 0 );
     is( scalar( grep { /^Strict-Transport-Security:/ } @plain ),
         0, 'and none at all over plain HTTP' );
+};
+
+subtest 'and no response path answers without it' => sub {
+    # SM381. The subtest below catches a path that writes its own COPY of the
+    # headers. This catches the commoner and quieter case: a path that writes a
+    # status line and no headers at all.
+    #
+    # The comment on _security_headers claimed "every response path here calls
+    # this" and had been wrong for longer than the defect it described - 402,
+    # 403, three other refusals, five redirects, the 500, the registry outputs
+    # and two .well-known endpoints each printed their own. A comment asserting
+    # completeness is a claim like any other; this makes it checkable.
+    #
+    # COMMENTS ARE SKIPPED, because the corrected comment quotes the very string
+    # this searches for and an earlier version of this check flagged it. The
+    # same self-match that made the subtest below need its $in_def guard.
+    open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+    my @lines = <$fh>;
+    close $fh;
+
+    my ( @naked, $sub );
+    for my $i ( 0 .. $#lines ) {
+        my $l = $lines[$i];
+        $sub = $1 if $l =~ /^sub (\w+)/;
+        next if $l =~ /^\s*#/;
+        next unless $l =~ /print "Status:/;
+        next if ( $sub // '' ) eq 'output_page';    # the choke point itself
+
+        my $window = join '', grep { !/^\s*#/ }
+            @lines[ $i .. ( $i + 7 > $#lines ? $#lines : $i + 7 ) ];
+        push @naked, ( $sub // '?' ) . " (line @{[ $i + 1 ]})"
+            unless $window =~ /_security_headers/;
+    }
+
+    is_deeply( \@naked, [],
+        'every status line is output_page or is followed by the header set' )
+        or diag( join "\n  ",
+        '', @naked, '',
+        'These answer a request without nosniff, frame options, referrer',
+        'policy or HSTS. The refusals are the ones that matter most: they are',
+        'what a scanner reaches.' );
 };
 
 subtest 'every response path emits the set' => sub {

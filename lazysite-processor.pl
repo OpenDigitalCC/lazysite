@@ -977,7 +977,6 @@ sub _acl_refused {
             "<!DOCTYPE html><html><body><h1>Forbidden</h1>"
                 . "<p>You do not have access to this file.</p></body></html>\n",
             'text/html; charset=utf-8', undef, 1, '403 Forbidden' );
-        return 1;
     }
 
     log_event( 'WARN', $uri, 'static refused by ACL', user => '-' );
@@ -987,6 +986,7 @@ sub _acl_refused {
     my $next          = uri_encode($uri);
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
+    print "$_\r\n" for _security_headers();    # SM381
     print "Cache-Control: no-store\r\n";
     # SM353: state the type. With none, the response carried the CGI's own
     # (text/x-perl) - wrong on every gated request on every site, and it
@@ -1502,6 +1502,7 @@ sub _front_fail {
     $ACCESS_REC{s}  = $status;
     $ACCESS_REC{ch} = 'front';
     print "Status: $status\r\n";
+    print "$_\r\n" for _security_headers();    # SM381
     print "Content-Type: text/plain; charset=utf-8\r\n\r\n";
     print "$text\n";
     return 1;
@@ -1730,6 +1731,7 @@ sub handle_one_request {
         if ( !defined $ACCESS_REC{s} ) {    # nothing emitted yet - answer 500
             $ACCESS_REC{s} = 500;
             print "Status: 500 Internal Server Error\n";
+            print "$_\n" for _security_headers();    # SM381
             print "Content-type: text/plain; charset=utf-8\n\n";
             print "500 Internal Server Error\n";
         }
@@ -1892,6 +1894,7 @@ sub handle_manager_path {
         my $redirect = $sv{auth_redirect} || '/login';
         binmode( STDOUT, ':utf8' );
         print "Status: 302 Found\r\n";
+        print "$_\r\n" for _security_headers();                # SM381
         print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
         print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
             . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
@@ -1903,6 +1906,7 @@ sub handle_manager_path {
     if ( $uri eq $manager_path ) {
         binmode( STDOUT, ':utf8' );
         print "Status: 302 Found\r\n";
+        print "$_\r\n" for _security_headers();                # SM381
         print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
         print "Location: $manager_path/\r\n\r\n";
         return 1;
@@ -2056,8 +2060,11 @@ sub main {
         my $inst  = _instance_id();
         my $rhost = _request_host();
         binmode( STDOUT, ':utf8' );
+        # SM381: the header set here too. A cross-origin-readable endpoint is a
+        # strange one to leave without nosniff.
         print "Status: 200 OK\r\n";
         print "Content-Type: application/json; charset=utf-8\r\n";
+        print "$_\r\n" for _security_headers();
         print "Access-Control-Allow-Origin: *\r\n";
         print "Cache-Control: no-store\r\n\r\n";
         print qq({"ok":1,"instance":"$inst","host":"$rhost"});
@@ -2091,6 +2098,7 @@ sub main {
         binmode( STDOUT, ':utf8' );
         print "Status: 200 OK\r\n";
         print "Content-Type: application/json; charset=utf-8\r\n";
+        print "$_\r\n" for _security_headers();    # SM381
         print "Access-Control-Allow-Origin: *\r\n";
         print "Cache-Control: no-store\r\n\r\n";
         print JSON::PP->new->canonical->pretty->encode($doc);
@@ -2284,6 +2292,7 @@ sub main {
             $ACCESS_REC{ar} = 1;
             binmode( STDOUT, ':utf8' );
             print "Status: 302 Found\r\n";
+            print "$_\r\n" for _security_headers();                # SM381
             print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
                 # SM188: check_auth only returns a redirect for an UNauthenticated
                 # request, so this bounce always means "no valid session" - clear the
@@ -2543,6 +2552,7 @@ sub main {
         ( my $loc = $canon ) =~ s/[\r\n]//g;
         my $canon_h = _esc_html($canon);
         print "Status: $code $phrase\r\n";
+        print "$_\r\n" for _security_headers();    # SM381
         print "Location: $loc\r\n";
         print "Content-Type: text/html; charset=utf-8\r\n\r\n";
         print qq(<!DOCTYPE html><html><body>Moved to )
@@ -5216,6 +5226,7 @@ sub _serve_registry {
     # status to anything asserting on the response.
     print "Status: 200 OK\r\n";
     print "Content-Type: $ct\r\n";
+    print "$_\r\n" for _security_headers();    # SM381
     print "Cache-Control: public, max-age=$REGISTRY_TTL\r\n\r\n";
     print $body;
     return 1;
@@ -6538,10 +6549,21 @@ sub forbidden {
 # lines, so a copy that drifts in the max-age or drops a denied capability fails
 # rather than merely looking different.
 #
-# Every response path here calls this. Before SM352 three of the four wrote
-# their own shorter list, which is why the site's stylesheets and artwork
-# answered without X-Frame-Options or Referrer-Policy while the homepage carried
-# both - a drift nobody probing the homepage could see.
+# Every response path here calls this - and SM381 is what made that TRUE rather
+# than merely stated. Before SM352 three of the four known paths wrote their own
+# shorter list, which is why the site's stylesheets and artwork answered without
+# X-Frame-Options or Referrer-Policy while the homepage carried both.
+#
+# THE SENTENCE ABOVE WAS WRONG FOR LONGER THAN THE DEFECT IT DESCRIBED. SM352
+# fixed "the four paths" and left this claiming all of them, while 402, 403, the
+# ACL static refusal, the manager-access refusal, forbidden(), five redirects,
+# the 500, the registry outputs and two .well-known endpoints each still printed
+# their own. A comment asserting completeness is a claim like any other, and this
+# one went unchecked because it read like a description of the code beneath it.
+#
+# Counted, so the claim can be re-checked rather than re-trusted: every
+# `print "Status:` in this file is either output_page itself or is followed by
+# this call.
 # SM352: the CSP. A DELIBERATE COPY of Lazysite::SecurityHeaders, like the
 # header set below it - the render path loads no Lazysite modules (ADR 0001) -
 # and pinned to the module BY VALUE by t/lint/55, which drives both and compares
@@ -6616,6 +6638,21 @@ sub _security_headers {
     # browser.
     if ( defined $opt{html} ) {
         my $mode = _csp_mode();
+
+        # SM380: THE MANAGER IS NEVER ENFORCED, whatever the site is set to,
+        # until its inline handlers are converted.
+        #
+        # A CSP hash covers a <script> BLOCK and not an inline event-handler
+        # ATTRIBUTE. The manager's pages carry 186 of them - 59 in static markup
+        # and 127 generated inside JS strings with interpolated arguments - so
+        # enforcing there would silently stop an operator's controls firing.
+        #
+        # Report-only rather than a looser manager policy: 'unsafe-inline' would
+        # break nothing either, and would weaken the ONE surface where an
+        # injection reaches an operator's session. Reporting weakens nothing and
+        # records the debt. SM380 carries the conversion.
+        $mode = 'report-only' if $mode eq 'enforce' && _is_manager_request();
+
         if ( $mode ne 'off' ) {
             my $name
                 = $mode eq 'enforce'
@@ -6626,6 +6663,16 @@ sub _security_headers {
         }
     }
     return @h;
+}
+
+# Is this request for the manager UI? Read from the URI rather than from the
+# rendered content, because the content is what we are deciding a policy FOR and
+# matching on it would make the policy depend on the page it governs.
+sub _is_manager_request {
+    my $uri = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
+    $uri =~ s/\?.*\z//;
+    my $mp = eval { my %sv = resolve_site_vars(); $sv{manager_path} } || '/manager';
+    return ( $uri eq $mp || index( $uri, "$mp/" ) == 0 ) ? 1 : 0;
 }
 
 # The CSP mode from lazysite.conf. A deliberate copy of
