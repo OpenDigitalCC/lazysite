@@ -168,4 +168,47 @@ subtest 'a 403 has no canonical, in the body and in the cache' => sub {
     }
 };
 
+# --- SM371, the FIELD case itself: the 402, with a query string ---------------
+# The 0.10.14 validation found /402.html carrying a VISITOR-SUPPLIED query
+# string in its canonical, pointing at the payment-gated page the visitor had
+# just been refused - and the changelog admitted the fix shipped untested. The
+# 403 subtest above proves the sanitiser runs on ONE error path; this one
+# proves it on the path the field actually caught, and asserts the sharper
+# property underneath: REQUEST-CONTROLLED BYTES MUST NOT PERSIST INTO THE
+# SHARED CACHE FILE. The cached 402.html is served to every later visitor, so
+# a query string surviving into it is one visitor writing into every other
+# visitor's page - the cache-poisoning shape, not just an SEO nit.
+subtest 'a 402 has no canonical, and the query string dies with it' => sub {
+    open my $paid, '>', "$docroot/zz-paid.md" or die $!;
+    print {$paid}
+        "---\ntitle: Paid\npayment: required\npayment_amount: 0.01\n"
+        . "payment_address: 0xabc\npayment_asset: 0xdef\n---\n\npaid content\n";
+    close $paid;
+
+    open my $sys, '>', "$docroot/402.md" or die $!;
+    print {$sys} "---\ntitle: Payment required\n---\n\n# Payment required\n";
+    close $sys;
+
+    my $poison = 'utm_source=EVIL-MARKER-8871';
+    my $out    = run_processor( $docroot, '/zz-paid', QUERY_STRING => $poison );
+    like( $out, qr/Status: 402/, 'the fixture reaches serve_402' )
+        or diag( 'got: ' . substr( $out, 0, 300 ) );
+
+    unlike( $out, qr/rel=["']canonical["']/i,
+        'the served 402 carries no canonical' );
+    unlike( $out, qr/EVIL-MARKER-8871/,
+        'and no visitor-supplied byte survives into the body' );
+
+    ok( -f "$docroot/402.html", 'the cache file the front end serves exists' );
+    open my $cf, '<', "$docroot/402.html" or die $!;
+    local $/;
+    my $cached = <$cf>;
+    close $cf;
+    unlike( $cached, qr/rel=["']canonical["']/i,
+        'the CACHED 402 carries no canonical' );
+    unlike( $cached, qr/EVIL-MARKER-8871/,
+        'and the query string is nowhere in the file every later visitor gets' );
+    like( $cached, qr/name=["']robots["'][^>]*noindex/i, 'noindex, like the others' );
+};
+
 done_testing();

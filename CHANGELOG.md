@@ -115,6 +115,18 @@ Naming the commit: AFTER it lands, never before
   which without validation succeeds and archives foreign content into a
   self-service-downloadable backup. The sabotage matrix caught it; the test
   forces that case and asserts the refusal comes from validation.
+- SM371 close-out (PENDING, test only) **the 402 fix stops shipping untested.**
+  The 0.10.14 validation found `/402.html` carrying a visitor-supplied query
+  string in its canonical, pointing at the payment-gated page the visitor had
+  just been refused - and the changelog admitted the fix shipped untested,
+  which the pre-beta review flagged. t/integration/57 already proved the
+  sanitiser on 404 and 403; it now drives the FIELD case itself: a
+  payment-gated page requested with a poisoned query string, asserting no
+  canonical in the served body OR the cached 402.html - and the sharper
+  property underneath, that request-controlled bytes never persist into the
+  shared cache file every later visitor receives (the cache-poisoning shape,
+  not an SEO nit). Sabotage-verified against the pre-SM371 state: with the
+  sanitiser call removed from serve_402, the subtest fails.
 
 - SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**
