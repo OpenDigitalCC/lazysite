@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM407, SM408 (PENDING, filings only) **three records stopped in the same
+- SM407, SM408 (c810e38, a9f7093; filings only) **three records stopped in the same
   week.** Surfaced as advisories by the compliance gate during the 0.10.16 edge
   cut; none blocks a cut and none blocked this one. `FEATURES.md`'s newest
   release entry is 0.10.9 while 0.10.16 was being cut - the CONTENT is current
@@ -70,7 +70,7 @@ Naming the commit: AFTER it lands, never before
   is required" and "at a stable cut" coincide by construction. Stated rather than
   left to be discovered: a **stable cut will still block** on the declaration,
   and the 2026-09-11 CRA dates are outside the reach of any switch.
-- SM409, SM410, ADR 0009 (PENDING, planning only - no engine code) **the typed
+- SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**
   The two inbox briefs (data plugin + full-screen data manager, 1,089 lines)
   audited against the tree with every "CC confirms" marker resolved. Two spec
@@ -92,7 +92,23 @@ Naming the commit: AFTER it lands, never before
   plugin system. Briefs archived; BACKLOG's database-plugin sketch superseded
   (its per-visitor schemas are exactly what the settled boundary excludes).
 
-- SM406 (PENDING) **a subtest named for a race it never forced.** The 0.10.16
+## 0.10.16 - EDGE: the build says which commit it validated (2026-08-19)
+
+The first cut to carry SM400's provenance: `release-manifest.json` holds
+`validated: {commit, files, tests}` naming the exact gated commit, and
+`docs/releases/GATE-LOG.md` gained its first real row. It took two cuts: the
+first failed its gate in a subtest named for a race it never forced (SM406,
+fixed in this release), and the cause of that one failure is recorded as
+unproven rather than assumed. Alongside: three writers that renamed torn files
+over good ones, an identity the form handler recorded but could not verify,
+form rules for structured answers, and six standing decisions recorded where
+they belong.
+
+This section was written after the tag rather than before it - the 0.10.15
+prep pattern was missed at cut time, and a partner agent reading the deployed
+changelog noticed the gap before we did.
+
+- SM406 (06566c4) **a subtest named for a race it never forced.** The 0.10.16
   edge cut FAILED its gate in `t/unit/manager/60`, subtest 5, and `release.sh`
   correctly refused to release - nothing tagged, nothing built. That subtest,
   *"backups taken in the same second"*, took two backups back to back and hoped
@@ -113,7 +129,7 @@ Naming the commit: AFTER it lands, never before
   error on a 70-minute run, and the process fix (capture to a file, tail the
   file) matters more than the test fix.
 
-- SM404 (PENDING) **three writers renamed a torn file over a good one.**
+- SM404 (9bd8093) **three writers renamed a torn file over a good one.**
   `_write_json_atomic` was atomic in the rename and not in the write: it checked
   neither the print nor the close, so a write that ran out of space produced a
   TRUNCATED temp file, the rename promoted it over a good one, and the function
@@ -131,7 +147,7 @@ Naming the commit: AFTER it lands, never before
   with a large payload print fails first and a writer checking print but not
   close would otherwise pass.
 
-- Decisions (PENDING) **six standing questions answered, and one stale count.**
+- Decisions (a3cfc7f) **six standing questions answered, and one stale count.**
   SM405 files the visitor-class model as DECIDED and not built - seven classes
   rather than five, because an assistant fetching a page for a person is a visit
   and a training crawler is not, and today both land in `ai`; and where a
@@ -149,7 +165,7 @@ Naming the commit: AFTER it lands, never before
   with the 0.10.10 pickers, so a reader counting them would have stopped one
   short of the one with access-control consequence.
 
-- SM402 (PENDING) **the form handler recorded an identity it could not verify -
+- SM402 (4b5fe69) **the form handler recorded an identity it could not verify -
   and the filing had the exposure in the wrong place.** `form-handler.pl` is not
   behind the auth wrapper, so `HTTP_X_REMOTE_USER` reaches it exactly as the
   client sent it. SM402 said an operator would see a spoofable name in a
@@ -172,7 +188,7 @@ Naming the commit: AFTER it lands, never before
   is still recorded, and the delivery targets still skip `_`-prefixed keys - the
   property that made the dead field harmless.
 
-- SM400 (PENDING) **a release records which commit it validated.** The gate's
+- SM400 (93bdcb3) **a release records which commit it validated.** The gate's
   summary went to a terminal and to `tmp/gate-result.txt`, which is gitignored,
   so nothing durable said what had been gated - a promotion review reached "the
   build that would go to beta is not the build that was validated" and nothing
@@ -188,7 +204,7 @@ Naming the commit: AFTER it lands, never before
   failing stand-in is refused **with a control** showing the naive form would
   have passed.
 
-- SM401 (PENDING) **form rules for structured answers, and two silent losses.**
+- SM401 (340d6f3) **form rules for structured answers, and two silent losses.**
   From an inbox filing: an office team answering ~300 structured questions whose
   shape - "which of these, and how many of each" - the field vocabulary could not
   express, so it went in a free-text box. Adds `radio:`, `checklist:` and
@@ -205,7 +221,7 @@ Naming the commit: AFTER it lands, never before
   `min:`/`max:`. The rate-limit exemption was NOT built as asked - see below - and
   a per-form `rate_limit:` ships instead. Docs: both form references.
 
-- SM402 (PENDING, filing only) **the form handler tags submissions with a header
+- SM402 (340d6f3, filing only) **the form handler tags submissions with a header
   nobody verified.** Found while scoping SM401's rate-limit exemption, which
   would have trusted the same header for a security decision. `form-handler.pl`
   is not behind the auth wrapper - the templates front only the processor and
@@ -320,36 +336,6 @@ Naming the commit: AFTER it lands, never before
   commitment**, which said the store held "aggregates only, never per-visitor
   records" and had stopped being true.
 
-- SM383 (07879d3) **the release stage stamped one half of a pair.** SM375 taught
-  `release.sh` to stamp `VERSION` and left `NEXT_VERSION` alone, so a stage
-  cutting 0.10.15 carried `VERSION=0.10.15` **and** `NEXT_VERSION=0.10.15` - and
-  the next release would have proposed a version already cut, which SM064 says
-  is never reused. `t/lint/63` caught it by failing the release gate, which is
-  the gate working; the defect was stamping one half of a pair **in the very
-  change that existed because the pair had drifted**. Both now move together, as
-  `tools/bump-version.pl` has always done. The test runs the real derivation
-  line from a FILE rather than backticks, because it contains awk's `$1`/`$2`/`$3`
-  and Perl ate them as capture variables - producing an empty result that looked
-  exactly like the shell failing.
-
-## Unreleased
-
-- SM384 (a19ca72) **the CSP hash died on any non-ASCII character in an inline
-  script.** `Digest::SHA` operates on bytes and dies on a wide character; a
-  TT-rendered response is a CHARACTER string. So one non-ASCII character inside
-  an inline `<script>` aborted the response mid-headers and the browser got a
-  **200 with an empty body** - and because the manager's own scripts carry
-  non-ASCII and report-only is the DEFAULT, the manager was down in every mode
-  except `csp: off`. The quieter tier: U+0080-U+00FF does not die, it hashes the
-  latin-1 byte where the browser hashes two UTF-8 bytes, so the script is
-  silently refused. **No test saw it** because nothing renders a manager page end
-  to end through the real layout and every fixture's inline script was ASCII -
-  the shipped catalogue was clean by luck, not design. Found by driving a real
-  browser against a real manager, while the 0.10.15 cut was running; the cut was
-  stopped before tagging and no version was burned.
-
-## Unreleased
-
 - SM385 (a17a6c9) **the NOT CONFIRMED summary overwrote the stated reason with a
   guess.** In the real 0.10.15 deploy the probe declined and said why - running
   as root, where protecting content would leave root-owned files in the site
@@ -397,8 +383,6 @@ Naming the commit: AFTER it lands, never before
   deliver a Hestia template. Now verified on four vhosts, asserted on the BODY
   rather than the status.
 
-## Unreleased
-
 - Operator docs (5976c14) **the upgrade notes stopped at 0.10.10, and the
   channel default was documented backwards.** `UPGRADE.md` gains a 0.10.15
   section carrying the four things a package cannot do - re-apply access rules
@@ -425,8 +409,6 @@ Naming the commit: AFTER it lands, never before
   check turned itself off exactly when it mattered, on the serving path. It is a
   failure now.
 
-## Unreleased
-
 - SM288 follow-through (33f7207) **the widening now has its release note and its
   pre-report.** `@group` entries were silently inert on MCP and the control API
   before SM288, so honouring them widens effective access on live sites -
@@ -450,8 +432,6 @@ Naming the commit: AFTER it lands, never before
   the release, and the two tests the first left failing on purpose now pass -
   with neither file touched since, so they were resolved by the follow-up's CODE
   and not by rewriting the tests to agree. One command settles it.
-
-## Unreleased
 
 - SM390 (406b75d) **the agent opt-out promised exclusion and delivers
   classification.** The MCP connector tells every partner that setting
@@ -522,6 +502,36 @@ changed while I read it" and that was treated as fatal - so the thing
 that makes an apply reversible failed precisely on the sites where
 reversibility matters.
 
+Two entries below - SM383 and SM384 - shipped in this release but sat in the
+Unreleased section until the 0.10.16 post-release pass: they landed between
+this release's prep commit and its tag, so the prep could not have carried
+them. Moved here so the section says what the release contains.
+
+- SM383 (07879d3) **the release stage stamped one half of a pair.** SM375 taught
+  `release.sh` to stamp `VERSION` and left `NEXT_VERSION` alone, so a stage
+  cutting 0.10.15 carried `VERSION=0.10.15` **and** `NEXT_VERSION=0.10.15` - and
+  the next release would have proposed a version already cut, which SM064 says
+  is never reused. `t/lint/63` caught it by failing the release gate, which is
+  the gate working; the defect was stamping one half of a pair **in the very
+  change that existed because the pair had drifted**. Both now move together, as
+  `tools/bump-version.pl` has always done. The test runs the real derivation
+  line from a FILE rather than backticks, because it contains awk's `$1`/`$2`/`$3`
+  and Perl ate them as capture variables - producing an empty result that looked
+  exactly like the shell failing.
+
+- SM384 (a19ca72) **the CSP hash died on any non-ASCII character in an inline
+  script.** `Digest::SHA` operates on bytes and dies on a wide character; a
+  TT-rendered response is a CHARACTER string. So one non-ASCII character inside
+  an inline `<script>` aborted the response mid-headers and the browser got a
+  **200 with an empty body** - and because the manager's own scripts carry
+  non-ASCII and report-only is the DEFAULT, the manager was down in every mode
+  except `csp: off`. The quieter tier: U+0080-U+00FF does not die, it hashes the
+  latin-1 byte where the browser hashes two UTF-8 bytes, so the script is
+  silently refused. **No test saw it** because nothing renders a manager page end
+  to end through the real layout and every fixture's inline script was ASCII -
+  the shipped catalogue was clean by luck, not design. Found by driving a real
+  browser against a real manager, while the 0.10.15 cut was running; the cut was
+  stopped before tagging and no version was burned.
 
 - SM382 (2162d75) **the engine's chrome 404s on a content-rooted secondary
   domain.** SM352 moved the engine's own script and stylesheet into `/assets/`,
@@ -641,8 +651,6 @@ reversibility matters.
   broken every backup on the platform this ships to - in the code whose whole
   job is making things recoverable.
 
-## Unreleased
-
 - SM352 follow-up (b4c02de, 98c6c60) **the CSP test that step 5 left failing, and the
   routing check that replaces what SM377 cost us.** Step 5 landed with
   `t/integration/44` red: it asserted "no enforcing CSP, because the engine would
@@ -661,8 +669,6 @@ reversibility matters.
   content has left the served tree, so what such a front end serves is public and
   served correctly, and overstating that is how the original probe misled an
   operator.
-
-## Unreleased
 
 - SM380 (3439f33, ec4a492) **the CSP shipped enforcing, with no way to turn it down.**
   Step 5 emitted one enforcing policy on every HTML response, no config key, no
@@ -6095,7 +6101,6 @@ Conformance (seven-dimension review, item 7) - code quality, perf, hygiene
   verify) with a committed baseline + a gross-regression gate (`--check`).
   D5/process: a committed secrets gate (`t/lint/03-secrets.t`);
   `tools/bump-version.pl` to roll the stale `VERSION`/`NEXT_VERSION`.
-
 
 Security - review items 5 & 6 (TOTP/consume hardening + supply chain)
 : TOTP codes are now **replay-protected** - a per-user `totp_last_step`
