@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM407, SM408 (PENDING, filings only) **three records stopped in the same
+  week.** Surfaced as advisories by the compliance gate during the 0.10.16 edge
+  cut; none blocks a cut and none blocked this one. `FEATURES.md`'s newest
+  release entry is 0.10.9 while 0.10.16 was being cut - the CONTENT is current
+  (trails, the journeys panel, the registry counters and the body caps all landed
+  with edits to it), but the per-release framing stopped, so a reader cannot tell
+  whether the file describes the build they are running. The declaration of
+  conformity is still stamped "0.8.0 - placeholder, to be finalised at the 0.8.0
+  stable cut", a cut long past, and signed "(unsigned draft)"; it blocks at the
+  next STABLE, where D5's `signoff_required: yes` attaches. **The
+  significant-change register is the load-bearing one**: its newest entry is
+  2026-08-14 and none of the six releases since is assessed - and ADR 0007 defers
+  the first third-party pentest ON CONDITION that significant changes are
+  assessed and recorded, so unassessed releases weaken the waiver itself rather
+  than merely a log line. "We looked and no trigger fired" is a valid entry; an
+  absent entry is not. Common cause: 0.10.9 was cut 2026-08-14 and seven releases
+  followed in five days, which is not a cadence that per-release human records
+  survive by accident.
+
 - SM406 (PENDING) **a subtest named for a race it never forced.** The 0.10.16
   edge cut FAILED its gate in `t/unit/manager/60`, subtest 5, and `release.sh`
   correctly refused to release - nothing tagged, nothing built. That subtest,
