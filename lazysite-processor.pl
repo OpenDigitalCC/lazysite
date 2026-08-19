@@ -2804,6 +2804,29 @@ sub _serve_content_static {
         # SM223: a file whose serving depended on WHO asked must not be stored by a
         # shared cache. no-cache still permits storage and revalidation; no-store
         # does not, and that is the distinction that matters for private material.
+        #
+        # SM387: AND THE PUBLIC BRANCH IS `no-cache` DELIBERATELY, not by
+        # omission. This was measured in the field and reported as a possible
+        # regression, which it looks like: on the SM283 proxy template every
+        # static comes back here, and the ten-year `expires max` the front end
+        # used to apply is gone. On contended shared hosting that is not free.
+        #
+        # It stays, because a long cache would resurrect SM331 one layer out.
+        # A static served here is PUBLIC RIGHT NOW and can be protected at any
+        # moment - that is the whole point of SM223, protection as a content
+        # action with no vhost regeneration. A visitor holding a ten-year copy
+        # would go on reading it long after the operator protected the folder,
+        # in their own browser cache, where nothing the engine or the front end
+        # does can reach them.
+        #
+        # SM331 was exactly this in the front end's descriptor cache and took
+        # three filings to understand. `must-revalidate` is what makes
+        # protecting a path take effect for someone who already fetched it.
+        #
+        # SO THE TEN-YEAR CACHE IS A PROPERTY OF THE FRONT-END FAST PATH, not of
+        # lazysite: a site with no ACL store keeps it, because nothing there can
+        # become protected without an operator noticing. The docs say so now
+        # rather than describing the stock template as though it were the rule.
     print( _acl_governed($real)
         ? "Cache-Control: no-store\n"
         : "Cache-Control: no-cache, must-revalidate\n" );

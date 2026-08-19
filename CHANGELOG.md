@@ -103,6 +103,23 @@ Naming the commit: AFTER it lands, never before
   a demonstrated permission difference between the two snapshot paths rather
   than an inference: `site_backup` succeeded at 09:24:01Z and 09:24:38Z with the
   apply's internal snapshot failing between them, same host, same account.
+- SM387 (PENDING) **engine-served statics revalidate, and that is a choice.**
+  After the SM283 proxy template went on edge, `/lazysite-assets/...`,
+  `/favicon.ico` and `/assets/lazysite-chrome.js` all moved from
+  `max-age=315360000` to `no-cache, must-revalidate` - reported from the field
+  as a possible regression, and right to be. It stays: a static served by the
+  engine is public *now* and can be protected at any moment, so a ten-year copy
+  in a visitor's browser would outlive the protection, in a cache nothing can
+  reach. **SM331 was this in the front end's descriptor cache and took three
+  filings to understand.** The reasoning now sits at the decision rather than
+  being inferable from its absence, and the ten-year cache is recorded as a
+  property of the front-end fast path rather than of lazysite.
+- SM374 note (PENDING) **the proxy fix is inert until the host's template copy is
+  refreshed** - and while it is stale the failure is identical to the bug. The
+  first application on edge failed with the same 421 on three domains because an
+  older template was still in Hestia's directory. A package upgrade does not
+  deliver a Hestia template. Now verified on four vhosts, asserted on the BODY
+  rather than the status.
 
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 

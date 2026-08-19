@@ -87,6 +87,45 @@ That is the same shape as SM268 H17 and SM283 itself: a front-end defect
 invisible to everything except driving the real server, and invisible
 even to that unless the fixture has two vhosts.
 
+# The fix is inert until the host's template copy is refreshed
+
+Verified on edge 2026-08-19, and the **first application failed with the
+same 421 on three domains at once** - because an older copy of the
+template was still in Hestia's directory.
+
+::: widebox
+**A package upgrade does not deliver a Hestia template.** SM283 says
+that about INSTALLING one and it is equally true of UPDATING one. So
+this fix ships in the package, changes nothing until the operator
+re-applies the template, and **the failure while it is stale is
+identical to the bug** - the same 421, on every surface.
+:::
+
+Anyone applying this fix should confirm the template on the host is the
+new one before concluding anything from a 421.
+
+# Verified on edge
+
+Four vhosts, each asserted **on the body** rather than the status,
+because a missing Host serves the default vhost with a 200 and the code
+cannot say which site answered:
+
+```datatable
+columns: Host | Served
+widths: 6.0cm | X
+bold: 1
+tone: medium
+---
+edge.explore | its own EDGE test site
+edge2.explore | Kestrel, Porto
+providers.explore | lazysite Studio
+th.providers.explore | lazysite Studio (Thai)
+---
+```
+
+`X-Lazysite-Front: hestia-proxy/acl` on all four, 421 on none, across
+HTTP/2, forced HTTP/1.1 and a fresh no-ALPN connection.
+
 # Verification
 
 - `t/integration/45` drives real nginx in front of real Apache, two TLS
