@@ -298,6 +298,147 @@ my $AI_RE = qr{
   | cohere-ai | Diffbot | Applebot-Extended | YouBot | meta-externalagent
 }xi;
 
+# NOTE ON PLACEMENT: this block sits AFTER every pattern it reads. The first
+# version was above them and failed to compile - a sub referring to a `my`
+# declared later in the file is a compile-time error under strict, and this
+# file already carries three comments warning about exactly that trap for its
+# regexes and its month map. It caught this too.
+# ---------------------------------------------------------------------------
+# SM391: THE CLASSIFIERS ARE DATA, LOADABLE WITHOUT EDITING THIS FILE.
+#
+# Every pattern above is a signature list, and signature lists date. SM332 is
+# the proof: `/wp-login.php` was caught by the `.php` rule and its modern
+# replacement `/wp-json/batch/v1` was caught by nothing, so a WordPress
+# enumeration ran as `human`. That gap existed because updating a signature
+# meant editing, testing and RELEASING the engine.
+#
+# So the built-ins below are defaults, and a site may override or extend them
+# from lazysite/stats/classifiers.json without this file changing.
+#
+# THREE PROPERTIES THIS HAS TO KEEP, all of them failure directions rather than
+# features:
+#
+#   A BROKEN FILE MUST NOT DISARM THE CLASSIFIER. An unreadable or malformed
+#   ruleset falls back to the built-ins entirely. The alternative - classifying
+#   nothing, or classifying everything as human - is a silent, total failure of
+#   the thing an operator reads numbers from.
+#
+#   A BAD PATTERN MUST NOT TAKE THE REST WITH IT. Each is compiled on its own;
+#   one that will not compile is skipped and reported, and the others still
+#   apply. A single typo should cost one rule, not the file.
+#
+#   THE RULESET MUST BE ATTRIBUTABLE. Its version is stamped into the export
+#   beside counting_basis (SM338), because "the numbers changed" and "the rules
+#   changed" are different answers and a reader cannot tell them apart without
+#   this.
+our $CLASSIFIER_VERSION = 'built-in';
+
+# The shipped defaults, kept so an override can EXTEND rather than replace and
+# so a reload starts from a known state rather than from whatever the last one
+# left behind.
+our %BUILT_IN = (
+    noise        => $NOISE_RE,
+    infra        => $INFRA_RE,
+    secret       => $SECRET_RE,
+    spa_manifest => $SPA_MANIFEST_RE,
+    asset        => $ASSET_RE,
+    bot          => $BOT_RE,
+    agent        => $AGENT_RE,
+    ai           => $AI_RE,
+);
+
+sub _classifier_file { return "$DOCROOT/lazysite/stats/classifiers.json" }
+
+# name => [ built-in default, what it matches ]. The compiled forms live in
+# %RULES and are what classify() consults, so an override and a built-in are
+# indistinguishable at the point of use.
+# THE OVERRIDES ARE ASSIGNED BACK INTO THE PATTERNS THEMSELVES, so every call
+# site is untouched and stays readable as the thing it tests.
+#
+# The first design routed every match through a _rule('name') lookup, and it
+# broke a testing surface: t/unit/plugins/05 extracts `my $ASSET_RE = ...`
+# together with `sub _is_asset` and evaluates the pair in its own package, so a
+# pure path test can run without the plugin. A lookup helper does not exist in
+# that package, and the extracted sub died.
+#
+# Assigning into the lexicals keeps the patterns the single subject of every
+# call site, keeps extraction working, and means an override is applied in
+# exactly one place instead of eight.
+
+sub _compile_rules {
+    my %built_in = %BUILT_IN;
+
+    # Where each rule's compiled pattern lives. Assigning through these keeps
+    # every call site reading as the pattern it tests.
+    my %target = (
+        noise        => \$NOISE_RE,
+        infra        => \$INFRA_RE,
+        secret       => \$SECRET_RE,
+        spa_manifest => \$SPA_MANIFEST_RE,
+        asset        => \$ASSET_RE,
+        bot          => \$BOT_RE,
+        agent        => \$AGENT_RE,
+        ai           => \$AI_RE,
+    );
+
+    # Always start from the shipped defaults, so a second call cannot compound
+    # an override onto an already-overridden pattern.
+    ${ $target{$_} } = $built_in{$_} for keys %built_in;
+    $CLASSIFIER_VERSION = 'built-in';
+
+    my $f = _classifier_file();
+    return unless -f $f;
+
+    my $raw = eval {
+        open my $fh, '<', $f or die "unreadable\n";
+        local $/;
+        <$fh>;
+    };
+    return unless defined $raw;
+
+    my $doc = eval { JSON::PP::decode_json($raw) };
+    unless ( ref $doc eq 'HASH' && ref $doc->{rules} eq 'HASH' ) {
+        warn "stats: $f is not a classifier ruleset; using built-ins\n";
+        return;
+    }
+
+    my @bad;
+    for my $name ( sort keys %{ $doc->{rules} } ) {
+        unless ( exists $built_in{$name} ) {
+            push @bad, "$name (not a known rule)";
+            next;
+        }
+        my $pat = $doc->{rules}{$name};
+        next unless defined $pat && length $pat;
+        my $re = eval { qr/$pat/xi };
+        if ( !$re || $@ ) { push @bad, "$name (will not compile)"; next }
+
+        # EXTEND, DO NOT REPLACE - unless the ruleset says otherwise.
+        #
+        # Replacing was the first design and it is a foot-gun: an operator
+        # adding one new crawler signature would silently lose `curl`, `wget`,
+        # `python-requests` and every other built-in, and the loss shows up as
+        # a quiet rise in the human count rather than as an error. The test
+        # caught it by expecting the built-in curl match to survive.
+        #
+        # `"replace": [...]` is there for the case where a built-in is WRONG
+        # rather than incomplete, which is rarer and should be deliberate.
+        my $replace = ref $doc->{replace} eq 'ARRAY'
+            ? { map { ( $_ => 1 ) } @{ $doc->{replace} } }
+            : {};
+        ${ $target{$name} }
+            = $replace->{$name}
+            ? $re
+            : qr/(?:$built_in{$name})|(?:$re)/;
+    }
+    warn "stats: ignored classifier rules: @bad\n" if @bad;
+
+    my $v = $doc->{version};
+    $CLASSIFIER_VERSION = ( defined $v && length $v ) ? "$v" : 'custom';
+    return;
+}
+
+
 # Month-name map for log-date parsing. Declared up here (like the regexes above)
 # so it is assigned BEFORE the dispatch below ever calls export_stats().
 my @MONTHS_X = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
@@ -420,6 +561,11 @@ if ( $arg{recount} ) {
     print encode_json( cmd_recount( $arg{apply} ? 1 : 0 ) );
     exit 0;
 }
+
+# SM391: load the ruleset before anything classifies. Called here rather than at
+# file scope because $DOCROOT is an argument, and a ruleset read from the wrong
+# docroot would be worse than none.
+_compile_rules();
 
 if ( $arg{export} ) {
     # SM213: --export always ingests + refreshes the durable per-day store, then
@@ -1097,7 +1243,11 @@ sub _day_rollup {
         #
         # A timestamp, not provenance. It answers "when was this produced",
         # which is the question being asked, and nothing about authenticity.
-        generated            => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
+        generated => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
+        # SM391: which RULESET produced these numbers, beside which BASIS
+        # counted them. "the numbers changed" and "the rules changed" are
+        # different answers and a reader cannot tell them apart without this.
+        classifier_version   => $CLASSIFIER_VERSION,
         counting_basis       => ( _basis_of($bucket) )[-1],
         counting_basis_mixed => (
             scalar( _basis_of($bucket) ) > 1 ? JSON::PP::true : JSON::PP::false
@@ -1195,6 +1345,7 @@ sub _month_rollup {
         # - and that total is not wrong so much as not a measurement of
         # anything. It has to be able to say so.
         generated            => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),   # SM341
+        classifier_version   => $CLASSIFIER_VERSION,                               # SM391
         counting_basis       => ( sort { $a <=> $b } keys %bases )[-1] // 1,
         counting_basis_mixed => (
             keys %bases > 1 ? JSON::PP::true : JSON::PP::false
@@ -2304,8 +2455,11 @@ sub _export_assemble {
     return {
         ok             => JSON::PP::true,
         schema_version => '2',
-        source         => $source,
-        generated      => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
+        # SM391: which ruleset classified these. Beside schema_version because
+        # it answers the same kind of question about the same numbers.
+        classifier_version => $CLASSIFIER_VERSION,
+        source             => $source,
+        generated          => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         window    => { days => $window, from => $from_day, to => _day_str( time() ) },
         data_from => ( @all_days ? $all_days[0] : undef ),
         totals => { human_visits => $hits, unique_visitors => scalar keys %uips, pageviews => $hits },

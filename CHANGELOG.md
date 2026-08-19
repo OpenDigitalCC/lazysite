@@ -190,6 +190,27 @@ Naming the commit: AFTER it lands, never before
   that did not promote. Neither reproduces - the sweep gives `human 0, scanner
   21` in a clean fixture on both ingest paths - so the trigger logic is not the
   defect and the remaining variable is state carried between export runs.
+- SM391 (PENDING) **the visitor classifiers are data, not code.** Every pattern
+  in the stats plugin is a signature list and signature lists date - SM332 is
+  what that costs, where `/wp-login.php` was caught and its modern replacement
+  `/wp-json/batch/v1` was caught by nothing, because changing a pattern meant
+  releasing the engine. Eight rule sets now load from
+  `lazysite/stats/classifiers.json`, and the ruleset in force is stamped into
+  the export beside `counting_basis`. Three failure directions are tested: a
+  broken file falls back to the built-ins **entirely**, one bad pattern costs
+  that rule alone, and - the design the test corrected - a ruleset **extends**
+  rather than replaces, because replacing meant an operator adding one crawler
+  signature would silently lose `curl`, `wget` and the rest, showing up as a
+  quiet rise in the human count rather than an error.
+- SM392 (PENDING) filed: **a promoted visitor token masks every later
+  classification from that source.** Eleven AI user-agents, including Googlebot
+  on a 200, all came back `scanner` because the token had been promoted earlier.
+  SM213 classifies per visitor deliberately, and the same stickiness means a
+  token that once looked sweep-shaped classifies everything from that source as
+  scanner afterwards - and on a real site that token is any shared egress: a
+  corporate NAT, a cloud region, an assistant's fetcher pool. Also recorded:
+  there is no way to ask the classifier directly, so testing the `ai` class from
+  outside needs a clean token that a probing agent cannot get.
 
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
