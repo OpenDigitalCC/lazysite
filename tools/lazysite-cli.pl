@@ -789,7 +789,7 @@ sub cmd_probe {
     $targets ||= _targets_or_fail();
 
     my $tool = payload_root() . '/tools/lazysite-check.pl';
-    my ( @verified, @exposed, @unconfirmed );
+    my ( @verified, @exposed, @unconfirmed, @skip_reasons );
 
     for my $s (@$targets) {
         my @base = ( '--docroot', $s->{docroot}, '--check-acl', _site_url($s) );
@@ -822,6 +822,8 @@ sub cmd_probe {
         }
         else {
             push @unconfirmed, $s->{name};
+            push @skip_reasons, $1
+                if $out =~ /ACL PROBE SKIPPED:\s*(.+?)\s*$/m;
             print "  $s->{name}: NOT CONFIRMED\n";
             print "    $_\n" for grep { /\[ warn \]/ } split /\n/, $out;
         }
@@ -836,8 +838,30 @@ sub cmd_probe {
     }
     if (@unconfirmed) {
         printf "NOT CONFIRMED: %s\n", join ', ', @unconfirmed;
-        print "Nothing was established either way. Usual cause is a docroot or\n";
-        print "ACL store the probe could not write: run `lazysite repair` first.\n";
+        print "Nothing was established either way.\n";
+
+        # SM385: THE PROBE SAID WHY. Use it.
+        #
+        # This printed one guess - "usual cause is a docroot or ACL store the
+        # probe could not write: run lazysite repair" - whatever the reason
+        # actually was. SM377 added a new skip (running as root, where
+        # protecting content would leave root-owned files in the site tree) and
+        # this summary went on recommending a repair that fixes nothing,
+        # directly under a line stating the real cause.
+        #
+        # Sending an operator after the wrong thing is the defect SM368 is
+        # about, and it is worse in a summary than in a detail line, because the
+        # summary is what a deploy log reader sees.
+        if (@skip_reasons) {
+            my %seen;
+            for my $r ( grep { !$seen{$_}++ } @skip_reasons ) {
+                print "  - $r\n";
+            }
+        }
+        else {
+            print "No reason was given, which usually means a docroot or ACL\n";
+            print "store the probe could not write: run `lazysite repair`.\n";
+        }
     }
 
     # Absence of evidence is not evidence of exposure, so a site that could not

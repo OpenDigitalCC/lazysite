@@ -72,6 +72,19 @@ Naming the commit: AFTER it lands, never before
   browser against a real manager, while the 0.10.15 cut was running; the cut was
   stopped before tagging and no version was burned.
 
+## Unreleased
+
+- SM385 (PENDING) **the NOT CONFIRMED summary overwrote the stated reason with a
+  guess.** In the real 0.10.15 deploy the probe declined and said why - running
+  as root, where protecting content would leave root-owned files in the site
+  tree - and three lines later the summary recommended `lazysite repair`, which
+  fixes nothing there. SM377 added that skip and left the summary printing its
+  one fixed sentence. **The summary is the part a deploy log reader sees**, so a
+  wrong cause there is worse than in a detail line. It now prints the reason the
+  probe gave, keeping the repair advice only for the case where no reason was
+  given - which is real, and dropping it would trade one wrong summary for
+  another.
+
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
 Cut after a pre-beta promotion review read the whole line read-only and
