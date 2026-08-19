@@ -81,6 +81,22 @@ Naming the commit: AFTER it lands, never before
   discriminate between suspects. Investigation owned by the release manager;
   the beta promotion record carries either its explanation or an explicit
   waiver citing this ref.
+- SM409 (PENDING) **disabled means off - for plugins that opt in.** The
+  plugins: list used to drive only the Plugin Manager listing (its parse lived
+  inline in action_plugin_list, consumed by nothing on any execution path), so
+  an operator who disabled a plugin changed a page, not the site. Per the
+  release manager's ruling: plugins declaring the ADR 0009 `contract` are
+  gated and BORN DISABLED; legacy plugins are untouched until each one's
+  migration SM replicates its current effective state, so nothing in the
+  field changes behaviour on upgrade. plugin_enabled() is exported for
+  direct-CGI plugins to self-check at entry - the data plugin is the intended
+  first caller. Config read/save stay open on a disabled plugin (an operator
+  configures before enabling), and hooks are deliberately ungated: on_disable
+  runs right after the conf loses the entry - the plugin's sanctioned last
+  run, its one chance to stop what it started - and a hook gate would have
+  refused exactly that cleanup (caught during implementation). Driven by two
+  real fixture plugins whose action writes a witness file, so ran/refused are
+  facts on disk; three sabotages bite.
 
 - SM409, SM410, ADR 0009 (c216586; planning only - no engine code) **the typed
   data layer is audited and mapped, and the plugin contract has a direction.**

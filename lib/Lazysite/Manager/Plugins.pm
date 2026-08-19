@@ -23,7 +23,7 @@ our @EXPORT_OK = qw(
     action_form_targets_read action_form_targets_save action_form_submissions
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
-    resolve_plugin_script
+    resolve_plugin_script plugin_enabled
 );
 
 our $DOCROOT;
@@ -89,6 +89,58 @@ sub plugin_registry {
     return \%reg;
 }
 
+# SM409: the plugins: list in lazysite.conf, as a map. This parse used to
+# live inline in action_plugin_list, where its only consumer was the LISTING -
+# which is precisely how "disabled" came to mean a display state rather than a
+# fact: nothing on any execution path ever read it.
+sub _enabled_map {
+    my %enabled;
+    my $conf_path = _lz() . "/lazysite.conf";
+    if ( open my $fh, '<:utf8', $conf_path ) {
+        my $in_plugins = 0;
+        while (<$fh>) {
+            chomp;
+            if (/^plugins\s*:\s*$/) { $in_plugins = 1; next }
+            if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
+                my $entry = $1;
+                $entry =~ s/\s+$//;
+                $enabled{$entry} = 1;
+            }
+            elsif ( $in_plugins && !/^\s/ ) { $in_plugins = 0 }
+        }
+        close $fh;
+    }
+    return \%enabled;
+}
+
+sub plugin_enabled { return _enabled_map()->{ $_[0] } ? 1 : 0 }
+
+# SM409 / ADR 0009: DISABLED MEANS OFF - for plugins that opt into the
+# contract. A descriptor that declares `contract` is gated: it EXECUTES only
+# when its script appears in the plugins: list, and it defaults to disabled,
+# because a contract plugin is born with the off switch (the data plugin is
+# the first). A legacy descriptor (no `contract` key) is untouched: existing
+# plugins keep running exactly as they always have, until each one's
+# migration SM enables it explicitly to replicate its current effective
+# state - the release manager's ruling, so that nothing in the field changes
+# behaviour on upgrade.
+#
+# The gate refuses EXECUTION (actions, hooks). Config read/save stay open on
+# a disabled plugin, deliberately: an operator must be able to configure a
+# plugin before enabling it, and the enable flow itself is a config surface.
+#
+# Returns undef when the plugin may run, or the refusal hash when it may not.
+sub _gate_execution {
+    my ( $script, $desc ) = @_;
+    return undef unless ref $desc eq 'HASH' && $desc->{contract};
+    return undef if plugin_enabled($script);
+    log_event( 'WARN', 'plugin-gate', 'disabled plugin refused execution',
+        plugin => $script );
+    return { ok => 0,
+        error => 'This plugin is disabled. An operator can enable it on the '
+            . 'Plugin Manager page.' };
+}
+
 # Resolve a request-named plugin to its absolute path via the registry ONLY.
 # An exact key match returns the canonical path; anything else (a traversal
 # path, an arbitrary file, an unregistered name) returns undef and the caller
@@ -108,22 +160,7 @@ sub action_plugin_list {
         return $parsed if $parsed && $parsed->{ok};
     }
 
-    my %enabled;
-    my $conf_path = _lz() . "/lazysite.conf";
-    if ( open my $fh, '<:utf8', $conf_path ) {
-        my $in_plugins = 0;
-        while (<$fh>) {
-            chomp;
-            if (/^plugins\s*:\s*$/) { $in_plugins = 1; next }
-            if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
-                my $entry = $1;
-                $entry =~ s/\s+$//;
-                $enabled{$entry} = 1;
-            }
-            elsif ( $in_plugins && !/^\s/ ) { $in_plugins = 0 }
-        }
-        close $fh;
-    }
+    my %enabled = %{ _enabled_map() };
 
     # D022: plugins moved to plugins/ with the lazysite- prefix
     # dropped. lazysite-processor.pl and lazysite-auth.pl stay at
@@ -220,6 +257,13 @@ sub _run_plugin_hook {
     my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
     my $desc = eval { decode_json($json) };
     return undef unless $desc && ref $desc eq 'HASH';
+
+    # SM409: hooks are deliberately NOT gated. They run only from the toggle
+    # actions themselves - on_enable right after the conf gains the entry (so
+    # the plugin is enabled by then), and on_disable right after the conf
+    # loses it, which is the plugin's SANCTIONED last run: its one chance to
+    # stop what it started. Gating here would refuse exactly that cleanup.
+    # Arbitrary execution goes through action_plugin_action, which is gated.
     my $id = $desc->{$hook_key};
     return undef unless defined $id && length $id;
     my ($action) = grep { ( $_->{id} // '' ) eq $id } @{ $desc->{actions} // [] };
@@ -449,6 +493,9 @@ sub action_plugin_action {
     my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
     my $desc = eval { decode_json($json) }
         or return { ok => 0, error => 'Cannot describe plugin' };
+
+    # SM409: a contract plugin that is not enabled executes nothing.
+    if ( my $refused = _gate_execution( $script, $desc ) ) { return $refused }
 
     my ($action) = grep { $_->{id} eq $action_id } @{ $desc->{actions} // [] };
     return { ok => 0, error => 'Action not found' } unless $action;
