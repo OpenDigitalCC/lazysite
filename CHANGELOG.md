@@ -44,6 +44,42 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM404 (PENDING) **three writers renamed a torn file over a good one.**
+  `_write_json_atomic` was atomic in the rename and not in the write: it checked
+  neither the print nor the close, so a write that ran out of space produced a
+  TRUNCATED temp file, the rename promoted it over a good one, and the function
+  returned 1. The processor's page-cache writer has had checked print AND checked
+  close since SM020 - the pre-beta review praised it for exactly this - and the
+  three stats writers never gained it. **Worst for the durable store**: day files
+  are written once and never rewritten, so a torn day file is permanent where a
+  torn cache merely rebuilds. One of the three was added by SM393 days earlier,
+  written to match the local style, which is how a defect becomes the house
+  pattern. Now one checked writer and one rename in the file, with the count
+  asserted. `t/unit/plugins/17` drives a REAL failed write via `ulimit -f` and
+  asserts what is left on disk; its first version used `/dev/full`, failed at
+  OPEN rather than at the write, and **both check-removing sabotages passed
+  against it**. It carries a second case sized to fail only at the FLUSH, because
+  with a large payload print fails first and a writer checking print but not
+  close would otherwise pass.
+
+- Decisions (PENDING) **six standing questions answered, and one stale count.**
+  SM405 files the visitor-class model as DECIDED and not built - seven classes
+  rather than five, because an assistant fetching a page for a person is a visit
+  and a training crawler is not, and today both land in `ai`; and where a
+  DECLARED identity disagrees with observed behaviour, **behaviour wins**, or
+  `agent-declared` becomes an opt-out for attackers. SM272 is CLOSED: the
+  operator holds the signing key and publication stays manual, so no publishing
+  credential reaches the build host. SM281's last open question is answered - a
+  notice gains an optional `to`, and one without it stays broadcast, so nothing
+  that emits a notice today has to change. `docs/compliance/SIGNOFF.md` records
+  keeping `signoff_required: no` for the beta promotion as a **decision rather
+  than an inherited switch**, and notes that the two CRA obligations falling due
+  2026-09-11 are unaffected by it either way. The manual-check register records
+  that all four tier-A checks run before promotion - and `MANUAL-CHECKS.md` said
+  "Three checks" while listing four, having never been updated when A4 arrived
+  with the 0.10.10 pickers, so a reader counting them would have stopped one
+  short of the one with access-control consequence.
+
 - SM402 (PENDING) **the form handler recorded an identity it could not verify -
   and the filing had the exposure in the wrong place.** `form-handler.pl` is not
   behind the auth wrapper, so `HTTP_X_REMOTE_USER` reaches it exactly as the

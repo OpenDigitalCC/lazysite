@@ -3,7 +3,7 @@ title: "SM281 - The notification endpoints SM231 did not build, and the agent no
 subtitle: "SM231 shipped types, templates, routing and emission control over one endpoint. The SMTP endpoint, per-user addressing and the readable notice store are what remains."
 brand: plain
 status: partial
-status-note: "SPLIT from SM231 on 2026-08-11, which is now closed as shipped for the channel itself. NOT STARTED. Carries the two open decisions SM231 recorded and never resolved, plus the agent-messaging door it deliberately declined to build. The SMTP endpoint is S; the notice-store read surface is M and is also an SM239 parity item in its own right."
+status-note: "ADDRESSING DECIDED 2026-08-19, the last of SM231's two open questions (the second - templates in the config namespace - was answered when they were built). A notice gains an optional `to` naming an account or a group; a notice WITHOUT one stays broadcast exactly as today. Backward-compatible by construction, so nothing that emits a notice now has to change, and it closes the per-user delivery gap Notify.pm has flagged since SM136. STILL NOT STARTED - the decision unblocks the work, it is not the work: the SMTP endpoint is S, the notice-store read surface is M and is an SM239 parity item in its own right, and the `to` field touches both. SPLIT from SM231 on 2026-08-11, which is now closed as shipped for the channel itself. NOT STARTED. Carries the two open decisions SM231 recorded and never resolved, plus the agent-messaging door it deliberately declined to build. The SMTP endpoint is S; the notice-store read surface is M and is also an SM239 parity item in its own right."
 ---
 
 # SM281 - the rest of the notification channel

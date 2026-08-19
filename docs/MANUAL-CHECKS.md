@@ -87,9 +87,14 @@ version it was done on. A pass nobody wrote down has to be repeated.
 
 ### Tier A - blocks the PROMOTION, not the cut
 
-Three checks, each a control that **writes or destroys** where the data path is
-tested and the button wiring is not. About twenty minutes. Do them in order - the
-first one creates what the other two need.
+Four checks, each a control that **writes or destroys** where the data path is
+tested and the button wiring is not. About twenty minutes. Do A1 to A3 in order -
+the first creates what the next two need; A4 stands alone.
+
+(This said "three" until 2026-08-19. A4 was added with the 0.10.10 pickers and
+the count above it was not, so the section understated its own scope - and a
+reader counting checks would have stopped one short of the one with access-control
+consequence.)
 
 **Run these against a deployed EDGE build, not against a released site.** The
 first version of this document said tier A blocked the cut, which is circular: the

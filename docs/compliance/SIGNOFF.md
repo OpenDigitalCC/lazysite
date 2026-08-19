@@ -58,3 +58,24 @@ so blocking them on one asserts something about a build nobody claimed.
 
 Changing this file is a deliberate act with a commit attached to it,
 which is the audit trail.
+
+# Decisions on this switch
+
+Recorded here because a switch inherited is not a decision made. A
+promotion review of 0.10.14 noted that two findings were masked by this
+file and that the mask had been added post-tag - correctly observing that
+nobody had yet chosen it *for this promotion*.
+
+2026-08-19, edge to beta
+: **Keep `signoff_required: no` and promote on it.** A conscious release-
+  manager call, not an inherited default. It is consistent with the
+  reasoning above: beta carries no conformity declaration, so blocking it
+  on one would assert something about a build nobody claimed. The two
+  masked findings remain masked and remain open.
+
+: **The September date is unaffected by this choice.** Two CRA
+  obligations fall due 2026-09-11 whatever this switch says, and the
+  switch has no power over them - it decides whether a *release* blocks,
+  not whether an obligation exists. The next stable is where
+  `signoff_required: yes` attaches, and the records have to be walked
+  before then rather than at it.

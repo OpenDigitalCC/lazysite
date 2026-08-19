@@ -40,6 +40,29 @@ tone: medium
 2026-08-11 | 0.10.7-pre | Manager guide: Domains | PASS | operator
 ```
 
+## Committed before the next promotion
+
+Decided 2026-08-19: **all four tier-A checks are run before edge is promoted to
+beta.** They are the project's own stated promotion gate and none has ever been
+recorded at any version - the single row above is a manager-guide walk, not tier
+A, and predates the line.
+
+They cannot be run from here. Tier A is explicitly "against a deployed EDGE
+build, not against a released site", so the sequence is: cut edge, deploy, walk
+them, then promote. A row per check goes in the table above.
+
+```datatable
+columns: Check | What it governs | Why it cannot be automated
+widths: 2cm | X | 6.4cm
+bold: 1
+tone: light
+---
+A1 | Hide a section, then publish it | The panel exists only after a cut and a deploy
+A2 | Remove protection completely | Destroys access rules; the data path is tested, the button wiring is not
+A3 | Apply a site package, then Undo | Writes and then reverses a whole site
+A4 | Name a person, the same way, in four places | **The sharpest.** The principal picker governs who may read protected content, and a silent failure grants a section to nobody while reporting success. No automated test reaches it
+```
+
 # Coverage state
 
 What has been walked at least once against the current line, and what has not.
