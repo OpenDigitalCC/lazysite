@@ -7,6 +7,21 @@ status: candidate
 status-note: "FILED 2026-08-19 from the site agent's field observations; INVESTIGATION OWNED BY THE RELEASE MANAGER (their call, 2026-08-19, look scheduled next day). Recorded now so the look starts from the assembled facts rather than two agents' scattered reports, and so the beta promotion record has a ref to cite - promote-with-waiver or hold is a decision this filing exists to carry. NOTHING in here is diagnosis; the suspects list is prior art from the cache work, not evidence."
 ---
 
+# Quantified overnight (2026-08-19, second field pass) - DATA, not diagnosis
+
+**2 of 11 pages on edge serve 0.10.13**, three releases back - so this is not
+a homepage anomaly, the homepage is the visible instance of something wider.
+And the agent's sharper point: **edge is the BEST case.** Pages re-render when
+their SOURCE changes, and edge has been edited all week. A real site untouched
+for months would serve entirely pre-upgrade renders after a fleet rollout -
+including any head-contract change the release carried.
+
+Which suggests the question under the question: **does anything invalidate the
+render cache on a release?** If nothing does, the observations stop being
+anomalous and start being the designed behaviour meeting a fleet for the first
+time - and the earlier "survives cache clears" is the remaining puzzle piece,
+since a clear SHOULD force the re-render that a release does not.
+
 # The observations, as reported
 
 All from the site agent on edge.explore, 2026-08-19:
