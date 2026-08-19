@@ -60,6 +60,37 @@ that as root would leave root-owned files in the site tree - so it
 declines and says so (SM377). The reason it gives is the one to act on;
 the summary no longer overwrites it with a guess (SM385).
 
+### Effective permissions widen if you are coming from 0.9.x
+
+This has its own heading because it is a change of **who can read what**,
+not a feature.
+
+An `@group` entry in an ACL grants access to the members of that group.
+Until SM288, MCP and the control API **discarded an account's groups**,
+so those entries were silently inert on two of the three channels.
+WebDAV honoured them; the others did not.
+
+::: widebox
+**Nobody gains groups here.** Partners already had them; two channels
+were throwing them away. What changes is that an `@group` entry which
+has been doing nothing on MCP starts doing what it says.
+:::
+
+Before upgrading a site that uses `@group` entries, see exactly who is
+affected:
+
+```bash
+lazysite acl group-reach --docroot <docroot>
+```
+
+It lists each `@group` entry, the paths that grant it, and **every
+account it reaches - including through nested groups**. Nested is the
+case worth having: an account that reaches a group only by nesting is
+precisely the one a quick look at the members list would miss.
+
+If the report names an account you did not expect to have access,
+resolve it before upgrading rather than after.
+
 ### What changed that you will see
 
 - **A Content-Security-Policy now ships**, `report-only` by default.

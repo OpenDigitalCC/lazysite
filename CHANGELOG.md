@@ -149,6 +149,32 @@ Naming the commit: AFTER it lands, never before
   check turned itself off exactly when it mattered, on the serving path. It is a
   failure now.
 
+## Unreleased
+
+- SM288 follow-through (PENDING) **the widening now has its release note and its
+  pre-report.** `@group` entries were silently inert on MCP and the control API
+  before SM288, so honouring them widens effective access on live sites -
+  intended, and still a permission change an operator should see rather than
+  meet. `UPGRADE.md` carries it under its own heading, and
+  `lazysite acl group-reach` lists each entry, the paths granting it, and every
+  account it reaches **including through nested groups**. It lives in the ACL
+  tool rather than `lazysite-check` because resolving membership there would be
+  a fourth answer to "which groups is this account in" - the defect SM288
+  removes - and reporting DIRECT membership only would be worse than silence: it
+  would tell an operator somebody does not gain access when they do.
+- SM389 (PENDING) **a static was read whole into a persistent worker.** One
+  request for a large upload sized that worker to the file and kept it there,
+  with nothing capping it - WebDAV accepts 64m bodies and an operator publishing
+  video has no reason to think fetching their own file is a memory event. Now
+  read in 64 KiB blocks, so the footprint is a constant rather than a function
+  of what anyone published. A cap was the other option and is worse: refusing to
+  serve a file the operator legitimately published trades an availability defect
+  for a resource one. **Also checked rather than assumed:** the two commits whose
+  subject lines say "NOT READY TO LAND" and "NOT YET PROVEN END TO END" are in
+  the release, and the two tests the first left failing on purpose now pass -
+  with neither file touched since, so they were resolved by the follow-up's CODE
+  and not by rewriting the tests to agree. One command settles it.
+
 ## 0.10.15 - EDGE: the security header set stops being a claim (2026-08-19)
 
 Cut after a pre-beta promotion review read the whole line read-only and

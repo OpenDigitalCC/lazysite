@@ -2829,14 +2829,24 @@ sub _serve_content_static {
         }
     }
 
+    # SM389: STREAMED, NOT SLURPED. This read the whole file into memory before
+    # writing a byte of it, in a persistent pool worker - so a single request
+    # for a large upload sized the worker to that file and kept it there. There
+    # is no cap anywhere: WebDAV accepts 64m bodies by front-end configuration,
+    # and an operator publishing video has no reason to think a fetch of their
+    # own file is a memory event.
+    #
+    # A cap was the other option and is worse: refusing to serve a file the
+    # operator legitimately published, to protect a limit they never set,
+    # trades an availability defect for a resource one. Reading in blocks costs
+    # nothing and bounds the worker regardless of file size.
     open my $fh, '<', $real or return 0;
     binmode $fh;
-    my $data = do { local $/; <$fh> };
-    close $fh;
 
-    my $ct = $STATIC_CT{ lc $ext } || 'application/octet-stream';
+    my $size = ( stat $fh )[7] // 0;
+    my $ct   = $STATIC_CT{ lc $ext } || 'application/octet-stream';
     $ACCESS_REC{s} //= 200;
-    $ACCESS_REC{b} = length( $data // '' );
+    $ACCESS_REC{b} = $size;
     binmode(STDOUT);
     print "Status: 200 OK\n";
     print "Content-type: $ct\n";
@@ -2872,7 +2882,15 @@ sub _serve_content_static {
         : "Cache-Control: no-cache, must-revalidate\n" );
     print "ETag: $etag\n" if defined $etag;    # SM388
     print "\n";
-    print $data;
+
+    # 64 KiB blocks: large enough that the syscall count is irrelevant, small
+    # enough that the worker's footprint is a constant rather than a function of
+    # what the operator published.
+    my $buf;
+    while ( my $n = read $fh, $buf, 65_536 ) {
+        print $buf;
+    }
+    close $fh;
     return 1;
 }
 

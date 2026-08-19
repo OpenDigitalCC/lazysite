@@ -83,6 +83,26 @@ would begin matching which partners.
 The reverse risk is worth stating too: nobody should read this filing as
 "partners gain groups". They have them; two channels were discarding them.
 
+## The release note and the pre-report, done 2026-08-19
+
+Both things "Care needed" asked for now exist:
+
+- `UPGRADE.md` carries the widening under **its own heading**, stating
+  that nobody gains groups - partners had them and two channels were
+  discarding them.
+- `lazysite acl group-reach` lists each `@group` entry, the paths
+  granting it, and every account it reaches **including through nested
+  groups**.
+
+It lives in the ACL tool rather than `lazysite-check` deliberately.
+That tool is core-Perl by design and resolving membership there would be
+a fourth answer to "which groups is this account in" - the defect this
+filing exists to remove. Reporting direct membership only would be worse
+than not reporting: it would tell an operator that somebody does not
+gain access when they do. `groups_for_user()` is the one resolver every
+channel now uses, so the report is wrong only if the engine is wrong,
+which is the only safe direction.
+
 ## Acceptance
 
 - The same partner account, in the same group, gets the same read decision on

@@ -120,11 +120,12 @@ $Lazysite::Auth::Acl::DOCROOT       = $docroot;
 $Lazysite::Auth::Acl::token_auth = 0;
 
 my %HANDLER = (
-    list    => \&cmd_list,
-    show    => \&cmd_show,
-    set     => \&cmd_set,
-    remove  => \&cmd_remove,
-    reapply => \&cmd_reapply,
+    list          => \&cmd_list,
+    show          => \&cmd_show,
+    set           => \&cmd_set,
+    remove        => \&cmd_remove,
+    reapply       => \&cmd_reapply,
+    'group-reach' => \&cmd_group_reach,
 );
 my $handler = $HANDLER{$verb} or do {
     print {*STDERR} "lazysite acl: unknown sub-command '$verb'\n\n";
@@ -212,6 +213,88 @@ sub subjects {
     my ($v) = @_;
     return undef unless defined $v;
     return [ grep { length } split /\s*,\s*/, $v ];
+}
+
+# SM288: WHICH @group ENTRIES REACH WHICH ACCOUNTS, resolved rather than named.
+#
+# SM288 made every channel honour an account's real groups. On MCP and the
+# control API those @group entries had been silently inert, so the fix WIDENS
+# effective access on live sites - intended, and still a change an operator is
+# entitled to see before they meet it.
+#
+# lazysite-check names the entries and stops there, deliberately: it is
+# core-Perl by design and resolving membership itself would be a fourth answer
+# to "which groups is this account in", which is the defect SM288 removes.
+# Reporting DIRECT membership only would be worse still - it would tell an
+# operator that somebody does not gain access when they do.
+#
+# So the report lives here, where groups_for_user() - the one resolver every
+# channel now uses - is already loaded. Nested groups are included because that
+# function includes them; if it ever stops, this report is wrong in the same
+# direction as the engine, which is the only safe way for it to be wrong.
+sub cmd_group_reach {
+    my $r = with_actor( ( $opt{actor} // 'local' ), sub {
+            return action_protected_sections( $opt{actor} // 'local', [] );
+    } );
+    return emit($r) if !$r->{ok};
+
+    # Every @group named by any entry, and the paths that name it.
+    my %wanted;
+    for my $s ( @{ $r->{sections} || [] } ) {
+        my $path = $s->{site_wide} ? '/' : $s->{prefix};
+        for my $mode (qw(read write)) {
+            for my $e ( @{ $s->{$mode} || [] } ) {
+                next unless defined $e && $e =~ /\A\@(.+)\z/;
+                push @{ $wanted{ lc $1 } }, "$path ($mode)";
+            }
+        }
+    }
+
+    unless (%wanted) {
+        print "No \@group entries in the ACL store.\n" unless $opt{json};
+        return emit( { ok => 1, groups => {} } ) if $opt{json};
+        return 0;
+    }
+
+    # THE ACCOUNT NAMES are read from the users file here; the GROUP RESOLUTION
+    # is delegated. That distinction is the whole of SM288: a second reader of a
+    # `user:hash` file is a trivial duplication, while a second answer to "which
+    # groups is this account in" is the defect itself. groups_for_user() is the
+    # one every channel now uses, nested groups included.
+    my @accounts;
+    my $users_file = Lazysite::Paths::lazysite_dir($docroot) . '/auth/users';
+    if ( open my $uf, '<:utf8', $users_file ) {
+        while ( my $l = <$uf> ) {
+            chomp $l;
+            $l =~ s/^\s+|\s+$//g;
+            next if $l =~ /^#/ || !length $l;
+            my ($u) = split /:/, $l, 2;
+            push @accounts, $u if defined $u && length $u;
+        }
+        close $uf;
+    }
+
+    my %reach;
+    for my $u ( sort @accounts ) {
+        my %in = map { lc $_ => 1 } Lazysite::Auth::Acl::groups_for_user($u);
+        for my $g ( keys %wanted ) {
+            push @{ $reach{$g} }, $u if $in{$g};
+        }
+    }
+
+    return emit( { ok => 1, groups => \%wanted, reach => \%reach } ) if $opt{json};
+
+    for my $g ( sort keys %wanted ) {
+        my @who = sort @{ $reach{$g} || [] };
+        printf "\@%s\n", $g;
+        printf "  grants: %s\n", join ', ', sort @{ $wanted{$g} };
+        printf "  reaches: %s\n", ( @who ? join( ', ', @who ) : '(nobody)' );
+    }
+    print "\nThese apply on EVERY channel since SM288 - WebDAV, MCP and the\n";
+    print "control API alike. On MCP and the control API they were silently\n";
+    print "inert before, so any account listed above gained access at that\n";
+    print "upgrade rather than losing it.\n";
+    return 0;
 }
 
 sub cmd_list {
