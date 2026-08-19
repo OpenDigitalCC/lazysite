@@ -44,6 +44,26 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM399 (PENDING) **the operator can see the journeys.** SM393 recorded the
+  ordered trails and SM394 gave an agent a way to read them; the operator - the
+  person the manager exists for - still could not see them at all. A **Visitor
+  journeys** panel on the Stats page, fed by a new parameterised plugin action.
+  The day is a declared CHOICE built from the trail files that EXIST, which is
+  what `action_plugin_action` requires (nothing request-controlled reaches the
+  command line) and is the right shape anyway: only a day that is really there
+  can be asked for, and an expired day stops being offered the moment its file
+  goes. It shows the ORDER and nothing else - `SM363` already renders entry, exit
+  and depth from the aggregates over every visit, and trails are capped at 2000 a
+  day and expire, so a second differently-scoped copy would disagree on a busy
+  site with nothing to say which was wrong. **Route counts cover the whole day
+  even when the visit list is capped**, and the page says which is which. It adds
+  **no inline event handlers**: those attributes are the entire thing that breaks
+  the manager under an enforcing CSP, so new UI binds with `addEventListener`
+  rather than growing the ~250 sites the conversion has to pay down.
+  `t/unit/plugins/27` asserts it against six sabotages - including one hole it
+  found in itself, a CSS-class check that scanned only the script and missed a
+  bad class on the card markup.
+
 - SM394 (PENDING) **the trails have a reader.** SM393 recorded the ordered trails
   and nothing could read them: the agent that asked has no host access and sees
   only what `analyse_visitors` returns, so the data accumulated for nobody.

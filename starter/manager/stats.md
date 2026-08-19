@@ -16,6 +16,19 @@ search: false
 
 <div class="mg-card">
 <div class="mg-card-header">
+<span class="mg-card-title">Visitor journeys</span>
+</div>
+<div class="mg-card-body">
+<div class="mg-line">
+  <label for="trail-day">Day</label>
+  <select id="trail-day" class="mg-inp" style="max-width:12rem"></select>
+</div>
+<div id="trails-body">Loading&hellip;</div>
+</div>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header">
 <span class="mg-card-title">Blocked IPs (auto-blocker)</span>
 <button class="mg-btn mg-btn-sm" onclick="loadBlocked()">Refresh</button>
 </div>
@@ -57,6 +70,7 @@ function loadStats() {
       return;
     }
     statsScript = p._script;
+    initTrails(p);   // SM399: the descriptor already carries the days; no second round trip
     fetch(API + '?action=plugin-action&plugin=stats', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script: statsScript, action_id: 'refresh' })
@@ -327,6 +341,117 @@ function unblockIp(ip) {
       loadBlocked();
     })
     .catch(function (e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM399: the journeys panel - the ONE question the aggregates above cannot
+// answer.
+//
+// Everything else on this page is a marginal count. "Where visits started" and
+// "Where visits ended" are already rendered from the aggregates over every
+// visit, so they are deliberately NOT repeated here: trails are capped and
+// expire, so a second copy would disagree with the first on a busy site and an
+// operator would have no way to tell which was wrong. What is left is the
+// order, which no aggregate can reconstruct once the event ring rolls.
+//
+// NO INLINE HANDLERS. The rest of this page uses onclick attributes, which are
+// the whole of what breaks under an enforcing CSP (script-src-attr, and a nonce
+// does not apply to them). New UI does not add to that debt: the listeners here
+// are bound from this script block, which already passes.
+var trailDays = [];
+
+function fmtGap(sec) {
+  sec = +sec || 0;
+  if (sec < 60) return sec + 's';
+  var m = Math.floor(sec / 60);
+  return m + 'm' + (sec % 60 ? ' ' + (sec % 60) + 's' : '');
+}
+
+// The day list comes from the plugin descriptor, which builds it from the trail
+// files that EXIST - so a day is only offered while its file is really there.
+function initTrails(plugin) {
+  var sel = document.getElementById('trail-day');
+  var body = document.getElementById('trails-body');
+  if (!sel || !body) return;
+  var act = (plugin.actions || []).filter(function (a) { return a.id === 'trails'; })[0];
+  trailDays = (act && act.choices) ? act.choices.map(function (c) { return c.id; }) : [];
+  if (!trailDays.length) {
+    body.innerHTML = '<p class="mg-muted">No journeys recorded yet. Visits are written when they '
+      + 'finish - a visit ends on thirty minutes of silence - so a day appears here shortly after '
+      + 'its first completed visit.</p>';
+    sel.innerHTML = '';
+    return;
+  }
+  sel.innerHTML = trailDays.map(function (d) {
+    return '<option value="' + sesc(d) + '">' + sesc(d) + '</option>';
+  }).join('');
+  sel.addEventListener('change', function () { loadTrails(sel.value); });
+  loadTrails(trailDays[0]);
+}
+
+function loadTrails(day) {
+  var body = document.getElementById('trails-body');
+  if (!body || !statsScript || !day) return;
+  body.textContent = 'Loading journeys…';
+  fetch(API + '?action=plugin-action&plugin=stats', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script: statsScript, action_id: 'trails', params: { choice: day } })
+  }).then(function (r) { return r.json(); }).then(renderTrails)
+    .catch(function (e) { body.textContent = 'Error: ' + e.message; });
+}
+
+function renderTrails(d) {
+  var body = document.getElementById('trails-body');
+  if (!d || !d.ok) {
+    body.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'No journeys for that day.') + '</p>';
+    return;
+  }
+  var h = '<div class="mg-checks">'
+        + '<span class="mg-tag mg-tag-auto">visits recorded: ' + fmtNum(d.visits) + '</span>'
+        + '<span class="mg-tag mg-tag-auto">kept for ' + fmtNum(d.retention_days) + ' days</span>'
+        + '</div>';
+
+  var j = d.journeys || [];
+  if (j.length) {
+    // Counted over the WHOLE day, not over the sample below - said on the page
+    // because a reader cannot otherwise tell which of the two numbers a row is
+    // derived from.
+    h += '<div class="mg-sec">Routes taken (all ' + fmtNum(d.summary_covers) + ' visits)</div>';
+    h += '<table class="mg-table"><thead><tr><th>Route</th><th>Visits</th></tr></thead><tbody>';
+    j.forEach(function (r) {
+      h += '<tr><td><code>' + sesc(r.key) + '</code></td><td>' + fmtNum(r.count) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+
+  var t = d.trails || [];
+  if (t.length) {
+    h += '<div class="mg-sec">Individual visits'
+       + (d.truncated ? ' - first ' + fmtNum(d.returned) + ' of ' + fmtNum(d.visits) : '')
+       + '</div>';
+    if (d.truncated) {
+      h += '<p class="mg-muted">This list is a sample. The routes above count the whole day.</p>';
+    }
+    h += '<table class="mg-table"><thead><tr><th>Path taken</th><th>Pages</th>'
+       + '<th>Seen as</th></tr></thead><tbody>';
+    t.forEach(function (v) {
+      var steps = (v.steps || []).map(function (st) {
+        return '<code>' + sesc(st.p) + '</code>'
+             + (st.gap != null ? ' <span class="mg-muted">(' + fmtGap(st.gap) + ')</span>' : '');
+      }).join(' <span class="mg-muted">&rarr;</span> ');
+      var cls = ((v.steps || [])[0] || {}).c || '';
+      h += '<tr><td>' + steps + '</td><td>' + fmtNum(v.depth) + '</td><td>'
+         + (cls ? '<span class="mg-tag mg-tag-auto">' + sesc(cls) + '</span>' : '')
+         + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    h += '<p class="mg-muted">The time after a page is the gap before the next request, so it is '
+       + 'a lower bound on how long that page was open - and there is none for the last page, '
+       + 'because nothing followed it. Read it as &ldquo;at least this long before moving on&rdquo;, '
+       + 'not as reading time.</p>';
+  } else if (!j.length) {
+    h += '<p class="mg-muted">No completed visits recorded for that day.</p>';
+  }
+  body.innerHTML = h;
 }
 
 loadStats();

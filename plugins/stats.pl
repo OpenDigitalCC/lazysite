@@ -39,6 +39,8 @@ while (@ARGV) {
     elsif ( $a eq '--recount' )     { $arg{recount}     = 1 }              # SM339
     elsif ( $a eq '--apply' )       { $arg{apply}       = 1 }              # SM339
     elsif ( $a eq '--resolve-log' ) { $arg{resolve_log} = 1 }
+    elsif ( $a eq '--action' )      { $arg{action}      = shift @ARGV }    # SM399
+    elsif ( $a eq '--choice' )      { $arg{choice}      = shift @ARGV }    # SM399
     elsif ( $a eq '--docroot' )     { $arg{docroot}     = shift @ARGV }
 }
 my $DOCROOT = $arg{docroot} || $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
@@ -568,7 +570,24 @@ if ( $arg{describe} ) {
             # 'refresh' is called programmatically by the Stats page to pull
             # data - it is not a config-page button (hidden), so the plugin page
             # shows no pointless Refresh.
-            actions => [ { id => 'refresh', label => 'Refresh stats', hidden => JSON::PP::true() } ],
+            # SM399: the trails view. The day is a declared CHOICE rather than a
+            # free parameter, because action_plugin_action accepts nothing
+            # request-controlled onto the command line except a choice it can
+            # match against this list. That constraint turns out to be the right
+            # shape anyway: the list is built from the files that EXIST, so the
+            # page can only ask for a day that is really there, and an expired
+            # day stops being offered the moment it is deleted.
+            actions => [
+                { id => 'refresh', label => 'Refresh stats', hidden => JSON::PP::true() },
+                { id => 'trails',
+                    label   => 'Visitor trails',
+                    run     => 'action',
+                    hidden  => JSON::PP::true(),
+                    choices => [
+                        map { { id => $_, label => $_ } } reverse @{ _trail_days() }
+                    ],
+                },
+            ],
     } );
     exit 0;
 }
@@ -636,6 +655,20 @@ if ( $arg{export} ) {
 
 if ( $arg{scan} ) {
     print encode_json( scan_stats() );
+    exit 0;
+}
+
+# SM399: parameterised plugin actions (the SM085 mechanism). The only one is
+# the trails view, and it deliberately does NOT re-scan: the Stats page runs
+# 'refresh' before it, the day files are already current, and re-reading the
+# whole access log to display a file that is sitting on disk would make opening
+# a panel as expensive as a full ingest.
+if ( defined $arg{action} ) {
+    if ( $arg{action} eq 'trails' ) {
+        print encode_json( _trails_view( $arg{choice} ) );
+        exit 0;
+    }
+    print encode_json( { ok => 0, error => 'Unknown action' } );
     exit 0;
 }
 
@@ -1583,6 +1616,64 @@ sub _trail_days {
         closedir $dh;
     }
     return \@d;
+}
+
+# SM399: the operator-facing view of one day's trails.
+#
+# IT SHOWS ONLY WHAT TRAILS UNIQUELY ANSWER. Entry pages, exit pages and depth
+# are already on the Stats page, computed by SM363 from the aggregates over
+# every visit. Recomputing them here would put a SECOND set of the same figures
+# on the same page, scoped differently - trails are capped at 2000 visits a day
+# and expire after 30 - so the two would disagree on a busy site and an operator
+# would have no way to tell which was wrong. One number, from the place that has
+# all the data.
+#
+# What is left is the thing no aggregate can produce: the ORDER. A transition
+# count says 100 people went from /pricing to /contact; only the sequence says
+# whether they arrived at /pricing first or reached it after reading three other
+# pages, and those are different stories about the same edge.
+#
+# THE JOURNEY COUNT IS OVER THE WHOLE FILE, NOT THE SAMPLE. _read_trails caps
+# what it returns, and counting journeys from a capped 200 of a 2000-visit day
+# would produce a figure that looks like the day and is not one.
+sub _trails_view {
+    my ($day) = @_;
+    return { ok => JSON::PP::false, error => 'Bad day (want YYYY-MM-DD).' }
+        unless defined $day && $day =~ /^\d{4}-\d{2}-\d{2}$/;
+
+    my $doc = _read_json_file( _trails_dir() . "/$day.json" )
+        or return {
+        ok    => JSON::PP::false,
+        error => "No trails for $day - never recorded, or expired.",
+        };
+
+    my @all = ref $doc->{trails} eq 'ARRAY' ? @{ $doc->{trails} } : ();
+    my %journey;
+    for my $t (@all) {
+
+        # Capped in WIDTH so one crawl-shaped visit cannot produce a key the
+        # width of the page, and counted whole so two visits that took the same
+        # route land on the same row - which is the entire point.
+        my @p = map { $_->{p} // '' } @{ $t->{steps} || [] };
+        @p = ( @p[ 0 .. 7 ], '...' ) if @p > 9;
+        $journey{ join ' > ', @p }++ if @p;
+    }
+
+    my $capped = _read_trails($day);
+    return {
+        ok             => JSON::PP::true,
+        date           => $day,
+        retention_days => $doc->{retention_days},
+        visits         => scalar @all,
+        journeys       => _topn( \%journey, 15 ),
+
+        # Said explicitly: the journeys count the whole day, the list below is a
+        # sample of it. A reader must never have to work that out.
+        summary_covers => scalar @all,
+        returned  => ( ref $capped eq 'HASH' ? $capped->{returned}  : 0 ),
+        truncated => ( ref $capped eq 'HASH' ? $capped->{truncated} : JSON::PP::false ),
+        trails    => ( ref $capped eq 'HASH' ? $capped->{trails}    : [] ),
+    };
 }
 
 # SM394: one day's recorded trails, for the caller that cannot read the disk.

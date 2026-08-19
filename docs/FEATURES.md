@@ -989,6 +989,15 @@ sample is never mistaken for a whole one; a day with no trails says whether it w
 never recorded or has expired, rather than falling through to the rollups' generic
 "no stats for that day".
 
+The manager **Stats** page shows them too (SM399): a *Visitor journeys* panel with
+the routes visitors took, counted - three visits along the same path are one row
+with a count of three - and the individual visits beneath, each step carrying the
+gap before the next request. It shows the **order and nothing else**: entry pages,
+exit pages and depth are already on that page from the aggregates over every visit,
+and trails are capped and expiring, so a second differently-scoped copy of those
+figures would disagree with the first on a busy site. The route counts cover the
+whole day even when the visit list is capped, and the page says which is which.
+
 **Generated registries are counted, and bounded** (SM389). Serving a sitemap or a
 feed was the one served path that recorded nothing at all, so a crawler fetching
 `/sitemap.xml` every few hours left no trace: the day rollup now carries
