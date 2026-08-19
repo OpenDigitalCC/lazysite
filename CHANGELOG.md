@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM414, SM415 (PENDING, filings only) **two of the three interactive features
+  require JavaScript, and the third proves they need not.** From the site
+  agent's beta-readiness field pass on 0.10.16. Search: a results page is
+  byte-identical for a real query and a nonsense one - ?q= is never read
+  server-side, a 73KB index filters in the browser, no noscript - so search
+  results are invisible to crawlers and to no-JS visitors, silently. Forms: the
+  handler answers application/json with HTTP 200 for BOTH outcomes and the form
+  carries a native action/method, so a no-JS post lands on raw JSON as a page.
+  Login is the in-product counter-example - 302s, next preserved, no cookie on
+  failure - which is why both read as fixable rather than inherent. Decisions
+  HELD: the cache posture a server-side ?q= needs, where a native form post
+  lands, and whether either gates beta. Neither is a regression; both were
+  measured for the first time. The agent's method note is preserved in SM414:
+  its first assertion PASSED on the word "Authoring" in the navigation menu -
+  an expectation-based body check passing on chrome while the feature did
+  nothing; a differential comparison of the two bodies told the truth.
+
 - SM407, SM408 (c810e38, a9f7093; filings only) **three records stopped in the same
 - SM413 (PENDING, filing only) **the homepage reports a version three releases
   old.** On edge.explore, `/` reports 0.10.13 while every other page reports
