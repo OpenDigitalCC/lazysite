@@ -202,7 +202,20 @@ Naming the commit: AFTER it lands, never before
   rather than replaces, because replacing meant an operator adding one crawler
   signature would silently lose `curl`, `wget` and the rest, showing up as a
   quiet rise in the human count rather than an error.
-- SM392 (PENDING) filed: **a promoted visitor token masks every later
+- SM392 (PENDING) **one sweep behind a shared address reclassified everyone
+  behind it.** `_visitor_key` is `hmac(ymd|ip)` - date and address, no actor -
+  so the unit being promoted to `scanner` was AN ADDRESS. Eleven AI user-agents
+  on real 200 pages, **Googlebot included as a control**, all came back scanner.
+  It lands hardest on the traffic an operator most wants separated: AI
+  assistants fetch from provider address pools shared by every user of that
+  assistant, and corporate NAT is the same shape for people. The two identities
+  now separate - counting stays on the visitor token, the sweep and promotion
+  key on token+user-agent. A sweep, Googlebot and a person behind one address
+  give scanner 6 / bot 1 / human 1, where before they gave scanner 8 / bot 0 /
+  human 0. **Two worse fixes are asserted against:** weakening the promotion,
+  and putting the user-agent in the COUNTING token, which would make one person
+  with two browsers into two visitors.
+- SM392 note (PENDING) originally filed as: **a promoted visitor token masks every later
   classification from that source.** Eleven AI user-agents, including Googlebot
   on a 200, all came back `scanner` because the token had been promoted earlier.
   SM213 classifies per visitor deliberately, and the same stickiness means a

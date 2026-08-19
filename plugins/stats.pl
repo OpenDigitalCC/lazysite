@@ -282,11 +282,50 @@ sub _is_probe {
 # sweep from a stuck client, and five is high enough that a reader who mistypes
 # a URL twice is untouched. The window is short because a day's browsing is not
 # a sweep however many dead links it accumulates.
+# SM392: THE PROMOTION KEY IS NOT THE COUNTING TOKEN.
+#
+# _visitor_key is hmac(ymd|ip) - date and address, no actor. So the unit being
+# promoted to `scanner` was AN ADDRESS, and one sweep took everybody behind it
+# for the day.
+#
+# Measured from the field: eleven AI user-agents on real 200 pages, GOOGLEBOT
+# INCLUDED AS A CONTROL, all classified scanner - because the token had been
+# promoted earlier and the user-agent was no longer consulted at all. A search
+# crawler on an existing page reading as a scanner is the control failing.
+#
+# WHERE IT LANDS HARDEST is the traffic an operator most wants separated: AI
+# assistants fetch from provider-operated address pools shared by every user of
+# that assistant, so one sweep from that pool hides every AI agent behind it.
+# Corporate NAT and carrier CGNAT are the same shape for human traffic.
+#
+# TWO THINGS DELIBERATELY NOT CHANGED, because the obvious fixes are worse:
+#
+#   The promotion is not weakened. SM213's visitor-level marking and SM332's
+#   reach-back are both correct - the reach-back is what pulls a sweep's
+#   homepage hits out of the journey metric.
+#
+#   The user-agent does NOT go into the COUNTING token. One person with two
+#   browsers would become two visitors, which breaks the number the whole
+#   feature exists to produce.
+#
+# So the two identities separate: counting stays on the token, and the sweep
+# accumulator and promotion key on token+user-agent. A scanner and a browser
+# behind one NAT then promote independently. No engine change and no new
+# retained data - the plugin already holds both fields, and the token is already
+# anonymised at write.
+sub _promo_key {
+    my ( $tok, $ua ) = @_;
+    return '' unless defined $tok && length $tok;
+    $ua = ''  unless defined $ua;
+    require Digest::SHA;    # loaded on demand, as _visitor_token does
+    return substr( Digest::SHA::sha256_hex("$tok|$ua"), 0, 16 );
+}
+
 sub _sweep_thresholds {
     my ($cfg) = @_;
     my $n     = ( $cfg->{scanner_404_paths}   || 5 ) + 0;
     my $w     = ( $cfg->{scanner_404_minutes} || 5 ) + 0;
-    $n = 5 if $n < 2;    # a threshold of 1 is "any 404 is a scan"
+    $n = 5 if $n < 2;       # a threshold of 1 is "any 404 is a scan"
     $w = 5 if $w < 1;
     return ( $n, $w * 60 );
 }
@@ -1804,7 +1843,8 @@ sub _tally_batch {
     my ( $sweep_n, $sweep_w ) = _sweep_thresholds($cfg);
     my @newly_promoted;    # SM340: tokens that became scanners in THIS batch
     for my $r (@$batch) {
-        my $tok = $r->{token} // '';
+        # SM392: promotion keys on token+UA, not the counting token.
+        my $tok = $r->{pkey} || $r->{token} || '';
         next unless length $tok;
         if ( _is_probe( $r->{path}, $r->{status} ) ) {
             push @newly_promoted, $tok unless $cache->{scanner}{$tok};
@@ -1847,7 +1887,9 @@ sub _tally_batch {
     if (@newly_promoted) {
         my %promoted = map { ( $_ => 1 ) } @newly_promoted;
         for my $e ( @{ $cache->{events} } ) {
-            my $tok = $e->{visitor} // '';
+            # An entry written before SM392 has no pkey; falling back to the
+            # visitor token keeps those rewritable rather than stranding them.
+            my $tok = $e->{pkey} || $e->{visitor} || '';
             next unless length $tok && $promoted{$tok};
             next if ( $e->{class} // '' ) eq 'scanner';
             my $b   = $cache->{days}{ $e->{day} // '' } or next;
@@ -1869,7 +1911,11 @@ sub _tally_batch {
 
     for my $r (@$batch) {
         my $tok = $r->{token} // '';
-        my $cls = ( length($tok) && $cache->{scanner}{$tok} ) ? 'scanner' : $r->{class};
+        # SM392: counted under the visitor token, but the PROMOTION is looked
+        # up under the token+UA key - so a scanner behind a shared address does
+        # not reclassify the browsers beside it.
+        my $pk  = $r->{pkey} || $tok;
+        my $cls = ( length($pk) && $cache->{scanner}{$pk} ) ? 'scanner' : $r->{class};
         my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
         $b->{basis}{$COUNTING_BASIS} = 1;    # SM338
         $b->{ips}{$tok}              = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
@@ -1938,8 +1984,13 @@ sub _tally_batch {
             path    => $r->{path},
             status  => ( $r->{status} // 0 ),
             visitor => $tok,
-            day     => $r->{day},
-            ref     => ( $r->{ref} // '' ),
+            # SM392: the ring carries BOTH - `visitor` is what counts, `pkey`
+            # is what promotes. The reach-back matches on pkey, or it would
+            # rewrite every event from the address rather than from the client
+            # that swept.
+            pkey => $pk,
+            day  => $r->{day},
+            ref  => ( $r->{ref} // '' ),
         };
         shift @{ $cache->{events} } while @{ $cache->{events} } > $EVENT_CAP;
     }
@@ -2239,8 +2290,9 @@ sub _export_ingest_first_party {
                     ? _search_term( ( _split_query( $r->{p} // '' ) )[1] )
                     : undef
                 ),
-                token => ( $r->{v} // '' ),           # already an anonymised daily token
-                bytes => ( ( $r->{b} // 0 ) + 0 ),    # SM335
+                token => ( $r->{v} // '' ),    # already an anonymised daily token
+                pkey  => _promo_key( $r->{v}, $r->{ua} ),    # SM392
+                bytes => ( ( $r->{b} // 0 ) + 0 ),           # SM335
                     # SM223: this request was REFUSED by an access decision. The
                     # status alone cannot say so - the anonymous refusal is a 302 to
                     # the login page, identical in the log to any other redirect.

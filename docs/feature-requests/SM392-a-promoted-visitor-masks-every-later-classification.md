@@ -3,7 +3,8 @@ title: "SM392: a promoted visitor token masks every later classification from th
 subtitle: "Visitor-level scanner promotion is sticky and overrides per-request user-agent classification. An AI assistant arriving from a token that previously did anything sweep-shaped is invisible as AI - and on a real site that token is a shared egress IP."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "FIXED 2026-08-19. The two identities separate: counting stays on the visitor token hmac(ymd|ip), and the sweep accumulator and promotion key on token+user-agent. A scanner and a browser behind one address promote independently. NO engine change and no new retained data - the plugin already holds both fields and the token is anonymised at write. Measured: a sweep, Googlebot and a person behind one address give scanner 6 / bot 1 / human 1, where the shipped behaviour gave scanner 8 / bot 0 / human 0. Two wrong designs are asserted against: weakening the promotion, and putting the user-agent in the COUNTING token, which would make one person with two browsers into two visitors."
 ---
 
 # What was measured
@@ -47,7 +48,38 @@ that **a strong per-request signal should be able to outrank a stale
 per-visitor one** - a named AI user-agent on a 200 for a real page is
 not a sweep, whatever the token did earlier.
 
-# Not yet decided
+# The fix
+
+Counting stays on `hmac(ymd|ip)`. The sweep accumulator and the
+promotion key on **token + user-agent**.
+
+```datatable
+columns: Behind one shared address | Shipped | Fixed
+widths: 6.0cm | 2.4cm | X
+bold: 1
+tone: medium
+---
+a scanner sweeping six missing paths | scanner 8 | scanner 6
+Googlebot on a real page | (scanner) | **bot 1**
+a person browsing | (scanner) | **human 1**
+---
+```
+
+No engine change and nothing new retained: the plugin already holds both
+fields, and the token is anonymised at write.
+
+::: widebox
+**Two fixes that would have been worse, both asserted against.** Weakening
+the promotion - SM213's visitor-level marking and SM332's reach-back are
+correct, and the reach-back is what pulls a sweep's homepage hits out of
+the journey metric. And putting the user-agent into the COUNTING token,
+which would make one person with two browsers into two visitors and break
+the number the feature exists to produce.
+:::
+
+# Still open
+
+
 
 Whether the answer is precedence (a named AI/browser UA on a successful
 content fetch escapes the promotion), decay (promotion ages out faster
