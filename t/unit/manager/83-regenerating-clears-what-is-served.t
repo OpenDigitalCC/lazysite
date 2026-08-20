@@ -108,4 +108,52 @@ subtest 'CONTROL: a clean site reports no shadow and the ordinary note' => sub {
     like( $r->{note}, qr/rebuild on the next/, 'and the ordinary note is given' );
 };
 
+subtest 'SM442: the response says what it CLEARED, not just what it considered'
+    => sub {
+    # The report is what turned a diagnosable condition into an afternoon.
+    # cleared_roots was built from _registry_roots() - the roots CONSIDERED -
+    # so a call that removed four files and a call that removed none returned
+    # the same thing, and the field could not tell a working control from a
+    # silent no-op. Every early return in the invalidator is invisible for the
+    # same reason.
+    my $d = fixture();
+    spit( "$d/lazysite/cache/registries/_root/sitemap.xml", 'generated' );
+    spit( "$d/lazysite/cache/registries/_root/llms.txt",    'generated' );
+
+    my $r = Lazysite::Manager::Files::action_regenerate_registries();
+    is( $r->{cleared_count}, 2, 'two cached registries removed, two reported' )
+        or diag explain $r;
+    is_deeply( [ sort @{ $r->{cleared_files} || [] } ],
+        [ '_root/llms.txt', '_root/sitemap.xml' ],
+        'and it names them, per content-root key' );
+    };
+
+subtest 'SM442: a no-op is DISTINGUISHABLE from a clear' => sub {
+    # This is the case the old response could not express, and the one the
+    # field actually hit: nothing to remove, yet every root still listed.
+    my $d = fixture();    # no cached registries written
+    my $r = Lazysite::Manager::Files::action_regenerate_registries();
+
+    ok( $r->{ok}, 'still a success - there was nothing wrong' );
+    is( $r->{cleared_count}, 0, 'but it reports ZERO files cleared' )
+        or diag( 'A no-op that reports the same as a four-file clear is how '
+            . '"I regenerated and nothing changed" became unanswerable.' );
+    ok( @{ $r->{cleared_roots} || [] } >= 1,
+        'while still listing the roots it considered - the two are different questions' );
+    };
+
+subtest 'SM442: the silent early return is now visible' => sub {
+    # No templates directory means the invalidator returns immediately having
+    # cleared nothing. That was indistinguishable from a successful clear.
+    my $d = fixture();
+    spit( "$d/lazysite/cache/registries/_root/sitemap.xml", 'generated' );
+    unlink glob "$d/lazysite/templates/registries/*.tt";
+    rmdir "$d/lazysite/templates/registries";
+
+    my $r = Lazysite::Manager::Files::action_regenerate_registries();
+    is( $r->{cleared_count}, 0, 'zero cleared, so the early return shows' );
+    ok( -f "$d/lazysite/cache/registries/_root/sitemap.xml",
+        'and indeed nothing was removed' );
+    };
+
 done_testing();

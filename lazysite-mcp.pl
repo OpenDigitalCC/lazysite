@@ -1172,19 +1172,17 @@ my %TOOLS = (
             # that led to hand-editing a generated registry. Waiting is not a
             # workflow; this makes "delete then verify" complete.
             #
-            # Reuses the same invalidator the write paths use, so it clears every
-            # content root (SM251) rather than only the docroot's.
-            my @roots = Lazysite::Manager::Files::registry_roots();
-            Lazysite::Manager::Files::invalidate_registries();
-            my @rel = map {
-                my $r = $_;
-                $r =~ s{^\Q$DOCROOT\E/*}{};
-                length $r ? "/$r" : '/';
-            } @roots;
-            return { ok => 1, cleared_roots => \@rel,
-                note => 'The registries are cleared and rebuild on the next '
-                    . 'request for one. Fetch /sitemap.xml (or the registry you '
-                    . 'care about) to force it, then verify.' };
+            # SM442: route through the SHARED action rather than rebuilding
+            # the response here. This copy called the invalidator and then
+            # composed its own answer, so it reported cleared_roots with no
+            # cleared_files - and, worse, no shadowed_by_files at all. SM433
+            # added that warning to the control API only, so an MCP caller
+            # regenerating against a shadowed registry was told the clear
+            # succeeded and given nothing to explain why the site did not
+            # change. Two implementations of one operation drift, and the
+            # drift is silent because each surface is individually consistent
+            # - the reasoning SM301 and SM318 already settled for other pairs.
+            return Lazysite::Manager::Files::action_regenerate_registries();
         },
     },
     invalidate_cache => {

@@ -62,6 +62,21 @@ Naming the commit: AFTER it lands, never before
   this exact defect, because `manage_nav` does list `nav.conf` and the surplus
   entry is invisible to it. Sabotaged both ways before being trusted: an extra
   claim and a missing claim each fail it.
+- SM442 resolved (PENDING) **regenerate-registries reports what it CLEARED, and
+  MCP stops answering differently.** `cleared_roots` was built from
+  `_registry_roots()` - the roots CONSIDERED - so a call that removed four files
+  and a call that removed none returned the same thing, and every early return
+  in the invalidator was invisible to the caller. The response now carries
+  `cleared_files` and `cleared_count` from the actual unlinks. **This is the
+  report that turned a diagnosable condition into an afternoon**: zero files
+  against seven roots is a finding, visible in the first response. Separately,
+  MCP's `regenerate_registries` called the invalidator and composed its own
+  answer, so it reported no `cleared_files` and - worse - no
+  `shadowed_by_files` at all, SM433 having added that warning to the control
+  API only. It now routes through the shared `action_regenerate_registries`,
+  the same one-implementation reasoning SM301 and SM318 settled for other
+  pairs. Sabotaged before being trusted: restoring the roots-based count fails
+  three of the new subtests.
 
 - SM432 resolved (PENDING) **/docs/features serves again, by becoming an
   index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.

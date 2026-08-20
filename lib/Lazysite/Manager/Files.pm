@@ -613,8 +613,9 @@ sub invalidate_registries { return _invalidate_registries() }
 # instance is handled in one call.
 sub action_regenerate_registries {
     my $docroot  = $DOCROOT;
-    my @roots    = _registry_roots();
-    my @shadowed = _invalidate_registries();
+    my @roots = _registry_roots();
+    my ( $shadowed, $cleared ) = _invalidate_registries();
+    my @shadowed = @{$shadowed};
     my @rel      = map {
         my $r = $_;
         $r =~ s{^\Q$docroot\E/*}{};
@@ -623,6 +624,10 @@ sub action_regenerate_registries {
     return {
         ok            => 1,
         cleared_roots => \@rel,
+        # SM442: what was actually unlinked, alongside the roots considered.
+        # cleared_roots alone could not tell four files from none.
+        cleared_files => $cleared,
+        cleared_count => scalar @{$cleared},
         # SM433: a file sitting at the old in-docroot location WINS over the
         # generated one, so clearing the cache changes nothing a visitor sees.
         # Say which files, because "I regenerated and nothing changed" is
@@ -665,15 +670,30 @@ sub registry_roots { return _registry_roots() }
 # registry, and that is now REPORTED rather than silently removed: telling an
 # operator which file is winning is better than deleting a file we cannot prove
 # we wrote.
+# SM442: returns ( \@shadowed, \@cleared ) - the second list being the cache
+# files this call ACTUALLY unlinked.
+#
+# It used to return @shadowed alone, and the caller reported `cleared_roots`
+# built from _registry_roots() - the roots CONSIDERED, never the unlinks. So a
+# call that removed four files and a call that removed none returned the same
+# thing, and "I regenerated and nothing changed" - the exact report SM433 was
+# written to explain - came back from the field against a call that may have
+# done nothing at all. Every early return below is silent to the caller for the
+# same reason: no templates directory means this returns immediately having
+# cleared nothing, and the response still listed every root.
+#
+# Reporting the unlinks makes that visible in the FIRST response instead of
+# after an afternoon of probing: zero files against seven roots is a finding.
 sub _invalidate_registries {
     my $rdir = _lz() . "/templates/registries";
-    return () unless -d $rdir;
-    opendir my $dh, $rdir or return ();
+    return ( [], [] ) unless -d $rdir;
+    opendir my $dh, $rdir or return ( [], [] );
     my @tt = grep { /\.tt$/ } readdir $dh;
     closedir $dh;
 
     my $cache = _lz() . "/cache/registries";
     my @shadowed;
+    my @cleared;
     for my $root ( _registry_roots() ) {
         my $key = $root;
         $key =~ s{\A\Q$DOCROOT\E/?}{};
@@ -682,14 +702,15 @@ sub _invalidate_registries {
 
         for my $t (@tt) {
             ( my $out = $t ) =~ s/\.tt$//;
-            unlink "$cache/$key/$out" if -f "$cache/$key/$out";
+            my $cached = "$cache/$key/$out";
+            push @cleared, "$key/$out" if -f $cached && unlink $cached;
 
             # Not deleted - reported. See above.
             push @shadowed, ( $root eq $DOCROOT ? "/$out" : "$root/$out" )
                 if -f "$root/$out";
         }
     }
-    return @shadowed;
+    return ( \@shadowed, \@cleared );
 }
 
 # SM087: a site-wide config change (nav.conf) appears on every rendered page, so
