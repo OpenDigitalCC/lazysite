@@ -247,3 +247,60 @@ roots - visible in the first response, without ninety minutes of probing.
 That is the argument for fixing the reporting even if the underlying mechanism
 turns out to be something else entirely: the report is what turned a diagnosable
 condition into an afternoon.
+
+# A second, cleaner reproduction: never rebuilt, rather than stale
+
+A newly created site on the same instance generates `sitemap.xml` and
+`llms.txt` **empty** - header, no entries - while 21 of its pages carry
+`register: sitemap.xml`. `regenerate-registries` reports success and changes
+nothing, cache-busted.
+
+The registry was first built when the content root was EMPTY, and has never
+contained anything since the content arrived.
+
+::: widebox
+So "stale" is the wrong word for this filing, and the first case should be
+re-read in its light. The artefact is not holding an OLD build. **It is not
+rebuilding at all** - the first build is the only build, and whatever the first
+request happened to see is what the site serves indefinitely.
+:::
+
+# Where generation is gated
+
+`update_registries` runs per REQUEST and takes its content root from the
+resolved site vars:
+
+```perl
+my %sv = resolve_site_vars();
+my $root = $DOCROOT; my $has_root = 0;
+if ( defined $sv{content_root} && length $sv{content_root} ) {
+    my $c = confine_content_root( $DOCROOT, $sv{content_root} );
+    if ( defined $c ) { $root = $c; $has_root = 1; }
+}
+return if $sv{alias_host} && !$has_root;
+```
+
+Two things follow, both worth checking against the failing site:
+
+- `$sv{content_root}` comes from the ALIAS OVERLAY, which applies only when the
+  request's Host matched a declared alias host. A host that does not match
+  generates nothing for that domain - the SM436 family again.
+- An alias host whose content root fails to confine returns early and generates
+  nothing at all, silently.
+
+Neither is established as the cause here. They are the two places where "no
+registry was generated for this domain" is a normal, unreported outcome, and
+they are cheap to distinguish: request a PAGE under the failing host and see
+whether the registry changes.
+
+# What the two cases share
+
+An empty-at-birth registry and a frozen-at-one-build registry are the same
+symptom if nothing ever removes the cached output: the first request writes it,
+and no later event replaces it. That points back at the early-return candidate
+above rather than away from it - `_invalidate_registries` returning without
+unlinking would leave every first build permanent.
+
+The check is unchanged and still needs a shell:
+`<docroot>/lazysite/templates/registries/*.tt`, and the subdirectory names under
+`<docroot>/lazysite/cache/registries/`.
