@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM413 located (PENDING, filing update only) **the homepage was a durable
+  render-cache entry, four releases stale.** Field-diagnosed on edge: / served
+  a 0.10.13 render through the 0.10.14, .15, .16 AND .17 deployments, with
+  headers correctly forbidding intermediaries to serve stale - the engine
+  re-served its own artefact - until a manual index invalidation brought every
+  page to 0.10.17. What remains is a decision, not a mystery: does an upgrade
+  invalidate rendered pages, and if deliberately not, where is the operator
+  told to do it? Beta-gating, with the release manager. The site agent's
+  0.10.14-0.10.16 homepage-dependent validation conclusions are flagged
+  unconfirmed and being re-run; their three-page version probe (written after
+  the FIRST stale-render incident) is what caught it.
+
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 
 Cut the same evening its contents landed, from an overnight round driven
