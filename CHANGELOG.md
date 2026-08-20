@@ -120,6 +120,26 @@ Naming the commit: AFTER it lands, never before
   the configured one. One definition now, failing safe to the default prefix
   if the handler config cannot be read, because a store that cannot be
   enumerated must not become a store that is ungated.
+- SM421, SM427 (PENDING) **the surfaces agree: permission is the control.**
+  `manage_forms` could already name a delivery destination directly over
+  WebDAV and through the control API's form-targets-save (which explicitly
+  accepts and preserves inline targets) - only MCP's `bind_form` was
+  handler-only, so the same grant was strictly weaker on one surface and an
+  agent delegated form-building had to ask an operator for something its own
+  capability could do elsewhere. Per the release manager's ruling - permission
+  decides whether the functionality is available, and where granted every
+  surface delivers it in full - `bind_form` gains an optional `target`
+  ({type: webhook|api, url} or {type: file, path}), mutually exclusive with
+  `handler`, which stays preferred and is still described that way because it
+  is operator-vetted and holds credentials. Validated for SHAPE, not
+  destination: unknown types, missing or non-http URLs, traversing paths and
+  newline injection into the config are refused, while which URL a form may
+  deliver to is the operator's decision - expressed by whether they granted
+  the capability. `smtp` is deliberately not offered inline: it needs a
+  credential the legacy parser cannot carry, so it would be a target that
+  silently fails to deliver. SM427 follows from the ruling: if the grant is
+  the only decision point, the grant screen has to say what a capability
+  reaches - facts, not warnings.
 
 - SM423, SM424, SM425 (PENDING, filings only) **three inbox briefs assigned
   refs.** SM423: the certified channel is HALF-WIRED - ADR 0010 wired every

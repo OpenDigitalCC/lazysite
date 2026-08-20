@@ -978,15 +978,24 @@ my %TOOLS = (
         },
     },
     bind_form => {
-        description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. You never set a destination or credential (operator-only). Writes lazysite/forms/<form>.conf.',
+        description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. PREFER A HANDLER: it is operator-vetted and holds any credentials. If your grant needs to deliver somewhere the operator has not pre-defined, pass `target` instead - {type: webhook|api, url: https://...} or {type: file, path: relative/dir} - which writes the delivery target directly into the form config. That is the same thing this capability can already do over WebDAV and the control API; it is offered here so the three surfaces agree rather than one being quietly weaker. Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {
                 form => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
-                handler => { type => 'string', description => 'an existing handler id from list_form_handlers' },
+                handler => { type => 'string', description => 'an existing handler id from list_form_handlers (preferred)' },
+                target => { type => 'object',
+                    description => 'an inline delivery target, INSTEAD of handler: {type: webhook|api, url} or {type: file, path}. No credentials - those live in operator-defined handlers.',
+                    properties => {
+                        type   => { type => 'string' },
+                        url    => { type => 'string' },
+                        path   => { type => 'string' },
+                        format => { type => 'string' },
+                    },
+                    additionalProperties => JSON::PP::false },
             },
-            required => [ 'form', 'handler' ], additionalProperties => JSON::PP::false },
-        run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
+            required => ['form'], additionalProperties => JSON::PP::false },
+        run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler}, $_[0]->{target} ) },
     },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
@@ -2231,35 +2240,133 @@ sub _list_form_handlers {
     return { ok => 1, handlers => \@h };
 }
 
+# SM421: THE SURFACES AGREE, because the capability is the control.
+#
+# manage_forms could already write an inline delivery target over WebDAV (a raw
+# lazysite/forms/<name>.conf) and through the control API's form-targets-save,
+# which explicitly preserves and accepts inline targets. Only bind_form was
+# handler-only - so the SAME capability was strictly weaker on one surface, and
+# an agent delegated form-building through MCP had to ask an operator for
+# something the same grant could do elsewhere.
+#
+# The release manager's ruling: permission decides whether this is available;
+# where it is granted, the surface delivers it in full. So the fix is to add
+# the ability here rather than remove it there.
+#
+# A handler stays PREFERRED and the description says so - it is operator-vetted
+# and holds credentials. An inline target carries no credential (the legacy
+# parser reads only type/url/format/path), so this cannot exfiltrate an SMTP
+# password; what it can do is name a destination, which is exactly what
+# manage_forms means.
 sub _bind_form {
-    my ( $form, $handler ) = @_;
+    my ( $form, $handler, $target ) = @_;
     $form    = '' unless defined $form;
     $handler = '' unless defined $handler;
-    return { ok => 0, error => 'form and handler are required' } unless length $form && length $handler;
-    for my $n ( $form, $handler ) {
-        return { ok => 0, error => "invalid name '$n'", kind => 'invalid-path' }
-            unless $n =~ /\A[A-Za-z0-9_-]+\z/;
+    return { ok => 0, error => 'form is required' } unless length $form;
+    return { ok => 0, error => "invalid name '$form'", kind => 'invalid-path' }
+        unless $form =~ /\A[A-Za-z0-9_-]+\z/;
+
+    return { ok => 0, error => 'give either handler or target, not both' }
+        if length $handler && ref $target eq 'HASH';
+
+    if ( ref $target eq 'HASH' ) {
+        my $t = _inline_target_block($target);
+        return $t unless ref $t eq 'HASH' && $t->{ok};
+        return _write_form_conf( $form, $t->{block},
+            { form => $form, target => $target->{type} } );
     }
+
+    return { ok => 0, error => 'form and handler are required' }
+        unless length $handler;
+    return { ok => 0, error => "invalid name '$handler'", kind => 'invalid-path' }
+        unless $handler =~ /\A[A-Za-z0-9_-]+\z/;
     my $hl = _list_form_handlers();
     return $hl unless $hl->{ok};
     unless ( grep { $_->{id} eq $handler } @{ $hl->{handlers} } ) {
         return { ok => 0, kind => 'not-found',
             error => "no handler '$handler' - call list_form_handlers to see the configured ones" };
     }
+    return _write_form_conf( $form, "  - handler: $handler\n",
+        { form => $form, handler => $handler } );
+}
+
+# Validate an inline target and render its config block. Returns {ok=>1,block}
+# or an error hash. Deliberately strict about the SHAPE while saying nothing
+# about the destination: which URL a form may deliver to is the operator's
+# decision, expressed by whether they granted manage_forms.
+sub _inline_target_block {
+    my ($t) = @_;
+    my $type = lc( $t->{type} // '' );
+
+    # smtp is absent on purpose: it needs a credential, and the legacy inline
+    # parser reads only type/url/format/path - so an inline smtp target would
+    # be a target that silently cannot deliver. Credentials live in
+    # operator-defined handlers, which is what list_form_handlers offers.
+    return { ok => 0, kind => 'invalid',
+        error => "target.type must be webhook, api or file (got '$type')" }
+        unless $type =~ /\A(?:webhook|api|file)\z/;
+
+    my %out = ( type => $type );
+    if ( $type eq 'file' ) {
+        my $path = $t->{path} // '';
+        $path =~ s{^/+|/+$}{}g;
+        return { ok => 0, kind => 'invalid',
+            error => 'target.path is required for a file target' }
+            unless length $path;
+        # Same confinement the rest of the file surface applies: relative, no
+        # traversal. A store outside the docroot is not a store.
+        return { ok => 0, kind => 'invalid-path',
+            error => "invalid target.path '$path'" }
+            if $path =~ m{(?:\A|/)\.\.(?:/|\z)} || $path =~ m{\A~};
+        $out{path} = $path;
+    }
+    else {
+        my $url = $t->{url} // '';
+        return { ok => 0, kind => 'invalid',
+            error => 'target.url is required for a webhook/api target' }
+            unless length $url;
+        return { ok => 0, kind => 'invalid',
+            error => 'target.url must be an http(s) URL' }
+            unless $url =~ m{\Ahttps?://\S+\z};
+        return { ok => 0, kind => 'invalid',
+            error => 'target.url must not contain a newline' }
+            if $url =~ /[\r\n]/;
+        $out{url} = $url;
+    }
+    if ( defined $t->{format} && length $t->{format} ) {
+        return { ok => 0, kind => 'invalid', error => 'invalid target.format' }
+            unless $t->{format} =~ /\A[A-Za-z0-9_-]+\z/;
+        $out{format} = $t->{format};
+    }
+
+    my $block = "  - type: $out{type}\n";
+    for my $k (qw(url path format)) {
+        $block .= "    $k: $out{$k}\n" if defined $out{$k};
+    }
+    return { ok => 1, block => $block };
+}
+
+# One writer for both shapes. Atomic: temp + rename, so a racing binder of the
+# same form never leaves a partial/empty .conf and a reader always sees a
+# complete binding.
+sub _write_form_conf {
+    my ( $form, $targets_block, $result ) = @_;
     my $dir = "$LAZYSITE_DIR/forms";
     return { ok => 0, error => 'forms directory is missing' } unless -d $dir;
-    # Atomic: temp + rename, so a racing binder of the same form never leaves a
-    # partial/empty .conf, and a reader always sees a complete binding.
     my $conf = "$dir/$form.conf";
     my $tmp  = "$conf.tmp.$$";
-    open my $fh, '>', $tmp or return { ok => 0, error => "cannot write the form config: $!" };
-    print {$fh} "targets:\n  - handler: $handler\n";
-    unless ( close $fh ) { unlink $tmp; return { ok => 0, error => "cannot write the form config: $!" } }
+    open my $fh, '>', $tmp
+        or return { ok => 0, error => "cannot write the form config: $!" };
+    my $wrote = print {$fh} "targets:\n$targets_block";
+    unless ( close($fh) && $wrote ) {
+        unlink $tmp;
+        return { ok => 0, error => "cannot write the form config: $!" };
+    }
     unless ( rename $tmp, $conf ) {
         unlink $tmp;
         return { ok => 0, error => "cannot write the form config: $!" };
     }
-    return { ok => 1, form => $form, handler => $handler, path => "/lazysite/forms/$form.conf" };
+    return { ok => 1, %$result, path => "/lazysite/forms/$form.conf" };
 }
 
 # --- SM087: navigation (read_nav / set_nav) -------------------------------
