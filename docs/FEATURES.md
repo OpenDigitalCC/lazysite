@@ -1624,6 +1624,21 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.10.18** (2026-08-20, EDGE) - **The round the reviews drove.** A file
+  upload could escape the content area into the engine's auth store and
+  overwrite the cookie-signing secret while reporting success (SM418, found by
+  a security review with a working reproduction); the content-history summary
+  handed a scoped partner every other tenant's file inventory (SM419); an
+  upgrade now invalidates rendered pages, so the first page an operator checks
+  after upgrading reflects the build they installed (SM413 - a homepage had
+  served the same render through four deployments). Visits and trails key per
+  SOURCE rather than per address, so agents and people behind one NAT stop
+  sharing a visit (SM417). Assets gain an operator-set cache lifetime (SM416).
+  The outside-in ACL probe drops to the site user instead of refusing as root,
+  so a deploy actually establishes whether the front end gates content
+  (SM426). Plus the certified channel wired end to end (SM423), form delivery
+  reaching parity across all three surfaces (SM421), and a lint banning a Perl
+  idiom that silently ate its caller's loop variable (SM420).
 - **0.10.17** (2026-08-19, EDGE) - **The beta candidate, built from the field's
   own findings.** The multi-domain site-package apply works: its safety snapshot
   scopes to the target's content root instead of tarring the whole docroot
@@ -1969,7 +1984,7 @@ Newest first; releases are git tags.
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.10.17 (the EDGE line's beta candidate era: the front end makes no content
+to v0.10.18 (the EDGE line's beta candidate era: the front end makes no content
 decisions, the security header set is enforced rather than claimed, the
 statistics say what they mean, and a build names the commit it validated). For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding

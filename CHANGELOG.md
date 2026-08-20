@@ -62,6 +62,22 @@ Naming the commit: AFTER it lands, never before
   the two drifting apart is the defect itself.
 
 - Tier A (PENDING) **the four manual checks gate STABLE, not beta.** They gated
+## 0.10.18 - EDGE: the round the reviews drove (2026-08-20)
+
+Almost every item here came from outside this session: a security-review
+agent's round-3 pass, a field-test agent's beta-readiness measurements, a
+method-corpus review of the day's own ADR, and an operator's deploy log. The
+CRITICAL is SM418 - a file upload confined on the request string rather than
+the path, which overwrote the cookie-signing secret and reported success.
+
+Three of the fixes uncovered further defects while being built, all of the
+same family: a rule enforced in one place and not its twin. And three of the
+findings were in work landed hours earlier in this same session, caught by
+gates rather than by review - the certified channel that could not cut, a lint
+blind to the entries it did not pin, and a config key that reached the page but
+not the reader.
+
+- Tier A (2b2f343) **the four manual checks gate STABLE, not beta.** They gated
   beta for one day; the amendment is a judgement about what each channel means
   rather than a relaxation. Beta is bedded in by people who know they are
   running a beta - the operator's own sites and partner instances - and holding
@@ -72,7 +88,7 @@ Naming the commit: AFTER it lands, never before
   register both say so, and the register still records each round against the
   version walked so a stable cut can point at the walk that cleared it.
 
-- SM423 (PENDING) **the certified channel is wired end to end.** ADR 0010
+- SM423 (687dc43) **the certified channel is wired end to end.** ADR 0010
   wired every place that CONSUMES a channel and missed the two that PRODUCE an
   artefact carrying one, so `release.sh --certified` would have died at
   manifest build - after passing the compliance gate it exists to run, which
@@ -92,7 +108,7 @@ Naming the commit: AFTER it lands, never before
   to change. t/lint/18 exists for exactly that asymmetry and caught it in this
   run.
 
-- ADR 0010 (PENDING) **a certified channel above stable, and the conformity
+- ADR 0010 (bff8861) **a certified channel above stable, and the conformity
   gates attach there.** The ladder becomes edge < beta < stable < certified
   (%CHANNEL_RANK 0/1/2/3, release.sh --certified, update_channel accepts it).
   "Stable" had carried two meanings - release.sh itself described it as "the
@@ -114,23 +130,7 @@ Naming the commit: AFTER it lands, never before
   with three biting sabotages, one of which caught the test itself asserting
   the rehearsal's TEXT where it had to assert the FAIL line.
 
-- SM414, SM415 (PENDING, filings only) **two of the three interactive features
-  require JavaScript, and the third proves they need not.** From the site
-  agent's beta-readiness field pass on 0.10.16. Search: a results page is
-  byte-identical for a real query and a nonsense one - ?q= is never read
-  server-side, a 73KB index filters in the browser, no noscript - so search
-  results are invisible to crawlers and to no-JS visitors, silently. Forms: the
-  handler answers application/json with HTTP 200 for BOTH outcomes and the form
-  carries a native action/method, so a no-JS post lands on raw JSON as a page.
-  Login is the in-product counter-example - 302s, next preserved, no cookie on
-  failure - which is why both read as fixable rather than inherent. Decisions
-  HELD: the cache posture a server-side ?q= needs, where a native form post
-  lands, and whether either gates beta. Neither is a regression; both were
-  measured for the first time. The agent's method note is preserved in SM414:
-  its first assertion PASSED on the word "Authoring" in the navigation menu -
-  an expectation-based body check passing on chrome while the feature did
-  nothing; a differential comparison of the two bodies told the truth.
-- SM426, SM422 store gate (PENDING) **the probe runs itself, and a store is a
+- SM426, SM422 store gate (bba73d4) **the probe runs itself, and a store is a
   store wherever it is configured.** The outside-in ACL probe refuses as root -
   correctly (SM377: protecting content there leaves root-owned files in the
   site tree) - but that refusal ended every root deploy with "run the probe as
@@ -148,7 +148,7 @@ Naming the commit: AFTER it lands, never before
   the configured one. One definition now, failing safe to the default prefix
   if the handler config cannot be read, because a store that cannot be
   enumerated must not become a store that is ungated.
-- SM421, SM427 (PENDING) **the surfaces agree: permission is the control.**
+- SM421 (f4fe95f) **the surfaces agree: permission is the control.**
   `manage_forms` could already name a delivery destination directly over
   WebDAV and through the control API's form-targets-save (which explicitly
   accepts and preserves inline targets) - only MCP's `bind_form` was
@@ -165,11 +165,11 @@ Naming the commit: AFTER it lands, never before
   deliver to is the operator's decision - expressed by whether they granted
   the capability. `smtp` is deliberately not offered inline: it needs a
   credential the legacy parser cannot carry, so it would be a target that
-  silently fails to deliver. SM427 follows from the ruling: if the grant is
-  the only decision point, the grant screen has to say what a capability
-  reaches - facts, not warnings.
+  silently fails to deliver. **SM427 is FILED, not shipped**, and follows from
+  the ruling: if the grant is the only decision point, the grant screen has to
+  say what a capability reaches - facts, not warnings.
 
-- SM423, SM424, SM425 (PENDING, filings only) **three inbox briefs assigned
+- SM423, SM424, SM425 (8512f54, filings only) **three inbox briefs assigned
   refs.** SM423: the certified channel is HALF-WIRED - ADR 0010 wired every
   place that consumes a channel and missed the two that produce an artefact
   carrying one, so `build-manifest.pl` and `build-apt-repo.sh` both still
@@ -184,7 +184,7 @@ Naming the commit: AFTER it lands, never before
   SM425: exempt signed-in users from the anonymous submission rate limit
   (unblocked by SM411, since the handler can now obtain a verified identity)
   and extend the `:::form` field rules SM401 started.
-- SM426 (PENDING, filing only) **the ACL probe refuses as root, and the tool
+- SM426 (c884de3, filing only) **the ACL probe refuses as root, and the tool
   already knows how not to be.** A routine root deploy ends `NOT CONFIRMED ...
   run the probe as the site user`, so the one check that establishes gating
   from OUTSIDE is the one an automated deploy never gets. The skip itself is
@@ -196,7 +196,7 @@ Naming the commit: AFTER it lands, never before
   sibling does for itself, and an instruction printed at the end of an
   automated deploy is a step that does not happen.
 
-- SM413 located (PENDING, filing update only) **the homepage was a durable
+- SM413 located (2fa1aaf, filing update only) **the homepage was a durable
   render-cache entry, four releases stale.** Field-diagnosed on edge: / served
   a 0.10.13 render through the 0.10.14, .15, .16 AND .17 deployments, with
   headers correctly forbidding intermediaries to serve stale - the engine
@@ -207,7 +207,7 @@ Naming the commit: AFTER it lands, never before
   0.10.14-0.10.16 homepage-dependent validation conclusions are flagged
   unconfirmed and being re-run; their three-page version probe (written after
   the FIRST stale-render incident) is what caught it.
-- SM416 (PENDING) **the asset cache lifetime is the operator's dial.** The
+- SM416 (4b8c3b6) **the asset cache lifetime is the operator's dial.** The
   lazysite front end revalidates every asset on every page view - deliberate
   (SM387: protection must reach already-fetched copies) but sized by the field
   at ~6 engine round trips per view, a real multiplier on contended hosting,
@@ -221,7 +221,7 @@ Naming the commit: AFTER it lands, never before
   emission site (the anonymous refusal path) until it made an authorised
   request. The layouts briefing now names which front end each piece of
   caching advice applies to, per the field filing's own suggestion.
-- SM418 (PENDING) **CRITICAL: a file upload escaped the content area into the
+- SM418 (777321f) **CRITICAL: a file upload escaped the content area into the
   auth store.** `action_file_upload` confined on the request string rather than
   the path - the one file-write handler that never called `validate_path` - so
   `..` survived to the write while the blocklist string-matched a spelling that
@@ -241,7 +241,7 @@ Naming the commit: AFTER it lands, never before
   guarded or exempt-with-a-reason - which was the reporter's own third
   suggested fix, not an addition of ours. The lint is proven to catch the pre-SM418
   world in both its shapes.
-- SM417 (PENDING) **a visit is one actor, not one address.** The visitor token
+- SM417 (8a86b71) **a visit is one actor, not one address.** The visitor token
   is hmac(ymd|ip), so every agent on a shared host - and every person behind
   one NAT - shared a single visit: the field measured a deliberate four-page
   walk arriving merged into one 22-step trail. Sessions now key per source
@@ -263,7 +263,7 @@ Naming the commit: AFTER it lands, never before
   that field is for. Both hid in the same blind spot: the sweep test drives
   the server-log ingester and the trail tests drive the first-party one, so a
   defect in either was invisible from the other.
-- SM413 fix (PENDING) **an upgrade invalidates rendered pages.** A cached page
+- SM413 fix (4fb7a36) **an upgrade invalidates rendered pages.** A cached page
   regenerates when its SOURCE changes and an upgrade changes no source, so a
   page nobody edits kept its pre-upgrade render indefinitely - the field
   measured a homepage serving a 0.10.13 render through FOUR deployments,
@@ -275,7 +275,7 @@ Naming the commit: AFTER it lands, never before
   re-render trigger rather than a reset; pages re-render on next request, so
   the cost is one render per page actually visited. Same-version reinstalls
   are excluded on purpose: those renders already came from that code.
-- SM419 (PENDING) **the content-history summary ignored scope - and the fix's
+- SM419 (78f0d23) **the content-history summary ignored scope - and the fix's
   own grep ate its first element.** Every per-file history operation resolves
   through `_git_target`, which blocklists and scope-confines; their site-level
   summary did neither, so a partner refused one tenant's history was handed
@@ -294,7 +294,7 @@ Naming the commit: AFTER it lands, never before
   because any caller can hit it. A survey found 19 more subs of the same shape
   across the tree; filed separately, none proven live, and the difference
   between latent and live is one caller.
-- SM420 (PENDING) **twenty subs that ate their caller's `$_`.** `while
+- SM420 (b80376e) **twenty subs that ate their caller's `$_`.** `while
   (<$fh>)` assigns the GLOBAL `$_`, so a sub reading a file destroys the
   element under test when called from inside a `grep` or `map`. SM419 hit one
   of them and lost the first path of a filtered list; a survey of lib/, the
@@ -307,7 +307,7 @@ Naming the commit: AFTER it lands, never before
   process clobbers, so the symptom appears once and never reproduces - a
   corruption nobody debugs, because a second run passes. t/lint/66 bans the
   shape outright.
-- SM421, SM422 (PENDING) **the cross-surface parity map: two fixed, one real,
+- SM421, SM422 (139fdf3) **the cross-surface parity map: two fixed, one real,
   three held.** From the security-review agent's round-3 mapping pass over the
   control API, MCP and WebDAV. FIXED: MCP's nav READ was gated on
   manage_content while WebDAV, the API and MCP's own set_nav all require
@@ -352,6 +352,23 @@ merged in a scratch worktree with a full gate over the result - and the
 rehearsal caught four integration defects no per-branch test could see,
 recorded in their own entries. Gate: 467 files, 8,470 tests; the manifest's
 `validated` block names b03bece.
+
+- SM414, SM415 (1cac06b, filings only) **two of the three interactive features
+  require JavaScript, and the third proves they need not.** From the site
+  agent's beta-readiness field pass on 0.10.16. Search: a results page is
+  byte-identical for a real query and a nonsense one - ?q= is never read
+  server-side, a 73KB index filters in the browser, no noscript - so search
+  results are invisible to crawlers and to no-JS visitors, silently. Forms: the
+  handler answers application/json with HTTP 200 for BOTH outcomes and the form
+  carries a native action/method, so a no-JS post lands on raw JSON as a page.
+  Login is the in-product counter-example - 302s, next preserved, no cookie on
+  failure - which is why both read as fixable rather than inherent. Decisions
+  HELD: the cache posture a server-side ?q= needs, where a native form post
+  lands, and whether either gates beta. Neither is a regression; both were
+  measured for the first time. The agent's method note is preserved in SM414:
+  its first assertion PASSED on the word "Authoring" in the navigation menu -
+  an expectation-based body check passing on chrome while the feature did
+  nothing; a differential comparison of the two bodies told the truth.
 
 - SM414, SM415 (1cac06b, filings only) **two of the three interactive features
 - Docs (36abb3f) **set_permissions names the publish flow.** A field agent set

@@ -1,5 +1,25 @@
 # Upgrade notes
 
+## Upgrading to 0.10.18 from 0.10.17
+
+**No new operator action, and one thing that now happens for you.** From this
+release an upgrade INVALIDATES RENDERED PAGES (SM413): cached pages re-render
+on next request, so the first page you check after upgrading reflects the
+build you just installed. Before this, a page whose source had not changed
+kept its pre-upgrade render indefinitely - a homepage was found serving the
+same render through four deployments.
+
+Also automatic: the outside-in ACL probe now drops to the site's owner instead
+of refusing when the deploy runs as root, so `lazysite probe` produces a
+verdict rather than "NOT CONFIRMED" (SM426).
+
+**Worth knowing:** this release fixes a CRITICAL issue where an authenticated
+content editor could write outside the content area (SM418). No action is
+needed beyond upgrading.
+
+**Coming from 0.10.14 or earlier: the 0.10.15 section's four manual steps
+remain your list.**
+
 ## Upgrading to 0.10.17 from 0.10.16
 
 **No new operator action.** The multi-domain apply fix (SM412), the plugin
