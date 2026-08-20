@@ -125,9 +125,19 @@ my %ACTION_INFO = (
     },
     manage_config => {
         title   => 'Read and set safe site configuration.',
+        # SM435: this listed lazysite/nav.conf and lazysite/forms/<name>.conf
+        # over WebDAV, which 0.8.1 moved to manage_nav and manage_forms
+        # respectively - see authorise() in lazysite-dav.pl, which admits
+        # neither of them under this capability. Both new entries were written
+        # and this one was never trimmed, so the descriptor promised a partner
+        # holding manage_config alone a write it would be refused. Nothing was
+        # over-permitted; enforcement was always the strict side. The cost was
+        # that the descriptor is the ONE per-capability account of the boundary
+        # readable from outside the code, so being wrong sent an agent to a 403
+        # and then to trial and error - which is what RI-002's deny reasons
+        # exist to end. t/lint/68 now checks the two against each other.
         unlocks => {
             api => [qw(config-read config-set git-init bad-url-blocks bad-url-unblock)],
-            webdav => [ 'lazysite/nav.conf', 'lazysite/forms/<name>.conf' ],
         },
     },
     manage_users => {

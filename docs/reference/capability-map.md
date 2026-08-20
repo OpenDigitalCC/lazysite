@@ -38,7 +38,7 @@ manage_forms | Wire forms to delivery handlers. A submitted form also raises an 
 manage_themes | Install and activate themes. | webdav: lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only); api: theme-activate, theme-list, themes-for-layout, themes-list-all, artifact-manifest, artifact-validate, preview-grant, theme-delete; mcp: list_themes, theme_tokens, activate_theme, create_theme, delete_theme
 manage_layouts | Install, author and activate layouts. | webdav: lazysite/layouts/<layout>/ (active layout read-only); api: layout-activate, layout-install, layout-delete, layouts-available, layouts-manifest, artifact-backups-delete; mcp: activate_layout, install_layout, delete_layout, list_layout_catalogue
 manage_domains | Manage the domains this instance serves, and portable site packages. | api: domains-list, domain-add, domain-set, domain-remove, domain-preview, domain-check, site-backup-create, site-backup-download, site-backup-upload, site-backup-apply, site-backup-delete, site-backup-inspect; mcp: list_domains, domain_set, preview_domain, site_backup, site_apply
-manage_config | Read and set safe site configuration. | webdav: lazysite/nav.conf, lazysite/forms/<name>.conf; api: config-read, config-set, git-init, bad-url-blocks, bad-url-unblock
+manage_config | Read and set safe site configuration. | api: config-read, config-set, git-init, bad-url-blocks, bad-url-unblock
 manage_users | Manage user accounts and group membership. | ui: the manager Users and Groups pages
 analytics | Read sanitised, IP-anonymised visitor analytics. | api: analyse_visitors; mcp: analyse_visitors
 audit | Read the append-only audit trail. | api: audit

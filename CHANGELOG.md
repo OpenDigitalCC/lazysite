@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM435 resolved (PENDING) **manage_config no longer advertises two files it
+  cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and
+  `lazysite/forms/<name>.conf` to `manage_forms` over WebDAV, wrote both new
+  descriptor entries, and never trimmed the old one - so the descriptor
+  promised a partner holding `manage_config` alone a write `authorise()` would
+  refuse. **Nothing was over-permitted**: enforcement was always the strict
+  side. The cost is that the descriptor is the ONE per-capability account of
+  the boundary readable from outside the code - a partner cannot determine
+  which capability grants an access by experiment, because the only instrument
+  available reports the union of everything they hold - so a wrong descriptor
+  sent an agent to a 403 and then to trial and error, which is what RI-002's
+  deny reasons exist to end. New `t/lint/68` checks the two sides against each
+  other in the one place a partner meets both: every WebDAV denial names its
+  capability, so the deny reason is enforcement's own statement of the rule.
+  **It asserts SET EQUALITY deliberately** - a membership check passes against
+  this exact defect, because `manage_nav` does list `nav.conf` and the surplus
+  entry is invisible to it. Sabotaged both ways before being trusted: an extra
+  claim and a missing claim each fail it.
+
 - SM432 resolved (PENDING) **/docs/features serves again, by becoming an
   index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
   The page was an index of the directory shadowing it, and `canonical_url_for`
