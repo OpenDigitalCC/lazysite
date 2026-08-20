@@ -55,3 +55,41 @@ way. `dhcf.sites.lazysite.io` resolves and terminates TLS correctly. The
 string `dhcf` does not resolve because it is not a host name, and asking DNS
 about it is the check faithfully doing what it was told. The message should
 distinguish "this name has no DNS record" from "this name cannot have one".
+
+# The one field that cannot be corrected
+
+`host` is not in `@DOMAIN_KEYS`, so `domain_set` refuses it: every other
+setting on a domain can be edited in place, and the name cannot. There is no
+rename verb.
+
+::: widebox
+So the single field whose error is SILENT and TOTAL - wrong name, no match, the
+whole site replaced by the primary - is also the only one with no repair path.
+That is the argument for validating it at `domain_add`, and it is stronger than
+the tidiness argument: a value that cannot be edited afterwards has exactly one
+moment when it can be got right.
+:::
+
+Over MCP it is narrower still. The connector exposes `list_domains` and
+`domain_set` and neither `domain_add` nor `domain_remove`, so an agent can set
+every field on a domain except the one that is wrong, and cannot re-register
+it. Correcting this needs the manager UI or the control API.
+
+# What the repair costs today
+
+`domain_remove` strips the host from `alias_hosts` and every
+`alias.<host>.*` line with it, so a rename is remove-then-add and the caller
+must carry every override across by hand. Reading the current values first is
+not optional - nothing else holds them once the remove lands.
+
+`domain_add` does accept every domain key as an option and ADOPTS an existing
+content-root directory rather than recreating it, so the round trip is lossless
+when it is done carefully. The risk is not the content; it is the four or five
+presentation settings that quietly revert to inherited if the re-add omits
+them, which looks like a working site with the wrong appearance.
+
+A `domain_rename` verb - rewrite `alias_hosts` and re-key the `alias.<host>.*`
+lines in one write - would remove the hand-carrying and the window where the
+domain is registered with nothing set. Worth weighing against just refusing the
+bad value at the point of entry, which is cheaper and prevents rather than
+repairs.
