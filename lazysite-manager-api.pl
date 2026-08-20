@@ -1701,6 +1701,18 @@ sub action_preview {
     local $ENV{REDIRECT_URL}     = $uri;
     local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
 
+    # SM441: render under the Host of the domain that OWNS this path. Without
+    # it the preview inherited the Host of whatever the operator was browsing
+    # the manager on - normally the primary - so SM151's per-Host routing never
+    # fired and a domain's page came back with the BASE layout, theme and nav.
+    # The content was right and the presentation was another site's, which
+    # reads as a page given the wrong theme rather than as a preview that has
+    # not been told which site it is. An operator who happened to open the
+    # manager on the domain's own host saw a correct preview, which is what
+    # made it intermittent.
+    my ($owner) = Lazysite::Manager::Domains::host_for_path($rel_path);
+    local $ENV{HTTP_HOST} = length $owner ? $owner : ( $ENV{HTTP_HOST} // '' );
+
     my $processor = processor_path();
     my $output    = qx($^X \Q$processor\E 2>/dev/null);
 

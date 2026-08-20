@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path conf_batch);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -226,6 +226,56 @@ sub known_domain_host {
     return 0;
 }
 
+# SM441: which registered domain OWNS a docroot-relative path.
+#
+# The page previews shelled the processor without a Host, so SM151's per-Host
+# routing never fired and a domain's page rendered with the BASE layout, theme
+# and nav - whoever it belonged to. The content was right, because the
+# docroot-relative path resolves under the primary, and the presentation was
+# another site's. That is the awkward shape of it: it looks like a working
+# preview of a page given the wrong theme, rather than a preview that has not
+# been told which site it is previewing.
+#
+# LONGEST content_root wins, so a domain nested inside another's tree is
+# resolved to the inner one. Returns '' for a path no content root contains -
+# the primary owns it, and today's behaviour is already correct there.
+#
+# AMBIGUITY IS NOT RESOLVED HERE, only made deterministic: if two domains
+# declare the SAME content_root there is no fact that decides between them, and
+# the honest answer is a host selector on the preview. This picks the first by
+# sorted host so the same path always previews the same way, which is strictly
+# better than the primary-always behaviour it replaces, and returns the count
+# so a caller can say so.
+sub host_for_path {
+    my ($rel) = @_;
+    $rel = '' unless defined $rel;
+    $rel =~ s{^/+}{};
+
+    my $r = eval { domains_list() };
+    return ( '', 0 ) unless ref $r eq 'HASH' && $r->{ok};
+
+    my ( $best, @tied ) = ( '' );
+    for my $d ( @{ $r->{domains} || [] } ) {
+        next if $d->{is_primary};
+        my $cr = $d->{content_root} // '';
+        $cr =~ s{^/+|/+$}{}g;
+        next unless length $cr;
+        next if $cr =~ m{(?:^|/)\.\.(?:/|$)};
+        next unless $rel eq $cr || index( $rel, "$cr/" ) == 0;
+
+        if ( !length $best || length($cr) > length($best) ) {
+            $best = $cr;
+            @tied = ( $d->{host} );
+        }
+        elsif ( length($cr) == length($best) ) {
+            push @tied, $d->{host};
+        }
+    }
+    return ( '', 0 ) unless @tied;
+    @tied = sort @tied;
+    return ( $tied[0], scalar @tied );
+}
+
 # SM282: what a PUBLIC visitor gets for one path.
 #
 # A draft section is invisible to the public and visible to a signed-in editor.
@@ -272,6 +322,14 @@ sub preview_public {
     $ENV{REQUEST_METHOD}   = 'GET';
     $ENV{QUERY_STRING}     = '';
     $ENV{LAZYSITE_NOCACHE} = '1';
+
+    # SM441: render under the OWNING domain's Host, so the per-Host overlay
+    # supplies that site's layout, theme and nav. Without this the preview
+    # inherited the manager request's Host - normally the primary - and this
+    # tool, whose whole claim is to show what a public visitor gets, showed a
+    # different site's presentation.
+    my ($owner) = host_for_path($rel);
+    $ENV{HTTP_HOST} = $owner if length $owner;
 
     my $processor = processor_path();
     my $raw       = qx($^X \Q$processor\E 2>/dev/null);

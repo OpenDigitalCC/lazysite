@@ -95,6 +95,25 @@ Naming the commit: AFTER it lands, never before
   exclusion lets the test overwrite `lazysite.conf`, which is the point of it.
   **The destructive-default half of SM443 is NOT fixed here** - an absent host
   on `nav-save` still silently means the shared file.
+- SM441 resolved (PENDING) **a page preview knows which site it is previewing.**
+  Both page-scope previews - `action_preview` (Files/editor) and
+  `preview_public` (SM282, "as a visitor") - shelled the processor without
+  setting `HTTP_HOST`, so SM151's per-Host routing never fired and a domain's
+  page rendered with the BASE layout, theme and nav. The content was right and
+  the presentation was another site's, which reads as a page given the wrong
+  theme rather than as a preview that has not been told which site it is. An
+  operator who happened to open the manager on the domain's own host saw a
+  correct preview, which is what made it intermittent. `domain_preview` (SM238)
+  always did set it - its own comment describes shelling "exactly like ...
+  `action_preview`, but with `HTTP_HOST` set" - so the difference was
+  understood and applied at domain scope only. New
+  `Domains::host_for_path` resolves the owning domain, **longest content root
+  wins**, with boundary-safe containment so `sites/one` cannot claim
+  `sites/one-archive`. Two domains on one content root are **not** silently
+  resolved: the tie is reported so a caller can offer a host selector, and the
+  pick is deterministic meanwhile. Sabotaged four ways; the containment case
+  initially passed against a bare-prefix sabotage and the fixture was made
+  adversarial before it was trusted.
 
 - SM432 resolved (PENDING) **/docs/features serves again, by becoming an
   index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
