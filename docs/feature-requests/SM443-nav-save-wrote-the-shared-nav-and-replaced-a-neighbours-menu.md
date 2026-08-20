@@ -111,8 +111,7 @@ work done.
 
 If the body-host path should be exercised before a fix ships, it should be run
 by someone whose OWN site would absorb the miss.
-```
-```
+:::
 
 That is the correct call. A confirmation that can only be obtained by risking a
 third party's site is not a cheap confirmation, and declining it while saying so
