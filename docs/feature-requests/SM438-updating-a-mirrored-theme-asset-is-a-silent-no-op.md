@@ -362,10 +362,11 @@ are not.
 
 # Two things deliberately not folded in
 
-**The no-poll run is a single observation.** The two timed runs agree with each
-other; the no-poll run agrees with the theory and has not been repeated. It is
-the load-bearing measurement in the whole account, so it is marked as one run
-rather than presented as a result.
+**The no-poll run is repeated: 4 for 4.** Three further runs were made after
+this was flagged as a single observation, all FRESH at +15s, none stale -
+against two timed runs that both went stale-until-+40s when read from +0s. The
+load-bearing measurement now stands on four agreeing runs and the caveat is
+withdrawn.
 
 **This does not explain the sitemap staleness.** That persisted across roughly
 90 minutes and three `regenerate-registries` calls - two orders of magnitude
