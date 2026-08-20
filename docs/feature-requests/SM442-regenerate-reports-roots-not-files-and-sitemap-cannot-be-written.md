@@ -304,3 +304,62 @@ unlinking would leave every first build permanent.
 The check is unchanged and still needs a shell:
 `<docroot>/lazysite/templates/registries/*.tt`, and the subdirectory names under
 `<docroot>/lazysite/cache/registries/`.
+
+# The `has_root` early return is RULED OUT for the failing host
+
+The reporter offered "the xisl site has had plenty of page requests and its
+registry is still empty" as weak evidence, because they had not watched before
+and after. One fetch makes it decisive, and the marker is the overlay's own
+output:
+
+```datatable
+columns: Probe | Result
+widths: 7cm | X
+bold: 1
+tone: medium
+---
+`GET xisl.sites.lazysite.io/` | 200, title **"... - Xi Software"**
+`GET .../sitemap.xml?k=verify1` (fresh key) | 200, **154 bytes, 0 `<loc>` entries**
+```
+
+`Xi Software` is that domain's `site_name`, which reaches the page ONLY through
+the alias overlay. So for this host the overlay applies, `$sv{content_root}`
+resolves, and `$has_root` is true - which means
+
+```perl
+return if $sv{alias_host} && !$has_root;
+```
+
+cannot be firing. Generation is REACHABLE for the host whose registry is empty.
+
+::: widebox
+That narrows the remaining question to two, and they are distinguishable:
+**does generation run and produce nothing, or does it not run because the
+existing output is never removed?** The empty registry is independently
+confirmed here with a fresh cache key, so the emptiness is not a reading
+artefact.
+:::
+
+A third possibility now deserves equal billing, because it fits the empty case
+better than the cache theory does: generation RUNS, and scans a root that holds
+no registerable pages, producing an empty registry every time. If so, clearing
+would work perfectly and change nothing visible - because the rebuild is also
+empty. That would explain why `regenerate-registries` appears inert on this site
+without any cache being involved.
+
+Note the two sites differ and should not be merged: dhcf's registry has 21
+entries and is frozen at an old build; xisl's has none and always has. A single
+mechanism must explain both, or there are two.
+
+# Watched before/after is the test
+
+The reporter's discriminator is the right one and needs one addition - it must
+be WATCHED:
+
+1. Record the registry bytes.
+2. Request a PAGE under the failing host.
+3. Record the registry bytes again.
+
+Unchanged means generation is not running or is producing the same empty
+output; changed means it runs and the earlier readings were the stale artefact.
+Neither outcome needs a shell.
