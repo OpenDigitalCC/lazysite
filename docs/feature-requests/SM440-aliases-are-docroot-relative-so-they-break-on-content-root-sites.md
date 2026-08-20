@@ -92,3 +92,60 @@ would make `/about` resolve correctly for whichever domain wrote it last.
 
 Worth a test that a single-site instance cannot pass: a content-root domain
 whose alias target must NOT contain the content root.
+
+# Field confirmation: it serves ANOTHER SITE'S PAGE under the neighbour's domain
+
+Tested against a neighbouring site on the same instance rather than reasoned
+about:
+
+```datatable
+columns: Request | Result
+widths: 7cm | X
+bold: 1
+tone: medium
+---
+`dhcf.sites.lazysite.io/thesis` (own site) | 301 to `/sites/dhcf/publications/thesis`, **404**
+`sites.lazysite.io/thesis` (**the DEFAULT host, an unrelated site**) | 301 to the same path, **200 - it SERVES**
+```
+
+::: widebox
+The default host's content root IS the docroot, so the leaked path resolves
+there. **One site's alias silently serves that site's page under a neighbour's
+domain**, at a URL the neighbour never defined. The two defects do not merely
+want deciding together - they COMPOUND. Fix the derivation alone and one site
+can still claim a path on every other. Fix the map alone and every content-root
+site still redirects into its own 404.
+:::
+
+# What it can and cannot do
+
+Bounded by reading the consumer, because the difference matters for how urgent
+this is:
+
+`_alias_lookup` is called from `not_found` - it is the **404 path only**. So an
+alias can claim a path the neighbour does NOT already serve, and cannot
+override one it does. There is no hijack of an existing URL; a neighbour's real
+`/contact` stays theirs.
+
+What remains is still serious on a multi-domain instance: any site can occupy
+any unused path on every other site, and on any host whose content root is the
+docroot it will answer 200 with the wrong site's content. That is the SM248
+class - the visitor is told whose site this is, incorrectly - except SM248 was
+a favicon and this is a whole page under someone else's domain.
+
+# The judgement that was reversed, and why it is recorded
+
+The reporter had originally left the alias declared, on the reasoning that it
+was harmless on their own site and would resolve correctly at cutover when the
+content root goes empty. That reasoning was sound on its premise. The premise
+was wrong: the cost was not landing on their site, it was landing on a
+neighbour's, **and a staging neighbour cannot consent to that**.
+
+The alias is now removed. Both hosts 404 on `/thesis`,
+`/publications/thesis` serves normally, and the site's README carries an
+explicit instruction to re-add it at cutover, when the content root is empty
+and there are no neighbours to leak into.
+
+Recorded because the reversal is the useful part: "harmless on my own site" is
+not the test on a shared instance, and the alias feature gives every site on it
+the ability to write into every other site's URL space.
