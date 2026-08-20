@@ -1221,9 +1221,32 @@ sub authorise {
     # 0.8.1: WebDAV previously used the coarser manage_config here). Nav is
     # benign structure and carries no privilege-escalation keys, unlike
     # lazysite.conf which stays denied.
+    # SM443: and the same applies to a PER-DOMAIN nav file. This tested
+    # `$rel eq 'lazysite/nav.conf'` - an exact match on one filename - so a
+    # domain whose nav_file was set to lazysite/nav-<site>.conf had a nav file
+    # that NO surface could populate: nav-save writes the shared file, and
+    # WebDAV fell through to the blanket lazysite/ denial. domain-set would
+    # accept the setting, and because layouts guard on [% IF nav.size %] the
+    # result was a site with no navigation rather than an error.
+    #
+    # The set comes from lazysite.conf and is shape-checked when it is read
+    # (see read_conf): lazysite/<name>.conf only. A path that is not CONFIGURED
+    # as somebody's nav_file is not admitted here, so this widens the carve-out
+    # to the files the operator has already declared and no further.
+    # The DEFAULT nav file keeps its own branch and its literal deny reason.
+    # That is not duplication for its own sake: t/lint/68 reads these strings as
+    # enforcement's own statement of the rule and checks them against the
+    # capability descriptor, so folding this into the dynamic branch below would
+    # take lazysite/nav.conf out of that check without anything failing.
     if ( $rel eq 'lazysite/nav.conf' ) {
         return undef if manage_nav_for($user);
         return _deny( 403, 'editing lazysite/nav.conf requires the manage_nav capability' );
+    }
+
+    # Any OTHER path the operator has declared as a nav file.
+    if ( ( $conf->{nav_files} || {} )->{$rel} ) {
+        return undef if manage_nav_for($user);
+        return _deny( 403, "editing $rel requires the manage_nav capability" );
     }
 
     # A per-form dispatch config (lazysite/forms/<name>.conf) is agent-editable
@@ -1605,6 +1628,10 @@ sub read_conf {
                 lazysite/manager cgi-bin manager
         ) ],
         blocked_extensions => [qw(pl cgi)],
+        # SM443: every path configured as a navigation file - the base
+        # `nav_file` plus each `alias.<host>.nav_file` override. The default is
+        # always admitted, so an unconfigured site behaves exactly as before.
+        nav_files => { 'lazysite/nav.conf' => 1 },
     );
     my $path = "$LAZYSITE_DIR/lazysite.conf";
     return \%c unless -f $path;
@@ -1616,6 +1643,23 @@ sub read_conf {
         elsif (/^theme\s*:\s*(\S+)/)              { $c{active_theme}       = $1 }
         elsif ( /^manager_upload_max_mb\s*:\s*(\d+)/ && $1 > 0 ) {
             $c{max_bytes} = $1 * 1024 * 1024;
+        }
+        # Greedy (\S+) so a host containing dots - which every real one does -
+        # still splits at the LAST dot before the key. The same reason the
+        # processor's alias parse is written that way; keys never contain dots.
+        elsif (/^(?:alias\.\S+\.)?nav_file\s*:\s*(.+)/) {
+            # SM443: admit only the NAV-FILE SHAPE - lazysite/<name>.conf, one
+            # level down, no traversal, no subdirectory. authorise() returns
+            # ALLOWED for these before the scope, blocklist and ACL gates run,
+            # so a conf value is not permitted to name an arbitrary path: this
+            # pattern is the boundary, not a tidy-up. lazysite.conf itself is
+            # excluded because it carries privilege-bearing keys, and anything
+            # under lazysite/forms/ cannot match a pattern with no slash.
+            my $v = $1;
+            $v =~ s/^\s+|\s+$//g;
+            $c{nav_files}{$v} = 1
+                if $v =~ m{\Alazysite/[A-Za-z0-9._-]+\.conf\z}
+                && $v ne 'lazysite/lazysite.conf';
         }
         elsif (/^manager_blocked_paths\s*:\s*(.+)/) {
             my $v = $1; $v =~ s/\s+$//;

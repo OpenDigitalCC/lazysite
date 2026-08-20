@@ -77,6 +77,24 @@ Naming the commit: AFTER it lands, never before
   the same one-implementation reasoning SM301 and SM318 settled for other
   pairs. Sabotaged before being trusted: restoring the roots-based count fails
   three of the new subtests.
+- SM443 partial (PENDING) **a per-domain nav file is writable over WebDAV.**
+  The carve-out tested `$rel eq 'lazysite/nav.conf'` - an exact match on one
+  filename - so a domain whose `nav_file` was set to `lazysite/nav-<site>.conf`
+  had a navigation file NO surface could populate: `nav-save` writes the shared
+  file, and WebDAV fell through to the blanket `lazysite/` denial. `domain-set`
+  accepted the setting anyway, and because layouts guard on `[% IF nav.size %]`
+  the visible result was a site with **no navigation** rather than an error.
+  WebDAV now admits any path lazysite.conf declares as a `nav_file`, base or
+  per-domain, still gated on `manage_nav`. **Bounded by configuration, not by
+  pattern alone**: the value must have the nav-file shape
+  (`lazysite/<name>.conf`, no traversal, no subdirectory) *and* be declared by
+  the operator - this branch returns ALLOWED before the scope, blocklist and
+  ACL gates run, so the shape check is a boundary rather than a tidy-up.
+  `lazysite/lazysite.conf` is excluded explicitly, or setting `nav_file` would
+  become an escalation. Sabotaged three ways before being trusted; dropping the
+  exclusion lets the test overwrite `lazysite.conf`, which is the point of it.
+  **The destructive-default half of SM443 is NOT fixed here** - an absent host
+  on `nav-save` still silently means the shared file.
 
 - SM432 resolved (PENDING) **/docs/features serves again, by becoming an
   index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
