@@ -59,6 +59,17 @@ Naming the commit: AFTER it lands, never before
   SM425: exempt signed-in users from the anonymous submission rate limit
   (unblocked by SM411, since the handler can now obtain a verified identity)
   and extend the `:::form` field rules SM401 started.
+- SM426 (PENDING, filing only) **the ACL probe refuses as root, and the tool
+  already knows how not to be.** A routine root deploy ends `NOT CONFIRMED ...
+  run the probe as the site user`, so the one check that establishes gating
+  from OUTSIDE is the one an automated deploy never gets. The skip itself is
+  right and stays (SM377: protecting content as root leaves root-owned files in
+  the site tree). What is missing is that `lazysite-cli.pl` already records
+  `owner=` per site and already drops to it with `sudo -n -u` for `upgrade
+  --all`, under a comment calling that "the only place root is allowed" - so
+  the probe is the one command asking an operator to do by hand what its
+  sibling does for itself, and an instruction printed at the end of an
+  automated deploy is a step that does not happen.
 
 - SM413 located (PENDING, filing update only) **the homepage was a durable
   render-cache entry, four releases stale.** Field-diagnosed on edge: / served
