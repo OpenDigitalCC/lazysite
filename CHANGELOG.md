@@ -132,7 +132,21 @@ Naming the commit: AFTER it lands, never before
   to a file nobody serves. All three now seed and assert the served location,
   with every property they existed to prove left intact.
 
-- SM430 (PENDING, filing only) **common functions across the four surfaces.**
+## 0.10.19 - BETA: the promotion, and the fixes the field drove into it (2026-08-20)
+
+The first build promoted off the edge line. It carries a confidentiality fix
+found by a code survey rather than by a failure - moving protected content to
+an ungated path relocated the bytes into the public docroot with no rule
+following them - plus the ACL store that locked the manager out once per
+deploy, and the certified channel wired end to end after a corpus review found
+it could pass its own compliance gate and then die at manifest build.
+
+Tier A moved to gating STABLE rather than beta in the release before this, so
+this promotion rests on field evidence: whole-sitemap render sweeps, an
+upload check from outside, and a scoped-grant history probe, each run by the
+account that could actually reach the surface in question.
+
+- SM430 (e53bf03, filing only) **common functions across the four surfaces.**
   A four-track code survey, filed as fourteen independent packages (CF-1 to
   CF-14) with per-package tests and dependencies. The structural finding:
   there are **two write stacks, not four** - the manager UI, control API and
@@ -152,7 +166,7 @@ Naming the commit: AFTER it lands, never before
   so a comment claiming "the manager's delete has always done this" is
   factually wrong and SM212's stale-rule fix never reached three surfaces.
 
-- SM413 (PENDING, filing closure) **confirmed from outside, and closed.** The field
+- SM413 (e53bf03, filing closure) **confirmed from outside, and closed.** The field
   verified the render fix across the whole public sitemap on the deployed
   0.10.18: 34 pages fetched cold, 33 reporting the current build, with no hand
   invalidation. (The 34th was CORRECTED by the reporter before it reached a
@@ -161,7 +175,7 @@ Naming the commit: AFTER it lands, never before
   itself rendering as 0.10.18 arguably strengthens it.) The homepage that
   survived four deployments on a 0.10.13 render now reports the current build
   on its own, and the asset busting tokens moved with it.
-- CF-2 / SM430 (PENDING) **the rule goes with the content, on every surface.**
+- CF-2 / SM430 (158625c) **the rule goes with the content, on every surface.**
   Deleting content must drop its rules and moving it must carry them; both
   were true on ONE surface each, in opposite directions. DAV's DELETE dropped
   ACL entries under a comment saying "the manager's delete has always done
@@ -180,7 +194,7 @@ Naming the commit: AFTER it lands, never before
   that only failed once the fixture grew a sibling key whose name merely
   STARTS with the deleted one, the same boundary trap validate_path documents.
 
-- SM429 (PENDING, filing only) **cross-origin-opener-policy has never been
+- SM429 (5d6fcca, filing only) **cross-origin-opener-policy has never been
   emitted.** The one line that survived the field's 0.10.18 header pass - its
   CSP half was retracted after re-measurement, the policy being served
   correctly under the report-only name on HTML pages and correctly absent on
@@ -195,7 +209,7 @@ Naming the commit: AFTER it lands, never before
   authorize page, since the failure mode is a partner's browser flow breaking
   and no processor-level test can see that.
 
-- SM428 (PENDING) **the ACL store locked the manager out, once per deploy.**
+- SM428 (a888a3e) **the ACL store locked the manager out, once per deploy.**
   `save_acls` wrote 0640 while `lazysite-check` requires the file to be
   group-writable - the store is written by two identities on a group-shared
   docroot (the site user via `acl reapply`, the www-data CGI via the manager's
@@ -212,7 +226,6 @@ Naming the commit: AFTER it lands, never before
   rather than a literal mode, and pins that the checker still lists the file -
   the two drifting apart is the defect itself.
 
-- Tier A (PENDING) **the four manual checks gate STABLE, not beta.** They gated
 ## 0.10.18 - EDGE: the round the reviews drove (2026-08-20)
 
 Almost every item here came from outside this session: a security-review
@@ -227,6 +240,8 @@ findings were in work landed hours earlier in this same session, caught by
 gates rather than by review - the certified channel that could not cut, a lint
 blind to the entries it did not pin, and a config key that reached the page but
 not the reader.
+
+- Tier A (2b2f343) **the four manual checks gate STABLE, not beta.** They gated
 
 - Tier A (2b2f343) **the four manual checks gate STABLE, not beta.** They gated
   beta for one day; the amendment is a judgement about what each channel means

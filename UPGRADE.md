@@ -1,5 +1,24 @@
 # Upgrade notes
 
+## Upgrading to 0.10.19 from 0.10.18
+
+**This is a BETA build** - the first promotion off the edge line. A site takes
+it only if its `update_channel` accepts beta or below; nothing changes for a
+site set to `stable` or `certified`.
+
+**No new operator action.** Two fixes are worth knowing about because they
+change behaviour you may have worked around:
+
+- **Access rules now travel with content on every surface.** Deleting content
+  drops its rules (previously only over WebDAV); moving content carries them.
+  If you have been re-applying rules after a move, you no longer need to.
+- **The access-rule store stays writable by the manager after a deploy.** If
+  you saw `acls.json ... is not writable by the CGI` repaired on every upgrade,
+  that was a real fault and it is fixed.
+
+**Coming from 0.10.14 or earlier: the 0.10.15 section's four manual steps
+remain your list.**
+
 ## Upgrading to 0.10.18 from 0.10.17
 
 **No new operator action, and one thing that now happens for you.** From this

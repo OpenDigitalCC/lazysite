@@ -1624,6 +1624,18 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.10.19** (2026-08-20, BETA) - **The first promotion off the edge line.**
+  Access rules now travel with content on every surface: deleting content
+  drops its rules everywhere (previously only over WebDAV), and moving content
+  carries them - which matters most for protected content, where a move to an
+  ungated path used to relocate the file into the public document root with no
+  rule following it. The access-rule store stays writable by the manager after
+  a deploy (it was being locked out once per upgrade and repaired afterwards,
+  so the only trace was a repair that always ran). The certified channel is
+  wired end to end. Plus the content-history summary honouring scope, the
+  visitor classifier answering per source rather than per address, an
+  operator-settable asset cache lifetime, and a lint banning a Perl idiom that
+  silently ate its caller's loop variable.
 - **0.10.18** (2026-08-20, EDGE) - **The round the reviews drove.** A file
   upload could escape the content area into the engine's auth store and
   overwrite the cookie-signing secret while reporting success (SM418, found by
@@ -1984,7 +1996,7 @@ Newest first; releases are git tags.
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.10.18 (the EDGE line's beta candidate era: the front end makes no content
+to v0.10.19 (the first BETA promotion: the front end makes no content
 decisions, the security header set is enforced rather than claimed, the
 statistics say what they mean, and a build names the commit it validated). For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding
