@@ -44,6 +44,65 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM423 (PENDING) **the certified channel is wired end to end.** ADR 0010
+  wired every place that CONSUMES a channel and missed the two that PRODUCE an
+  artefact carrying one, so `release.sh --certified` would have died at
+  manifest build - after passing the compliance gate it exists to run, which
+  is the most expensive place to fail. `build-manifest.pl` and
+  `build-apt-repo.sh` now accept the rung; both starter docs teach four
+  maturities (including the Manager UI string on the Config page); and
+  t/tools/43's exhaustive matrix covers certified as both a site channel and a
+  release channel, so it is exhaustive again rather than reading as though it
+  were. **The reporting gap became its own fix**: t/lint/65 now refuses any
+  `(PENDING)` entry inside a released section. It pinned only SHA-carrying
+  entries, and t/lint/53 ignores PENDING by design, so a misfiled pending
+  entry - claiming a release contains work that has not shipped - was
+  invisible to both. The new check found two real ones on its first run.
+  Alongside: **SM416 was incomplete and a parity lint said so** -
+  `asset_max_age` reached the Config page's schema and config-set's write gate
+  but not config-read, so the page could not display the value it was offering
+  to change. t/lint/18 exists for exactly that asymmetry and caught it in this
+  run.
+
+- ADR 0010 (PENDING) **a certified channel above stable, and the conformity
+  gates attach there.** The ladder becomes edge < beta < stable < certified
+  (%CHANNEL_RANK 0/1/2/3, release.sh --certified, update_channel accepts it).
+  "Stable" had carried two meanings - release.sh itself described it as "the
+  certified customer-rollout channel" while the first stable line shipped with
+  a pentest waiver and an unsigned declaration, so the label was already
+  untrue in practice. Now stable means SUPPORTED SOFTWARE and certified means
+  the compliance records were WALKED: the declaration, restore-rehearsal and
+  register gates block a certified cut and are advisory everywhere below - so
+  future stable cuts stop being hostage to paperwork on its own timeline,
+  which gives the deferred-but-tracked compliance work a home with a name.
+  One implication implemented rather than left implicit: **a certified cut
+  forces signoff_required on** - the channel IS the statement that the
+  records were walked, and a switch left at 'no' must not mask the findings
+  the label claims (the switch keeps its voluntary meaning below certified).
+  The dated obligations are unmoved: 2026-09-11 and 2026-12-31 bind the
+  project, not a channel. t/tools/57 proves the MOVE in both directions
+  against the tree's real records - a stable cut passing under the documented
+  protocol where it used to block, certified refusing despite the switch -
+  with three biting sabotages, one of which caught the test itself asserting
+  the rehearsal's TEXT where it had to assert the FAIL line.
+
+- SM414, SM415 (PENDING, filings only) **two of the three interactive features
+  require JavaScript, and the third proves they need not.** From the site
+  agent's beta-readiness field pass on 0.10.16. Search: a results page is
+  byte-identical for a real query and a nonsense one - ?q= is never read
+  server-side, a 73KB index filters in the browser, no noscript - so search
+  results are invisible to crawlers and to no-JS visitors, silently. Forms: the
+  handler answers application/json with HTTP 200 for BOTH outcomes and the form
+  carries a native action/method, so a no-JS post lands on raw JSON as a page.
+  Login is the in-product counter-example - 302s, next preserved, no cookie on
+  failure - which is why both read as fixable rather than inherent. Decisions
+  HELD: the cache posture a server-side ?q= needs, where a native form post
+  lands, and whether either gates beta. Neither is a regression; both were
+  measured for the first time. The agent's method note is preserved in SM414:
+  its first assertion PASSED on the word "Authoring" in the navigation menu -
+  an expectation-based body check passing on chrome while the feature did
+  nothing; a differential comparison of the two bodies told the truth.
+
 - SM423, SM424, SM425 (PENDING, filings only) **three inbox briefs assigned
   refs.** SM423: the certified channel is HALF-WIRED - ADR 0010 wired every
   place that consumes a channel and missed the two that produce an artefact
@@ -228,46 +287,7 @@ rehearsal caught four integration defects no per-branch test could see,
 recorded in their own entries. Gate: 467 files, 8,470 tests; the manifest's
 `validated` block names b03bece.
 
-
 - SM414, SM415 (1cac06b, filings only) **two of the three interactive features
-- ADR 0010 (PENDING) **a certified channel above stable, and the conformity
-  gates attach there.** The ladder becomes edge < beta < stable < certified
-  (%CHANNEL_RANK 0/1/2/3, release.sh --certified, update_channel accepts it).
-  "Stable" had carried two meanings - release.sh itself described it as "the
-  certified customer-rollout channel" while the first stable line shipped with
-  a pentest waiver and an unsigned declaration, so the label was already
-  untrue in practice. Now stable means SUPPORTED SOFTWARE and certified means
-  the compliance records were WALKED: the declaration, restore-rehearsal and
-  register gates block a certified cut and are advisory everywhere below - so
-  future stable cuts stop being hostage to paperwork on its own timeline,
-  which gives the deferred-but-tracked compliance work a home with a name.
-  One implication implemented rather than left implicit: **a certified cut
-  forces signoff_required on** - the channel IS the statement that the
-  records were walked, and a switch left at 'no' must not mask the findings
-  the label claims (the switch keeps its voluntary meaning below certified).
-  The dated obligations are unmoved: 2026-09-11 and 2026-12-31 bind the
-  project, not a channel. t/tools/57 proves the MOVE in both directions
-  against the tree's real records - a stable cut passing under the documented
-  protocol where it used to block, certified refusing despite the switch -
-  with three biting sabotages, one of which caught the test itself asserting
-  the rehearsal's TEXT where it had to assert the FAIL line.
-
-- SM414, SM415 (PENDING, filings only) **two of the three interactive features
-  require JavaScript, and the third proves they need not.** From the site
-  agent's beta-readiness field pass on 0.10.16. Search: a results page is
-  byte-identical for a real query and a nonsense one - ?q= is never read
-  server-side, a 73KB index filters in the browser, no noscript - so search
-  results are invisible to crawlers and to no-JS visitors, silently. Forms: the
-  handler answers application/json with HTTP 200 for BOTH outcomes and the form
-  carries a native action/method, so a no-JS post lands on raw JSON as a page.
-  Login is the in-product counter-example - 302s, next preserved, no cookie on
-  failure - which is why both read as fixable rather than inherent. Decisions
-  HELD: the cache posture a server-side ?q= needs, where a native form post
-  lands, and whether either gates beta. Neither is a regression; both were
-  measured for the first time. The agent's method note is preserved in SM414:
-  its first assertion PASSED on the word "Authoring" in the navigation menu -
-  an expectation-based body check passing on chrome while the feature did
-  nothing; a differential comparison of the two bodies told the truth.
 - Docs (36abb3f) **set_permissions names the publish flow.** A field agent set
   a read list on a draft section and it kept 404ing: the tool is a PARTIAL
   update - omitted fields keep their value - so granting access does not clear

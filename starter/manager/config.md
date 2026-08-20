@@ -63,7 +63,7 @@ var SITE_SCHEMA = [
     note: 'Pairing-key exchange and token rotation - how an AI partner turns a one-time pairing key into a working token. Off by default. Enable while provisioning AI partners, then it can be turned off again.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
     options: ['all', 'beta', 'stable'], default: 'all', group: 'Updates',
-    note: 'The minimum release maturity this site accepts, on the edge < beta < stable ladder. "all" installs every release (early testing); "beta" takes beta and stable builds (tested, bedding in); "stable" takes only certified stable releases. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },
+    note: 'The minimum release maturity this site accepts, on the edge < beta < stable < certified ladder. "all" installs every release (early testing); "beta" takes beta and above (tested, bedding in); "stable" takes stable and certified builds - supported software; "certified" takes only builds whose compliance records were walked before the cut. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },
 ];
 
 // SM044: populated by parallel fetch of layouts-available at load time.

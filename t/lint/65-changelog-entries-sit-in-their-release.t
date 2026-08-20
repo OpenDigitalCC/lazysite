@@ -90,4 +90,37 @@ for my $p (@pairs) {
 is( scalar @wrong, 0, 'every SHA-carrying entry sits in the section whose tag contains it' )
     or diag join "\n", @wrong;
 
+# --- 3. a (PENDING) entry belongs under Unreleased ---------------------------
+#
+# SM423 found the gap this closes, in a lint written for exactly this class:
+# check 2 above pins entries that carry a SHA and says NOTHING about the ones
+# that do not. t/lint/53 also ignores (PENDING) by design. So a PENDING entry
+# misfiled into a released section was invisible to both - and "misfiled reads
+# as shipped-and-recorded while being neither" is the whole reason this file
+# exists.
+#
+# It happened: ADR 0010's bullet landed after v0.10.17 was tagged and sat
+# inside that release's section, describing work the release does not contain.
+my @pending_misfiled;
+$section = '';
+for my $line ( split /\n/, $log ) {
+    if    ( $line =~ /^## Unreleased\s*$/ )   { $section = 'unreleased' }
+    elsif ( $line =~ /^## (\d+\.\d+\.\d+) / ) { $section = $1 }
+    elsif ( $line =~ /^## / )                 { $section = '' }
+    elsif ( length $section
+        && $section ne 'unreleased'
+        && $line =~ /^- \S.*\(PENDING/ )
+    {
+        ( my $what = $line ) =~ s/^- //;
+        $what =~ s/\s+.*$//;
+        push @pending_misfiled, "$what in $section";
+    }
+}
+is( scalar @pending_misfiled, 0,
+    'no (PENDING) entry sits inside a released section' )
+    or diag( join( "\n  ", '', @pending_misfiled )
+        . "\n\nA (PENDING) entry describes work that has not shipped. Inside a"
+        . " released section it claims the release contains it, and neither"
+        . " this lint's SHA check nor t/lint/53 can see it." );
+
 done_testing();

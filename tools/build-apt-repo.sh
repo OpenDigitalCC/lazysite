@@ -18,7 +18,7 @@
 # is useful under every answer to "Forgejo or a static repo", which is why it
 # is built before that decision rather than after.
 #
-# Usage: tools/build-apt-repo.sh --channel edge|beta|stable [--out DIR]
+# Usage: tools/build-apt-repo.sh --channel edge|beta|stable|certified [--out DIR]
 #   --channel   which suite these packages belong in. REQUIRED - see below.
 #   --out       repository root (default: <repo>/dist/apt)
 #   --sign KEY  gpg key id to sign the Release file with. Without it the
@@ -49,8 +49,11 @@ done
 # whatever was there last. So it is named explicitly on every invocation and
 # nothing infers it.
 case "$CHANNEL" in
-    edge|beta|stable) ;;
-    "") echo "build-apt-repo: --channel is required (edge|beta|stable). It is" >&2
+    # SM423: 'certified' (ADR 0010) is a suite like any other - the rung has to
+    # have a repo-level expression or a certified build has nowhere to be
+    # published to.
+    edge|beta|stable|certified) ;;
+    "") echo "build-apt-repo: --channel is required (edge|beta|stable|certified). It is" >&2
         echo "build-apt-repo: never inferred: an edge build in the stable suite" >&2
         echo "build-apt-repo: is exactly what the ladder exists to prevent." >&2
         exit 2 ;;

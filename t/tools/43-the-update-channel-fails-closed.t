@@ -111,10 +111,10 @@ subtest 'the certified rung sits above stable (ADR 0010)' => sub {
     ok( accepts( $st, 'certified' ), 'a stable site accepts a certified build' );
 
     my $ct = site_with_channel('update_channel: certified');
-    ok( accepts( $ct, 'certified' ), 'a certified site accepts a certified build' );
-    ok( !accepts( $ct, 'stable' ),   'and refuses a stable one' );
-    ok( !accepts( $ct, 'beta' ),     'and beta' );
-    ok( !accepts( $ct, 'edge' ),     'and edge' );
+    ok( accepts( $ct,  'certified' ), 'a certified site accepts a certified build' );
+    ok( !accepts( $ct, 'stable' ),    'and refuses a stable one' );
+    ok( !accepts( $ct, 'beta' ),      'and beta' );
+    ok( !accepts( $ct, 'edge' ),      'and edge' );
 };
 
 subtest 'an absent channel is a policy, and the safe one' => sub {
@@ -131,11 +131,21 @@ subtest 'an absent channel is a policy, and the safe one' => sub {
 subtest 'the recognised rungs still behave' => sub {
     # The half that must not regress. A fail-closed default is worthless if it
     # also breaks the settings people did configure.
+    # SM423: 'certified' belongs in the EXHAUSTIVE matrix, not only in its own
+    # subtest. A matrix that enumerates three rungs while the ladder has four
+    # still reads as exhaustive, which is the way a coverage claim goes stale
+    # without anybody editing it.
     my %expect = (
-        'update_channel: edge'   => { edge => 1, beta => 1, stable => 1 },
-        'update_channel: beta'   => { edge => 0, beta => 1, stable => 1 },
-        'update_channel: stable' => { edge => 0, beta => 0, stable => 1 },
-        'update_channel: all'    => { edge => 1, beta => 1, stable => 1 },
+        'update_channel: edge' =>
+            { edge => 1, beta => 1, stable => 1, certified => 1 },
+        'update_channel: beta' =>
+            { edge => 0, beta => 1, stable => 1, certified => 1 },
+        'update_channel: stable' =>
+            { edge => 0, beta => 0, stable => 1, certified => 1 },
+        'update_channel: certified' =>
+            { edge => 0, beta => 0, stable => 0, certified => 1 },
+        'update_channel: all' =>
+            { edge => 1, beta => 1, stable => 1, certified => 1 },
     );
     for my $line ( sort keys %expect ) {
         my $d = site_with_channel($line);

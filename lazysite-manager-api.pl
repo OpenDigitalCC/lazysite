@@ -2386,6 +2386,7 @@ sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme layouts_repo nav_file webdav_enabled
         manager manager_path search_default update_channel canonical_ip
+        asset_max_age
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
