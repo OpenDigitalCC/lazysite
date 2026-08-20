@@ -182,3 +182,73 @@ Delete-then-create is holding on the staging site and is now baked into the
 publish batches there - six assets currently go through that path. A fix that
 changes mirror-write behaviour will not break anything running, and the
 workaround can be unwound afterwards rather than needing to be preserved.
+
+# A measured contrast: the stale asset ignores query strings
+
+From the field, on the same host and session, and it is the sharpest narrowing
+so far:
+
+```datatable
+columns: Request | Result
+widths: 8cm | X
+bold: 1
+tone: medium
+---
+`/sitemap.xml` | stale (a pre-move copy)
+`/sitemap.xml?cb=1` | **fresh from origin** - a query defeats it
+`/lazysite-assets/<L>/<T>/main.css?v=r3` | **stale, byte-identical to the unbusted URL**
+```
+
+Both carry `public, max-age=14400` with no `Age`, so the headers alone do not
+tell the two apart. Worth stating, because reading the header set and
+concluding "same layer" is the natural mistake.
+
+::: widebox
+**A query string cannot defeat a stale file on disk.** That is the inference
+worth carrying into the shell step: if busting the URL changes nothing, the
+bytes being served are most likely coming from a FILE at the served path rather
+than from an HTTP cache in front of it - because an HTTP cache is the thing a
+query key is able to miss, and this one does not miss.
+
+Stated as an inference, not a result. It is consistent with everything measured
+and it has not been confirmed on disk.
+:::
+
+If that reading holds, it revises the leading candidate rather than replacing
+it: something is leaving an old FILE at the served path while the PUT's bytes
+land elsewhere - and `do_put` has already told us they land somewhere, because
+204 follows a successful rename.
+
+# The shell step, revised
+
+The earlier two questions stand, with one addition that follows directly from
+the above. Look in BOTH trees:
+
+1. Does `<docroot>/lazysite-assets/<L>/<T>/<probe>` hold the NEW bytes?
+2. Does a copy of that path exist in the PRIVATE store
+   (`Lazysite::Private::private_root`)?
+
+Question 2 is worth asking because `resolve_for_write` returns the private path
+when the file ALREADY resolves there, before it ever consults the public
+ancestor - so an existing file with a private copy is written privately while a
+new file at the same path is written publicly. That is the create/update
+asymmetry exactly, it needs no cache at all, and it would leave a stale public
+file serving under any query string.
+
+**Not established.** It requires a private copy of that asset to exist, which
+nobody has checked. It is now the first thing the shell step should look for,
+ahead of hunting a cache.
+
+# A near-miss worth recording
+
+The same reporter was about to file "registry generation is per-content-root
+for llms.txt but not for sitemap.xml", having seen the new subdomain serve its
+own `llms.txt` while `sitemap.xml` carried the DEFAULT site's URLs, with
+identical cache headers at the same instant. They ran a cache-buster before
+filing: `?cb=1` returned the correct sitemap. Generation was fine and the
+discriminator was an artefact of the cache in front of it.
+
+Nothing was filed, and the reason it is recorded here is that the artefact
+looked exactly like a clean finding - two registries, one host, one instant,
+different content. On this host a plain-URL comparison of anything cached is
+not evidence until it has been busted.
