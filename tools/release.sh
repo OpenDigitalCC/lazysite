@@ -31,10 +31,14 @@
 #                   commit's own commit message.
 #   --commit REF    SHA or ref to release. Default: origin/main HEAD.
 #   --beta          mark the release 'beta' on the channel ladder
-#                   (edge < beta < stable): a bedded-in candidate for
-#                   sites that want tested-but-not-yet-certified builds.
+#                   (edge < beta < stable < certified): a bedded-in
+#                   candidate for sites that want tested builds.
 #   --final         mark the release 'stable' (alias: --stable) - the
-#                   certified customer-rollout channel. Default: 'edge'.
+#                   supported customer-rollout channel. Default: 'edge'.
+#   --certified     mark the release 'certified' (ADR 0010): a stable
+#                   build whose compliance records have been WALKED -
+#                   the signed declaration, restore rehearsal and pentest
+#                   posture gates block THIS cut, not a stable one.
 #   --no-fetch      skip the two ORIGIN tag checks (fetch --tags, and the
 #                   ls-remote test that vVERSION is not already upstream).
 #                   For a build host with no remote credentials: the
@@ -81,7 +85,7 @@ KEEP_STAGE=0
 VERSION=""
 NOTES_FILE=""
 COMMIT_REF="origin/main"
-CHANNEL="edge"          # ladder: edge (default) < beta (--beta) < stable (--final)
+CHANNEL="edge"          # ladder: edge (default) < beta < stable < certified
 NO_FETCH=0              # legacy: accepted and inert since SM303
 
 # SM303: TWO OPERATIONS THAT SHARE ONLY A VERSION NUMBER.
@@ -140,6 +144,10 @@ while [ $# -gt 0 ]; do
             ;;
         --beta)
             CHANNEL="beta"
+            shift
+            ;;
+        --certified)
+            CHANNEL="certified"
             shift
             ;;
         --no-fetch)
@@ -453,8 +461,9 @@ done
 #
 # It runs FIRST because it is instant and it fails on things that take minutes
 # to fix, rather than after a 15-minute coverage run. Blocking findings differ by
-# channel: a Declaration of Conformity behind the version is advisory on edge and
-# blocking on stable, because the declaration attaches to a stable release.
+# channel: a Declaration of Conformity behind the version is advisory below
+# certified and blocking on certified (ADR 0010) - the declaration attaches to
+# a certified release; stable ships supported software.
 echo "==> lazysite-compliance.pl --check (channel: $CHANNEL)"
 if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; then
     echo "release.sh: compliance records are not current for this cut; not releasing." >&2

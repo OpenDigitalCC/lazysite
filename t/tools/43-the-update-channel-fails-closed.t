@@ -102,6 +102,21 @@ subtest 'an unrecognised value is not a licence to install anything' => sub {
         'and still accepts the build it was trying to ask for' );
 };
 
+subtest 'the certified rung sits above stable (ADR 0010)' => sub {
+    # certified is a MATURITY, so the minimum-accepted rule applies unchanged:
+    # a stable site takes certified builds (more mature than it demands), a
+    # certified site takes ONLY certified builds, and a certified build is not
+    # a skeleton key downward.
+    my $st = site_with_channel('update_channel: stable');
+    ok( accepts( $st, 'certified' ), 'a stable site accepts a certified build' );
+
+    my $ct = site_with_channel('update_channel: certified');
+    ok( accepts( $ct, 'certified' ), 'a certified site accepts a certified build' );
+    ok( !accepts( $ct, 'stable' ),   'and refuses a stable one' );
+    ok( !accepts( $ct, 'beta' ),     'and beta' );
+    ok( !accepts( $ct, 'edge' ),     'and edge' );
+};
+
 subtest 'an absent channel is a policy, and the safe one' => sub {
     my $none = site_with_channel(undef);
     ok( !accepts( $none, 'edge' ),

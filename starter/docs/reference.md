@@ -75,7 +75,9 @@ Directory scan
 
 `update_channel`
 : The minimum release maturity accepted on upgrade, on the
-  `edge < beta < stable` ladder: `stable` takes only certified releases,
+  `edge < beta < stable < certified` ladder: `stable` takes supported
+  releases; `certified` takes only builds whose compliance records were
+  walked (ADR 0010),
   `beta` takes beta and stable, any other value (default) accepts every
   release. Out-of-channel upgrades are skipped and audited. See
   [Update channel](/docs/features/configuration/update-channel).

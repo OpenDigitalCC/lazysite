@@ -98,6 +98,19 @@ sub _signoff_required {
 }
 my $SIGNOFF = _signoff_required();
 
+# ADR 0010: a CERTIFIED cut requires the sign-offs regardless of the switch.
+# The channel IS the statement that the records were walked - a certified
+# build whose person-only findings were masked by a switch left at 'no' would
+# be the label-lie class this project keeps burning down. Below certified the
+# switch keeps its meaning: an operator may voluntarily demand the records on
+# any cut, and a release manager may defer them on any cut that is not
+# claiming certification.
+if ( $CHANNEL eq 'certified' && !$SIGNOFF ) {
+    $SIGNOFF = 1;
+    print "note: signoff_required forced on - channel 'certified' claims "
+        . "walked records (ADR 0010)\n";
+}
+
 # A finding only a person can close. Blocks when sign-off is required, and is
 # reported as MASKED when the release manager has said it is not yet.
 sub signoff { $SIGNOFF ? push( @fail, $_[0] ) : push( @masked, $_[0] ); return }
@@ -186,7 +199,11 @@ for my $r (
     $stamped //= '';
     my $signed = ( $doc =~ /\(unsigned draft\)/ ) ? 0 : 1;
 
-    if ( $CHANNEL eq 'stable' ) {
+    # ADR 0010 (2026-08-20): the declaration attaches to a CERTIFIED cut, not a
+    # stable one - stable ships supported software; certification is the
+    # deliberate act of walking the records. This is where signoff_required
+    # bites.
+    if ( $CHANNEL eq 'certified' ) {
         my $behind = ( length $stamped && vcmp( $stamped, $VERSION ) < 0 ) ? 1 : 0;
         signoff("declaration of conformity: stamped '$stamped', cutting $VERSION")
             if $behind;
@@ -199,7 +216,7 @@ for my $r (
     elsif ( !$signed || ( length $stamped && vcmp( $stamped, $VERSION ) < 0 ) ) {
         advisory( "declaration of conformity is stamped '$stamped'"
                 . ( $signed ? '' : ' and unsigned' )
-                . " - not blocking on $CHANNEL, blocking at the next stable" );
+                . " - not blocking on $CHANNEL, blocking at a certified cut" );
     }
     else { good('declaration of conformity current') }
 }
@@ -280,7 +297,10 @@ for my $r (
         my $msg = "restore rehearsal: newest is $latest, older than the last "
             . "stable cut ($last_stable) - the declaration requires one per "
             . 'stable release cycle';
-        $CHANNEL eq 'stable' ? blocking($msg) : advisory("$msg (blocking at stable)");
+        # ADR 0010: blocks the CERTIFIED cut (the declaration is a certified-
+        # tier artefact); the cycle is still measured against stable cuts,
+        # which is the cadence RELIABILITY.md commits to.
+        $CHANNEL eq 'certified' ? blocking($msg) : advisory("$msg (blocking at certified)");
     }
     else { good("newest restore rehearsal $latest") }
 }
@@ -377,7 +397,7 @@ lazysite-compliance.pl - release-time currency check over the compliance records
 =head1 SYNOPSIS
 
   perl tools/lazysite-compliance.pl --report
-  perl tools/lazysite-compliance.pl --check --channel stable
+  perl tools/lazysite-compliance.pl --check --channel certified
   perl tools/lazysite-compliance.pl --report --calendar   # obligations 120 days out
 
 =head1 DESCRIPTION
@@ -393,8 +413,10 @@ eight-dimension review found: every mechanised control passed and every
 hand-maintained record had gone stale.
 
 Blocking findings differ by channel. A Declaration of Conformity behind the
-version is advisory on C<edge> and blocking on C<stable>, because the
-declaration attaches to a stable release.
+version is advisory on C<edge>, C<beta> and C<stable>, and blocking on
+C<certified>, because the declaration attaches to a certified release
+(ADR 0010): stable ships supported software, certification is the deliberate
+act of walking these records.
 
 =head1 SEE ALSO
 

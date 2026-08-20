@@ -52,9 +52,11 @@ front of them, not to guess when they are due.
 # Who changes it, and when
 
 The release manager sets `signoff_required: yes` when a release is
-heading for a channel where the declaration attaches - in practice, at
-the next **stable**. `edge` and `beta` carry no conformity declaration,
-so blocking them on one asserts something about a build nobody claimed.
+heading for a channel where the declaration attaches - since ADR 0010
+(2026-08-20), that is a **certified** cut. `edge`, `beta` and `stable`
+carry no conformity declaration, so blocking them on one asserts
+something about a build nobody claimed: stable means supported software,
+certified means the records were walked.
 
 Changing this file is a deliberate act with a commit attached to it,
 which is the audit trail.
@@ -88,6 +90,6 @@ nobody had yet chosen it *for this promotion*.
 : **The September date is unaffected by this choice.** Two CRA
   obligations fall due 2026-09-11 whatever this switch says, and the
   switch has no power over them - it decides whether a *release* blocks,
-  not whether an obligation exists. The next stable is where
+  not whether an obligation exists. A certified cut (ADR 0010) is where
   `signoff_required: yes` attaches, and the records have to be walked
   before then rather than at it.

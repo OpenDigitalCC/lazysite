@@ -59,6 +59,29 @@ recorded in their own entries. Gate: 467 files, 8,470 tests; the manifest's
 
 
 - SM414, SM415 (1cac06b, filings only) **two of the three interactive features
+- ADR 0010 (PENDING) **a certified channel above stable, and the conformity
+  gates attach there.** The ladder becomes edge < beta < stable < certified
+  (%CHANNEL_RANK 0/1/2/3, release.sh --certified, update_channel accepts it).
+  "Stable" had carried two meanings - release.sh itself described it as "the
+  certified customer-rollout channel" while the first stable line shipped with
+  a pentest waiver and an unsigned declaration, so the label was already
+  untrue in practice. Now stable means SUPPORTED SOFTWARE and certified means
+  the compliance records were WALKED: the declaration, restore-rehearsal and
+  register gates block a certified cut and are advisory everywhere below - so
+  future stable cuts stop being hostage to paperwork on its own timeline,
+  which gives the deferred-but-tracked compliance work a home with a name.
+  One implication implemented rather than left implicit: **a certified cut
+  forces signoff_required on** - the channel IS the statement that the
+  records were walked, and a switch left at 'no' must not mask the findings
+  the label claims (the switch keeps its voluntary meaning below certified).
+  The dated obligations are unmoved: 2026-09-11 and 2026-12-31 bind the
+  project, not a channel. t/tools/57 proves the MOVE in both directions
+  against the tree's real records - a stable cut passing under the documented
+  protocol where it used to block, certified refusing despite the switch -
+  with three biting sabotages, one of which caught the test itself asserting
+  the rehearsal's TEXT where it had to assert the FAIL line.
+
+- SM414, SM415 (PENDING, filings only) **two of the three interactive features
   require JavaScript, and the third proves they need not.** From the site
   agent's beta-readiness field pass on 0.10.16. Search: a results page is
   byte-identical for a real query and a nonsense one - ?q= is never read

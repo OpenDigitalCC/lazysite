@@ -120,40 +120,48 @@ subtest 'the technical file is checked the same way' => sub {
     like( $r->{out}, qr/FAIL.*technical file/, 'and names it' );
 };
 
-subtest 'the declaration is advisory on edge and blocking on stable' => sub {
-    # The distinction is deliberate: the Declaration of Conformity attaches to a
-    # STABLE release, so an edge cut must not be blocked by it - but three
-    # stable releases shipped against a stale declaration, which is the failure
-    # this asymmetry exists to stop.
+subtest 'the declaration is advisory below certified and blocking there (ADR 0010)' => sub {
+    # The distinction is deliberate, and it MOVED (ADR 0010, 2026-08-20): the
+    # Declaration of Conformity attaches to a CERTIFIED release. Stable means
+    # supported software; certification is the act of walking the records - so
+    # neither an edge nor a stable cut is blocked by the declaration, and a
+    # certified cut is. (Before the move it blocked stable, and three stable
+    # releases had shipped against a stale declaration anyway - a gate placed
+    # where nobody could honour it.)
     my $d = build_tree( version => '2.0.0', doc => '1.0.0' );
 
     my $edge = run_hook( $d, '--check', '--channel', 'edge' );
     is( $edge->{rc}, 0, 'edge: not blocked' );
     like( $edge->{out}, qr/WARN.*declaration of conformity/,
-        'edge: but warned, naming the next stable as where it bites' );
+        'edge: but warned, naming a certified cut as where it bites' );
 
     my $stable = run_hook( $d, '--check', '--channel', 'stable' );
-    is( $stable->{rc}, 1, 'stable: blocked' );
-    like( $stable->{out}, qr/FAIL.*declaration of conformity/, 'stable: named' );
+    is( $stable->{rc}, 0, 'stable: NOT blocked - the gate moved up (ADR 0010)' );
+
+    my $cert = run_hook( $d, '--check', '--channel', 'certified' );
+    is( $cert->{rc}, 1, 'certified: blocked' );
+    like( $cert->{out}, qr/FAIL.*declaration of conformity/, 'certified: named' );
 };
 
-subtest 'an unsigned declaration blocks a stable cut' => sub {
+subtest 'an unsigned declaration blocks a certified cut' => sub {
     my $d = build_tree( version => '2.0.0', doc => '2.0.0' );
-    my $r = run_hook( $d, '--check', '--channel', 'stable' );
+    my $r = run_hook( $d, '--check', '--channel', 'certified' );
     is( $r->{rc}, 1, 'a current-but-unsigned declaration still blocks' );
     like( $r->{out}, qr/FAIL.*unsigned/, 'and says so' );
 
     my $signed = build_tree( version => '2.0.0', doc => '2.0.0', doc_signed => 1 );
-    my $ok     = run_hook( $signed, '--check', '--channel', 'stable' );
+    my $ok     = run_hook( $signed, '--check', '--channel', 'certified' );
     like( $ok->{out}, qr/ok\s+declaration of conformity current and signed/,
         'the control: signed and current passes' );
 };
 
-subtest 'a lapsed rehearsal blocks a stable cut' => sub {
+subtest 'a lapsed rehearsal blocks a certified cut, and no longer a stable one' => sub {
     my $d = build_tree( version => '2.0.0', doc => '2.0.0', doc_signed => 1,
         rehearsal => '2020-01-01', stable_date => '2021-01-01' );
-    my $r = run_hook( $d, '--check', '--channel', 'stable' );
-    is( $r->{rc}, 1, 'blocked' );
+    my $st = run_hook( $d, '--check', '--channel', 'stable' );
+    is( $st->{rc}, 0, 'stable: not blocked (ADR 0010 moved this gate too)' );
+    my $r = run_hook( $d, '--check', '--channel', 'certified' );
+    is( $r->{rc}, 1, 'certified: blocked' );
     like( $r->{out}, qr/FAIL.*restore rehearsal/,
         'naming the rehearsal, because RELIABILITY.md commits to one per '
             . 'stable cycle and that commitment lapsed for four of them' );

@@ -78,10 +78,11 @@ works on staging and production.
 
 `update_channel`
 : The minimum release maturity the site accepts on upgrade, on the
-  `edge < beta < stable` ladder: `stable` installs only certified releases,
+  `edge < beta < stable < certified` ladder: `stable` installs supported
+  releases; `certified` only builds whose compliance records were walked,
   `beta` takes beta and stable builds, any other value (the default)
   accepts everything. Out-of-channel upgrades are skipped and audited. Set
-  with `install.pl --channel edge|beta|stable --docroot ...` or from
+  with `install.pl --channel edge|beta|stable|certified --docroot ...` or from
   Manager → Site settings. See
   [Update channel](/docs/features/configuration/update-channel).
 

@@ -43,7 +43,7 @@ files non-fatally.
 
 **Update channel.** Each site has an `update_channel`, and it names the
 **minimum maturity the site will accept**. The ladder is
-`edge` < `beta` < `stable`:
+`edge` < `beta` < `stable` < `certified`:
 
 ```datatable
 columns: Setting | Accepts
@@ -52,8 +52,9 @@ bold: 1
 tone: medium
 ---
 `edge` | every release, including pre-release builds
-`beta` | beta and stable builds; skips edge
-`stable` | stable builds only
+`beta` | beta and above; skips edge
+`stable` | stable and certified builds - supported software
+`certified` | certified builds only: stable-quality releases whose compliance records (signed declaration, restore rehearsal, registers) were walked before the cut (ADR 0010)
 ---
 ```
 

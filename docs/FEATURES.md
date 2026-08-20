@@ -1338,7 +1338,7 @@ the web-server group; it never re-owns CGI runtime files or operator content
 (0.6.5/0.6.6; `lazysite-check --fix` performs the same scoped repair on a live
 site).
 
-Further flags: `--channel edge|beta|stable` sets a site's `update_channel` (a standalone,
+Further flags: `--channel edge|beta|stable|certified` sets a site's `update_channel` (a standalone,
 audited maintenance op); `--force` upgrades a site past its channel policy
 for a specific out-of-channel build (audited as `upgrade-forced`); and
 `--restore-full <file> [--domain NAME]` restores a full-system backup, optionally
@@ -1386,7 +1386,7 @@ current user and serves it on the built-in dev server - no web server, no
 configuration, removable with one `rm -rf`.
 
 **Fleet channels and policy.** Each site carries `update_channel`
-(the `edge < beta < stable` ladder: the minimum release maturity it accepts)
+(the `edge < beta < stable < certified` ladder: the minimum release maturity it accepts)
 and `update_policy` (`auto`/`manual`, default `manual`) in
 `lazysite.conf`; `upgrade --all` skips `manual` sites and lets the installer's
 channel gate decide `auto` sites. `--force` overrides both gates;

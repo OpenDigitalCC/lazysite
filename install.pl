@@ -45,7 +45,12 @@ my $STAGE_DIR = abs_path( dirname($0) );
 # (the installer does not load the lib). Initialised here, ahead of the
 # top-level option blocks (--channel-check runs before the sub definitions'
 # region is reached at runtime).
-our %CHANNEL_RANK = ( edge => 0, beta => 1, stable => 2, all => 0 );
+# 'certified' (2026-08-20, ADR 0010): above stable - a stable build whose
+# compliance records have been WALKED (signed declaration, restore rehearsal,
+# pentest posture). The conformity gates that used to block a stable cut
+# attach there instead, so stable ships supported software and certification
+# is a deliberate act rather than a blocked cut.
+our %CHANNEL_RANK = ( edge => 0, beta => 1, stable => 2, certified => 3, all => 0 );
 
 # SM356: `all` is spelled out rather than reached through a `// 0` fallback. It
 # meant the same thing before - and it meant it by ACCIDENT, because an
@@ -89,7 +94,7 @@ Optional:
   --force             Upgrade even if the site's update channel would skip this
                       release (e.g. a 'stable' site taking an 'edge' build). The
                       override is recorded in the audit log.
-  --channel edge|beta|stable
+  --channel edge|beta|stable|certified
                       Set the site's update channel (update_channel in
                       lazysite.conf) and exit - no install. The ladder is
                       edge < beta < stable: a site accepts builds at its own
@@ -188,7 +193,7 @@ if ( $opt{channel_check} ) {
     exit 0;
 }
 
-# --channel edge|beta|stable: set the site's update_channel in lazysite.conf. A
+# --channel edge|beta|stable|certified: set the site's update_channel in lazysite.conf. A
 # standalone maintenance op (no install) - pins a deployment to a channel, or
 # moves it back, without hand-editing the conf. To set a whole fleet, loop it over
 # your docroots (lazysite has no central site registry - the host knows the sites):
@@ -406,7 +411,7 @@ sub cmd_set_channel {
     my ( $docroot, $value ) = @_;
     $value = lc $value;
     unless ( exists $CHANNEL_RANK{$value} ) {
-        warn "--channel must be 'edge', 'beta' or 'stable' (got '$value')\n";
+        warn "--channel must be 'edge', 'beta', 'stable' or 'certified' (got '$value')\n";
         return 2;
     }
     my $rc = set_conf_line( $docroot, 'update_channel', $value );
@@ -574,13 +579,13 @@ sub cmd_install {
         info("  to:      $manifest->{version}");
     }
 
-    # Upgrade channel policy: a site's update_channel is the minimum maturity it
-    # accepts on the edge < beta < stable ladder - a 'stable' site refuses beta
-    # and edge UPGRADES, a 'beta' site refuses edge ones. This is how a
-    # not-yet-bedded-in build is kept off customer sites. Fresh installs and
-    # reinstalls are the operator's explicit choice and are never gated. The
-    # skip is a clean no-op (exit 3, not an error) and is recorded in the
-    # site's audit log.
+   # Upgrade channel policy: a site's update_channel is the minimum maturity it
+   # accepts on the edge < beta < stable < certified ladder - a 'stable' site refuses beta
+   # and edge UPGRADES, a 'beta' site refuses edge ones. This is how a
+   # not-yet-bedded-in build is kept off customer sites. Fresh installs and
+   # reinstalls are the operator's explicit choice and are never gated. The
+   # skip is a clean no-op (exit 3, not an error) and is recorded in the
+   # site's audit log.
     if ( $mode eq 'upgrade' && !$o->{force} ) {
         my ( $site_channel, $problem ) = read_update_channel( $o->{docroot} );
         my $release_channel = $manifest->{channel} || 'edge';
