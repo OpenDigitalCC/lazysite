@@ -26,8 +26,16 @@ ok( !is_blocked_path('content/page.md'), 'ordinary content not blocked' );
 # path (layouts, themes, nav.conf) must NOT be caught by this path blocklist -
 # their own manage_layouts/manage_themes/manage_nav + dav_scope gates apply.
 ok( !is_blocked_path('lazysite/layouts/demo/theme.css'), 'layouts/ managed area allowed' );
-ok( !is_blocked_path('lazysite/themes/live/theme.css'), 'themes/ managed area allowed' );
-ok( !is_blocked_path('lazysite/nav.conf'),              'nav.conf (nav editor) allowed' );
+# SM421/F2: a TOP-LEVEL lazysite/themes/ is now BLOCKED, and this assertion is
+# inverted deliberately. It was written in 88f16b4 alongside the layouts/ and
+# nav.conf exemptions, which are real managed areas - this one exempted a store
+# no engine code has ever resolved. Real themes live under
+# lazysite/layouts/<layout>/themes/<theme>/ and are covered by the assertion
+# above, which is what makes removing this one safe.
+ok( is_blocked_path('lazysite/themes/live/theme.css'),
+    'a TOP-LEVEL themes/ path is blocked - no store resolves there, so the '
+        . 'carve-out was an under-gated write path waiting for a feature' );
+ok( !is_blocked_path('lazysite/nav.conf'), 'nav.conf (nav editor) allowed' );
 # ...but the sensitive form CONFIGS next to submissions stay blocked.
 ok( is_blocked_path('lazysite/forms/smtp.conf'), 'form configs (secrets) still blocked' );
 ok( is_blocked_path('lazysite/manager/layout.tt'), 'manager UI chrome still blocked' );

@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM423, SM424, SM425 (PENDING, filings only) **three inbox briefs assigned
+  refs.** SM423: the certified channel is HALF-WIRED - ADR 0010 wired every
+  place that consumes a channel and missed the two that produce an artefact
+  carrying one, so `build-manifest.pl` and `build-apt-repo.sh` both still
+  reject the fourth rung and the first `--certified` cut would die at manifest
+  build, AFTER the compliance gate it exists to run has passed. Found by a
+  method-corpus review hours after that work landed. It also caught a gap in
+  t/lint/65, written in this same session for this same class: it pins entries
+  carrying a SHA and says nothing about `(PENDING)` ones, so a misfiled PENDING
+  entry is invisible to it and to t/lint/53 alike. SM424: the visitor stats
+  page renders every block at once, and the auto-blocker belongs in Plugin
+  Config rather than on the stats page where its evidence happens to appear.
+  SM425: exempt signed-in users from the anonymous submission rate limit
+  (unblocked by SM411, since the handler can now obtain a verified identity)
+  and extend the `:::form` field rules SM401 started.
+
 - SM413 located (PENDING, filing update only) **the homepage was a durable
   render-cache entry, four releases stale.** Field-diagnosed on edge: / served
   a 0.10.13 render through the 0.10.14, .15, .16 AND .17 deployments, with
@@ -161,10 +177,13 @@ Naming the commit: AFTER it lands, never before
   manage_content while WebDAV, the API and MCP's own set_nav all require
   manage_nav - the tool was declared path_aware but passes no path, so the
   carve-out gate never reached the capability that owns nav.conf; and the
-  vestigial `lazysite/themes/` carve-out is documented rather than dropped: it
-  exempts a store no engine code has ever resolved, but removing it could
-  strand files an agent could only have created THROUGH it, so the decision
-  waits on a fleet survey. **SM421 is the one that was
+  vestigial `lazysite/themes/` carve-out is REMOVED: it exempted a store no
+  engine code has ever resolved (88f16b4 added it in one batch with layouts/
+  and nav.conf on the assumption it was a third real area), so it was an
+  under-gated write path waiting for the first feature to use the name. The
+  existing test asserting the carve-out is inverted - it was written in that
+  same commit and encoded the same assumption - and the code names the check
+  an operator can run: `ls -la <docroot>/lazysite/themes/`. **SM421 is the one that was
   more than cosmetic**: WebDAV accepts a raw write of a form config on the
   stated grounds that it "only names which operator-defined handlers a form
   dispatches to" - but the parser still accepts a legacy inline format
