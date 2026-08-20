@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM429 (PENDING, filing only) **cross-origin-opener-policy has never been
+  emitted.** The one line that survived the field's 0.10.18 header pass - its
+  CSP half was retracted after re-measurement, the policy being served
+  correctly under the report-only name on HTML pages and correctly absent on
+  non-HTML paths. COOP is a gap rather than a regression: the string appears
+  nowhere in the tree, on any path or version. Filed with the two interactions
+  that make it a decision rather than a default - the manager opens the site
+  in a new tab in two places, and the instance is an OAuth authorisation
+  server whose connector flows are popup-shaped and depend on the opener
+  relationship. Recommendation if wanted: `same-origin-allow-popups` on HTML
+  responses, which isolates the document from whatever opened it while leaving
+  windows it opens able to reply - paired with a test that opens the real
+  authorize page, since the failure mode is a partner's browser flow breaking
+  and no processor-level test can see that.
+
 - SM428 (PENDING) **the ACL store locked the manager out, once per deploy.**
   `save_acls` wrote 0640 while `lazysite-check` requires the file to be
   group-writable - the store is written by two identities on a group-shared
