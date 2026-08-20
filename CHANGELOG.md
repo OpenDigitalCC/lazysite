@@ -67,6 +67,27 @@ Naming the commit: AFTER it lands, never before
   correspondence and was wrong; the filing and commit message never carried
   the claim, and the status-note now records "unattributed" explicitly rather
   than leaving a gap that would default to the nearest known author.
+- SM432 (PENDING, filing only) **/docs/features is published in the sitemap
+  and 404s.** A page and a directory share a name: `features.md` serves, the
+  leaf pages under `features/` serve, and the canonical extensionless URL -
+  the only one sitemap.xml advertises - is shadowed by the directory and lands
+  on a 404. **It ships**: both sides exist in the tracked starter payload, so
+  every site installing the docs inherits it. The 301 carries
+  `charset=iso-8859-1`, so the front end is answering and no engine-level test
+  can see it - the same blind spot the outside-in probe exists for. Found when
+  the reporter wrote a sweep tool, ran it against their own earlier filing and
+  was contradicted by it: they had measured the redirect and assumed its
+  target, taking the version from the rendered error page. They corrected the
+  promotion record before it was quoted, which is why SM413's wording now
+  says 33 of 34 without a gloss. Nothing changed: renaming either side moves a
+  published documentation URL and needs an alias on whichever name loses,
+  which is a release decision rather than a drive-by fix. A sweep of the whole
+  shipped payload found this is the ONLY such collision, so it is one decision
+  rather than a class - and t/lint/67 now fails on a second one, listing this
+  one by name with its reason so the exclusion is a deliberate act rather than
+  a silence. The lint also fails if the known collision is resolved and left
+  in the list, because an exclusion for something that no longer exists is how
+  a list stops describing the tree.
 
 - SM430 (PENDING, filing only) **common functions across the four surfaces.**
   A four-track code survey, filed as fourteen independent packages (CF-1 to
@@ -90,8 +111,11 @@ Naming the commit: AFTER it lands, never before
 
 - SM413 (PENDING, filing closure) **confirmed from outside, and closed.** The field
   verified the render fix across the whole public sitemap on the deployed
-  0.10.18: 34 pages fetched cold, 33 reporting the current build and the 34th
-  a redirect to one that does, with no hand invalidation. The homepage that
+  0.10.18: 34 pages fetched cold, 33 reporting the current build, with no hand
+  invalidation. (The 34th was CORRECTED by the reporter before it reached a
+  promotion record - it redirects to a page that 404s, not to one reporting
+  the version; see SM432. The substance is unaffected, and the 404 page
+  itself rendering as 0.10.18 arguably strengthens it.) The homepage that
   survived four deployments on a 0.10.13 render now reports the current build
   on its own, and the asset busting tokens moved with it.
 - CF-2 / SM430 (PENDING) **the rule goes with the content, on every surface.**
