@@ -612,10 +612,10 @@ sub invalidate_registries { return _invalidate_registries() }
 # Clears every content root, not just the docroot's (SM251), so a multi-domain
 # instance is handled in one call.
 sub action_regenerate_registries {
-    my $docroot = $DOCROOT;
-    my @roots   = _registry_roots();
-    _invalidate_registries();
-    my @rel = map {
+    my $docroot  = $DOCROOT;
+    my @roots    = _registry_roots();
+    my @shadowed = _invalidate_registries();
+    my @rel      = map {
         my $r = $_;
         $r =~ s{^\Q$docroot\E/*}{};
         length $r ? "/$r" : '/';
@@ -623,26 +623,73 @@ sub action_regenerate_registries {
     return {
         ok            => 1,
         cleared_roots => \@rel,
-        note          => 'The registries are cleared and rebuild on the next '
-            . 'request for one. Fetch /sitemap.xml (or the registry you care '
-            . 'about) to force it, then verify.',
+        # SM433: a file sitting at the old in-docroot location WINS over the
+        # generated one, so clearing the cache changes nothing a visitor sees.
+        # Say which files, because "I regenerated and nothing changed" is
+        # exactly the report this used to produce and could not explain.
+        ( @shadowed ? ( shadowed_by_files => \@shadowed ) : () ),
+        note => (
+            @shadowed
+            ? 'The registries are cleared, BUT the file(s) in shadowed_by_files '
+                . 'sit in the document root and are served in preference to the '
+                . 'generated ones - so regenerating will not change what a '
+                . 'visitor sees until they are removed or renamed. They are not '
+                . 'deleted here: an operator may have written them deliberately.'
+            : 'The registries are cleared and rebuild on the next '
+                . 'request for one. Fetch /sitemap.xml (or the registry you care '
+                . 'about) to force it, then verify.'
+        ),
     };
 }
 sub registry_roots { return _registry_roots() }
 
+# SM433: CLEAR WHAT THE SERVER ACTUALLY READS.
+#
+# SM293 step 3 moved the generated registries OUT of the document root and into
+# lazysite/cache/registries/<root-key>/<name>, served on request. This
+# invalidator was not moved with them: it went on deleting $root/<name>, the
+# pre-SM293 location, so `regenerate-registries` reported cleared_roots and
+# cleared nothing the server reads. The artefact then stayed stale for the full
+# four-hour TTL while the control said it had done its job - the
+# reports-success-does-nothing shape, in the one control an operator reaches
+# for when a registry looks wrong. Measured in the field: two regenerate calls,
+# both reporting success, the served sitemap unchanged.
+#
+# AND THE OLD BEHAVIOUR WAS DESTRUCTIVE. Since SM293, _serve_registry returns
+# early when $root/<name> exists, because "an operator who wrote their OWN
+# sitemap.xml as content keeps it". So the path this used to delete is now a
+# supported place for OPERATOR CONTENT - and a regenerate call would have
+# deleted a hand-written sitemap without saying so. It no longer touches it.
+#
+# A leftover engine-written copy from before SM293 still shadows the generated
+# registry, and that is now REPORTED rather than silently removed: telling an
+# operator which file is winning is better than deleting a file we cannot prove
+# we wrote.
 sub _invalidate_registries {
     my $rdir = _lz() . "/templates/registries";
-    return unless -d $rdir;
-    opendir my $dh, $rdir or return;
+    return () unless -d $rdir;
+    opendir my $dh, $rdir or return ();
     my @tt = grep { /\.tt$/ } readdir $dh;
     closedir $dh;
+
+    my $cache = _lz() . "/cache/registries";
+    my @shadowed;
     for my $root ( _registry_roots() ) {
+        my $key = $root;
+        $key =~ s{\A\Q$DOCROOT\E/?}{};
+        $key =~ s{[^A-Za-z0-9._-]+}{_}g;
+        $key = '_root' unless length $key;
+
         for my $t (@tt) {
             ( my $out = $t ) =~ s/\.tt$//;
-            unlink "$root/$out" if -f "$root/$out";
+            unlink "$cache/$key/$out" if -f "$cache/$key/$out";
+
+            # Not deleted - reported. See above.
+            push @shadowed, ( $root eq $DOCROOT ? "/$out" : "$root/$out" )
+                if -f "$root/$out";
         }
     }
-    return;
+    return @shadowed;
 }
 
 # SM087: a site-wide config change (nav.conf) appears on every rendered page, so

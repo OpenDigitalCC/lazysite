@@ -71,8 +71,19 @@ sub call {
 
 # Stale registries in BOTH roots - the multi-domain case SM251 fixed, which a
 # docroot-only clear would leave behind.
+#
+# SM433: SEEDED WHERE THE SERVER READS. SM293 step 3 moved the generated
+# registries to lazysite/cache/registries/<key>/<name>; this seeded
+# $root/sitemap.xml, the pre-SM293 location, so it asserted the clear removed a
+# file nobody serves. The SM251 property under test - both roots cleared, not
+# just the docroot - is unchanged; only the location is corrected.
 for my $r ( $d, "$d/sites/clienta" ) {
-    open my $fh, '>', "$r/sitemap.xml" or die $!;
+    my $key = $r;
+    $key =~ s{\A\Q$d\E/?}{};
+    $key =~ s{[^A-Za-z0-9._-]+}{_}g;
+    $key = '_root' unless length $key;
+    File::Path::make_path("$d/lazysite/cache/registries/$key");
+    open my $fh, '>', "$d/lazysite/cache/registries/$key/sitemap.xml" or die $!;
     print {$fh} "stale, still lists /gone\n";
     close $fh;
 }
@@ -81,12 +92,13 @@ for my $r ( $d, "$d/sites/clienta" ) {
     my $r = call('regenerate_registries');
     ok( $r && $r->{ok}, 'regenerate_registries answers' ) or diag encode_json( $r // {} );
 
-    ok( !-f "$d/sitemap.xml", "the docroot's stale registry is cleared" );
-    ok( !-f "$d/sites/clienta/sitemap.xml",
+    ok( !-f "$d/lazysite/cache/registries/_root/sitemap.xml",
+        "the docroot's stale registry is cleared" );
+    ok( !-f "$d/lazysite/cache/registries/sites_clienta/sitemap.xml",
         "and the DOMAIN's - a docroot-only clear is the SM251 defect" );
 
     my @roots = @{ $r->{cleared_roots} || [] };
-    ok( ( grep {m{clienta}} @roots ), 'the domain root is reported as cleared' )
+    ok( ( grep { m{clienta} } @roots ), 'the domain root is reported as cleared' )
         or diag encode_json( \@roots );
 
     # The caller must be told the rebuild is not instantaneous, or this replaces
@@ -95,7 +107,7 @@ for my $r ( $d, "$d/sites/clienta" ) {
         'the result says the rebuild happens on the next request' );
 
     # No filesystem paths leak (SM260): the roots are site-relative.
-    is( scalar( grep {m{^/(?:home|srv|var|tmp)/}} @roots ), 0,
+    is( scalar( grep { m{^/(?:home|srv|var|tmp)/} } @roots ), 0,
         'cleared_roots are site-relative, not filesystem paths' );
 }
 

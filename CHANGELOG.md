@@ -88,6 +88,49 @@ Naming the commit: AFTER it lands, never before
   a silence. The lint also fails if the known collision is resolved and left
   in the list, because an exclusion for something that no longer exists is how
   a list stops describing the tree.
+- SM434 (PENDING, filing only) **nothing reports the running engine version -
+  and SM413's premise was wrong.** The `<meta name="generator">` version is
+  read from the install state and baked into the HTML AT RENDER TIME, so a
+  cached page reports the version that produced it. That is correct: honest
+  metadata about the artefact, not a symptom. A homepage rendered under
+  0.10.18 and still cached on a 0.10.19 host is accurately describing itself.
+  The durable part of the misreading: a render is served while its html mtime
+  exceeds its source's, an upgrade OVERWRITES every shipped page so those
+  re-render by themselves, and the operator's own index.md is PRESERVED
+  precisely because it is operator-edited - so the one page that keeps an old
+  render is the homepage, which is also the first page anyone checks after an
+  upgrade. **The real gap**: `/.well-known/lazysite-instance.json` returns
+  instance and host and no version, and nothing else served reports one - so
+  "did the upgrade take" has no honest answer, and two agents independently
+  reached for a number that answers a different question correctly. Suggested
+  fix is one field on that endpoint. A second, larger render-invalidation
+  change built on the wrong premise was stopped before it landed; the 0.10.18
+  one stands on its own merits and its filing now says which.
+
+- SM433 (PENDING) **regenerate-registries cleared a path the server stopped
+  reading.** SM293 step 3 moved the generated registries out of the document
+  root into `lazysite/cache/registries/`; the invalidator was not moved with
+  them and went on deleting `<root>/<name>`. So the control reported
+  `cleared_roots`, cleared nothing a visitor sees, and the artefact stayed
+  stale for its full four-hour TTL - measured in the field as two regenerate
+  calls with no change to the served sitemap, which they could not diagnose
+  from outside and which turned out to be neither of their two hypotheses.
+  **The second defect is worse and nobody had filed it**: since SM293 the
+  server returns early when `<root>/<name>` exists, because an operator may
+  write their own sitemap as content - so the path being deleted had become a
+  supported home for operator content, and a routine regenerate would have
+  destroyed a hand-written registry with no warning. Fixing the first without
+  noticing the second would have left data loss behind a newly-working
+  control. Now: cache artefacts cleared, the in-docroot file never touched,
+  and any shadowing file reported by name with a note explaining why
+  regenerating cannot change what is served while it wins. **Three tests had
+  agreed with the code about the wrong place** - t/unit/manager/21,
+  t/unit/manager/55 and t/unit/mcp/18 each seeded a registry at the docroot
+  path and asserted its removal - which is why this survived from SM293 to a
+  field report: each was written beside the code it tested and inherited its
+  assumption, so the suite confirmed the invalidator did exactly what it did,
+  to a file nobody serves. All three now seed and assert the served location,
+  with every property they existed to prove left intact.
 
 - SM430 (PENDING, filing only) **common functions across the four surfaces.**
   A four-track code survey, filed as fourteen independent packages (CF-1 to

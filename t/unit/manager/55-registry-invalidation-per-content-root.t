@@ -16,7 +16,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use Cwd ();
+use Cwd        ();
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
@@ -54,10 +54,29 @@ $Lazysite::Manager::Files::LOCK_DIR = "$d/lazysite/manager/locks";
 # fails as "Invalid path" against an empty docroot.
 $Lazysite::Manager::Common::DOCROOT = $d;
 
+# SM433: SEED WHERE THE SERVER READS. SM293 step 3 moved the generated
+# registries to lazysite/cache/registries/<key>/<name>; this fixture seeded
+# $root/<name>, the pre-SM293 location, so it asserted the invalidator cleared
+# a file nobody serves. It passed for the same reason the defect survived - the
+# test and the code agreed with each other about the wrong place.
+#
+# The per-content-root property this file exists to prove is UNCHANGED: each
+# domain's own registries are cleared, not just the primary's. Only the
+# location is corrected.
+sub _cache_key {
+    my ($root) = @_;
+    my $key = $root;
+    $key =~ s{\A\Q$d\E/?}{};
+    $key =~ s{[^A-Za-z0-9._-]+}{_}g;
+    return length $key ? $key : '_root';
+}
+
 sub seed_registries {
     for my $root ( $d, "$d/sites/clienta", "$d/sites/clientb" ) {
+        my $dir = "$d/lazysite/cache/registries/" . _cache_key($root);
+        File::Path::make_path($dir);
         for my $out (qw(sitemap.xml llms.txt)) {
-            open my $fh, '>', "$root/$out" or die $!;
+            open my $fh, '>', "$dir/$out" or die $!;
             print {$fh} "stale listing including /gone\n";
             close $fh;
         }
@@ -66,7 +85,8 @@ sub seed_registries {
 
 sub present {
     my ($root) = @_;
-    return join ',', grep { -f "$root/$_" } qw(sitemap.xml llms.txt);
+    my $dir = "$d/lazysite/cache/registries/" . _cache_key($root);
+    return join ',', grep { -f "$dir/$_" } qw(sitemap.xml llms.txt);
 }
 
 # --- the roots are discovered from the domain config ------------------------
@@ -80,14 +100,14 @@ sub present {
 
     # A chrome-only alias has no content root of its own and shares the
     # docroot's registries (SM110), so it must NOT add a root.
-    is( scalar( grep {m{chrome}} @roots ), 0,
+    is( scalar( grep { m{chrome} } @roots ), 0,
         'a chrome-only alias adds no root - it shares the docroot' );
 }
 
 # --- invalidation clears every root -----------------------------------------
 {
     seed_registries();
-    is( present($d), 'sitemap.xml,llms.txt', 'seeded: docroot' );
+    is( present($d),                 'sitemap.xml,llms.txt', 'seeded: docroot' );
     is( present("$d/sites/clienta"), 'sitemap.xml,llms.txt', 'seeded: clienta' );
 
     Lazysite::Manager::Files::_invalidate_registries();
@@ -124,7 +144,8 @@ sub present {
     open my $c, '>', "$s/lazysite/lazysite.conf" or die $!;
     print {$c} "site_name: Solo\n";
     close $c;
-    open my $o, '>', "$s/sitemap.xml" or die $!;
+    File::Path::make_path("$s/lazysite/cache/registries/_root");
+    open my $o, '>', "$s/lazysite/cache/registries/_root/sitemap.xml" or die $!;
     print {$o} "stale\n";
     close $o;
 
@@ -132,7 +153,8 @@ sub present {
     my @roots = Lazysite::Manager::Files::_registry_roots();
     is( scalar @roots, 1, 'a single-site instance has exactly one root' );
     Lazysite::Manager::Files::_invalidate_registries();
-    ok( !-f "$s/sitemap.xml", 'and its registry is still cleared' );
+    ok( !-f "$s/lazysite/cache/registries/_root/sitemap.xml",
+        'and its registry is still cleared' );
 }
 
 done_testing();
