@@ -627,26 +627,74 @@ sub do_delete {
     #
     # A directory takes its descendants' entries with it, for the same reason:
     # the paths they name no longer exist.
-    if ( length $key ) {
-        my $acls    = Lazysite::Auth::Acl::load_acls();
-        my $removed = 0;
-        for my $k ( keys %$acls ) {
-            next unless $k eq $key || index( $k, "$key/" ) == 0;
-            delete $acls->{$k};
-            $removed++;
-        }
-        if ($removed) {
-            Lazysite::Auth::Acl::save_acls($acls)
-                or log_event( 'ERROR', $a{user},
-                'dav delete could not update the ACL store',
-                path => $a{rel} );
-        }
-    }
+    # CF-2: through the shared helper, so this surface and the manager give the
+    # same answer. The inline copy that used to live here is what let the two
+    # drift - and the comment above, claiming the manager already did this, was
+    # wrong for four surfaces until CF-2.
+    Lazysite::Auth::Acl::forget_path($key) if length $key;
     # SM085: a deletion (file or whole collection) is one history commit.
     require Lazysite::Git;
     Lazysite::Git::commit_paths( $DOCROOT, $a{user}, "delete $a{rel}", $a{rel} );
     log_event( 'INFO', $a{user}, 'dav delete', path => $a{rel}, status => 204 );
     send_status(204);
+}
+
+# CF-2: the ACL key, spelled the same way DELETE already spells it.
+sub _dav_acl_key { my ($r) = @_; $r =~ s{\A/+}{}; return $r }
+
+# CF-2: put the bytes where the rule now says they belong.
+#
+# The manager has done this since SM286 (Files.pm's _sync_private_store) and
+# this surface never did, because it had no ACL code in its move at all. The
+# decision is identical - a rule that gates the public read means the content
+# lives in the private store - so the SHAPE is shared even though the mover is
+# called from two places: gates ? move_in : move_out, then the .brief sidecar
+# with it, and the stale public render deleted rather than moved because it is
+# derived and a regenerable file cannot be lost.
+#
+# Returns warnings rather than dying: a move whose bytes could not be
+# re-homed must still report, or the caller learns nothing.
+sub _sync_acl_store {
+    my ( $rel, $rec ) = @_;
+    my @warnings;
+    ( my $path = $rel ) =~ s{\A/+}{};
+    $path =~ s{/+\z}{};
+    return @warnings unless length $path;
+
+    # A site-wide rule cannot be expressed as a move - the docroot cannot
+    # become its own sibling - so it stays enforced by the engine (SM287).
+    return @warnings if $path eq '';
+
+    my $gates = 0;
+    if ( ref $rec eq 'HASH' ) {
+        $gates = 1 if $rec->{draft};
+        $gates = 1 if ref $rec->{read} eq 'ARRAY' && @{ $rec->{read} };
+    }
+
+    my ( $ok, $err )
+        = $gates
+        ? Lazysite::Private::move_in( $DOCROOT, $path )
+        : Lazysite::Private::move_out( $DOCROOT, $path );
+    push @warnings, "content could not be re-homed: $err" if !$ok && $err;
+
+    if ($ok) {
+        my ( $bok, $berr )
+            = $gates
+            ? Lazysite::Private::move_in( $DOCROOT, "$path.brief" )
+            : Lazysite::Private::move_out( $DOCROOT, "$path.brief" );
+        push @warnings, "the notes beside this page could not be moved with it"
+            if !$bok && $berr && $berr !~ /No such file/i;
+
+        # The pre-gate render is a complete public copy sitting in the docroot -
+        # SM283 exactly. Deleted rather than moved: it is derived, the next
+        # render writes it where it belongs, and deleting a regenerable file
+        # cannot lose anything.
+        if ( $gates && $path =~ /\.md\z/ ) {
+            ( my $cache = $path ) =~ s/\.md\z/.html/;
+            unlink "$DOCROOT/$cache" if -f "$DOCROOT/$cache";
+        }
+    }
+    return @warnings;
 }
 
 sub do_copy_move {
@@ -751,6 +799,39 @@ sub do_copy_move {
     # SM085: a batched MOVE/COPY (a whole collection included) is ONE commit.
     # SM175: a MOVE records the rename (Lazysite-Renamed-From) so content history
     # follows it; a COPY is a fresh file and starts its own thread (no trailer).
+    # CF-2: THE RULE FOLLOWS THE CONTENT, on this surface too.
+    #
+    # This handler had no ACL code at all. resolve_under_docroot resolves a
+    # GATED path into the private store, so a MOVE to an ungated destination
+    # physically relocated the bytes out of the private tree and into the
+    # public docroot - and with no re-key, no rule followed them. Protected
+    # content became public through an ordinary operation, with no error and
+    # nothing for anyone to notice. That is the exact inverse of SM286, whose
+    # rule is that protecting content MOVES it: moving content has to carry
+    # its protection.
+    #
+    # The re-key runs FIRST and the store sync SECOND, in that order, because
+    # the destination's tree was chosen before the rule moved - so the bytes
+    # are wherever the OLD rule said, and syncing against the NEW key is what
+    # puts them right. That settles both directions: into a gated folder and
+    # back out of one.
+    #
+    # A COPY makes a fresh file, which gets a fresh owner entry and inherits no
+    # read/write lists - the same rule action_copy applies, for the same reason.
+    if ($move) {
+        if ( Lazysite::Auth::Acl::rekey_path( $a{rel}, $drel ) ) {
+            my $acls = Lazysite::Auth::Acl::load_acls();
+            my @w    = _sync_acl_store( $drel, $acls->{ _dav_acl_key($drel) } );
+            log_event( 'WARN', $a{user}, 'dav move: private store', detail => $_ )
+                for @w;
+        }
+    }
+    elsif ( defined $a{user} && length $a{user} ) {
+        my $acls = Lazysite::Auth::Acl::load_acls();
+        $acls->{ _dav_acl_key($drel) } = { owner => $a{user} };
+        Lazysite::Auth::Acl::save_acls($acls);
+    }
+
     {
         require Lazysite::Git;
         if ($move) {

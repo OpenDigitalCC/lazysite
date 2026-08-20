@@ -695,6 +695,9 @@ sub action_delete {
         }
         rmdir $full
             or return { ok => 0, error => "Cannot remove directory: $!" };
+        # CF-2: a directory takes its descendants' entries with it - the paths
+        # they name no longer exist.
+        Lazysite::Auth::Acl::forget_path( $result->{rel} );
         log_event( 'INFO', $action, 'directory deleted',
             path => $rel_path, user => $auth_user );
         return { ok => 1, path => $rel_path };
@@ -715,6 +718,14 @@ sub action_delete {
         ( my $arel = $full ) =~ s{^\Q$DOCROOT\E/?}{};
         Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
     }
+
+    # CF-2: the rule goes with the content. An entry outlives the file it
+    # governs, so a file created later at the same path - by ANY surface - is
+    # born governed by a rule nobody set, owned by whoever owned the file that
+    # used to be there. DAV's DELETE has dropped entries since SM212 under a
+    # comment saying "the manager's delete has always done this"; it never did,
+    # so the fix reached one surface out of four.
+    Lazysite::Auth::Acl::forget_path( $result->{rel} );
 
     log_event( 'INFO', $action, 'file deleted', path => $rel_path, user => $auth_user );
     # SM085: record the deletion in the content history.

@@ -70,6 +70,24 @@ Naming the commit: AFTER it lands, never before
   a redirect to one that does, with no hand invalidation. The homepage that
   survived four deployments on a 0.10.13 render now reports the current build
   on its own, and the asset busting tokens moved with it.
+- CF-2 / SM430 (PENDING) **the rule goes with the content, on every surface.**
+  Deleting content must drop its rules and moving it must carry them; both
+  were true on ONE surface each, in opposite directions. DAV's DELETE dropped
+  ACL entries under a comment saying "the manager's delete has always done
+  this" - it never did, so SM212's fix reached one surface out of four and an
+  entry outlived the file it governed, meaning a file created later at the
+  same path was born governed by a rule nobody set. **The move half carried a
+  confidentiality consequence**: WebDAV resolves a gated path into the private
+  store, so a MOVE to an ungated destination physically relocated the bytes
+  into the public docroot - and with no re-key, no rule followed them.
+  Protected content became public through an ordinary operation, silently, and
+  that is the exact inverse of SM286's rule that protecting content moves it.
+  One definition now (`forget_path`, `rekey_path`), with the store sync left
+  to the caller because where the bytes go is a store decision with its own
+  companions; DAV re-keys THEN syncs, in that order, because the destination
+  tree was chosen before the rule moved. Four sabotages bite - including one
+  that only failed once the fixture grew a sibling key whose name merely
+  STARTS with the deleted one, the same boundary trap validate_path documents.
 
 - SM429 (PENDING, filing only) **cross-origin-opener-policy has never been
   emitted.** The one line that survived the field's 0.10.18 header pass - its

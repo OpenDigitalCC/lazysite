@@ -133,6 +133,75 @@ sub save_acls {
     return rename $tmp, $path;
 }
 
+# --- CF-2: the ACL lifecycle, in one place -----------------------------------
+#
+# Deleting content must drop its rules; moving content must carry them. Both
+# were true on ONE surface each and false on the other, in opposite directions:
+# DAV's DELETE dropped entries and the manager's did not; the manager's move
+# re-keyed and DAV's did not. The comment at lazysite-dav.pl claiming "the
+# manager's delete has always done this" was simply wrong, so SM212's fix never
+# reached the manager, MCP or the control API.
+#
+# The move half is the one with a confidentiality consequence. WebDAV resolves
+# a gated path into the PRIVATE store, so a MOVE to an ungated destination
+# physically relocates the bytes into the public docroot - and with no re-key,
+# no rule follows them. Protected content becomes public through an ordinary
+# operation, with no error and nothing to notice. That is the exact inverse of
+# SM286: protecting content moves it, so moving content has to carry its
+# protection.
+#
+# One definition here rather than four copies, because four copies is how the
+# two surfaces came to disagree in the first place.
+
+# Drop the entry for $key and every entry beneath it. Returns the number
+# removed; saves only if something changed.
+sub forget_path {
+    my ($key) = @_;
+    $key = _acl_norm($key);
+    return 0 unless defined $key && length $key;
+    my $acls    = load_acls();
+    my $removed = 0;
+    for my $k ( keys %$acls ) {
+        next unless $k eq $key || index( $k, "$key/" ) == 0;
+        delete $acls->{$k};
+        $removed++;
+    }
+    return 0 unless $removed;
+    save_acls($acls) or return 0;
+    return $removed;
+}
+
+# Move the entry for $from to $to, with its descendants. Returns the number
+# re-keyed.
+#
+# The STORE SYNC is deliberately the caller's, immediately after: the rule and
+# the bytes must both move, but where the bytes go is a private-store decision
+# with its own companions (the .brief sidecar, the stale render cache) that
+# belongs with the mover rather than with the key. Every caller of this
+# function must follow it with a sync against the NEW key - which settles both
+# directions at once, into a gated folder and back out of one.
+sub rekey_path {
+    my ( $from, $to ) = @_;
+    $from = _acl_norm($from);
+    $to   = _acl_norm($to);
+    return 0 unless defined $from && length $from && defined $to && length $to;
+    return 0 if $from eq $to;
+
+    my $acls  = load_acls();
+    my $moved = 0;
+    for my $k ( sort keys %$acls ) {
+        my $nk;
+        if    ( $k eq $from )                { $nk = $to }
+        elsif ( index( $k, "$from/" ) == 0 ) { $nk = $to . substr( $k, length $from ) }
+        else                                 { next }
+        $acls->{$nk} = delete $acls->{$k};
+        $moved++;
+    }
+    return 0 unless $moved;
+    save_acls($acls) or return 0;
+    return $moved;
+}
+
 # Strip leading slashes so an ACL key matches the manager's relative paths.
 sub _acl_norm { my $r = shift; $r =~ s{^/+}{} if defined $r; return $r }
 
