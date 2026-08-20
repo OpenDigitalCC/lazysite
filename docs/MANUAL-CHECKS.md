@@ -96,6 +96,14 @@ the count above it was not, so the section understated its own scope - and a
 reader counting checks would have stopped one short of the one with access-control
 consequence.)
 
+**A tester-facing version of these four checks exists as
+`docs/MANUAL-CHECKS-WALKTHROUGH.md`** - same actions, same pass/fail
+conditions, with the release machinery and rationale stripped so a
+non-technical tester can walk it from a sign-in. When the walkthrough is used,
+its four results are recorded in the register like any other tier-A round,
+attributed to the tester. Keep the two documents in step: a check that changes
+here changes there in the same commit.
+
 **Run these against a deployed EDGE build, not against a released site.** The
 first version of this document said tier A blocked the cut, which is circular: the
 panels only exist after a cut and a deploy, so nobody can verify them on the

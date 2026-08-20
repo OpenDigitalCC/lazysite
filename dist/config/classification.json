@@ -185,6 +185,7 @@
     "^docs/feature-requests/",
     "^docs/manager-ui-guide/",
     "^docs/manual-check-register\\.md$",
+    "^docs/MANUAL-CHECKS-WALKTHROUGH\\.md$",
     "^docs/gate-register\\.md$",
     "^docs/releases/",
     "^docs/reference/",
