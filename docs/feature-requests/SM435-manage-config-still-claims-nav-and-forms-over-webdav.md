@@ -107,3 +107,42 @@ it: it must fail while line 130 stands, and pass once it is removed.
 The class is wider than WebDAV - the API and MCP planes make the same
 per-capability promises - but the deny reasons make WebDAV the plane where the
 check is nearly free, and it is where the defect is.
+
+# The evidence a partner can and cannot supply
+
+From the field, and it sharpens what to expect from that direction:
+
+```datatable
+columns: Observation | What it settles
+widths: 8cm | X
+bold: 1
+tone: medium
+---
+SUCCESS while holding several capabilities | **nothing** - the grant is a union, any member may be the cause
+REFUSAL while holding the capability the descriptor names | **the descriptor's promise is false for that grant**
+```
+
+So the field can CONTRADICT an over-claim and can never CONFIRM one. Anything
+arriving from a partner on this will be a denial, and that is the useful
+direction: this filing is an over-claim.
+
+::: widebox
+**With one qualification, because the refusal is decisive about the PROMISE
+and not automatically about the CAUSE.** `authorise()` refuses on four other
+grounds that have nothing to do with capabilities - outside the assigned
+WebDAV scope, the server blocklist, a per-file ACL, and the active
+theme/layout read-only rules. A 403 falsifies "holding this capability lets
+you write this path" however it arose, but it does not by itself say the
+capability mapping is what went wrong.
+
+What closes that gap is already shipped: RI-002 makes every denial name its
+own ground. So a field refusal becomes decisive about the mechanism as soon as
+the report carries the deny reason verbatim - which is worth asking for, and
+is a use for those strings beyond ending an agent's trial and error.
+:::
+
+For `nav.conf` specifically the qualification does not bite: the capability
+branch is reached before scope, blocklist and ACL, and returns allowed
+outright when `manage_nav` holds. A refusal there can only be the capability.
+That is a property of this path's position in `authorise()` rather than a
+general rule, and it is worth knowing it is not general.
