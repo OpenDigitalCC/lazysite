@@ -31,14 +31,14 @@ sub deny_set {
     my ( $file, $marker ) = @_;
     my $text = slurp($file);
     $text =~ /$marker\s*\[(.*?)\]/s or die "no deny array in $file";
-    my $body = $1;
+    my $body  = $1;
     my @items = ( $body =~ /"([^"]+)"/g, $body =~ /'([^']+)'/g );
     return [ sort @items ];
 }
 
 # SM190: the .well-known/ai-partner deny list is now CODE-SERVED from
 # lazysite-processor.pl (_ai_partner_doc), not the static page - read it there.
-my $wk = deny_set( "$root/lazysite-processor.pl", qr/deny\s*=>/ );
+my $wk = deny_set( "$root/lazysite-processor.pl",   qr/deny\s*=>/ );
 my $br = deny_set( "$root/tools/lazysite-users.pl", qr/\bdeny:/ );
 
 is_deeply( $wk, \@CANONICAL,
@@ -47,6 +47,44 @@ is_deeply( $br, \@CANONICAL,
     'onboarding-brief deny list matches the canonical set' );
 is_deeply( $wk, $br,
     'the two agent-facing deny lists are identical to each other' );
+
+# SM421: the QUALIFIER travels with the list, and in lock-step.
+#
+# /lazysite/forms/submissions/ is listed as denied and WebDAV enforces it, but
+# MCP and the control API treat it as a capability-gated carve-out - so a flat
+# list reads as stronger than it is, and an operator concludes the store is
+# unreachable to partners when it is not. The entry stays; the note beside it
+# is what makes the list true. Both rendered copies carry it, and this pins
+# them together exactly as the list itself is pinned - two copies of a
+# qualifier drift the same way two copies of a list do.
+sub note_for {
+    my ( $file, $key ) = @_;
+    my $text = slurp($file);
+    return '' unless $text =~ /\Q$key\E["']?\s*(?:=>|:)\s*(.*?)(?:,
+|
+\s*\})/s;
+    my $blob   = $1;
+    my @parts  = ( $blob =~ /'([^']*)'/g, $blob =~ /"([^"]*)"/g );
+    my $joined = join ' ', @parts;
+    $joined =~ s/\s+/ /g;
+    $joined =~ s/^\s+|\s+$//g;
+    return $joined;
+}
+
+my $wk_note = note_for( "$root/lazysite-processor.pl",   '/lazysite/forms/submissions/' );
+my $br_note = note_for( "$root/tools/lazysite-users.pl", '/lazysite/forms/submissions/' );
+
+like( $wk_note, qr/WebDAV/i,
+    'the ai-partner deny list qualifies the submission store' )
+    or diag('A deny entry that is not absolute has to say so where it is read.');
+like( $wk_note, qr/read_submissions/,
+    'and names the capability that reaches it' );
+like( $br_note, qr/WebDAV/i,          'the onboarding brief carries the qualifier too' );
+like( $br_note, qr/read_submissions/, 'and names the same capability' );
+is( $wk_note, $br_note,
+    'the two qualifiers are word-for-word identical - a note that drifts is '
+        . 'the defect it was written to fix, one level down' );
+
 
 # The dav is the enforcement: confirm its default blocked_paths cover the
 # non-lazysite/ entries the agent-facing list advertises (the whole lazysite/

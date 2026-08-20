@@ -7151,6 +7151,29 @@ sub _ai_partner_doc {
                 '/lazysite/manager/',            '/lazysite/templates/',
                 '/lazysite/lazysite.conf',       '*.pl',
             ],
+
+            # SM421: A DENY ENTRY THAT IS NOT ABSOLUTE SAYS SO.
+            #
+            # The submission store is listed above and WebDAV really does
+            # refuse it for everyone - but MCP and the control API treat it as
+            # a capability-gated carve-out, reachable to a grant holding
+            # read_submissions or manage_forms. That is deliberate (it is what
+            # the read_submissions capability and the read_form_submissions
+            # tool are FOR), but an operator reading a flat deny list - or
+            # testing it by listing the directory, which is refused - concludes
+            # the store is unreachable to partners. That conclusion is wrong,
+            # and the list is what made it.
+            #
+            # The entry stays, because WebDAV enforces it. The qualifier sits
+            # beside it so the list describes its real reachability.
+            deny_notes => {
+                '/lazysite/forms/submissions/' =>
+                    'Withheld over WebDAV for every grant. On MCP and the '
+                    . 'control API this is a capability-gated carve-out: a '
+                    . 'grant holding read_submissions or manage_forms can '
+                    . 'read submissions there. Listing the directory is '
+                    . 'refused on every surface.',
+            },
         },
         docs => [
             map { "$base/$_" } qw(

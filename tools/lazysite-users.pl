@@ -2275,6 +2275,8 @@ scope:
          "/lazysite/forms/submissions/", "/lazysite/cache/", "/lazysite/logs/",
          "/lazysite/manager/", "/lazysite/templates/",
          "/lazysite/lazysite.conf", "*.pl"]
+  deny_notes:
+    "/lazysite/forms/submissions/": "Withheld over WebDAV for every grant. On MCP and the control API this is a capability-gated carve-out: a grant holding read_submissions or manage_forms can read submissions there. Listing the directory is refused on every surface." 
 docs:
   - $base/docs/ai-briefing-building-sites
   - $base/docs/ai-briefing-publishing

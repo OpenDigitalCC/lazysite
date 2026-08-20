@@ -197,8 +197,21 @@ sub outside_all_scopes {
 # directory on the way to one" - a listing must offer lazysite/layouts even
 # though nothing may be read at that path itself. Two lists would drift, and the
 # way they would drift is a directory the file browser can no longer enter.
+# SM421/F2, NOT REMOVED - the decision is the release manager's, and the
+# history is why. 'lazysite/themes/' is vestigial: no engine store resolves
+# there (real themes live under lazysite/layouts/<layout>/themes/<theme>/), and
+# 88f16b4 added it in one batch with layouts/ and nav.conf, two areas that ARE
+# real, on the assumption this was a third. So it exempts a store that does not
+# exist - inert today, and an under-gated write path for whatever first uses
+# the name.
+#
+# It is not removed here because removing it could STRAND DATA: an agent
+# holding manage_themes could have written under lazysite/themes/ through this
+# very carve-out, and nothing else would have stopped it. Files that can only
+# exist BECAUSE of a carve-out are exactly the files a removal orphans. See
+# [[SM422]] for the survey that decision needs.
 our @LAZYSITE_OPEN_PREFIXES = ( 'lazysite/forms/submissions/', 'lazysite/layouts/', 'lazysite/themes/' );
-our @LAZYSITE_OPEN_EXACT = ('lazysite/nav.conf');
+our @LAZYSITE_OPEN_EXACT    = ('lazysite/nav.conf');
 
 sub _is_carveout {
     my ($rel) = @_;

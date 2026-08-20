@@ -155,6 +155,35 @@ Naming the commit: AFTER it lands, never before
   process clobbers, so the symptom appears once and never reproduces - a
   corruption nobody debugs, because a second run passes. t/lint/66 bans the
   shape outright.
+- SM421, SM422 (PENDING) **the cross-surface parity map: two fixed, one real,
+  three held.** From the security-review agent's round-3 mapping pass over the
+  control API, MCP and WebDAV. FIXED: MCP's nav READ was gated on
+  manage_content while WebDAV, the API and MCP's own set_nav all require
+  manage_nav - the tool was declared path_aware but passes no path, so the
+  carve-out gate never reached the capability that owns nav.conf; and the
+  vestigial `lazysite/themes/` carve-out is documented rather than dropped: it
+  exempts a store no engine code has ever resolved, but removing it could
+  strand files an agent could only have created THROUGH it, so the decision
+  waits on a fleet survey. **SM421 is the one that was
+  more than cosmetic**: WebDAV accepts a raw write of a form config on the
+  stated grounds that it "only names which operator-defined handlers a form
+  dispatches to" - but the parser still accepts a legacy inline format
+  declaring a delivery target directly, so a manage_forms holder can point a
+  form's submissions at an arbitrary webhook, which the structured verbs on the
+  other surfaces do not permit. Verified by driving the real parser and
+  dispatcher; the three ways to close it differ in compatibility cost and one
+  can break a live site, so the decision is held. F3, F5 and F6 stay open with
+  the verification each needs recorded, because acting on an unverified parity
+  claim is how a consistency fix becomes an outage. Alongside: the agent-facing
+  deny list now QUALIFIES the submission store instead of listing it flat -
+  WebDAV refuses it for everyone, but MCP and the control API treat it as a
+  capability-gated carve-out reachable to read_submissions or manage_forms, so
+  an operator reading the list (or testing it by listing the directory, which
+  is refused) concluded the store was unreachable to partners when it is not.
+  The entry stays because WebDAV enforces it; the note beside it makes the list
+  true, and t/integration/06 now pins the two rendered qualifiers word-for-word
+  as it already pinned the lists - a note that drifts is the defect it was
+  written to fix, one level down.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 
