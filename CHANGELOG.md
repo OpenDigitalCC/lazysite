@@ -44,6 +44,33 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM430 (PENDING, filing only) **common functions across the four surfaces.**
+  A four-track code survey, filed as fourteen independent packages (CF-1 to
+  CF-14) with per-package tests and dependencies. The structural finding:
+  there are **two write stacks, not four** - the manager UI, control API and
+  MCP already share `lib/Lazysite/Manager/*`, while WebDAV re-implements the
+  chain inline under a header comment claiming a "no-shared-modules policy"
+  that the architecture docs no longer contain. Current policy is the
+  opposite, so the fork is maintained by a comment rather than by a decision,
+  which is why every parity defect this week has had a WebDAV side.
+  **CF-2 carries a confidentiality consequence and should not wait for the
+  structural work**: verified here rather than taken on report - DAV resolves
+  gated paths into the private store, and its move handler contains no ACL
+  code at all, so moving protected content to an ungated destination
+  relocates the file into the public docroot with no rule following it.
+  Accidental publication through an ordinary operation, and the exact inverse
+  of SM286's rule that protecting content moves it. The mirror defect is in
+  the same package: the manager's delete has no ACL cleanup while DAV's does,
+  so a comment claiming "the manager's delete has always done this" is
+  factually wrong and SM212's stale-rule fix never reached three surfaces.
+
+- SM413 (PENDING, filing closure) **confirmed from outside, and closed.** The field
+  verified the render fix across the whole public sitemap on the deployed
+  0.10.18: 34 pages fetched cold, 33 reporting the current build and the 34th
+  a redirect to one that does, with no hand invalidation. The homepage that
+  survived four deployments on a 0.10.13 render now reports the current build
+  on its own, and the asset busting tokens moved with it.
+
 - SM429 (PENDING, filing only) **cross-origin-opener-policy has never been
   emitted.** The one line that survived the field's 0.10.18 header pass - its
   CSP half was retracted after re-measurement, the policy being served
