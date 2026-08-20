@@ -47,3 +47,27 @@ The brief the reporter compared against is also not wrong in spirit - it says
 `lazysite/` is internal, which is true of everything except the carve-outs.
 Whether it should name them is a separate question about that site's own
 onboarding text, not about the engine.
+
+# Why the field cannot settle this, and what that implies
+
+The reporter holds `manage_nav` AND `manage_config` on the grant they tested
+from. The `nav.conf` branch of `authorise()` ignores `$is_write`, so it gates
+reads too. Two sufficient causes, one observation, no attribution available -
+their 200 was incapable of coming out either way.
+
+A decisive test needs a grant holding `manage_config` and NOT `manage_nav`,
+which a partner cannot create for itself. So reading the enforcement was not
+the faster route to the answer here. It was the only one.
+
+::: widebox
+That generalises past this filing. **A partner cannot determine which
+capability grants a given access**, because the only instrument available -
+try it and see - reports the union of everything they hold. The descriptor is
+the sole thing that claims to break the grant down per capability, and this
+filing exists because it was wrong.
+:::
+
+That bears on the permission-explanation work: whatever text tells an operator
+what a capability unlocks is not a convenience. It is the only account of the
+boundary that anyone outside the code can read, and nothing currently checks it
+against the code. Worth carrying into that thread rather than leaving here.
