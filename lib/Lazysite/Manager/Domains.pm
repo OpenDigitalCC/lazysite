@@ -254,7 +254,7 @@ sub host_for_path {
     my $r = eval { domains_list() };
     return ( '', 0 ) unless ref $r eq 'HASH' && $r->{ok};
 
-    my ( $best, @tied ) = ( '' );
+    my ( $best, @tied ) = ('');
     for my $d ( @{ $r->{domains} || [] } ) {
         next if $d->{is_primary};
         my $cr = $d->{content_root} // '';

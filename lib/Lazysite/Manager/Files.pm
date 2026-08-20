@@ -612,8 +612,8 @@ sub invalidate_registries { return _invalidate_registries() }
 # Clears every content root, not just the docroot's (SM251), so a multi-domain
 # instance is handled in one call.
 sub action_regenerate_registries {
-    my $docroot  = $DOCROOT;
-    my @roots = _registry_roots();
+    my $docroot = $DOCROOT;
+    my @roots   = _registry_roots();
     my ( $shadowed, $cleared ) = _invalidate_registries();
     my @shadowed = @{$shadowed};
     my @rel      = map {
