@@ -890,20 +890,26 @@ if ($token_auth) {
 # authenticated user as the operator - the same exemption, not a new one.
 {
     my %file_surface = (
-        'list'             => 'read',
-        'read'             => 'read',
-        'acl-get'          => 'read',
-        'preview'          => 'read',
-        'git-history'      => 'read',
-        'git-show'         => 'read',
-        'save'             => 'write',
-        'delete'           => 'write',
-        'acl-set'          => 'write',
-        'acl-remove'       => 'write',
-        'mkdir'            => 'write',
-        'move'             => 'write',
-        'copy'             => 'write',
-        'upload'           => 'write',
+        'list'        => 'read',
+        'read'        => 'read',
+        'acl-get'     => 'read',
+        'preview'     => 'read',
+        'git-history' => 'read',
+        'git-show'    => 'read',
+        'save'        => 'write',
+        'delete'      => 'write',
+        'acl-set'     => 'write',
+        'acl-remove'  => 'write',
+        'mkdir'       => 'write',
+        'move'        => 'write',
+        'copy'        => 'write',
+        # SM418: the DISPATCHED action name, which is 'file-upload'. Keyed
+        # 'upload' this lookup was always undef, so the carve-out gate never
+        # ran for a single upload - an unscoped manage_content account could
+        # upload onto lazysite/nav.conf without manage_nav, and into the form
+        # submission store, which are the exact bypasses SM268 H4 closed on
+        # every other verb.
+        'file-upload'      => 'write',
         'git-restore'      => 'write',
         'migrate-to-local' => 'write',
         'lock'             => 'write',

@@ -7,11 +7,11 @@ package Lazysite::Manager::Upload;
 
 use strict;
 use warnings;
-use Fcntl qw(:flock O_RDWR O_CREAT);
-use POSIX qw(strftime);
+use Fcntl          qw(:flock O_RDWR O_CREAT);
+use POSIX          qw(strftime);
 use File::Basename qw(basename);
-use File::Path qw(make_path);
-use Cwd qw(realpath);
+use File::Path     qw(make_path);
+use Cwd            qw(realpath);
 use Lazysite::Util qw(log_event);
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config respond upload_limits outside_all_scopes);
@@ -92,23 +92,23 @@ sub check_upload_rate {
         return { ok => 1 };    # fail open
     }
 
-    my $hour       = int( time() / 3600 );
-    my $count_key  = "$username:$hour:count";
-    my $bytes_key  = "$username:$hour:bytes";
+    my $hour      = int( time() / 3600 );
+    my $count_key = "$username:$hour:count";
+    my $bytes_key = "$username:$hour:bytes";
 
-    my $cur_count  = $db{$count_key} || 0;
-    my $cur_bytes  = $db{$bytes_key} || 0;
+    my $cur_count = $db{$count_key} || 0;
+    my $cur_bytes = $db{$bytes_key} || 0;
 
     if ( $limits->{rate_count} > 0
         && $cur_count >= $limits->{rate_count} ) {
         untie %db;
         log_event( 'WARN', 'file-upload',
             'rate limit exceeded (count)',
-            user => $username, hour => $hour,
+            user  => $username,  hour  => $hour,
             count => $cur_count, limit => $limits->{rate_count} );
         return { ok => 0,
             error => "Upload rate limit reached "
-                   . "($limits->{rate_count} per hour)" };
+                . "($limits->{rate_count} per hour)" };
     }
 
     if ( $limits->{rate_bytes} > 0
@@ -116,8 +116,8 @@ sub check_upload_rate {
         untie %db;
         log_event( 'WARN', 'file-upload',
             'rate limit exceeded (bytes)',
-            user => $username, hour => $hour,
-            bytes => $cur_bytes, limit => $limits->{rate_bytes},
+            user      => $username,  hour  => $hour,
+            bytes     => $cur_bytes, limit => $limits->{rate_bytes},
             requested => $content_length );
         return { ok => 0,
             error => "Upload size limit reached for this hour" };
@@ -143,7 +143,7 @@ sub check_upload_rate {
 sub parse_multipart_body {
     my ( $body, $content_type ) = @_;
 
-    my ($q_boundary, $u_boundary) = $content_type =~
+    my ( $q_boundary, $u_boundary ) = $content_type =~
         m{multipart/form-data.*?boundary=(?:"([^"]+)"|([^;\s]+))}i;
     my $boundary = $q_boundary // $u_boundary // '';
     return () unless length $boundary;
@@ -180,10 +180,10 @@ sub parse_multipart_body {
 sub sanitise_upload_filename {
     my ($name) = @_;
     return '' unless defined $name;
-    $name =~ s{.*[/\\]}{};             # basename only
-    return '' if $name =~ /\0/;        # null bytes
+    $name =~ s{.*[/\\]}{};         # basename only
+    return '' if $name =~ /\0/;    # null bytes
     return '' if $name eq '' || $name eq '.' || $name eq '..';
-    $name =~ s/[\x00-\x1f]//g;         # strip control chars
+    $name =~ s/[\x00-\x1f]//g;     # strip control chars
     return $name;
 }
 
@@ -198,6 +198,26 @@ sub action_file_upload {
     $rel_dir //= '/';
     $rel_dir =~ s{^/+}{};
     $rel_dir =~ s{/+$}{};
+
+    # SM418: REJECT `..` IN THE TARGET DIRECTORY, before anything resolves it.
+    #
+    # This handler used to confine on the RAW request string while the OS
+    # resolved `..` at write time - so `content/../lazysite/auth` passed every
+    # check here (the -d test and the realpath boundary both SUCCEED, because
+    # lazysite/auth really is inside the docroot) and the blocklist then
+    # string-matched `content/../lazysite/auth/.secret` against a guard anchored
+    # `\Alazysite/`, which does not match a string starting `content/`.
+    # Reproduced: an upload overwrote the cookie-signing secret and the handler
+    # reported ok:1. An unscoped manage_content editor could mint operator
+    # sessions from it.
+    #
+    # The same class as SEC-2026-07 F1, which validate_path fixed for every
+    # other file-write handler; this one never called it. Per-file validation
+    # below is the real gate - this is the upfront refusal so a traversal
+    # attempt is ONE clear error rather than one per file.
+    return { ok => 0, error => "Invalid target directory" }
+        if $rel_dir =~ m{(?:\A|/)\.\.(?:/|\z)};
+
     my $full_dir = length $rel_dir ? "$DOCROOT/$rel_dir" : $DOCROOT;
 
     unless ( -d $full_dir ) {
@@ -210,7 +230,7 @@ sub action_file_upload {
 
     my @parts = parse_multipart_body( $body, $ctype );
     my @files = grep { defined $_->{filename}
-                        && length $_->{filename} } @parts;
+            && length $_->{filename} } @parts;
 
     unless (@files) {
         return { ok => 0, error => "No files in upload" };
@@ -232,22 +252,37 @@ sub action_file_upload {
         my $fname = sanitise_upload_filename( $file->{filename} );
         unless ( length $fname ) {
             push @errors, { name => $file->{filename},
-                            error => 'Invalid filename' };
+                error => 'Invalid filename' };
             next;
         }
 
-        my $rel_target = length $rel_dir
-            ? "$rel_dir/$fname"
-            : $fname;
+        my $rel_request = length $rel_dir ? "$rel_dir/$fname" : $fname;
+
+        # SM418: THROUGH validate_path, exactly as action_save_binary does.
+        # It rejects `..`, resolves symlinks, checks the docroot boundary and -
+        # the part that matters here - returns the CANONICAL rel, which is what
+        # the blocklist must string-match. A raw concatenation is not a path,
+        # it is a request, and the two differ precisely when it matters.
+        #
+        # It also resolves the PRIVATE store (resolve_for_write): before this,
+        # an upload into a gated section wrote a public copy beside protected
+        # content, half-publishing the section through an operation nobody
+        # thinks of as a permission change (SM286's whole point).
+        my $v = validate_path($rel_request);
+        unless ( $v->{ok} ) {
+            push @errors, { name => $fname,
+                error => $v->{error} // 'Invalid path' };
+            next;
+        }
+        my $rel_target  = $v->{rel};
+        my $full_target = $v->{full};
 
         if ( is_blocked_path($rel_target)
             || is_blocked_config( $rel_target, 1 ) ) {
             push @errors, { name => $fname,
-                            error => 'Blocked target' };
+                error => 'Blocked target' };
             next;
         }
-
-        my $full_target = "$DOCROOT/$rel_target";
 
         if ( -e $full_target && !$overwrite ) {
             push @skipped, $fname;
@@ -257,7 +292,7 @@ sub action_file_upload {
         my $tmp = "$full_target.tmp.$$";
         unless ( open my $fh, '>', $tmp ) {
             push @errors, { name => $fname,
-                            error => "Cannot write: $!" };
+                error => "Cannot write: $!" };
             next;
         }
         else {
@@ -267,14 +302,14 @@ sub action_file_upload {
                 close $fh;
                 unlink $tmp;
                 push @errors, { name => $fname,
-                                error => "Write failed: $err" };
+                    error => "Write failed: $err" };
                 next;
             }
             unless ( close $fh ) {
                 my $err = "$!";
                 unlink $tmp;
                 push @errors, { name => $fname,
-                                error => "Close failed: $err" };
+                    error => "Close failed: $err" };
                 next;
             }
         }
@@ -283,7 +318,7 @@ sub action_file_upload {
             my $err = "$!";
             unlink $tmp;
             push @errors, { name => $fname,
-                            error => "Cannot rename: $err" };
+                error => "Cannot rename: $err" };
             next;
         }
 
@@ -331,7 +366,7 @@ sub action_file_upload {
 
 sub detect_content_type {
     my ($path) = @_;
-    my ($ext) = $path =~ /\.([^.\/]+)$/;
+    my ($ext)  = $path =~ /\.([^.\/]+)$/;
     return 'application/octet-stream' unless defined $ext;
     return $CONTENT_TYPE_MAP{ lc $ext }
         // 'application/octet-stream';
@@ -339,8 +374,8 @@ sub detect_content_type {
 
 sub is_editable_text {
     my ($path) = @_;
-    my ($ext) = $path =~ /\.([^.\/]+)$/;
-    return 1 unless defined $ext;   # no extension: assume text
+    my ($ext)  = $path =~ /\.([^.\/]+)$/;
+    return 1 unless defined $ext;    # no extension: assume text
     return $TEXT_EXTENSIONS{ lc $ext } ? 1 : 0;
 }
 
@@ -349,7 +384,7 @@ sub action_file_download {
 
     my $result = validate_path($rel_path);
     unless ( $result->{ok} ) {
-        respond({ ok => 0, error => $result->{error} });
+        respond( { ok => 0, error => $result->{error} } );
         return;
     }
 
@@ -358,14 +393,14 @@ sub action_file_download {
     # this action just because action_read blocks them. The briefing
     # did not specify this; added for parity with read/save/delete.
     if ( is_blocked_path( $result->{rel} ) ) {
-        respond({ ok => 0, error => "Path is blocked" });
+        respond( { ok => 0, error => "Path is blocked" } );
         return;
     }
     # SM019c: config block list applies to downloads too, so a
     # caller cannot siphon the manager UI or any other configured
     # sensitive directory via this surface.
     if ( is_blocked_config( $result->{rel} ) ) {
-        respond({ ok => 0, error => "Path is blocked by config" });
+        respond( { ok => 0, error => "Path is blocked by config" } );
         return;
     }
     # SEC-2026-07 (F2 audit): download bypassed the read ACL that action_read
@@ -380,11 +415,11 @@ sub action_file_download {
     my $full = $result->{full};
 
     unless ( -f $full ) {
-        respond({ ok => 0, error => "File not found" });
+        respond( { ok => 0, error => "File not found" } );
         return;
     }
     if ( -d $full ) {
-        respond({ ok => 0, error => "Not a file" });
+        respond( { ok => 0, error => "Not a file" } );
         return;
     }
 
@@ -432,10 +467,10 @@ sub collect_zip_paths {
 }
 
 sub action_file_zip_download {
-    my ($scopes) = @_;    # SEC-2026-07 (F2): the request's resolved dav_scopes
+    my ($scopes)  = @_;    # SEC-2026-07 (F2): the request's resolved dav_scopes
     my @requested = collect_zip_paths();
     unless (@requested) {
-        respond({ ok => 0, error => "No files selected" });
+        respond( { ok => 0, error => "No files selected" } );
         return;
     }
 
@@ -479,7 +514,7 @@ sub action_file_zip_download {
                 path => $rel, user => $auth_user );
             next;
         }
-        if (   ref $scopes eq 'ARRAY'
+        if ( ref $scopes eq 'ARRAY'
             && @$scopes
             && outside_all_scopes( $scopes, $vr->{rel} ) )
         {
@@ -499,7 +534,7 @@ sub action_file_zip_download {
         my $size = ( stat $full )[7] // 0;
         $total += $size;
         if ( $total > $max_total ) {
-            respond({ ok => 0, error => "Total size exceeds limit" });
+            respond( { ok => 0, error => "Total size exceeds limit" } );
             return;
         }
 
@@ -508,7 +543,7 @@ sub action_file_zip_download {
     }
 
     unless ($added) {
-        respond({ ok => 0, error => "No valid files" });
+        respond( { ok => 0, error => "No valid files" } );
         return;
     }
 
@@ -521,7 +556,7 @@ sub action_file_zip_download {
     my $tmp_path = $tmp->filename;
 
     unless ( $zip->writeToFileNamed($tmp_path) == 0 ) {    # AZ_OK
-        respond({ ok => 0, error => "Zip write failed" });
+        respond( { ok => 0, error => "Zip write failed" } );
         return;
     }
 
@@ -531,7 +566,7 @@ sub action_file_zip_download {
 
     log_event( 'INFO', 'file-zip-download', 'zip downloaded',
         count => $added, size => $zip_size,
-        user => $auth_user );
+        user  => $auth_user );
 
     binmode STDOUT;
     local $| = 1;    # flush headers before the syswrite loop

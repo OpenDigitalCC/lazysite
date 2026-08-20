@@ -69,6 +69,26 @@ Naming the commit: AFTER it lands, never before
   emission site (the anonymous refusal path) until it made an authorised
   request. The layouts briefing now names which front end each piece of
   caching advice applies to, per the field filing's own suggestion.
+- SM418 (PENDING) **CRITICAL: a file upload escaped the content area into the
+  auth store.** `action_file_upload` confined on the request string rather than
+  the path - the one file-write handler that never called `validate_path` - so
+  `..` survived to the write while the blocklist string-matched a spelling that
+  could not match it. Reproduced against the real handler: an upload overwrote
+  `lazysite/auth/.secret`, the cookie-signing key, and returned `ok:1`. An
+  authenticated UNSCOPED `manage_content` editor could mint operator sessions
+  from it; token partners, MCP and scoped accounts were never able to reach it.
+  Reported with a working reproduction against the real handler by the SECURITY-REVIEW agent's round-3 pass.
+  Three fixes: uploads route each accepted filename through `validate_path`
+  (which also closes an unfiled second exposure - uploads always wrote
+  publicly, so an upload into a gated section half-published it past SM286);
+  the `%file_surface` carve-out gate was keyed `upload` while the dispatched
+  action is `file-upload`, so it had never run for a single upload; and
+  `t/lint/15` - the parity lint that exists to catch precisely this - listed
+  five handlers in Files.pm by hand and knew nothing of Upload.pm, so it now
+  DISCOVERS every file-writing handler and fails until each is classified
+  guarded or exempt-with-a-reason - which was the reporter's own third
+  suggested fix, not an addition of ours. The lint is proven to catch the pre-SM418
+  world in both its shapes.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 
