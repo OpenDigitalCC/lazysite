@@ -71,3 +71,80 @@ and the cause was wrong in both. The standing correction is to say plainly when
 a cause has not been isolated rather than to name the nearest one that fits.
 The observations here are solid and reproducible. The mechanism is not known,
 and the filing says so rather than guessing well.
+
+# Narrowed: it is the namespace, not WebDAV
+
+A controlled reproduction from the field, on a throwaway file rather than the
+live CSS, with a CONTROL - which is what turned this from a symptom into a
+bounded fault:
+
+```datatable
+columns: Path | Create | Update
+widths: 8cm | 3cm | X
+bold: 1
+tone: medium
+---
+`/lazysite-assets/<L>/<T>/sm438-probe.txt` | 201, correct | **204, still the old 17 bytes**
+`/sites/dhcf/sm438-control.txt` | 201, correct | 204, **takes effect**
+`lazysite/layouts/<L>/themes/<T>/assets/` (source) | works | works
+```
+
+Same client, same helper, same session. So this is not "WebDAV updates" and not
+"updates that answer 204". It is specific to the `/lazysite-assets/` mirror
+namespace. The probe was a plain file the reporter created themselves, which
+also rules out anything peculiar to mirrored files as such - it is the
+namespace, not the file.
+
+# What the code settles
+
+**"Nowhere / discarded" is ruled out.** `do_put` reaches `send_status(204)`
+only after `rename $tmp, $r->{abs}` succeeds; the failure branches call
+`_write_failure` and return an error instead. A 204 therefore PROVES the bytes
+landed at `$r->{abs}`. That is the outcome the field put its weight on, and it
+cannot be the answer - the write is going somewhere, just not to the file being
+served.
+
+**A named candidate that fits create-works / update-does-not.** The DAV
+`invalidate_cache` acts **only on `.md`**:
+
+```perl
+sub invalidate_cache {
+    my ($abs) = @_;
+    return unless $abs =~ /\.md$/;
+```
+
+So a PUT of a `.css` or a `.txt` clears nothing. If any cached copy of that
+asset exists, a create has none to be stale (falls through, serves the new
+file) and an update leaves the old one standing - with an etag computed from
+the stale copy, which is the old length observed. Same family as SM433: a write
+that updates one location while the server keeps reading another.
+
+**The only create/update asymmetry in the resolution path** is in
+`resolve_under_docroot`, which rewrites the target through `realpath` when, and
+only when, the file already exists:
+
+```perl
+if ( -e $full ) { my $tr = realpath($full); ...; $full = $tr; }
+```
+
+That is exactly the shape of the fault. It bites only if the final component
+resolves elsewhere, which a plain file the reporter created should not - so it
+is named as the second place to look rather than the answer.
+
+# What is still not settled, and by whom
+
+The reporter has WebDAV and HTTP on that host and no shell, and said so rather
+than reporting a partial sweep as a sweep. Locating the new bytes needs
+filesystem access, so the remaining step belongs to whoever has it. Two
+questions, in order:
+
+1. Does `<docroot>/lazysite-assets/<L>/<T>/sm438-probe.txt` hold the NEW bytes?
+   If yes, the write is fine and the fault is in what serves it - go to the
+   cache candidate above.
+2. If no, where did they land? That answers it outright.
+
+Also retracted from the original report, by the reporter, and worth keeping
+visible: the FRESH last-modified was observed on `main.css` earlier and was not
+re-captured under controlled conditions. Do not lean on it. Without it the
+"write of the wrong bytes" reading loses its main support, and the cache
+candidate gains.
