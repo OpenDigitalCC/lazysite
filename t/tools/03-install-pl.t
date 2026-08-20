@@ -842,6 +842,101 @@ subtest 'fresh install: every 4b CGI-writable file is group-writable' => sub {
     }
 };
 
+# --- SM413: an upgrade invalidates rendered HTML -----------------------------
+#
+# The field: a homepage served a render produced under 0.10.13 through FOUR
+# subsequent deployments, corrected only when an operator invalidated by hand.
+# A cached page regenerates when its SOURCE changes; an upgrade changes no
+# source, so a page nobody edits keeps its pre-upgrade render for ever -
+# including any head-contract or security header the new build introduced.
+#
+# The installer already knew the rule: the ROLLBACK path dropped rendered HTML
+# for exactly this reason, and the upgrade path did not. This asserts both
+# directions now, and asserts the boundary as hard as the behaviour - a
+# too-eager clear that took the whole cache tree, or ran on a fresh install,
+# would be a different defect wearing this fix's clothes.
+subtest 'an upgrade drops rendered HTML, and only that' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my ( $rc1,     $out1 )   = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc1, 0, 'fresh install ok' ) or diag $out1;
+
+    unlike( $out1, qr/Invalidated \d+ rendered page/,
+        'a FRESH install reports no invalidation - there is nothing rendered '
+            . 'yet, and a number that means nothing is worse than silence' );
+
+    # Stand in for a rendered site: pages in the cache, plus a NON-render
+    # neighbour that must survive.
+    my $cache = "$docroot/lazysite/cache";
+    make_path("$cache/hosts/example.test");
+    for my $f ( "$cache/index.html", "$cache/about.html",
+        "$cache/hosts/example.test/index.html" )
+    {
+        open my $fh, '>', $f or die $!;
+        print {$fh} "<html>rendered under the OLD build</html>";
+        close $fh;
+    }
+    open my $keep, '>', "$cache/stats-export.json" or die $!;
+    print {$keep} '{"v":2}';
+    close $keep;
+
+    # A REAL upgrade, not a reinstall: same-version reruns are mode 'reinstall'
+    # and deliberately do NOT invalidate - the renders already came from this
+    # code, so dropping them would be churn without a reason. Backdating the
+    # recorded version is what makes the next run an upgrade, which is the
+    # case SM413 is about. (The first version of this subtest installed twice
+    # and never reached the path it was testing.)
+    # And the site must ACCEPT the build: update_channel defaults to 'stable'
+    # while a locally-built manifest is 'edge', so an unforced upgrade is
+    # correctly SKIPPED (rc 3) - the ladder failing closed, exactly as
+    # designed. Put the fixture site on edge rather than reaching for --force,
+    # which would test the override branch instead of the ordinary one.
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    if ( -f $conf ) {
+        open my $rh, '<', $conf or die $!;
+        my $c = do { local $/; <$rh> };
+        close $rh;
+        # REPLACE, not append: the installer seeds an update_channel line and
+        # the reader takes the first match, so an appended one is inert - the
+        # first attempt here appended and the upgrade went on being skipped.
+        $c =~ s/^update_channel:.*$/update_channel: edge/m
+            or $c .= "update_channel: edge\n";
+        open my $wh, '>', $conf or die $!;
+        print {$wh} $c;
+        close $wh;
+    }
+
+    my $sp = "$docroot/lazysite/.install-state.json";
+    if ( -f $sp ) {
+        open my $rh, '<', $sp or die $!;
+        my $j = do { local $/; <$rh> };
+        close $rh;
+        $j =~ s/"version"\s*:\s*"[^"]+"/"version":"0.0.1"/;
+        open my $wh, '>', $sp or die $!;
+        print {$wh} $j;
+        close $wh;
+    }
+
+    my ( $rc2, $out2 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc2, 0, 'upgrade ok' ) or diag $out2;
+
+    like( $out2, qr/Invalidated 3 rendered page/,
+        'the upgrade invalidates every rendered page, including per-host copies' )
+        or diag($out2);
+    ok( !-e "$cache/index.html", 'the homepage render is gone - the field case' );
+    ok( !-e "$cache/hosts/example.test/index.html",
+        'and the per-host copy with it, which is what a multi-domain site serves' );
+    ok( -e "$cache/stats-export.json",
+        'but non-render cache state SURVIVES - this is a re-render trigger, '
+            . 'not a cache reset' );
+    ok( -d "$cache", 'and the cache directory itself is still there' );
+
+    # Honest note: a sabotage that made this fire on a FRESH install too is not
+    # caught here and is not exploitable - a fresh install has no cache
+    # directory, so the helper finds nothing and stays silent. The mode guard
+    # earns its place for the odd real state (a docroot with renders but no
+    # install state) rather than for anything this fixture can construct.
+};
+
 done_testing();
 
 # --- helpers ---

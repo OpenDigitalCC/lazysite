@@ -111,6 +111,18 @@ Naming the commit: AFTER it lands, never before
   that field is for. Both hid in the same blind spot: the sweep test drives
   the server-log ingester and the trail tests drive the first-party one, so a
   defect in either was invisible from the other.
+- SM413 fix (PENDING) **an upgrade invalidates rendered pages.** A cached page
+  regenerates when its SOURCE changes and an upgrade changes no source, so a
+  page nobody edits kept its pre-upgrade render indefinitely - the field
+  measured a homepage serving a 0.10.13 render through FOUR deployments,
+  corrected only by a manual invalidation. The installer already knew the
+  rule: its ROLLBACK path dropped rendered HTML for exactly this reason and
+  the UPGRADE path did not, so one helper now serves both. Deliberately
+  narrow - only rendered `.html`, never the cache tree, because the per-host
+  mirrors and other cache state have their own lifecycles and this is a
+  re-render trigger rather than a reset; pages re-render on next request, so
+  the cost is one render per page actually visited. Same-version reinstalls
+  are excluded on purpose: those renders already came from that code.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 

@@ -680,6 +680,19 @@ sub cmd_install {
                 . scalar(@verr) . " code-file mismatch(es) - run --verify" );
     }
 
+    # ---- invalidate rendered HTML (SM413) ----
+    #
+    # On an UPGRADE only: a fresh install has nothing rendered yet, and running
+    # it there would report a number that means nothing. The pages re-render on
+    # next request, so the cost is one render per page actually visited rather
+    # than a rebuild of the whole site at upgrade time.
+    if ( $mode eq 'upgrade' ) {
+        my $dropped = invalidate_rendered_html( $o->{docroot} );
+        info( "Invalidated $dropped rendered page(s) - they re-render on next"
+                . " request, so the new build is what visitors get" )
+            if $dropped;
+    }
+
     # ---- write new state ----
     write_state( $state_path, $manifest->{version}, $state_files );
 
@@ -888,6 +901,44 @@ sub print_plan {
 # =========================================================
 # ---------- plan execution ----------
 # =========================================================
+
+# SM413: invalidate rendered HTML, in one place, used by every path that
+# changes the code under a site.
+#
+# THE ASYMMETRY THIS REMOVES: the rollback path already did this - "content at
+# the pre-upgrade version may reference state that no longer matches" - and the
+# UPGRADE path did not. So the installer already knew the rule and applied it
+# in one direction only, which is the direction taken far less often.
+#
+# The field measured the cost: a homepage served a render produced under
+# 0.10.13 through FOUR subsequent deployments, and was only corrected when an
+# operator invalidated by hand. Because a cached page is regenerated when its
+# SOURCE changes, and an upgrade changes no source, a page nobody edits keeps
+# its pre-upgrade render for ever - including any head-contract or security
+# header the new build introduced. The homepage is the page least likely to be
+# edited and the first one an operator checks after an upgrade, so the failure
+# presents as "the upgrade did not take".
+#
+# Only the rendered .html is dropped, never the whole cache directory: the
+# per-host mirrors and other cache state have their own lifecycles, and this
+# is a re-render trigger rather than a reset.
+sub invalidate_rendered_html {
+    my ($docroot) = @_;
+    my $cache = lazysite_dir_for($docroot) . "/cache";
+    return 0 unless -d $cache;
+    my $n = 0;
+    File::Find::find(
+        { no_chdir => 1,
+            wanted => sub {
+                return unless -f $_ && /\.html$/;
+                if   ( unlink $_ ) { $n++ }
+                else               { warn "  warn: could not unlink $_: $!\n" }
+            },
+        },
+        $cache,
+    );
+    return $n;
+}
 
 sub execute_plan {
     my ($plan) = @_;
@@ -1696,20 +1747,9 @@ sub cmd_restore {
 
     # Invalidate rendered .html cache: content at the pre-upgrade
     # version may reference state that no longer matches.
-    my $cache = lazysite_dir_for( $o->{docroot} ) . "/cache";
-    if ( -d $cache ) {
-        File::Find::find(
-            {
-                no_chdir => 1,
-                wanted   => sub {
-                    return unless -f $_ && /\.html$/;
-                    unlink $_ or warn "  warn: could not unlink $_: $!\n";
-                },
-            },
-            $cache,
-        );
-        info("  cleared:   lazysite/cache/ (rendered HTML invalidated)");
-    }
+    my $dropped = invalidate_rendered_html( $o->{docroot} );
+    info("  cleared:   lazysite/cache/ ($dropped rendered page(s) invalidated)")
+        if $dropped;
 
     info("");
     info("Restore complete.");
