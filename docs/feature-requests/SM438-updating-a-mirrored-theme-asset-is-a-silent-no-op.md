@@ -314,3 +314,61 @@ the archetype - would be query-insensitive, would converge on expiry, and would
 survive a delete-then-create for the same window. The shipped nginx templates
 set no such directive, so if that is the mechanism it comes from the host's own
 configuration rather than from anything lazysite ships. Unverified.
+
+# RESOLVED as measured: a ~30s cache entry that the READER populates
+
+Timed runs from the field settle the question the filing was written around.
+Plain URL, every 10s from +0s, no delete and no buster:
+
+```datatable
+columns: Run | Update at | Result
+widths: 3cm | 5cm | X
+bold: 1
+tone: medium
+---
+1 | 16:52:52Z | stale at +0/+10/+20/+30, **flipped at +40s**
+2 | 16:54:22Z | stale at +0/+10/+20/+30, **flipped at +40s**
+no-poll | same write, no reads for 15s | **FRESH at +15s**
+```
+
+Identical windows from starts 90 seconds apart, so it is elapsed-since-write
+rather than a clock boundary.
+
+::: widebox
+**The +0s read is what pins it.** The entry is populated by the FIRST READ
+AFTER THE WRITE, holds the pre-write content, and lives about 30 seconds. Poll
+immediately and you extend your own staleness to ~40s; stay quiet and the
+content is correct within 15s. The observer was creating what it observed.
+
+It also explains delete-then-create: DELETE invalidates the entry, so the
+following create is read fresh. The workaround was never fixing a write.
+:::
+
+Everything the model predicts holds - query-insensitive because the key is the
+path, converges on expiry, survives delete-then-create inside the window.
+
+# What it costs this filing
+
+The premise. "An update PUT returns 204 and the served content does not change"
+was always a +0s reading. It changes on its own in well under a minute.
+
+**There may be no lazysite defect here at all.** The operator's two disk
+questions stay held - do not run them. If the mechanism is worth confirming it
+is now a one-line check of the host's nginx configuration for a path-keyed file
+cache (`open_file_cache` being the archetype), not a two-tree hunt for missing
+bytes. The shipped templates set no such directive, so that would be host
+configuration rather than anything lazysite ships. Inference; the timings above
+are not.
+
+# Two things deliberately not folded in
+
+**The no-poll run is a single observation.** The two timed runs agree with each
+other; the no-poll run agrees with the theory and has not been repeated. It is
+the load-bearing measurement in the whole account, so it is marked as one run
+rather than presented as a result.
+
+**This does not explain the sitemap staleness.** That persisted across roughly
+90 minutes and three `regenerate-registries` calls - two orders of magnitude
+longer, and unaffected by operations that should have rewritten it. Whatever
+that is, it is not this, and folding them together on the strength of both
+being "stale" would repeat today's mistake.
