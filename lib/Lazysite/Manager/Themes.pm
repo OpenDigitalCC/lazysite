@@ -1056,7 +1056,7 @@ sub _prune_backups {
 }
 
 sub _backup_retention {
-    local $_;    # SM420: while(<>) assigns the GLOBAL $_
+    local $_;                # SM420: while(<>) assigns the GLOBAL $_
     my $n = 3;
     if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
         while (<$fh>) { if (/^backup_retention\s*:\s*(-?\d+)/) { $n = $1; last } }
