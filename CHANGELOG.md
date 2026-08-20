@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM432 resolved (PENDING) **/docs/features serves again, by becoming an
+  index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
+  The page was an index of the directory shadowing it, and `canonical_url_for`
+  maps `foo/index.md` to `/foo`, so the published URL is unchanged - no alias,
+  no redirect chain, no front-matter edit (the three `tt_page_var` scans are
+  absolute and target subdirectories, so the index cannot list itself).
+  **Chosen over rename-plus-alias for a reason the deploy supplied rather than
+  taste**: when 0.10.19 reinstalled `features.md` onto the edge host mid-edit -
+  the code-bucket overwrite the original filing predicted, confirmed within the
+  hour - the reinstated file came back shadowed by a directory that now has an
+  index, so it was inert and the site kept working. Under rename-plus-alias the
+  same reinstall restores the 404, because the alias lives on a page the
+  installer does not know about. t/lint/67's exclusion list is now empty, and
+  its own guard fired for real: it refuses an exclusion naming a collision that
+  no longer exists, so removing the entry was part of this change rather than a
+  follow-up.
+
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no

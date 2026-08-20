@@ -15,10 +15,12 @@
 # caught, cheaply and here, is the collision that causes it: two things
 # claiming one URL, in content we ship.
 #
-# Exactly one collision exists today and it is deliberate-until-decided
-# (renaming either side moves a published documentation URL and needs an alias
-# on whichever name loses - a release decision, SM432). It is listed by name
-# below, so it does not block, while a SECOND one fails immediately.
+# There are NO collisions now. The one this lint was written beside -
+# starter/docs/features.md shadowed by starter/docs/features/ - was resolved by
+# moving the page to features/index.md, which keeps its published URL
+# (canonical_url_for maps foo/index.md to /foo) and needs no alias and no
+# redirect. So the exclusion list is empty, which is the state it should be in:
+# an entry here is a URL somebody has decided to leave broken.
 use strict;
 use warnings;
 use Test::More;
@@ -33,7 +35,7 @@ plan skip_all => 'no starter/docs' unless -d $docs;
 
 # The known collision, awaiting the SM432 decision. Adding to this list is a
 # deliberate act with a URL consequence, which is the point of it being a list.
-my %KNOWN = ( 'features' => 'SM432 - decision held: renaming either side moves a published URL' );
+my %KNOWN = ();
 
 my @collisions;
 find(
@@ -60,8 +62,10 @@ is_deeply( \@unexpected, [],
         . " unreachable at its own address. Rename one side, and give the"
         . " name that loses an alias on its successor. See SM432." );
 
-# The known one must still exist: if it is fixed, this list should shrink with
-# it rather than quietly excusing a collision that is no longer there.
+# Any exclusion must still describe the tree: an entry for a collision that no
+# longer exists is how a list stops being a record of anything. (This fired for
+# real when features/ was resolved - the entry had to come out as part of the
+# same change, not as a follow-up.)
 for my $k ( sort keys %KNOWN ) {
     ok( ( grep { $_ eq $k } @collisions ),
         "the known collision '$k' is still present ($KNOWN{$k})" )
