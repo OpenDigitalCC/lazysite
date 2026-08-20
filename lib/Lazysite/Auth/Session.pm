@@ -170,6 +170,7 @@ sub session_revoked {
 }
 
 sub load_user_groups {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($username) = @_;
     my $path = _auth_dir() . '/groups';
     return '' unless -f $path;

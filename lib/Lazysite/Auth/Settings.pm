@@ -150,6 +150,7 @@ sub resolve_home_domain {
 
 # Membership map { group => [members] } from the plain groups file.
 sub _groups_membership {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %g;
     my $f = _groups_file();
     return %g unless -f $f;

@@ -142,6 +142,19 @@ Naming the commit: AFTER it lands, never before
   because any caller can hit it. A survey found 19 more subs of the same shape
   across the tree; filed separately, none proven live, and the difference
   between latent and live is one caller.
+- SM420 (PENDING) **twenty subs that ate their caller's `$_`.** `while
+  (<$fh>)` assigns the GLOBAL `$_`, so a sub reading a file destroys the
+  element under test when called from inside a `grep` or `map`. SM419 hit one
+  of them and lost the first path of a filtered list; a survey of lib/, the
+  root scripts and plugins/ found twenty in total, all now carrying `local
+  $_;`. **Nineteen are not proven live** - each needs a caller reaching it
+  from inside a grep, and none was traced - and they are fixed anyway because
+  the difference between latent and live is one caller and the fix is a line
+  that cannot break a caller who was not using `$_`. What makes the class
+  worth a lint rather than a note is the memoisation: only the FIRST call in a
+  process clobbers, so the symptom appears once and never reproduces - a
+  corruption nobody debugs, because a second run passes. t/lint/66 bans the
+  shape outright.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 

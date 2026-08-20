@@ -1046,6 +1046,7 @@ sub _group_settings {
 # (ADR 0001). Without this a member of a compound group would get its inherited
 # caps over the API/dav but be denied at the render path (e.g. manager access).
 sub _group_membership_map {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $f = "$LAZYSITE_DIR/auth/groups";
     my %g;
     return %g unless -f $f;
@@ -4893,6 +4894,7 @@ sub parse_nav {
 }
 
 sub peek_search_default {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     return 1 unless -f $CONF_FILE;
     open( my $fh, '<:utf8', $CONF_FILE ) or return 1;
     while (<$fh>) {
@@ -6455,6 +6457,7 @@ my $LAZYSITE_VERSION;
 # by both the raw entry (stats.pl) and its extensionless id (stats) so the layout
 # can write `enabled_plugins.stats`.
 sub _enabled_plugins {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %en;
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
     open my $fh, '<:utf8', $conf or return \%en;

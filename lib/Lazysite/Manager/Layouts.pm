@@ -41,6 +41,7 @@ our $action    = '';
 # === moved from Manager::Themes (SM079 polish) ===
 
 sub _layouts_repo {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $conf_path = _lz() . "/lazysite.conf";
     my $repo;
     if ( -f $conf_path && open my $fh, '<', $conf_path ) {
@@ -793,6 +794,7 @@ sub action_layouts_repo_set {
 # relative, which suits raw files.
 
 sub _layouts_ref {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $conf = _lz() . "/lazysite.conf";
     my $ref;
     if ( open my $fh, '<', $conf ) {

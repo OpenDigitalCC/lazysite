@@ -49,6 +49,7 @@ our $auth_user;
 
 
 sub _nav_conf_info {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($host) = @_;
     $host = lc( $host // '' );
     $host = '' if $host eq '(default)';
@@ -80,6 +81,7 @@ sub _nav_conf_path {
 }
 
 sub action_nav_read {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($host) = @_;
     my ( $path, $rel, $inherited ) = _nav_conf_info($host);
     my @items;

@@ -65,6 +65,7 @@ sub _write_conf_content {
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
 sub _read_active_layout_and_theme {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $layout = '';
     my $theme  = '';
     if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
@@ -1055,6 +1056,7 @@ sub _prune_backups {
 }
 
 sub _backup_retention {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $n = 3;
     if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
         while (<$fh>) { if (/^backup_retention\s*:\s*(-?\d+)/) { $n = $1; last } }

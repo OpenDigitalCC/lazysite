@@ -94,6 +94,7 @@ sub plugin_registry {
 # which is precisely how "disabled" came to mean a display state rather than a
 # fact: nothing on any execution path ever read it.
 sub _enabled_map {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %enabled;
     my $conf_path = _lz() . "/lazysite.conf";
     if ( open my $fh, '<:utf8', $conf_path ) {
@@ -348,6 +349,7 @@ sub _update_plugins_conf {
 }
 
 sub action_plugin_read {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ( $plugin_id, $script ) = @_;
 
     my $full_script = resolve_plugin_script($script);

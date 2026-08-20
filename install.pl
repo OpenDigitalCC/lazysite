@@ -1766,6 +1766,7 @@ sub cmd_restore {
 # =========================================================
 
 sub read_retention {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($docroot) = @_;
     my $conf      = lazysite_dir_for($docroot) . "/lazysite.conf";
     my $default   = 3;

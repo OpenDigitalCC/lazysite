@@ -1399,6 +1399,7 @@ sub parse_basic_auth {
 }
 
 sub load_users {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $path = "$AUTH_DIR/users";
     my %users;
     return \%users unless -f $path;
@@ -1511,6 +1512,7 @@ sub dav_rate_record {
 # ---------------------------------------------------------------------
 
 sub read_conf {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %c = (
         webdav_enabled     => 0,
         dav_allow_insecure => 0,

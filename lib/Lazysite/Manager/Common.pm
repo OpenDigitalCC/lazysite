@@ -414,6 +414,7 @@ sub respond {
 our $_upload_limits_cache;
 
 sub load_upload_limits {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %limits = (
         max_bytes     => 10 * 1024 * 1024,
         blocked_paths => [ qw(

@@ -88,6 +88,7 @@ sub _audit_auth {
 # probe path counts toward a block. The module is loaded lazily and only when
 # enabled, so a site with the blocker off pays nothing.
 sub _bad_url_guard {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($path) = @_;
     my %c;
     if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
@@ -850,6 +851,7 @@ sub handle_request {
 # --- Data ---
 
 sub load_users {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $path = "$AUTH_DIR/users";
     return {} unless -f $path;
 
@@ -1124,6 +1126,7 @@ sub check_login_rate {
 }
 
 sub read_conf_key {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($key) = @_;
     my $path = "$LAZYSITE_DIR/lazysite.conf";
     return '' unless -f $path;
