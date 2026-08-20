@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM428 (PENDING) **the ACL store locked the manager out, once per deploy.**
+  `save_acls` wrote 0640 while `lazysite-check` requires the file to be
+  group-writable - the store is written by two identities on a group-shared
+  docroot (the site user via `acl reapply`, the www-data CGI via the manager's
+  permissions UI), so 0640 left it readable but not writable by whichever one
+  had not just written it. The deploy's ACL re-apply dropped the mode and the
+  health pass repaired it, **so the only trace was a repair that ran every
+  single time** - visible in the 0.10.17 and 0.10.18 deploy logs alike, and
+  read as housekeeping rather than as a writer disagreeing with its own
+  checker on a schedule. Between the two steps an operator's permission change
+  silently failed to save, and an operator running an ACL verb without a
+  following health run stays in that state. Now 0660, matching the sibling
+  auth files in the same group-writable list and the 2770 directory they live
+  in; no world bits either way. The test asserts group-write and no-world
+  rather than a literal mode, and pins that the checker still lists the file -
+  the two drifting apart is the defect itself.
+
 - Tier A (PENDING) **the four manual checks gate STABLE, not beta.** They gated
   beta for one day; the amendment is a judgement about what each channel means
   rather than a relaxation. Beta is bedded in by people who know they are

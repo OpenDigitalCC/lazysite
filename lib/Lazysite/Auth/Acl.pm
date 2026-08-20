@@ -108,7 +108,28 @@ sub save_acls {
     #
     # secure_write_perms makes the file match its directory's owner and group,
     # which is the provisioned site user in every install shape.
-    Lazysite::Util::secure_write_perms( $tmp, oct '640' );
+    #
+    # SM428: 0660, NOT 0640 - GROUP-WRITABLE.
+    #
+    # This store is written by TWO identities on a group-shared docroot: the
+    # site user (CLI verbs, `acl reapply`) and the www-data CGI (the manager's
+    # permissions UI). 0640 leaves it readable but not writable by the other
+    # one, so whichever identity wrote it last takes the file away from the
+    # other - and `lazysite check` says so in terms: "acls.json ... is not
+    # writable by the CGI (www-data) - the manager cannot save it".
+    #
+    # It was reaching the field on EVERY DEPLOY. The upgrade's `acl reapply`
+    # step rewrote the store as the site user, dropping it to 0640, and the
+    # health pass that follows repaired it back to 0660 - so the defect was
+    # invisible in the log except as a repair that ran every single time. A
+    # repair that always runs is not a repair; it is a writer disagreeing with
+    # its own checker, once per deploy, with a window in between where the
+    # manager silently cannot save a permission change.
+    #
+    # 0660 matches the other auth files the same check requires group-write on
+    # (users, groups) and matches the 2770 setgid directory they live in.
+    # Nothing world-readable either way.
+    Lazysite::Util::secure_write_perms( $tmp, oct '660' );
     return rename $tmp, $path;
 }
 
