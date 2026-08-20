@@ -1702,18 +1702,50 @@ sub action_git_history {
 # manage_content at the dispatch layer exactly like git-history. Disabled / no
 # repo = enabled:false with empty rows, never an error. Reuses the lineage-aware
 # engine (SM175), so counts follow renames and never leak across a recreate.
+# SM419: the summary answers the same "who may see this path?" question as the
+# per-file history, and answered it differently.
+#
+# git-history / git-show / git-restore are all scope-confined and blocklisted
+# via _git_target. The SUMMARY - their site-level complement - was neither: it
+# ls-tree'd the whole committed tree and handed back every path, revision
+# count, date and last author. So a partner confined to one content root was
+# refused clientB's per-file history and given clientB's file inventory and
+# edit cadence by the overview beside it, plus engine paths like
+# lazysite.conf that a direct read refuses.
+#
+# Metadata only - content still needs the confined per-file calls - but it is
+# the neighbour's file tree on a multi-tenant instance, which is exactly the
+# boundary the rest of the feature honours.
+#
+# An UNSCOPED operator is unchanged: an empty scope list means the whole site,
+# as it does everywhere else. The blocklist filter applies to everyone,
+# because a blocked path is blocked for its own reasons rather than the
+# caller's.
 sub action_git_history_summary {
+    my ($scopes) = @_;
     require Lazysite::Git;
     my $enabled = Lazysite::Git::enabled($DOCROOT);
     my $s =
         $enabled
         ? Lazysite::Git::files_summary($DOCROOT)
         : { files => [], summary => { files => 0, revisions => 0 } };
+
+    my @files = grep {
+        !is_blocked_path( $_->{path} )
+            && !is_blocked_config( $_->{path} )
+            && !outside_all_scopes( $scopes, $_->{path} )
+    } @{ $s->{files} || [] };
+
+    # Recount, or the totals would describe a set the caller cannot see - a
+    # number that disagrees with its own list is its own disclosure.
+    my $revisions = 0;
+    $revisions += ( $_->{revisions} // 0 ) for @files;
+
     return {
         ok      => 1,
         enabled => _git_bool($enabled),
-        files   => $s->{files},
-        summary => $s->{summary},
+        files   => \@files,
+        summary => { files => scalar @files, revisions => $revisions },
     };
 }
 

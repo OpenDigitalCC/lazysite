@@ -1004,7 +1004,12 @@ elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $pa
 elsif ( $action eq 'aliases-list' ) { $result = action_aliases_list() }
 elsif ( $action eq 'git-status' )   { $result = action_git_status() }
 elsif ( $action eq 'git-history' ) { $result = action_git_history( $path, $auth_user, $params{limit} ) }
-elsif ( $action eq 'git-history-summary' ) { $result = action_git_history_summary() }
+elsif ( $action eq 'git-history-summary' ) {
+    # SM419: the summary is scope-confined like every per-file history op.
+    # It carries no path, so _confine_scope never sees it - the scopes have to
+    # be handed over explicitly, as action_protected_sections already does.
+    $result = action_git_history_summary( \@REQUEST_SCOPES );
+}
 elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-restore' ) { $result = action_git_restore( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-init' )   { $result = action_git_init($auth_user) }

@@ -1209,7 +1209,10 @@ my %TOOLS = (
         cap         => 'manage_content',
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },
-        run => sub { action_git_history_summary() },
+        # SM419: the partner's resolved scope union, as the path_aware tools
+        # get via the dispatcher - this tool carries no path for that block to
+        # filter, so it takes the scopes directly.
+        run => sub { action_git_history_summary( $_[2] ? $_[2]->{dav_scopes} : undef ) },
     },
     view_version => {
         description => 'View one recorded version of a file: its full content at that version plus a unified diff against the current file. Get the version id from list_versions first.',

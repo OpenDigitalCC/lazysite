@@ -431,6 +431,16 @@ sub load_upload_limits {
     my $new_key_seen = 0;
     my $old_key_seen = 0;
     open my $fh, '<', $conf_path or return \%limits;
+
+    # SM419: `while (<$fh>)` assigns the GLOBAL $_, so without this a caller
+    # doing `grep { is_blocked_config($_) } @list` has the element under test
+    # destroyed mid-comparison - is_blocked_config -> upload_limits ->
+    # load_upload_limits, and $_ never comes back. Worse, upload_limits
+    # memoises, so ONLY THE FIRST call corrupts: the first element of the
+    # first such grep in a process comes out empty and every later one is
+    # fine, which reads like anything except what it is. Found when the SM419
+    # summary filter dropped its first path.
+    local $_;
     while (<$fh>) {
         if (/^manager_upload_max_mb\s*:\s*(\S+)/) {
             my $mb = $1;

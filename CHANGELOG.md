@@ -123,6 +123,25 @@ Naming the commit: AFTER it lands, never before
   re-render trigger rather than a reset; pages re-render on next request, so
   the cost is one render per page actually visited. Same-version reinstalls
   are excluded on purpose: those renders already came from that code.
+- SM419 (PENDING) **the content-history summary ignored scope - and the fix's
+  own grep ate its first element.** Every per-file history operation resolves
+  through `_git_target`, which blocklists and scope-confines; their site-level
+  summary did neither, so a partner refused one tenant's history was handed
+  that tenant's filenames, revision counts, dates and last authors by the
+  overview beside it, plus engine paths a direct read refuses. Metadata only,
+  and benign on a single-tenant site. Fixed on both channels with the totals
+  RECOUNTED - a count that disagrees with its own list tells a scoped caller
+  how many files it is not being shown - and an unscoped operator unchanged.
+  **The sharper find is the one it uncovered**: `is_blocked_config` ->
+  `upload_limits` -> `load_upload_limits` reads its config with `while
+  (<$fh>)`, assigning the GLOBAL `$_`, so calling it inside a grep destroys
+  the element under test. `upload_limits` memoises, so only the FIRST call in
+  a process clobbers - the first element of the first such grep comes back
+  empty and every later one is fine, a corruption a second run hides. `local
+  $_` fixes it and the test asserts the predicates against a plain grep,
+  because any caller can hit it. A survey found 19 more subs of the same shape
+  across the tree; filed separately, none proven live, and the difference
+  between latent and live is one caller.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 
