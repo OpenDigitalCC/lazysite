@@ -100,3 +100,74 @@ depend on the mechanism being understood.
 not files. A PROPFIND listing is therefore a misleading guide to what exists on
 disk, and the reporter drew a wrong conclusion from one earlier the same day.
 Worth a line in the WebDAV documentation whatever happens to the rest of this.
+
+# The cache hypothesis is RULED OUT
+
+I proposed that the first half was an unbusted-URL artefact. It was not, and
+the check was done against the reporter's own commands rather than from memory.
+
+Every fetch in that thread carried a distinct, previously unused key -
+`?rebuild=1`, `?cb=after2`, `?cb=fresh1`, `?t=1`, `?v=static`, `?final=1`,
+`?v=late` - six or seven separate keys across roughly ninety minutes, each a
+fresh origin fetch on a path already proven to reach origin when busted. A
+further run at 17:23Z with `?k=answer1` returned 21 locs including `/blog/` and
+both posts.
+
+::: widebox
+The plain URL now returns 21 as well, so the two AGREE - the divergence that
+started this thread is absent. What remains is not a caching artefact: the
+artefact itself is stale, and clearing does not change it.
+:::
+
+So the first half stands on its own evidence, and my simpler explanation was
+wrong. Recorded here rather than quietly dropped, because it was used to argue
+against opening the invalidation code.
+
+# It generated once, then froze
+
+The narrowing the reporter added is the most useful fact in the filing: the
+artefact's content corresponds to a build made AFTER the site's content moved
+into `sites/dhcf` and BEFORE the blog was deleted.
+
+So this is not "never generated". It generated at least once during the
+session, and then stopped responding to clears.
+
+# The discriminator, and it is already built
+
+`action_regenerate_registries` returns `shadowed_by_files` when a file sits at
+the pre-SM293 in-docroot location - and SM433 made that path deliberately
+NON-deleting, reporting the shadowing file rather than removing it.
+
+A file at `sites/dhcf/sitemap.xml` would therefore produce exactly this
+behaviour: served in preference to the generated registry, never cleared by
+`regenerate-registries` because clearing it is deliberately not done, and
+unaffected by `$REGISTRY_TTL`, which governs regeneration of the cache copy and
+not a file shadowing it. Generated once, then frozen.
+
+**Next step, no shell required: capture the FULL JSON from
+`regenerate-registries` and look for `shadowed_by_files`.**
+
+```datatable
+columns: If the response | Then
+widths: 7cm | X
+bold: 1
+tone: medium
+---
+names a sitemap path | the mechanism is SM433's deliberate non-deletion; the remedy is removing that file, and the lesson is that the warning was present and unread
+omits it | something else holds the artefact, and this filing stays open
+```
+
+One caveat against the tidy version: the reporter's `sitemap.xml` PUT returned
+**201**, and `do_put` returns 201 only when the target did NOT exist at the
+resolved path. That argues against a leftover file at that exact path, or means
+the resolved path differs from where the engine wrote. It is a reason to run
+the check rather than to assume the answer.
+
+# A falsifiable prediction on the TTL
+
+The last build was around 16:45-17:00Z, so a four-hour TTL should expire about
+20:45-21:00Z. If the artefact is still stale after that, TTL expiry is not
+rescuing it either, and it is **pinned rather than merely uncleared** - which
+would rule out every "it will refresh eventually" reading.
+
+The reporter is not watching for it. Worth someone doing.
