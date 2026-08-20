@@ -71,3 +71,39 @@ That bears on the permission-explanation work: whatever text tells an operator
 what a capability unlocks is not a convenience. It is the only account of the
 boundary that anyone outside the code can read, and nothing currently checks it
 against the code. Worth carrying into that thread rather than leaving here.
+
+# The test that would have caught it
+
+Proposed from the field, and it is better than the vague "add a lint" this
+filing started with, because it checks the two things against each other in
+the one place a partner actually meets them.
+
+Every WebDAV denial already names its capability, in a parseable shape:
+
+```
+'editing lazysite/nav.conf requires the manage_nav capability'
+'editing lazysite/forms/<name>.conf requires the manage_forms capability'
+'theme/layout authoring over WebDAV requires the manage_themes or manage_layouts capability'
+```
+
+So a test can extract, per governed path, the capability set the DENY REASON
+names, and compare it with the set of capabilities whose `webdav` list in
+`Capabilities.pm` contains that path.
+
+::: widebox
+**It only works as SET EQUALITY.** A membership check - "the capability the
+denial names does appear in the descriptor" - passes cleanly against exactly
+this defect, because `manage_nav` does list `nav.conf`; the surplus
+`manage_config` entry is invisible to it. The failure here is an EXTRA claim,
+not a missing one, so the assertion has to be that no other capability claims
+the path either.
+:::
+
+That distinction is the whole value of the test. Written the loose way it is
+another green test that proves nothing, and this filing would not exist to
+show it. Sabotage it against the current `manage_config` entry before trusting
+it: it must fail while line 130 stands, and pass once it is removed.
+
+The class is wider than WebDAV - the API and MCP planes make the same
+per-capability promises - but the deny reasons make WebDAV the plane where the
+check is nearly free, and it is where the defect is.
