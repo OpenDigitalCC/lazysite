@@ -252,3 +252,65 @@ Nothing was filed, and the reason it is recorded here is that the artefact
 looked exactly like a clean finding - two registries, one host, one instant,
 different content. On this host a plain-URL comparison of anything cached is
 not evidence until it has been busted.
+
+# WITHDRAWN: the query-string contrast, and the private-store step built on it
+
+Retracted by the reporter, and the section above stands only as a record of
+what was measured - **do not act on it**. The private-store question was aimed
+at the operator on the strength of an inference that no longer holds, and this
+section supersedes it.
+
+A fresh probe in the mirror, in sequence:
+
+```datatable
+columns: Step | Observed
+widths: 7cm | X
+bold: 1
+tone: medium
+---
+create 9 bytes | serves 9 bytes
+update to 23 bytes | 204; plain URL unchanged, **same mtime, same etag**
+DELETE, then create again | 201; plain URL **and** a busted key still the ORIGINAL 9 bytes
+a short while later, second busted key | **new bytes**
+then the FIRST busted key, then the plain URL | **new bytes**
+```
+
+::: widebox
+**It converges.** Given time, the correct content appears at the plain URL with
+no further action. That is a propagation delay - not a write landing somewhere
+else, and not a frozen per-key cache.
+:::
+
+Why the earlier contrast was confounded: the `main.css?v=r3` read was taken
+IMMEDIATELY after the PUT, and was never re-read later without a
+delete-then-create in between. The sitemap comparison had several operations
+between the write and the busted fetch, which gave it time to settle. So the
+two halves differed in WHEN they were read as well as HOW, and only the HOW was
+reported. "A query string does not defeat it" was never tested against elapsed
+time.
+
+Everything built on that difference goes with it: the file-not-a-cache
+inference, and the private-store step it promoted. `resolve_for_write` returns
+to being an unexamined candidate, no better placed than any other.
+
+# What still stands, and the experiment that settles it
+
+**Stands, reproducible:** an update PUT returns 204 and the served content does
+not change IMMEDIATELY. That is what cost the reporter an afternoon and it is
+the reason the filing exists.
+
+**Not established:** that it never changes. The whole filing was written around
+"stale" meaning permanent, and one timed re-read may dissolve it.
+
+The experiment needs no shell and should run before anyone opens any code:
+write, then re-read the plain URL at intervals WITHOUT deleting anything, and
+record when it flips. If it flips on its own, this is a propagation window and
+the questions become how long, whether that is documented, and whether anything
+should invalidate sooner - which may be nothing at all.
+
+A candidate consistent with every timing observation, offered as a candidate
+only: a PATH-KEYED, time-limited cache at the front end - `open_file_cache` is
+the archetype - would be query-insensitive, would converge on expiry, and would
+survive a delete-then-create for the same window. The shipped nginx templates
+set no such directive, so if that is the mechanism it comes from the host's own
+configuration rather than from anything lazysite ships. Unverified.
