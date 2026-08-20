@@ -148,3 +148,37 @@ visible: the FRESH last-modified was observed on `main.css` earlier and was not
 re-captured under controlled conditions. Do not lean on it. Without it the
 "write of the wrong bytes" reading loses its main support, and the cache
 candidate gains.
+
+# Correcting the control's scope
+
+Retracted in part by the reporter, and it tightens the reasoning rather than
+weakening it.
+
+The control was a **`.txt`** in the content namespace. The pages they publish
+successfully all afternoon are **`.md`**. So the control shows that one `.txt`
+update took effect under `/sites/`; it does NOT show that the content namespace
+is generally immune, and the heading above should be read with that limit.
+
+More importantly it corrects what the `.md`-only guard explains. That guard
+means `invalidate_cache` clears nothing for EITHER `.txt` - the mirror probe or
+the content control. So the guard is not what separates the two namespaces.
+
+::: widebox
+The discriminator is not the extension and not the namespace as such. It is
+**whether a stale cached copy exists for that path at all.** Something caches
+what is served from `/lazysite-assets/`; nothing appears to cache
+`/sites/<...>.txt`. The `.md` guard then matters as a second fact: even where a
+cache DOES exist, a non-`.md` write will never clear it.
+:::
+
+That keeps the candidate intact and makes the shell questions above sharper. If
+the probe file on disk holds the new bytes, the next thing to find is what is
+holding the old ones for that path - and it will not be found by comparing
+namespaces.
+
+# Operational note for whoever fixes it
+
+Delete-then-create is holding on the staging site and is now baked into the
+publish batches there - six assets currently go through that path. A fix that
+changes mirror-write behaviour will not break anything running, and the
+workaround can be unwound afterwards rather than needing to be preserved.
