@@ -85,7 +85,7 @@ genuinely blocks a release. B and C do not.
 Record each tier in `docs/manual-check-register.md` when it is done, against the
 version it was done on. A pass nobody wrote down has to be repeated.
 
-### Tier A - blocks the PROMOTION, not the cut
+### Tier A - blocks STABLE, not the cut and not beta
 
 Four checks, each a control that **writes or destroys** where the data path is
 tested and the button wiring is not. About twenty minutes. Do A1 to A3 in order -
@@ -111,8 +111,23 @@ release they are meant to gate. An operator went to run it against 0.10.6 and
 correctly found the controls absent - they had never shipped.
 
 The order is: cut as **edge**, deploy to an edge site, run tier A there, and let
-passing be what allows promotion to beta and stable. A tier-A failure on edge is
-an edge release doing its job, and no customer site has seen it.
+passing be what allows promotion to **stable**. A tier-A failure on edge is an
+edge release doing its job, and no customer site has seen it.
+
+**Tier A gates STABLE, not beta** (release-manager decision, 2026-08-20). It
+gated beta until then, and moving it is a judgement about what each channel
+means rather than a relaxation:
+
+- **beta** is where a build is bedded in by people who know they are running a
+  beta - the operator's own sites and partner instances. Holding beta on a
+  manual walk delays the bedding-in that produces the evidence, and the walk
+  itself is better done against a build that has been exercised.
+- **stable** is where a build reaches sites that did not choose to be early.
+  That is the promise these four checks stand behind, and they block it.
+
+The register still records every round against the version walked, so a stable
+cut can point at the walk that cleared it. What changed is which promotion
+waits, not whether anyone has to do the work.
 
 Sign in as an operator. You will need one folder of content you do not mind
 hiding for a minute; make one if there is not one, with two or three pages in it.

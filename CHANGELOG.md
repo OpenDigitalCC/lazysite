@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- Tier A (PENDING) **the four manual checks gate STABLE, not beta.** They gated
+  beta for one day; the amendment is a judgement about what each channel means
+  rather than a relaxation. Beta is bedded in by people who know they are
+  running a beta - the operator's own sites and partner instances - and holding
+  it on a manual walk delays the exercise that makes the walk worth doing.
+  Stable is where a build reaches sites that did not choose to be early, and
+  that is the promise these four stand behind. The work is unchanged and still
+  owed; what moved is which promotion waits for it. `MANUAL-CHECKS.md` and the
+  register both say so, and the register still records each round against the
+  version walked so a stable cut can point at the walk that cleared it.
+
 - SM423 (PENDING) **the certified channel is wired end to end.** ADR 0010
   wired every place that CONSUMES a channel and missed the two that PRODUCE an
   artefact carrying one, so `release.sh --certified` would have died at

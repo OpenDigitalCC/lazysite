@@ -42,14 +42,20 @@ tone: medium
 
 ## Committed before the next promotion
 
-Decided 2026-08-19: **all four tier-A checks are run before edge is promoted to
-beta.** They are the project's own stated promotion gate and none has ever been
-recorded at any version - the single row above is a manager-guide walk, not tier
-A, and predates the line.
+Decided 2026-08-19, **amended 2026-08-20**: all four tier-A checks are run
+before edge is promoted to **stable**. They gated beta for one day; the
+amendment is a judgement about what the channels mean - beta is bedded in by
+people who know they are running a beta, while stable reaches sites that did
+not choose to be early, and these four stand behind that second promise.
+
+None has ever been recorded at any version - the single row above is a
+manager-guide walk, not tier A, and predates the line. The work is unchanged
+and still owed; what moved is which promotion waits for it.
 
 They cannot be run from here. Tier A is explicitly "against a deployed EDGE
 build, not against a released site", so the sequence is: cut edge, deploy, walk
-them, then promote. A row per check goes in the table above.
+them, then promote to stable. A row per check goes in the table above, naming
+the tester who walked it.
 
 ```datatable
 columns: Check | What it governs | Why it cannot be automated
