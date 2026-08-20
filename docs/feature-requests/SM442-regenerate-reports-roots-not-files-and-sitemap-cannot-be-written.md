@@ -171,3 +171,79 @@ rescuing it either, and it is **pinned rather than merely uncleared** - which
 would rule out every "it will refresh eventually" reading.
 
 The reporter is not watching for it. Worth someone doing.
+
+# The shadowing story is ruled out too - by evidence already captured
+
+`shadowed_by_files` is **ABSENT** from the response, taken at the point the
+artefact was demonstrably stale:
+
+```json
+{"cleared_roots": ["/", "/sites/xisl", "/sites/sjm", "/sites/dhcf",
+                   "/sites/jpm-stock", "/sites/learning", "/sites/mg"],
+ "note": "The registries are cleared and rebuild on the next request...",
+ "ok": true}
+```
+
+Captured a second time immediately after deliberately PUTting a static
+`sitemap.xml` to `sites/dhcf/`, printing the key specifically: still absent -
+consistent with that PUT being discarded, since the file the warning looks for
+never came into existence.
+
+The 201 caveat was the right instinct. There is no leftover file, and the
+mechanism stays open.
+
+::: widebox
+**The two findings interlock more tightly than either was first put.** SM433's
+warning fires on a file at that path; the DAV layer will not let a file exist at
+that path; so on a content-root site the warning is unreachable by the route an
+operator would use, AND the condition it warns about cannot be created in order
+to test it.
+:::
+
+# A candidate that fits every observation: the early return
+
+`_invalidate_registries` begins:
+
+```perl
+my $rdir = _lz() . "/templates/registries";
+return () unless -d $rdir;
+```
+
+If that directory is not present under the manager's `_lz()`, the function
+returns immediately having unlinked nothing and having run no shadow check -
+and the caller still reports all seven `cleared_roots` and omits
+`shadowed_by_files`, because both of those are true of a no-op.
+
+That accounts for every measurement in this filing at once: clears that report
+success, an artefact that never changes, no shadow warning, and a registry that
+generated once (by the processor, on its own path) and then froze.
+
+**Not established.** Two checks settle it, both needing filesystem access:
+
+```datatable
+columns: Check | Meaning
+widths: 7cm | X
+bold: 1
+tone: medium
+---
+`<docroot>/lazysite/templates/registries/*.tt` exists? | absent = the early return fires and the clear is a no-op
+`<docroot>/lazysite/cache/registries/` subdirectory names | expect `sites_dhcf`; anything else means the KEY differs between processes
+```
+
+The key derivation itself is byte-identical on both sides - I compared
+`_registry_cache_path` in the processor with `_invalidate_registries`, and the
+strip, the substitution and the `_root` default all match. What can still
+differ is `$DOCROOT` itself between the manager process and the processor
+process (symlinked versus resolved path, or a trailing slash), which would
+leave the strip un-applied and produce a different key. The second check above
+shows that directly.
+
+# Why the confirmed half would have found this
+
+Had `regenerate-registries` reported what it UNLINKED rather than which roots it
+considered, an early return would have shown as zero files cleared against seven
+roots - visible in the first response, without ninety minutes of probing.
+
+That is the argument for fixing the reporting even if the underlying mechanism
+turns out to be something else entirely: the report is what turned a diagnosable
+condition into an afternoon.
