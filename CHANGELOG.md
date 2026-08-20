@@ -89,6 +89,28 @@ Naming the commit: AFTER it lands, never before
   guarded or exempt-with-a-reason - which was the reporter's own third
   suggested fix, not an addition of ours. The lint is proven to catch the pre-SM418
   world in both its shapes.
+- SM417 (PENDING) **a visit is one actor, not one address.** The visitor token
+  is hmac(ymd|ip), so every agent on a shared host - and every person behind
+  one NAT - shared a single visit: the field measured a deliberate four-page
+  walk arriving merged into one 22-step trail. Sessions now key per source
+  (token + user-agent), the same separation SM392 gave the promotion key.
+  COUNTING IS UNCHANGED: unique_visitors stays on the bare token, because one
+  person with two browsers must not become two visitors. Counting basis bumps
+  to 3 (SM338) - visit counts RISE on shared-address traffic and the day file
+  says it counts the new way, so the step in the series is attributable to
+  rules rather than traffic. **A latent gap fell out of it**: SM392 added
+  `pkey` to the first-party ingester only, and every consumer falls back to
+  the bare token when it is absent - so per-source promotion had silently
+  never happened on any site whose stats come from the web server's own log.
+  Only the sabotage matrix found it, because until the test grew a server-log
+  fixture, deleting `pkey` from that record broke nothing. **And a second of
+  the same family**: `scanner_by` is written under the promotion key and was
+  read under the counting token, so on every first-party site since SM392 that
+  lookup missed and `scanner_inferred` was silently 0 - an operator could not
+  tell a behavioural promotion from a signature match, which is the only thing
+  that field is for. Both hid in the same blind spot: the sweep test drives
+  the server-log ingester and the trail tests drive the first-party one, so a
+  defect in either was invisible from the other.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 

@@ -39,13 +39,22 @@ ok( -f $plugin, 'the stats plugin is present' );
 
 my $src = do { open my $fh, '<', $plugin or die $!; local $/; <$fh> };
 
+my ($BASIS) = $src =~ /our \$COUNTING_BASIS = (\d+);/;
+
 subtest 'the basis is declared, and what each value means is written down' => sub {
-    like( $src, qr/our \$COUNTING_BASIS = 2;/,
+    like( $src, qr/our \$COUNTING_BASIS = \d+;/,
         'there is one canonical basis, and it is not a literal at each use' );
     like( $src, qr/1 - assets counted as page views/,
         'basis 1 is described' );
     like( $src, qr/2 - assets counted separately/,
-        'and so is basis 2' )
+        'and so is basis 2' );
+    # SM417: every basis the constant can hold must carry its meaning, so the
+    # assertion follows the constant instead of naming one number. Pinning the
+    # VALUE here made the lint fail on the next honest bump - which is the lint
+    # objecting to being updated, not to anything being wrong.
+    my ($current) = $src =~ /our \$COUNTING_BASIS = (\d+);/;
+    like( $src, qr/^#\s+\Q$current\E - \S/m,
+        "the CURRENT basis ($current) has its meaning written down" )
         or diag( 'A bare integer in a data file is not a record of anything. '
             . 'The meaning has to be written where the number is produced.' );
 };
@@ -95,7 +104,8 @@ subtest 'the durable day and the index both carry it' => sub {
             local $/;
             <$fh>;
     } );
-    is( $day->{counting_basis}, 2, 'a day counted now records basis 2' );
+    is( $day->{counting_basis}, $BASIS,
+        "a day counted now records the current basis ($BASIS)" );
     ok( !$day->{counting_basis_mixed}, 'and is not mixed' );
 
     my $idx = decode_json( do {
@@ -105,7 +115,7 @@ subtest 'the durable day and the index both carry it' => sub {
     } );
     my ($row) = grep { $_->{date} eq $today } @{ $idx->{days} || [] };
     ok( $row, 'the index has the day' ) or return;
-    is( $row->{counting_basis}, 2,
+    is( $row->{counting_basis}, $BASIS,
         'and the index row carries it, which is where the step is SEEN' )
         or diag( 'The by_day series is what a reader plots. A step in it with '
             . 'nothing alongside to explain it is exactly the 27 July '

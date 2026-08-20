@@ -87,9 +87,15 @@ our @CLASSES = qw(human ai bot noise scanner);
 #
 #   1 - assets counted as page views (up to and including 0.10.11)
 #   2 - assets counted separately, as asset_hits (SM329, from 0.10.12)
+#   3 - visits keyed per SOURCE (token+user-agent), not per token (SM417):
+#       two actors behind one NAT are two visits, and on a multi-agent host
+#       each agent's walk is its own trail. Visit counts RISE on shared-address
+#       traffic under basis 3 - that is the fix, not drift. unique_visitors is
+#       untouched: counting stays on the token (SM392's rule - one person with
+#       two browsers must not become two visitors).
 #
 # A day-bucket carrying no basis at all predates the field, which is basis 1.
-our $COUNTING_BASIS = 2;
+our $COUNTING_BASIS = 3;
 
 # SM342: WHAT THE OPERATION ACTUALLY DID, counted rather than timed.
 #
@@ -2364,7 +2370,13 @@ sub _tally_batch {
             && !_is_asset( $r->{path} )
             && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b} )
         {
-            _sessionise( $cache, $r, $tok, $b, $site_host, $NF_CAP );
+            # SM417: the SESSION key is per source (token+user-agent), the same
+            # separation SM392 gave the promotion key and for the same reason -
+            # a visit is one actor's behaviour, and the token alone is an
+            # address. The field measured the alternative: four agents on one
+            # host produced ONE merged 22-step trail. Counting (unique
+            # visitors) stays on the bare token, per SM392's rule.
+            _sessionise( $cache, $r, $pk, $b, $site_host, $NF_CAP );
         }
 
         # SM336: the referring page for a 404, INTERNAL referrers only. A broken
@@ -2390,8 +2402,17 @@ sub _tally_batch {
         $b->{cls_ips}{$cls}{$tok} = 1
             if length($tok) && keys %{ $b->{cls_ips}{$cls} || {} } < $IP_CAP;
 
+        # SM417: $pk, not $tok. scanner_by is WRITTEN under the promotion key
+        # and was READ under the counting token - so on any site where the two
+        # differ (every first-party site since SM392 put pkey on that record)
+        # the lookup missed and `scanner_inferred` was silently 0. An operator
+        # judging whether the sweep threshold suits their traffic cannot do it
+        # if a behavioural promotion is indistinguishable from a signature
+        # match, which is the whole reason the field exists. Fixing pkey on the
+        # server-log ingester propagated the same miss there, which is how the
+        # sweep test caught a defect that had been live on the other path.
         _apply_event( $b, $r, $cls, 1, $site_host,
-            ( ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour' ), $NF_CAP );
+            ( ( $cache->{scanner_by}{$pk} // '' ) eq 'behaviour' ), $NF_CAP );
 
         # SM223: refusals are counted per PATH, for every class rather than
         # humans only. The case this exists to catch is an asset that became
@@ -2661,8 +2682,15 @@ sub _export_ingest_server_log {
                 term   => ( $want_terms ? _search_term( $p->{query} ) : undef ),
                 bytes  => ( ( $p->{bytes} // 0 ) + 0 ),                            # SM335
                 token  => _visitor_token( _anon_ip( $p->{ip} ) ),
-                ref    => $p->{ref},
-                t      => $p->{epoch},
+                # SM417: the per-source key, on THIS ingester too. SM392 added
+                # it to the first-party record and every consumer falls back to
+                # the bare token when it is absent - so on the server-log path
+                # the per-source promotion silently never happened. Found when
+                # the per-source SESSION key split nothing for the same reason.
+                pkey => _promo_key( _visitor_token( _anon_ip( $p->{ip} ) ),
+                    $p->{ua} ),
+                ref => $p->{ref},
+                t   => $p->{epoch},
             };
         }
         close $fh;
