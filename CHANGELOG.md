@@ -59,7 +59,12 @@ Naming the commit: AFTER it lands, never before
   installer does not know about. t/lint/67's exclusion list is now empty, and
   its own guard fired for real: it refuses an exclusion naming a collision that
   no longer exists, so removing the entry was part of this change rather than a
-  follow-up.
+  follow-up. **Severity amended in the filing and worth reading here**:
+  `starter/lazysite/nav.conf` line 9 ships `All features | /docs/features`, so
+  this was a broken DEFAULT NAV ITEM in the chrome of every page of every fresh
+  install - not, as first filed, one row in a sitemap. Confirmed independently
+  on a fresh 0.10.19 starter install. The acceptance test is now "install
+  fresh, follow the nav link, land on a page".
 
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
