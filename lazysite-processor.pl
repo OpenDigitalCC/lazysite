@@ -2825,6 +2825,34 @@ sub _is_engine_asset {
             || $uri eq '/assets/lazysite-chrome.js' ) ? 1 : 0;
 }
 
+
+# SM416: the asset Cache-Control, in one place for both the 200 and 304 paths.
+#
+# The default (no-cache, must-revalidate) is DELIBERATE and stays the default:
+# must-revalidate is what makes protecting a path take effect for a visitor who
+# already fetched it (the SM331 lesson, documented at the 200 site below), and
+# the ten-year cache the docs used to describe is a property of the stock
+# front-end fast path, not of the engine.
+#
+# asset_max_age (site setting, seconds) lets an operator trade a BOUNDED
+# staleness window for browser caching: the field measured a typical page at
+# ~6 engine round trips per view under pure revalidation, which on contended
+# hosting is a real multiplier. With a value set, a newly-protected asset can
+# stay readable in browser caches for at most that window - which is why the
+# operator chooses the number rather than inheriting one.
+#
+# ACL-governed paths are no-store ABSOLUTELY, whatever the setting: a protected
+# asset must never sit in a shared or private cache at all.
+sub _static_cache_control {
+    my ($real) = @_;
+    return 'Cache-Control: no-store' if _acl_governed($real);
+    my %sv  = resolve_site_vars();
+    my $age = $sv{asset_max_age} // '';
+    return "Cache-Control: public, max-age=$age, must-revalidate"
+        if $age =~ /\A\d{1,9}\z/ && $age > 0;
+    return 'Cache-Control: no-cache, must-revalidate';
+}
+
 sub _serve_content_static {
     my ( $root, $rel, $uri ) = @_;
     return 0 unless length $rel;
@@ -2880,9 +2908,7 @@ sub _serve_content_static {
             print "Status: 304 Not Modified\n";
             print "$_\n" for _security_headers();
             print "ETag: $etag\n";
-            print( _acl_governed($real)
-                ? "Cache-Control: no-store\n"
-                : "Cache-Control: no-cache, must-revalidate\n" );
+            print _static_cache_control($real) . "\n";    # SM416
             print "\n";
             return 1;
         }
@@ -2936,10 +2962,9 @@ sub _serve_content_static {
         # lazysite: a site with no ACL store keeps it, because nothing there can
         # become protected without an operator noticing. The docs say so now
         # rather than describing the stock template as though it were the rule.
-    print( _acl_governed($real)
-        ? "Cache-Control: no-store\n"
-        : "Cache-Control: no-cache, must-revalidate\n" );
-    print "ETag: $etag\n" if defined $etag;    # SM388
+    print _static_cache_control($real) . "\n";    # SM416: operator-set max-age
+                                                  # or the revalidation default
+    print "ETag: $etag\n" if defined $etag;       # SM388
     print "\n";
 
     # 64 KiB blocks: large enough that the syscall count is irrelevant, small

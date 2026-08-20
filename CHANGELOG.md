@@ -55,6 +55,20 @@ Naming the commit: AFTER it lands, never before
   0.10.14-0.10.16 homepage-dependent validation conclusions are flagged
   unconfirmed and being re-run; their three-page version probe (written after
   the FIRST stale-render incident) is what caught it.
+- SM416 (PENDING) **the asset cache lifetime is the operator's dial.** The
+  lazysite front end revalidates every asset on every page view - deliberate
+  (SM387: protection must reach already-fetched copies) but sized by the field
+  at ~6 engine round trips per view, a real multiplier on contended hosting,
+  and the layouts briefing still taught the stock template's ten-year/?v=
+  advice as if it were universal. `asset_max_age` (site setting, seconds)
+  trades a BOUNDED staleness window for browser caching; the DEFAULT is
+  unchanged, because the revalidation posture was chosen, not accidental, and
+  the operator picks the number knowingly with the cost spelled out in the
+  setting's note. ACL-governed assets stay no-store whatever the dial says -
+  and the sabotage matrix caught the test proving that against the WRONG
+  emission site (the anonymous refusal path) until it made an authorised
+  request. The layouts briefing now names which front end each piece of
+  caching advice applies to, per the field filing's own suggestion.
 
 ## 0.10.17 - EDGE: the beta candidate, built from the field's own findings (2026-08-19)
 

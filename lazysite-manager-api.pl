@@ -2457,7 +2457,7 @@ sub action_config_set {
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
-        update_channel canonical_ip manager manager_path
+        update_channel canonical_ip manager manager_path asset_max_age
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
@@ -2488,6 +2488,11 @@ sub action_config_set {
         }
     }
     # SM122: validate the enum/name-shaped keys.
+    # SM416: seconds, bounded; 0 (or empty) restores the revalidation default.
+    if ( $key eq 'asset_max_age' && defined $value && length $value
+        && $value !~ /^\d{1,9}$/ ) {
+        return { ok => 0, error => 'asset_max_age must be a number of seconds (0 disables)' };
+    }
     if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(?:enabled|disabled)$/ ) {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };
     }

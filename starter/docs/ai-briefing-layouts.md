@@ -483,9 +483,21 @@ the chrome is invisible, so it reads as "no layout".
 
 ### Cache
 
-`/lazysite-assets/` is served with a ten-year cache header. A layout linking
-`main.css?v=1` must **bump `v` on every CSS change** or browsers keep serving the
-old file - including yours while you are checking your work.
+How long browsers keep `/lazysite-assets/` files depends on WHICH front end
+serves the site, and a layout author cannot assume - so here is how to tell,
+and what to do in each case:
+
+- On the **stock front end** (no ACL store; the header says nothing, or
+  `X-Lazysite-Front` is absent), assets carry a ten-year cache. A layout
+  linking `main.css?v=1` must **bump `v` on every CSS change** or browsers
+  keep serving the old file - including yours while you are checking your work.
+- On the **lazysite proxy template** (`X-Lazysite-Front: hestia-proxy/acl` or
+  a one-rule front end), the engine serves assets itself. By default they
+  revalidate on every use - your changes appear immediately and `?v=` bumping
+  is unnecessary (though harmless). If the operator has set the site's
+  **Asset cache lifetime** (`asset_max_age`), changes can take up to that many
+  seconds to reach returning visitors, and `?v=` bumping makes them immediate
+  again.
 
 ## Theme incompatibility
 

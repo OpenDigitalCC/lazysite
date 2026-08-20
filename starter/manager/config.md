@@ -31,6 +31,9 @@ var SITE_SCHEMA = [
     default: 'lazysite/nav.conf', group: 'Content' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
     on: 'true', off: 'false', default: 'true' },
+  { key: 'asset_max_age', label: 'Asset cache lifetime (seconds)', type: 'text',
+    default: '', group: 'Content',
+    note: 'How long a visitor\'s browser may keep stylesheets, images and fonts before re-checking. Empty or 0 (the default) means re-check on every use: theme changes and newly protected files take effect immediately, at the cost of more requests. A value like 300 lets browsers reuse assets for that many seconds - fewer requests, and a change (including protecting a file) can take up to that long to reach visitors who already fetched it.' },
   // SM095/SM138: Manager-UI access is the `ui` channel capability, granted through
   // a group on the Groups page. The legacy manager_groups conf key is retired
   // (SM138): an automatic migration grants its groups explicitly and removes the line.
