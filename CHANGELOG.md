@@ -44,6 +44,30 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM431 (PENDING, filing only) **permissions are the one part of
+  manage_content with a single route.** `get_permissions` and
+  `set_permissions` exist on MCP and nowhere else - no control-API action, no
+  WebDAV route - so a token grant can create gated content and then have no
+  way to inspect the rule governing it. Filed by the field-test account after
+  CF-2 shipped, on finding it could not verify the change in either
+  direction; its observation that it could not have captured a 0.10.18
+  baseline either is the useful half, since it forecloses a before/after
+  comparison somebody would otherwise schedule. Explicitly not a request for
+  more access: it is four-surface parity work, a fifteenth item of SM430's
+  kind. Two ways to close it, and the filing is straight about the trade -
+  control-API actions put permissions on the same footing as the rest of the
+  capability and carry a real blast radius; an MCP server for that one host is
+  the cheap answer and leaves the gap in place. DECISION HELD.
+
+- SM430 provenance (PENDING, correction) **the common-functions survey is
+  UNATTRIBUTED.** The brief carries no author line. It names SM422's parity
+  map as its evidence base and so descends from it, but the map's author has
+  confirmed the survey, CF-2 and the two-write-stacks framing are not theirs
+  and checked their own filing to establish it. I credited them in
+  correspondence and was wrong; the filing and commit message never carried
+  the claim, and the status-note now records "unattributed" explicitly rather
+  than leaving a gap that would default to the nearest known author.
+
 - SM430 (PENDING, filing only) **common functions across the four surfaces.**
   A four-track code survey, filed as fourteen independent packages (CF-1 to
   CF-14) with per-package tests and dependencies. The structural finding:
