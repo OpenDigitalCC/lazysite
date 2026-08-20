@@ -102,6 +102,24 @@ Naming the commit: AFTER it lands, never before
   its first assertion PASSED on the word "Authoring" in the navigation menu -
   an expectation-based body check passing on chrome while the feature did
   nothing; a differential comparison of the two bodies told the truth.
+- SM426, SM422 store gate (PENDING) **the probe runs itself, and a store is a
+  store wherever it is configured.** The outside-in ACL probe refuses as root -
+  correctly (SM377: protecting content there leaves root-owned files in the
+  site tree) - but that refusal ended every root deploy with "run the probe as
+  the site user", so the one check measuring gating the way a visitor meets it
+  is the one an automated deploy never got, and SM366 records it has never run
+  from the field at all. It now drops to the site's registered owner with
+  `sudo -n`, exactly as `upgrade --all` already does: the same mechanism, on
+  the one command that declined to use it. Only when root and the owner
+  differs; `-n` never prompts, so a missing sudoers entry fails loudly instead
+  of hanging a deploy, and the probe's own skip reason survives where the drop
+  is unavailable. Separately, the submission read gate keyed on the fixed
+  `lazysite/forms/submissions/` prefix while the control API resolved through
+  the configured-store allowlist - so with a handler storing under the content
+  tree, a manage_content-only grant was refused the default store and SERVED
+  the configured one. One definition now, failing safe to the default prefix
+  if the handler config cannot be read, because a store that cannot be
+  enumerated must not become a store that is ungated.
 
 - SM423, SM424, SM425 (PENDING, filings only) **three inbox briefs assigned
   refs.** SM423: the certified channel is HALF-WIRED - ADR 0010 wired every

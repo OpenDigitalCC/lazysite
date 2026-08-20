@@ -791,9 +791,37 @@ sub cmd_probe {
     my $tool = payload_root() . '/tools/lazysite-check.pl';
     my ( @verified, @exposed, @unconfirmed, @skip_reasons );
 
+    my $me      = current_user();
+    my $is_root = running_as_root();
+
     for my $s (@$targets) {
         my @base = ( '--docroot', $s->{docroot}, '--check-acl', _site_url($s) );
-        my $out = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
+
+        # SM426: DROP TO THE SITE'S OWNER, exactly as `upgrade --all` does.
+        #
+        # The probe refuses as root, and the refusal is right: protecting
+        # content there would leave root-owned files in the site tree (SM377).
+        # But the refusal ended a routine root deploy with "run the probe as
+        # the site user" - so the one check that measures gating from OUTSIDE,
+        # anonymously, the way a visitor meets it, is the one an automated
+        # deploy never gets. An instruction printed at the end of a deploy is a
+        # step that does not happen: SM366 records that the probe has never
+        # been run from the field at all.
+        #
+        # Nothing new is invented here. The registry already records owner= per
+        # site and `upgrade --all` already drops to it with sudo -n; this is
+        # the same drop on the one command that declined to use it.
+        #
+        # sudo -n never prompts, so a host without the sudoers entry FAILS
+        # rather than hanging - and the probe's own skip and stated cause come
+        # through unchanged, which is what SM385 requires of a summary.
+        my $owner = site_owner($s);
+        my @cmd   = ( $^X, _lib_arg(), $tool, @base );
+        unshift @cmd, 'sudo', '-n', '-u', $owner, '--'
+            if $is_root && defined $owner && length $owner && $owner ne $me;
+
+        my $shell = join ' ', map { quotemeta } @cmd;
+        my $out   = qx($shell 2>&1);
 
         # MATCH THE PROBE'S OWN VERDICT, not any [ FAIL ] in the report.
         #

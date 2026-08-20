@@ -289,6 +289,32 @@ sub is_blocked_path {
 # submission store is written by the form handler, never by hand.
 #
 # Returns { caps => [...], mode, why } or undef if the path is not governed.
+# SM422: is this path inside ANY configured submission store?
+#
+# The default store, plus each file-handler `path` - the same set the control
+# API's form-submissions route admits. Loaded through Manager::Plugins so there
+# is one definition of "a submission store" rather than a prefix here and an
+# allowlist there.
+#
+# Fails SAFE and QUIET: if the handler config cannot be read the answer is the
+# default prefix alone, which is what this function did before it knew about
+# configured stores. A store that cannot be enumerated must not become a store
+# that is ungated.
+sub _is_submission_store_path {
+    my ($rel) = @_;
+    return 1 if index( $rel, 'lazysite/forms/submissions/' ) == 0;
+    my @dirs = eval {
+        require Lazysite::Manager::Plugins;
+        Lazysite::Manager::Plugins::submission_store_dirs();
+    };
+    return 0 unless @dirs;
+    for my $d (@dirs) {
+        next unless defined $d && length $d;
+        return 1 if index( $rel, "$d/" ) == 0;
+    }
+    return 0;
+}
+
 sub carveout_requirement {
     my ( $rel, $mode ) = @_;
     return undef unless defined $rel && length $rel;
@@ -309,7 +335,24 @@ sub carveout_requirement {
     # The literal prefix the blocklist carves out. A store the operator has
     # configured ELSEWHERE under lazysite/ is still blocked outright; one under
     # the content tree is ordinary content, confined by dav_scope.
-    if ( index( $r, 'lazysite/forms/submissions/' ) == 0 ) {
+    # SM422: EVERY CONFIGURED STORE, not just the default path.
+    #
+    # This keyed on the fixed prefix while the control API's form-submissions
+    # route resolves through submission_store_dirs - the SM268 H1 allowlist of
+    # the default store PLUS each file-handler's configured `path`. The two
+    # agree for a default install and DIVERGE the moment an operator points a
+    # handler somewhere else, which submission_store_dirs explicitly allows
+    # (a store under the content tree, say). Reproduced: with a handler at
+    # `path: content/leads`, a grant holding only manage_content was refused
+    # /lazysite/forms/submissions/contact.jsonl and SERVED
+    # /content/leads/data.jsonl - the same kind of data, two guards, and the
+    # read gate depending on which surface reached it.
+    #
+    # One definition now. The generalisation is deliberate rather than
+    # constraining the layout: forbidding a store outside lazysite/forms/ would
+    # remove a configuration the code supports and an operator may already be
+    # using.
+    if ( _is_submission_store_path($r) ) {
         return { caps => [], mode => $mode,
             why => 'the submission store is append-only: the form handler writes it' }
             if $mode eq 'write';

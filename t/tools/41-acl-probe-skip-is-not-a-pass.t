@@ -136,4 +136,39 @@ subtest 'the three counts are reported separately' => sub {
             . 'it in one of them.' );
 };
 
+# --- SM426: the probe drops to the site's owner ------------------------------
+#
+# The probe refuses as root and the refusal is RIGHT (SM377: protecting content
+# there leaves root-owned files in the site tree). What was wrong is that the
+# refusal ended a routine root deploy with "run the probe as the site user" -
+# so the one check that measures gating from OUTSIDE, the way a visitor meets
+# it, is the one an automated deploy never gets. SM366 is the standing
+# evidence: it has never been run from the field at all.
+#
+# The mechanism already existed one screen up: `upgrade --all` drops to each
+# site's registered owner with sudo -n. This asserts the probe now does the
+# same, and asserts the CONSTRAINTS that make it safe rather than just the
+# call - a drop that prompted, or that swallowed the probe's own skip reason,
+# would be a worse defect than the one it fixes.
+subtest 'cmd_probe drops to the site owner, and only when it must' => sub {
+    my ($probe) = $sh_src =~ /\nsub cmd_probe \{(.*?)\nsub \w/s;
+    ok( $probe, 'cmd_probe is present' ) or return;
+
+    like( $probe, qr/sudo/, 'it drops privileges rather than refusing' );
+    like( $probe, qr/'-n'/,
+        'with sudo -n: never prompts, so a host without the sudoers entry '
+            . 'FAILS LOUDLY instead of hanging a deploy' );
+    like( $probe, qr/site_owner\(/,
+        'to the owner the registry records, not a guess' );
+    like( $probe, qr/\$is_root && .*\$owner ne \$me/s,
+        'ONLY when running as root and the owner is someone else - a non-root '
+            . 'operator running as the owner already must not be re-wrapped' );
+
+    # The skip must survive. If the drop is unavailable the probe still reports
+    # its own reason, which is what SM385 requires of a summary.
+    like( $sh_src, qr/ACL PROBE SKIPPED/,
+        'the skip reason is still parsed and reported - a drop that swallowed '
+            . 'it would replace a stated cause with silence' );
+};
+
 done_testing();

@@ -818,7 +818,12 @@ sub action_form_targets_save {
 # default, plus the `path` of every configured file-target handler. Normalised
 # and reserved-area-checked, so an operator cannot point a handler at
 # lazysite/auth and turn this back into an arbitrary reader.
-sub _submission_store_dirs {
+# SM422: PUBLIC, because it is now a shared definition rather than this
+# module's private business. Common::carveout_refusal consults it so the read
+# gate and the control API's form-submissions route agree about what a
+# submission store IS - and a cross-package reach into a private sub is
+# exactly what "use published APIs" exists to stop.
+sub submission_store_dirs {
     my %dirs = ( 'lazysite/forms/submissions' => 1 );
     my $list = eval { _parse_handlers_conf() } || [];
     for my $h (@$list) {
@@ -859,7 +864,7 @@ sub _submissions_path {
     # directories rather than one hard-coded string - anything else would break
     # a site that moved its store. A file OUTSIDE every configured store is
     # refused whatever its extension.
-    my %allowed = map { $_ => 1 } _submission_store_dirs();
+    my %allowed = map { $_ => 1 } submission_store_dirs();
     my $dir     = $rel;
     $dir =~ s{/[^/]+\z}{};
     return ( undef, undef, 'Invalid submissions file' )
