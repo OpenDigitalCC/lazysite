@@ -93,3 +93,57 @@ lines in one write - would remove the hand-carrying and the window where the
 domain is registered with nothing set. Worth weighing against just refusing the
 bad value at the point of entry, which is cheaper and prevents rather than
 repairs.
+
+# Every diagnostic confirmed the broken config
+
+Independently reproduced from a second session configuring the same staging
+subdomain, whose operator-visible symptom was different and equally
+misdirecting: *the theme selected doesn't seem to be the one delivered*. The
+default site answered, over a valid certificate, with a real page.
+
+The costly part is that all three tools an operator would reach for agreed the
+configuration was fine:
+
+```datatable
+columns: Tool | What it said | Why
+widths: 5cm | 6cm | X
+bold: 1
+tone: medium
+---
+`domain-preview` | renders the DHCF site perfectly | **feeds the stored key back in as the Host**
+`domains-list` | a complete, correct-looking record | it reports what is stored, and the storage is intact
+`domain-check` | "add the DNS record" | it resolved the literal string `dhcf`
+```
+
+::: widebox
+`domain_preview` sets `$ENV{HTTP_HOST} = $host` from the STORED key, so the
+processor's `$declared{$req_host}` lookup matches by construction. **The
+preview validates the configuration against itself.** It can never detect a
+host-key mismatch, because the mismatch is precisely between the stored key and
+a real request's Host - the one difference the preview removes.
+
+That is the defect worth fixing beyond the validation: the tool that exists to
+answer "will this serve?" cannot see the failure mode that stops it serving.
+:::
+
+# Remedies, in the order the field suggests
+
+1. **Refuse or normalise a dotless host at entry.** Cheapest, and the only
+   moment the value can be got right (see the repair section above).
+2. **Make `domain-check` evaluate the stored value the way a request would** -
+   and distinguish "this name has no DNS record" from "this name cannot have
+   one".
+3. **Log when a Host matches no registered domain and the default answers.**
+   The engine currently cannot know it is disappointing anyone; one line turns
+   a silent fallthrough into something greppable.
+
+Preview is the fourth: it should say which Host it used, so "it previews fine"
+stops being mistaken for "it will serve".
+
+# A smaller one alongside it
+
+`domain-add` takes every parameter from the JSON body. A query-string call
+therefore arrives with no `host` at all and is answered `Invalid domain host`,
+which reads as *your hostname is malformed* rather than *you sent none*. Same
+class as the DNS message: accurate about the internal state, misleading about
+what the caller should change.
