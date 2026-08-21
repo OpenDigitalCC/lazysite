@@ -61,6 +61,22 @@ Naming the commit: AFTER it lands, never before
   half-applied. **403 is deliberately untouched** - a refusal with a real JSON
   body that the pages already report, where "sign in again" would be wrong
   advice.
+- **A multi-domain test fixture, because a single-site one cannot fail the way
+  this software fails.** Ten defects surfaced in one week of real multi-site
+  use with every suite green throughout, and each needed two sites on one
+  instance to appear - SM436 needs a domain that is not the default, SM440 a
+  neighbour to leak onto, SM441 a domain whose presentation differs from the
+  primary's, SM443 one domain that inherits its nav and one that does not. On a
+  single site the docroot IS the content root, the Host always matches, and
+  "the primary" and "this domain" are the same thing, so the faults are
+  unreachable and the tests pass truthfully while describing a shape the estate
+  no longer has. `TestHelper::setup_multi_domain_site` builds a primary, three
+  domains (one nested inside another's root) and **an unregistered prefix
+  sibling** - the last because a registered one proves nothing: longest-match
+  picks it whether containment is boundary-safe or not, which let the same
+  sabotage pass three separate times here before the fixtures were corrected.
+  Verified by re-introducing three of the real defects and confirming the
+  fixture fails on each.
 
 - SM439 resolved (PENDING) **revoking an access key now stops the OAuth grant,
   and the Keys page stops hiding people.** Two halves, both confirmed by

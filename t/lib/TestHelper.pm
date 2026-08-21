@@ -15,7 +15,7 @@ our @EXPORT_OK = qw(
     load_processor silence_stdout
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
     run_processor run_script run_dav
-    setup_dav_site dav_users_tool
+    setup_dav_site dav_users_tool setup_multi_domain_site
     grant_caps revoke_caps
     env_passthrough
     repo_manifest_guard repo_root_lock
@@ -608,6 +608,103 @@ sub setup_dav_site {
     }
     my $auth = 'Basic ' . MIME::Base64::encode_base64( "$user:$pass", '' );
     return { docroot => $d, user => $user, password => $pass, auth => $auth };
+}
+
+# ---------------------------------------------------------------------
+# A MULTI-DOMAIN instance, because a single-site fixture cannot fail the
+# way this software actually fails.
+#
+# Ten defects surfaced in one week of real multi-site use, every suite
+# green throughout, and each needed TWO SITES ON ONE INSTANCE to appear:
+#
+#   SM436  a domain configured under a name no request carries served the
+#          PRIMARY's site - needs a domain that is not the default
+#   SM440  an alias 301'd into a 404 on its own host, and SERVED that
+#          site's page under a NEIGHBOUR's domain - needs a neighbour
+#   SM441  a page previewed in the default theme - needs a domain whose
+#          presentation differs from the primary's
+#   SM443  a per-domain nav save replaced the shared one - needs a domain
+#          that inherits and one that does not
+#
+# On one site the docroot IS the content root, the Host always matches,
+# and "the primary" and "this domain" are the same thing - so the bugs
+# are unreachable and the tests pass truthfully while describing a shape
+# the estate no longer has.
+#
+# SM440's filing puts the requirement plainly: the regression test has to
+# be one a single-site instance CANNOT pass. This builds that instance.
+#
+# Returns { docroot, domains => { key => {host, root, ...} } }. Every
+# domain gets a real content root with an index page, so a render or a
+# walk finds something.
+#
+#   primary    the docroot itself - content root '', the default site
+#   alpha      its own content root, its own layout/theme/nav
+#   beta       its own content root, INHERITS presentation and nav
+#   alpha_sub  content root NESTED inside alpha's, for longest-match
+#   alpha_near an UNREGISTERED sibling whose name PREFIXES alpha's
+#
+# The last two are the ones that catch containment. A prefix sibling that
+# is itself registered proves nothing: longest-match picks it whether the
+# containment test is boundary-safe or not, which let a bare
+# index($rel,$root)==0 sabotage pass three separate times in this repo
+# before the fixtures were corrected. alpha_near is deliberately NOT a
+# domain - only correct containment leaves it belonging to the primary.
+sub setup_multi_domain_site {
+    my (%o) = @_;
+    my $d = tempdir( CLEANUP => 1 );
+    make_path( "$d/lazysite", "$d/lazysite/auth", "$d/lazysite/cache" );
+
+    my %dom = (
+        primary => { host => 'primary.test', root => '' },
+        alpha   => { host => 'alpha.test',   root => 'sites/alpha',
+            layout => 'alpha-layout', theme => 'alpha-theme',
+            nav_file => 'lazysite/nav-alpha.conf' },
+        beta      => { host => 'beta.test',  root => 'sites/beta' },
+        alpha_sub => { host => 'sub.alpha.test', root => 'sites/alpha/inner' },
+    );
+
+    my $conf = "site_name: Primary\n"
+        . "site_url: \${REQUEST_SCHEME}://\${SERVER_NAME}\n"
+        . "layout: base\ntheme: base\n"
+        . 'alias_hosts: '
+        . join( ', ', map { $dom{$_}{host} } qw(alpha beta alpha_sub) ) . "\n";
+    for my $k (qw(alpha beta alpha_sub)) {
+        my $h = $dom{$k}{host};
+        $conf .= "alias.$h.content_root: $dom{$k}{root}\n";
+        $conf .= "alias.$h.site_url: https://$h\n";
+        $conf .= "alias.$h.site_name: \u$k\n";
+        for my $key (qw(layout theme nav_file)) {
+            next unless defined $dom{$k}{$key};
+            $conf .= "alias.$h.$key: $dom{$k}{$key}\n";
+        }
+    }
+    $conf .= $o{extra_conf} if defined $o{extra_conf};
+
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die "conf: $!";
+    print {$cf} $conf;
+    close $cf;
+
+    open my $nv, '>', "$d/lazysite/nav.conf" or die "nav: $!";
+    print {$nv} "Home | /\n";
+    close $nv;
+
+    # A content root per domain, plus the UNREGISTERED prefix sibling and a
+    # page at the docroot, so containment has something to get wrong.
+    for my $rel ( 'sites/alpha', 'sites/alpha/inner', 'sites/beta',
+        'sites/alpha-near' )
+    {
+        make_path("$d/$rel");
+        open my $ix, '>', "$d/$rel/index.md" or die "index: $!";
+        print {$ix} "---\ntitle: $rel\n---\n\nbody\n";
+        close $ix;
+    }
+    open my $ix, '>', "$d/index.md" or die "index: $!";
+    print {$ix} "---\ntitle: Primary\n---\n\nbody\n";
+    close $ix;
+
+    $dom{alpha_near} = { host => undef, root => 'sites/alpha-near' };
+    return { docroot => $d, domains => \%dom, conf => $conf };
 }
 
 1;
