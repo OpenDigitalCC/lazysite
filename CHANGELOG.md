@@ -90,6 +90,18 @@ Naming the commit: AFTER it lands, never before
   operator's own `index.md`, so the one page keeping an old render is the
   homepage - the first page anyone checks after an upgrade. This endpoint is
   never cached, so it can answer honestly.
+- SM437 resolved (PENDING) **the domain's content folder is picked, not typed.**
+  The create sheet now offers a drop-down of folders that EXIST, defaulting to
+  `sites/`, and names the child folder from the host - so the operator chooses
+  a parent and types nothing that can be misspelled. The derived path is shown
+  and follows the host field as it is typed, because a surprise at submit time
+  is too late. `domain_add` already creates-or-adopts, so nothing new was
+  needed underneath. **The failure it removes is quiet**: any clean relative
+  path is valid and gets provisioned, so a typo produced a domain pointing at a
+  new empty directory - the site served, with nothing in it, and the intended
+  content sat one directory away under the name that was meant. A
+  "Somewhere else…" option keeps the text box reachable, because the picker is
+  a default rather than a cage.
 
 - SM439 resolved (PENDING) **revoking an access key now stops the OAuth grant,
   and the Keys page stops hiding people.** Two halves, both confirmed by

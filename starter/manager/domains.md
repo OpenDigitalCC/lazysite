@@ -420,7 +420,13 @@ function openCreateSheet() {
   if (panel) { try { panel.focus(); } catch (e) {} }
   markConfiguring(null);
   var hf = document.getElementById('e-' + NEW_HOST + '-host');
-  if (hf) { try { hf.focus(); } catch (e) {} }
+  if (hf) {
+    try { hf.focus(); } catch (e) {}
+    // SM437: the folder is derived from the host, so the preview has to follow
+    // it as it is typed - not only on submit, where a surprise is too late.
+    hf.addEventListener('input', syncContentRoot);
+  }
+  loadFolderChoices();
   syncSeedVisible();
 }
 
@@ -429,6 +435,14 @@ function openCreateSheet() {
 // input, after the sheet opens, and after a clone pre-fills the box - a value
 // that arrives without a keystroke must reveal it too.
 function syncSeedVisible() {
+  // SM437: under the picker the text box is hidden and empty, so asking IT
+  // whether a folder was named would hide the seed option permanently. Ask
+  // for the value that will actually be submitted.
+  if (document.getElementById('e-' + NEW_HOST + '-cr-parent')) {
+    var wrapEl = document.getElementById('seed-wrap');
+    if (wrapEl) wrapEl.style.display = contentRootValue() ? 'block' : 'none';
+    return;
+  }
   var croot = document.getElementById('e-' + NEW_HOST + '-content_root');
   var wrap  = document.getElementById('seed-wrap');
   if (!wrap) return;
@@ -444,6 +458,76 @@ function onNewHostInput() {
   uf.value = h ? 'https://' + h : '';
 }
 
+// SM437: populate the parent-folder picker, and keep the derived path visible.
+//
+// The operator picks a parent that EXISTS; the child is named from the host and
+// created if absent - which domain_add already does (make_path when missing,
+// adopt when present), so no new behaviour is needed underneath.
+function crParentSelect() { return document.getElementById('e-' + NEW_HOST + '-cr-parent'); }
+function crHostValue() {
+  var e = document.getElementById('e-' + NEW_HOST + '-host');
+  return e ? e.value.trim().toLowerCase() : '';
+}
+
+// The value the form will actually submit. Derived, never typed - except under
+// "Somewhere else…", where the operator has said they know better.
+function contentRootValue() {
+  var sel = crParentSelect();
+  if (!sel) {
+    var box = document.getElementById('e-' + NEW_HOST + '-content_root');
+    return box ? box.value.trim() : '';
+  }
+  if (sel.value === '__custom') {
+    var b = document.getElementById('e-' + NEW_HOST + '-content_root');
+    return b ? b.value.trim() : '';
+  }
+  if (sel.value === '') return '';                    // serve the default site
+  var h = crHostValue();
+  return h ? (sel.value + '/' + h) : sel.value;
+}
+
+function syncContentRoot() {
+  var sel = crParentSelect(); if (!sel) return;
+  var custom = document.getElementById('cr-custom');
+  var prev   = document.getElementById('cr-preview');
+  if (custom) custom.style.display = (sel.value === '__custom') ? 'block' : 'none';
+  if (prev) {
+    var v = contentRootValue();
+    prev.textContent = (sel.value === '')
+      ? 'This domain will serve your default site.'
+      : (v ? 'Folder: ' + v + (crHostValue() ? '  (created if it does not exist)' : '')
+           : 'Enter the domain name above and this fills in.');
+  }
+  if (typeof syncSeedVisible === 'function') syncSeedVisible();
+}
+
+function loadFolderChoices() {
+  var sel = crParentSelect(); if (!sel) return;
+  fetch(API + '?action=list&path=/', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var dirs = ((d && d.entries) || []).filter(function (e) {
+        // lazysite/ is the system area and is never a content root.
+        return e.type === 'dir' && e.name !== 'lazysite';
+      }).map(function (e) { return e.name; });
+      var opts = '<option value="">Serve the default site (no folder)</option>';
+      dirs.forEach(function (n) {
+        opts += '<option value="' + esc(n) + '"' + (n === 'sites' ? ' selected' : '') + '>'
+             +  esc(n) + '/</option>';
+      });
+      opts += '<option value="__custom">Somewhere else…</option>';
+      sel.innerHTML = opts;
+      syncContentRoot();
+    })
+    .catch(function () {
+      // If the listing cannot be read, fall back to the text box rather than
+      // leaving a select that can only say "Loading…".
+      sel.innerHTML = '<option value="__custom">Type a folder path</option>';
+      sel.value = '__custom';
+      syncContentRoot();
+    });
+}
+
 function createDomain() {
   var v = function (k) {
     var e = document.getElementById('e-' + NEW_HOST + '-' + k);
@@ -456,7 +540,7 @@ function createDomain() {
   var seedEl = document.getElementById('e-' + NEW_HOST + '-seed');
   post('domain-add', {
     host: host,
-    content_root: v('content_root'),   // empty = default site
+    content_root: contentRootValue(),  // SM437: derived from the picker + host
     site_url: v('site_url'),
     site_name: v('site_name'),
     theme: ap.theme,
@@ -650,6 +734,31 @@ function editField(host, k, row, isCreate) {
     // visibility, so it needs a handler the edit sheet does not.
     var oi = (isCreate && k === 'content_root') ? ' oninput="syncSeedVisible()"' : '';
     field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + oi + ' style="' + full + '">';
+
+    // SM437: on the CREATE sheet the content folder is CHOSEN, not typed.
+    //
+    // Every domain on the estate is sites/<hostname>, retyped by hand each
+    // time. A field whose correct value is derivable from another field on
+    // the same form should not be typed: the parent comes from a list of
+    // folders that exist, and the child is named from the host.
+    //
+    // The failure it removes is quiet. domain_add accepts any clean relative
+    // path and provisions it, so a typo produces a domain pointing at a new
+    // EMPTY directory - the site serves, with nothing in it, and the intended
+    // content sits one directory away under the name that was meant. The
+    // typo'd path is perfectly valid, which is why nothing catches it and why
+    // the remedy is to stop asking for it rather than to check it harder.
+    //
+    // The text box is kept behind "Somewhere else…" rather than removed: an
+    // operator with a layout the convention does not cover must not be stuck,
+    // and the picker is a default, not a cage.
+    if ( isCreate && k === 'content_root' ) {
+      field = '<select id="e-' + esc(host) + '-cr-parent" style="' + full + '"'
+            + ' onchange="syncContentRoot()">'
+            + '<option value="">Loading folders…</option></select>'
+            + '<div id="cr-preview" style="margin-top:4px;font-size:0.85em;color:#666;"></div>'
+            + '<div id="cr-custom" style="display:none;margin-top:4px;">' + field + '</div>';
+    }
   }
   // SM259 (operator, 0.10.4 validation): the seed option is conditional on the
   // content folder, and its own label was doing the explaining that proximity
