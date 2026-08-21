@@ -226,6 +226,53 @@ sub known_domain_host {
     return 0;
 }
 
+# SM436: does this value name a host that a public request could actually
+# carry, and does it agree with the site_url beside it?
+#
+# NOT folded into _valid_host, deliberately: that is shared with domain_remove
+# and domain_set, and tightening it there would strand an already-registered
+# bad row - unremovable by the verb that exists to remove it. Registration is
+# the only moment this can be caught, and it is also the LAST moment: `host`
+# is not in @DOMAIN_KEYS, so domain_set cannot correct it and there is no
+# rename verb. A value that cannot be edited afterwards has exactly one chance
+# to be right.
+#
+# The incident: a domain registered as `dhcf` with site_url
+# https://dhcf.sites.lazysite.io. The processor matches the FULL Host header
+# with eq, so `dhcf` never matched, no alias overlay applied, and every
+# request fell through to the primary - serving a different organisation's
+# site under that name. The domain record, the render, the alias map and the
+# domain check all looked correct; only following a request showed it. Both
+# halves of the answer were already in the row.
+sub _host_cannot_match {
+    my ($host) = @_;
+    return undef if $host =~ /\./;
+    return 'A domain name needs at least one dot - "' . $host . '" is a single '
+        . 'label, and no public request can arrive with it as its Host. If this '
+        . 'is a subdomain, register the full name (for example '
+        . $host . '.example.com).';
+}
+
+# The other half: the row disagreeing with itself. Kept separate from the dot
+# check because domain_set must apply THIS one and not that one - an
+# already-registered dotless host cannot be corrected (host is not settable and
+# there is no rename), so answering a site_url edit with a message about
+# registering it differently would misdirect. Removing it is the only route,
+# and domain_remove deliberately does not run either check.
+sub _host_disagrees_with_url {
+    my ( $host, $site_url ) = @_;
+    return undef unless defined $site_url && length $site_url;
+    # A placeholder site_url (the primary's ${SERVER_NAME} form) names no host.
+    return undef if $site_url =~ /\$\{/;
+    return undef unless $site_url =~ m{^https?://([^/:?#]+)}i;
+    my $url_host = lc $1;
+    return undef if $url_host eq $host;
+    return 'The site address names ' . $url_host . ' but the domain is '
+        . $host . '. A request arrives under the name in the site address, so '
+        . 'these disagreeing means this domain never matches and visitors get '
+        . 'the default site instead. Use ' . $url_host . '.';
+}
+
 # SM441: which registered domain OWNS a docroot-relative path.
 #
 # The page previews shelled the processor without a Host, so SM151's per-Host
@@ -531,6 +578,17 @@ sub domain_add {
     return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
         unless _valid_host($host);
 
+    # SM436: refuse a name no request can carry, and a name that disagrees
+    # with its own site_url. Both are unrecoverable after this call - `host`
+    # is not settable and there is no rename - and both are silent in
+    # production: the domain simply never matches and the visitor is served
+    # the primary's site under someone else's name.
+    for my $why ( _host_cannot_match($host),
+        _host_disagrees_with_url( $host, $opts{site_url} ) )
+    {
+        return { ok => 0, kind => 'invalid', error => $why } if $why;
+    }
+
     # Empty content_root is allowed: the host then serves the default site.
     # A NON-empty value must clean (under the docroot, not a reserved area).
     my $raw      = $opts{content_root};
@@ -629,6 +687,16 @@ sub domain_set {
     return { ok => 0, kind => 'invalid', error => "Not a settable domain key: $key" }
         unless defined $key && $IS_KEY{$key};
     $value = '' unless defined $value;
+
+    # SM436: the same disagreement can be introduced after registration by
+    # pointing site_url at a different name. The host cannot be changed to
+    # match (not in @DOMAIN_KEYS, no rename verb), so accepting this would
+    # leave a row that can never serve and can never be corrected in place.
+    if ( $key eq 'site_url' && length $value ) {
+        if ( my $why = _host_disagrees_with_url( $host, $value ) ) {
+            return { ok => 0, kind => 'invalid', error => $why };
+        }
+    }
 
     if ( $key eq 'content_root' ) {
         my $rel = _clean_content_root($value);

@@ -78,6 +78,25 @@ Naming the commit: AFTER it lands, never before
   **unregistered** host is refused rather than falling through, and no host at
   all still edits the primary deliberately. Sabotaged four ways, including
   restoring the body-only read.
+- SM436 resolved (PENDING) **a domain cannot be registered under a name no
+  request can carry.** A domain registered as `dhcf`, with `site_url`
+  `https://dhcf.sites.lazysite.io`, never matched: the processor compares the
+  FULL `Host` header with `eq`, so no alias overlay applied and every request
+  fell through to the primary - **serving a different organisation's site
+  under that name**. Every diagnostic agreed the configuration was fine.
+  `domain-preview` renders correctly because it feeds the STORED key back as
+  the Host; `domains-list` shows a complete record; `domain-check` blamed DNS
+  because it faithfully resolved the literal string. `domain_add` now refuses
+  a single-label host, and refuses a host that disagrees with the hostname in
+  its **own `site_url`** - both halves of the answer were already in the row,
+  and comparing them costs one regex. `domain_set` applies the agreement check
+  to `site_url` edits but **not** the dot check: an existing dotless row cannot
+  be corrected (`host` is not in `@DOMAIN_KEYS` and there is no rename verb),
+  so removal is the only route and `domain_remove` must keep working on
+  exactly those rows. For the same reason the checks are NOT folded into the
+  shared `_valid_host`, which would have stranded every existing bad row.
+  Sabotaged four ways; the placeholder case initially passed against its own
+  sabotage and the fixture was corrected before it was trusted.
 
 - SM435 resolved (PENDING) **manage_config no longer advertises two files it
   cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and
