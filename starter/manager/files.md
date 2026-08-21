@@ -383,6 +383,53 @@ function briefButton(f) {
   return '<button class="mg-btn" onclick="addBrief(this)">&#128221; Add brief</button>';
 }
 
+// Protection, shown where the folder is rather than only at the foot of the
+// page. The "Protected sections" card still lists everything - it answers a
+// different question - but an operator standing on a folder should be able to
+// see its protection in the folder's own expansion.
+var PROTECTED_BY_PREFIX = {};
+var SITE_WIDE_RULE = null;
+
+// The section rule covering a listing row, or null. Prefixes are
+// docroot-relative without a leading slash; row paths carry one.
+function protectionFor(f) {
+  if (!f || f.type !== 'dir') return null;
+  var rel = String(f.path || '').replace(/^\/+/, '');
+  return PROTECTED_BY_PREFIX[rel] || null;
+}
+
+function protectionBlock(f) {
+  var s = protectionFor(f);
+  if (!s) {
+    // Say nothing for an unprotected folder EXCEPT where a site-wide rule
+    // covers it - otherwise the expansion would imply "open" on a site where
+    // everything is gated, which is the wrong answer confidently given.
+    if (!SITE_WIDE_RULE) return '';
+    return '<div class="mg-perms-hint" style="margin-top:8px;">'
+      + 'Covered by the site-wide rule (' + escHtml(SITE_WIDE_RULE.policy) + ') '
+      + '- every page and asset on this site is held back.</div>';
+  }
+  var draft = s.policy === 'draft';
+  var badge = draft
+    ? '<span class="mg-alias-badge mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
+    : '<span class="mg-alias-badge" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
+  var who = (s.read && s.read.length)
+    ? escHtml(s.read.join(', '))
+    : '<span class="mg-muted">nobody but the owner</span>';
+  var contents = s.exists
+    ? (s.pages + ' page' + (s.pages === 1 ? '' : 's')
+       + (s.assets ? ', ' + s.assets + ' asset' + (s.assets === 1 ? '' : 's') : ''))
+    : '<span class="mg-cap-dormant" title="The rule still gates this path, but there is no such folder.">no such folder</span>';
+  return '<div class="mg-perms-rights-label" style="margin-top:10px;">Protection</div>'
+    + '<div class="mg-perms-hint">' + badge
+    + ' &middot; readable by ' + who
+    + ' &middot; ' + contents
+    + ( draft
+        ? ' &middot; hidden outright: a visitor gets 404, and it is absent from the sitemap, feeds and every listing.'
+        : ' &middot; a visitor who is not listed is sent to sign in.' )
+    + '</div>';
+}
+
 // The per-file config card (collapsed by default; one open at a time).
 function permsCard(f) {
   return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
@@ -393,6 +440,7 @@ function permsCard(f) {
     +   '</div>'
     +   '<div class="mg-perms-owner"><label>Owner</label>'
     +     '<select class="mg-perm-owner">' + ownerOptions(f.owner) + '</select></div>'
+    +   protectionBlock(f)
     +   '<div class="mg-perms-rights-label">People &amp; groups with access</div>'
     +   '<div class="mg-rights">' + buildRights(f) + '</div>'
     +   '<div class="mg-rights-add">'
@@ -1008,6 +1056,17 @@ function loadProtectedSections() {
       var empty = document.getElementById('protected-empty');
       if (!table || !empty) return;
       var rows = (d && d.ok && d.sections) || [];
+      // Keyed for the FOLDER ROWS to read. The card at the foot of the page
+      // answers "what is protected on this site"; a folder's own expansion has
+      // to answer "is THIS protected", and the operator should not have to
+      // scroll to a different card and match paths by eye to find out.
+      PROTECTED_BY_PREFIX = {};
+      for (var k = 0; k < rows.length; k++) {
+        if (!rows[k].site_wide) PROTECTED_BY_PREFIX[rows[k].prefix] = rows[k];
+      }
+      SITE_WIDE_RULE = null;
+      for (var j = 0; j < rows.length; j++) { if (rows[j].site_wide) SITE_WIDE_RULE = rows[j]; }
+      paintFiles();   // re-render so folder rows can show what they now know
       if (!rows.length) { table.style.display = 'none'; empty.style.display = ''; return; }
       var html = '';
       for (var i = 0; i < rows.length; i++) {

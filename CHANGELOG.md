@@ -62,6 +62,19 @@ Naming the commit: AFTER it lands, never before
   than skips** if it cannot find the action table: its first version named it
   `%ACTIONS` instead of `%ACTION` and skipped itself green, which is the same
   defect one layer up.
+- **A protected folder says so in its own expansion.** The protection appeared
+  only in the "Protected sections" card at the foot of the Files page, so
+  answering *is THIS folder protected, and how?* meant scrolling to a different
+  card and matching paths by eye. The folder's own expansion now shows the
+  policy, who can read it, and what it contains. **The card stays** - it
+  answers a different question, *what is protected on this site*. Two things
+  the block gets right on purpose: an otherwise-unprotected folder covered by a
+  **site-wide rule** says so rather than staying silent, because silence there
+  reads as "this folder is open" - a confident wrong answer about whether
+  visitors can see something; and the policy is **explained, not just named**,
+  since *draft* (hidden outright, 404, absent from sitemap and feeds) and
+  *gated* (not-listed visitors are sent to sign in) are the two words an
+  operator is most likely to have the wrong way round.
 
 - **The Files page's alias card describes the folder it is under.** It listed
   every alias on the site regardless of where the operator was standing, so a
