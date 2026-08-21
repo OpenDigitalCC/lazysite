@@ -119,16 +119,57 @@ sub validate_path {
     # prefix test also passed for a SIBLING whose name is a string-superset of
     # the docroot (public_html vs public_html.bak), letting a write escape the
     # docroot. Require equality or a "$DOCROOT/" prefix.
-    return { ok => 0, error => "Invalid path" }
-        unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
+    my $in_docroot
+        = $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
 
     # The blocklist string-matches on rel, so rel MUST be the CANONICAL in-docroot
     # path, never the request spelling. Derive it from the resolved realpath
     # ($real is the file itself, or its parent dir when the file does not exist
     # yet); re-attach the basename in that case. Callers get a full that is the
     # resolved absolute path too, so a symlink can't point a write elsewhere.
-    my $canon = ( -e $full ) ? $real : "$real/" . basename($full);
-    ( my $rel = $canon ) =~ s{\A\Q$DOCROOT\E/?}{};
+    my ( $canon, $rel );
+    if ($in_docroot) {
+        $canon = ( -e $full ) ? $real : "$real/" . basename($full);
+        ( $rel = $canon ) =~ s{\A\Q$DOCROOT\E/?}{};
+    }
+    else {
+        # SM458: a NEW path inside a GATED section has no docroot parent to
+        # resolve against, because gating MOVED the section into the private
+        # store. So `$DOCROOT/intranet/filestore` does not exist, realpath
+        # returns undef, and the operator is told "Invalid path" about a path
+        # that is perfectly valid. Reproduced: mkdir in an open folder
+        # succeeds, the same call inside a gated one is refused.
+        #
+        # THE COMMENT BELOW THIS BLOCK WARNS AGAINST THE OBVIOUS FIX, and it
+        # is right: widening the containment test above to accept two prefixes
+        # would make a CVE-class check weaker to add a feature. So the docroot
+        # check is left exactly as it was, and this is a SECOND, SEPARATE
+        # check against the private root - each one strict, each one
+        # boundary-safe in its own tree. A path must be wholly inside one of
+        # them; neither test has been loosened.
+        #
+        # The `..` rejection above still applies unconditionally and is not
+        # reached from here.
+        my $proot = Lazysite::Private::private_root($DOCROOT);
+        my $pfull = defined $proot
+            ? Lazysite::Private::private_path( $DOCROOT, $rel_path )
+            : undef;
+        return { ok => 0, error => "Invalid path" }
+            unless defined $proot && defined $pfull;
+
+        my $pcheck = -e $pfull ? $pfull : dirname($pfull);
+        my $preal  = realpath($pcheck);
+        return { ok => 0, error => "Invalid path" }
+            unless $preal && ( $preal eq $proot || index( $preal, "$proot/" ) == 0 );
+
+        my $pcanon = ( -e $pfull ) ? $preal : "$preal/" . basename($pfull);
+        ( $rel = $pcanon ) =~ s{\A\Q$proot\E/?}{};
+
+        # rel stays the DOCROOT key - the ACL store, the blocklist and every
+        # audit line are keyed on it - so the public spelling is rebuilt from
+        # it rather than carried from the private tree.
+        $canon = "$DOCROOT/$rel";
+    }
 
     # SM286: `rel` is the docroot-relative KEY and never changes - the ACL store,
     # the blocklist and every audit line are keyed on it. `full` is WHERE THE

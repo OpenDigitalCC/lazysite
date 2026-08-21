@@ -1570,16 +1570,22 @@ sub action_acl_set {
     # the RENDERED, session-authenticated view is closed to it, which may well
     # be correct. So this replaces a broken remedy with a statement of fact
     # rather than proposing a feature.
-    my @grp  = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
-    my @acct = grep { defined && !/\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
-    if ( @grp || @acct ) {
-        my $names = @grp ? join( ', ', @grp ) : '';
+    # FIRES ON @group ONLY, as it always did.
+    #
+    # An earlier version of this correction also fired whenever an ACCOUNT was
+    # named, on the reasoning that an agent who had followed the old advice
+    # should be told it had not worked. That was wrong and t/unit/manager/73
+    # caught it: `read: [alice]` where alice is a signed-in manager is an
+    # ORDINARY, entirely working ACL, and warning about it is noise on the
+    # common case. The concern that prompted it dissolves anyway - there is no
+    # longer any advice to follow, so there is nothing to report back on.
+    my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
+    if (@grp) {
         push @warnings,
-            ( $names
-                ? "this ACL names $names. A \@group entry matches only a "
-                    . 'signed-in manager user: token, MCP and WebDAV partners '
-                    . 'carry no groups, so it does NOT apply to them. '
-                : '' )
+            'this ACL names ' . join( ', ', @grp )
+            . '. A @group entry matches only a '
+            . 'signed-in manager user: token, MCP and WebDAV partners '
+            . 'carry no groups, so it does NOT apply to them. '
             . 'NAMING AN ACCOUNT INDIVIDUALLY DOES NOT HELP ON THE RENDERED '
             . 'PAGE either: rendered pages authenticate by session, and a '
             . 'partner using a token has none, so no read-list entry can '

@@ -76,17 +76,21 @@ subtest 'and the reason is stated, for a group entry' => sub {
             . 'reason - there is no signed-in user on that path.' );
 };
 
-subtest 'the warning appears when only ACCOUNTS are named, too' => sub {
-    # The old text fired on @groups alone, so an agent that followed the advice
-    # and named an account saw the SAME message, still listing only groups,
-    # still telling them to name accounts. There was no way to tell it had
-    # been applied - or that it had not worked.
-    my $w = warn_text( read => ['sjm-claude-code'] );
-    like( $w, qr/DOES NOT HELP ON THE RENDERED PAGE/i,
-        'naming an account alone still warns' )
-        or diag( 'Silence here reads as "that fixed it", and it did not.' );
-    unlike( $w, qr/A \@group entry matches/,
-        'without claiming groups are involved when none are' );
+subtest 'an ordinary account-only ACL does NOT warn' => sub {
+    # A first attempt at this correction ALSO fired whenever an account was
+    # named, reasoning that an agent who had followed the old advice deserved
+    # to be told it had not worked. t/unit/manager/73 caught that: a rule like
+    # read: [alice], where alice is a signed-in manager, is an ordinary and
+    # entirely working ACL. Warning about it is noise on the common case, and
+    # noise is how a warning that matters gets skipped.
+    #
+    # The concern dissolves anyway: the advice is gone, so there is nothing to
+    # report back on.
+    my $w = warn_text( read => ['alice'] );
+    unlike( $w, qr/RENDERED PAGE/i,
+        'a plain account ACL is left alone' )
+        or diag( 'Alice is a signed-in manager and the rule works for her. '
+            . 'A warning here would fire on most ACLs on most sites.' );
 };
 
 subtest 'it says what still WORKS, not only what does not' => sub {
