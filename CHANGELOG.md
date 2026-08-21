@@ -44,27 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM469 resolved (PENDING) **off means off for a plugin's own control-API
-  actions.** ADR 0009's first clause is *off means off - every dispatch path
-  consults the enabled state*, and SM409 built that gate. What it covers is
-  plugin SCRIPT execution, the `plugin-action` path. The six data actions
-  dispatch straight into `Lazysite::Manager::Data` and never consult it, so
-  disabling the data plugin changes nothing about them. A second, narrower gap
-  in the same function: it treats a plugin as ungated unless its descriptor
-  carries a `contract` key, and `plugins/data.pl` declares `owns` per the ADR
-  and no `contract`. Found while writing the edge test brief rather than by a
-  test, which is the finding: nothing asserts the property the ADR states. The
-  durable half of the fix is a lint, and that is what shipped: `t/lint/77`
-  discovers which capabilities a plugin owns and asserts that the module
-  answering for them consults the enabled state - so the NEXT plugin to own
-  actions cannot reintroduce this silently. `plugins/data.pl` now declares
-  `contract`, the opt-in the gate reads. **A contract plugin is born disabled**,
-  so the data plugin must be enabled on the Plugin Manager page before any data
-  action answers - which is the right default for a plugin that holds a site's
-  data and has not met a real site yet. Reads are gated as well as writes: a
-  read opens the store and runs a query, and *disabled but still answering* is
-  the state SM409 exists to remove.
-
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
@@ -113,6 +92,27 @@ uncreatable; `sqlite_see_if_its_a_number` converted stored `"120.00"` back to
 `"120.0"` on every read; and a `read_rows` fallback turned a real store error
 into "the table has not been created yet".
 
+
+- SM469 resolved (f113b19, a7e0150) **off means off for a plugin's own control-API
+  actions.** ADR 0009's first clause is *off means off - every dispatch path
+  consults the enabled state*, and SM409 built that gate. What it covers is
+  plugin SCRIPT execution, the `plugin-action` path. The six data actions
+  dispatch straight into `Lazysite::Manager::Data` and never consult it, so
+  disabling the data plugin changes nothing about them. A second, narrower gap
+  in the same function: it treats a plugin as ungated unless its descriptor
+  carries a `contract` key, and `plugins/data.pl` declares `owns` per the ADR
+  and no `contract`. Found while writing the edge test brief rather than by a
+  test, which is the finding: nothing asserts the property the ADR states. The
+  durable half of the fix is a lint, and that is what shipped: `t/lint/77`
+  discovers which capabilities a plugin owns and asserts that the module
+  answering for them consults the enabled state - so the NEXT plugin to own
+  actions cannot reintroduce this silently. `plugins/data.pl` now declares
+  `contract`, the opt-in the gate reads. **A contract plugin is born disabled**,
+  so the data plugin must be enabled on the Plugin Manager page before any data
+  action answers - which is the right default for a plugin that holds a site's
+  data and has not met a real site yet. Reads are gated as well as writes: a
+  read opens the store and runs a query, and *disabled but still answering* is
+  the state SM409 exists to remove.
 
 - SM447 (c089348) **a page can read a data table**, which closes the minimal
   end-to-end: load data through a channel, see it rendered. `tt_page_var:
