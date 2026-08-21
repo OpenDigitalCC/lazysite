@@ -38,7 +38,8 @@ use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
     insert_sql update_sql delete_sql select_sql
-    observed_schema add_column_sql backfill_sql table_has_rows);
+    observed_schema add_column_sql backfill_sql table_has_rows
+    last_insert_key);
 
 # Re-assert the identifier rule at the point of interpolation.
 #
@@ -372,6 +373,19 @@ sub backfill_sql {
     return ( 'UPDATE ' . _ident( $d->{table} ) . ' SET ' . _ident($field)
             . ' = ? WHERE ' . _ident($field) . ' IS NULL',
         [$value] );
+}
+
+# The key the store just assigned, for an auto-key table.
+#
+# HERE RATHER THAN IN Tables.pm, which is where it was. `last_insert_id` is a
+# DBI method whose arguments and behaviour differ by driver - Postgres wants a
+# sequence, and getting it from the wrong place is the sort of difference that
+# only appears once a second engine exists. The service layer above must not
+# know which engine it is talking to, and the way to keep that true is to give
+# it nowhere to express the knowledge.
+sub last_insert_key {
+    my ( $dbh, $table ) = @_;
+    return $dbh->last_insert_id( undef, undef, _ident($table), undef );
 }
 
 1;

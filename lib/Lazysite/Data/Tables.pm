@@ -32,7 +32,7 @@ use Lazysite::Data::Connect
 use Lazysite::Data::Schema qw(plan_migration);
 use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
-    qw(select_sql insert_sql update_sql delete_sql observed_schema);
+    qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema insert_row update_row delete_row);
@@ -210,8 +210,9 @@ sub insert_row {
         or return _err( "table '$name': the insert failed - $@", table => $name );
     # The assigned key, for an auto-key table - a caller that has just created a
     # row and cannot address it has to guess.
-    my $key = $d->{auto_key}
-        ? $dbh->last_insert_id( undef, undef, $name, undef )
+    my $key
+        = $d->{auto_key}
+        ? last_insert_key( $dbh, $name )
         : $values->{ $d->{key} };
     return { ok => 1, table => $name, key => $key };
 }
