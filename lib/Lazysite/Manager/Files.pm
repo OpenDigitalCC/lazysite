@@ -1775,8 +1775,8 @@ sub action_protected_sections {
                 $k =~ s{^/+|/+$}{}g;
                 $_->{site_wide}
                     || $k eq $here
-                    || index( $k,     "$here/" ) == 0    # inside the folder
-                    || index( $here,  "$k/" ) == 0;      # covering the folder
+                    || index( $k,    "$here/" ) == 0    # inside the folder
+                    || index( $here, "$k/" ) == 0;      # covering the folder
             } @out;
         }
     }
