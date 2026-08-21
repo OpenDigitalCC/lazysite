@@ -32,7 +32,10 @@ my $docroot = tempdir( CLEANUP => 1 );
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/layouts/t" );
 
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: Shop\nsite_url: http://localhost\nlayout: t\n";
+# SM469: a contract plugin is born DISABLED. Enabling it is part of setting
+# the site up, exactly as an operator would.
+print {$cf} "site_name: Shop\nsite_url: http://localhost\nlayout: t\n"
+    . "plugins:\n  - plugins/data.pl\n";
 close $cf;
 
 open my $lt, '>', "$docroot/lazysite/layouts/t/layout.tt" or die $!;

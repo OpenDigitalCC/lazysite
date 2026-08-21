@@ -32,7 +32,9 @@ my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/db/tables");
 
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\n";
+# SM469: a contract plugin is born DISABLED, so enabling it is part of
+# setting a site up - and the refusal when it is off is asserted below.
+print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
 close $cf;
 
 open my $df, '>', "$docroot/lazysite/db/tables/products.yaml" or die $!;
@@ -100,6 +102,39 @@ sub api_post {
     $out =~ s/\A.*?\r?\n\r?\n//s;
     return eval { decode_json($out) } || { ok => 0, error => "unparseable: $out" };
 }
+
+subtest 'SM469: with the plugin DISABLED, every action refuses' => sub {
+    # ADR 0009's first clause: a disabled plugin executes nothing and says so.
+    # The gate covered plugin SCRIPT execution, and these actions dispatch
+    # straight into the manager module - so disabling the plugin changed
+    # nothing about them. A plugin owning control-API actions is a new shape,
+    # and before this one there was no such path for the gate to miss.
+    #
+    # READS ARE REFUSED TOO. A read is execution: it opens the store and runs a
+    # query. "Disabled but still answering" is the state SM409 exists to
+    # remove.
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    open my $off, '>', $conf or die $!;
+    print {$off} "site_name: T\n";    # no plugins: list - disabled
+    close $off;
+
+    for my $a (qw(data-tables data-table data-rows)) {
+        my $d = api_get("action=$a&table=products");
+        ok( !$d->{ok}, "$a refuses while disabled" );
+        like( $d->{error}, qr/disabled/, 'and says so' );
+    }
+    my $m = api_post('action=data-migrate&table=products');
+    ok( !$m->{ok}, 'data-migrate refuses while disabled' );
+    like( $m->{error}, qr/Plugin Manager/,
+        'and names where to turn it on' )
+        or diag( 'A refusal that does not say how to proceed leaves the '
+            . 'operator with nowhere to go.' );
+
+    open my $on, '>', $conf or die $!;
+    print {$on} "site_name: T\nplugins:\n  - plugins/data.pl\n";
+    close $on;
+    ok( api_get('action=data-tables')->{ok}, 'and answers again once enabled' );
+};
 
 subtest 'the declared tables are listed, with their titles' => sub {
     my $d = api_get('action=data-tables');

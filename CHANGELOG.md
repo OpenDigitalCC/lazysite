@@ -44,8 +44,8 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM469 (PENDING, filing only) **a disabled plugin's own control-API actions
-  still run.** ADR 0009's first clause is *off means off - every dispatch path
+- SM469 resolved (PENDING) **off means off for a plugin's own control-API
+  actions.** ADR 0009's first clause is *off means off - every dispatch path
   consults the enabled state*, and SM409 built that gate. What it covers is
   plugin SCRIPT execution, the `plugin-action` path. The six data actions
   dispatch straight into `Lazysite::Manager::Data` and never consult it, so
@@ -54,9 +54,16 @@ Naming the commit: AFTER it lands, never before
   carries a `contract` key, and `plugins/data.pl` declares `owns` per the ADR
   and no `contract`. Found while writing the edge test brief rather than by a
   test, which is the finding: nothing asserts the property the ADR states. The
-  durable half of the fix is a lint - `t/lint/76` already discovers which
-  capabilities a plugin owns, so it can assert that actions gated on one also
-  consult the plugin's state.
+  durable half of the fix is a lint, and that is what shipped: `t/lint/77`
+  discovers which capabilities a plugin owns and asserts that the module
+  answering for them consults the enabled state - so the NEXT plugin to own
+  actions cannot reintroduce this silently. `plugins/data.pl` now declares
+  `contract`, the opt-in the gate reads. **A contract plugin is born disabled**,
+  so the data plugin must be enabled on the Plugin Manager page before any data
+  action answers - which is the right default for a plugin that holds a site's
+  data and has not met a real site yet. Reads are gated as well as writes: a
+  read opens the store and runs a query, and *disabled but still answering* is
+  the state SM409 exists to remove.
 
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and

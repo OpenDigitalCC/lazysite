@@ -59,6 +59,17 @@ sub describe {
         version     => '0.1',
         config_file => 'lazysite/data.conf',
 
+        # SM469 / SM409: OPT IN TO THE ENABLED GATE. A descriptor declaring
+        # `contract` executes only while its script is in the `plugins:` list,
+        # and is born disabled - which is the right default for a plugin that
+        # holds a site's data and has not met a real site yet.
+        #
+        # This was missing, and the comment on _gate_execution names the data
+        # plugin as the first contract plugin, so the omission was mine rather
+        # than a design question. Without it the gate treated this as a legacy
+        # plugin and left it ungated.
+        contract => 1,
+
         config_schema => [
             { key => 'db_source',
                 label   => 'Storage engine',

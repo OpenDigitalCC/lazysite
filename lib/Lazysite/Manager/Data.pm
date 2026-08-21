@@ -21,7 +21,8 @@ package Lazysite::Manager::Data;
 use strict;
 use warnings;
 use Exporter 'import';
-use Lazysite::Util qw(log_event);
+use Lazysite::Util             qw(log_event);
+use Lazysite::Manager::Plugins ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
     insert_row update_row delete_row);
@@ -30,6 +31,29 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
+
+# SM469: OFF MEANS OFF, on this path too.
+#
+# ADR 0009's first clause is that every dispatch path consults the enabled
+# state. SM409 built that gate and it covers plugin SCRIPT execution - the
+# `plugin-action` path. These actions dispatch straight into this module and
+# never went near it, so disabling the data plugin changed nothing about them.
+#
+# A plugin owning control-API actions is a new shape; before this one there was
+# no such path for the gate to miss. Which is why the lint matters more than
+# these three lines: t/lint/77 asserts the property for any future plugin that
+# owns a capability, because the next one would reintroduce this silently.
+#
+# READS ARE GATED TOO. A disabled plugin executing nothing is the whole rule,
+# and a read is execution - it opens the store and runs a query. "Disabled but
+# still answering" is the state SM409 exists to remove.
+sub _gate {
+    local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
+    return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
+    return { ok => 0,
+        error => 'The data plugin is disabled. An operator can enable it on '
+            . 'the Plugin Manager page.' };
+}
 
 sub _need_table {
     my ($table) = @_;
@@ -44,6 +68,7 @@ sub _need_table {
 # author who has just mis-typed a descriptor is the most likely reader of this
 # list, and a silently shorter list is the least useful thing it could do.
 sub action_data_tables {
+    if ( my $off = _gate() ) { return $off }
     my @out;
     for my $name ( @{ list_tables($DOCROOT) } ) {
         my $d = load_table( $DOCROOT, $name );
@@ -58,6 +83,7 @@ sub action_data_tables {
 # One table's declared shape, as the manager and an agent both need it: the
 # fields, their types, and what is required.
 sub action_data_table {
+    if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
     my $d = load_table( $DOCROOT, $table );
@@ -75,6 +101,7 @@ sub action_data_table {
 }
 
 sub action_data_rows {
+    if ( my $off = _gate() ) { return $off }
     my ( $table, %opt ) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
     return read_rows( $DOCROOT, $table, %opt );
@@ -86,6 +113,7 @@ sub action_data_rows {
 # blocked list is the operator's account of why their column is not there yet,
 # and dropping it would leave them believing the migration succeeded.
 sub action_data_migrate {
+    if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
     my $r = apply_schema( $DOCROOT, $table );
@@ -100,6 +128,7 @@ sub action_data_migrate {
 # means by whether it has a key - and a surface that has to choose between two
 # action names for "save this row" will eventually choose wrong.
 sub action_data_row_save {
+    if ( my $off = _gate() ) { return $off }
     my ( $table, $key, $values ) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
     return { ok => 0, error => 'row values required' }
@@ -116,6 +145,7 @@ sub action_data_row_save {
 }
 
 sub action_data_row_delete {
+    if ( my $off = _gate() ) { return $off }
     my ( $table, $key ) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
     return { ok => 0, error => 'row key required' }
