@@ -61,7 +61,26 @@ sub keymap {
 
     my $k = keymap($d);
     ok( $k->{agent}, 'the non-interactive agent account is listed as a key' );
-    ok( !$k->{boss}, 'the interactive manager is NOT listed (its credential is a login password)' );
+
+    # SM439: the interactive manager IS listed now, and that is the change.
+    #
+    # This asserted the opposite, and the reason was sound as far as it went -
+    # a human's credential is a login PASSWORD, and offering it as a revocable
+    # key is how an operator locks out the only manager. But it answered that
+    # by HIDING the account rather than by declining to revoke it, and the
+    # account holds webdav: HTTP Basic, replaying that password on every
+    # request, creating no session. So the access was live whenever they chose
+    # to use it, absent from this page always and from Sessions unless a
+    # browser cookie happened to be open.
+    #
+    # The stated intent of these pages is that no active - or potentially
+    # active - access is hidden. Listing is not offering: revocation is still
+    # refused, asserted below, and that is where the lockout decision belongs.
+    ok( $k->{boss}, 'the interactive manager holding webdav IS listed' );
+    is( $k->{boss}{interactive}, JSON::PP::true,
+        'flagged interactive, so the UI can offer it differently' );
+    is_deeply( $k->{boss}{channels}, ['webdav'],
+        'and named by the channel that makes it reachable' );
     ok( ( grep { $_ eq 'api' } @{ $k->{agent}{channels} } ), 'the key names its channels (api)' );
     is( $k->{agent}{interactive}, JSON::PP::false, 'the key is flagged non-interactive' );
 }

@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM439 resolved (PENDING) **revoking an access key now stops the OAuth grant,
+  and the Keys page stops hiding people.** Two halves, both confirmed by
+  measurement rather than by reading - the filing recorded them as unexercised
+  and said so. **Revocation**: `cmd_key_revoke` blanked the credential in the
+  users file and stopped there, and nothing on the OAuth path consults that
+  file - `validate_token` and `refresh_access` read
+  `lazysite/auth/oauth.json` and an expiry. A probe issued a token, blanked
+  the credential exactly as the revoke does, and watched the access token
+  still resolve **and the refresh token still mint a replacement**. So
+  "revoke" left access running for up to an hour and renewable for thirty
+  days. New `OAuth::revoke_partner` drops both halves of every grant for that
+  partner and `key-revoke` reports how many. **Listing**: `keys-list` skipped
+  interactive accounts, so a human holding `webdav` - HTTP Basic, replaying
+  their password per request, creating no session - appeared on the Keys page
+  never and on Sessions only while a cookie was live. They are listed now,
+  flagged `interactive` with their channels; the `interactive` field already
+  existed in the row and was unreachable behind the skip. **Note for
+  operators**: a manager in `manager_groups` holds `webdav`, so managers now
+  appear here. That is the intent - the page is meant to show everyone who can
+  reach the site - not a side effect. Revocation is unchanged and still
+  refuses an interactive account: listing is not offering.
+
 - SM444 resolved (PENDING) **a failed coverage gate says WHICH failure.**
   `release.sh` mapped every non-zero exit from `coverage.sh` onto one sentence,
   "coverage below the declared floor". The 0.10.20 build failed that way and

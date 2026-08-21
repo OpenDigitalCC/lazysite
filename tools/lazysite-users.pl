@@ -2349,13 +2349,29 @@ sub cmd_keys_list {
     for my $u ( sort keys %users ) {
         next unless defined $users{$u} && length $users{$u};    # holds a credential
         my $eff = effective_settings($u);
-        # A key is a MACHINE credential on a non-interactive account. An
-        # interactive (human) account's credential is its login PASSWORD - even
-        # if it also has WebDAV - and belongs to the account, not this view;
-        # listing it here would let an operator lock a manager out by "revoking
-        # a key". So interactive accounts are excluded on purpose.
-        next if $eff->{ui};
-        next unless $eff->{api} || $eff->{mcp} || $eff->{webdav};    # a machine key
+        # SM439: an interactive account that ALSO holds a machine channel is
+        # LISTED, and was not.
+        #
+        # The exclusion had a good reason - an interactive account's credential
+        # is its login PASSWORD, so offering it here as a revocable "key" is
+        # how an operator locks out the only manager - but it answered that by
+        # hiding the account rather than by declining to revoke it. The
+        # consequence: a human holding WebDAV or API appeared on the Keys page
+        # NEVER, and on Sessions only while a browser cookie happened to be
+        # live. WebDAV is HTTP Basic, replaying that password on every request
+        # and creating no session, so the access was live whenever they chose
+        # to use it and recorded nowhere.
+        #
+        # The stated intent of these two pages is that there be no hidden case
+        # where access is active or potentially active, so the account is
+        # listed with its CHANNELS and flagged `interactive`. That field was
+        # already in the row below and unreachable, because the skip came
+        # first - the shape anticipated this and the guard prevented it.
+        #
+        # Revocation is unchanged and still refuses: cmd_key_revoke has its own
+        # guard on $eff->{ui}, which is where that decision belongs. Listing is
+        # not offering.
+        next unless $eff->{api} || $eff->{mcp} || $eff->{webdav};    # a machine channel
         my $s    = $settings->{$u}      || {};
         my $iss  = $s->{cred_issued_at} || 0;
         my $used = $s->{cred_used_at}   || 0;
@@ -2398,6 +2414,33 @@ sub cmd_key_revoke {
     }
     $users{$user} = '';    # blank the credential hash - nothing verifies against it
     write_users(%users);
+
+    # SM439: and drop the partner's OAuth grants, which this did not touch.
+    #
+    # Blanking the credential stops nothing on the OAuth path:
+    # validate_token reads lazysite/auth/oauth.json and an expiry, and
+    # refresh_access reads the same store and an expiry. Neither consults the
+    # users file. Confirmed by probe, not by reading: after a revoke the
+    # existing access token still resolved to the partner AND the refresh
+    # token still minted a new one - so "revoke" left the access running for
+    # up to an hour and renewable for thirty days.
+    #
+    # Best-effort and non-fatal: the credential is already gone, so a failure
+    # here must not turn a partial revocation into a reported failure that
+    # leaves the operator unsure which half happened.
+    my $oauth_dropped = 0;
+    {
+        local $@;
+        eval {
+            require Lazysite::Auth::OAuth;
+            no warnings 'once';
+            local $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
+            $oauth_dropped = Lazysite::Auth::OAuth::revoke_partner($user);
+            1;
+        } or log_event( 'WARN', $user,
+            'access key revoked but OAuth grants could not be cleared',
+            error => "$@" );
+    }
     my $all = read_settings();
     if ( my $s = $all->{$user} ) {
         delete @{$s}{
@@ -2405,9 +2448,12 @@ sub cmd_key_revoke {
         };
         write_settings($all);
     }
-    log_event( 'INFO', $user, 'access key revoked' );
+    log_event( 'INFO', $user, 'access key revoked',
+        oauth_grants_dropped => $oauth_dropped );
     cli_audit( 'user-key-revoke', $user, 'access key revoked' );
-    return { ok => 1, user => $user };
+    # Report the count: an operator revoking a connector's key wants to know
+    # the live grant went with it, and zero is meaningful too.
+    return { ok => 1, user => $user, oauth_grants_dropped => $oauth_dropped };
 }
 
 sub cmd_verify_credential {

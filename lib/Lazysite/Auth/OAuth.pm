@@ -20,7 +20,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     register_client get_client mint_code redeem_code
-    issue_token validate_token refresh_access
+    issue_token validate_token refresh_access revoke_partner
 );
 
 our $LAZYSITE_DIR;
@@ -194,6 +194,35 @@ sub refresh_access {
     delete $m->{tokens}{$key};        # rotate
     save_store($m);
     return issue_token( $rec->{partner} );
+}
+
+# SM439: drop every OAuth grant belonging to a partner. Returns how many.
+#
+# Revoking an access key blanked the credential in the users file and stopped
+# there, and NOTHING here consults that file: validate_token reads this store
+# and an expiry, refresh_access reads this store and an expiry. So a revoked
+# partner kept working to the end of its access token and then minted a new
+# one from its refresh token, for as long as refresh_exp allowed.
+#
+# MEASURED, not reasoned: a probe issued a token, blanked the credential
+# exactly as cmd_key_revoke does, and then watched validate_token still resolve
+# the partner AND refresh_access still return a fresh token. That is the whole
+# case for this function.
+#
+# Both halves of the record go: the access token and the refresh token that
+# would replace it. Deleting one and not the other leaves the grant alive.
+sub revoke_partner {
+    my ($partner) = @_;
+    return 0 unless defined $partner && length $partner;
+    my $m = load_store();
+    my $n = 0;
+    for my $k ( keys %{ $m->{tokens} || {} } ) {
+        next unless ( $m->{tokens}{$k}{partner} // '' ) eq $partner;
+        delete $m->{tokens}{$k};
+        $n++;
+    }
+    save_store($m) if $n;
+    return $n;
 }
 
 1;
