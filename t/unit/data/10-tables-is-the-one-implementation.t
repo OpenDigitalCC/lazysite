@@ -124,6 +124,42 @@ subtest 'the write path, through one implementation' => sub {
         'and deleting it twice is refused, not silently fine' );
 };
 
+subtest 'a decimal survives the REAL handles, trailing zeros and all' => sub {
+    # THROUGH Tables, deliberately, and not through a DBI handle this test
+    # builds itself. Every earlier decimal assertion in this suite made its own
+    # handle, and that is why they all passed while production lost a decimal
+    # place on every read: Connect set `sqlite_see_if_its_a_number`, which
+    # converts numeric-looking TEXT into a Perl number on the way out, so
+    # "120.00" came back "120.0".
+    #
+    # "9.99" round-trips through a number unchanged, so only a TRAILING ZERO
+    # exposes it - which is why it took a price of 120.00 rendered on a page to
+    # find. The values below are chosen for that: each has a zero that a number
+    # would drop.
+    #
+    # A fixture that builds its own reader is not testing the reader.
+    my $d2 = tempdir( CLEANUP => 1 );
+    make_path("$d2/lazysite/db/tables");
+    open my $fh, '>', "$d2/lazysite/db/tables/money.yaml" or die $!;
+    print {$fh} "key: ref\nfields:\n  ref:\n    type: text\n"
+        . "  amount:\n    type: decimal\n    digits: 10\n    places: 2\n";
+    close $fh;
+    apply_schema( $d2, 'money' );
+
+    my %want = ( a => '120.00', b => '0.10', c => '9.99', d => '1000.50' );
+    insert_row( $d2, 'money', { ref => $_, amount => $want{$_} } )
+        for sort keys %want;
+
+    my $rows = read_rows( $d2, 'money' )->{rows};
+    my %got = map { $_->{ref} => $_->{amount} } @{$rows};
+    for my $k ( sort keys %want ) {
+        is( $got{$k}, $want{$k}, "$want{$k} reads back exactly" )
+            or diag( 'A decimal that loses a place between the store and the '
+                . 'page is the bug the type exists to prevent, arriving at '
+                . 'the one boundary nothing was watching.' );
+    }
+};
+
 subtest 'the READ PATH takes the read handle' => sub {
     # ASSERTING THE HANDLE'S PROPERTY IS NOT ASSERTING THE PATH USES IT, and
     # the first version of this file only did the former: swapping read_handle

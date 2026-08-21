@@ -4702,6 +4702,69 @@ sub deps_fresh {
     return 1;
 }
 
+# SM447 / DP-2: a page reads a data table.
+#
+#   tt_page_var:
+#     items: db:products sort=name asc limit=20
+#
+# THE RENDER PATH IS MODULE-FREE (ADR 0001) AND THIS BREAKS THAT FOR THE PAGES
+# THAT USE IT, deliberately, by requiring the data modules LAZILY - so a site
+# that never writes `db:` loads nothing new and the property holds for it.
+#
+# The alternative was a module-free reader hand-rolled here, and it is worse
+# than it sounds: it would duplicate the descriptor loader, the type coercion
+# and the SQL generation, which are precisely the things that must have ONE
+# implementation. Two readers of one store disagreeing about what a decimal is
+# would be a defect nobody could see from either side. ADR 0001's reasoning is
+# about a GATE on every request; this is a per-page opt-in.
+#
+# NOT CACHEABLE, and that is the honest answer rather than the convenient one.
+# A page bound to a table has no file whose mtime proves it current: the store
+# is written through WAL, so a row can change without the database file's
+# timestamp moving. Marking it LIVE means such a page is rendered per request -
+# which costs something real, and costs less than a page that serves last
+# week's price list while reporting itself fresh.
+sub resolve_db {
+    my ( $spec, $key ) = @_;
+
+    # Modules, lazily. A failure here is reported and returns an empty list:
+    # a missing DBD on one page must not take down a site.
+    my $ok = eval {
+        require Lazysite::Data::Tables;
+        1;
+    };
+    unless ($ok) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable needs the data modules', key => $key );
+        return [];
+    }
+
+    my ( $table, @mods ) = split /\s+/, $spec;
+    my %opt;
+    for my $m (@mods) {
+        if    ( $m =~ /\Asort=(\w+)\z/ )   { $opt{order_by} = $1 }
+        elsif ( $m =~ /\A(asc|desc)\z/i )  { $opt{order}    = lc $1 }
+        elsif ( $m =~ /\Alimit=(\d+)\z/ )  { $opt{limit}    = $1 }
+        elsif ( $m =~ /\Aoffset=(\d+)\z/ ) { $opt{offset}   = $1 }
+    }
+
+    # LIVE: see the header. Recorded before the read, so a read that dies still
+    # leaves the page uncacheable rather than cacheable-and-empty.
+    $TT_DEP_LIVE = 1;
+
+    my $r = Lazysite::Data::Tables::read_rows( $DOCROOT, $table, %opt );
+    unless ( $r->{ok} ) {
+        # SAID, NOT SWALLOWED. An empty list with no explanation is what SM460
+        # was: a page that rendered fine and listed nothing, so the author
+        # blamed their pattern.
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable could not be read',
+            key => $key, table => $table, why => ( $r->{error} // '' ) );
+        return [];
+    }
+    return $r->{rows} || [];
+}
+
 sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
@@ -4716,6 +4779,10 @@ sub resolve_tt_vars {
         if ( $val =~ s/^scan:// ) {
             $val =~ s/^\s+|\s+$//g;
             $vars{$key} = resolve_scan($val);
+        }
+        elsif ( $val =~ s/^db://i ) {
+            $val =~ s/^\s+|\s+$//g;
+            $vars{$key} = resolve_db( $val, $key );
         }
         elsif ( $val =~ s/^json://i ) {
             $val = interpolate_env($val);

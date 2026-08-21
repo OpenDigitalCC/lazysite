@@ -71,11 +71,24 @@ sub _connect {
     return undef if $opt{readonly} && !-e $path;
 
     my %attr = (
-        RaiseError                 => 1,
-        PrintError                 => 0,
-        AutoCommit                 => 1,
-        sqlite_unicode             => 1,
-        sqlite_see_if_its_a_number => 1,
+        RaiseError     => 1,
+        PrintError     => 0,
+        AutoCommit     => 1,
+        sqlite_unicode => 1,
+
+        # sqlite_see_if_its_a_number IS DELIBERATELY OFF, and it was on until
+        # an end-to-end test caught what it does.
+        #
+        # It converts numeric-looking TEXT into a Perl number on the way out,
+        # so a decimal stored as "120.00" comes back as "120.0". That is
+        # exactly the loss the decimal type exists to prevent - the same fault
+        # as encoding money as a JSON number (D8), one layer further down and
+        # on EVERY read rather than only on export.
+        #
+        # WHY IT SURVIVED EVERYTHING ELSE: "9.99" round-trips through a number
+        # unchanged, so only a trailing zero exposes it, and the unit tests
+        # built their own DBI handles rather than going through this one. It
+        # took a price of 120.00 rendered on a page.
     );
 
     if ( $opt{readonly} ) {

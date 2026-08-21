@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM447 (PENDING) **a page can read a data table**, which closes the minimal
+  end-to-end: load data through a channel, see it rendered. `tt_page_var:
+  items: db:products sort=name asc limit=20` resolves through the same
+  `Lazysite::Data::Tables` the control API uses, on the handle that cannot
+  write. The data modules are required LAZILY, so a site that never writes
+  `db:` keeps the processor's module-free property (ADR 0001) - a hand-rolled
+  module-free reader would have meant two readers of one store disagreeing
+  about what a decimal is. Such a page is marked LIVE and never cached: it has
+  no file whose mtime proves it current, because the store is written through
+  WAL. **A defect the end-to-end found on its first run:** `Connect` set
+  `sqlite_see_if_its_a_number`, which converts stored TEXT `"120.00"` back to a
+  number - `"120.0"` - so every decimal lost a trailing zero on every read.
+  `"9.99"` survives a round trip through a number, so only a trailing zero
+  exposes it, and every unit test had built its own DBI handle rather than
+  going through `Connect`. It took a price of 120.00 rendered on a page.
+
 - SM447 (PENDING) **the data tables are reachable over the control API**, and
   a reserved word is a legal column name. Six actions - `data-tables`,
   `data-table`, `data-rows`, `data-migrate`, `data-row-save`,
