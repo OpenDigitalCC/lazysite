@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM469 (PENDING, filing only) **a disabled plugin's own control-API actions
+  still run.** ADR 0009's first clause is *off means off - every dispatch path
+  consults the enabled state*, and SM409 built that gate. What it covers is
+  plugin SCRIPT execution, the `plugin-action` path. The six data actions
+  dispatch straight into `Lazysite::Manager::Data` and never consult it, so
+  disabling the data plugin changes nothing about them. A second, narrower gap
+  in the same function: it treats a plugin as ungated unless its descriptor
+  carries a `contract` key, and `plugins/data.pl` declares `owns` per the ADR
+  and no `contract`. Found while writing the edge test brief rather than by a
+  test, which is the finding: nothing asserts the property the ADR states. The
+  durable half of the fix is a lint - `t/lint/76` already discovers which
+  capabilities a plugin owns, so it can assert that actions gated on one also
+  consult the plugin's state.
+
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
