@@ -537,10 +537,44 @@ fi
 # converts the recorded coverage evidence from "stale until someone
 # remembers" into a per-release fact.
 
+# SM444: DO NOT NAME A CAUSE THIS GATE HAS NOT MEASURED.
+#
+# This used to map every non-zero exit from coverage.sh onto one sentence:
+# "coverage below the declared floor". The 0.10.20 build failed that way and
+# coverage was never the problem - coverage.sh had exited BEFORE reaching the
+# floor comparison, so no per-file table and no COVERAGE BELOW FLOOR marker
+# were printed, and the message asserted a cause nobody had established. It
+# cost a 45-minute instrumented re-run and then a second full build to find
+# that all eight files were comfortably above their floors.
+#
+# coverage.sh already says which case it is: it prints a per-file table before
+# it decides, and COVERAGE BELOW FLOOR when a floor is genuinely missed. So
+# capture the output, key on the marker, and report the two differently. A
+# run that DIED is a different problem with a different fix from a run that
+# MEASURED something too low, and telling them apart is the whole of this.
+#
+# The output is captured to a FILE and echoed, not piped through tee: `if !
+# ( ... | tee f )` tests tee's exit status, which succeeds whatever the child
+# did. t/tools/34 asserts that trap against a failing stand-in, and this gate
+# must not reintroduce it.
 echo "==> coverage.sh --check (instrumented run; ~10-15 minutes)"
-if ! bash "$STAGE/tools/coverage.sh" --check; then
-    echo "release.sh: coverage below the declared floor; not releasing." >&2
+COV_LOG="$STAGE/coverage-check.txt"
+bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1
+COV_STATUS=$?
+cat "$COV_LOG"
+if [ "$COV_STATUS" -ne 0 ]; then
+    if grep -q 'COVERAGE BELOW FLOOR' "$COV_LOG"; then
+        echo "release.sh: coverage below the declared floor; not releasing." >&2
+        grep -E 'BELOW' "$COV_LOG" >&2
+    else
+        echo "release.sh: coverage gate FAILED (exit $COV_STATUS) WITHOUT reaching" >&2
+        echo "release.sh: the floor comparison - so this is NOT a coverage" >&2
+        echo "release.sh: shortfall. The instrumented run did not finish." >&2
+        echo "release.sh: last lines of $COV_LOG:" >&2
+        tail -15 "$COV_LOG" >&2
+    fi
     echo "release.sh: staging dir retained: $STAGE" >&2
+    echo "release.sh: coverage output kept at: $COV_LOG" >&2
     exit 1
 fi
 

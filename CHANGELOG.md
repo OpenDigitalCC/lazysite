@@ -44,6 +44,94 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM444 resolved (PENDING) **a failed coverage gate says WHICH failure.**
+  `release.sh` mapped every non-zero exit from `coverage.sh` onto one sentence,
+  "coverage below the declared floor". The 0.10.20 build failed that way and
+  coverage was never the problem: `coverage.sh` had exited before reaching the
+  floor comparison, so neither its per-file table nor its `COVERAGE BELOW
+  FLOOR` marker appeared, and the message named a cause nobody had
+  established. It cost a 45-minute instrumented re-run and then a second full
+  build to find all eight files comfortably above their floors. The gate now
+  captures the child's output, keys on that marker, and reports a **floor
+  breach** and a **run that did not finish** as the different problems they
+  are - the second saying so explicitly and quoting the tail of the run.
+  Output is captured to a file rather than through `tee`, whose exit status
+  hides the child's; `t/tools/34` asserts that trap and this must not
+  reintroduce it. New `t/tools/58` covers both stand-ins, including exit 137 -
+  SIGKILL, the OOM case that is the leading candidate for what actually
+  happened to 0.10.20.
+
+- SM435 resolved (PENDING) **manage_config no longer advertises two files it
+  cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and
+  `lazysite/forms/<name>.conf` to `manage_forms` over WebDAV, wrote both new
+  descriptor entries, and never trimmed the old one - so the descriptor
+  promised a partner holding `manage_config` alone a write `authorise()` would
+  refuse. **Nothing was over-permitted**: enforcement was always the strict
+  side. The cost is that the descriptor is the ONE per-capability account of
+  the boundary readable from outside the code - a partner cannot determine
+  which capability grants an access by experiment, because the only instrument
+  available reports the union of everything they hold - so a wrong descriptor
+  sent an agent to a 403 and then to trial and error, which is what RI-002's
+  deny reasons exist to end. New `t/lint/68` checks the two sides against each
+  other in the one place a partner meets both: every WebDAV denial names its
+  capability, so the deny reason is enforcement's own statement of the rule.
+  **It asserts SET EQUALITY deliberately** - a membership check passes against
+  this exact defect, because `manage_nav` does list `nav.conf` and the surplus
+  entry is invisible to it. Sabotaged both ways before being trusted: an extra
+  claim and a missing claim each fail it.
+- SM442 resolved (PENDING) **regenerate-registries reports what it CLEARED, and
+  MCP stops answering differently.** `cleared_roots` was built from
+  `_registry_roots()` - the roots CONSIDERED - so a call that removed four files
+  and a call that removed none returned the same thing, and every early return
+  in the invalidator was invisible to the caller. The response now carries
+  `cleared_files` and `cleared_count` from the actual unlinks. **This is the
+  report that turned a diagnosable condition into an afternoon**: zero files
+  against seven roots is a finding, visible in the first response. Separately,
+  MCP's `regenerate_registries` called the invalidator and composed its own
+  answer, so it reported no `cleared_files` and - worse - no
+  `shadowed_by_files` at all, SM433 having added that warning to the control
+  API only. It now routes through the shared `action_regenerate_registries`,
+  the same one-implementation reasoning SM301 and SM318 settled for other
+  pairs. Sabotaged before being trusted: restoring the roots-based count fails
+  three of the new subtests.
+- SM443 partial (PENDING) **a per-domain nav file is writable over WebDAV.**
+  The carve-out tested `$rel eq 'lazysite/nav.conf'` - an exact match on one
+  filename - so a domain whose `nav_file` was set to `lazysite/nav-<site>.conf`
+  had a navigation file NO surface could populate: `nav-save` writes the shared
+  file, and WebDAV fell through to the blanket `lazysite/` denial. `domain-set`
+  accepted the setting anyway, and because layouts guard on `[% IF nav.size %]`
+  the visible result was a site with **no navigation** rather than an error.
+  WebDAV now admits any path lazysite.conf declares as a `nav_file`, base or
+  per-domain, still gated on `manage_nav`. **Bounded by configuration, not by
+  pattern alone**: the value must have the nav-file shape
+  (`lazysite/<name>.conf`, no traversal, no subdirectory) *and* be declared by
+  the operator - this branch returns ALLOWED before the scope, blocklist and
+  ACL gates run, so the shape check is a boundary rather than a tidy-up.
+  `lazysite/lazysite.conf` is excluded explicitly, or setting `nav_file` would
+  become an escalation. Sabotaged three ways before being trusted; dropping the
+  exclusion lets the test overwrite `lazysite.conf`, which is the point of it.
+  **The destructive-default half of SM443 is NOT fixed here** - an absent host
+  on `nav-save` still silently means the shared file.
+- SM441 resolved (PENDING) **a page preview knows which site it is previewing.**
+  Both page-scope previews - `action_preview` (Files/editor) and
+  `preview_public` (SM282, "as a visitor") - shelled the processor without
+  setting `HTTP_HOST`, so SM151's per-Host routing never fired and a domain's
+  page rendered with the BASE layout, theme and nav. The content was right and
+  the presentation was another site's, which reads as a page given the wrong
+  theme rather than as a preview that has not been told which site it is. An
+  operator who happened to open the manager on the domain's own host saw a
+  correct preview, which is what made it intermittent. `domain_preview` (SM238)
+  always did set it - its own comment describes shelling "exactly like ...
+  `action_preview`, but with `HTTP_HOST` set" - so the difference was
+  understood and applied at domain scope only. New
+  `Domains::host_for_path` resolves the owning domain, **longest content root
+  wins**, with boundary-safe containment so `sites/one` cannot claim
+  `sites/one-archive`. Two domains on one content root are **not** silently
+  resolved: the tie is reported so a caller can offer a host selector, and the
+  pick is deterministic meanwhile. Sabotaged four ways; the containment case
+  initially passed against a bare-prefix sabotage and the fixture was made
+  adversarial before it was trusted.
+
 - SM432 resolved (PENDING) **/docs/features serves again, by becoming an
   index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
   The page was an index of the directory shadowing it, and `canonical_url_for`
