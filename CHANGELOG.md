@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- **The ACL warning no longer recommends a remedy that cannot work.** It ended
+  *"Name those accounts individually if they need access"*, and that does
+  nothing. Measured in the field, then confirmed in the source: a rendered page
+  takes its identity from `HTTP_X_REMOTE_USER`, set by the auth wrapper after
+  verifying an `lzs_session` cookie, so a partner presenting Basic with an
+  `lzs_` token **is not a signed-in user on that path at all** - `$user` is
+  empty, and no read-list entry matches it: not a `@group`, not the account's
+  own name, not even being the rule's owner. Following the advice cost a round
+  of work, produced no error, and left the page still redirecting to `/login` -
+  worse than saying nothing, because it ends with the agent doubting its own
+  reading rather than the advice. The warning now states the fact, **fires when
+  only accounts are named** (it fired on `@group`s alone, so an agent that took
+  the advice saw the identical message and could not tell it had been applied),
+  and says what still WORKS: the partner reads the same files over WebDAV and
+  the control API throughout - only the rendered, signed-in view is gated, and
+  if the rule exists to keep the page from public visitors it is doing its job.
+
 - SM457 resolved (PENDING) **a capability that hid its own API.** Reported by a
   third party's agent, working against a live site: holding `manage_forms` and
   looking for submissions, it tried `describe_capabilities`,

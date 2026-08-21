@@ -1547,13 +1547,48 @@ sub action_acl_set {
     local $CONTENT_MOVED = 1;
     push @warnings, _sync_private_store( $rel, \%rec );
 
-    my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
-    if (@grp) {
+    # SM243/SM224 corrected: the old text ended 'Name those accounts
+    # individually if they need access', and that remedy CANNOT WORK.
+    #
+    # Measured in the field on 0.10.19, then confirmed in the source: a
+    # rendered page takes its identity from $ENV{HTTP_X_REMOTE_USER}, which
+    # the auth wrapper sets after verifying an lzs_session cookie. A partner
+    # presenting Basic with an lzs_ token is not a signed-in user on that
+    # path at all - $user is EMPTY - so no read-list entry matches it,
+    # whether that entry is a @group or the account's own name. Naming the
+    # account changes nothing, and the account being the rule's OWNER does not
+    # help either.
+    #
+    # So the warning told an agent to do something that looks like a fix,
+    # produces no error, and leaves the page still redirecting to /login. That
+    # is worse than saying nothing: it costs a round of work and ends with the
+    # agent doubting its own reading rather than the advice.
+    #
+    # THE NUANCE THAT KEEPS THIS SMALL: the partner is NOT locked out of the
+    # content. It reads the same files over WebDAV and the API throughout -
+    # verified by reading the very page whose rendered form was refused. Only
+    # the RENDERED, session-authenticated view is closed to it, which may well
+    # be correct. So this replaces a broken remedy with a statement of fact
+    # rather than proposing a feature.
+    my @grp  = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
+    my @acct = grep { defined && !/\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
+    if ( @grp || @acct ) {
+        my $names = @grp ? join( ', ', @grp ) : '';
         push @warnings,
-            'this ACL names ' . join( ', ', @grp ) . '. A @group entry matches '
-            . 'only a signed-in manager user: token, MCP and WebDAV partners carry '
-            . 'no groups, so the rule does NOT apply to them. Name those accounts '
-            . 'individually if they need access.';
+            ( $names
+                ? "this ACL names $names. A \@group entry matches only a "
+                    . 'signed-in manager user: token, MCP and WebDAV partners '
+                    . 'carry no groups, so it does NOT apply to them. '
+                : '' )
+            . 'NAMING AN ACCOUNT INDIVIDUALLY DOES NOT HELP ON THE RENDERED '
+            . 'PAGE either: rendered pages authenticate by session, and a '
+            . 'partner using a token has none, so no read-list entry can '
+            . 'match it - not a group, not its own name, not even being the '
+            . "rule's owner. This does NOT lock a partner out of the content: "
+            . 'it reads the same files over WebDAV and the control API as '
+            . 'before. Only the rendered, signed-in view is gated. If the '
+            . 'rule is meant to keep the page from PUBLIC visitors, it is '
+            . 'working.';
     }
 
     # $rel, not $r->{rel}: on the root branch $r is never assigned, so this
