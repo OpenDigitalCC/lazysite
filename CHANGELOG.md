@@ -97,6 +97,25 @@ Naming the commit: AFTER it lands, never before
   shared `_valid_host`, which would have stranded every existing bad row.
   Sabotaged four ways; the placeholder case initially passed against its own
   sabotage and the fixture was corrected before it was trusted.
+- SM440 resolved (PENDING) **an alias belongs to the site that declared it.**
+  Two defects that compounded. `index_page` took a DOCROOT-relative path and
+  handed it to `canonical_url_for`, so a page under a content root produced a
+  target carrying the prefix the vhost strips at request time; and the map was
+  one file per INSTANCE, so whatever it produced answered on every domain.
+  **Field-confirmed, and the combination was worse than either half**: on its
+  own host `/thesis` 301'd into a 404 - making the alias worse than none - and
+  on the default host, an unrelated site, the same 301 returned **200 and
+  served that site's page under a neighbour's domain**, because the default's
+  content root IS the docroot so the leaked path resolved. It matters more
+  than the page count suggests: the standing conversion rule gives every
+  retired URL an alias on its successor, so every site converted onto a
+  content root carried aliases redirecting into 404s - exactly the URLs
+  inbound links use. Targets are now derived relative to the serving site, and
+  each content root gets its own map at `lazysite/aliases/<key>.json`. **The
+  docroot keeps `lazysite/aliases.json` unchanged**, so a single-site instance
+  reads and writes the file it always did and nothing migrates. The processor
+  reads the map for the host being served; `aliases-list` takes a `host`.
+  Sabotaged three ways - fixing either half alone fails.
 
 - SM435 resolved (PENDING) **manage_config no longer advertises two files it
   cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and

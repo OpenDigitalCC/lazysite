@@ -1050,8 +1050,25 @@ sub action_migrate_to_local {
 # to edit here, so this is a plain read (no path, no ACL - the map holds only
 # site-local URL pairs).
 sub action_aliases_list {
+    my ($host) = @_;
     require Lazysite::Aliases;
-    return { ok => 1, aliases => Lazysite::Aliases::list_aliases($DOCROOT) };
+    # SM440: aliases are per-domain now. Without a host this lists the
+    # docroot's map - the primary's, and every single-site instance's.
+    my $key;
+    if ( defined $host && length $host && $host ne '(default)' ) {
+        require Lazysite::Manager::Domains;
+        no warnings 'once';
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        my $rows = eval { Lazysite::Manager::Domains::domains_list() };
+        for my $d ( @{ ( ref $rows eq 'HASH' ? $rows->{domains} : [] ) || [] } ) {
+            next unless lc( $d->{host} // '' ) eq lc $host;
+            my $cr = $d->{content_root} // '';
+            $cr =~ s{^/+|/+$}{}g;
+            if ( length $cr ) { ( $key = $cr ) =~ s{[^A-Za-z0-9._-]+}{_}g }
+            last;
+        }
+    }
+    return { ok => 1, aliases => Lazysite::Aliases::list_aliases( $DOCROOT, $key ) };
 }
 
 sub _read_lock_record {

@@ -33,7 +33,56 @@ use Exporter 'import';
 our @EXPORT_OK = qw(index_page deindex_page lookup canonical_url_for alias_map_path
     list_aliases reindex_move reindex_copy);
 
-sub alias_map_path { return "$_[0]/lazysite/aliases.json" }
+# SM440: WHERE a domain's alias map lives.
+#
+# One map per instance meant an alias declared by one domain answered on every
+# other - field-confirmed: /thesis declared under a content-root site 301'd
+# and SERVED that site's page under a neighbour's domain, 200, at a URL the
+# neighbour never defined.
+#
+# The docroot keeps the ORIGINAL path. That is deliberate and it is what makes
+# this safe to ship: a single-site instance reads and writes exactly the file
+# it always did, so nothing migrates and nothing changes for the installs that
+# are not multi-domain. Only a content root gets a new file beside it.
+sub alias_map_path {
+    my ( $docroot, $key ) = @_;
+    return "$docroot/lazysite/aliases.json"
+        if !defined $key || !length $key || $key eq '_root';
+    return "$docroot/lazysite/aliases/$key.json";
+}
+
+# The content root that serves $rel, as (root_rel, map_key). '' / '_root' for
+# the docroot itself.
+sub _root_for {
+    my ( $docroot, $rel ) = @_;
+    local $@;
+    my ($root) = eval {
+        require Lazysite::Manager::Domains;
+        no warnings 'once';
+        local $Lazysite::Manager::Domains::DOCROOT = $docroot;
+        Lazysite::Manager::Domains::content_root_for_path($rel);
+    };
+    $root = '' unless defined $root;
+    return ( '', '_root' ) unless length $root;
+    ( my $key = $root ) =~ s{[^A-Za-z0-9._-]+}{_}g;
+    return ( $root, $key );
+}
+
+# The URL a page answers to ON ITS OWN SITE.
+#
+# canonical_url_for is correct given a path relative to the site that serves
+# it; the callers hand it a DOCROOT-relative path. On a single-site instance
+# those are the same string, which is why this looked right for years. On a
+# content-root site the derived URL kept the prefix the vhost strips at
+# request time, so an alias 301'd to /sites/<x>/... and 404'd - making
+# declaring the alias WORSE than leaving it off.
+sub _canonical_on_its_site {
+    my ( $docroot, $rel ) = @_;
+    my ( $root, $key ) = _root_for( $docroot, $rel );
+    $rel =~ s{^/+}{};
+    $rel =~ s{\A\Q$root\E/}{} if length $root;
+    return ( canonical_url_for($rel), $key );
+}
 
 # The request URL a .md file answers to: foo/bar.md -> /foo/bar ;
 # foo/index.md -> /foo ; index.md -> / .
@@ -86,11 +135,13 @@ sub _parse_aliases {
     return @clean;
 }
 
+# SM440: $key selects the domain's map; omitted means the docroot's, which is
+# every single-site instance and the primary on a multi-domain one.
 sub lookup {
-    my ( $docroot, $url ) = @_;
+    my ( $docroot, $url, $key ) = @_;
     return undef     unless defined $url && length $url;
     $url =~ s{/+$}{} unless $url eq '/';
-    my $m = _read( alias_map_path($docroot) );
+    my $m = _read( alias_map_path( $docroot, $key ) );
     my $v = $m->{$url};
     return defined $v ? _target($v) : undef;
 }
@@ -98,8 +149,8 @@ sub lookup {
 # The whole map as display rows: [ { alias, target, code }, ... ] sorted by
 # alias. Codes are normalised (anything but 302 reads as 301).
 sub list_aliases {
-    my ($docroot) = @_;
-    my $m = _read( alias_map_path($docroot) );
+    my ( $docroot, $key ) = @_;
+    my $m = _read( alias_map_path( $docroot, $key ) );
     my @rows;
     for my $a ( sort keys %{$m} ) {
         my $v    = $m->{$a};
@@ -113,12 +164,12 @@ sub list_aliases {
 # canonical URL), then add the current set. Returns the number of aliases indexed.
 sub index_page {
     my ( $docroot, $rel, $content ) = @_;
-    my $canon   = canonical_url_for($rel);
+    my ( $canon, $key ) = _canonical_on_its_site( $docroot, $rel );
     my @entries = (
         ( map { [ $_, 301 ] } _parse_aliases( $content, 'aliases' ) ),
         ( map { [ $_, 302 ] } _parse_aliases( $content, 'aliases_temp' ) ),
     );
-    _update( $docroot, sub {
+    _update( $docroot, $key, sub {
             my ($m) = @_;
             for my $k ( keys %{$m} ) { delete $m->{$k} if _target( $m->{$k} ) eq $canon }
             for my $e (@entries) {
@@ -137,8 +188,8 @@ sub index_page {
 
 sub deindex_page {
     my ( $docroot, $rel ) = @_;
-    my $canon = canonical_url_for($rel);
-    _update( $docroot, sub {
+    my ( $canon, $key ) = _canonical_on_its_site( $docroot, $rel );
+    _update( $docroot, $key, sub {
             my ($m) = @_;
             for my $k ( keys %{$m} ) { delete $m->{$k} if _target( $m->{$k} ) eq $canon }
             return $m;
@@ -220,9 +271,15 @@ sub _read {
 }
 
 sub _update {
-    my ( $docroot, $mutate ) = @_;
+    my ( $docroot, $key, $mutate ) = @_;
     return unless -d "$docroot/lazysite";
-    my $f = alias_map_path($docroot);
+    my $f = alias_map_path( $docroot, $key );
+    # A per-domain map lives in a directory the docroot map does not need.
+    unless ( -f $f ) {
+        ( my $dir = $f ) =~ s{/[^/]+\z}{};
+        require File::Path;
+        eval { File::Path::make_path($dir) unless -d $dir; 1 } or return;
+    }
     open my $fh, '+>>', $f or return;
     flock $fh, LOCK_EX or do { close $fh; return };
     seek $fh, 0, SEEK_SET;

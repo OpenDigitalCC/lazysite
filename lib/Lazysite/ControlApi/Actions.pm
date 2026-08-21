@@ -58,7 +58,7 @@ our %ACTION = (
     'acl-remove' => { caps => ['webdav'], params => [ { name => 'path', in => 'query' } ] },
     'acl-set' => { caps => ['webdav'], params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
     'actions-list' => { caps => [],                 params => [] },
-    'aliases-list' => { caps => ['manage_content'], params => [] },
+    'aliases-list' => { caps => ['manage_content'], params => [ { name => 'host', in => 'query' } ] },
     'analyse_visitors' => { caps => ['analytics'], params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
     'artifact-backups-delete' => { caps => [ 'manage_layouts', 'manage_themes' ], params => [ { name => 'path', in => 'query' } ] },
     'artifact-manifest' => { caps => [ 'manage_themes', 'manage_layouts' ], params => [] },

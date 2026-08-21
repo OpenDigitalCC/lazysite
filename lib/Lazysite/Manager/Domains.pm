@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path conf_batch);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -293,13 +293,29 @@ sub _host_disagrees_with_url {
 # sorted host so the same path always previews the same way, which is strictly
 # better than the primary-always behaviour it replaces, and returns the count
 # so a caller can say so.
+# SM440: the same walk, answering for the CONTENT ROOT rather than the host.
+# Aliases need the root - to make a URL relative to the site that serves it,
+# and to key the map per domain; previews need the host. ONE traversal, so the
+# containment rule cannot drift between the two callers.
+sub content_root_for_path {
+    my ($rel) = @_;
+    my ( $host, $tied, $root ) = _owner_for_path($rel);
+    return ( $root, $host, $tied );
+}
+
 sub host_for_path {
+    my ($rel) = @_;
+    my ( $host, $tied ) = _owner_for_path($rel);
+    return ( $host, $tied );
+}
+
+sub _owner_for_path {
     my ($rel) = @_;
     $rel = '' unless defined $rel;
     $rel =~ s{^/+}{};
 
     my $r = eval { domains_list() };
-    return ( '', 0 ) unless ref $r eq 'HASH' && $r->{ok};
+    return ( '', 0, '' ) unless ref $r eq 'HASH' && $r->{ok};
 
     my ( $best, @tied ) = ('');
     for my $d ( @{ $r->{domains} || [] } ) {
@@ -318,9 +334,9 @@ sub host_for_path {
             push @tied, $d->{host};
         }
     }
-    return ( '', 0 ) unless @tied;
+    return ( '', 0, '' ) unless @tied;
     @tied = sort @tied;
-    return ( $tied[0], scalar @tied );
+    return ( $tied[0], scalar @tied, $best );
 }
 
 # SM282: what a PUBLIC visitor gets for one path.

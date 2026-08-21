@@ -2650,7 +2650,21 @@ sub main {
 # string value is a 301 target (the 0.6.1 format); { target, code } carries a 302.
 # Anything else, or an unknown code, reads as 301.
 sub _alias_lookup {
-    my $f = "$LAZYSITE_DIR/aliases.json";
+    # SM440: read the map belonging to the site being SERVED, not the
+    # instance's. One shared map meant an alias declared by one domain
+    # answered on every other - field-confirmed: a content-root site's
+    # /thesis 301'd and SERVED that site's page under a neighbour's domain,
+    # 200, at a URL the neighbour never defined.
+    #
+    # The docroot keeps the original path, so a single-site instance and the
+    # primary read exactly the file they always did.
+    my %sv = resolve_site_vars();
+    my $f  = "$LAZYSITE_DIR/aliases.json";
+    if ( defined $sv{content_root} && length $sv{content_root} ) {
+        ( my $key = $sv{content_root} ) =~ s{^/+|/+$}{}g;
+        $key =~ s{[^A-Za-z0-9._-]+}{_}g;
+        $f = "$LAZYSITE_DIR/aliases/$key.json" if length $key;
+    }
     return undef unless -f $f;
     my $req = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
     $req =~ s/\?.*\z//;                      # drop any query string
