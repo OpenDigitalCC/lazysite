@@ -5949,10 +5949,29 @@ sub render_content {
             $ip =~ s/[^0-9A-Fa-f:.\[\]]//g;
             $ip;
         },
+        # SM463: the docroot-relative KEY, never the absolute path.
+        #
+        # This stripped $DOCROOT off the source path with no boundary - and
+        # the private store is "<docroot>-lazysite-private", so for a GATED
+        # page `public_html` matched as a bare prefix and the result was
+        # "-lazysite-private/intranet/tasks/index.md". The admin bar then put
+        # that in /manager/edit?path=..., where it reached browser history,
+        # bookmarks, Referer headers and screenshots - a server filesystem
+        # path travelling in a URL.
+        #
+        # It also broke the editor: that spelling fails validate_path, which
+        # joins it back onto $DOCROOT, so the link opened blank. ONE fault,
+        # two symptoms, one fix.
+        #
+        # _content_rel is the existing translation and is boundary-safe: it
+        # requires "$DOCROOT/" WITH the slash before falling back to the
+        # private root, which is exactly the superset-sibling case the bare
+        # strip got wrong. rel is what the ACL store, the blocklist and the
+        # audit are all keyed on; full is where the bytes are, and only the
+        # engine needs that.
         page_source => do {
-            my $src = $meta->{_md_path} // '';
-            $src =~ s{^\Q$DOCROOT\E}{};
-            $src || '';
+            my $rel = _content_rel( $meta->{_md_path} // '' );
+            defined $rel && length $rel ? "/$rel" : '';
         },
         query            => $query,
         params           => $query,

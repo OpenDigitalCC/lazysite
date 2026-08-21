@@ -69,6 +69,21 @@ Naming the commit: AFTER it lands, never before
   that the workarounds (take ownership, or read the store off disk) are worse
   than the question, and that `acl-set` is audited without the rule's content,
   so the two gaps compound.
+- SM463 resolved (PENDING) **the Edit link carries the docroot key, never a
+  server path.** `page_source` stripped `$DOCROOT` off the source path with no
+  boundary - and the private store is `<docroot>-lazysite-private`, so for a
+  GATED page the docroot matched as a bare string prefix and left
+  `-lazysite-private/intranet/tasks/index.md`. The admin bar put that into
+  `/manager/edit?path=...`, so a **server filesystem path travelled into
+  browser history, bookmarks, Referer headers and screenshots**. The same
+  spelling also fails `validate_path`, which joins it back onto `$DOCROOT` - so
+  the link opened a **blank editor**. One fault, two symptoms, one fix: it now
+  uses `_content_rel`, which requires `$DOCROOT/` WITH the slash before falling
+  back to the private root. This is the SEC-2026-07 (H3) superset-sibling shape
+  again, with one difference worth noting - there the colliding name depended
+  on somebody creating `public_html.bak`; here **the software creates the
+  colliding name itself**, so the bad case exists on every site that gates
+  anything.
 
 - SM462 (PENDING) **a rule that locks reads and leaves writes open now says
   so**, and **Protected sections describes the folder you are in**. From an
