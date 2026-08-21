@@ -44,59 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM467 resolved (PENDING) **a manager group may now CONFER api and mcp,
-  while still being unable to use either.** Reported from a new site: the
-  setup-manager admin - the only account that existed - could not add anyone to
-  `agent-ai`, because joining a group acquires its capabilities and the admin
-  group deliberately holds neither channel. It could not repair that itself:
-  `grantable` is operator-only to set, correctly, since a delegate able to
-  widen its own grant authority has no ceiling at all. Every refusal was right
-  and together they left no path. **Holding and conferring are different
-  questions and SM127 only bounds the first** - it makes manager groups
-  interactive-only so a stolen manager session cannot become a remote channel,
-  which is about USE. `grantable` (SM195) is the mechanism for exactly that
-  split, so manager groups are now seeded with grant authority for the two
-  channels they deliberately withhold. `caps_for()` builds from `@CAP_KEYS`
-  alone and never reads `grantable`, so this confers no ability to use either -
-  asserted through the resolver every consumer actually consults, because if
-  that leaked it would hand every manager group the access SM127 exists to
-  deny. Existing installs are NOT repaired: seeding authority into a deployed
-  site would widen it silently. Instead the refusals in `group-add`, `token`
-  and `claim-create` now name the remedy, matching what `group-settings-set`
-  has said since SM195.
-
-- SM467 (PENDING, filing only) **a `setup-manager` admin cannot grant API or
-  MCP access, and the refusal does not say how.** `_ensure_manager_group_caps`
-  seeds the admin group with every capability except `api` and `mcp`, and no
-  grant authority, so the only account on a fresh site cannot add anyone to a
-  group granting either - including the AI-agent group the documentation points
-  at. It cannot fix that from the UI either: `grantable` is operator-only to
-  set, deliberately and correctly. Reproduced on a scratch install, and the
-  remedy verified there: `group-set <admins> grantable api,mcp` from the CLI.
-  Two separable questions - whether the seed should include that authority
-  (release manager's call), and the refusal naming the capability but not the
-  remedy, which is a defect either way.
-
-- SM465 (PENDING, filing only) **an `acl-set` is audited without saying what
-  the rule became.** The trail records that a permission changed, who changed
-  it and on what path - and not what it changed to. A permission change is the
-  one operation whose effect cannot be recovered from the current state plus
-  the log: content has a version history, a rule has only its latest value, so
-  the rule in force between two changes exists nowhere afterwards. That
-  interval is what an audit asks about. Related to but separate from SM464,
-  which is about being unable to READ a rule; this is about not RECORDING one.
-
-- SM466 (PENDING, filing only) **no supported way to verify that a public page
-  renders its own layout.** SM441's fix is in and tested, and the field cannot
-  confirm it on a live instance: `preview_page` renders through the manager,
-  `read_page` returns source, `page_status` reports metadata, and none of them
-  answers what a visitor to a given Host receives. Per-Host routing is exactly
-  what makes those different questions - the layout is chosen from the Host, so
-  a docroot-shaped tool cannot report it. Fetching the page directly works and
-  proves nothing about the grant: it is egress outside the grant model, and a
-  result obtained that way cannot be attributed to any capability. `domain-check`
-  is the precedent for answering an outside-world question from inside.
-
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
@@ -161,6 +108,39 @@ t/lint/53 now also requires every cited commit to be reachable from `main` -
 makes the distinction mean anything. The rule this test's own header states -
 stamp AFTER the branch lands - is now enforced rather than described.
 
+
+- SM467 resolved (f84c550) **a manager group may now CONFER api and mcp,
+  while still being unable to use either.** Reported from a new site: the
+  setup-manager admin - the only account that existed - could not add anyone to
+  `agent-ai`, because joining a group acquires its capabilities and the admin
+  group deliberately holds neither channel. It could not repair that itself:
+  `grantable` is operator-only to set, correctly, since a delegate able to
+  widen its own grant authority has no ceiling at all. Every refusal was right
+  and together they left no path. **Holding and conferring are different
+  questions and SM127 only bounds the first** - it makes manager groups
+  interactive-only so a stolen manager session cannot become a remote channel,
+  which is about USE. `grantable` (SM195) is the mechanism for exactly that
+  split, so manager groups are now seeded with grant authority for the two
+  channels they deliberately withhold. `caps_for()` builds from `@CAP_KEYS`
+  alone and never reads `grantable`, so this confers no ability to use either -
+  asserted through the resolver every consumer actually consults, because if
+  that leaked it would hand every manager group the access SM127 exists to
+  deny. Existing installs are NOT repaired: seeding authority into a deployed
+  site would widen it silently. Instead the refusals in `group-add`, `token`
+  and `claim-create` now name the remedy, matching what `group-settings-set`
+  has said since SM195.
+
+- SM467 (2e11e03, filing only) **a `setup-manager` admin cannot grant API or
+  MCP access, and the refusal does not say how.** `_ensure_manager_group_caps`
+  seeds the admin group with every capability except `api` and `mcp`, and no
+  grant authority, so the only account on a fresh site cannot add anyone to a
+  group granting either - including the AI-agent group the documentation points
+  at. It cannot fix that from the UI either: `grantable` is operator-only to
+  set, deliberately and correctly. Reproduced on a scratch install, and the
+  remedy verified there: `group-set <admins> grantable api,mcp` from the CLI.
+  Two separable questions - whether the seed should include that authority
+  (release manager's call), and the refusal naming the capability but not the
+  remedy, which is a defect either way.
 
 - SM462 follow-up (d94de3b) **adding a principal now grants read AND write.**
   It defaulted to read-on/write-off, and an empty write list means NO
@@ -394,6 +374,42 @@ stamp AFTER the branch lands - is now enforced rather than described.
   being told to serve a name somebody already owns. Renamed across the UI, the
   API messages, the logs and the docs. `register:` page front matter and the
   generated registries are untouched - a different word doing a different job.
+
+- SM465 (824985b, filing only) **an `acl-set` is audited without saying what
+  the rule became.** The trail records that a permission changed, who changed
+  it and on what path - and not what it changed to. A permission change is the
+  one operation whose effect cannot be recovered from the current state plus
+  the log: content has a version history, a rule has only its latest value, so
+  the rule in force between two changes exists nowhere afterwards. That
+  interval is what an audit asks about. Related to but separate from SM464,
+  which is about being unable to READ a rule; this is about not RECORDING one.
+
+- SM466 (824985b, filing only) **no supported way to verify that a public page
+  renders its own layout.** SM441's fix is in and tested, and the field cannot
+  confirm it on a live instance: `preview_page` renders through the manager,
+  `read_page` returns source, `page_status` reports metadata, and none of them
+  answers what a visitor to a given Host receives. Per-Host routing is exactly
+  what makes those different questions - the layout is chosen from the Host, so
+  a docroot-shaped tool cannot report it. Fetching the page directly works and
+  proves nothing about the grant: it is egress outside the grant model, and a
+  result obtained that way cannot be attributed to any capability. `domain-check`
+  is the precedent for answering an outside-world question from inside.
+
+- SM455 (833c869, filing only) **setting up an AI takes two pages, a manual
+  refresh, and a choice nobody explained.** Filed from the field: the flow
+  spans the Users page and the Integrations page, the second does not show the
+  account created on the first until the browser is reloaded, and the operator
+  is asked to pick between the `api` and `mcp` channels with nothing on screen
+  saying what either means or which their tool needs. Related to SM467, which
+  removed the refusal that stopped the flow completing at all.
+
+- SM456 (2053992, filing only) **the field agent's own tooling blocks
+  verifications the grant permits.** Filed by the field-test account: several
+  checks it is authorised to make cannot be made, because the tools available
+  answer a different question from the one the grant allows. SM466 is the
+  specific case that keeps recurring - confirming what a visitor to a given
+  Host actually receives.
+
 
 ## 0.10.21 - BETA: the multi-site fixes, pulled forward because edge could not test them (2026-08-21)
 
