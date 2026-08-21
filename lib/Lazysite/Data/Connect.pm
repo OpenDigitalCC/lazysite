@@ -87,6 +87,18 @@ sub _connect {
     my $dbh = DBI->connect( "dbi:SQLite:dbname=$path", '', '', \%attr );
     return undef unless $dbh;
 
+    # WAL COSTS SOMETHING WORTH KNOWING, measured while testing Tables.pm: a
+    # reader needs to create a `-shm` file BESIDE the database, so a store
+    # directory that is not writable breaks READING as well as writing - and
+    # breaks it SILENTLY, returning zero rows rather than an error.
+    #
+    # That matters for an operator hardening permissions, or a read-only mount:
+    # the symptom is an empty table, not a refusal, which is the failure mode
+    # this codebase treats as worse than a crash. Recorded here rather than
+    # worked around, because the fix is a deployment note and not a code
+    # change: the directory the store lives in must be writable by whoever
+    # reads it.
+    #
     # WAL is a property of the DATABASE, not the connection, so it is set once
     # by a writer; a read-only handle cannot set it and must not try.
     unless ( $opt{readonly} ) {

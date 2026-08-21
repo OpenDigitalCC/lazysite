@@ -80,6 +80,7 @@ D10 | `YAML::PP`, not `YAML::XS` | Pure Perl. The descriptors are small, and it 
 D11 | Default engine is SQLite only | One file, nothing to provision, a backup is a copy. DP-7 gates Postgres/MySQL on demand - **your call whether that is ever wanted.**
 D13 | Plugin declarations are validated where they are read | ADR 0009 has the platform consume `owns` instead of knowing a plugin by name, so four consumers each trust the list. Trust established four times is correctly established zero to three times. Validated once, in `Lazysite::Plugins::Owns`, before any consumer exists.
 D14 | `storage` may name a subtree of `lazysite/`, never the tree | A site package excludes `lazysite/` because the auth store, sessions and backups live there. A plugin claims a NAMED subtree, must end in `/` so it cannot prefix-match a sibling, and cannot traverse or be absolute. Otherwise a feature that ships a site becomes one that ships an auth store.
+D15 | WAL means the store DIRECTORY must be writable by readers | Measured: a reader creates a `-shm` file beside the database, so a read-only directory breaks reading - **silently**, returning zero rows rather than an error. Recorded in `Connect.pm` as a deployment note rather than worked around. If you would rather trade write throughput for a store that reads from a read-only directory, the alternative is rollback-journal mode.
 D12 | Listings are capped at 1000 | `LIMIT` is always present and bound; a caller may raise the default 200 but cannot remove the ceiling.
 ```
 
