@@ -63,6 +63,7 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host);
+use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -78,6 +79,7 @@ $Lazysite::Manager::Nav::DOCROOT         = $DOCROOT;
 $Lazysite::Manager::Layouts::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Backups::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Domains::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Data::DOCROOT        = $DOCROOT;
 $Lazysite::Manager::SitePackage::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -181,7 +183,9 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     artifact-backups-delete artifact-manifest artifact-validate audit
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
-    config-read config-set copy csrf-token delete describe-capabilities
+    config-read config-set copy csrf-token
+    data-migrate data-row-delete data-row-save data-rows data-table data-tables
+    delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
     form-submission-confirm form-submission-delete form-submissions
@@ -515,6 +519,12 @@ if ( !$token_auth ) {
         'git-history-summary' => 'manage_content',   # SM199: site-level file list + stats
             # SM160: domains + the portable site-package family are their own
             # capability (manage_domains), carved out of the broad manage_config.
+            # SM447: the data plugin's capability. Reads and writes alike -
+            # unlike content, a table row has no per-file ACL to self-authorize
+            # against, so the capability IS the gate.
+        'data-tables'        => 'manage_data',    'data-table'         => 'manage_data',
+        'data-rows'          => 'manage_data',    'data-migrate'       => 'manage_data',
+        'data-row-save'      => 'manage_data',    'data-row-delete'    => 'manage_data',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -575,6 +585,7 @@ if ( !$token_auth ) {
     # token client discovers forms (form-list) and reads submissions (form-submissions),
     # but a human confirms deletions in the manager.
     my %MUTATING = map { $_ => 1 } qw(
+        data-migrate data-row-save data-row-delete
         save delete mkdir move copy migrate-to-local file-upload git-restore
         git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
         rotate-auth-secret backup-create backup-delete backup-restore theme-activate
@@ -694,12 +705,20 @@ if ($token_auth) {
             # manage_domains capability (carved out of manage_config), so an
             # orchestrating control panel drives the lazysite side of a deploy
             # with a manage_domains token, same as the CLI/UI.
-        'domains-list'   => sub { $_[0]->{manage_domains} },    # read-only domains view
-        'domain-add'     => sub { $_[0]->{manage_domains} },
-        'domain-set'     => sub { $_[0]->{manage_domains} },
-        'domain-remove'  => sub { $_[0]->{manage_domains} },
-        'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
-        'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
+            # SM447: token clients are the point of the data plugin - an agent
+            # populating a table is the primary use, not an afterthought.
+        'data-tables'     => sub { $_[0]->{manage_data} },
+        'data-table'      => sub { $_[0]->{manage_data} },
+        'data-rows'       => sub { $_[0]->{manage_data} },
+        'data-migrate'    => sub { $_[0]->{manage_data} },
+        'data-row-save'   => sub { $_[0]->{manage_data} },
+        'data-row-delete' => sub { $_[0]->{manage_data} },
+        'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
+        'domain-add'      => sub { $_[0]->{manage_domains} },
+        'domain-set'      => sub { $_[0]->{manage_domains} },
+        'domain-remove'   => sub { $_[0]->{manage_domains} },
+        'domain-preview'  => sub { $_[0]->{manage_domains} },   # SM155: pre-DNS render
+        'domain-check'    => sub { $_[0]->{manage_domains} },   # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
             # SM301: the twin of MCP's regenerate_registries. Same capability, and
             # now the same availability - the account that holds manage_content can
@@ -1004,7 +1023,7 @@ elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $pa
 elsif ( $action eq 'aliases-list' ) {
     $result = action_aliases_list( $params{host}, $params{path} );
 }
-elsif ( $action eq 'git-status' )   { $result = action_git_status() }
+elsif ( $action eq 'git-status' ) { $result = action_git_status() }
 elsif ( $action eq 'git-history' ) { $result = action_git_history( $path, $auth_user, $params{limit} ) }
 elsif ( $action eq 'git-history-summary' ) {
     # SM419: the summary is scope-confined like every per-file history op.
@@ -1064,6 +1083,51 @@ elsif ( $action eq 'domain-preview' ) {
 }
 elsif ( $action eq 'domain-check' ) {
     $result = action_domain_check( $params{host} );
+}
+elsif ( $action eq 'data-tables' ) {
+    $result = Lazysite::Manager::Data::action_data_tables();
+}
+elsif ( $action eq 'data-table' ) {
+    $result = Lazysite::Manager::Data::action_data_table( $params{table} );
+}
+elsif ( $action eq 'data-rows' ) {
+    $result = Lazysite::Manager::Data::action_data_rows(
+        $params{table},
+        order_by => $params{order_by},
+        order    => $params{order},
+        limit    => $params{limit},
+        offset   => $params{offset},
+    );
+}
+elsif ( $action eq 'data-migrate' ) {
+    $result = Lazysite::Manager::Data::action_data_migrate( $params{table} );
+}
+elsif ( $action eq 'data-row-save' ) {
+    # THE ROW COMES FROM THE BODY, as a nested object, and both halves of that
+    # are deliberate.
+    #
+    # From the BODY because %params carries the query string; a row of site
+    # data is not a query parameter and putting it there would cap it at
+    # whatever the front end allows in a URL.
+    #
+    # NESTED under `row` rather than flattened into the request, because a
+    # descriptor may declare a field called `table` or `key` - flattening would
+    # make the site's own data collide with the action's own parameters, and
+    # the collision would be silent.
+    my $req = eval { decode_json($body) } // {};
+    my $row = $req->{row};
+    $result
+        = ref $row eq 'HASH'
+        ? Lazysite::Manager::Data::action_data_row_save(
+        $req->{table} // $params{table},
+        $req->{key} // $params{key}, $row )
+        : { ok => 0, error => 'row must be a JSON object' };
+}
+elsif ( $action eq 'data-row-delete' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = Lazysite::Manager::Data::action_data_row_delete(
+        $req->{table} // $params{table},
+        $req->{key}   // $params{key} );
 }
 elsif ( $action eq 'lang-status' ) {
     $result = action_lang_status( $params{group} );
@@ -1372,7 +1436,17 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
         backup-list sessions-list keys-list git-status git-history git-history-summary git-show
-        site-backup-inspect protected-sections );
+        site-backup-inspect protected-sections
+        data-tables data-table data-rows );
+
+    # SM447: the three data READS are skip-listed for the same reason as every
+    # other read here - they change nothing, and an audit trail of who looked
+    # at a table would bury the entries that record who CHANGED one.
+    #
+    # The three data WRITERS - data-migrate, data-row-save, data-row-delete -
+    # are deliberately NOT here, so they are audited by construction. A schema
+    # migration and a row edit are exactly what an operator asks the trail
+    # about.
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );

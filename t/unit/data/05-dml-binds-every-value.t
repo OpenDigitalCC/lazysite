@@ -81,9 +81,15 @@ subtest 'no unbounded UPDATE or DELETE can be generated' => sub {
     ok( !eval { delete_sql( $d, '' ); 1 },       'delete without a key dies' );
 
     my ( $sql, undef ) = update_sql( $d, 'A1', { ref => 'A2', note => 'x' } );
-    ok( index( $sql, 'ref = ?' ) < 0 || $sql =~ /WHERE ref = \?/,
+    # The SET clause ALONE. An earlier version of this assertion used
+    # `$sql !~ /SET .*"ref" = ?/`, and `.*` is greedy - it matched straight
+    # across into the WHERE clause, so a perfectly correct statement failed.
+    # Split on WHERE and look only at what is being set.
+    my ($set_clause) = $sql =~ /SET (.*?) WHERE/;
+    ok( defined $set_clause && $set_clause !~ /"ref"/,
         'the key is not SETTABLE through an update' );
-    like( $sql, qr/SET note = \?/, 'only the other field is set' )
+    like( $sql, qr/WHERE "ref" = \?/, 'it is only the WHERE target' );
+    like( $sql, qr/SET "note" = \?/, 'only the other field is set' )
         or diag( 'Changing the key would move the row identity while the '
             . 'WHERE still names the old one.' );
 };
@@ -99,7 +105,7 @@ subtest 'select is bounded, and orders only by a declared field' => sub {
     is( $binds->[-1], 1000, 'and the caller cannot raise it past the cap' );
 
     ( $sql, $binds ) = select_sql( $d, order_by => 'qty', order => 'desc' );
-    like( $sql, qr/ORDER BY qty DESC/, 'ordering by a declared field works' );
+    like( $sql, qr/ORDER BY "qty" DESC/, 'ordering by a declared field works' );
 
     ok( !eval { select_sql( $d, order_by => 'sqlite_version()' ); 1 },
         'an expression is refused' );
@@ -111,7 +117,7 @@ subtest 'select is bounded, and orders only by a declared field' => sub {
             . 'refused with a reason.' );
 
     ( $sql, $binds ) = select_sql( $d, where => { note => undef } );
-    like( $sql, qr/note IS NULL/, 'a NULL filter uses IS NULL' )
+    like( $sql, qr/"note" IS NULL/, 'a NULL filter uses IS NULL' )
         or diag( 'NULL = NULL is not true in SQL, so binding undef would '
             . 'match no rows and read as "there are none".' );
 };

@@ -112,12 +112,12 @@ subtest 'a new field is added, and its default is BACKFILLED by a bound update' 
     );
     my $p = plan_migration( $d2, $dbh );
     is( scalar @{ $p->{additive} }, 2, 'two steps: the column, then the backfill' );
-    ok( ( grep { $_->{sql} =~ /ADD COLUMN state TEXT$/ } @{ $p->{additive} } ),
+    ok( ( grep { $_->{sql} =~ /ADD COLUMN "state" TEXT$/ } @{ $p->{additive} } ),
         'the column is added WITHOUT NOT NULL and WITHOUT a DEFAULT' );
     my ($fill) = grep { $_->{sql} =~ /^UPDATE/ } @{ $p->{additive} };
     ok( $fill, 'and the default arrives as an UPDATE' );
     is_deeply( $fill->{binds}, ['new'], 'with the value BOUND, not in the text' );
-    like( $fill->{sql}, qr/WHERE state IS NULL/,
+    like( $fill->{sql}, qr/WHERE "state" IS NULL/,
         'scoped to IS NULL, so re-running cannot overwrite a set value' );
 
     apply( $dbh, $p );
@@ -196,7 +196,7 @@ subtest 'a required field added to a populated table is reported, not forced' =>
     my ($b) = grep { $_->{kind} eq 'incomplete' } @{ $p->{blocked} };
     ok( $b, 'the operator is told the old rows have no value for it' )
         or diag( 'Otherwise they discover it from a report.' );
-    ok( ( grep { $_->{sql} =~ /ADD COLUMN must/ } @{ $p->{additive} } ),
+    ok( ( grep { $_->{sql} =~ /ADD COLUMN "must"/ } @{ $p->{additive} } ),
         'the column is still added - NULL is the honest record for rows '
             . 'written before it was asked for' );
     apply( $dbh, $p );

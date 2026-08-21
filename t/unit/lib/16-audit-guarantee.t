@@ -211,7 +211,16 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         site-backup-download
         site-export-primary form-submission-delete
         form-submission-confirm form-submissions-delete-bulk
+        data-migrate data-row-save data-row-delete
     );
+
+    # SM447 note, OUTSIDE the qw() because qw() has no comments - a `#` inside
+    # one is a literal word, and putting it there added twenty imaginary action
+    # names to this list. The three data WRITERS are audited: a schema
+    # migration and a row edit are exactly what an operator asks the trail
+    # about, and a row is site data somebody may later dispute. The three data
+    # READS are in the %skip list instead - an audit of who LOOKED at a table
+    # would bury the entries recording who changed one.
 
     my @unclassified;
     for my $a ( sort keys %dispatch ) {

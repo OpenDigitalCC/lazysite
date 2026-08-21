@@ -161,7 +161,16 @@ my %ACTION_INFO = (
     manage_data => {
         title   => 'Read and write the site\'s data tables.',
         unlocks => {
-            api    => [],
+            api => [
+                qw(data-tables data-table data-rows
+                    data-migrate data-row-save data-row-delete)
+            ],
+
+            # SM447: the MCP twins land with the tool set. Recorded as a
+            # one-sided gap in t/lint/23 WITH A REASON rather than left to be
+            # noticed - an agent populating a table is the PRIMARY use of this
+            # plugin, so the gap is temporary by design, and saying so is what
+            # stops it becoming permanent by inattention.
             mcp    => [],
             webdav =>
                 ['lazysite/db/tables/<table>.yaml (the field descriptors)'],

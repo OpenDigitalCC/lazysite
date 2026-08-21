@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM447 (PENDING) **the data tables are reachable over the control API**, and
+  a reserved word is a legal column name. Six actions - `data-tables`,
+  `data-table`, `data-rows`, `data-migrate`, `data-row-save`,
+  `data-row-delete` - gated on `manage_data`, with the three writers POST-forced
+  and audited and the three reads enrolled as reviewed reads. The row travels
+  **nested under `row` in the POST body**, never flattened: a descriptor may
+  declare a field called `table` or `key`, and flattening would let a site's own
+  data overwrite the action's parameters - silently redirecting a save to
+  another table. **A defect found while proving that:** the adapter interpolated
+  identifiers unquoted, on the header's claim that its narrow name pattern
+  needed no quoting in any dialect. That is true of every character and false of
+  `table`, `key`, `order`, `group` and `index`, so an ordinary column made a
+  table uncreatable with a raw SQL parse error. Not a security fault, which is
+  why every test looking for injection missed it. Identifiers are now quoted in
+  the adapter, where dialect belongs.
+
 - SM447 (PENDING) **`manage_data` exists, is grantable, and claims nothing it
   cannot do.** ADR 0009 says a plugin's capability should be discovered rather
   than known by name, and that conformance removes entries from core lists

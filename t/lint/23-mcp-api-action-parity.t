@@ -126,6 +126,18 @@ my %API_ONLY = (
     # agent door SM231 described - polled, not pushed - and it wants item 2's
     # addressing first, or every agent reads every operator notice.
     'notices' => 'undecided - an MCP twin wants per-notice addressing (SM281 item 2) first',
+    # SM447: the data actions are API-only ONLY UNTIL THE MCP TOOL SET LANDS,
+    # which is the next piece of DP-1. This is the one entry in this map whose
+    # reason is a schedule rather than a decision, and it is written that way
+    # deliberately: an agent populating a table is the PRIMARY use of the data
+    # plugin, so a permanent API-only surface would defeat the feature. If
+    # these are still here after DP-1 closes, that is the signal.
+    'data-tables'  => 'temporary - the MCP tool set is the next piece of DP-1',
+    'data-table'   => 'temporary - as data-tables',
+    'data-rows'    => 'temporary - as data-tables',
+    'data-migrate' => 'temporary - as data-tables',
+    'data-row-save'   => 'temporary - as data-tables',
+    'data-row-delete' => 'temporary - as data-tables',
     'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read' => 'undecided - no MCP twin for site configuration',
     'config-set'  => 'undecided - as config-read',

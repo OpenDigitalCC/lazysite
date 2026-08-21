@@ -135,6 +135,13 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     analyse_visitors plugin-read form-submissions form-list site-backup-inspect
     site-backup-download
     principals protected-sections
+
+    # SM447: the three data READS. Each takes a table name and returns what is
+    # declared or stored; none changes anything, so a CSRF-free GET of one
+    # discloses to a session that already holds manage_data and could ask
+    # anyway. The three data WRITERS - data-migrate, data-row-save,
+    # data-row-delete - are in %MUTATING and POST-forced.
+    data-tables data-table data-rows
 );
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

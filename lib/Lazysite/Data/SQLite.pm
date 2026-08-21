@@ -19,6 +19,16 @@ package Lazysite::Data::SQLite;
 #   _ident() below re-asserts it anyway, because an assumption that is free to
 #   check is not worth carrying.
 #
+#   AND THEY ARE QUOTED. An earlier version of this header claimed the pattern
+#   was "narrower than any engine would accept ... so that a name which passes
+#   here needs no quoting or escaping in any dialect we generate for". That is
+#   true of every CHARACTER and false of a whole class of WORDS: `table`,
+#   `key`, `order`, `group` and `index` all match and are all reserved, so
+#   `CREATE TABLE seating (table TEXT)` is a syntax error on an ordinary
+#   column. Not a security fault - the value was still bound - which is why it
+#   survived every test looking for injection, and why it took an integration
+#   test written for something else to find it.
+#
 # Types map to SQLite's affinities, with two deliberate refusals to be clever:
 #
 #   decimal  -> TEXT, not REAL. SQLite's REAL is a double, and money in a
@@ -47,12 +57,53 @@ our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
 # passing through it. The check stays because it costs nothing, and because a
 # future caller that forgets the guarantee gets a die() rather than a
 # generated statement - which is the correct direction to fail in.
+# The validated name, unquoted. For building a derived identifier - an index
+# name - which is then quoted once by _ident.
+sub _raw_ident {
+    my ($n) = @_;
+    # SAME MESSAGE as _ident, deliberately. These are one rule applied at two
+    # points, and two spellings of one refusal would send whoever meets it
+    # looking for a second cause.
+    die "refusing to build SQL with an unvalidated identifier: '"
+        . ( defined $n ? $n : '(undef)' ) . "'"
+        unless defined $n && $n =~ /\A[a-z][a-z0-9_]*\z/;
+    return $n;
+}
+
 sub _ident {
     my ($n) = @_;
     die "refusing to build SQL with an unvalidated identifier: '"
         . ( defined $n ? $n : '(undef)' ) . "'"
         unless defined $n && $n =~ /\A[a-z][a-z0-9_]*\z/;
-    return $n;
+
+    # QUOTED, and the module header's original claim was wrong about this.
+    #
+    # It argued that the pattern above is "deliberately narrower than any
+    # engine would accept ... so that a name which passes here needs no
+    # quoting or escaping in any dialect we generate for". That is true of
+    # every CHARACTER and false of a whole class of WORDS: `table`, `key`,
+    # `order`, `group`, `index`, `from` all match the pattern and are reserved.
+    # `CREATE TABLE seating (table TEXT)` is a syntax error, and the operator's
+    # column was a perfectly ordinary one - a seating plan has tables, a parts
+    # list has keys.
+    #
+    # Found by an integration test that used a field called `table`, which was
+    # written to prove something else entirely.
+    #
+    # WHY QUOTE RATHER THAN REFUSE THE WORD. Refusing at descriptor load would
+    # keep the no-quoting claim true and would forbid ordinary column names
+    # forever - and the reserved list DIFFERS BY ENGINE, so the refusal would
+    # either carry SQLite's list upward into engine-neutral code (the leak D11
+    # exists to prevent) or be the union of every engine's list, restricting
+    # every site to satisfy engines nobody runs.
+    #
+    # Quoting is the adapter's job, which is exactly where this is. Double
+    # quotes are ANSI SQL and work in SQLite and Postgres; a MySQL adapter
+    # would use backticks, in ITS OWN _ident, which is the point.
+    #
+    # The validation above still does the security work: it runs FIRST, so a
+    # name containing a quote cannot reach the quoting.
+    return qq{"$n"};
 }
 
 # The column type for a field descriptor, as SQLite should hold it.
@@ -122,8 +173,12 @@ sub index_sql {
     my $table = _ident( $d->{table} );
     my @out;
     for my $ix ( @{ $d->{indexes} || [] } ) {
+        # The NAME is built from the raw parts and quoted once at the end;
+        # _ident now returns a quoted string, so joining its output would
+        # produce a name full of embedded quotes.
+        my @raw  = map { _raw_ident($_) } @{$ix};
         my @cols = map { _ident($_) } @{$ix};
-        my $name = join '_', 'ix', $table, @cols;
+        my $name = join '_', 'ix', $d->{table}, @raw;
         push @out,
             "CREATE INDEX IF NOT EXISTS " . _ident($name) . " ON $table ("
             . join( ', ', @cols ) . ')';

@@ -65,6 +65,12 @@ tone: medium
 `config-set` | manage_config | key (query_or_body), value (query_or_body)
 `copy` | cookie only | path (query), to (query)
 `csrf-token` | cookie only |  
+`data-migrate` | manage_data | table (query)
+`data-row-delete` | manage_data | table (query_or_body), key (query_or_body)
+`data-row-save` | manage_data | table (query_or_body), key (query_or_body), row (body)
+`data-rows` | manage_data | table (query), order_by (query), order (query), limit (query), offset (query)
+`data-table` | manage_data | table (query)
+`data-tables` | manage_data |  
 `delete` | cookie only | path (query)
 `describe-capabilities` | any authenticated |  
 `domain-add` | manage_domains | host (body), content_root (body), site_url (body), site_name (body), theme (body), layout (body), nav_file (body), search_default (body), lang (body), lang_group (body), seed (body)

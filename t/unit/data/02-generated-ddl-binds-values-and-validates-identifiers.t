@@ -59,10 +59,15 @@ subtest 'money is never a float, and a boolean is never text' => sub {
 
 subtest 'the CREATE TABLE says what the descriptor says' => sub {
     my $sql = create_table_sql($d);
-    like( $sql, qr/CREATE TABLE IF NOT EXISTS tasks/, 'names the table' );
-    like( $sql, qr/^\s*id INTEGER PRIMARY KEY/m, 'the automatic key' );
-    like( $sql, qr/^\s*title TEXT NOT NULL/m, 'required means NOT NULL' );
-    unlike( $sql, qr/^\s*due TEXT NOT NULL/m, 'and optional does not' );
+    # IDENTIFIERS ARE QUOTED. The module header used to claim the narrow
+    # `[a-z][a-z0-9_]*` pattern meant a name needed no quoting in any dialect.
+    # That is true of every CHARACTER and false of a class of WORDS - `table`,
+    # `key`, `order` all match the pattern and are reserved - so the adapter
+    # quotes, and these assertions say so rather than pinning the old claim.
+    like( $sql, qr/CREATE TABLE IF NOT EXISTS "tasks"/, 'names the table' );
+    like( $sql, qr/^\s*"?id"? INTEGER PRIMARY KEY/m, 'the automatic key' );
+    like( $sql, qr/^\s*"title" TEXT NOT NULL/m, 'required means NOT NULL' );
+    unlike( $sql, qr/^\s*"due" TEXT NOT NULL/m, 'and optional does not' );
     like( $sql, qr/^\s*created_at TEXT/m, 'timestamps: true adds the columns' );
     like( $sql, qr/^\s*updated_at TEXT/m, '...both of them' );
 };
@@ -84,21 +89,21 @@ subtest 'a natural key is NOT NULL and the primary key' => sub {
             fields => { slug => { type => 'text' }, body => { type => 'text' } },
     } );
     my $sql = create_table_sql($n);
-    like( $sql, qr/^\s*slug TEXT NOT NULL/m, 'the key cannot be null' )
+    like( $sql, qr/^\s*"slug" TEXT NOT NULL/m, 'the key cannot be null' )
         or diag( 'A nullable primary key is a table with rows nothing can '
             . 'address.' );
-    like( $sql, qr/PRIMARY KEY \(slug\)/, 'and is declared as the key' );
+    like( $sql, qr/PRIMARY KEY \("slug"\)/, 'and is declared as the key' );
     unlike( $sql, qr/id INTEGER PRIMARY KEY/, 'with no automatic id beside it' );
 };
 
 subtest 'indexes are derived, never carried' => sub {
     my @ix = index_sql($d);
     is( scalar @ix, 2, 'one per declared index' );
-    like( $ix[0], qr/CREATE INDEX IF NOT EXISTS ix_tasks_done ON tasks \(done\)/,
+    like( $ix[0], qr/CREATE INDEX IF NOT EXISTS "ix_tasks_done" ON "tasks" \("done"\)/,
         'name derived from table and columns' )
         or diag( 'An index name taken from anywhere else is another string '
             . 'reaching SQL without having been validated.' );
-    like( $ix[1], qr/ix_tasks_priority_due ON tasks \(priority, due\)/,
+    like( $ix[1], qr/"ix_tasks_priority_due" ON "tasks" \("priority", "due"\)/,
         'multi-column too' );
 };
 
@@ -140,6 +145,50 @@ subtest 'the generator DIES on an identifier that did not pass validation'
     };
     eval { index_sql($forged_ix); 1 };
     like( $@, qr/unvalidated identifier/, 'and so does a forged index column' );
+};
+
+subtest 'a RESERVED WORD is a legal column name' => sub {
+    # THE DEFECT THIS CATCHES, found by an integration test written to prove
+    # something else. The module header used to argue that the narrow
+    # `[a-z][a-z0-9_]*` pattern meant a name needed no quoting "in any dialect
+    # we generate for". That is true of every CHARACTER and false of a whole
+    # class of WORDS: `table`, `key`, `order`, `group`, `index`, `from` all
+    # match the pattern and are reserved.
+    #
+    # `CREATE TABLE seating (table TEXT)` is a syntax error, and the column was
+    # an ordinary one - a seating plan has tables, a parts list has keys, a
+    # menu has orders. The author would have got a raw SQL parse error naming
+    # their own column, with nothing to tell them the name was the problem.
+    #
+    # NOT A SECURITY HOLE: the value was still bound and the identifier still
+    # restricted to safe characters. A correctness hole, which is why it
+    # survived every test that was looking for injection.
+    my $r = load_descriptor( 'seating', {
+            key    => 'ref',
+            fields => {
+                ref   => { type => 'text' },
+                table => { type => 'text' },
+                key   => { type => 'text' },
+                order => { type => 'integer' },
+            },
+    } );
+    ok( $r->{ok}, 'the loader accepts them - they are legal names' )
+        or diag( 'Refusing them would forbid ordinary column names forever, '
+            . 'and the reserved list differs by engine, so the refusal would '
+            . 'have to be SQLite\'s list carried into engine-neutral code.' );
+
+    my $sql = create_table_sql($r);
+    like( $sql, qr/"table" TEXT/, 'and the generator quotes them' );
+    like( $sql, qr/"order" INTEGER/, '...each of them' );
+
+  SKIP: {
+        skip 'DBD::SQLite not available', 1
+            unless eval { require DBI; require DBD::SQLite; 1 };
+        my $dbh = DBI->connect( 'dbi:SQLite:dbname=:memory:', '', '',
+            { RaiseError => 1, PrintError => 0 } );
+        ok( eval { $dbh->do($sql); 1 }, 'and the engine accepts the statement' )
+            or diag( "the DDL was refused: $@" );
+    }
 };
 
 subtest 'and the loader refuses those names long before the generator sees them'

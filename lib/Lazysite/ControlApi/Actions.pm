@@ -57,7 +57,7 @@ our %ACTION = (
     'acl-get' => { caps => ['webdav'], params => [ { name => 'path', in => 'query' } ] },
     'acl-remove' => { caps => ['webdav'], params => [ { name => 'path', in => 'query' } ] },
     'acl-set' => { caps => ['webdav'], params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
-    'actions-list' => { caps => [],                 params => [] },
+    'actions-list' => { caps => [], params => [] },
     'aliases-list' => { caps => ['manage_content'], params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { caps => ['analytics'], params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
     'artifact-backups-delete' => { caps => [ 'manage_layouts', 'manage_themes' ], params => [ { name => 'path', in => 'query' } ] },
@@ -78,7 +78,27 @@ our %ACTION = (
     'config-set' => { caps => ['manage_config'], params => [ { name => 'key', in => 'query_or_body' }, { name => 'value', in => 'query_or_body' } ] },
     'copy' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'csrf-token' => { caps => undef, params => [] },
-    'delete'     => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
+
+    # SM447: the data tables. EXTRACTED from the dispatch chain, like every
+    # entry here - t/lint/58 re-extracts and fails on any difference, so this
+    # is a fourth list that cannot drift.
+    #
+    # NOTE `in => 'query'` throughout: this field records HOW THE CHAIN READS
+    # the parameter (%params, populated from either source), not which HTTP
+    # method is allowed. The three writers are POST-forced via %MUTATING and
+    # t/lint/14 asserts it.
+    #
+    # `row` is a JSON OBJECT in one parameter rather than loose fields,
+    # deliberately: a descriptor may declare a field called `table` or `key`,
+    # and flattening the row into the query would make the site's own data
+    # collide with the action's own parameters.
+    'data-migrate' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
+    'data-row-delete' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' } ] },
+    'data-row-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body' } ] },
+    'data-rows' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
+    'data-table' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
+    'data-tables' => { caps => ['manage_data'], params => [] },
+    'delete'      => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { caps => [], params => [] },
     'domain-add' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body' }, { name => 'content_root', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' }, { name => 'seed', in => 'body' } ] },
     'domain-check' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'query' } ] },
