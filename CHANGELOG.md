@@ -44,7 +44,59 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM462 follow-up (PENDING) **adding a principal now grants read AND write.**
+- SM431 (PENDING, filing only) **permissions are the one part of
+  manage_content with a single route.** `get_permissions` and
+  `set_permissions` exist on MCP and nowhere else - no control-API action, no
+  WebDAV route - so a token grant can create gated content and then have no
+  way to inspect the rule governing it. Filed by the field-test account after
+  CF-2 shipped, on finding it could not verify the change in either
+  direction; its observation that it could not have captured a 0.10.18
+  baseline either is the useful half, since it forecloses a before/after
+  comparison somebody would otherwise schedule. Explicitly not a request for
+  more access: it is four-surface parity work, a fifteenth item of SM430's
+  kind. Two ways to close it, and the filing is straight about the trade -
+  control-API actions put permissions on the same footing as the rest of the
+  capability and carry a real blast radius; an MCP server for that one host is
+  the cheap answer and leaves the gap in place. DECISION HELD.
+
+- SM430 provenance (PENDING, correction) **the common-functions survey is
+  UNATTRIBUTED.** The brief carries no author line. It names SM422's parity
+  map as its evidence base and so descends from it, but the map's author has
+  confirmed the survey, CF-2 and the two-write-stacks framing are not theirs
+  and checked their own filing to establish it. I credited them in
+  correspondence and was wrong; the filing and commit message never carried
+  the claim, and the status-note now records "unattributed" explicitly rather
+  than leaving a gap that would default to the nearest known author.
+
+## 0.10.22 - BETA: the second beta, built from what the first one found (2026-08-21)
+
+The point of a beta is that problems found in it get handled rather than
+carried, so everything the field reported against 0.10.21 that could be fixed
+safely is here. The database plugin is deliberately NOT: it is a major feature
+and this release is for stabilising what the estate is already running.
+
+Six of these are one fault in different clothes. Gating MOVES content out of
+the docroot (SM286), and every surface that turns an absolute path back into a
+key had to learn the second tree. Where one did not, the failure was never an
+error - a folder that could not be created, a link carrying
+`-lazysite-private/` in it, an index that listed nothing and rendered fine.
+SM286's own header warned that resolution and key derivation must change
+together; SM460 found two more places where they had not, one of them while
+proving the fix rather than by report.
+
+**The changelog itself was wrong and is corrected here.** Ten entries were
+sitting under `## Unreleased` describing work that had already shipped: four
+copied into their release section with the original left behind, six never
+moved at all. So the 0.10.21 section described four fixes while its tag
+contained twelve, and this release would have claimed all of them. The entries
+are now in the sections whose tags contain them, both earlier sections say so,
+and `t/lint/75` refuses both states - a duplicate, and an entry for work a tag
+already carries. Neither was visible to t/lint/53 (which ignores `(PENDING)` by
+design) or to t/lint/65 (which pins SHA-carrying entries and treats
+`## Unreleased` as not a released section).
+
+
+- SM462 follow-up (6e2d694) **adding a principal now grants read AND write.**
   It defaulted to read-on/write-off, and an empty write list means NO
   restriction - so the ordinary way of restricting a file produced a rule that
   locked reads and left writes open, and an operator was shown *rw* while the
@@ -54,7 +106,7 @@ Naming the commit: AFTER it lands, never before
   **This changes what a click means, not what a rule means** - enforcement and
   every existing stored rule are unaffected.
 
-- SM461 (PENDING) **the all-files History OVERVIEW is hidden for this release.**
+- SM461 (6e2d694) **the all-files History OVERVIEW is hidden for this release.**
   It fails with a JSON parse error while its data is fine - `git-history-summary`
   returns valid JSON over the API - so the fault is in the page's request or
   handling, and diagnosing it needs a browser. Hidden rather than removed: one
@@ -69,7 +121,7 @@ Naming the commit: AFTER it lands, never before
   that the workarounds (take ownership, or read the store off disk) are worse
   than the question, and that `acl-set` is audited without the rule's content,
   so the two gaps compound.
-- SM463 resolved (PENDING) **the Edit link carries the docroot key, never a
+- SM463 resolved (6d2020f) **the Edit link carries the docroot key, never a
   server path.** `page_source` stripped `$DOCROOT` off the source path with no
   boundary - and the private store is `<docroot>-lazysite-private`, so for a
   GATED page the docroot matched as a bare string prefix and left
@@ -84,7 +136,7 @@ Naming the commit: AFTER it lands, never before
   on somebody creating `public_html.bak`; here **the software creates the
   colliding name itself**, so the bad case exists on every site that gates
   anything.
-- SM446 resolved (PENDING) **adding a domain now says TLS is not part of the
+- SM446 resolved (102e9c8) **adding a domain now says TLS is not part of the
   step, and checks.** The add flow provisions a content folder, seeds a page
   and reports success, so every signal said *ready* - and the first thing that
   disagreed was a visitor's browser, on a host whose certificate covered a
@@ -97,7 +149,7 @@ Naming the commit: AFTER it lands, never before
   fine (silence after a check is indistinguishable from no check), or restate
   a diagnosis that is already better than anything written here.
 
-- SM462 (PENDING) **a rule that locks reads and leaves writes open now says
+- SM462 (c99bfdc) **a rule that locks reads and leaves writes open now says
   so**, and **Protected sections describes the folder you are in**. From an
   operator walkthrough of a gated section. They set access on a file, were
   shown *rw*, and the stored rule was `read: ["@agent-ai"], write: []` - then
@@ -132,7 +184,7 @@ Naming the commit: AFTER it lands, never before
   different 200 pages each render. Private wins on a collision, so a stray
   public twin lists once, as the governed copy.
 
-- SM459 resolved (PENDING) **a page can read its own front matter.** A custom
+- SM459 resolved (5664bfb) **a page can read its own front matter.** A custom
   top-level key was visible to a SCAN of the page and invisible to the page's
   own template: the scan passes non-reserved keys through, the stash took only
   `tt_page_var` plus an explicit list. So the same key was readable by every
@@ -148,7 +200,7 @@ Naming the commit: AFTER it lands, never before
   scan and the stash; two copies would drift, which is the same defect one level
   up and the third time this week (SM435, SM457).
 
-- SM458 resolved (PENDING) **the manager can create a subfolder inside a gated
+- SM458 resolved (05b0f3b) **the manager can create a subfolder inside a gated
   section again.** An operator could not create `filestore/research` inside a
   gated `/intranet/`: *"Invalid path"*. The same folder went in over WebDAV
   immediately afterwards, so the path was legal and the account could write
@@ -188,7 +240,7 @@ Naming the commit: AFTER it lands, never before
   the control API throughout - only the rendered, signed-in view is gated, and
   if the rule exists to keep the page from public visitors it is doing its job.
 
-- SM457 resolved (PENDING) **a capability that hid its own API.** Reported by a
+- SM457 resolved (c29e749) **a capability that hid its own API.** Reported by a
   third party's agent, working against a live site: holding `manage_forms` and
   looking for submissions, it tried `describe_capabilities`,
   `list_form_handlers`, `forms`, `form_submissions`, `list_submissions` and
@@ -235,7 +287,7 @@ Naming the commit: AFTER it lands, never before
   from this one without anything failing. Containment is boundary-safe, so
   `/blog` does not claim `/blogroll`.
 
-- SM440 follow-up (PENDING) **a pre-fix alias entry is now cleared, and could
+- SM440 follow-up (d01ce58) **a pre-fix alias entry is now cleared, and could
   not be before.** Before the fix, a page under a content root wrote into the
   SHARED map with a docroot-relative target; after it, the same page writes
   into its own domain's map with a site-relative one. Different file *and*
@@ -250,24 +302,6 @@ Naming the commit: AFTER it lands, never before
   clearing more would delete the default site's redirects as a side effect of
   editing another domain's page. Corrects a claim in SM440's own status note,
   which said re-saving would clear these; it would not have.
-
-- SM445 resolved (PENDING) **an expired session says so, instead of the button
-  doing nothing.** Reported from the field: *"the submit button did nothing. i
-  refreshed and discovered session expired. i had no information to say that,
-  it just felt like it has failed."* It did nothing because every manager page
-  posts through `fetch(...).then(function (r) { return r.json(); })` with no
-  status check and no `.catch()`; a 401's non-JSON body makes `r.json()`
-  **reject**, the rejection is unhandled, and neither the success nor the error
-  branch runs. The pages have an error branch for this and it was unreachable,
-  because the failure happened before the branch was chosen. The shared layout
-  `fetch` wrapper - which every page already goes through for CSRF - now
-  notices a 401 and shows a persistent banner with a **Refresh now** button, on
-  GET as well as POST, since a page that loads its list after the session
-  lapsed was just as silent as one that submits. Fixed in the wrapper rather
-  than in 96 call sites across 12 pages: a fix in one place cannot be
-  half-applied. **403 is deliberately untouched** - a refusal with a real JSON
-  body that the pages already report, where "sign in again" would be wrong
-  advice.
 
 - **A multi-domain test fixture, because a single-site one cannot fail the way
   this software fails.** Ten defects surfaced in one week of real multi-site
@@ -286,34 +320,36 @@ Naming the commit: AFTER it lands, never before
   Verified by re-introducing three of the real defects and confirming the
   fixture fails on each.
 
-- SM434 resolved (PENDING) **something finally reports the RUNNING version.**
-  `/.well-known/lazysite-instance.json` now carries `version`, read from the
-  install state - what the installer actually wrote, rather than a VERSION file
-  in a source tree that may not be the one serving. Nothing served reported
-  this, and two agents in a row reached for `<meta name="generator">` instead,
-  which answers a different question and answers it **correctly**: that meta is
-  baked in at RENDER time and cached with the page, so it reports the build
-  that produced the artefact. A page rendered under an older build and still
-  cached is not stale - it is describing itself accurately. The misreading was
-  durable because an upgrade re-renders every shipped page while preserving the
-  operator's own `index.md`, so the one page keeping an old render is the
-  homepage - the first page anyone checks after an upgrade. This endpoint is
-  never cached, so it can answer honestly.
+- **"Configure domain", not "register domain."** The manager said *register*
+  throughout - the button, the sheet subtitle, the confirmations, the API
+  errors (`Not a registered domain`), the log lines (`domain registered`) and
+  the guides. It reads as domain registration in the ordinary sense - buying a
+  name from a registrar - which is not what any of it does: the instance is
+  being told to serve a name somebody already owns. Renamed across the UI, the
+  API messages, the logs and the docs. `register:` page front matter and the
+  generated registries are untouched - a different word doing a different job.
 
-- SM437 resolved (PENDING) **the domain's content folder is picked, not typed.**
-  The create sheet now offers a drop-down of folders that EXIST, defaulting to
-  `sites/`, and names the child folder from the host - so the operator chooses
-  a parent and types nothing that can be misspelled. The derived path is shown
-  and follows the host field as it is typed, because a surprise at submit time
-  is too late. `domain_add` already creates-or-adopts, so nothing new was
-  needed underneath. **The failure it removes is quiet**: any clean relative
-  path is valid and gets provisioned, so a typo produced a domain pointing at a
-  new empty directory - the site served, with nothing in it, and the intended
-  content sat one directory away under the name that was meant. A
-  "Somewhere else…" option keeps the text box reachable, because the picker is
-  a default rather than a cage.
+## 0.10.21 - BETA: the multi-site fixes, pulled forward because edge could not test them (2026-08-21)
 
-- SM439 resolved (PENDING) **revoking an access key now stops the OAuth grant,
+The four fixes the release manager moved ahead of their edge soak, on the
+reasoning that settled it: multi-site behaviour is only exercisable where
+multiple sites exist, so soaking them on a single-site edge would have proved
+nothing about them. Two of them repair faults that were serving the wrong
+site's content to real visitors.
+
+Also carries the release gate learning to say WHICH failure it hit, which paid
+for itself within the hour by naming a manifest fault as a manifest fault
+rather than as a coverage shortfall.
+
+**The four are what the cut was FOR; they are not all it shipped.** A release
+builds from `main`, so this tag also carried the edge work sitting there at the
+time - SM434, SM437, SM439 and SM445 below. Their entries were written on their
+branches and never moved out of `## Unreleased` by the post-release pass, so
+for a day this section described four fixes and the tarball contained twelve.
+They were moved here on 2026-08-21 and stamped with their real commits.
+`t/lint/75` now refuses the state that allowed it.
+
+- SM439 resolved (f1043c0) **revoking an access key now stops the OAuth grant,
   and the Keys page stops hiding people.** Two halves, both confirmed by
   measurement rather than by reading - the filing recorded them as unexercised
   and said so. **Revocation**: `cmd_key_revoke` blanked the credential in the
@@ -335,212 +371,50 @@ Naming the commit: AFTER it lands, never before
   reach the site - not a side effect. Revocation is unchanged and still
   refuses an interactive account: listing is not offering.
 
-- **"Configure domain", not "register domain."** The manager said *register*
-  throughout - the button, the sheet subtitle, the confirmations, the API
-  errors (`Not a registered domain`), the log lines (`domain registered`) and
-  the guides. It reads as domain registration in the ordinary sense - buying a
-  name from a registrar - which is not what any of it does: the instance is
-  being told to serve a name somebody already owns. Renamed across the UI, the
-  API messages, the logs and the docs. `register:` page front matter and the
-  generated registries are untouched - a different word doing a different job.
+- SM437 resolved (09066ae) **the domain's content folder is picked, not typed.**
+  The create sheet now offers a drop-down of folders that EXIST, defaulting to
+  `sites/`, and names the child folder from the host - so the operator chooses
+  a parent and types nothing that can be misspelled. The derived path is shown
+  and follows the host field as it is typed, because a surprise at submit time
+  is too late. `domain_add` already creates-or-adopts, so nothing new was
+  needed underneath. **The failure it removes is quiet**: any clean relative
+  path is valid and gets provisioned, so a typo produced a domain pointing at a
+  new empty directory - the site served, with nothing in it, and the intended
+  content sat one directory away under the name that was meant. A
+  "Somewhere else…" option keeps the text box reachable, because the picker is
+  a default rather than a cage.
 
-- SM435 resolved (PENDING) **manage_config no longer advertises two files it
-  cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and
-  `lazysite/forms/<name>.conf` to `manage_forms` over WebDAV, wrote both new
-  descriptor entries, and never trimmed the old one - so the descriptor
-  promised a partner holding `manage_config` alone a write `authorise()` would
-  refuse. **Nothing was over-permitted**: enforcement was always the strict
-  side. The cost is that the descriptor is the ONE per-capability account of
-  the boundary readable from outside the code - a partner cannot determine
-  which capability grants an access by experiment, because the only instrument
-  available reports the union of everything they hold - so a wrong descriptor
-  sent an agent to a 403 and then to trial and error, which is what RI-002's
-  deny reasons exist to end. New `t/lint/68` checks the two sides against each
-  other in the one place a partner meets both: every WebDAV denial names its
-  capability, so the deny reason is enforcement's own statement of the rule.
-  **It asserts SET EQUALITY deliberately** - a membership check passes against
-  this exact defect, because `manage_nav` does list `nav.conf` and the surplus
-  entry is invisible to it. Sabotaged both ways before being trusted: an extra
-  claim and a missing claim each fail it.
+- SM434 resolved (009f0f7) **something finally reports the RUNNING version.**
+  `/.well-known/lazysite-instance.json` now carries `version`, read from the
+  install state - what the installer actually wrote, rather than a VERSION file
+  in a source tree that may not be the one serving. Nothing served reported
+  this, and two agents in a row reached for `<meta name="generator">` instead,
+  which answers a different question and answers it **correctly**: that meta is
+  baked in at RENDER time and cached with the page, so it reports the build
+  that produced the artefact. A page rendered under an older build and still
+  cached is not stale - it is describing itself accurately. The misreading was
+  durable because an upgrade re-renders every shipped page while preserving the
+  operator's own `index.md`, so the one page keeping an old render is the
+  homepage - the first page anyone checks after an upgrade. This endpoint is
+  never cached, so it can answer honestly.
 
-- SM442 resolved (PENDING) **regenerate-registries reports what it CLEARED, and
-  MCP stops answering differently.** `cleared_roots` was built from
-  `_registry_roots()` - the roots CONSIDERED - so a call that removed four files
-  and a call that removed none returned the same thing, and every early return
-  in the invalidator was invisible to the caller. The response now carries
-  `cleared_files` and `cleared_count` from the actual unlinks. **This is the
-  report that turned a diagnosable condition into an afternoon**: zero files
-  against seven roots is a finding, visible in the first response. Separately,
-  MCP's `regenerate_registries` called the invalidator and composed its own
-  answer, so it reported no `cleared_files` and - worse - no
-  `shadowed_by_files` at all, SM433 having added that warning to the control
-  API only. It now routes through the shared `action_regenerate_registries`,
-  the same one-implementation reasoning SM301 and SM318 settled for other
-  pairs. Sabotaged before being trusted: restoring the roots-based count fails
-  three of the new subtests.
-
-- SM443 partial (PENDING) **a per-domain nav file is writable over WebDAV.**
-  The carve-out tested `$rel eq 'lazysite/nav.conf'` - an exact match on one
-  filename - so a domain whose `nav_file` was set to `lazysite/nav-<site>.conf`
-  had a navigation file NO surface could populate: `nav-save` writes the shared
-  file, and WebDAV fell through to the blanket `lazysite/` denial. `domain-set`
-  accepted the setting anyway, and because layouts guard on `[% IF nav.size %]`
-  the visible result was a site with **no navigation** rather than an error.
-  WebDAV now admits any path lazysite.conf declares as a `nav_file`, base or
-  per-domain, still gated on `manage_nav`. **Bounded by configuration, not by
-  pattern alone**: the value must have the nav-file shape
-  (`lazysite/<name>.conf`, no traversal, no subdirectory) *and* be declared by
-  the operator - this branch returns ALLOWED before the scope, blocklist and
-  ACL gates run, so the shape check is a boundary rather than a tidy-up.
-  `lazysite/lazysite.conf` is excluded explicitly, or setting `nav_file` would
-  become an escalation. Sabotaged three ways before being trusted; dropping the
-  exclusion lets the test overwrite `lazysite.conf`, which is the point of it.
-  **The destructive-default half of SM443 is NOT fixed here** - an absent host
-  on `nav-save` still silently means the shared file.
-
-- SM441 resolved (PENDING) **a page preview knows which site it is previewing.**
-  Both page-scope previews - `action_preview` (Files/editor) and
-  `preview_public` (SM282, "as a visitor") - shelled the processor without
-  setting `HTTP_HOST`, so SM151's per-Host routing never fired and a domain's
-  page rendered with the BASE layout, theme and nav. The content was right and
-  the presentation was another site's, which reads as a page given the wrong
-  theme rather than as a preview that has not been told which site it is. An
-  operator who happened to open the manager on the domain's own host saw a
-  correct preview, which is what made it intermittent. `domain_preview` (SM238)
-  always did set it - its own comment describes shelling "exactly like ...
-  `action_preview`, but with `HTTP_HOST` set" - so the difference was
-  understood and applied at domain scope only. New
-  `Domains::host_for_path` resolves the owning domain, **longest content root
-  wins**, with boundary-safe containment so `sites/one` cannot claim
-  `sites/one-archive`. Two domains on one content root are **not** silently
-  resolved: the tie is reported so a caller can offer a host selector, and the
-  pick is deterministic meanwhile. Sabotaged four ways; the containment case
-  initially passed against a bare-prefix sabotage and the fixture was made
-  adversarial before it was trusted.
-
-- SM432 resolved (PENDING) **/docs/features serves again, by becoming an
-  index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
-  The page was an index of the directory shadowing it, and `canonical_url_for`
-  maps `foo/index.md` to `/foo`, so the published URL is unchanged - no alias,
-  no redirect chain, no front-matter edit (the three `tt_page_var` scans are
-  absolute and target subdirectories, so the index cannot list itself).
-  **Chosen over rename-plus-alias for a reason the deploy supplied rather than
-  taste**: when 0.10.19 reinstalled `features.md` onto the edge host mid-edit -
-  the code-bucket overwrite the original filing predicted, confirmed within the
-  hour - the reinstated file came back shadowed by a directory that now has an
-  index, so it was inert and the site kept working. Under rename-plus-alias the
-  same reinstall restores the 404, because the alias lives on a page the
-  installer does not know about. t/lint/67's exclusion list is now empty, and
-  its own guard fired for real: it refuses an exclusion naming a collision that
-  no longer exists, so removing the entry was part of this change rather than a
-  follow-up. **Severity amended in the filing and worth reading here**:
-  `starter/lazysite/nav.conf` line 9 ships `All features | /docs/features`, so
-  this was a broken DEFAULT NAV ITEM in the chrome of every page of every fresh
-  install - not, as first filed, one row in a sitemap. Confirmed independently
-  on a fresh 0.10.19 starter install. The acceptance test is now "install
-  fresh, follow the nav link, land on a page".
-
-- SM431 (PENDING, filing only) **permissions are the one part of
-  manage_content with a single route.** `get_permissions` and
-  `set_permissions` exist on MCP and nowhere else - no control-API action, no
-  WebDAV route - so a token grant can create gated content and then have no
-  way to inspect the rule governing it. Filed by the field-test account after
-  CF-2 shipped, on finding it could not verify the change in either
-  direction; its observation that it could not have captured a 0.10.18
-  baseline either is the useful half, since it forecloses a before/after
-  comparison somebody would otherwise schedule. Explicitly not a request for
-  more access: it is four-surface parity work, a fifteenth item of SM430's
-  kind. Two ways to close it, and the filing is straight about the trade -
-  control-API actions put permissions on the same footing as the rest of the
-  capability and carry a real blast radius; an MCP server for that one host is
-  the cheap answer and leaves the gap in place. DECISION HELD.
-
-- SM430 provenance (PENDING, correction) **the common-functions survey is
-  UNATTRIBUTED.** The brief carries no author line. It names SM422's parity
-  map as its evidence base and so descends from it, but the map's author has
-  confirmed the survey, CF-2 and the two-write-stacks framing are not theirs
-  and checked their own filing to establish it. I credited them in
-  correspondence and was wrong; the filing and commit message never carried
-  the claim, and the status-note now records "unattributed" explicitly rather
-  than leaving a gap that would default to the nearest known author.
-
-- SM432 (PENDING, filing only) **/docs/features is published in the sitemap
-  and 404s.** A page and a directory share a name: `features.md` serves, the
-  leaf pages under `features/` serve, and the canonical extensionless URL -
-  the only one sitemap.xml advertises - is shadowed by the directory and lands
-  on a 404. **It ships**: both sides exist in the tracked starter payload, so
-  every site installing the docs inherits it. The 301 carries
-  `charset=iso-8859-1`, so the front end is answering and no engine-level test
-  can see it - the same blind spot the outside-in probe exists for. Found when
-  the reporter wrote a sweep tool, ran it against their own earlier filing and
-  was contradicted by it: they had measured the redirect and assumed its
-  target, taking the version from the rendered error page. They corrected the
-  promotion record before it was quoted, which is why SM413's wording now
-  says 33 of 34 without a gloss. Nothing changed: renaming either side moves a
-  published documentation URL and needs an alias on whichever name loses,
-  which is a release decision rather than a drive-by fix. A sweep of the whole
-  shipped payload found this is the ONLY such collision, so it is one decision
-  rather than a class - and t/lint/67 now fails on a second one, listing this
-  one by name with its reason so the exclusion is a deliberate act rather than
-  a silence. The lint also fails if the known collision is resolved and left
-  in the list, because an exclusion for something that no longer exists is how
-  a list stops describing the tree.
-
-- SM434 (PENDING, filing only) **nothing reports the running engine version -
-  and SM413's premise was wrong.** The `<meta name="generator">` version is
-  read from the install state and baked into the HTML AT RENDER TIME, so a
-  cached page reports the version that produced it. That is correct: honest
-  metadata about the artefact, not a symptom. A homepage rendered under
-  0.10.18 and still cached on a 0.10.19 host is accurately describing itself.
-  The durable part of the misreading: a render is served while its html mtime
-  exceeds its source's, an upgrade OVERWRITES every shipped page so those
-  re-render by themselves, and the operator's own index.md is PRESERVED
-  precisely because it is operator-edited - so the one page that keeps an old
-  render is the homepage, which is also the first page anyone checks after an
-  upgrade. **The real gap**: `/.well-known/lazysite-instance.json` returns
-  instance and host and no version, and nothing else served reports one - so
-  "did the upgrade take" has no honest answer, and two agents independently
-  reached for a number that answers a different question correctly. Suggested
-  fix is one field on that endpoint. A second, larger render-invalidation
-  change built on the wrong premise was stopped before it landed; the 0.10.18
-  one stands on its own merits and its filing now says which.
-
-- SM433 (PENDING) **regenerate-registries cleared a path the server stopped
-  reading.** SM293 step 3 moved the generated registries out of the document
-  root into `lazysite/cache/registries/`; the invalidator was not moved with
-  them and went on deleting `<root>/<name>`. So the control reported
-  `cleared_roots`, cleared nothing a visitor sees, and the artefact stayed
-  stale for its full four-hour TTL - measured in the field as two regenerate
-  calls with no change to the served sitemap, which they could not diagnose
-  from outside and which turned out to be neither of their two hypotheses.
-  **The second defect is worse and nobody had filed it**: since SM293 the
-  server returns early when `<root>/<name>` exists, because an operator may
-  write their own sitemap as content - so the path being deleted had become a
-  supported home for operator content, and a routine regenerate would have
-  destroyed a hand-written registry with no warning. Fixing the first without
-  noticing the second would have left data loss behind a newly-working
-  control. Now: cache artefacts cleared, the in-docroot file never touched,
-  and any shadowing file reported by name with a note explaining why
-  regenerating cannot change what is served while it wins. **Three tests had
-  agreed with the code about the wrong place** - t/unit/manager/21,
-  t/unit/manager/55 and t/unit/mcp/18 each seeded a registry at the docroot
-  path and asserted its removal - which is why this survived from SM293 to a
-  field report: each was written beside the code it tested and inherited its
-  assumption, so the suite confirmed the invalidator did exactly what it did,
-  to a file nobody serves. All three now seed and assert the served location,
-  with every property they existed to prove left intact.
-
-## 0.10.21 - BETA: the multi-site fixes, pulled forward because edge could not test them (2026-08-21)
-
-The four fixes the release manager moved ahead of their edge soak, on the
-reasoning that settled it: multi-site behaviour is only exercisable where
-multiple sites exist, so soaking them on a single-site edge would have proved
-nothing about them. Two of them repair faults that were serving the wrong
-site's content to real visitors.
-
-Also carries the release gate learning to say WHICH failure it hit, which paid
-for itself within the hour by naming a manifest fault as a manifest fault
-rather than as a coverage shortfall.
+- SM445 resolved (300ed27) **an expired session says so, instead of the button
+  doing nothing.** Reported from the field: *"the submit button did nothing. i
+  refreshed and discovered session expired. i had no information to say that,
+  it just felt like it has failed."* It did nothing because every manager page
+  posts through `fetch(...).then(function (r) { return r.json(); })` with no
+  status check and no `.catch()`; a 401's non-JSON body makes `r.json()`
+  **reject**, the rejection is unhandled, and neither the success nor the error
+  branch runs. The pages have an error branch for this and it was unreachable,
+  because the failure happened before the branch was chosen. The shared layout
+  `fetch` wrapper - which every page already goes through for CSRF - now
+  notices a 401 and shows a persistent banner with a **Refresh now** button, on
+  GET as well as POST, since a page that loads its list after the session
+  lapsed was just as silent as one that submits. Fixed in the wrapper rather
+  than in 96 call sites across 12 pages: a fix in one place cannot be
+  half-applied. **403 is deliberately untouched** - a refusal with a real JSON
+  body that the pages already report, where "sign in again" would be wrong
+  advice.
 
 - SM436 completed (da03302) **the diagnostics half: an unmatched Host leaves a
   trace, and a preview names the Host it used.** The validation shipped earlier
@@ -649,6 +523,57 @@ past one site per instance - while every suite stayed green.
 Cut as EDGE. The channel flag was omitted from the build invocation; the
 release manager elected to keep it rather than rebuild, and the beta follows.
 
+Two entries below - SM432 and SM433 - were written on their branches and never
+moved out of `## Unreleased` by the post-release pass, so this section
+under-reported what the tag contained. Moved here and stamped on 2026-08-21.
+
+- SM433 (c7736ae) **regenerate-registries cleared a path the server stopped
+  reading.** SM293 step 3 moved the generated registries out of the document
+  root into `lazysite/cache/registries/`; the invalidator was not moved with
+  them and went on deleting `<root>/<name>`. So the control reported
+  `cleared_roots`, cleared nothing a visitor sees, and the artefact stayed
+  stale for its full four-hour TTL - measured in the field as two regenerate
+  calls with no change to the served sitemap, which they could not diagnose
+  from outside and which turned out to be neither of their two hypotheses.
+  **The second defect is worse and nobody had filed it**: since SM293 the
+  server returns early when `<root>/<name>` exists, because an operator may
+  write their own sitemap as content - so the path being deleted had become a
+  supported home for operator content, and a routine regenerate would have
+  destroyed a hand-written registry with no warning. Fixing the first without
+  noticing the second would have left data loss behind a newly-working
+  control. Now: cache artefacts cleared, the in-docroot file never touched,
+  and any shadowing file reported by name with a note explaining why
+  regenerating cannot change what is served while it wins. **Three tests had
+  agreed with the code about the wrong place** - t/unit/manager/21,
+  t/unit/manager/55 and t/unit/mcp/18 each seeded a registry at the docroot
+  path and asserted its removal - which is why this survived from SM293 to a
+  field report: each was written beside the code it tested and inherited its
+  assumption, so the suite confirmed the invalidator did exactly what it did,
+  to a file nobody serves. All three now seed and assert the served location,
+  with every property they existed to prove left intact.
+
+- SM432 resolved (6e29f15) **/docs/features serves again, by becoming an
+  index.** `starter/docs/features.md` moves to `starter/docs/features/index.md`.
+  The page was an index of the directory shadowing it, and `canonical_url_for`
+  maps `foo/index.md` to `/foo`, so the published URL is unchanged - no alias,
+  no redirect chain, no front-matter edit (the three `tt_page_var` scans are
+  absolute and target subdirectories, so the index cannot list itself).
+  **Chosen over rename-plus-alias for a reason the deploy supplied rather than
+  taste**: when 0.10.19 reinstalled `features.md` onto the edge host mid-edit -
+  the code-bucket overwrite the original filing predicted, confirmed within the
+  hour - the reinstated file came back shadowed by a directory that now has an
+  index, so it was inert and the site kept working. Under rename-plus-alias the
+  same reinstall restores the 404, because the alias lives on a page the
+  installer does not know about. t/lint/67's exclusion list is now empty, and
+  its own guard fired for real: it refuses an exclusion naming a collision that
+  no longer exists, so removing the entry was part of this change rather than a
+  follow-up. **Severity amended in the filing and worth reading here**:
+  `starter/lazysite/nav.conf` line 9 ships `All features | /docs/features`, so
+  this was a broken DEFAULT NAV ITEM in the chrome of every page of every fresh
+  install - not, as first filed, one row in a sitemap. Confirmed independently
+  on a fresh 0.10.19 starter install. The acceptance test is now "install
+  fresh, follow the nav link, land on a page".
+
 - SM435 resolved (1300e7e) **manage_config no longer advertises two files it
   cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and
   `lazysite/forms/<name>.conf` to `manage_forms` over WebDAV, wrote both new
@@ -722,6 +647,47 @@ release manager elected to keep it rather than rebuild, and the beta follows.
   pick is deterministic meanwhile. Sabotaged four ways; the containment case
   initially passed against a bare-prefix sabotage and the fixture was made
   adversarial before it was trusted.
+
+- SM432 (e031a7d, filing only) **/docs/features is published in the sitemap
+  and 404s.** A page and a directory share a name: `features.md` serves, the
+  leaf pages under `features/` serve, and the canonical extensionless URL -
+  the only one sitemap.xml advertises - is shadowed by the directory and lands
+  on a 404. **It ships**: both sides exist in the tracked starter payload, so
+  every site installing the docs inherits it. The 301 carries
+  `charset=iso-8859-1`, so the front end is answering and no engine-level test
+  can see it - the same blind spot the outside-in probe exists for. Found when
+  the reporter wrote a sweep tool, ran it against their own earlier filing and
+  was contradicted by it: they had measured the redirect and assumed its
+  target, taking the version from the rendered error page. They corrected the
+  promotion record before it was quoted, which is why SM413's wording now
+  says 33 of 34 without a gloss. Nothing changed: renaming either side moves a
+  published documentation URL and needs an alias on whichever name loses,
+  which is a release decision rather than a drive-by fix. A sweep of the whole
+  shipped payload found this is the ONLY such collision, so it is one decision
+  rather than a class - and t/lint/67 now fails on a second one, listing this
+  one by name with its reason so the exclusion is a deliberate act rather than
+  a silence. The lint also fails if the known collision is resolved and left
+  in the list, because an exclusion for something that no longer exists is how
+  a list stops describing the tree.
+
+- SM434 (e031a7d, filing only) **nothing reports the running engine version -
+  and SM413's premise was wrong.** The `<meta name="generator">` version is
+  read from the install state and baked into the HTML AT RENDER TIME, so a
+  cached page reports the version that produced it. That is correct: honest
+  metadata about the artefact, not a symptom. A homepage rendered under
+  0.10.18 and still cached on a 0.10.19 host is accurately describing itself.
+  The durable part of the misreading: a render is served while its html mtime
+  exceeds its source's, an upgrade OVERWRITES every shipped page so those
+  re-render by themselves, and the operator's own index.md is PRESERVED
+  precisely because it is operator-edited - so the one page that keeps an old
+  render is the homepage, which is also the first page anyone checks after an
+  upgrade. **The real gap**: `/.well-known/lazysite-instance.json` returns
+  instance and host and no version, and nothing else served reports one - so
+  "did the upgrade take" has no honest answer, and two agents independently
+  reached for a number that answers a different question correctly. Suggested
+  fix is one field on that endpoint. A second, larger render-invalidation
+  change built on the wrong premise was stopped before it landed; the 0.10.18
+  one stands on its own merits and its filing now says which.
 
 ## 0.10.19 - BETA: the promotion, and the fixes the field drove into it (2026-08-20)
 
