@@ -130,9 +130,15 @@ subtest 'the control: with a usable store it still moves' => sub {
     unlink $store;
     my $good = action_acl_set( 'members/', 'alice', ['alice'], undef, undef, undef );
     ok( $good->{ok}, 'the call succeeds' );
-    ok( !@{ $good->{warnings} || [] },
-        'with no warning, because nothing failed' )
-        or diag( join ' | ', @{ $good->{warnings} } );
+    # SM462: assert no STORE-FAILURE warning, not the absence of every
+    # warning. This rule is read: [alice], write: [] - and an empty write list
+    # means no restriction, so it is genuinely readable by fewer people than
+    # can write it, and acl-set now says so. That warning is correct here and
+    # is a different subject from whether the move succeeded, which is what
+    # this subtest is about.
+    my @store = grep { /store|move|private/i } @{ $good->{warnings} || [] };
+    ok( !@store, 'with no store warning, because nothing failed' )
+        or diag( join ' | ', @store );
     ok( !-e "$d/members/secret.md", 'and the content really did move' );
 };
 

@@ -139,7 +139,7 @@ our %ACTION = (
     'preview-grant' => { caps => [ 'manage_themes', 'manage_layouts' ], params => [] },
     'preview-public' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
     'principals'         => { caps => undef, params => [] },
-    'protected-sections' => { caps => undef, params => [] },
+    'protected-sections' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'read' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'recent-changes' => { caps => undef, params => [ { name => 'window', in => 'query' } ] },
     'regenerate-registries' => { caps => ['manage_content'], params => [] },

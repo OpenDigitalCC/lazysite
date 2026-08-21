@@ -126,7 +126,7 @@ tone: medium
 `preview-grant` | manage_themes / manage_layouts |  
 `preview-public` | manage_content | path (query)
 `principals` | cookie only |  
-`protected-sections` | cookie only |  
+`protected-sections` | cookie only | path (query)
 `read` | cookie only | path (query)
 `recent-changes` | cookie only | window (query)
 `regenerate-registries` | manage_content |  

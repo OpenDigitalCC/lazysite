@@ -1579,6 +1579,36 @@ sub action_acl_set {
     # ORDINARY, entirely working ACL, and warning about it is noise on the
     # common case. The concern that prompted it dissolves anyway - there is no
     # longer any advice to follow, so there is nothing to report back on.
+    # SM462: READ LOCKED, WRITE OPEN - say so, because nothing else will.
+    #
+    # An empty list means NO RESTRICTION (_acl_allows: `return 1 unless ref
+    # $list eq 'ARRAY' && @$list`). So a rule naming a read list and leaving
+    # write empty makes a file READABLE BY FEWER PEOPLE THAN CAN WRITE IT.
+    #
+    # That is not hypothetical. The manager's "add a principal" control
+    # defaults to read on, write off, so the ordinary way of restricting a
+    # file produces exactly this shape - and it was found only when an
+    # operator could not PREVIEW a file they could still SAVE. Enforcement was
+    # right in both directions; the rule was surprising.
+    #
+    # Warned rather than corrected: changing what an empty write list MEANS
+    # would alter enforcement for every existing rule on every site, which is
+    # not a thing to do in a message-shaped fix. The decision - whether naming
+    # a read list should default writes to the same audience - is the
+    # operator's, and is recorded in the filing.
+    if ( ref $rec{read} eq 'ARRAY' && @{ $rec{read} }
+        && !( ref $rec{write} eq 'ARRAY' && @{ $rec{write} } ) )
+    {
+        push @warnings,
+            'READ IS RESTRICTED AND WRITE IS NOT. This rule names who may '
+            . 'READ the path, and leaves the write list EMPTY - and an empty '
+            . 'list means no restriction, so anyone who can reach the site '
+            . 'can still WRITE it. The result is a path readable by fewer '
+            . 'people than can change it, which is rarely what was meant. '
+            . 'Add the same names to the write list if that is what you '
+            . 'intended.';
+    }
+
     my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
     if (@grp) {
         push @warnings,
@@ -1646,7 +1676,7 @@ sub action_acl_set {
 # are the Files page's business and answer a different question; mixing them
 # here would bury the four entries that matter among hundreds that do not.
 sub action_protected_sections {
-    my ( $user, $scopes ) = @_;
+    my ( $user, $scopes, $path ) = @_;
     my $acls = load_acls();
     my @out;
 
@@ -1723,6 +1753,34 @@ sub action_protected_sections {
             exists => ( -d $dir ) ? 1 : 0,
         };
     }
+    # SM462: scope to the folder being browsed, when one is given.
+    #
+    # The panel sits under a directory listing and listed every rule on the
+    # site, so an operator standing in one folder read the whole estate's
+    # protection to find their own. It is also a small disclosure: the names
+    # of protected sections elsewhere are not what this screen is for.
+    #
+    # A rule COVERING the folder is kept as well as rules inside it - a
+    # section gated at /intranet governs /intranet/team, and hiding that from
+    # the /intranet/team view would answer "is this protected?" with silence
+    # when the answer is yes.
+    #
+    # Omitting path keeps the whole-site list, which is what the standalone
+    # panel and any existing caller expect.
+    if ( defined $path && length $path ) {
+        ( my $here = $path ) =~ s{^/+|/+$}{}g;
+        if ( length $here ) {
+            @out = grep {
+                my $k = $_->{prefix} // '';
+                $k =~ s{^/+|/+$}{}g;
+                $_->{site_wide}
+                    || $k eq $here
+                    || index( $k,     "$here/" ) == 0    # inside the folder
+                    || index( $here,  "$k/" ) == 0;      # covering the folder
+            } @out;
+        }
+    }
+
     return { ok => 1, sections => \@out };
 }
 

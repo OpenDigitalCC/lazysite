@@ -995,7 +995,7 @@ elsif ( $action eq 'protected-sections' ) {
     # SM267: read-only, and scoped - a confined manager is shown only the
     # sections inside their own scope, so the list cannot be used to discover
     # that content exists elsewhere.
-    $result = action_protected_sections( $auth_user, \@REQUEST_SCOPES );
+    $result = action_protected_sections( $auth_user, \@REQUEST_SCOPES, $params{path} );
 }
 elsif ( $action eq 'mkdir' ) { $result = action_mkdir($path) }
 elsif ( $action eq 'move' )  { $result = action_move( $path, $params{to}, $auth_user ) }

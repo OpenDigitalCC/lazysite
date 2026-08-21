@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM462 (PENDING) **a rule that locks reads and leaves writes open now says
+  so**, and **Protected sections describes the folder you are in**. From an
+  operator walkthrough of a gated section. They set access on a file, were
+  shown *rw*, and the stored rule was `read: ["@agent-ai"], write: []` - then
+  found they could SAVE a file they could not PREVIEW. Enforcement was right in
+  both directions: an empty list means NO restriction, so a named read list is
+  a real gate while an empty write list is none, and the file ended up
+  **readable by fewer people than can write it**. The manager's *add a
+  principal* control defaults to read on, write off, so the ordinary way of
+  restricting a file produces exactly that shape. `acl-set` now warns when
+  reads are restricted and writes are not, explaining the empty-list semantics
+  that cause it. **Warned rather than corrected**: changing what an empty write
+  list MEANS would alter enforcement for every existing rule on every site, and
+  whether naming a read list should default writes to the same audience is a
+  decision, recorded as one. Separately, the Protected sections panel listed
+  every rule on the site; it now shows the folder's own rules **and any rule
+  covering it** - hiding the parent would answer *is this protected?* with
+  silence when the answer is yes.
+
 - SM459 resolved (PENDING) **a page can read its own front matter.** A custom
   top-level key was visible to a SCAN of the page and invisible to the page's
   own template: the scan passes non-reserved keys through, the stash took only

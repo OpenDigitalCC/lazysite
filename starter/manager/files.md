@@ -153,6 +153,7 @@ function loadDir(dir) {
   showStatus('');
   currentDir = dir || '/';
   updateBreadcrumb();
+  if (typeof loadProtectedSections === 'function') loadProtectedSections();
   // The alias card is scoped to the folder, so it has to follow navigation.
   // It used to load once at page load and never again, which meant that after
   // the first click it described somewhere the operator had left.
@@ -1049,7 +1050,13 @@ function updateSelection() {
 // well, which on a gated section is a wider act than it looks - so it is named
 // for what it does and confirmed separately.
 function loadProtectedSections() {
-  fetch(API + '?action=protected-sections')
+  // Scoped to the folder being browsed. The panel sits under a directory
+  // listing; listing every rule on the site made an operator read the whole
+  // estate to find their own, and showed them section names that are not what
+  // this screen is for. A rule COVERING this folder is kept as well as rules
+  // inside it - /intranet governs /intranet/team, and hiding that would answer
+  // "is this protected?" with silence when the answer is yes.
+  fetch(API + '?action=protected-sections&path=' + encodeURIComponent(currentDir))
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var table = document.getElementById('protected-table');

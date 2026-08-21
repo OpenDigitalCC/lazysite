@@ -109,4 +109,32 @@ subtest 'no ACL entries, no warning' => sub {
     unlike( $w, qr/RENDERED PAGE/i, 'a rule naming nobody warns about nobody' );
 };
 
+subtest 'SM462: read restricted and write open is called out' => sub {
+    # An empty list means NO RESTRICTION, so a rule that names a read list and
+    # leaves write empty makes a path READABLE BY FEWER PEOPLE THAN CAN WRITE
+    # IT. Found only when an operator could not PREVIEW a file they could
+    # still SAVE - enforcement was right in both directions, the rule was
+    # surprising, and nothing said so.
+    my $w = warn_text( read => ['@agent-ai'] );
+    like( $w, qr/READ IS RESTRICTED AND WRITE IS NOT/,
+        'the asymmetry is named' )
+        or diag( 'The manager\'s "add a principal" control defaults to read '
+            . 'on, write off - so the ORDINARY way of restricting a file '
+            . 'produces this shape.' );
+    like( $w, qr/empty list means no restriction/i,
+        'and the semantics that cause it are explained' );
+
+    my $sym = warn_text( read => ['alice'], write => ['alice'] );
+    unlike( $sym, qr/READ IS RESTRICTED AND WRITE IS NOT/,
+        'a symmetric rule is left alone' )
+        or diag( 'Warning on a correct rule is noise, and noise is how the '
+            . 'warning that matters gets skipped.' );
+
+    my $wonly = warn_text( write => ['alice'] );
+    unlike( $wonly, qr/READ IS RESTRICTED AND WRITE IS NOT/,
+        'and so is write-only, which is not the surprising direction' )
+        or diag( 'Restricting writes while reads stay open is the ordinary '
+            . 'shape of a published-but-protected page.' );
+};
+
 done_testing();
