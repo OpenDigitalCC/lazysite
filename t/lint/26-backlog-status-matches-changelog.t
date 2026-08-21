@@ -68,9 +68,25 @@ for my $l (@lines) {
     # which opens a bullet with an SM number and a parenthetical, and is a filing
     # rather than a ship - the commit ref is exactly what distinguishes an item
     # that was BUILT from one that was written down.
+    # A QUALIFIER MAY SIT BETWEEN THE SM AND THE REF, and until 2026-08-21 this
+    # pattern did not allow for it. `\s*` before the parenthetical means the
+    # commit ref has to follow the SM number immediately, so every bullet
+    # written as "SM442 resolved (9f94a45)", "SM443 partial (...)", "SM440
+    # follow-up (...)" or "SM436 completed (...)" was invisible: 89 of the 265
+    # SM-opening bullets in this changelog, and the house style for anything
+    # that is not a plain ship.
+    #
+    # The blind spot hid exactly what this test is for. SM442's own status-note
+    # begins "PARTIALLY SHIPPED" while its status field said `candidate`, and
+    # the 0.10.20 section claims it with a commit - the disagreement this file
+    # exists to catch, sitting in the changelog uncaught since that release.
+    #
+    # The qualifier is bounded and word-shaped rather than `.*?`: it must be
+    # ordinary words, so a bullet whose prose happens to reach a parenthetical
+    # further along still does not read as a claim.
     next
         unless $l
-        =~ /^-\s+((?:SM\d+)(?:\s*[\/,+]\s*SM\d+)*)\s*\(([0-9a-f]{7,40}(?:\s*,\s*[0-9a-f]{7,40})*)\)/;
+        =~ /^-\s+((?:SM\d+)(?:\s*[\/,+]\s*SM\d+)*)\s*(?:[a-z][a-z-]*\s+){0,3}\(([0-9a-f]{7,40}(?:\s*,\s*[0-9a-f]{7,40})*)\)/;
     my ( $sms, $refs, $matched ) = ( $1, $2, $& );
     for my $sm ( $sms =~ /SM(\d+)/g ) {
         $claimed{$sm} //= { release => $release, refs => $refs };
