@@ -115,6 +115,22 @@ Naming the commit: AFTER it lands, never before
   every rule on the site; it now shows the folder's own rules **and any rule
   covering it** - hiding the parent would answer *is this protected?* with
   silence when the answer is yes.
+- SM460 resolved **a `scan:` list can see content in a gated section - and
+  still cannot see what the requester may not read.** Gating MOVES content out
+  of the docroot (SM286), so a scan inside a protected section found nothing
+  and rendered a page that listed nothing, successfully: no error, no warning,
+  and an author who reasonably concluded their pattern was wrong. It removed
+  scan-driven indexes - blog listings, feature indexes, library pages - from
+  protected areas entirely. The ACL filter in `resolve_scan` was already
+  written for private entries and had never received one; finding them was the
+  missing half. Two faults were found while proving it: the result URL was
+  derived by stripping the scan root off the front, and the private root begins
+  with the scan root, so a page found there came back as
+  `-lazysite-private/...` - SM463's fault in a second place, and the reason
+  SM286 warns that resolution and key derivation must change together. The
+  file cap also truncated an unordered hash, so a capped listing held a
+  different 200 pages each render. Private wins on a collision, so a stray
+  public twin lists once, as the governed copy.
 
 - SM459 resolved (PENDING) **a page can read its own front matter.** A custom
   top-level key was visible to a SCAN of the page and invisible to the page's

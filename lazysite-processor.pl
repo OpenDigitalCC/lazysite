@@ -5125,50 +5125,94 @@ sub resolve_scan {
     # Limit to .md files only
     return [] unless $fs_pattern =~ /\.md$/;
 
+    # SM460: SEARCH THE PRIVATE STORE TOO.
+    #
+    # Gating MOVES content out of the docroot (SM286), so a scan rooted at the
+    # docroot found nothing inside a protected section - and rendered a page
+    # that listed nothing, successfully. Not an error, not a warning: an author
+    # sees an empty list and reasonably concludes their content is missing or
+    # their pattern is wrong. It removed scan-driven indexes - how blog
+    # listings, feature indexes and library pages are built - from protected
+    # areas entirely.
+    #
+    # SAFE BECAUSE THE FILTER ALREADY EXPECTED THIS. _scan_should_skip keys
+    # each entry through _content_rel precisely "so a page resolved from the
+    # private store is keyed and checked rather than skipping the branch and
+    # being listed" - the ACL gate was written for private entries and never
+    # received any. Finding them was the missing half, not the gating.
+    #
+    # PRIVATE WINS on a collision, the same rule Private::resolve documents: if
+    # a stray public copy survives a move, listing the governed copy keeps the
+    # ACL applying while stray_public() can still report the leak.
+    my @roots     = ($scan_root);
+    my $priv_root = _private_twin($scan_root);
+    push @roots, $priv_root
+        if defined $priv_root && $priv_root ne $scan_root && -d $priv_root;
+
     my @files;
-    if ( $fs_pattern =~ m{\*\*} ) {
-        # Recursive glob: expand ** by walking directories
-        # Split pattern into base dir and file glob parts
-        my ( $base, $rest ) = $fs_pattern =~ m{^(.*?)/\*\*/(.*)$};
-        if ( defined $base && defined $rest && -d $base ) {
-            my $file_re = $rest;
-            $file_re =~ s/\./\\./g;
-            $file_re =~ s/\*/.*/g;
-            $file_re = qr/\A${file_re}\z/;
-            my @queue = ($base);
-            while ( my $dir = shift @queue ) {
-                opendir( my $dh, $dir ) or next;
-                # SM311: the directory itself. A file ADDED or DELETED leaves no
-                # file to stat, but moves its directory's mtime - so the walked
-                # directories are what makes add and delete visible, and the
-                # matched files below are what makes an EDIT visible. Both are
-                # needed; neither is sufficient.
-                _tt_dep($dir);
-                for my $entry ( readdir($dh) ) {
-                    next if $entry =~ /^\./;
-                    my $path = "$dir/$entry";
-                    if ( -d $path ) {
-                        # SM151: don't follow symlinked dirs - a symlink could
-                        # cycle (hanging the walk) or escape the content root
-                        # (leaking a sibling domain's pages into search).
-                        next if -l $path;
-                        # §7: never descend into ANOTHER domain's content root,
-                        # so a bare-docroot search excludes client subtrees.
-                        next if $excl->{$path} && $path ne $base;
-                        push @queue, $path;
+    for my $root (@roots) {
+        my $fs_pattern = $root . $pattern;
+        if ( $fs_pattern =~ m{\*\*} ) {
+            # Recursive glob: expand ** by walking directories
+            # Split pattern into base dir and file glob parts
+            my ( $base, $rest ) = $fs_pattern =~ m{^(.*?)/\*\*/(.*)$};
+            if ( defined $base && defined $rest && -d $base ) {
+                my $file_re = $rest;
+                $file_re =~ s/\./\\./g;
+                $file_re =~ s/\*/.*/g;
+                $file_re = qr/\A${file_re}\z/;
+                my @queue = ($base);
+                while ( my $dir = shift @queue ) {
+                    opendir( my $dh, $dir ) or next;
+                    # SM311: the directory itself. A file ADDED or DELETED leaves no
+                    # file to stat, but moves its directory's mtime - so the walked
+                    # directories are what makes add and delete visible, and the
+                    # matched files below are what makes an EDIT visible. Both are
+                    # needed; neither is sufficient.
+                    _tt_dep($dir);
+                    for my $entry ( readdir($dh) ) {
+                        next if $entry =~ /^\./;
+                        my $path = "$dir/$entry";
+                        if ( -d $path ) {
+                            # SM151: don't follow symlinked dirs - a symlink could
+                            # cycle (hanging the walk) or escape the content root
+                            # (leaking a sibling domain's pages into search).
+                            next if -l $path;
+                            # §7: never descend into ANOTHER domain's content root,
+                            # so a bare-docroot search excludes client subtrees.
+                            next if $excl->{$path} && $path ne $base;
+                            push @queue, $path;
+                        }
+                        elsif ( $entry =~ $file_re ) {
+                            push @files, $path;
+                        }
                     }
-                    elsif ( $entry =~ $file_re ) {
-                        push @files, $path;
-                    }
+                    closedir($dh);
                 }
-                closedir($dh);
             }
         }
+        else {
+            push @files, glob($fs_pattern);
+            # SM311: same reasoning, one level - the directory the glob names.
+            _tt_dep( dirname($fs_pattern) );
+        }
     }
-    else {
-        @files = glob($fs_pattern);
-        # SM311: same reasoning, one level - the directory the glob names.
-        _tt_dep( dirname($fs_pattern) );
+
+    # SM460: private wins when a path exists in both trees. Keyed on the
+    # docroot-relative name so the two spellings of one page collapse to one
+    # entry rather than listing it twice.
+    {
+        my %by_key;
+        for my $f (@files) {
+            my $key = _content_rel($f);
+            $key = $f unless defined $key;
+            # A later root (the private one) replaces an earlier public twin.
+            $by_key{$key} = $f;
+        }
+        # SORTED, because the 200-file cap below takes a prefix and hash
+        # order is randomised per process - an uncapped list would come out
+        # right and a capped one would hold a different 200 pages each render.
+        @files = sort values %by_key;
     }
 
     # Limit to 200 files
@@ -5182,7 +5226,10 @@ sub resolve_scan {
         # Realpath check - confined to the scan root (the domain's content root,
         # or the docroot), so a symlinked file cannot escape the domain (SM151).
         my $real = realpath($path);
-        next unless _path_under( $real, $scan_root );
+        # SM460: _path_under_content, not _path_under - it accepts the scan
+        # root OR its private twin, each boundary-safe, which is the same
+        # two-strict-checks shape SM458 used rather than one loosened test.
+        next unless _path_under_content( $real, $scan_root );
         next unless -f $real;
 
         # SM311: recorded BEFORE the visibility filter, deliberately. A page that
@@ -5203,9 +5250,30 @@ sub resolve_scan {
 
         # Derive URL relative to the scan root, so a boxed domain's results
         # carry that domain's own '/'-relative paths (SM151).
-        ( my $url = $path ) =~ s{^\Q$scan_root\E}{};
-        $url                =~ s/\.md$//;
-        $url                =~ s{/index$}{/};
+        #
+        # SM460/SM463: map a private-store path back to its PUBLIC spelling
+        # first. This strip is a bare prefix, and the private root begins with
+        # the scan root - so a page found in the private tree came out as
+        # "-lazysite-private/intranet/a", which is both a broken link and a
+        # disclosure of the store's naming. Widening the search without fixing
+        # the derivation would have introduced that fault rather than found it;
+        # SM286's own header warns that resolution and key derivation must
+        # change together, and this is the derivation half.
+        #
+        # Boundary-safe (eq or "$root/"), so a sibling directory whose name
+        # merely starts with the private root's is untouched.
+        my $url_src   = $path;
+        my $priv_scan = _private_twin($scan_root);
+        if ( defined $priv_scan
+            && length $priv_scan
+            && ( $url_src eq $priv_scan
+                || index( $url_src, "$priv_scan/" ) == 0 ) )
+        {
+            $url_src = $scan_root . substr( $url_src, length($priv_scan) );
+        }
+        ( my $url = $url_src ) =~ s{^\Q$scan_root\E}{};
+        $url                   =~ s/\.md$//;
+        $url                   =~ s{/index$}{/};
 
         # Date from front matter or mtime
         my $date = $meta->{date} || '';
