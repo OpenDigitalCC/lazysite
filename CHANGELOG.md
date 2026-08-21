@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM447 (PENDING) **the data tables over MCP** - `list_data_tables`,
+  `describe_data_table`, `read_data_rows`, `migrate_data_table`,
+  `save_data_row`, `delete_data_row`. An agent populating a table is the
+  primary use of this plugin, so an API-only surface would have defeated it;
+  `t/lint/23`'s temporary one-sided entries are gone and each action is now
+  pinned to its tool. All six route through `Lazysite::Manager::Data`, the same
+  module the control API calls, so **three surfaces share one implementation**
+  - which is also why SM469's enabled gate applies to MCP without any tool
+  remembering to ask. The tools are advertised only to a holder of
+  `manage_data`: an agent shown a tool it cannot use will call it and read the
+  refusal as a fault. DP-1 is complete.
+
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no

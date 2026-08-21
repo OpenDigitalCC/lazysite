@@ -46,6 +46,7 @@ use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
+use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Plugins     qw(action_form_submissions action_form_list);
 use Lazysite::Lang                 qw(set_members);
@@ -515,6 +516,114 @@ my %TOOLS = (
                 }
             }
             return $r;
+        },
+    },
+    # SM447: the data tables. An agent populating a table is the PRIMARY use
+    # of the data plugin, which is why these exist rather than leaving agents
+    # to drive the control API - and why the API-only gap was recorded in
+    # t/lint/23 as a schedule rather than a decision.
+    #
+    # THEY ALL ROUTE THROUGH Lazysite::Manager::Data, the same module the
+    # control API calls, which in turn calls Lazysite::Data::Tables. Three
+    # surfaces, one implementation - because two surfaces each assembling the
+    # data layer for themselves is how they come to disagree about the same
+    # question, and t/lint/57 exists because that has happened.
+    #
+    # The plugin's enabled gate lives in that module (SM469), so these refuse
+    # when it is disabled without each tool having to remember to ask.
+    list_data_tables => {
+        description => 'List the data tables this site declares - each with its title, and whether its descriptor is valid. A table is declared by a YAML file at lazysite/db/tables/<name>.yaml and holds SITE data: a product list, an events calendar, a directory. Call this FIRST on any task that mentions stored records, so you learn what exists rather than guessing a name. A table whose descriptor is broken is reported WITH its error rather than omitted, because a silently shorter list is the least useful thing this could do. Read-only.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object', properties => {},
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_tables();
+        },
+    },
+    describe_data_table => {
+        description => 'The declared shape of one data table: its fields, their types, which are required, and which field is the key. Call this BEFORE writing a row - the write is refused if a value does not fit its declared type, and this is how you find out what fits. Types are text, integer, decimal, boolean, date, datetime and enum; a decimal declares how many digits and decimal places it holds, and an enum declares its permitted values. Read-only.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name, as list_data_tables reports it' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_table( $_[0]->{table} );
+        },
+    },
+    read_data_rows => {
+        description => 'Read rows from a data table. Ordering takes a DECLARED FIELD NAME, not an expression, and a field the table does not declare is refused with a reason rather than failing at the database. The row count is always capped, so this cannot return an unbounded listing. If the table is declared but has never been migrated, this succeeds with no rows and says pending_schema - which means run migrate_data_table, not that the table is empty. Read-only.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+                order_by => { type => 'string', description => 'A declared field name to sort by' },
+                order => { type => 'string', description => 'asc (default) or desc' },
+                limit => { type => 'integer', description => 'Rows to return; defaults to 200 and is capped at 1000' },
+                offset => { type => 'integer', description => 'Rows to skip, for paging through a large table' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_rows(
+                $a->{table},
+                order_by => $a->{order_by},
+                order    => $a->{order},
+                limit    => $a->{limit},
+                offset   => $a->{offset},
+            );
+        },
+    },
+    migrate_data_table => {
+        description => 'Bring the stored table into line with its descriptor, as far as is SAFE. Adding a field is applied, and a field with a default is filled in on the rows that predate it. Changing a field\'s type, tightening it to required, or removing it are REPORTED AND REFUSED, not performed - each of those rewrites the table and an operator decides it. Returns both what was applied and what was blocked, and the blocked list is the half that explains why a column is not there yet. Safe to run repeatedly: a table already in line is a no-op.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_migrate( $_[0]->{table} );
+        },
+    },
+    save_data_row => {
+        description => 'Insert a row, or update one by its key. WITHOUT `key` this inserts; WITH `key` it updates that row and touches only the fields you send, leaving the rest alone. Every value is checked against the descriptor and a value that does not fit is REFUSED with the field named - a decimal with too many places is refused rather than rounded, because a store that quietly rounds money is worse than one that will not take it. An unknown field name is refused rather than ignored, so a typo cannot look like a successful write.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+                key => { type => 'string', description => 'The key of the row to UPDATE. Omit to insert a new row.' },
+                row => { type => 'object', description => 'The field values, as an object. Send values as strings for decimal fields so no precision is lost on the way here.' },
+            },
+            required => [ 'table', 'row' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return { ok => 0, error => 'row must be an object' }
+                unless ref $a->{row} eq 'HASH';
+            return Lazysite::Manager::Data::action_data_row_save( $a->{table},
+                $a->{key}, $a->{row} );
+        },
+    },
+    delete_data_row => {
+        description => 'Delete one row by its key. Deleting a row that is not there is REFUSED rather than reported as success, so a mistaken key does not read as a completed deletion. There is no bulk delete and no delete-by-filter: removing many rows is a decision an operator makes, not one an agent reaches by accident.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+                key => { type => 'string', description => 'The key of the row to delete' },
+            },
+            required => [ 'table', 'key' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_row_delete( $a->{table},
+                $a->{key} );
         },
     },
     list_domains => {

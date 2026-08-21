@@ -105,6 +105,16 @@ my %PAIR = (
     'theme-delete'        => 'delete_theme',
     'themes-list-all'     => 'list_themes',
     'nav-read'            => 'read_nav',
+
+    # SM447: the data tables. Both channels, one implementation - each pair
+    # routes through Lazysite::Manager::Data, so a difference between them
+    # would have to be introduced deliberately.
+    'data-tables'     => 'list_data_tables',
+    'data-table'      => 'describe_data_table',
+    'data-rows'       => 'read_data_rows',
+    'data-migrate'    => 'migrate_data_table',
+    'data-row-save'   => 'save_data_row',
+    'data-row-delete' => 'delete_data_row',
     'nav-save'            => 'set_nav',
     'pages'               => 'list_pages',
 );
@@ -126,18 +136,6 @@ my %API_ONLY = (
     # agent door SM231 described - polled, not pushed - and it wants item 2's
     # addressing first, or every agent reads every operator notice.
     'notices' => 'undecided - an MCP twin wants per-notice addressing (SM281 item 2) first',
-    # SM447: the data actions are API-only ONLY UNTIL THE MCP TOOL SET LANDS,
-    # which is the next piece of DP-1. This is the one entry in this map whose
-    # reason is a schedule rather than a decision, and it is written that way
-    # deliberately: an agent populating a table is the PRIMARY use of the data
-    # plugin, so a permanent API-only surface would defeat the feature. If
-    # these are still here after DP-1 closes, that is the signal.
-    'data-tables'  => 'temporary - the MCP tool set is the next piece of DP-1',
-    'data-table'   => 'temporary - as data-tables',
-    'data-rows'    => 'temporary - as data-tables',
-    'data-migrate' => 'temporary - as data-tables',
-    'data-row-save'   => 'temporary - as data-tables',
-    'data-row-delete' => 'temporary - as data-tables',
     'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read' => 'undecided - no MCP twin for site configuration',
     'config-set'  => 'undecided - as config-read',
