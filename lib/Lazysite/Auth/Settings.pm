@@ -46,7 +46,24 @@ our @CAP_KEYS = qw(
     manage_content manage_nav manage_forms
     manage_themes manage_layouts manage_domains manage_config
     manage_users analytics audit notifications feedback read_submissions
-    create_sub_users delegate_sub_user_creation);
+    create_sub_users delegate_sub_user_creation
+    manage_data);
+
+# SM447 / ADR 0009: `manage_data` is DECLARED BY THE DATA PLUGIN and mirrored
+# here, which is a different thing from being a core capability.
+#
+# The list must be static. caps_for() is consulted on every request through
+# every channel, and discovering capabilities by running each plugin's
+# `--describe` would put ten subprocesses on that path. So the runtime keeps
+# this literal and t/lint/76 DISCOVERS the plugin declarations and fails if the
+# two disagree - which is ADR 0009's "the contract does not exempt a plugin
+# from the lints, it makes the lints discover the plugin's entries", applied
+# where it can be applied without a cost the request path cannot pay.
+#
+# The plugin remains the OWNER: it is the one place that says what it owns, and
+# a capability appearing here with no plugin claiming it, or claimed by two
+# plugins, is what the lint refuses. This entry is a mirror, not a second
+# owner.
 
 sub _settings_file       { "$AUTH_DIR/user-settings.json" }
 sub _group_settings_file { "$AUTH_DIR/groups-settings.json" }

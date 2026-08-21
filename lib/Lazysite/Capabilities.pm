@@ -148,8 +148,27 @@ my %ACTION_INFO = (
             mcp => [qw(list_domains domain_set preview_domain site_backup site_apply)],
         },
     },
+    # SM447 / ADR 0009. DECLARED BY plugins/data.pl and mirrored here; the
+    # plugin is the owner and t/lint/76 refuses a mirror with no plugin
+    # claiming it, or one claimed twice.
+    #
+    # THE UNLOCK LISTS ARE EMPTY AND THAT IS ACCURATE. The typed core is built
+    # and nothing routes to it yet: no control-API action and no MCP tool is
+    # gated on this capability. Granting it today therefore admits an account
+    # to nothing, which is honest - what it must never do is CLAIM actions that
+    # do not exist, which is SM457's defect pointed the other way and the one
+    # t/lint/71 exists to catch.
+    manage_data => {
+        title   => 'Read and write the site\'s data tables.',
+        unlocks => {
+            api    => [],
+            mcp    => [],
+            webdav =>
+                ['lazysite/db/tables/<table>.yaml (the field descriptors)'],
+        },
+    },
     manage_config => {
-        title   => 'Read and set safe site configuration.',
+        title => 'Read and set safe site configuration.',
         # SM435: this listed lazysite/nav.conf and lazysite/forms/<name>.conf
         # over WebDAV, which 0.8.1 moved to manage_nav and manage_forms
         # respectively - see authorise() in lazysite-dav.pl, which admits

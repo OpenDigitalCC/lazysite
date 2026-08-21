@@ -47,6 +47,7 @@ feedback | Submit agent feedback over MCP. Off by default: the operator opts a g
 read_submissions | Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default. | api: form-submissions, form-list; mcp: read_form_submissions, form_list
 create_sub_users | Create sub-accounts under your own account. | ui: sub-user creation
 delegate_sub_user_creation | Grant sub-accounts the ability to create their own sub-users. | ui: onward delegation of sub-user creation
+manage_data | Read and write the site's data tables. | webdav: lazysite/db/tables/<table>.yaml (the field descriptors); api: ; mcp: 
 ```
 
 ## Engine-owned paths (do not write)

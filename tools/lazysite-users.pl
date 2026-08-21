@@ -1202,7 +1202,12 @@ sub effective_settings {
         disabled       => $s->{disabled}          ? JSON::PP::true() : JSON::PP::false(),
         manage_themes  => $caps->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
         manage_layouts => $caps->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
-        manage_config  => $caps->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
+        # SM447: the data plugin's capability. Added here at the same time as
+        # @CAP_KEYS, because the two must move together - SEC-2026-07 (F3) is
+        # what happens when they do not, and t/unit/users/21 is what makes
+        # sure they do.
+        manage_data   => $caps->{manage_data}   ? JSON::PP::true() : JSON::PP::false(),
+        manage_config => $caps->{manage_config} ? JSON::PP::true() : JSON::PP::false(),
         # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
         # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained
         # list - so those grants were dormant on every surface that reads

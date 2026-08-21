@@ -114,19 +114,26 @@ subtest 'storage names the directory the store actually lives in' => sub {
             . 'reintroduced.' );
 };
 
-subtest 'capabilities names one, and it is not a core capability' => sub {
+subtest 'capabilities names one, and it is MIRRORED not duplicated' => sub {
     my @caps = @{ $owns->{capabilities} || [] };
     is_deeply( \@caps, ['manage_data'], 'exactly manage_data' );
 
-    # It must not silently collide with a core capability name: the lints
-    # discover plugin entries and a duplicate would make one shadow the other
-    # with nothing reporting it.
+    # THIS ASSERTION USED TO SAY THE OPPOSITE, and the change is deliberate.
+    # It required manage_data NOT to be in @CAP_KEYS, on the reasoning that two
+    # owners of one capability is the ambiguity ADR 0009 removes. That is
+    # right about OWNERSHIP and wrong about the LIST: caps_for() is on every
+    # request and cannot run ten plugins to discover names, so the runtime
+    # keeps a static mirror.
+    #
+    # The plugin stays the owner. t/lint/76 discovers the declarations and
+    # refuses a mirror with no owner, or one claimed twice - which is where the
+    # ambiguity is actually prevented.
     require "$root/lib/Lazysite/Auth/Settings.pm";
-    my %core = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
-    ok( !$core{'manage_data'},
-        'manage_data is not already a core capability key' )
-        or diag( 'If it becomes one, this plugin must stop declaring it - two '
-            . 'owners of one capability is the ambiguity ADR 0009 removes.' );
+    my %key = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
+    ok( $key{'manage_data'},
+        'manage_data is grantable, so the declaration can take effect' )
+        or diag( 'A capability nobody can be granted leaves the plugin\'s '
+            . 'actions unreachable, with nothing saying why.' );
 };
 
 subtest 'status reports and does not repair' => sub {

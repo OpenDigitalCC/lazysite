@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM447 (PENDING) **`manage_data` exists, is grantable, and claims nothing it
+  cannot do.** ADR 0009 says a plugin's capability should be discovered rather
+  than known by name, and that conformance removes entries from core lists
+  rather than adding to them. The runtime cannot follow that literally:
+  `caps_for()` is consulted on every request through every channel, and
+  discovering capabilities by running each plugin's `--describe` would put ten
+  subprocesses on the request path. So the runtime keeps a static mirror and
+  **`t/lint/76` does the discovering** - which is the ADR's other sentence read
+  exactly, *the contract does not exempt a plugin from the lints, it makes the
+  lints discover the plugin's entries*. The lint refuses a mirror no plugin
+  claims (grantable in the UI, unlocks nothing, reads to an operator as a
+  broken permission), a capability claimed by two plugins, and a declaration
+  with no mirror (ungrantable, so the plugin's actions are unreachable).
+  **Its `unlocks` lists are empty and that is accurate** - nothing routes to
+  the data plugin yet, so granting it admits an account to nothing. Claiming
+  actions that do not exist is SM457's defect pointed the other way.
+
 - SM468 (PENDING, filing only) **a record of what the schema used to be.**
   Filed alongside the decision that SM447's schema state is DERIVED from the
   database rather than held in a state file. Derivation is a complete account

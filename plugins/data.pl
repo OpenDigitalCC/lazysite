@@ -60,28 +60,28 @@ sub describe {
         config_file => 'lazysite/data.conf',
 
         config_schema => [
-            {   key   => 'db_source',
-                label => 'Storage engine',
-                type  => 'text',
+            { key => 'db_source',
+                label   => 'Storage engine',
+                type    => 'text',
                 default => 'sqlite',
-                note  => 'Only "sqlite" is built. One file at '
+                note    => 'Only "sqlite" is built. One file at '
                     . 'lazysite/db/data.sqlite, which makes a backup a copy '
                     . 'and needs nothing provisioned. Other engines are '
                     . 'gated on demand (DP-7).',
             },
-            {   key   => 'db_descriptor_dir',
-                label => 'Where table descriptors live',
-                type  => 'text',
+            { key => 'db_descriptor_dir',
+                label   => 'Where table descriptors live',
+                type    => 'text',
                 default => 'lazysite/db/tables',
-                note  => 'One YAML file per table. These are content, not '
+                note    => 'One YAML file per table. These are content, not '
                     . 'configuration: they describe the shape of the site\'s '
                     . 'own data and travel with it.',
             },
-            {   key   => 'db_max_rows',
-                label => 'Largest listing a page may render',
-                type  => 'text',
+            { key => 'db_max_rows',
+                label   => 'Largest listing a page may render',
+                type    => 'text',
                 default => '200',
-                note  => 'A ceiling, not a page size. An unbounded listing '
+                note    => 'A ceiling, not a page size. An unbounded listing '
                     . 'against a table an agent has been filling is how a '
                     . 'page comes to render for a minute.',
             },
@@ -98,7 +98,7 @@ sub describe {
             # package copies content, nav and layout only - so before this, a
             # migrated or content-restored site arrived without its database
             # and nothing said so.
-            storage => [ 'lazysite/db/' ],
+            storage => ['lazysite/db/'],
 
             # None yet. The endpoint is DP-3, and it needs
             # Lazysite::Auth::Session (SM411, shipped) because a direct-CGI
@@ -124,7 +124,7 @@ sub run {
     my %opt;
     for my $i ( 0 .. $#argv ) {
         $opt{describe} = 1 if $argv[$i] eq '--describe';
-        $opt{status}   = 1 if $argv[$i] eq '--action' && ( $argv[ $i + 1 ] // '' ) eq 'status';
+        $opt{status} = 1 if $argv[$i] eq '--action' && ( $argv[ $i + 1 ] // '' ) eq 'status';
         $opt{docroot} = $argv[ $i + 1 ] // '' if $argv[$i] eq '--docroot';
     }
 
@@ -160,7 +160,7 @@ sub status {
 
     my $store = "$docroot/lazysite/db/data.sqlite";
     $out{store} = -f $store ? { exists => 1, bytes => -s $store }
-        : { exists => 0 };
+        :   { exists => 0 };
 
     my $dir = "$docroot/lazysite/db/tables";
     my @tables;
