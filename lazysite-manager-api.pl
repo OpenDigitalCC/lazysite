@@ -1227,7 +1227,17 @@ elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
 }
 elsif ( $action eq 'nav-save' ) {
     my $req = eval { decode_json($body) } // {};
-    $result = action_nav_save( $req->{items} // [], $req->{host} );
+    # SM443: host from EITHER place. nav-read takes it in the query and
+    # nav-save took it only in the body, so a caller passing it the way the
+    # read requires had it silently dropped on the write - and the write then
+    # fell back to the shared nav.conf and replaced a neighbouring site's
+    # menu. The audit trail made it worse rather than catching it:
+    # _audit_implicit_target already read `$params->{host} // $req->{host}`,
+    # so the log recorded "nav (<the domain>)" for a write that went to the
+    # primary's file. The record agreed with the intention and not with what
+    # happened.
+    $result = action_nav_save( $req->{items} // [],
+        $params{host} // $req->{host} );
 }
 elsif ( $action eq 'handler-list' ) { $result = action_handler_list() }
 elsif ( $action eq 'version' )      { $result = action_version() }

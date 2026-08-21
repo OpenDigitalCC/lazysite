@@ -60,6 +60,24 @@ Naming the commit: AFTER it lands, never before
   reintroduce it. New `t/tools/58` covers both stand-ins, including exit 137 -
   SIGKILL, the OOM case that is the leading candidate for what actually
   happened to 0.10.20.
+- SM443 resolved (PENDING) **a nav save cannot fall back to the shared file.**
+  The destructive half of SM443, held from the last cut and pulled forward
+  because multi-site behaviour is only exercisable where multiple sites exist.
+  An operator set a domain's `nav_file`, confirmed it with `nav-read`, called
+  `nav-save` naming that host and **replaced a neighbouring site's
+  navigation** - a site handed to another party that morning. The host had
+  travelled in the query string while `nav-save` read it from the body, so
+  `$host` arrived empty and `_nav_conf_path('')` resolved to the shared
+  `lazysite/nav.conf`. **The audit trail corroborated the mistake rather than
+  catching it**: `_audit_implicit_target` already read the query host, so the
+  log recorded `nav (<the domain>)` for a write that went to the primary's
+  file. Two changes. The dispatcher now takes `host` from either place
+  (`query_or_body`, as `acl-set` already did), so it cannot go missing in
+  transit. And an absent or unusable host no longer means "the shared file":
+  a host that **inherits** its nav is refused with the fix named, an
+  **unregistered** host is refused rather than falling through, and no host at
+  all still edits the primary deliberately. Sabotaged four ways, including
+  restoring the body-only read.
 
 - SM435 resolved (PENDING) **manage_config no longer advertises two files it
   cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and

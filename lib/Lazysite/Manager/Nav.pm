@@ -122,8 +122,56 @@ sub action_nav_read {
         nav_file => $rel, inherited => $inherited };
 }
 
+# SM443: REFUSE rather than silently writing the shared file.
+#
+# The incident: an operator set a domain's nav_file, confirmed it with
+# nav-read, called nav-save naming that host - and the NEIGHBOURING site's
+# navigation was replaced. The host had gone in the query string while
+# nav-save read it from the body, so $host arrived empty and
+# _nav_conf_path('') resolved to the shared lazysite/nav.conf. ok was
+# returned. The neighbour was a site handed to another party that morning.
+#
+# The plumbing half is fixed at the dispatcher (host is now read from either
+# place). This is the half that matters more: AN ABSENT OR UNUSABLE HOST MUST
+# NOT MEAN "THE SHARED FILE". That is a destructive default on the one
+# operation that can affect every domain at once, and a refusal would have
+# turned the whole incident into a message.
+#
+# Three cases, and only the first writes the shared file:
+#   no host at all      - the caller means the primary. Unchanged.
+#   host inherits       - REFUSED. Writing here would rewrite the primary's
+#                         nav and every domain inheriting it, which is never
+#                         what "save THIS domain's nav" means.
+#   host not registered - REFUSED. Nothing to write, and falling back to the
+#                         base file is how the incident happened.
 sub action_nav_save {
     my ( $items, $host ) = @_;
+    $host = '' unless defined $host;
+    $host =~ s/^\s+|\s+$//g;
+    $host = '' if lc($host) eq '(default)';
+
+    if ( length $host ) {
+        require Lazysite::Manager::Domains;
+        no warnings 'once';
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        unless ( Lazysite::Manager::Domains::known_domain_host( lc $host ) ) {
+            return { ok => 0, kind => 'unknown-domain',
+                error => "Not a registered domain: $host. Refusing to fall back "
+                    . 'to the shared navigation - that would change the primary '
+                    . 'site and every domain inheriting it.' };
+        }
+        my ( undef, $rel, $inherited ) = _nav_conf_info($host);
+        if ($inherited) {
+            return { ok => 0, kind => 'inherits-nav',
+                error => "$host INHERITS its navigation from the primary "
+                    . "($rel). Saving here would rewrite that file and change "
+                    . 'every domain inheriting it, including sites that are not '
+                    . "yours to change. Give $host its own nav_file first "
+                    . '(Domains -> Navigation menu), then save again. To edit '
+                    . 'the primary deliberately, save with no host.' };
+        }
+    }
+
     my $path = _nav_conf_path($host);
 
     my $content = "# lazysite navigation\n";

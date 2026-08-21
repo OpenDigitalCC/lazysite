@@ -124,7 +124,7 @@ our %ACTION = (
     'mkdir' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'move' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'nav-read' => { caps => ['manage_nav'], params => [ { name => 'host', in => 'query' } ] },
-    'nav-save' => { caps => ['manage_nav'], params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'body' } ] },
+    'nav-save' => { caps => ['manage_nav'], params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
     'notices'      => { caps => ['notifications'], params => [] },
     'notices-seen' => { caps => undef,             params => [] },
     'pages'        => { caps => ['manage_nav'],    params => [] },
