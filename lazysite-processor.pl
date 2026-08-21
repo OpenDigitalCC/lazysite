@@ -5914,12 +5914,12 @@ sub render_content {
         # Scalars only. An array or hash has no single escaped form, and the
         # scan already serves the cases that want structure.
         ( map { ( "page_$_" => _esc_html( $meta->{$_} ) ) }
-                grep {
-                    !$FRONT_MATTER_RESERVED{$_}
-                        && !/^(?:tt_|_)/
-                        && defined $meta->{$_}
-                        && !ref $meta->{$_}
-                } keys %{$meta} ),
+            grep {
+                !$FRONT_MATTER_RESERVED{$_}
+                    && !/^(?:tt_|_)/
+                    && defined $meta->{$_}
+                    && !ref $meta->{$_}
+            } keys %{$meta} ),
 
         # SM300: `subtitle` was doing three jobs at once - the visible
         # subheading, <meta name="description">, and the llms.txt description.
