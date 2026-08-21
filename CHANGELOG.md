@@ -79,6 +79,7 @@ Naming the commit: AFTER it lands, never before
   than skips** if it cannot find the action table: its first version named it
   `%ACTIONS` instead of `%ACTION` and skipped itself green, which is the same
   defect one layer up.
+
 - **A protected folder says so in its own expansion.** The protection appeared
   only in the "Protected sections" card at the foot of the Files page, so
   answering *is THIS folder protected, and how?* meant scrolling to a different
@@ -106,6 +107,7 @@ Naming the commit: AFTER it lands, never before
   mapping SM440 got wrong, and a second copy of it in JavaScript could drift
   from this one without anything failing. Containment is boundary-safe, so
   `/blog` does not claim `/blogroll`.
+
 - SM440 follow-up (PENDING) **a pre-fix alias entry is now cleared, and could
   not be before.** Before the fix, a page under a content root wrote into the
   SHARED map with a docroot-relative target; after it, the same page writes
@@ -139,6 +141,7 @@ Naming the commit: AFTER it lands, never before
   half-applied. **403 is deliberately untouched** - a refusal with a real JSON
   body that the pages already report, where "sign in again" would be wrong
   advice.
+
 - **A multi-domain test fixture, because a single-site one cannot fail the way
   this software fails.** Ten defects surfaced in one week of real multi-site
   use with every suite green throughout, and each needed two sites on one
@@ -155,6 +158,7 @@ Naming the commit: AFTER it lands, never before
   sabotage pass three separate times here before the fixtures were corrected.
   Verified by re-introducing three of the real defects and confirming the
   fixture fails on each.
+
 - SM434 resolved (PENDING) **something finally reports the RUNNING version.**
   `/.well-known/lazysite-instance.json` now carries `version`, read from the
   install state - what the installer actually wrote, rather than a VERSION file
@@ -168,6 +172,7 @@ Naming the commit: AFTER it lands, never before
   operator's own `index.md`, so the one page keeping an old render is the
   homepage - the first page anyone checks after an upgrade. This endpoint is
   never cached, so it can answer honestly.
+
 - SM437 resolved (PENDING) **the domain's content folder is picked, not typed.**
   The create sheet now offers a drop-down of folders that EXIST, defaulting to
   `sites/`, and names the child folder from the host - so the operator chooses
@@ -202,6 +207,7 @@ Naming the commit: AFTER it lands, never before
   appear here. That is the intent - the page is meant to show everyone who can
   reach the site - not a side effect. Revocation is unchanged and still
   refuses an interactive account: listing is not offering.
+
 - **"Configure domain", not "register domain."** The manager said *register*
   throughout - the button, the sheet subtitle, the confirmations, the API
   errors (`Not a registered domain`), the log lines (`domain registered`) and
@@ -210,97 +216,6 @@ Naming the commit: AFTER it lands, never before
   being told to serve a name somebody already owns. Renamed across the UI, the
   API messages, the logs and the docs. `register:` page front matter and the
   generated registries are untouched - a different word doing a different job.
-- SM436 completed (PENDING) **the diagnostics half: an unmatched Host leaves a
-  trace, and a preview names the Host it used.** The validation shipped earlier
-  prevents new instances; this is the half that would have made the existing
-  one findable, and that is where the afternoon actually went - all three
-  diagnostics agreed the configuration was fine. The processor now logs one
-  line when a Host matches no configured domain and the default answers, on
-  instances that declare `alias_hosts` at all, so a single-site install stays
-  quiet. `preview_public` returns `rendered_as_host`; `domain_preview` returns
-  it too **and says what it therefore cannot tell you** - it feeds the STORED
-  key back in as the Host, so it agrees with the configuration by construction
-  and cannot detect a name no real request carries. Naming the Host does not
-  fix that blind spot, and nothing at preview scope can; it stops the answer
-  being read as one it did not give.
-
-- SM444 resolved (PENDING) **a failed coverage gate says WHICH failure.**
-  `release.sh` mapped every non-zero exit from `coverage.sh` onto one sentence,
-  "coverage below the declared floor". The 0.10.20 build failed that way and
-  coverage was never the problem: `coverage.sh` had exited before reaching the
-  floor comparison, so neither its per-file table nor its `COVERAGE BELOW
-  FLOOR` marker appeared, and the message named a cause nobody had
-  established. It cost a 45-minute instrumented re-run and then a second full
-  build to find all eight files comfortably above their floors. The gate now
-  captures the child's output, keys on that marker, and reports a **floor
-  breach** and a **run that did not finish** as the different problems they
-  are - the second saying so explicitly and quoting the tail of the run.
-  Output is captured to a file rather than through `tee`, whose exit status
-  hides the child's; `t/tools/34` asserts that trap and this must not
-  reintroduce it. New `t/tools/58` covers both stand-ins, including exit 137 -
-  SIGKILL, the OOM case that is the leading candidate for what actually
-  happened to 0.10.20. **The captured log lives BESIDE the staged tree, not
-  inside it**: the first attempt wrote it to `$STAGE/` and the next step
-  refused, because `build-manifest.pl` classifies every file in the stage and
-  will not ship an unclassified one - so the honest-reporting change broke the
-  build it existed to make diagnosable, and the new message is precisely what
-  said so ("manifest build failed", naming the file). `t/tools/58` guards it.
-- SM443 resolved (PENDING) **a nav save cannot fall back to the shared file.**
-  The destructive half of SM443, held from the last cut and pulled forward
-  because multi-site behaviour is only exercisable where multiple sites exist.
-  An operator set a domain's `nav_file`, confirmed it with `nav-read`, called
-  `nav-save` naming that host and **replaced a neighbouring site's
-  navigation** - a site handed to another party that morning. The host had
-  travelled in the query string while `nav-save` read it from the body, so
-  `$host` arrived empty and `_nav_conf_path('')` resolved to the shared
-  `lazysite/nav.conf`. **The audit trail corroborated the mistake rather than
-  catching it**: `_audit_implicit_target` already read the query host, so the
-  log recorded `nav (<the domain>)` for a write that went to the primary's
-  file. Two changes. The dispatcher now takes `host` from either place
-  (`query_or_body`, as `acl-set` already did), so it cannot go missing in
-  transit. And an absent or unusable host no longer means "the shared file":
-  a host that **inherits** its nav is refused with the fix named, an
-  **unregistered** host is refused rather than falling through, and no host at
-  all still edits the primary deliberately. Sabotaged four ways, including
-  restoring the body-only read.
-- SM436 resolved (PENDING) **a domain cannot be registered under a name no
-  request can carry.** A domain registered as `dhcf`, with `site_url`
-  `https://dhcf.sites.lazysite.io`, never matched: the processor compares the
-  FULL `Host` header with `eq`, so no alias overlay applied and every request
-  fell through to the primary - **serving a different organisation's site
-  under that name**. Every diagnostic agreed the configuration was fine.
-  `domain-preview` renders correctly because it feeds the STORED key back as
-  the Host; `domains-list` shows a complete record; `domain-check` blamed DNS
-  because it faithfully resolved the literal string. `domain_add` now refuses
-  a single-label host, and refuses a host that disagrees with the hostname in
-  its **own `site_url`** - both halves of the answer were already in the row,
-  and comparing them costs one regex. `domain_set` applies the agreement check
-  to `site_url` edits but **not** the dot check: an existing dotless row cannot
-  be corrected (`host` is not in `@DOMAIN_KEYS` and there is no rename verb),
-  so removal is the only route and `domain_remove` must keep working on
-  exactly those rows. For the same reason the checks are NOT folded into the
-  shared `_valid_host`, which would have stranded every existing bad row.
-  Sabotaged four ways; the placeholder case initially passed against its own
-  sabotage and the fixture was corrected before it was trusted.
-- SM440 resolved (PENDING) **an alias belongs to the site that declared it.**
-  Two defects that compounded. `index_page` took a DOCROOT-relative path and
-  handed it to `canonical_url_for`, so a page under a content root produced a
-  target carrying the prefix the vhost strips at request time; and the map was
-  one file per INSTANCE, so whatever it produced answered on every domain.
-  **Field-confirmed, and the combination was worse than either half**: on its
-  own host `/thesis` 301'd into a 404 - making the alias worse than none - and
-  on the default host, an unrelated site, the same 301 returned **200 and
-  served that site's page under a neighbour's domain**, because the default's
-  content root IS the docroot so the leaked path resolved. It matters more
-  than the page count suggests: the standing conversion rule gives every
-  retired URL an alias on its successor, so every site converted onto a
-  content root carried aliases redirecting into 404s - exactly the URLs
-  inbound links use. Targets are now derived relative to the serving site, and
-  each content root gets its own map at `lazysite/aliases/<key>.json`. **The
-  docroot keeps `lazysite/aliases.json` unchanged**, so a single-site instance
-  reads and writes the file it always did and nothing migrates. The processor
-  reads the map for the host being served; `aliases-list` takes a `host`.
-  Sabotaged three ways - fixing either half alone fails.
 
 - SM435 resolved (PENDING) **manage_config no longer advertises two files it
   cannot write.** 0.8.1 moved `lazysite/nav.conf` to `manage_nav` and
@@ -320,6 +235,7 @@ Naming the commit: AFTER it lands, never before
   this exact defect, because `manage_nav` does list `nav.conf` and the surplus
   entry is invisible to it. Sabotaged both ways before being trusted: an extra
   claim and a missing claim each fail it.
+
 - SM442 resolved (PENDING) **regenerate-registries reports what it CLEARED, and
   MCP stops answering differently.** `cleared_roots` was built from
   `_registry_roots()` - the roots CONSIDERED - so a call that removed four files
@@ -335,6 +251,7 @@ Naming the commit: AFTER it lands, never before
   the same one-implementation reasoning SM301 and SM318 settled for other
   pairs. Sabotaged before being trusted: restoring the roots-based count fails
   three of the new subtests.
+
 - SM443 partial (PENDING) **a per-domain nav file is writable over WebDAV.**
   The carve-out tested `$rel eq 'lazysite/nav.conf'` - an exact match on one
   filename - so a domain whose `nav_file` was set to `lazysite/nav-<site>.conf`
@@ -353,6 +270,7 @@ Naming the commit: AFTER it lands, never before
   exclusion lets the test overwrite `lazysite.conf`, which is the point of it.
   **The destructive-default half of SM443 is NOT fixed here** - an absent host
   on `nav-save` still silently means the shared file.
+
 - SM441 resolved (PENDING) **a page preview knows which site it is previewing.**
   Both page-scope previews - `action_preview` (Files/editor) and
   `preview_public` (SM282, "as a visitor") - shelled the processor without
@@ -484,6 +402,113 @@ Naming the commit: AFTER it lands, never before
   assumption, so the suite confirmed the invalidator did exactly what it did,
   to a file nobody serves. All three now seed and assert the served location,
   with every property they existed to prove left intact.
+
+## 0.10.21 - BETA: the multi-site fixes, pulled forward because edge could not test them (2026-08-21)
+
+The four fixes the release manager moved ahead of their edge soak, on the
+reasoning that settled it: multi-site behaviour is only exercisable where
+multiple sites exist, so soaking them on a single-site edge would have proved
+nothing about them. Two of them repair faults that were serving the wrong
+site's content to real visitors.
+
+Also carries the release gate learning to say WHICH failure it hit, which paid
+for itself within the hour by naming a manifest fault as a manifest fault
+rather than as a coverage shortfall.
+
+- SM436 completed (da03302) **the diagnostics half: an unmatched Host leaves a
+  trace, and a preview names the Host it used.** The validation shipped earlier
+  prevents new instances; this is the half that would have made the existing
+  one findable, and that is where the afternoon actually went - all three
+  diagnostics agreed the configuration was fine. The processor now logs one
+  line when a Host matches no configured domain and the default answers, on
+  instances that declare `alias_hosts` at all, so a single-site install stays
+  quiet. `preview_public` returns `rendered_as_host`; `domain_preview` returns
+  it too **and says what it therefore cannot tell you** - it feeds the STORED
+  key back in as the Host, so it agrees with the configuration by construction
+  and cannot detect a name no real request carries. Naming the Host does not
+  fix that blind spot, and nothing at preview scope can; it stops the answer
+  being read as one it did not give.
+
+- SM444 resolved (6ed7ead) **a failed coverage gate says WHICH failure.**
+  `release.sh` mapped every non-zero exit from `coverage.sh` onto one sentence,
+  "coverage below the declared floor". The 0.10.20 build failed that way and
+  coverage was never the problem: `coverage.sh` had exited before reaching the
+  floor comparison, so neither its per-file table nor its `COVERAGE BELOW
+  FLOOR` marker appeared, and the message named a cause nobody had
+  established. It cost a 45-minute instrumented re-run and then a second full
+  build to find all eight files comfortably above their floors. The gate now
+  captures the child's output, keys on that marker, and reports a **floor
+  breach** and a **run that did not finish** as the different problems they
+  are - the second saying so explicitly and quoting the tail of the run.
+  Output is captured to a file rather than through `tee`, whose exit status
+  hides the child's; `t/tools/34` asserts that trap and this must not
+  reintroduce it. New `t/tools/58` covers both stand-ins, including exit 137 -
+  SIGKILL, the OOM case that is the leading candidate for what actually
+  happened to 0.10.20. **The captured log lives BESIDE the staged tree, not
+  inside it**: the first attempt wrote it to `$STAGE/` and the next step
+  refused, because `build-manifest.pl` classifies every file in the stage and
+  will not ship an unclassified one - so the honest-reporting change broke the
+  build it existed to make diagnosable, and the new message is precisely what
+  said so ("manifest build failed", naming the file). `t/tools/58` guards it.
+
+- SM443 resolved (6b3e978) **a nav save cannot fall back to the shared file.**
+  The destructive half of SM443, held from the last cut and pulled forward
+  because multi-site behaviour is only exercisable where multiple sites exist.
+  An operator set a domain's `nav_file`, confirmed it with `nav-read`, called
+  `nav-save` naming that host and **replaced a neighbouring site's
+  navigation** - a site handed to another party that morning. The host had
+  travelled in the query string while `nav-save` read it from the body, so
+  `$host` arrived empty and `_nav_conf_path('')` resolved to the shared
+  `lazysite/nav.conf`. **The audit trail corroborated the mistake rather than
+  catching it**: `_audit_implicit_target` already read the query host, so the
+  log recorded `nav (<the domain>)` for a write that went to the primary's
+  file. Two changes. The dispatcher now takes `host` from either place
+  (`query_or_body`, as `acl-set` already did), so it cannot go missing in
+  transit. And an absent or unusable host no longer means "the shared file":
+  a host that **inherits** its nav is refused with the fix named, an
+  **unregistered** host is refused rather than falling through, and no host at
+  all still edits the primary deliberately. Sabotaged four ways, including
+  restoring the body-only read.
+
+- SM436 resolved (b9dd1fb) **a domain cannot be registered under a name no
+  request can carry.** A domain registered as `dhcf`, with `site_url`
+  `https://dhcf.sites.lazysite.io`, never matched: the processor compares the
+  FULL `Host` header with `eq`, so no alias overlay applied and every request
+  fell through to the primary - **serving a different organisation's site
+  under that name**. Every diagnostic agreed the configuration was fine.
+  `domain-preview` renders correctly because it feeds the STORED key back as
+  the Host; `domains-list` shows a complete record; `domain-check` blamed DNS
+  because it faithfully resolved the literal string. `domain_add` now refuses
+  a single-label host, and refuses a host that disagrees with the hostname in
+  its **own `site_url`** - both halves of the answer were already in the row,
+  and comparing them costs one regex. `domain_set` applies the agreement check
+  to `site_url` edits but **not** the dot check: an existing dotless row cannot
+  be corrected (`host` is not in `@DOMAIN_KEYS` and there is no rename verb),
+  so removal is the only route and `domain_remove` must keep working on
+  exactly those rows. For the same reason the checks are NOT folded into the
+  shared `_valid_host`, which would have stranded every existing bad row.
+  Sabotaged four ways; the placeholder case initially passed against its own
+  sabotage and the fixture was corrected before it was trusted.
+
+- SM440 resolved (3cf1048) **an alias belongs to the site that declared it.**
+  Two defects that compounded. `index_page` took a DOCROOT-relative path and
+  handed it to `canonical_url_for`, so a page under a content root produced a
+  target carrying the prefix the vhost strips at request time; and the map was
+  one file per INSTANCE, so whatever it produced answered on every domain.
+  **Field-confirmed, and the combination was worse than either half**: on its
+  own host `/thesis` 301'd into a 404 - making the alias worse than none - and
+  on the default host, an unrelated site, the same 301 returned **200 and
+  served that site's page under a neighbour's domain**, because the default's
+  content root IS the docroot so the leaked path resolved. It matters more
+  than the page count suggests: the standing conversion rule gives every
+  retired URL an alias on its successor, so every site converted onto a
+  content root carried aliases redirecting into 404s - exactly the URLs
+  inbound links use. Targets are now derived relative to the serving site, and
+  each content root gets its own map at `lazysite/aliases/<key>.json`. **The
+  docroot keeps `lazysite/aliases.json` unchanged**, so a single-site instance
+  reads and writes the file it always did and nothing migrates. The processor
+  reads the map for the host being served; `aliases-list` takes a `host`.
+  Sabotaged three ways - fixing either half alone fails.
 
 ## 0.10.20 - EDGE: what a week of real multi-site use turned up (2026-08-21)
 
