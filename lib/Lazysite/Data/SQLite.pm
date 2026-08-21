@@ -36,7 +36,8 @@ use strict;
 use warnings;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for);
+our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
+    insert_sql update_sql delete_sql select_sql);
 
 # Re-assert the identifier rule at the point of interpolation.
 #
@@ -57,13 +58,13 @@ sub column_type {
     my ($spec) = @_;
     my $t = ref $spec eq 'HASH' ? ( $spec->{type} // '' ) : '';
     return 'INTEGER' if $t eq 'integer';
-    return 'INTEGER' if $t eq 'boolean';    # normalised 0/1 on write
-    return 'TEXT'    if $t eq 'decimal';    # NEVER REAL - see the header
-    return 'TEXT'    if $t eq 'date';       # ISO 8601, validated before write
-    return 'TEXT'    if $t eq 'datetime';   # ISO 8601 UTC
-    return 'TEXT'    if $t eq 'enum';       # membership enforced before write
+    return 'INTEGER' if $t eq 'boolean';     # normalised 0/1 on write
+    return 'TEXT'    if $t eq 'decimal';     # NEVER REAL - see the header
+    return 'TEXT'    if $t eq 'date';        # ISO 8601, validated before write
+    return 'TEXT'    if $t eq 'datetime';    # ISO 8601 UTC
+    return 'TEXT'    if $t eq 'enum';        # membership enforced before write
     return 'TEXT'    if $t eq 'text';
-    die "no column type for '$t'";          # unreachable via a loaded descriptor
+    die "no column type for '$t'";           # unreachable via a loaded descriptor
 }
 
 # CREATE TABLE for a loaded descriptor. Returns the statement text.
@@ -132,6 +133,154 @@ sub index_sql {
 sub dsn_for {
     my ($docroot) = @_;
     return "dbi:SQLite:dbname=$docroot/lazysite/db/data.sqlite";
+}
+
+# --- DML -------------------------------------------------------------------
+#
+# EVERY GENERATOR RETURNS ( $sql, \@binds ), never a finished statement, and
+# that shape is the invariant made structural rather than promised. There is no
+# way to call these and get a string with a value in it - the value has nowhere
+# to go except the bind list, so a caller cannot interpolate one by mistake and
+# a reviewer does not have to read the body to know that.
+#
+# The column ORDER is sorted, not hash order, everywhere. Two callers building
+# the same statement must produce the same text, or the statement cache is a
+# cache of one and a test comparing generated SQL becomes flaky in a way that
+# looks like a real difference.
+#
+# WHAT THESE DO NOT DO: they do not validate. Value.pm has already coerced and
+# refused; passing raw input here would generate a statement that binds
+# whatever it was given. Callers go through Value::coerce_row first, and the
+# tests assert the pairing rather than leaving it to habit.
+
+sub _cols_and_binds {
+    my ($values) = @_;
+    my @cols = sort keys %{$values};
+    return ( \@cols, [ map { $values->{$_} } @cols ] );
+}
+
+# INSERT for one coerced row.
+#
+# Timestamps are supplied by the CALLER when the descriptor declares them,
+# rather than generated here with an SQL function: CURRENT_TIMESTAMP has a
+# different spelling and a different format in each engine, and the whole point
+# of the value layer is that one implementation decides what a datetime looks
+# like. Passing them in also keeps the generator free of anything that is not
+# a bind.
+sub insert_sql {
+    my ( $d, $values ) = @_;
+    die 'insert_sql needs a loaded descriptor' unless ref $d eq 'HASH'      && $d->{ok};
+    die 'insert_sql needs values'              unless ref $values eq 'HASH' && %{$values};
+
+    my ( $cols, $binds ) = _cols_and_binds($values);
+    my $table = _ident( $d->{table} );
+    my $names = join ', ', map { _ident($_) } @{$cols};
+    my $marks = join ', ', ('?') x scalar @{$cols};
+    return ( "INSERT INTO $table ($names) VALUES ($marks)", $binds );
+}
+
+# UPDATE one row, identified by its key.
+#
+# The key is BOUND like any other value even though it identifies the row; it
+# is data, and the only thing interpolated is its column name. An update with
+# no WHERE is not reachable from here: the key is required and refused if
+# absent, because a generator that can emit an unbounded UPDATE will eventually
+# emit one.
+sub update_sql {
+    my ( $d, $key_value, $values ) = @_;
+    die 'update_sql needs a loaded descriptor' unless ref $d eq 'HASH'      && $d->{ok};
+    die 'update_sql needs values'              unless ref $values eq 'HASH' && %{$values};
+    die 'update_sql needs a key value'
+        unless defined $key_value && length $key_value;
+
+    my $key = $d->{key};
+    my %set = %{$values};
+    # The key is not settable through an update. Changing it would move the
+    # row's identity while the WHERE clause still names the old one, so the
+    # statement would either match nothing or rename something silently.
+    delete $set{$key};
+    die 'update_sql needs at least one field to set' unless %set;
+
+    my ( $cols, $binds ) = _cols_and_binds( \%set );
+    my $table  = _ident( $d->{table} );
+    my $assign = join ', ', map { _ident($_) . ' = ?' } @{$cols};
+    push @{$binds}, $key_value;
+    return ( "UPDATE $table SET $assign WHERE " . _ident($key) . ' = ?', $binds );
+}
+
+# DELETE one row, identified by its key. Same reasoning as update: no
+# unbounded form exists.
+sub delete_sql {
+    my ( $d, $key_value ) = @_;
+    die 'delete_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    die 'delete_sql needs a key value'
+        unless defined $key_value && length $key_value;
+    my $table = _ident( $d->{table} );
+    return ( "DELETE FROM $table WHERE " . _ident( $d->{key} ) . ' = ?',
+        [$key_value] );
+}
+
+# SELECT, with the shape a page binding needs: equality filters, ordering by a
+# declared field, and a bounded row count.
+#
+# ORDER BY TAKES A FIELD NAME, NOT AN EXPRESSION, and the name must be one the
+# descriptor declares. `_ident` alone would accept any lower-case word, which
+# is safe to interpolate and still wrong - it would name a column that does not
+# exist and the query would die at the engine rather than being refused with a
+# reason. Membership is the check that produces a usable message.
+#
+# LIMIT IS BOUND rather than interpolated, and always present. An unbounded
+# select against a table an agent has been filling is how a page renders for a
+# minute; the caller may raise the ceiling but cannot remove it.
+sub select_sql {
+    my ( $d, %opt ) = @_;
+    die 'select_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my $table  = _ident( $d->{table} );
+    my $fields = $d->{fields};
+
+    my @where;
+    my @binds;
+    my $filter = $opt{where} || {};
+    for my $f ( sort keys %{$filter} ) {
+        die "select_sql: '$f' is not a field of '$d->{table}'"
+            unless exists $fields->{$f} || $f eq $d->{key};
+        if ( defined $filter->{$f} ) {
+            push @where, _ident($f) . ' = ?';
+            push @binds, $filter->{$f};
+        }
+        else {
+            # IS NULL, not `= ?` with undef: in SQL, NULL = NULL is not true,
+            # so binding undef would silently match no rows and read as "there
+            # are none" rather than "that is not how you ask".
+            push @where, _ident($f) . ' IS NULL';
+        }
+    }
+
+    my $sql = "SELECT * FROM $table";
+    $sql .= ' WHERE ' . join( ' AND ', @where ) if @where;
+
+    if ( defined $opt{order_by} && length $opt{order_by} ) {
+        my $ob = $opt{order_by};
+        die "select_sql: cannot order by '$ob' - not a field of '$d->{table}'"
+            unless exists $fields->{$ob}
+            || $ob eq $d->{key}
+            || ( $d->{timestamps} && $ob =~ /\A(?:created_at|updated_at)\z/ );
+        my $dir = ( $opt{order} // 'asc' ) =~ /\Adesc\z/i ? 'DESC' : 'ASC';
+        $sql .= ' ORDER BY ' . _ident($ob) . " $dir";
+    }
+
+    my $limit = $opt{limit};
+    $limit = 200 unless defined $limit && $limit =~ /\A\d+\z/ && $limit > 0;
+    $limit = 1000 if $limit > 1000;
+    $sql .= ' LIMIT ?';
+    push @binds, $limit;
+
+    if ( defined $opt{offset} && $opt{offset} =~ /\A\d+\z/ && $opt{offset} > 0 ) {
+        $sql .= ' OFFSET ?';
+        push @binds, $opt{offset};
+    }
+
+    return ( $sql, \@binds );
 }
 
 1;
