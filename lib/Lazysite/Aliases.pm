@@ -183,7 +183,7 @@ sub list_aliases {
 # page, which is the one string the old code would have written for it.
 sub _forget_legacy {
     my ( $docroot, $rel ) = @_;
-    my ( undef, $key ) = _root_for( $docroot, $rel );
+    my ( undef,    $key ) = _root_for( $docroot, $rel );
     # The docroot's own map IS the shared one, and for a docroot page the old
     # derivation and the current one are the SAME string - so without this the
     # purge would delete exactly what the write is about to put back. Removing
