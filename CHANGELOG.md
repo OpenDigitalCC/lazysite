@@ -44,18 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM447 (PENDING) **the data tables over MCP** - `list_data_tables`,
-  `describe_data_table`, `read_data_rows`, `migrate_data_table`,
-  `save_data_row`, `delete_data_row`. An agent populating a table is the
-  primary use of this plugin, so an API-only surface would have defeated it;
-  `t/lint/23`'s temporary one-sided entries are gone and each action is now
-  pinned to its tool. All six route through `Lazysite::Manager::Data`, the same
-  module the control API calls, so **three surfaces share one implementation**
-  - which is also why SM469's enabled gate applies to MCP without any tool
-  remembering to ask. The tools are advertised only to a holder of
-  `manage_data`: an agent shown a tool it cannot use will call it and read the
-  refusal as a fault. DP-1 is complete.
-
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
@@ -79,6 +67,34 @@ Naming the commit: AFTER it lands, never before
   correspondence and was wrong; the filing and commit message never carried
   the claim, and the status-note now records "unattributed" explicitly rather
   than leaving a gap that would default to the nearest known author.
+
+## 0.10.24 - EDGE: DP-1 completes, and the plugin can be turned off (2026-08-21)
+
+Two things 0.10.23 was missing, cut the same evening because neither is worth
+waiting on.
+
+**The MCP tool set**, which makes the data plugin usable the way it was
+designed: an agent populating a table is its primary use, and 0.10.23 gave
+agents only the control API. All six tools route through the same module the
+control API calls, so the two channels cannot drift apart.
+
+**SM469** shipped in 0.10.23 and is worth repeating here because it changes a
+default: the data plugin is now a *contract* plugin, so it is **born disabled**
+and an operator enables it on the Plugin Manager page. That is the right
+default for something that holds a site's data.
+
+
+- SM447 (cfdda13) **the data tables over MCP** - `list_data_tables`,
+  `describe_data_table`, `read_data_rows`, `migrate_data_table`,
+  `save_data_row`, `delete_data_row`. An agent populating a table is the
+  primary use of this plugin, so an API-only surface would have defeated it;
+  `t/lint/23`'s temporary one-sided entries are gone and each action is now
+  pinned to its tool. All six route through `Lazysite::Manager::Data`, the same
+  module the control API calls, so **three surfaces share one implementation**
+  - which is also why SM469's enabled gate applies to MCP without any tool
+  remembering to ask. The tools are advertised only to a holder of
+  `manage_data`: an agent shown a tool it cannot use will call it and read the
+  refusal as a fault. DP-1 is complete.
 
 ## 0.10.23 - EDGE: the data plugin, end to end (2026-08-21)
 
