@@ -23,6 +23,8 @@ On Debian or Ubuntu, install them all with:
 ```bash
 sudo apt-get install \
     libarchive-zip-perl \
+    libdbd-sqlite3-perl \
+    libdbi-perl \
     libfcgi-perl \
     libfcgi-procmanager-perl \
     libio-socket-ssl-perl \
@@ -31,7 +33,8 @@ sudo apt-get install \
     libtemplate-perl \
     libtext-multimarkdown-perl \
     liburi-perl \
-    libwww-perl
+    libwww-perl \
+    libyaml-pp-perl
 ```
 
 ## Packages
@@ -44,6 +47,8 @@ tone: medium
 text: 3
 ---
 libarchive-zip-perl | Archive::Zip | theme upload (manager), zip download (manager)
+libdbd-sqlite3-perl | DBD::SQLite | data plugin: the SQLite storage engine (tier zero, one file at lazysite/db/data.sqlite)
+libdbi-perl | DBI | data plugin: the database interface every adapter is written against
 libfcgi-perl | FCGI | FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)
 libfcgi-procmanager-perl | FCGI::ProcManager | FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)
 libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS; domain-check TLS/cert probe (SM156, lazy-required)
@@ -53,6 +58,7 @@ libtemplate-perl | Template, Template::Parser | SM071 layout.tt compile validati
 libtext-multimarkdown-perl | Text::MultiMarkdown | Markdown to HTML conversion (processor core)
 liburi-perl | URI | URL parsing in SSRF guard and remote-fetch path resolution
 libwww-perl | LWP::UserAgent | remote content fetch for :::include and url: variables, form webhook delivery
+libyaml-pp-perl | YAML::PP | data plugin: reading table field descriptors
 ```
 
 ## Runtime environment

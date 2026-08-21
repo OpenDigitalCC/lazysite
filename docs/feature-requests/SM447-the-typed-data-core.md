@@ -55,3 +55,38 @@ nobody can reconcile.
 The same reasoning covers the smaller cases: an unknown field name is refused
 rather than dropped, because dropping it makes a typo look like a successful
 write.
+
+# Decisions for the release manager
+
+Collected while building DP-1. Nothing here is blocking today's work; each is
+a point where I chose, and the choice is reversible.
+
+```datatable
+columns: Ref | Decision | What I did, and why
+widths: 1.4cm | 4.5cm | X
+bold: 1
+tone: medium
+---
+D1 | Three new runtime dependencies | `DBI`, `DBD::SQLite`, `YAML::PP` were absent from `sbom-deps.json` entirely, so the release gate would have failed once this code shipped. Declared, with Debian/RHEL/Alpine package names. This is the first time lazysite would require a database driver at all.
+D2 | No schema-state file | The SM410 map lists *schema-state via the SM404 checked writer*. Built without one: a state file is a third copy of the truth after the descriptor and the database, and DP-6 restores into a **fresh** database, so a state file would arrive describing something that is not there. Derivation costs one `PRAGMA` and cannot desync.
+D3 | Money is refused, never rounded | `12.345` into a `places=2` column fails rather than rounding. A store that silently rounds money is worse than one that will not take it.
+D4 | Required-ness is not a column constraint | `ADD COLUMN ... NOT NULL` is refused by SQLite once rows exist and accepted while empty, so emitting it gives a migration that works on an unused site and fails on a used one. Required is enforced on write, in `Value.pm`.
+D5 | Destructive changes are named, not performed | Type changes, tightening to `NOT NULL`, and dropping a column are reported and refused. DP-5 builds the confirmation flow; this layer will not do them behind a flag.
+D6 | Blocked items do not freeze safe ones | A migration plan applies what is safe and reports the rest. All-or-nothing makes one awkward column block every other change, and the usual response to that is hand-editing the store.
+D7 | Empty string is absence, except for text | A cleared number becomes NULL rather than `0`; a cleared text field keeps its empty string. Storing `0` invents data the operator did not enter.
+D8 | Decimal exports as a JSON string | Measured: `10.50` encoded as a JSON number decodes to `10.5`. Money as a number would lose precision during a **restore**, and look plausible doing it.
+D9 | A restore refuses a changed shape | Missing column, extra column, changed type: refused, not coerced. Coercing across a shape change is a migration performed silently, by the operation an operator runs when something has already gone wrong.
+D10 | `YAML::PP`, not `YAML::XS` | Pure Perl. The descriptors are small, and it is one fewer compiled dependency on the rare architectures v1 still supports.
+D11 | Default engine is SQLite only | One file, nothing to provision, a backup is a copy. DP-7 gates Postgres/MySQL on demand - **your call whether that is ever wanted.**
+D12 | Listings are capped at 1000 | `LIMIT` is always present and bound; a caller may raise the default 200 but cannot remove the ceiling.
+```
+
+## Still open, and genuinely yours
+
+**DP-7** - whether Postgres or MySQL adapters are ever built. Nothing in the
+design prevents it and nothing so far needs it.
+
+**DM-4's CSV rules** - the manager brief specifies a staged
+validate/diff/confirm import. What a CSV column *means* when it does not match
+a declared type is the open question, and the answer this layer would prefer
+is *refuse the row and say which*, consistent with D3 and D9.

@@ -562,6 +562,11 @@
       "path": "{DOCROOT}/../lib/Lazysite/ControlApi",
       "mode": "0755",
       "why": "as ../lib - SM350, the control API's action reference"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite/Data",
+      "mode": "0755",
+      "why": "as ../lib - SM447, the typed data core. The module DIRECTORY is code and read-only; the data STORE it manages is {LAZYSITE}/db and is created by the plugin, not by the installer"
     }
   ]
 }

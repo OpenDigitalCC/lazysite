@@ -24,6 +24,23 @@
       "used_by": "rate limits: login, form submission, manager upload",
       "_note": "Bundled with perl core; links against libdb."
     },
+    "DBD::SQLite": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libdbd-sqlite3-perl",
+      "rhel_pkg": "perl-DBD-SQLite",
+      "alpine_pkg": "perl-dbd-sqlite",
+      "used_by": "data plugin: the SQLite storage engine (tier zero, one file at lazysite/db/data.sqlite)",
+      "_note": "Bundles SQLite itself; no server to provision, which is why it is the default engine."
+    },
+    "DBI": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libdbi-perl",
+      "rhel_pkg": "perl-DBI",
+      "alpine_pkg": "perl-dbi",
+      "used_by": "data plugin: the database interface every adapter is written against"
+    },
     "Digest::SHA": {
       "core": true,
       "license": "Artistic-1.0-Perl",
@@ -34,10 +51,31 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "UTF-8 decoding of query-string values in processor"
     },
+    "Errno": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "EACCES/EPERM detection for the actionable permission hint on manager write failures (Lazysite::Manager::Common)"
+    },
     "Exporter": {
       "core": true,
       "license": "Artistic-1.0-Perl",
       "used_by": "import() for the shared Lazysite::* modules (SM079)"
+    },
+    "FCGI": {
+      "core": false,
+      "license": "OML",
+      "debian_pkg": "libfcgi-perl",
+      "rhel_pkg": "perl-FCGI",
+      "alpine_pkg": "perl-fcgi",
+      "used_by": "FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)"
+    },
+    "FCGI::ProcManager": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libfcgi-procmanager-perl",
+      "rhel_pkg": "perl-FCGI-ProcManager",
+      "alpine_pkg": "perl-fcgi-procmanager",
+      "used_by": "FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)"
     },
     "Fcntl": {
       "core": true,
@@ -156,6 +194,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "SSRF guard: inet_aton / inet_ntoa for remote-fetch IP address checks"
     },
+    "Sys::Syslog": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "optional syslog forwarding of audit trail + diagnostics (Lazysite::Util::forward_line, the Logging & forwarding plugin)"
+    },
     "Template": {
       "core": false,
       "license": "Artistic-1.0-Perl",
@@ -199,31 +242,14 @@
       "alpine_pkg": "perl-uri",
       "used_by": "URL parsing in SSRF guard and remote-fetch path resolution"
     },
-    "FCGI": {
+    "YAML::PP": {
       "core": false,
-      "license": "OML",
-      "debian_pkg": "libfcgi-perl",
-      "rhel_pkg": "perl-FCGI",
-      "alpine_pkg": "perl-fcgi",
-      "used_by": "FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)"
-    },
-    "FCGI::ProcManager": {
-      "core": false,
-      "license": "Artistic-1.0-Perl",
-      "debian_pkg": "libfcgi-procmanager-perl",
-      "rhel_pkg": "perl-FCGI-ProcManager",
-      "alpine_pkg": "perl-fcgi-procmanager",
-      "used_by": "FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)"
-    },
-    "Sys::Syslog": {
-      "core": true,
-      "license": "Artistic-1.0-Perl",
-      "used_by": "optional syslog forwarding of audit trail + diagnostics (Lazysite::Util::forward_line, the Logging & forwarding plugin)"
-    },
-    "Errno": {
-      "core": true,
-      "license": "Artistic-1.0-Perl",
-      "used_by": "EACCES/EPERM detection for the actionable permission hint on manager write failures (Lazysite::Manager::Common)"
+      "license": "Perl-5",
+      "debian_pkg": "libyaml-pp-perl",
+      "rhel_pkg": "perl-YAML-PP",
+      "alpine_pkg": "perl-yaml-pp",
+      "used_by": "data plugin: reading table field descriptors",
+      "_note": "A pure-Perl YAML parser chosen over YAML::XS deliberately - the descriptors are small, and a pure-Perl parser is one fewer compiled dependency on the rare architectures v1 still supports."
     }
   },
   "web_assets": [
