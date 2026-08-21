@@ -115,8 +115,21 @@ already carries. Neither was visible to t/lint/53 (which ignores `(PENDING)` by
 design) or to t/lint/65 (which pins SHA-carrying entries and treats
 `## Unreleased` as not a released section).
 
+**And then the correction made the other mistake.** The remaining entries were
+stamped with their commits before the branches landed - deliberately, since the
+post-release pass is what had missed six of them - but vcs-review lands BY
+REBASE, so every one of those SHAs changed on landing. Four entries cited
+commits that were nowhere on main. Both of t/lint/53's existing checks passed:
+the commits existed, and they were still "on a branch", because the pre-landing
+`claude/*` branches had not been deleted. It would have stayed invisible until
+somebody deleted them, at which point a published section holds dangling refs.
+t/lint/53 now also requires every cited commit to be reachable from `main` -
+`(PENDING)` is the spelling for work still on a branch, and that check is what
+makes the distinction mean anything. The rule this test's own header states -
+stamp AFTER the branch lands - is now enforced rather than described.
 
-- SM462 follow-up (6e2d694) **adding a principal now grants read AND write.**
+
+- SM462 follow-up (d94de3b) **adding a principal now grants read AND write.**
   It defaulted to read-on/write-off, and an empty write list means NO
   restriction - so the ordinary way of restricting a file produced a rule that
   locked reads and left writes open, and an operator was shown *rw* while the
@@ -126,7 +139,7 @@ design) or to t/lint/65 (which pins SHA-carrying entries and treats
   **This changes what a click means, not what a rule means** - enforcement and
   every existing stored rule are unaffected.
 
-- SM461 (6e2d694) **the all-files History OVERVIEW is hidden for this release.**
+- SM461 (d94de3b) **the all-files History OVERVIEW is hidden for this release.**
   It fails with a JSON parse error while its data is fine - `git-history-summary`
   returns valid JSON over the API - so the fault is in the page's request or
   handling, and diagnosing it needs a browser. Hidden rather than removed: one
@@ -141,7 +154,7 @@ design) or to t/lint/65 (which pins SHA-carrying entries and treats
   that the workarounds (take ownership, or read the store off disk) are worse
   than the question, and that `acl-set` is audited without the rule's content,
   so the two gaps compound.
-- SM463 resolved (6d2020f) **the Edit link carries the docroot key, never a
+- SM463 resolved (a426d1b) **the Edit link carries the docroot key, never a
   server path.** `page_source` stripped `$DOCROOT` off the source path with no
   boundary - and the private store is `<docroot>-lazysite-private`, so for a
   GATED page the docroot matched as a bare string prefix and left
@@ -156,7 +169,7 @@ design) or to t/lint/65 (which pins SHA-carrying entries and treats
   on somebody creating `public_html.bak`; here **the software creates the
   colliding name itself**, so the bad case exists on every site that gates
   anything.
-- SM446 resolved (102e9c8) **adding a domain now says TLS is not part of the
+- SM446 resolved (d14b34d) **adding a domain now says TLS is not part of the
   step, and checks.** The add flow provisions a content folder, seeds a page
   and reports success, so every signal said *ready* - and the first thing that
   disagreed was a visitor's browser, on a host whose certificate covered a
@@ -187,7 +200,7 @@ design) or to t/lint/65 (which pins SHA-carrying entries and treats
   every rule on the site; it now shows the folder's own rules **and any rule
   covering it** - hiding the parent would answer *is this protected?* with
   silence when the answer is yes.
-- SM460 resolved **a `scan:` list can see content in a gated section - and
+- SM460 resolved (029807c) **a `scan:` list can see content in a gated section - and
   still cannot see what the requester may not read.** Gating MOVES content out
   of the docroot (SM286), so a scan inside a protected section found nothing
   and rendered a page that listed nothing, successfully: no error, no warning,

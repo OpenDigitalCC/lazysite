@@ -80,6 +80,44 @@ subtest 'every named commit exists' => sub {
             . 'the ref after the branch lands.' );
 };
 
+subtest 'every named commit is reachable from main' => sub {
+    # ON A BRANCH IS NOT ENOUGH, and this is the gap that let a stale ref
+    # through on 2026-08-21.
+    #
+    # This test's own header states the rule - write the ref AFTER the branch
+    # lands, because vcs-review lands BY REBASE and the pre-landing SHA is
+    # stale the moment it does. Four entries in the 0.10.22 section were
+    # stamped while the work was still on its branch. Every one of those SHAs
+    # still existed and every one was still "on a branch" - the pre-landing
+    # `claude/*` branches had not been deleted - so both subtests above passed
+    # while the section cited four commits that were nowhere in the history a
+    # release is built from.
+    #
+    # It would have gone undetected until somebody deleted those branches, at
+    # which point the refs go dangling in a section already published.
+    #
+    # A SHA-carrying entry claims the work has landed. `(PENDING)` is the
+    # spelling for work still on a branch, and this check is what makes the
+    # distinction mean something.
+    my @unlanded = grep {
+        system( "git -C \Q$root\E merge-base --is-ancestor \Q$_\E main"
+                . " 2>/dev/null" ) != 0
+    } grep {
+        system("git -C \Q$root\E cat-file -e \Q$_\E 2>/dev/null") == 0
+    } @refs;
+
+    is_deeply( \@unlanded, [],
+        'no changelog entry cites a commit that is not on main' )
+        or diag( join "\n  ",
+        '',
+        @unlanded,
+        '',
+        'These exist and are on SOME branch, which is why the checks above '
+            . 'passed. They are not on main. Almost certainly stamped before '
+            . 'vcs-review landed the branch - landing rebases, so the ref '
+            . 'changes. Use (PENDING) until it lands, then stamp.' );
+};
+
 subtest 'every named commit is on a branch' => sub {
     # Existing is not enough. A commit that survives only in the reflog is
     # unreachable from any history a reader can follow, and will be collected.
