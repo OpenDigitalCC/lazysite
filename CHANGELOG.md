@@ -72,7 +72,14 @@ Naming the commit: AFTER it lands, never before
   to span two trees is how a fix gets undone, so this adds a SECOND, separate
   check against the private root - each strict and boundary-safe in its own
   tree. Reproduced here, then confirmed by the operator's two-click test
-  (ungated succeeds, gated fails). The message was the expensive part:
+  (ungated succeeds, gated fails). **It covers FILES as well as folders**,
+  though the failure there differed and the difference is worth knowing:
+  `realpath` tolerates ONE missing trailing component, so a file directly
+  inside the gated root saved even before the fix, while a file one level
+  deeper got past validation and failed at the write with *"Cannot write file:
+  Permission denied ... run lazysite check --fix"* - a worse message than
+  *"Invalid path"*, because it names a cause that is not true and prescribes a
+  repair that cannot help. The message was the expensive part either way:
   *"Invalid path"* reads as *you typed it wrong*, so an operator tries other
   spellings of a path that was correct.
 

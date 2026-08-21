@@ -58,6 +58,29 @@ subtest 'a subfolder can be created inside a gated section' => sub {
         'not in the document root' );
 };
 
+subtest 'FILES in a gated section too - and the symptom differs' => sub {
+    # The field widened this to "cannot create anything in a gated section".
+    # The fix does cover files, but the failure was NOT the same message, and
+    # the difference is worth recording rather than smoothing over.
+    #
+    # realpath resolves an existing prefix and tolerates ONE missing trailing
+    # component. So a file directly inside the gated root - intranet/a.md -
+    # resolved and saved even before the fix. A file one level deeper got past
+    # validate_path and then failed at the WRITE with "Cannot write file:
+    # Permission denied ... run lazysite check --fix" - which is a worse
+    # message than "Invalid path", because it names a cause that is not true
+    # and prescribes a repair that will not help.
+    my $d = fixture();
+    for my $p ( 'intranet/a.md', 'intranet/filestore/b.md' ) {
+        my $r = Lazysite::Manager::Files::action_save( $p,
+            "---\ntitle: T\n---\n\nbody\n" );
+        ok( $r->{ok}, "saved: $p" ) or diag explain $r;
+    }
+    ok( -e Lazysite::Private::private_path( $d, 'intranet/filestore/b.md' ),
+        'and the deeper file lands in the private store' )
+        or diag( 'Saving it publicly would half-publish a gated section.' );
+};
+
 subtest 'an ordinary folder still works' => sub {
     my $d = fixture();
     ok( Lazysite::Manager::Files::action_mkdir('open/newdir')->{ok},
