@@ -44,79 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM447 (PENDING) **a page can read a data table**, which closes the minimal
-  end-to-end: load data through a channel, see it rendered. `tt_page_var:
-  items: db:products sort=name asc limit=20` resolves through the same
-  `Lazysite::Data::Tables` the control API uses, on the handle that cannot
-  write. The data modules are required LAZILY, so a site that never writes
-  `db:` keeps the processor's module-free property (ADR 0001) - a hand-rolled
-  module-free reader would have meant two readers of one store disagreeing
-  about what a decimal is. Such a page is marked LIVE and never cached: it has
-  no file whose mtime proves it current, because the store is written through
-  WAL. **A defect the end-to-end found on its first run:** `Connect` set
-  `sqlite_see_if_its_a_number`, which converts stored TEXT `"120.00"` back to a
-  number - `"120.0"` - so every decimal lost a trailing zero on every read.
-  `"9.99"` survives a round trip through a number, so only a trailing zero
-  exposes it, and every unit test had built its own DBI handle rather than
-  going through `Connect`. It took a price of 120.00 rendered on a page.
-
-- SM447 (PENDING) **the data tables are reachable over the control API**, and
-  a reserved word is a legal column name. Six actions - `data-tables`,
-  `data-table`, `data-rows`, `data-migrate`, `data-row-save`,
-  `data-row-delete` - gated on `manage_data`, with the three writers POST-forced
-  and audited and the three reads enrolled as reviewed reads. The row travels
-  **nested under `row` in the POST body**, never flattened: a descriptor may
-  declare a field called `table` or `key`, and flattening would let a site's own
-  data overwrite the action's parameters - silently redirecting a save to
-  another table. **A defect found while proving that:** the adapter interpolated
-  identifiers unquoted, on the header's claim that its narrow name pattern
-  needed no quoting in any dialect. That is true of every character and false of
-  `table`, `key`, `order`, `group` and `index`, so an ordinary column made a
-  table uncreatable with a raw SQL parse error. Not a security fault, which is
-  why every test looking for injection missed it. Identifiers are now quoted in
-  the adapter, where dialect belongs.
-
-- SM447 (PENDING) **`manage_data` exists, is grantable, and claims nothing it
-  cannot do.** ADR 0009 says a plugin's capability should be discovered rather
-  than known by name, and that conformance removes entries from core lists
-  rather than adding to them. The runtime cannot follow that literally:
-  `caps_for()` is consulted on every request through every channel, and
-  discovering capabilities by running each plugin's `--describe` would put ten
-  subprocesses on the request path. So the runtime keeps a static mirror and
-  **`t/lint/76` does the discovering** - which is the ADR's other sentence read
-  exactly, *the contract does not exempt a plugin from the lints, it makes the
-  lints discover the plugin's entries*. The lint refuses a mirror no plugin
-  claims (grantable in the UI, unlocks nothing, reads to an operator as a
-  broken permission), a capability claimed by two plugins, and a declaration
-  with no mirror (ungrantable, so the plugin's actions are unreachable).
-  **Its `unlocks` lists are empty and that is accurate** - nothing routes to
-  the data plugin yet, so granting it admits an account to nothing. Claiming
-  actions that do not exist is SM457's defect pointed the other way.
-
-- SM468 (PENDING, filing only) **a record of what the schema used to be.**
-  Filed alongside the decision that SM447's schema state is DERIVED from the
-  database rather than held in a state file. Derivation is a complete account
-  of *now* and no account at all of *before*: it cannot say what the shape was
-  last week, when a column appeared, or who applied the migration. Nobody has
-  asked for that yet, and it becomes a real question the first time a migration
-  is blamed for something. Recorded so the question is not rediscovered - and
-  recorded with its answer's shape: a TABLE in the store, never a file beside
-  it, because a table travels with the rows it describes and a file can be
-  restored out of step with them.
-
-- Backlog hygiene (PENDING) **t/lint/26 could not see most of the changelog,
-  and three shipped items had no filing.** Its bullet pattern required the
-  commit ref to follow the SM number immediately, so every bullet written as
-  *SM442 resolved (...)*, *SM443 partial (...)* or *SM440 follow-up (...)* was
-  invisible - 89 of 265, and the house style for anything that is not a plain
-  ship. It hid exactly what the test is for: SM442's own status-note opens
-  "PARTIALLY SHIPPED" while its status field said `candidate`, uncaught since
-  0.10.20. Widened, it also reported that this release claimed SM458, SM459 and
-  SM463 with no feature-request doc at all - each fixed straight from a field
-  report without the filing being written. All three are backfilled, SM442 is
-  `partial`, and the qualifier is word-shaped rather than `.*?` so prose that
-  happens to reach a parenthetical still does not read as a claim.
-
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
@@ -140,6 +67,104 @@ Naming the commit: AFTER it lands, never before
   correspondence and was wrong; the filing and commit message never carried
   the claim, and the status-note now records "unattributed" explicitly rather
   than leaving a gap that would default to the nearest known author.
+
+## 0.10.23 - EDGE: the data plugin, end to end (2026-08-21)
+
+The typed data core, its capability, its control-API surface, and a page
+binding that reads a table - which together are the minimal end-to-end the
+release manager set for this cut: **load data through a channel, see it
+rendered**. `t/integration/55` is that sentence as a test: a row goes in over
+the control API, and a visitor in a separate process holding a read-only
+handle sees it on the page.
+
+Cut as EDGE deliberately. The descriptor format has not met a real site, and
+that is what edge is for.
+
+**Not in this cut: the MCP tool set.** Loading works over the control API with
+a token, so an agent can populate a table today - it uses actions rather than
+tools. The gap is recorded in `t/lint/23` as the one entry whose reason is a
+schedule rather than a decision.
+
+Nineteen decisions are recorded in the SM447 filing, D1-D19. Three of them came
+from defects the tests found rather than from design: identifiers were
+interpolated unquoted so an ordinary column called `table` made a table
+uncreatable; `sqlite_see_if_its_a_number` converted stored `"120.00"` back to
+`"120.0"` on every read; and a `read_rows` fallback turned a real store error
+into "the table has not been created yet".
+
+
+- SM447 (c089348) **a page can read a data table**, which closes the minimal
+  end-to-end: load data through a channel, see it rendered. `tt_page_var:
+  items: db:products sort=name asc limit=20` resolves through the same
+  `Lazysite::Data::Tables` the control API uses, on the handle that cannot
+  write. The data modules are required LAZILY, so a site that never writes
+  `db:` keeps the processor's module-free property (ADR 0001) - a hand-rolled
+  module-free reader would have meant two readers of one store disagreeing
+  about what a decimal is. Such a page is marked LIVE and never cached: it has
+  no file whose mtime proves it current, because the store is written through
+  WAL. **A defect the end-to-end found on its first run:** `Connect` set
+  `sqlite_see_if_its_a_number`, which converts stored TEXT `"120.00"` back to a
+  number - `"120.0"` - so every decimal lost a trailing zero on every read.
+  `"9.99"` survives a round trip through a number, so only a trailing zero
+  exposes it, and every unit test had built its own DBI handle rather than
+  going through `Connect`. It took a price of 120.00 rendered on a page.
+
+- SM447 (c902386) **the data tables are reachable over the control API**, and
+  a reserved word is a legal column name. Six actions - `data-tables`,
+  `data-table`, `data-rows`, `data-migrate`, `data-row-save`,
+  `data-row-delete` - gated on `manage_data`, with the three writers POST-forced
+  and audited and the three reads enrolled as reviewed reads. The row travels
+  **nested under `row` in the POST body**, never flattened: a descriptor may
+  declare a field called `table` or `key`, and flattening would let a site's own
+  data overwrite the action's parameters - silently redirecting a save to
+  another table. **A defect found while proving that:** the adapter interpolated
+  identifiers unquoted, on the header's claim that its narrow name pattern
+  needed no quoting in any dialect. That is true of every character and false of
+  `table`, `key`, `order`, `group` and `index`, so an ordinary column made a
+  table uncreatable with a raw SQL parse error. Not a security fault, which is
+  why every test looking for injection missed it. Identifiers are now quoted in
+  the adapter, where dialect belongs.
+
+- SM447 (f210c94) **`manage_data` exists, is grantable, and claims nothing it
+  cannot do.** ADR 0009 says a plugin's capability should be discovered rather
+  than known by name, and that conformance removes entries from core lists
+  rather than adding to them. The runtime cannot follow that literally:
+  `caps_for()` is consulted on every request through every channel, and
+  discovering capabilities by running each plugin's `--describe` would put ten
+  subprocesses on the request path. So the runtime keeps a static mirror and
+  **`t/lint/76` does the discovering** - which is the ADR's other sentence read
+  exactly, *the contract does not exempt a plugin from the lints, it makes the
+  lints discover the plugin's entries*. The lint refuses a mirror no plugin
+  claims (grantable in the UI, unlocks nothing, reads to an operator as a
+  broken permission), a capability claimed by two plugins, and a declaration
+  with no mirror (ungrantable, so the plugin's actions are unreachable).
+  **Its `unlocks` lists are empty and that is accurate** - nothing routes to
+  the data plugin yet, so granting it admits an account to nothing. Claiming
+  actions that do not exist is SM457's defect pointed the other way.
+
+- SM468 (3bf0a30, filing only) **a record of what the schema used to be.**
+  Filed alongside the decision that SM447's schema state is DERIVED from the
+  database rather than held in a state file. Derivation is a complete account
+  of *now* and no account at all of *before*: it cannot say what the shape was
+  last week, when a column appeared, or who applied the migration. Nobody has
+  asked for that yet, and it becomes a real question the first time a migration
+  is blamed for something. Recorded so the question is not rediscovered - and
+  recorded with its answer's shape: a TABLE in the store, never a file beside
+  it, because a table travels with the rows it describes and a file can be
+  restored out of step with them.
+
+- Backlog hygiene (cd6974d) **t/lint/26 could not see most of the changelog,
+  and three shipped items had no filing.** Its bullet pattern required the
+  commit ref to follow the SM number immediately, so every bullet written as
+  *SM442 resolved (...)*, *SM443 partial (...)* or *SM440 follow-up (...)* was
+  invisible - 89 of 265, and the house style for anything that is not a plain
+  ship. It hid exactly what the test is for: SM442's own status-note opens
+  "PARTIALLY SHIPPED" while its status field said `candidate`, uncaught since
+  0.10.20. Widened, it also reported that this release claimed SM458, SM459 and
+  SM463 with no feature-request doc at all - each fixed straight from a field
+  report without the filing being written. All three are backfilled, SM442 is
+  `partial`, and the qualifier is word-shaped rather than `.*?` so prose that
+  happens to reach a parenthetical still does not read as a claim.
 
 ## 0.10.22 - BETA: the second beta, built from what the first one found (2026-08-21)
 
