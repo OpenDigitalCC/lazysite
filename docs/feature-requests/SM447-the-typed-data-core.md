@@ -78,6 +78,8 @@ D8 | Decimal exports as a JSON string | Measured: `10.50` encoded as a JSON numb
 D9 | A restore refuses a changed shape | Missing column, extra column, changed type: refused, not coerced. Coercing across a shape change is a migration performed silently, by the operation an operator runs when something has already gone wrong.
 D10 | `YAML::PP`, not `YAML::XS` | Pure Perl. The descriptors are small, and it is one fewer compiled dependency on the rare architectures v1 still supports.
 D11 | Default engine is SQLite only | One file, nothing to provision, a backup is a copy. DP-7 gates Postgres/MySQL on demand - **your call whether that is ever wanted.**
+D13 | Plugin declarations are validated where they are read | ADR 0009 has the platform consume `owns` instead of knowing a plugin by name, so four consumers each trust the list. Trust established four times is correctly established zero to three times. Validated once, in `Lazysite::Plugins::Owns`, before any consumer exists.
+D14 | `storage` may name a subtree of `lazysite/`, never the tree | A site package excludes `lazysite/` because the auth store, sessions and backups live there. A plugin claims a NAMED subtree, must end in `/` so it cannot prefix-match a sibling, and cannot traverse or be absolute. Otherwise a feature that ships a site becomes one that ships an auth store.
 D12 | Listings are capped at 1000 | `LIMIT` is always present and bound; a caller may raise the default 200 but cannot remove the ceiling.
 ```
 

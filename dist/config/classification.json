@@ -567,6 +567,11 @@
       "path": "{DOCROOT}/../lib/Lazysite/Data",
       "mode": "0755",
       "why": "as ../lib - SM447, the typed data core. The module DIRECTORY is code and read-only; the data STORE it manages is {LAZYSITE}/db and is created by the plugin, not by the installer"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite/Plugins",
+      "mode": "0755",
+      "why": "as ../lib - ADR 0009, reading and validating a plugin's owns declaration"
     }
   ]
 }
