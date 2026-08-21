@@ -40,7 +40,13 @@ our @EXPORT_OK = qw(load_descriptor load_all validate_row TYPES);
 # because a default is how an unknown type becomes a silent text column.
 my %TYPE = map { $_ => 1 } qw(text integer decimal boolean date datetime enum);
 
-sub TYPES { return sort keys %TYPE }
+# The list, not `return sort ...` - perlcritic severity 5, and it is right:
+# `return sort` behaves differently in scalar context, so a caller writing
+# `my $n = TYPES()` gets something undefined rather than a count.
+sub TYPES {
+    my @types = sort keys %TYPE;
+    return @types;
+}
 
 # Identifiers: [a-z][a-z0-9_]* and nothing else.
 #
