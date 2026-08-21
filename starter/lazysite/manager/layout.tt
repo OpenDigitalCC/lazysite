@@ -212,12 +212,58 @@
     window.lazysiteCsrfReady = function(){ return tokenPromise; };
 
     var origFetch = window.fetch.bind(window);
+
+    // SM445: SAY WHEN THE SESSION HAS EXPIRED.
+    //
+    // Reported from the field: "the submit button did nothing. i refreshed and
+    // discovered session expired. i had no information to say that, it just
+    // felt like it has failed."
+    //
+    // It did nothing because every page posts through a helper shaped
+    // `fetch(...).then(function (r) { return r.json(); })` with no status
+    // check and no .catch(). An expired session answers 401 with a non-JSON
+    // body, so r.json() REJECTS, the rejection is unhandled, and the .then()
+    // never runs - so neither the success branch NOR the error branch fires.
+    // The pages have an error branch for this and it is unreachable, because
+    // the failure happens before the branch is chosen.
+    //
+    // Fixed HERE rather than in the 96 call sites across 12 pages: they
+    // already share this wrapper, and a fix in one place cannot be half-
+    // applied. Pages need no change and keep whatever they do today.
+    //
+    // ONLY 401. A 403 is a permission decision with a real JSON body that the
+    // pages already report properly, and treating it as an expiry would tell
+    // an operator to sign in again over a refusal that signing in will not
+    // change.
+    var expiredShown = false;
+    function noteExpiry(r) {
+      if ( !r || r.status !== 401 || expiredShown ) return r;
+      expiredShown = true;
+      var msg = 'Your session has expired, so that did not go through. '
+              + 'Refresh the page and sign in again.';
+      // The banner persists; a toast would fade while the operator was still
+      // wondering whether the click registered.
+      if ( window.mgShowWarning ) window.mgShowWarning(msg, true);
+      var bar = document.getElementById('mg-warning-bar');
+      if ( bar && !document.getElementById('mg-expired-reload') ) {
+        var b = document.createElement('button');
+        b.id = 'mg-expired-reload';
+        b.className = 'mg-btn mg-btn-sm';
+        b.textContent = 'Refresh now';
+        b.onclick = function(){ location.reload(); };
+        bar.appendChild(b);
+      }
+      return r;
+    }
+
     window.fetch = function(resource, init){
       init = init || {};
       var method = (init.method || 'GET').toUpperCase();
       var url    = typeof resource === 'string' ? resource : (resource && resource.url) || '';
       if ( method !== 'POST' || url.indexOf(MGR_API) !== 0 ) {
-        return origFetch(resource, init);
+        // GETs go through the same check: a page that loads its list after the
+        // session lapsed is just as silent as one that submits.
+        return origFetch(resource, init).then(noteExpiry);
       }
       var h = new Headers(init.headers || {});
       var init2 = {};
@@ -225,7 +271,7 @@
       init2.headers = h;
       return window.lazysiteCsrfReady().then(function(token){
         if ( token && !h.has('X-CSRF-Token') ) h.set('X-CSRF-Token', token);
-        return origFetch(resource, init2);
+        return origFetch(resource, init2).then(noteExpiry);
       });
     };
   })();

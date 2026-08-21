@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM445 resolved (PENDING) **an expired session says so, instead of the button
+  doing nothing.** Reported from the field: *"the submit button did nothing. i
+  refreshed and discovered session expired. i had no information to say that,
+  it just felt like it has failed."* It did nothing because every manager page
+  posts through `fetch(...).then(function (r) { return r.json(); })` with no
+  status check and no `.catch()`; a 401's non-JSON body makes `r.json()`
+  **reject**, the rejection is unhandled, and neither the success nor the error
+  branch runs. The pages have an error branch for this and it was unreachable,
+  because the failure happened before the branch was chosen. The shared layout
+  `fetch` wrapper - which every page already goes through for CSRF - now
+  notices a 401 and shows a persistent banner with a **Refresh now** button, on
+  GET as well as POST, since a page that loads its list after the session
+  lapsed was just as silent as one that submits. Fixed in the wrapper rather
+  than in 96 call sites across 12 pages: a fix in one place cannot be
+  half-applied. **403 is deliberately untouched** - a refusal with a real JSON
+  body that the pages already report, where "sign in again" would be wrong
+  advice.
+
 - SM439 resolved (PENDING) **revoking an access key now stops the OAuth grant,
   and the Keys page stops hiding people.** Two halves, both confirmed by
   measurement rather than by reading - the filing recorded them as unexercised
