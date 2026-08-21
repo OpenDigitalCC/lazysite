@@ -22,6 +22,15 @@ use TestHelper qw(run_processor);
 # per-host theme override is observable.
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/cache");
+
+# SM434: a KNOWN running version, so the marker assertion below can check the
+# value rather than merely the key. Without this the field is the empty string
+# and /"version":"/ matches it happily - a green test proving nothing.
+{
+    open my $is, '>', "$docroot/lazysite/.install-state.json" or die $!;
+    print {$is} '{"version":"9.9.9-test"}';
+    close $is;
+}
 make_path("$docroot/lazysite/layouts/aliastest/themes/base");
 make_path("$docroot/lazysite/layouts/aliastest/themes/dark");
 
@@ -117,6 +126,23 @@ sub read_all {
     my ($id2) = $m2 =~ /"instance":"([0-9a-f]+)"/;
     is( $id2, $id1, 'the same install returns the same instance id on every host' );
     like( $m2, qr/"host":"brand2\.example"/, 'marker echoes the alias host too' );
+
+    # SM434: WHAT IS RUNNING, from the thing that is running.
+    #
+    # Nothing served reported this, and two agents in a row reached for the
+    # <meta name="generator"> version instead - which answers a different
+    # question and answers it correctly: that meta is baked in AT RENDER TIME
+    # and cached with the page, so it reports the build that PRODUCED the
+    # artefact, not the one serving it. A page rendered under an older build
+    # and still cached is not stale; it is describing itself accurately.
+    #
+    # This endpoint is never cached, so it can answer honestly. The field goes
+    # here rather than into the page chrome for exactly that reason.
+    like( $m1, qr/"version":"9\.9\.9-test"/,
+        'the marker reports the RUNNING version, read from the install state' )
+        or diag( 'Without this the only version anywhere near a served page is '
+            . "the generator meta, which answers 'what rendered this' - and "
+            . 'was misread as the deployment twice in one week.' );
 }
 
 # --- Alias host: whitelisted overrides applied ------------------------------

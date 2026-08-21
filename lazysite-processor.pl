@@ -2127,7 +2127,29 @@ sub main {
         print "$_\r\n" for _security_headers();
         print "Access-Control-Allow-Origin: *\r\n";
         print "Cache-Control: no-store\r\n\r\n";
-        print qq({"ok":1,"instance":"$inst","host":"$rhost"});
+
+        # SM434: WHAT IS RUNNING, from the thing that is running.
+        #
+        # Nothing served reported this, and two agents in a row reached for
+        # the <meta name="generator"> version instead - which answers a
+        # different question and answers it correctly. That meta is baked in
+        # AT RENDER TIME and cached with the page, so it reports the build
+        # that PRODUCED the artefact. A page rendered under 0.10.18 and still
+        # cached on a 0.10.19 instance is not stale; it is accurately
+        # describing itself.
+        #
+        # The misreading was durable because an upgrade re-renders every
+        # SHIPPED page while PRESERVING the operator's own index.md - so the
+        # one page keeping an old render is the homepage, which is also the
+        # first page anyone checks after an upgrade.
+        #
+        # This endpoint is read live and never cached (no-store above), so it
+        # can answer honestly. Read from the install state, which is what the
+        # installer writes and therefore what is actually deployed - not from
+        # the VERSION file in a source tree that may not be the one serving.
+        my $ver = _lazysite_version();
+        $ver = '' unless defined $ver && $ver =~ /\A[0-9A-Za-z._-]{0,32}\z/;
+        print qq({"ok":1,"instance":"$inst","host":"$rhost","version":"$ver"});
         return;
     }
 

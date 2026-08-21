@@ -77,6 +77,19 @@ Naming the commit: AFTER it lands, never before
   sabotage pass three separate times here before the fixtures were corrected.
   Verified by re-introducing three of the real defects and confirming the
   fixture fails on each.
+- SM434 resolved (PENDING) **something finally reports the RUNNING version.**
+  `/.well-known/lazysite-instance.json` now carries `version`, read from the
+  install state - what the installer actually wrote, rather than a VERSION file
+  in a source tree that may not be the one serving. Nothing served reported
+  this, and two agents in a row reached for `<meta name="generator">` instead,
+  which answers a different question and answers it **correctly**: that meta is
+  baked in at RENDER time and cached with the page, so it reports the build
+  that produced the artefact. A page rendered under an older build and still
+  cached is not stale - it is describing itself accurately. The misreading was
+  durable because an upgrade re-renders every shipped page while preserving the
+  operator's own `index.md`, so the one page keeping an old render is the
+  homepage - the first page anyone checks after an upgrade. This endpoint is
+  never cached, so it can answer honestly.
 
 - SM439 resolved (PENDING) **revoking an access key now stops the OAuth grant,
   and the Keys page stops hiding people.** Two halves, both confirmed by
