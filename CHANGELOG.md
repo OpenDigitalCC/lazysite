@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM467 (PENDING, filing only) **a `setup-manager` admin cannot grant API or
+  MCP access, and the refusal does not say how.** `_ensure_manager_group_caps`
+  seeds the admin group with every capability except `api` and `mcp`, and no
+  grant authority, so the only account on a fresh site cannot add anyone to a
+  group granting either - including the AI-agent group the documentation points
+  at. It cannot fix that from the UI either: `grantable` is operator-only to
+  set, deliberately and correctly. Reproduced on a scratch install, and the
+  remedy verified there: `group-set <admins> grantable api,mcp` from the CLI.
+  Two separable questions - whether the seed should include that authority
+  (release manager's call), and the refusal naming the capability but not the
+  remedy, which is a defect either way.
+
 - SM465 (PENDING, filing only) **an `acl-set` is audited without saying what
   the rule became.** The trail records that a permission changed, who changed
   it and on what path - and not what it changed to. A permission change is the
