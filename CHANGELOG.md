@@ -84,6 +84,18 @@ Naming the commit: AFTER it lands, never before
   on somebody creating `public_html.bak`; here **the software creates the
   colliding name itself**, so the bad case exists on every site that gates
   anything.
+- SM446 resolved (PENDING) **adding a domain now says TLS is not part of the
+  step, and checks.** The add flow provisions a content folder, seeds a page
+  and reports success, so every signal said *ready* - and the first thing that
+  disagreed was a visitor's browser, on a host whose certificate covered a
+  different domain entirely. lazysite does not issue certificates and should
+  not; the gap was that nothing said so when it mattered. A successful add now
+  states plainly that DNS and TLS are not configured by this step, runs the
+  existing `domain-check`, and reports **the check's own wording** rather than
+  a restatement. Three things it deliberately does not do: report a failed
+  CHECK as a failed ADD (the domain was added), stay silent when the domain is
+  fine (silence after a check is indistinguishable from no check), or restate
+  a diagnosis that is already better than anything written here.
 
 - SM462 (PENDING) **a rule that locks reads and leaves writes open now says
   so**, and **Protected sections describes the folder you are in**. From an

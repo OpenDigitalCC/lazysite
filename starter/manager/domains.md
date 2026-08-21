@@ -528,6 +528,42 @@ function loadFolderChoices() {
     });
 }
 
+// SM446: after a domain is configured, check whether a visitor can actually
+// reach it - and say plainly that this step did not do the TLS part.
+//
+// The check is the one that already exists and already answers well; what was
+// missing was any reason to run it before somebody else did.
+function showTlsNotice(host) {
+  var msg = 'Added. This step does NOT set up DNS or a TLS certificate - '
+          + 'checking whether ' + host + ' can be reached\u2026';
+  if (window.mgShowWarning) mgShowWarning(msg, false);
+  fetch(API + '?action=domain-check&host=' + encodeURIComponent(host),
+        { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { return; }
+      var bad = (d.checks || []).filter(function (c) { return c.pass === 0; });
+      if (!bad.length) {
+        if (window.mgShowWarning) mgShowWarning(host + ' is live and served by this instance.', false);
+        return;
+      }
+      // Name what failed and what it said - the check's own wording is good
+      // and better than anything restated here.
+      var first = bad[0];
+      if (window.mgShowWarning) {
+        mgShowWarning(host + ' is not reachable yet - ' + first.label + ': '
+          + first.detail, true);
+      }
+    })
+    .catch(function () {
+      // A failed check must not read as a failed domain: the domain WAS added.
+      if (window.mgShowWarning) {
+        mgShowWarning('Added. The reachability check could not run - use Check '
+          + 'on the domain row once DNS and TLS are in place.', false);
+      }
+    });
+}
+
 function createDomain() {
   var v = function (k) {
     var e = document.getElementById('e-' + NEW_HOST + '-' + k);
@@ -551,7 +587,23 @@ function createDomain() {
     lang_group: v('lang_group'),
     seed: (seedEl && seedEl.checked) ? 1 : 0
   }).then(function (d) {
-    if (d && d.ok) { showStatus("Configured " + host); closeConfig(); loadDomains(); }
+    if (d && d.ok) {
+      showStatus("Configured " + host);
+      closeConfig();
+      loadDomains();
+      // SM446: say that TLS is NOT part of this step, and run the check.
+      //
+      // Adding a domain provisions a content folder, seeds a page and reports
+      // success - so every signal the operator gets says ready. The first
+      // thing that disagrees is a visitor's browser, and on the reported case
+      // the certificate covered a different host entirely.
+      //
+      // lazysite does not issue certificates and should not; the gap was that
+      // nothing said so at the moment it mattered. domain-check already
+      // diagnoses it precisely, so this is a prompt rather than a feature -
+      // it runs the existing check and shows what it found.
+      showTlsNotice(host);
+    }
     else { showStatus((d && d.error) || 'Could not configure the domain.', true); }
   });
 }
