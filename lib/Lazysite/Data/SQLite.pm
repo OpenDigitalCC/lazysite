@@ -37,7 +37,8 @@ use warnings;
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
-    insert_sql update_sql delete_sql select_sql);
+    insert_sql update_sql delete_sql select_sql
+    observed_schema add_column_sql backfill_sql table_has_rows);
 
 # Re-assert the identifier rule at the point of interpolation.
 #
@@ -281,6 +282,96 @@ sub select_sql {
     }
 
     return ( $sql, \@binds );
+}
+
+# --- introspection ---------------------------------------------------------
+#
+# THE DATABASE IS THE SCHEMA STATE. There is no state file, deliberately - see
+# Lazysite::Data::Schema for the reasoning. This is the engine-specific half of
+# that: PRAGMA is SQLite's dialect, and dialect belongs in the adapter.
+sub observed_schema {
+    my ( $dbh, $table ) = @_;
+    my $t = _ident($table);
+
+    # PRAGMA takes an identifier, not a bind, which is why _ident guards it -
+    # the same rule as everywhere else in this file.
+    my $cols = $dbh->selectall_arrayref( "PRAGMA table_info($t)", { Slice => {} } );
+    return { exists => 0, columns => {}, indexes => {} } unless @{$cols};
+
+    my %columns;
+    for my $c ( @{$cols} ) {
+        $columns{ $c->{name} } = {
+            # SQLite reports the declared type verbatim, which is what we
+            # generated, so comparing it to column_type() compares like with
+            # like. Upper-cased because a hand-created table may differ in
+            # case and that is not a schema difference.
+            type    => uc( $c->{type} // '' ),
+            notnull => ( $c->{notnull} ? 1 : 0 ),
+            pk      => ( $c->{pk}      ? 1 : 0 ),
+        };
+    }
+
+    my %indexes;
+    for my $ix ( @{ $dbh->selectall_arrayref( "PRAGMA index_list($t)", { Slice => {} } ) } ) {
+        # origin 'c' means CREATE INDEX - ours. 'pk' and 'u' are constraint
+        # indexes the engine maintains, and reporting them as ours would make
+        # every plan want to drop something it did not create.
+        next unless ( $ix->{origin} // '' ) eq 'c';
+        my $n    = $ix->{name};
+        my $info = $dbh->selectall_arrayref(
+            'PRAGMA index_info(' . _ident($n) . ')', { Slice => {} } );
+        $indexes{$n} = [ map { $_->{name} } sort { $a->{seqno} <=> $b->{seqno} } @{$info} ];
+    }
+
+    return { exists => 1, columns => \%columns, indexes => \%indexes };
+}
+
+# Does this table hold anything? The answer changes what a migration MAY do,
+# so it is measured rather than assumed.
+sub table_has_rows {
+    my ( $dbh, $table ) = @_;
+    my $t = _ident($table);
+    my ($n) = $dbh->selectrow_array("SELECT EXISTS (SELECT 1 FROM $t LIMIT 1)");
+    return $n ? 1 : 0;
+}
+
+# ADD COLUMN, and it is NEVER `NOT NULL` and NEVER carries a DEFAULT.
+#
+# Both restrictions are forced, and measured rather than assumed:
+#
+#   * `ADD COLUMN ... NOT NULL` without a default is REFUSED by SQLite once the
+#     table holds rows ("Cannot add a NOT NULL column with default value
+#     NULL"). It succeeds on an empty table, which is worse than failing - the
+#     same migration would behave differently depending on whether anyone had
+#     used the site yet.
+#   * `DEFAULT ?` is a SYNTAX ERROR. A DDL default cannot be bound, so emitting
+#     one means interpolating a value into SQL text, which is the one thing
+#     this file does not do.
+#
+# So a new required field is applied as a NULLABLE column plus a BOUND backfill
+# (see backfill_sql), and its required-ness is enforced where every other rule
+# is enforced - in Value.pm, on write. That is not a workaround: it is the
+# existing decision that validation does not live in DDL, arriving at the same
+# answer from the other direction.
+sub add_column_sql {
+    my ( $d, $field ) = @_;
+    die 'add_column_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my $spec = $d->{fields}{$field} or die "add_column_sql: no field '$field'";
+    return 'ALTER TABLE ' . _ident( $d->{table} ) . ' ADD COLUMN '
+        . _ident($field) . ' ' . column_type($spec);
+}
+
+# Fill a freshly added column in the rows that predate it. Bound, like every
+# other value. Scoped to IS NULL so re-running it cannot overwrite a value
+# somebody has since set - a migration that is not safe to repeat is a
+# migration that fails badly the one time it is interrupted.
+sub backfill_sql {
+    my ( $d, $field, $value ) = @_;
+    die 'backfill_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    die "backfill_sql: no field '$field'"        unless exists $d->{fields}{$field};
+    return ( 'UPDATE ' . _ident( $d->{table} ) . ' SET ' . _ident($field)
+            . ' = ? WHERE ' . _ident($field) . ' IS NULL',
+        [$value] );
 }
 
 1;
