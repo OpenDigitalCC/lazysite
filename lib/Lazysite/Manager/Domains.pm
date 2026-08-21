@@ -393,6 +393,7 @@ sub preview_public {
     # different site's presentation.
     my ($owner) = host_for_path($rel);
     $ENV{HTTP_HOST} = $owner if length $owner;
+    my $rendered_as = length $owner ? $owner : ( $ENV{HTTP_HOST} // '' );
 
     my $processor = processor_path();
     my $raw       = qx($^X \Q$processor\E 2>/dev/null);
@@ -432,6 +433,20 @@ sub preview_public {
         public  => ( $visible eq 'visible' ? JSON::PP::true : JSON::PP::false ),
         verdict => $visible,
         ( defined $location ? ( location => $location ) : () ),
+
+        # SM436: SAY WHICH HOST THIS WAS RENDERED UNDER.
+        #
+        # A preview that does not name its Host lets "it previews fine" be
+        # read as "it will serve", and those came apart badly: a domain
+        # configured under a name no request carries previewed perfectly while
+        # every real request fell through to the primary. domain_preview feeds
+        # the STORED key back in, so it agrees with the configuration by
+        # construction and cannot detect a name that no visitor will send.
+        #
+        # Naming the host does not fix that blind spot - nothing at preview
+        # scope can - but it stops the answer being mistaken for one it did
+        # not give.
+        rendered_as_host => $rendered_as,
 
         # A bounded excerpt, not the page. Enough to tell a rendered 404 from a
         # rendered page without shipping a whole document through the API.
@@ -528,7 +543,22 @@ sub domain_preview {
             . 'an index page.' }
         unless $output =~ /\S/;
 
-    return { ok => 1, host => $host, html => $output };
+    # SM436: name the Host this was rendered under, and say plainly that it
+    # was supplied rather than observed. domain_preview feeds the STORED key
+    # back in as the Host, so it agrees with the configuration BY
+    # CONSTRUCTION and cannot detect the one fault that matters here - a
+    # domain configured under a name no real request carries. It previewed
+    # perfectly while every visitor got the primary's site.
+    return {
+        ok               => 1,
+        host             => $host,
+        rendered_as_host => $host,
+        note             => "Rendered with Host: $host, which is the stored "
+            . 'domain name. This shows how the site renders for that name; it '
+            . 'cannot show whether visitors arrive under it. Use the domain '
+            . 'check for that.',
+        html => $output,
+    };
 }
 
 # SM234: the whole usage picture in ONE parse. domains_using() re-reads and

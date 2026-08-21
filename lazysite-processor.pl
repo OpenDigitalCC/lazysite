@@ -4774,6 +4774,26 @@ sub resolve_tt_vars {
                 $h =~ s/^\s+|\s+$//g;
                 $declared{$h} = 1 if length $h;
             }
+            # SM436: say so when a Host matches NOTHING and the default
+            # answers. This is the silent half of the defect that cost an
+            # afternoon: a domain configured under a name no request carries
+            # never matches, so every request falls through here and the
+            # visitor is served the PRIMARY's site under someone else's name.
+            # The engine cannot know it is disappointing anyone - a
+            # non-matching Host is indistinguishable from a genuinely unknown
+            # one, which is the correct and documented behaviour for traffic
+            # arriving from outside.
+            #
+            # So it is logged rather than refused, and only when aliases are
+            # CONFIGURED at all: on an instance declaring alias_hosts, a Host
+            # that matches none of them is worth one greppable line. A
+            # single-site instance never reaches this branch.
+            if ( length $req_host && !$declared{$req_host} ) {
+                log_event( 'INFO', $ENV{REDIRECT_URL} // '-',
+                    'host matched no configured domain - serving the default site',
+                    host => $req_host );
+            }
+
             if ( length $req_host && $declared{$req_host} ) {
                 $alias_host = $req_host;
                 # Greedy (\S+) so a host whose label collides with a conf

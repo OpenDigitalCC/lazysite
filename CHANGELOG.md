@@ -73,6 +73,19 @@ Naming the commit: AFTER it lands, never before
   being told to serve a name somebody already owns. Renamed across the UI, the
   API messages, the logs and the docs. `register:` page front matter and the
   generated registries are untouched - a different word doing a different job.
+- SM436 completed (PENDING) **the diagnostics half: an unmatched Host leaves a
+  trace, and a preview names the Host it used.** The validation shipped earlier
+  prevents new instances; this is the half that would have made the existing
+  one findable, and that is where the afternoon actually went - all three
+  diagnostics agreed the configuration was fine. The processor now logs one
+  line when a Host matches no configured domain and the default answers, on
+  instances that declare `alias_hosts` at all, so a single-site install stays
+  quiet. `preview_public` returns `rendered_as_host`; `domain_preview` returns
+  it too **and says what it therefore cannot tell you** - it feeds the STORED
+  key back in as the Host, so it agrees with the configuration by construction
+  and cannot detect a name no real request carries. Naming the Host does not
+  fix that blind spot, and nothing at preview scope can; it stops the answer
+  being read as one it did not give.
 
 - SM444 resolved (PENDING) **a failed coverage gate says WHICH failure.**
   `release.sh` mapped every non-zero exit from `coverage.sh` onto one sentence,
