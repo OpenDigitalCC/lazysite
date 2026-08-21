@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM458 resolved (PENDING) **the manager can create a subfolder inside a gated
+  section again.** An operator could not create `filestore/research` inside a
+  gated `/intranet/`: *"Invalid path"*. The same folder went in over WebDAV
+  immediately afterwards, so the path was legal and the account could write
+  there. Gating **moves** a section out of the document root into the private
+  store, and `validate_path` resolves `"$DOCROOT/$rel"`, falls back to
+  `dirname()` for a path being created, and `realpath`s that - undef once the
+  docroot parent is gone. **The existing containment test is untouched**: it
+  carries two CVE-class fixes and the code's own comment warns that widening it
+  to span two trees is how a fix gets undone, so this adds a SECOND, separate
+  check against the private root - each strict and boundary-safe in its own
+  tree. Reproduced here, then confirmed by the operator's two-click test
+  (ungated succeeds, gated fails). The message was the expensive part:
+  *"Invalid path"* reads as *you typed it wrong*, so an operator tries other
+  spellings of a path that was correct.
+
 - **The ACL warning no longer recommends a remedy that cannot work.** It ended
   *"Name those accounts individually if they need access"*, and that does
   nothing. Measured in the field, then confirmed in the source: a rendered page

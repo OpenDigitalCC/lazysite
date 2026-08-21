@@ -1584,8 +1584,10 @@ sub action_acl_set {
         push @warnings,
             'this ACL names ' . join( ', ', @grp )
             . '. A @group entry matches only a '
-            . 'signed-in manager user: token, MCP and WebDAV partners '
-            . 'carry no groups, so it does NOT apply to them. '
+            # t/unit/mcp/13 matches on this source text and expects
+            # "partners carry" contiguous - keep the break after it.
+            . 'signed-in manager user: token, MCP and WebDAV partners carry '
+            . 'no groups, so it does NOT apply to them. '
             . 'NAMING AN ACCOUNT INDIVIDUALLY DOES NOT HELP ON THE RENDERED '
             . 'PAGE either: rendered pages authenticate by session, and a '
             . 'partner using a token has none, so no read-list entry can '
