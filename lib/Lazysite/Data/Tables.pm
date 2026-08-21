@@ -27,9 +27,10 @@ use strict;
 use warnings;
 use Exporter                   qw(import);
 use Lazysite::Data::Descriptor qw(load_descriptor);
-use Lazysite::Data::Connect    qw(read_handle write_handle store_path);
-use Lazysite::Data::Schema     qw(plan_migration);
-use Lazysite::Data::Value      qw(coerce_row);
+use Lazysite::Data::Connect
+    qw(read_handle write_handle store_path store_diagnosis);
+use Lazysite::Data::Schema qw(plan_migration);
+use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
     qw(select_sql insert_sql update_sql delete_sql observed_schema);
 
@@ -116,7 +117,28 @@ sub read_rows {
     # rather than dying. Declaring a table and not yet migrating is an ordinary
     # state - the descriptor is content, and content arrives before the
     # migration that follows it.
-    my $observed = eval { observed_schema( $dbh, $name ) } || { exists => 0 };
+    #
+    # THE EVAL IS NOT A FALLBACK, and this is where it was one. It used to read
+    # `eval { ... } || { exists => 0 }`, so a probe that RAISED - because the
+    # store directory is not writable and a WAL reader cannot open its `-shm`
+    # file - came back as "the table has not been created yet". SQLite reported
+    # the fault accurately and we discarded it, which is worse than the fault:
+    # an operator was told their table was empty.
+    #
+    # Now a failure is diagnosed and named. Read-only deployment may be a
+    # legitimate choice; being unable to tell it apart from an empty table is
+    # not.
+    my $observed = eval { observed_schema( $dbh, $name ) };
+    if ( !$observed ) {
+        my $why = store_diagnosis($docroot);
+        return _err(
+            "table '$name': the data store could not be inspected. "
+                . $why->{detail},
+            table  => $name,
+            kind   => 'store_' . $why->{reason},
+            detail => $why->{detail},
+        );
+    }
     return { ok => 1, table => $name, rows => [], pending_schema => 1 }
         unless $observed->{exists};
 

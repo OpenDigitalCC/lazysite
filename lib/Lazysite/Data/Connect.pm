@@ -33,7 +33,8 @@ use strict;
 use warnings;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(read_handle write_handle store_path ensure_store);
+our @EXPORT_OK = qw(read_handle write_handle store_path ensure_store
+    store_diagnosis);
 
 our $BUSY_TIMEOUT_MS = 5_000;
 
@@ -70,10 +71,10 @@ sub _connect {
     return undef if $opt{readonly} && !-e $path;
 
     my %attr = (
-        RaiseError                => 1,
-        PrintError                => 0,
-        AutoCommit                => 1,
-        sqlite_unicode            => 1,
+        RaiseError                 => 1,
+        PrintError                 => 0,
+        AutoCommit                 => 1,
+        sqlite_unicode             => 1,
         sqlite_see_if_its_a_number => 1,
     );
 
@@ -87,22 +88,28 @@ sub _connect {
     my $dbh = DBI->connect( "dbi:SQLite:dbname=$path", '', '', \%attr );
     return undef unless $dbh;
 
-    # WAL COSTS SOMETHING WORTH KNOWING, measured while testing Tables.pm: a
-    # reader needs to create a `-shm` file BESIDE the database, so a store
-    # directory that is not writable breaks READING as well as writing - and
-    # breaks it SILENTLY, returning zero rows rather than an error.
+    # WAL COSTS SOMETHING WORTH KNOWING, measured rather than assumed: a reader
+    # needs a `-shm` file BESIDE the database, so a store directory that is not
+    # writable breaks READING as well as writing. Even `PRAGMA journal_mode`
+    # fails, with "attempt to write a readonly database".
     #
-    # That matters for an operator hardening permissions, or a read-only mount:
-    # the symptom is an empty table, not a refusal, which is the failure mode
-    # this codebase treats as worse than a crash. Recorded here rather than
-    # worked around, because the fix is a deployment note and not a code
-    # change: the directory the store lives in must be writable by whoever
-    # reads it.
+    # SQLITE IS HONEST ABOUT THIS. An earlier version of this comment said the
+    # reads came back silently empty; they do not - they raise. The silence was
+    # ours, in a caller that wrapped the probe in `eval {} || {exists => 0}`
+    # and turned a real error into "the table has not been created yet". The
+    # engine reported accurately and our fallback discarded it, which is the
+    # defect class this codebase spends most of its time removing.
+    #
+    # So the answer is not a deployment note. It is store_diagnosis() below,
+    # which the read path consults when something fails, so an operator is told
+    # the directory is not writable rather than being told their table is
+    # empty. Read-only deployment may be a legitimate choice; being unable to
+    # tell it apart from an empty table is not.
     #
     # WAL is a property of the DATABASE, not the connection, so it is set once
     # by a writer; a read-only handle cannot set it and must not try.
     unless ( $opt{readonly} ) {
-        eval { $dbh->do('PRAGMA journal_mode = WAL'); 1 };
+        eval { $dbh->do('PRAGMA journal_mode = WAL');              1 };
         eval { $dbh->do("PRAGMA busy_timeout = $BUSY_TIMEOUT_MS"); 1 };
     }
     else {
@@ -110,6 +117,56 @@ sub _connect {
     }
 
     return $dbh;
+}
+
+# WHY A READ FAILED, in terms an operator can act on.
+#
+# Called when something on the read path has already gone wrong. It does not
+# guess: each branch below is a condition that has been checked, and the last
+# one says plainly that the cause is unknown rather than offering a plausible
+# story.
+#
+# THE PROBE IS A REAL WRITE ATTEMPT, not a stat. `-w` answers from the mode
+# bits and the real uid, and gets a read-only MOUNT, an ACL, or a container's
+# view wrong - in a direction that matters, because it would report "writable"
+# for a directory that is not. Creating and removing a file answers the
+# question that was actually asked.
+sub store_diagnosis {
+    my ($docroot) = @_;
+    my $path = store_path($docroot);
+    ( my $dir = $path ) =~ s{/[^/]+\z}{};
+
+    return { ok => 0, reason => 'no_store',
+        detail => "There is no data store yet at $path. It is created the "
+            . 'first time a table is migrated.' }
+        unless -e $path;
+
+    return { ok => 0, reason => 'unreadable',
+        detail => "The data store at $path cannot be read. Check its "
+            . 'ownership and mode.' }
+        unless -r $path;
+
+    my $probe    = "$dir/.lazysite-write-probe.$$";
+    my $writable = 0;
+    if ( open my $fh, '>', $probe ) {
+        close $fh;
+        unlink $probe;
+        $writable = 1;
+    }
+
+    return { ok => 0, reason => 'directory_not_writable',
+        detail => "The directory $dir is not writable. The store uses WAL "
+            . 'journalling, and a WAL reader has to create a `-shm` file '
+            . 'beside the database - so a read-only directory stops READS as '
+            . 'well as writes. Make the directory writable by the account '
+            . 'that serves the site.' }
+        unless $writable;
+
+    return { ok => 0, reason => 'unknown',
+        detail => "The data store at $path exists, is readable, and its "
+            . 'directory is writable. The cause is not one this check knows '
+            . 'about - the underlying error from the database is the thing '
+            . 'to read.' };
 }
 
 sub read_handle  { return _connect( $_[0], readonly => 1 ) }
