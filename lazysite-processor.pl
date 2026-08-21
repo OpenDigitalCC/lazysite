@@ -5075,6 +5075,21 @@ sub _scan_scalar {
     return $v;
 }
 
+# SM459: the front-matter keys the ENGINE owns.
+#
+# Shared by the page scan and the page's own stash, deliberately. They used to
+# disagree: a custom key was visible to a SCAN of the page and invisible to the
+# page's own template, so an author wanting one fact in both places wrote it
+# twice - once top-level for the index, once inside tt_page_var for their own
+# layout - and the two copies drifted with nothing comparing them. That is the
+# duplication the metadata exists to remove.
+#
+# One list, one place. Two copies of a reserved list is the same defect one
+# level up, and this programme has met it twice already (SM435, SM457).
+our %FRONT_MATTER_RESERVED = map { $_ => 1 } qw(
+    url title subtitle date tags excerpt searchable path
+    layout theme auth register search meta_title meta_desc );
+
 sub resolve_scan {
     my ($pattern) = @_;
 
@@ -5246,9 +5261,7 @@ sub resolve_scan {
         # [% p.demo %], [% p.order %] - instead of smuggling data through tags.
         # Computed fields below take precedence; control/internal keys are excluded;
         # surrounding quotes and TT markers are stripped from scalar values.
-        my %reserved = map { $_ => 1 } qw(
-            url title subtitle date tags excerpt searchable path
-            layout theme auth register search meta_title meta_desc );
+        my %reserved = %FRONT_MATTER_RESERVED;
         my %custom;
         for my $k ( keys %$meta ) {
             next if $reserved{$k} || $k =~ /^(?:tt_|_)/;
@@ -5880,6 +5893,33 @@ sub render_content {
             # and page scan, which never render it as HTML.
         page_title    => _esc_html( $meta->{title} ),
         page_subtitle => _esc_html( $meta->{subtitle} ),
+
+        # SM459: the page's OWN custom front-matter, as page_<key>.
+        #
+        # A custom key was readable by every page EXCEPT the one that declared
+        # it: the scan passes it through, the stash never did. So a fact needed
+        # by an index AND by the page's own layout had to be written twice -
+        # top-level for the scan, again inside tt_page_var - and the copies
+        # drifted silently.
+        #
+        # ESCAPED, and that is why they arrive PREFIXED rather than bare. The
+        # H5 note above is the constraint: author-controllable front matter is
+        # escaped at this single point so every layout, including ones we do
+        # not ship and cannot edit, emits it safely without needing `| html`.
+        # Injecting bare custom keys into the stash would hand every such
+        # layout an unescaped author string. page_<key> also cannot collide
+        # with a site var or a tt_page_var, so nothing an author already
+        # depends on changes meaning.
+        #
+        # Scalars only. An array or hash has no single escaped form, and the
+        # scan already serves the cases that want structure.
+        ( map { ( "page_$_" => _esc_html( $meta->{$_} ) ) }
+                grep {
+                    !$FRONT_MATTER_RESERVED{$_}
+                        && !/^(?:tt_|_)/
+                        && defined $meta->{$_}
+                        && !ref $meta->{$_}
+                } keys %{$meta} ),
 
         # SM300: `subtitle` was doing three jobs at once - the visible
         # subheading, <meta name="description">, and the llms.txt description.

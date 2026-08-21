@@ -94,6 +94,22 @@ tt_page_var:
   matrix: json:/data/comparison.json   # then [% FOREACH r IN matrix.rows %]…[% END %]
 ```
 
+Any OTHER top-level key is yours. A scan of the page can read it as
+`[% p.status %]`, and the page's own layout reads the same value as
+`[% page_status %]` - one fact, written once, usable in both places. Values
+arrive HTML-escaped, which is why they are prefixed rather than bare: it keeps
+them from colliding with a site variable and guarantees every layout emits them
+safely without needing a `| html` filter. Scalars only; use `tt_page_var` when
+you want a list or a structure.
+
+```yaml
+---
+title: Ship the loader
+status: in-progress          # [% p.status %] in an index, [% page_status %] here
+owner: alice
+---
+```
+
 To build a data-driven table/matrix from a JSON file, use `json:` - it gives the
 body a real data structure to loop. (`[% USE JSON %]` needs the optional
 Template::Plugin::JSON module, which is not bundled; prefer `json:`.)

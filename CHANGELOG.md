@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM459 resolved (PENDING) **a page can read its own front matter.** A custom
+  top-level key was visible to a SCAN of the page and invisible to the page's
+  own template: the scan passes non-reserved keys through, the stash took only
+  `tt_page_var` plus an explicit list. So the same key was readable by every
+  page *except the one that declared it*, and an author wanting one fact in an
+  index and in their own layout wrote it twice - top-level for the scan, again
+  inside `tt_page_var` - with the copies drifting silently. Custom keys now
+  reach the stash as `page_<key>`. **Prefixed and escaped deliberately**:
+  SEC-2026-07 (H5) escapes author-controllable front matter at the single point
+  it enters the stash, so every layout - including ones we do not ship and
+  cannot edit - emits it safely without a `| html` filter, and a bare key could
+  collide with a site variable and change what an author already depends on.
+  Scalars only. The reserved list is now declared **once** and shared by the
+  scan and the stash; two copies would drift, which is the same defect one level
+  up and the third time this week (SM435, SM457).
+
 - SM458 resolved (PENDING) **the manager can create a subfolder inside a gated
   section again.** An operator could not create `filestore/research` inside a
   gated `/intranet/`: *"Invalid path"*. The same folder went in over WebDAV
