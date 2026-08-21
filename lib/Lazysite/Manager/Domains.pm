@@ -263,7 +263,7 @@ sub _host_disagrees_with_url {
     my ( $host, $site_url ) = @_;
     return undef unless defined $site_url && length $site_url;
     # A placeholder site_url (the primary's ${SERVER_NAME} form) names no host.
-    return undef if $site_url =~ /\$\{/;
+    return undef if $site_url     =~ /\$\{/;
     return undef unless $site_url =~ m{^https?://([^/:?#]+)}i;
     my $url_host = lc $1;
     return undef if $url_host eq $host;

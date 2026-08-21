@@ -45,7 +45,7 @@ tone: medium
 `acl-remove` | webdav | path (query)
 `acl-set` | webdav | path (query_or_body), read (body), write (body), owner (body), draft (body)
 `actions-list` | any authenticated |  
-`aliases-list` | manage_content |  
+`aliases-list` | manage_content | host (query)
 `analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query)
 `artifact-backups-delete` | manage_layouts / manage_themes | path (query)
 `artifact-manifest` | manage_themes / manage_layouts |  
@@ -111,7 +111,7 @@ tone: medium
 `mkdir` | cookie only | path (query)
 `move` | cookie only | path (query), to (query)
 `nav-read` | manage_nav | host (query)
-`nav-save` | manage_nav | items (body), host (body)
+`nav-save` | manage_nav | items (body), host (query_or_body)
 `notices` | notifications |  
 `notices-seen` | cookie only |  
 `pages` | manage_nav |  

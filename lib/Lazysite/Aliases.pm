@@ -62,7 +62,7 @@ sub _root_for {
         local $Lazysite::Manager::Domains::DOCROOT = $docroot;
         Lazysite::Manager::Domains::content_root_for_path($rel);
     };
-    $root = '' unless defined $root;
+    $root = ''             unless defined $root;
     return ( '', '_root' ) unless length $root;
     ( my $key = $root ) =~ s{[^A-Za-z0-9._-]+}{_}g;
     return ( $root, $key );
@@ -78,7 +78,7 @@ sub _root_for {
 # declaring the alias WORSE than leaving it off.
 sub _canonical_on_its_site {
     my ( $docroot, $rel ) = @_;
-    my ( $root, $key ) = _root_for( $docroot, $rel );
+    my ( $root,    $key ) = _root_for( $docroot, $rel );
     $rel =~ s{^/+}{};
     $rel =~ s{\A\Q$root\E/}{} if length $root;
     return ( canonical_url_for($rel), $key );
@@ -188,7 +188,7 @@ sub index_page {
 
 sub deindex_page {
     my ( $docroot, $rel ) = @_;
-    my ( $canon, $key ) = _canonical_on_its_site( $docroot, $rel );
+    my ( $canon,   $key ) = _canonical_on_its_site( $docroot, $rel );
     _update( $docroot, $key, sub {
             my ($m) = @_;
             for my $k ( keys %{$m} ) { delete $m->{$k} if _target( $m->{$k} ) eq $canon }
