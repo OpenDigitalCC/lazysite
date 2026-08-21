@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM154 (P2) end-to-end: a domain registered through the engine
+# SM154 (P2) end-to-end: a domain configured through the engine
 # (Lazysite::Manager::Domains, i.e. the manager domain-add action / the CLI) is
 # actually SERVED by the SM151 processor under its Host header - proving the
 # admin plane and the serving plane agree. The engine only writes the lazysite
@@ -37,7 +37,7 @@ open my $ch, '>', "$docroot/sites/clienta/index.md" or die $!;
 print $ch "---\ntitle: Client A Home\n---\n\nCLIENT-A-CONTENT\n";
 close $ch;
 
-# --- the registered domain serves ITS content root under its Host -----------
+# --- the configured domain serves ITS content root under its Host -----------
 {
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clienta.com' );
     like( $out, qr/CLIENT-A-CONTENT/, 'clienta.com serves its own content root' );

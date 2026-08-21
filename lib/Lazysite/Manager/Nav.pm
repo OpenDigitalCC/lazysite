@@ -156,7 +156,7 @@ sub action_nav_save {
         local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
         unless ( Lazysite::Manager::Domains::known_domain_host( lc $host ) ) {
             return { ok => 0, kind => 'unknown-domain',
-                error => "Not a registered domain: $host. Refusing to fall back "
+                error => "Not a configured domain: $host. Refusing to fall back "
                     . 'to the shared navigation - that would change the primary '
                     . 'site and every domain inheriting it.' };
         }

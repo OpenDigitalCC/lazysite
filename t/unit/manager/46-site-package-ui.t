@@ -92,7 +92,7 @@ grant_caps( $d, 'op', 'manage_domains' );
 # Register the source domain (its own content root) and set its presentation.
 ok( post( $d, 'op', 'role-op', 'action=domain-add',
         { host => 'shop.clienta.com', content_root => 'sites/clienta' } )->{ok},
-    'source domain registered' );
+    'source domain configured' );
 post( $d, 'op', 'role-op', 'action=domain-set',
     { host => 'shop.clienta.com', key => 'theme', value => 'blue' } );
 post( $d, 'op', 'role-op', 'action=domain-set',
@@ -161,7 +161,7 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
     make_path("$d/sites/dest");
     ok( post( $d, 'op', 'role-op', 'action=domain-add',
             { host => 'client.example', content_root => 'sites/dest' } )->{ok},
-        'target domain registered' );
+        'target domain configured' );
 
     my $ap = post( $d, 'op', 'role-op', 'action=site-backup-apply',
         { name => $pkg, host => 'client.example', clean => 1 } );

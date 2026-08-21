@@ -615,7 +615,7 @@ sub action_layout_delete {
             . 'then delete this one.' }
         if length $active_layout && $layout_name eq $active_layout;
 
-    # SM177: sub-domains are first-class peers - a layout any registered domain
+    # SM177: sub-domains are first-class peers - a layout any configured domain
     # uses must not be deletable out from under it. Block and name the domains,
     # mirroring the active-layout guard for the primary. domains_using resolves
     # each host's effective layout (a per-host override, else the inherited base).

@@ -119,7 +119,7 @@ grant_caps( $d, 'ed', 'manage_content' );
 {
     my $r = post( $d, 'ed', 'role-ed', 'action=domain-add',
         { host => 'clientb.com', content_root => 'sites/clientb' } );
-    ok( !$r->{ok}, 'content editor cannot register a domain' );
+    ok( !$r->{ok}, 'content editor cannot configure a domain' );
     is( $r->{kind}, 'forbidden', 'domain-add is forbidden for a non-config editor' );
     unlike( slurp("$d/lazysite/lazysite.conf"), qr/clientb/, 'no conf change from the denied call' );
 }
@@ -154,7 +154,7 @@ grant_caps( $d, 'ed', 'manage_content' );
         QUERY_STRING       => 'action=domain-preview&host=clienta.com',
         HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op',
         LAZYSITE_PROCESSOR => $processor );
-    ok( $r->{ok}, 'operator previews a registered domain' ) or diag encode_json($r);
+    ok( $r->{ok}, 'operator previews a configured domain' ) or diag encode_json($r);
     like( $r->{html}, qr/PREVIEW-OF-CLIENTA/, 'preview renders the domain content root' );
     like( $r->{html}, qr/h\x{e9}bergeurs/,
         'preview preserves UTF-8 (French) - no double-encoding' );
@@ -208,7 +208,7 @@ grant_caps( $d, 'ed', 'manage_content' );
         QUERY_STRING       => 'action=domain-check&host=stranger.invalid',
         HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op' );
     ok( !$un->{ok}, 'an unregistered host is refused (no SSRF to arbitrary targets)' );
-    like( $un->{error}, qr/Not a registered domain/, 'refusal names the reason' );
+    like( $un->{error}, qr/Not a configured domain/, 'refusal names the reason' );
 }
 
 # --- SM165 access keys surface in domains-list (feeds the tick-list pickers) --

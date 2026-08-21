@@ -22,7 +22,7 @@ a first&#8209;class site &mdash; its own home page, sitemap, feeds and search &m
 by giving it a content folder; or it can mirror your default site. Point
 DNS, the web&#8209;server domain alias and TLS at this server first (your
 control&#8209;panel / Hestia's job &mdash; a wildcard record + wildcard
-certificate covers every sub&#8209;domain at once), then register the lazysite
+certificate covers every sub&#8209;domain at once), then configure the lazysite
 side here. In the table below a grey value is inherited from the default site; a
 solid value is this domain's own. Use <strong>Preview</strong> to see a domain
 before its DNS is live, and <strong>Check</strong> to verify that DNS, HTTPS and
@@ -268,7 +268,7 @@ function post(action, obj) {
 
 
 function removeDomain(host) {
-  if (!window.confirm('Delete ' + host + '? The domain is de-registered; its content files are kept.')) return;
+  if (!window.confirm('Delete ' + host + '? The domain configuration is removed; its content files are kept.')) return;
   post('domain-remove', { host: host }).then(function (d) {
     if (d && d.ok) { showStatus('Deleted ' + host); loadDomains(); }
     else { showStatus((d && d.error) || 'Could not delete the domain.', true); }
@@ -359,7 +359,7 @@ function domainSettingsHtml(row, isCreate) {
 
   if (isCreate) {
     h += '<div class="mg-line" style="margin-top:4px;">'
-      + '<button class="mg-btn mg-btn-primary" onclick="createDomain()">Register domain</button> '
+      + '<button class="mg-btn mg-btn-primary" onclick="createDomain()">Configure domain</button> '
       + '<button class="mg-btn" onclick="closeConfig()">Cancel</button></div>';
     return h;
   }
@@ -409,7 +409,7 @@ function renderConfigSheet(host) {
 function openCreateSheet() {
   siteUrlEdited = false;
   document.getElementById('cfg-sheet-title').innerHTML =
-    'Add a domain <span class="mg-sheet-sub">registers a new host on this instance</span>';
+    'Add a domain <span class="mg-sheet-sub">configures a new host on this instance</span>';
   document.getElementById('cfg-sheet-body').innerHTML =
     domainSettingsHtml({ host: NEW_HOST }, true);
   var sheet = document.getElementById('cfg-sheet');
@@ -467,8 +467,8 @@ function createDomain() {
     lang_group: v('lang_group'),
     seed: (seedEl && seedEl.checked) ? 1 : 0
   }).then(function (d) {
-    if (d && d.ok) { showStatus('Registered ' + host); closeConfig(); loadDomains(); }
-    else { showStatus((d && d.error) || 'Could not register the domain.', true); }
+    if (d && d.ok) { showStatus("Configured " + host); closeConfig(); loadDomains(); }
+    else { showStatus((d && d.error) || 'Could not configure the domain.', true); }
   });
 }
 

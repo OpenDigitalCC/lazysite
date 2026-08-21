@@ -65,6 +65,14 @@ Naming the commit: AFTER it lands, never before
   appear here. That is the intent - the page is meant to show everyone who can
   reach the site - not a side effect. Revocation is unchanged and still
   refuses an interactive account: listing is not offering.
+- **"Configure domain", not "register domain."** The manager said *register*
+  throughout - the button, the sheet subtitle, the confirmations, the API
+  errors (`Not a registered domain`), the log lines (`domain registered`) and
+  the guides. It reads as domain registration in the ordinary sense - buying a
+  name from a registrar - which is not what any of it does: the instance is
+  being told to serve a name somebody already owns. Renamed across the UI, the
+  API messages, the logs and the docs. `register:` page front matter and the
+  generated registries are untouched - a different word doing a different job.
 
 - SM444 resolved (PENDING) **a failed coverage gate says WHICH failure.**
   `release.sh` mapped every non-zero exit from `coverage.sh` onto one sentence,

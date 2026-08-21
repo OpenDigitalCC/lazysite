@@ -518,7 +518,7 @@ my %TOOLS = (
         },
     },
     list_domains => {
-        description => 'List the domains this instance serves - the primary site plus every registered domain, each with its content_root, layout, theme, nav and language settings, and which of those it INHERITS from the primary rather than setting itself. Call this FIRST on any task that mentions a domain, or before activate_theme / activate_layout on an instance that may serve more than one site: those are instance-wide without a host, and this is how you find out whether that matters. Read-only.',
+        description => 'List the domains this instance serves - the primary site plus every configured domain, each with its content_root, layout, theme, nav and language settings, and which of those it INHERITS from the primary rather than setting itself. Call this FIRST on any task that mentions a domain, or before activate_theme / activate_layout on an instance that may serve more than one site: those are instance-wide without a host, and this is how you find out whether that matters. Read-only.',
         cap         => 'manage_domains',
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },
@@ -528,11 +528,11 @@ my %TOOLS = (
         },
     },
     domain_set => {
-        description => 'Set ONE presentation or routing key on ONE registered domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first). Does NOT create or remove domains.',
+        description => 'Set ONE presentation or routing key on ONE configured domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first). Does NOT create or remove domains.',
         cap         => 'manage_domains',
         inputSchema => { type => 'object',
             properties => {
-                host => { type => 'string', description => 'The registered domain, e.g. clienta.example' },
+                host => { type => 'string', description => 'The configured domain, e.g. clienta.example' },
                 key => { type => 'string', description => 'theme | layout | site_name | site_url | nav_file | search_default | lang | lang_group' },
                 value => { type => 'string', description => 'The value; an empty string clears the override so the domain inherits the primary again' },
             },
@@ -551,10 +551,10 @@ my %TOOLS = (
         },
     },
     preview_domain => {
-        description => 'Render a registered domain\'s home page exactly as an anonymous visitor would see it under that Host - its own content root, layout, theme and nav - and return the HTML. Works before DNS or TLS point at the domain, because the render is server-side, so use it to CHECK a domain you have just configured rather than guessing. Read-only: nothing is published and no cache is written.',
+        description => 'Render a configured domain\'s home page exactly as an anonymous visitor would see it under that Host - its own content root, layout, theme and nav - and return the HTML. Works before DNS or TLS point at the domain, because the render is server-side, so use it to CHECK a domain you have just configured rather than guessing. Read-only: nothing is published and no cache is written.',
         cap         => 'manage_domains',
         inputSchema => { type => 'object',
-            properties => { host => { type => 'string', description => 'The registered domain to render' } },
+            properties => { host => { type => 'string', description => 'The configured domain to render' } },
             required => ['host'], additionalProperties => JSON::PP::false },
         run => sub {
             local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
@@ -562,13 +562,13 @@ my %TOOLS = (
         },
     },
     site_backup => {
-        description => 'Package one registered domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_domains and access to that domain.',
+        description => 'Package one configured domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_domains and access to that domain.',
         cap         => 'manage_domains',
         inputSchema => {
             type       => 'object',
             properties => { host => {
                     type        => 'string',
-                    description => 'The registered domain to package, e.g. shop.clienta.com',
+                    description => 'The configured domain to package, e.g. shop.clienta.com',
             } },
             required             => ['host'],
             additionalProperties => JSON::PP::false,
@@ -579,7 +579,7 @@ my %TOOLS = (
             return { ok => 0, error => 'A host is required' } unless length $host;
             my ($row) = grep { lc( $_->{host} // '' ) eq $host }
                 @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
-            return { ok => 0, error => "Not a registered domain: $host" } unless $row;
+            return { ok => 0, error => "Not a configured domain: $host" } unless $row;
             my $croot  = $row->{content_root} // '';
             my $scopes = $caps->{dav_scopes};
             if ( ref $scopes eq 'ARRAY'
@@ -600,7 +600,7 @@ my %TOOLS = (
             type       => 'object',
             properties => {
                 name => { type => 'string', description => 'The package file name in the backups area (lazysite-site-*.tar.gz)' },
-                host => { type => 'string', description => 'Target registered domain; omit for the default site' },
+                host => { type => 'string', description => 'Target configured domain; omit for the default site' },
                 clean => { type => 'boolean', description => 'Remove existing content under the target root first' },
                 # SM263: opt IN to taking the package's identity. The default -
                 # keeping the TARGET's site_url and site_name - is right for
@@ -630,7 +630,7 @@ my %TOOLS = (
             if ( length $host ) {
                 my ($row) = grep { lc( $_->{host} // '' ) eq $host }
                     @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
-                return { ok => 0, error => "Not a registered domain: $host" } unless $row;
+                return { ok => 0, error => "Not a configured domain: $host" } unless $row;
                 $croot = $row->{content_root} // '';
                 return { ok => 0, error => "$host has no content folder of its own" }
                     unless length $croot;
@@ -753,13 +753,13 @@ my %TOOLS = (
         },
     },
     activate_theme => {
-        description => 'Activate a theme. WITHOUT `host` this is INSTANCE-WIDE: it changes the theme of the whole site, every domain that inherits it included - on a multi-domain instance that is almost never what you want. WITH `host` it binds the theme to that one registered domain and publishes its assets, leaving every other domain untouched. Call list_domains first if you are not certain the instance serves only one site. Clears the HTML cache.',
+        description => 'Activate a theme. WITHOUT `host` this is INSTANCE-WIDE: it changes the theme of the whole site, every domain that inherits it included - on a multi-domain instance that is almost never what you want. WITH `host` it binds the theme to that one configured domain and publishes its assets, leaving every other domain untouched. Call list_domains first if you are not certain the instance serves only one site. Clears the HTML cache.',
         cap         => 'manage_themes',
         inputSchema => { type => 'object',
             properties => {
                 theme => { type => 'string' },
                 host  => { type => 'string',
-                    description => 'A registered domain to bind this theme to. Omit ONLY when you mean the whole instance.' },
+                    description => 'A configured domain to bind this theme to. Omit ONLY when you mean the whole instance.' },
             },
             required => ['theme'], additionalProperties => JSON::PP::false },
         run => sub {
@@ -804,14 +804,14 @@ my %TOOLS = (
         },
     },
     activate_layout => {
-        description => 'Activate a layout (optionally naming a compatible theme). WITHOUT `host` this is INSTANCE-WIDE and changes the whole site. WITH `host` it binds the layout to that one registered domain and leaves the others alone. Call list_domains first if the instance may serve more than one site.',
+        description => 'Activate a layout (optionally naming a compatible theme). WITHOUT `host` this is INSTANCE-WIDE and changes the whole site. WITH `host` it binds the layout to that one configured domain and leaves the others alone. Call list_domains first if the instance may serve more than one site.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => {
                 layout => { type => 'string' },
                 theme  => { type => 'string' },
                 host   => { type => 'string',
-                    description => 'A registered domain to bind this layout to. Omit ONLY when you mean the whole instance.' },
+                    description => 'A configured domain to bind this layout to. Omit ONLY when you mean the whole instance.' },
             },
             required => ['layout'], additionalProperties => JSON::PP::false },
         run => sub {
@@ -867,7 +867,7 @@ my %TOOLS = (
         run => sub { action_layout_delete( $_[0]->{layout} ) },
     },
     delete_theme => {
-        description => 'Delete a theme YOU created with create_theme. You cannot remove a theme created by anyone else, or one that predates this account - that stays an operator action from the manager. Refuses the ACTIVE theme, and any theme a registered domain is using, naming the domains. Use this to clear an experiment rather than leaving it behind: a theme you abandon stays in the site\'s theme list until someone removes it.',
+        description => 'Delete a theme YOU created with create_theme. You cannot remove a theme created by anyone else, or one that predates this account - that stays an operator action from the manager. Refuses the ACTIVE theme, and any theme a configured domain is using, naming the domains. Use this to clear an experiment rather than leaving it behind: a theme you abandon stays in the site\'s theme list until someone removes it.',
         cap         => 'manage_themes',
         inputSchema => { type => 'object',
             properties => { theme => { type => 'string',
@@ -1029,7 +1029,7 @@ my %TOOLS = (
         run => sub { _validate_page( $_[0]->{path}, $_[0]->{content}, $_[1] ) },
     },
     read_nav => {
-        description => 'Read a site navigation as a structured list (top-level items with optional children), plus which nav_file it came from and whether that is INHERITED from the primary site. WITHOUT `host` this reads the primary site. WITH `host` it reads that one registered domain. Call list_domains first if the instance may serve more than one site. Read this before set_nav to modify it.',
+        description => 'Read a site navigation as a structured list (top-level items with optional children), plus which nav_file it came from and whether that is INHERITED from the primary site. WITHOUT `host` this reads the primary site. WITH `host` it reads that one configured domain. Call list_domains first if the instance may serve more than one site. Read this before set_nav to modify it.',
         # SM421 (parity map F1): manage_nav, not manage_content. This was
         # path_aware, but its run passes only `host` and no path - so the
         # dispatcher's carve-out pass had nothing to inspect and never demanded
@@ -1041,18 +1041,18 @@ my %TOOLS = (
         cap         => 'manage_nav', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
-                host => { type => 'string', description => 'registered domain to read; omit for the primary site' },
+                host => { type => 'string', description => 'configured domain to read; omit for the primary site' },
             },
             additionalProperties => JSON::PP::false },
         run => sub { action_nav_read( $_[0]->{host} ) },
     },
     set_nav => {
-        description => 'Replace a site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). WITHOUT `host` this writes the PRIMARY site nav. WITH `host` it writes that one registered domain and leaves the others alone - call list_domains first if the instance may serve more than one site. Writes the domain nav_file and clears the render cache, reporting how many pages were refreshed: the nav is baked into every page, so a nav change is invisible until they re-render.',
+        description => 'Replace a site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). WITHOUT `host` this writes the PRIMARY site nav. WITH `host` it writes that one configured domain and leaves the others alone - call list_domains first if the instance may serve more than one site. Writes the domain nav_file and clears the render cache, reporting how many pages were refreshed: the nav is baked into every page, so a nav change is invisible until they re-render.',
         cap         => 'manage_nav',
         inputSchema => { type => 'object',
             properties => {
                 items => { type => 'array', items => { type => 'object' } },
-                host => { type => 'string', description => 'registered domain to write; omit for the primary site' },
+                host => { type => 'string', description => 'configured domain to write; omit for the primary site' },
             },
             required => ['items'], additionalProperties => JSON::PP::false },
         run => sub { action_nav_save( $_[0]->{items}, $_[0]->{host} ) },
@@ -1778,7 +1778,7 @@ sub _validate_page {
 }
 
 # --- SM087 Tier 2: whole-site audit ---------------------------------------
-# SM238: bind one presentation key on one registered domain. The MCP surface had
+# SM238: bind one presentation key on one configured domain. The MCP surface had
 # NO domain tools at all beyond site_backup/site_apply, while the control API
 # carried the whole domain family under the same manage_domains capability - so an
 # agent asked to style a secondary domain could reach only the INSTANCE-WIDE
@@ -2743,7 +2743,7 @@ sub _mcp_language_note {
         . 'Do NOT hand-build a language switcher or hreflang tags: the layout receives '
         . 'the language set from the engine and renders them itself. You translate into '
         . 'the EXISTING sibling roots only - creating a NEW language is an operator act '
-        . '(it needs a domain registered with its own content_root plus DNS/TLS for the '
+        . '(it needs a domain configured with its own content_root plus DNS/TLS for the '
         . 'host, which are outside this tool surface), so if a target language has no '
         . 'sibling root yet, ask the operator to add the domain rather than trying to '
         . 'create the language plane yourself.';

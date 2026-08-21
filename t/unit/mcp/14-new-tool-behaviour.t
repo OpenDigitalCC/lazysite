@@ -165,7 +165,7 @@ my $GIF = pack 'H*',
     ok( $r && $r->{ok}, 'list_domains answers' ) or diag encode_json( $r // {} );
     my @hosts = map { $_->{host} // '' } @{ $r->{domains} // [] };
     ok( ( grep { $_ eq 'shop.clienta.com' } @hosts ),
-        'and includes the registered domain' );
+        'and includes the configured domain' );
 
     # A capability refusal comes back as a JSON-RPC error with NO
     # structuredContent, so it must be judged on the raw response - reading it

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM177: sub-domains are first-class peers in theme delete-safety. A theme a
-# registered domain uses (under the active layout, where the theme lives) must
+# configured domain uses (under the active layout, where the theme lives) must
 # not be deletable out from under it - and domains_using resolves each host's
 # EFFECTIVE theme/layout so an alias that inherits the base layout but pins its
 # own theme is caught.

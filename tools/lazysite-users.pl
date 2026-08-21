@@ -3352,7 +3352,7 @@ sub cmd_group_settings_set {
             return { ok => 0, kind => 'retired',
                 error =>
                     "Group '$key' was retired in 0.7.26 and confines nothing. "
-                    . "Access lives on the DOMAIN now: register the domain with its "
+                    . "Access lives on the DOMAIN now: configure the domain with its "
                     . "own content root and name this group in its allowed_groups "
                     . "(lazysite-domains, or the Domains page). "
                     . "Pass an empty value here to clear a stale setting." };

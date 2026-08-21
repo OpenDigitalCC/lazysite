@@ -154,7 +154,7 @@ sub _copy_tree {
 sub package_create {
     my ( $host, %opt ) = @_;
     my $row = _domain_row($host)
-        or return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" };
+        or return { ok => 0, kind => 'not-found', error => "Not a configured domain: $host" };
 
     my %keys  = map { $_ => ( $row->{$_} // '' ) } @KEYS;
     my $croot = $keys{content_root};
@@ -592,7 +592,7 @@ sub package_apply {
 # full "apply a site onto a domain" operation in one call. The manager-api does
 # this inline (it also does the scope check + safety snapshot); this is the
 # shared version for callers that manage those concerns themselves.
-#   %opt: host (target registered domain; '' or '(default)' = primary/base),
+#   %opt: host (target configured domain; '' or '(default)' = primary/base),
 #         content_root (target dir; for a host it defaults to that domain's
 #         content_root), clean.
 sub apply_and_configure {
@@ -605,7 +605,7 @@ sub apply_and_configure {
     if ( length $host && !length $croot ) {
         my ($row) = grep { lc( $_->{host} // '' ) eq $host }
             @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
-        return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" }
+        return { ok => 0, kind => 'not-found', error => "Not a configured domain: $host" }
             unless $row;
         $croot = $row->{content_root} // '';
         return { ok => 0, kind => 'invalid',

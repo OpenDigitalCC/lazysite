@@ -180,7 +180,7 @@ or the row survives, or the content is still gated afterwards.
 
 #### A3 - apply a site package, then undo it
 
-Needs a second registered domain with its own content root and at least one page
+Needs a second configured domain with its own content root and at least one page
 in it. If you do not have one, **skip A3 and say so** - a skipped check recorded
 as skipped is fine; a guessed one is not.
 
@@ -329,7 +329,7 @@ which exercises the engine's logic and not the routing in front of it.
 
 ## The pass
 
-For each registered domain: its own home page, its own 404 (mistype a URL and
+For each configured domain: its own home page, its own 404 (mistype a URL and
 confirm the branding is that domain's), its own theme assets loading rather than
 404ing, and - if it is part of a language set - the switcher offering its
 siblings.

@@ -102,7 +102,7 @@ sub with_processor {
 
     my $unreg = Lazysite::Manager::Domains::domain_preview('nope.example');
     ok( !$unreg->{ok}, 'an unregistered host is still refused' );
-    like( $unreg->{error}, qr/Not a registered domain/, 'with the original message' );
+    like( $unreg->{error}, qr/Not a configured domain/, 'with the original message' );
 }
 
 done_testing();

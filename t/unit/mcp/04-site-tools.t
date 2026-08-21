@@ -17,7 +17,7 @@ my $mcp  = "$root/lazysite-mcp.pl";
 my $d    = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/backups", "$d/lazysite/layouts/base/themes/blue", "$d/sites/clienta" );
 
-# A registered domain with its own content root + theme/layout, so site_backup
+# A configured domain with its own content root + theme/layout, so site_backup
 # has something real to package.
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Agency\nmcp_enabled: true\nalias_hosts: shop.clienta.com\n"
@@ -73,7 +73,7 @@ my $scoped = 'Bearer scopedagent:lzs_tok';    # manage_domains, confined to cont
 # --- site_backup: happy path packages the domain ----------------------------
 {
     my $r = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $ok ) );
-    ok( $r && $r->{ok}, 'site_backup packages a registered domain' ) or diag encode_json($r);
+    ok( $r && $r->{ok}, 'site_backup packages a configured domain' ) or diag encode_json($r);
     like( $r->{name}, qr/^lazysite-site-shop\.clienta\.com-/, 'package named for the host' );
 }
 
@@ -89,7 +89,8 @@ my $scoped = 'Bearer scopedagent:lzs_tok';    # manage_domains, confined to cont
         or diag encode_json($none);
 
     my $nope = sc( call( 'site_backup', { host => 'nope.example' }, $ok ) );
-    ok( !$nope->{ok} && $nope->{error} =~ /registered/i, 'site_backup refuses an unregistered domain' );
+    ok( !$nope->{ok} && $nope->{error} =~ /configured/i,
+        'site_backup refuses a domain this instance does not serve' );
 
     my $oos = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $scoped ) );
     ok( !$oos->{ok} && $oos->{error} =~ /scope|access/i,
@@ -114,7 +115,7 @@ my $scoped = 'Bearer scopedagent:lzs_tok';    # manage_domains, confined to cont
     my $made = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $ok ) );
     my $ap   = sc( call( 'site_apply',
         { name => $made->{name}, host => 'shop.clienta.com', clean => JSON::PP::true() }, $ok ) );
-    ok( $ap && $ap->{ok}, 'site_apply applies a package to a registered domain' ) or diag encode_json($ap);
+    ok( $ap && $ap->{ok}, 'site_apply applies a package to a configured domain' ) or diag encode_json($ap);
     is( $ap->{applied_to}, 'shop.clienta.com', 'apply reports the target host' );
 }
 

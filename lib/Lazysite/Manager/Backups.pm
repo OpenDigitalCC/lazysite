@@ -400,7 +400,7 @@ sub action_backup_create {
             if $root =~ m{\.\.} || $root =~ m{\A/} || $root !~ m{\A[\w][\w/.-]*\z};
 
         # A scope that does not exist yet has an EMPTY blast radius - the
-        # first apply into a freshly registered domain creates its content
+        # first apply into a freshly configured domain creates its content
         # root. There is nothing the operation can destroy, so the honest
         # snapshot is a recorded no-op, not a refusal (t/unit/manager/35
         # caught the refusal breaking exactly that first-time apply).

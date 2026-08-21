@@ -85,7 +85,7 @@ function toggleAdd() {
   if (show) { var l = document.getElementById('add-label'); if (l) l.focus(); }
 }
 
-// Populate the domain picker from the registered domains. Only domains that can
+// Populate the domain picker from the configured domains. Only domains that can
 // have their OWN nav are listed: the default site, plus each domain (a domain
 // inheriting the base nav is still selectable, with a note explaining that
 // editing it changes the shared base until it is given its own nav_file on the

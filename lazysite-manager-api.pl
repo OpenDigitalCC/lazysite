@@ -1732,7 +1732,7 @@ sub action_preview {
     return { ok => 1, html => $output };
 }
 
-# SM155: render a registered domain's HOME page as an anonymous public visitor
+# SM155: render a configured domain's HOME page as an anonymous public visitor
 # would see it under its own Host - so an operator can prepare/debug a new domain
 # BEFORE DNS/TLS is pointing at it. Shells the processor exactly like the dev
 # server / action_preview, but with HTTP_HOST set (SM151 per-Host routing picks
@@ -1751,7 +1751,7 @@ sub _instance_id {
     return substr( hmac_sha256_hex( $base, 'lazysite-instance' ), 0, 32 );
 }
 
-# SM156: check whether a registered domain is configured to serve THIS install
+# SM156: check whether a configured domain is configured to serve THIS install
 # live (DNS resolves -> points here -> valid HTTPS cert -> terminates on this
 # instance). The authoritative half of the hybrid check - it does the DNS / IP /
 # TLS / marker work a browser cannot. self_ip is the address Apache accepted the
@@ -1764,8 +1764,8 @@ sub action_domain_check {
             (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
 
     # Bound the outbound probe to operator-declared hosts (no SSRF to arbitrary
-    # targets): only a registered domain or the primary site's own host.
-    return { ok => 0, error => "Not a registered domain: $host" }
+    # targets): only a configured domain or the primary site's own host.
+    return { ok => 0, error => "Not a configured domain: $host" }
         unless known_domain_host($host);
 
     # Self-discover this install's PUBLIC address(es): SERVER_ADDR is the private
@@ -1796,7 +1796,7 @@ sub action_site_backup_create {
 
     # Resolve the domain's own content root, and confine to the caller's scope.
     my ($row) = grep { lc( $_->{host} // '' ) eq $host } @{ domains_list()->{domains} || [] };
-    return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" }
+    return { ok => 0, kind => 'not-found', error => "Not a configured domain: $host" }
         unless $row;
     my $croot = $row->{content_root} // '';
     if ( @REQUEST_SCOPES
@@ -1856,7 +1856,7 @@ sub action_site_backup_inspect {
             @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
         $target = ( ref $d eq 'HASH' ? $d->{content_root} : '' ) // '';
         return { ok => 0, kind => 'invalid',
-            error => "No registered domain '$host' with its own content root." }
+            error => "No configured domain '$host' with its own content root." }
             unless length $target;
         return { ok => 0, kind => 'forbidden',
             error => 'You do not have access to that target.' }
@@ -2008,7 +2008,7 @@ sub action_site_backup_apply {
     if ( length $host ) {
         my ($row) = grep { lc( $_->{host} // '' ) eq $host }
             @{ domains_list()->{domains} || [] };
-        return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" }
+        return { ok => 0, kind => 'not-found', error => "Not a configured domain: $host" }
             unless $row;
         $croot = $row->{content_root} // '';
         return { ok => 0, kind => 'invalid',

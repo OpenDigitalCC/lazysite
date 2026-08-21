@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM234: the theme/layout listings must report which registered domains resolve
+# SM234: the theme/layout listings must report which configured domains resolve
 # to each one. The SM177 delete guard already refuses a theme a domain depends on
 # and names the domains; the LISTING did not know, so the manager offered a
 # Delete button and the operator learned it was protected only from the error

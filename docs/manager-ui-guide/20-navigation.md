@@ -30,7 +30,7 @@ Negative
 ## Per-domain navigation
 
 Where
-: Content -> Navigation, with more than one domain registered
+: Content -> Navigation, with more than one domain configured
 
 Do
 : Switch to a secondary domain and give it its own menu.

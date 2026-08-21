@@ -283,7 +283,7 @@ site, or to copy a site to another domain. Both tools need `manage_domains` and
 access to the domain.
 
 site_backup `{ host }`
-: Package the named registered domain's site into
+: Package the named configured domain's site into
   `lazysite-site-<host>-<stamp>.tar.gz` in the backups area (fetch it with the
   backup download if you need to move it to another instance). Returns the
   package `name`.

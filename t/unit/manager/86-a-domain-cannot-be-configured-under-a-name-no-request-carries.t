@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-# SM436: a domain registered under a name no request can carry serves the
+# SM436: a domain configured under a name no request can carry serves the
 # WRONG SITE, silently, for as long as nobody follows a link.
 #
-# The incident: a domain registered as `dhcf` with site_url
+# The incident: a domain configured as `dhcf` with site_url
 # https://dhcf.sites.lazysite.io. The processor matches the FULL Host header
 # with eq, so `dhcf` never matched, no alias overlay applied, and every
 # request fell through to the primary - serving a different organisation's
@@ -106,9 +106,9 @@ subtest 'domain_set refuses a site_url that would disagree' => sub {
 };
 
 subtest 'but domain_set does NOT apply the dot check to an existing row' => sub {
-    # An already-registered dotless host cannot be corrected - host is not
+    # An already-configured dotless host cannot be corrected - host is not
     # settable and there is no rename - so answering a site_url edit with
-    # "register the full name" would misdirect. Removal is the only route,
+    # "configure the full name" would misdirect. Removal is the only route,
     # and domain_remove must keep working on exactly these rows.
     my $d = fixture();
     open my $c, '>>', "$d/lazysite/lazysite.conf" or die $!;

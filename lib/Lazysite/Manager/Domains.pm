@@ -1,6 +1,6 @@
 package Lazysite::Manager::Domains;
 
-# SM154 (P2): the domain engine - register / list / configure / remove the
+# SM154 (P2): the domain engine - configure / list / update / remove the
 # domains this one lazysite instance serves. A domain is `alias_hosts` (the
 # comma list of served hosts) + `alias.<host>.<key>` overrides in
 # lazysite.conf, plus a content-root directory under the docroot. This module
@@ -190,7 +190,7 @@ sub domains_list {
     return { ok => 1, domains => \@domains, keys => \@DOMAIN_KEYS };
 }
 
-# SM177: which registered domains (base + every alias/sub-domain) currently
+# SM177: which configured domains (base + every alias/sub-domain) currently
 # depend on a given layout - or a given theme UNDER a given layout. Sub-domains
 # are first-class peers here: a theme/layout one of them uses must block its
 # deletion just as the primary's active one does. Effective values resolve the
@@ -200,7 +200,7 @@ sub domains_list {
 # primary) that use it, most useful hosts first. Pass (layout => L) to find
 # layout users; (theme => T, layout => L) to find theme users under layout L.
 
-# SM238: render a registered domain as an anonymous visitor would see it, under
+# SM238: render a configured domain as an anonymous visitor would see it, under
 # its own Host - so a domain can be prepared and checked before DNS or TLS point
 # at it. Moved here from lazysite-manager-api.pl so the control API and the MCP
 # connector share ONE implementation rather than the connector growing a copy;
@@ -230,14 +230,14 @@ sub known_domain_host {
 # carry, and does it agree with the site_url beside it?
 #
 # NOT folded into _valid_host, deliberately: that is shared with domain_remove
-# and domain_set, and tightening it there would strand an already-registered
+# and domain_set, and tightening it there would strand an already-configured
 # bad row - unremovable by the verb that exists to remove it. Registration is
 # the only moment this can be caught, and it is also the LAST moment: `host`
 # is not in @DOMAIN_KEYS, so domain_set cannot correct it and there is no
 # rename verb. A value that cannot be edited afterwards has exactly one chance
 # to be right.
 #
-# The incident: a domain registered as `dhcf` with site_url
+# The incident: a domain configured as `dhcf` with site_url
 # https://dhcf.sites.lazysite.io. The processor matches the FULL Host header
 # with eq, so `dhcf` never matched, no alias overlay applied, and every
 # request fell through to the primary - serving a different organisation's
@@ -249,15 +249,15 @@ sub _host_cannot_match {
     return undef if $host =~ /\./;
     return 'A domain name needs at least one dot - "' . $host . '" is a single '
         . 'label, and no public request can arrive with it as its Host. If this '
-        . 'is a subdomain, register the full name (for example '
+        . 'is a subdomain, configure the full name (for example '
         . $host . '.example.com).';
 }
 
 # The other half: the row disagreeing with itself. Kept separate from the dot
 # check because domain_set must apply THIS one and not that one - an
-# already-registered dotless host cannot be corrected (host is not settable and
+# already-configured dotless host cannot be corrected (host is not settable and
 # there is no rename), so answering a site_url edit with a message about
-# registering it differently would misdirect. Removing it is the only route,
+# configuring it differently would misdirect. Removing it is the only route,
 # and domain_remove deliberately does not run either check.
 sub _host_disagrees_with_url {
     my ( $host, $site_url ) = @_;
@@ -273,7 +273,7 @@ sub _host_disagrees_with_url {
         . 'the default site instead. Use ' . $url_host . '.';
 }
 
-# SM441: which registered domain OWNS a docroot-relative path.
+# SM441: which configured domain OWNS a docroot-relative path.
 #
 # The page previews shelled the processor without a Host, so SM151's per-Host
 # routing never fired and a domain's page rendered with the BASE layout, theme
@@ -450,8 +450,8 @@ sub domain_preview {
         unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
             (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
 
-    # Only a registered domain (or the primary site's own host) may be previewed.
-    return { ok => 0, error => "Not a registered domain: $host" }
+    # Only a configured domain (or the primary site's own host) may be previewed.
+    return { ok => 0, error => "Not a configured domain: $host" }
         unless known_domain_host($host);
 
     local %ENV = %ENV;
@@ -524,7 +524,7 @@ sub domain_preview {
     # missing page is a 404 document rather than nothing.
     return { ok => 0, kind => 'empty-render',
         error => "The processor rendered nothing for $host. The domain is "
-            . 'registered, so check its content_root points at a directory with '
+            . 'configured, so check its content_root points at a directory with '
             . 'an index page.' }
         unless $output =~ /\S/;
 
@@ -640,7 +640,7 @@ sub domain_add {
     }
 
     my ( $base, $ov, $hosts ) = _parse();
-    return { ok => 0, kind => 'exists', error => "Domain already registered: $host" }
+    return { ok => 0, kind => 'exists', error => "Domain already configured: $host" }
         if grep { $_ eq $host } @$hosts;
 
     my $content = _slurp();
@@ -660,13 +660,13 @@ sub domain_add {
     my @new_hosts = ( @$hosts, $host );
     $content = _set_base( $content, 'alias_hosts', join( ',', @new_hosts ) );
 
-    my ( $ok, $err ) = _write( $content, "register domain $host" );
+    my ( $ok, $err ) = _write( $content, "configure domain $host" );
     return { ok => 0, error => $err } unless $ok;
 
     # A host with no content root of its own serves the default site - nothing
     # to provision or seed.
     unless ( length $rel ) {
-        log_event( 'INFO', $host, 'domain registered (serves the default site)',
+        log_event( 'INFO', $host, 'domain configured (serves the default site)',
             host => $host, user => $auth_user );
         return { ok => 1, host => $host, content_root => '' };
     }
@@ -677,7 +677,7 @@ sub domain_add {
     unless ( -d $dir ) {
         eval { make_path($dir); 1 }
             or return { ok => 0,
-            error => "Domain registered but content root could not be created: $@" };
+            error => "Domain configured but content root could not be created: $@" };
     }
     if ( $opts{seed} && !-e "$dir/index.md" ) {
         my $title = $opts{site_name} || $host;
@@ -688,7 +688,7 @@ sub domain_add {
         }
     }
 
-    log_event( 'INFO', 'domain-add', 'domain registered',
+    log_event( 'INFO', 'domain-add', 'domain configured',
         host => $host, content_root => $rel, user => $auth_user );
     return { ok => 1, host => $host, content_root => $rel };
 }
@@ -751,7 +751,7 @@ sub domain_set {
         if $value =~ /[\r\n]/;
 
     my ( undef, undef, $hosts ) = _parse();
-    return { ok => 0, kind => 'not-found', error => "Domain not registered: $host" }
+    return { ok => 0, kind => 'not-found', error => "Domain not configured: $host" }
         unless grep { $_ eq $host } @$hosts;
 
     my $content = _slurp();
@@ -850,7 +850,7 @@ sub _effective_presentation {
 
 # --- public: remove --------------------------------------------------------
 
-# Unregisters the host: drops it from alias_hosts and strips every
+# Removes the host from this instance: drops it from alias_hosts and strips every
 # alias.<host>.* line. The content directory is LEFT IN PLACE by default (data
 # safety); pass purge => 1 to remove it too.
 sub domain_remove {
@@ -860,7 +860,7 @@ sub domain_remove {
         unless _valid_host($host);
 
     my ( undef, $ov, $hosts ) = _parse();
-    return { ok => 0, kind => 'not-found', error => "Domain not registered: $host" }
+    return { ok => 0, kind => 'not-found', error => "Domain not configured: $host" }
         unless grep { $_ eq $host } @$hosts;
 
     my $rel = $ov->{$host}{content_root};
@@ -896,7 +896,7 @@ sub domain_remove {
         }
     }
 
-    log_event( 'INFO', 'domain-remove', 'domain unregistered',
+    log_event( 'INFO', 'domain-remove', 'domain removed',
         host => $host, purged => $purged, user => $auth_user );
     return { ok => 1, host => $host, purged => $purged };
 }

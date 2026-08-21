@@ -132,7 +132,7 @@ subtest 'the scope is validated like any other path input' => sub {
     ok( !$abs->{ok}, 'an absolute scope is refused' );
 
     # A scope that does not exist yet is a NO-OP, not a refusal: the first
-    # apply into a freshly registered domain creates its content root, and
+    # apply into a freshly configured domain creates its content root, and
     # there is nothing a snapshot could protect. The suite caught the refusal
     # breaking exactly that (t/unit/manager/35's first-time apply).
     my $new = Lazysite::Manager::Backups::action_backup_create( 'prerestore',

@@ -81,7 +81,7 @@ sub _read_active_layout_and_theme {
 }
 
 # SM234: which domains resolve to each theme/layout. The delete guard already
-# consults this (a theme a registered domain depends on cannot be removed) but the
+# consults this (a theme a configured domain depends on cannot be removed) but the
 # LISTING did not, so a theme pinned only by a sub-domain showed a Delete button
 # and the operator learned it was protected from the error that followed. One
 # parse for the whole listing - see Domains::domain_usage.
@@ -1271,7 +1271,7 @@ sub action_theme_delete {
     return { ok => 0, error => "No active layout set" }
         unless length $active_layout;
 
-    # SM177: a sub-domain is a first-class peer - if any registered domain uses
+    # SM177: a sub-domain is a first-class peer - if any configured domain uses
     # this theme (under the active layout, where it lives), deleting it would
     # break that domain. Block and name them, just as the active-theme guard does
     # for the primary. domains_using resolves effective per-host values, so an

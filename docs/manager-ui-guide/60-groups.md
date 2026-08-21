@@ -63,6 +63,6 @@ Negative
 ## Confinement is not set here
 
 Intentionally omitted: a group `dav_scope`. It was retired in 0.7.26 and the
-tooling now refuses it. Confinement lives on the **domain** - register the domain
+tooling now refuses it. Confinement lives on the **domain** - configure the domain
 with its own content root and name the group in its `allowed_groups`. See
 Domains.
