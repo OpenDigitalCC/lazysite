@@ -44,6 +44,26 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM465 (PENDING, filing only) **an `acl-set` is audited without saying what
+  the rule became.** The trail records that a permission changed, who changed
+  it and on what path - and not what it changed to. A permission change is the
+  one operation whose effect cannot be recovered from the current state plus
+  the log: content has a version history, a rule has only its latest value, so
+  the rule in force between two changes exists nowhere afterwards. That
+  interval is what an audit asks about. Related to but separate from SM464,
+  which is about being unable to READ a rule; this is about not RECORDING one.
+
+- SM466 (PENDING, filing only) **no supported way to verify that a public page
+  renders its own layout.** SM441's fix is in and tested, and the field cannot
+  confirm it on a live instance: `preview_page` renders through the manager,
+  `read_page` returns source, `page_status` reports metadata, and none of them
+  answers what a visitor to a given Host receives. Per-Host routing is exactly
+  what makes those different questions - the layout is chosen from the Host, so
+  a docroot-shaped tool cannot report it. Fetching the page directly works and
+  proves nothing about the grant: it is egress outside the grant model, and a
+  result obtained that way cannot be attributed to any capability. `domain-check`
+  is the precedent for answering an outside-world question from inside.
+
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
