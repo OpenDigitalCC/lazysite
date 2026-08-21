@@ -90,7 +90,25 @@ my %ACTION_INFO = (
             . 'where notify-xmpp is configured) naming the form and the time but '
             . 'never the content - so nothing needs to poll to learn that something '
             . 'arrived. See /docs/forms.',
+        # SM457: the API list was MISSING, and its absence sent a real
+        # operator's agent guessing.
+        #
+        # form-submissions is gated on [manage_forms, read_submissions] -
+        # either capability admits it. read_submissions advertises it
+        # correctly; this one advertised no api key at all, so a partner
+        # holding manage_forms was told about MCP tools and a WebDAV path and
+        # nothing about the control API, while enforcement let them straight
+        # in. They tried describe_capabilities, list_form_handlers, forms,
+        # form_submissions, list_submissions and submissions - six names, none
+        # of them real, four of them snake_case guesses at a kebab-case
+        # surface and two of them MCP tool names aimed at the API.
+        #
+        # SM435 was this defect pointed the other way: the descriptor CLAIMED
+        # a path enforcement refused. Under-claiming is the quieter failure -
+        # nothing 403s, nothing errors, the agent simply cannot find a door it
+        # is holding the key to.
         unlocks => {
+            api    => [qw(form-submissions form-list)],
             mcp    => [qw(list_form_handlers bind_form)],
             webdav => ['lazysite/forms/<name>.conf (not smtp.conf / handlers.conf)'],
         },
@@ -98,8 +116,12 @@ my %ACTION_INFO = (
     manage_themes => {
         title   => 'Install and activate themes.',
         unlocks => {
+            # SM457: these are gated on [manage_themes, manage_layouts] -
+            # EITHER admits - so both must name them. A partner holding only
+            # one was admitted and never told.
             api => [ qw(theme-activate theme-list themes-for-layout themes-list-all
-                    artifact-manifest artifact-validate preview-grant theme-delete) ],
+                    artifact-manifest artifact-validate preview-grant theme-delete
+                    artifact-backups-delete layouts-available layouts-manifest) ],
             mcp => [qw(list_themes theme_tokens activate_theme create_theme delete_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
@@ -107,8 +129,11 @@ my %ACTION_INFO = (
     manage_layouts => {
         title   => 'Install, author and activate layouts.',
         unlocks => {
+            # SM457: as above - cross-gated actions belong on both lists.
             api => [ qw(layout-activate layout-install layout-delete layouts-available
-                    layouts-manifest artifact-backups-delete) ],
+                    layouts-manifest artifact-backups-delete
+                    artifact-manifest artifact-validate preview-grant
+                    theme-list themes-for-layout themes-list-all) ],
             mcp => [qw(activate_layout install_layout delete_layout list_layout_catalogue)],
             webdav => ['lazysite/layouts/<layout>/ (active layout read-only)'],
         },

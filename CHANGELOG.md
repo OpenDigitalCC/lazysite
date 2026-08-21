@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM457 resolved (PENDING) **a capability that hid its own API.** Reported by a
+  third party's agent, working against a live site: holding `manage_forms` and
+  looking for submissions, it tried `describe_capabilities`,
+  `list_form_handlers`, `forms`, `form_submissions`, `list_submissions` and
+  `submissions` - six names, **none of them control-API actions**. The real
+  answers are `actions-list` and `form-submissions`. `form-submissions` is
+  gated on `[manage_forms, read_submissions]`, either admits it,
+  `read_submissions` advertised it correctly, and `manage_forms` carried **no
+  `api` list at all** - so a partner was admitted by enforcement and told
+  nothing by the descriptor. **This is SM435 inverted**: there the descriptor
+  claimed a path enforcement refused, which at least says *no*; under-claiming
+  is silent, so the only symptom is the agent's own failure to guess. New
+  `t/lint/71` checks every capability's `api` list against the gate and found
+  **two more on its first run** - `manage_layouts` and `manage_themes` each
+  omitted actions gated on the pair. All three fixed. The lint **fails rather
+  than skips** if it cannot find the action table: its first version named it
+  `%ACTIONS` instead of `%ACTION` and skipped itself green, which is the same
+  defect one layer up.
+
 - **The Files page's alias card describes the folder it is under.** It listed
   every alias on the site regardless of where the operator was standing, so a
   site with a hundred redirects answered "which of these belong to the folder
