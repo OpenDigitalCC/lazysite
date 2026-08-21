@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM468 (PENDING, filing only) **a record of what the schema used to be.**
+  Filed alongside the decision that SM447's schema state is DERIVED from the
+  database rather than held in a state file. Derivation is a complete account
+  of *now* and no account at all of *before*: it cannot say what the shape was
+  last week, when a column appeared, or who applied the migration. Nobody has
+  asked for that yet, and it becomes a real question the first time a migration
+  is blamed for something. Recorded so the question is not rediscovered - and
+  recorded with its answer's shape: a TABLE in the store, never a file beside
+  it, because a table travels with the rows it describes and a file can be
+  restored out of step with them.
+
 - Backlog hygiene (PENDING) **t/lint/26 could not see most of the changelog,
   and three shipped items had no filing.** Its bullet pattern required the
   commit ref to follow the SM number immediately, so every bullet written as

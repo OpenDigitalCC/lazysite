@@ -29,6 +29,15 @@ package Lazysite::Data::Schema;
 # SM404's checked writer is therefore not needed for this. It remains the right
 # tool for anything that does write a file.
 #
+# CONFIRMED BY THE RELEASE MANAGER, 2026-08-21, with one thing carried forward:
+# derivation is a perfect account of NOW and no account at all of BEFORE. It
+# cannot say what the shape was last week, when a column appeared, or who
+# applied the migration. Nobody has asked for that yet and it becomes a real
+# question the first time a migration is blamed for something. SM468 records
+# it, and records that the answer - if it is ever wanted - is a TABLE IN THE
+# STORE and not a file beside it: a table travels with the rows it describes
+# through backup and through the DP-6 export, because it IS rows.
+#
 # ADDITIVE MEANS ADDITIVE. A plan either applies without touching data that is
 # already there, or it is not applied at all and says why. SQLite can rewrite a
 # table to change a column's type, and doing that silently on a store somebody
