@@ -1050,7 +1050,7 @@ sub action_migrate_to_local {
 # to edit here, so this is a plain read (no path, no ACL - the map holds only
 # site-local URL pairs).
 sub action_aliases_list {
-    my ($host) = @_;
+    my ( $host, $path ) = @_;
     require Lazysite::Aliases;
     # SM440: aliases are per-domain now. Without a host this lists the
     # docroot's map - the primary's, and every single-site instance's.
@@ -1068,7 +1068,58 @@ sub action_aliases_list {
             last;
         }
     }
-    return { ok => 1, aliases => Lazysite::Aliases::list_aliases( $DOCROOT, $key ) };
+    my $rows = Lazysite::Aliases::list_aliases( $DOCROOT, $key );
+
+    # SM447-adjacent (operator): SCOPE THE LIST TO THE FOLDER BEING BROWSED.
+    #
+    # The Files page showed every alias on the site regardless of where the
+    # operator was standing, so a site with a hundred redirects answered
+    # "which of these belong to the folder I am looking at?" by making them
+    # read all hundred. The card sits under a directory listing; it should
+    # describe that directory.
+    #
+    # Done HERE rather than in the browser because the mapping needs the
+    # CONTENT ROOT. A page at sites/alpha/blog/post.md answers to /blog/post -
+    # the vhost strips the root at request time - so the folder-to-URL
+    # translation is exactly the thing SM440 got wrong, and there must not be
+    # a second copy of it in JavaScript that can drift from this one.
+    if ( defined $path && length $path ) {
+        my $prefix = _url_prefix_for_folder($path);
+        if ( defined $prefix ) {
+            @{$rows} = grep {
+                my $t = $_->{target} // '';
+                $prefix eq '/' ? 1 : ( $t eq $prefix || index( $t, "$prefix/" ) == 0 );
+            } @{$rows};
+        }
+    }
+
+    return { ok => 1, aliases => $rows, scope => $path };
+}
+
+# The URL prefix a docroot-relative FOLDER corresponds to on its own site.
+#
+# Returns '/' for the site root, or '/blog' for a folder that serves /blog/*.
+# The content root is stripped because a domain's pages answer relative to the
+# site that serves them, not to the docroot - the SM440 lesson, applied once
+# and shared rather than reimplemented per caller.
+sub _url_prefix_for_folder {
+    my ($folder) = @_;
+    return undef unless defined $folder;
+    $folder =~ s{^/+}{};
+    $folder =~ s{/+$}{};
+    return '/' unless length $folder;
+
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my ($root) = eval { Lazysite::Manager::Domains::content_root_for_path($folder) };
+    $root = '' unless defined $root;
+
+    if ( length $root ) {
+        return '/' if $folder eq $root;
+        $folder =~ s{\A\Q$root\E/}{};
+    }
+    return length $folder ? "/$folder" : '/';
 }
 
 sub _read_lock_record {

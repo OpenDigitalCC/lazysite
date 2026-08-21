@@ -153,6 +153,10 @@ function loadDir(dir) {
   showStatus('');
   currentDir = dir || '/';
   updateBreadcrumb();
+  // The alias card is scoped to the folder, so it has to follow navigation.
+  // It used to load once at page load and never again, which meant that after
+  // the first click it described somewhere the operator had left.
+  if (typeof loadAliases === 'function') loadAliases();
   var sa = document.getElementById('select-all');
   if (sa) { sa.checked = false; sa.indeterminate = false; }
   // SM103: recent-change markers - fetch what changed lately, then render.
@@ -1073,14 +1077,27 @@ function publishSection(prefix, draftOnly) {
 }
 
 // SM134 follow-ups: read-only view of the alias-redirect map (aliases.json).
+// Scoped to the folder being browsed: the card sits under a directory
+// listing and should describe THAT directory. A site with a hundred redirects
+// otherwise answered "which of these are mine?" by making the operator read
+// all hundred.
+//
+// The folder-to-URL translation happens on the SERVER, because it needs the
+// content root - a page at sites/alpha/blog/post.md answers to /blog/post -
+// and a second copy of that mapping here is exactly what SM440 got wrong once
+// already.
 function loadAliases() {
-  fetch(API + '?action=aliases-list')
+  fetch(API + '?action=aliases-list&path=' + encodeURIComponent(currentDir))
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) return;   // leave the card in its empty state
       var rows = d.aliases || [];
       var table = document.getElementById('alias-table');
       var empty = document.getElementById('alias-empty');
+      // Say WHERE the answer applies, so an empty card reads as "none here"
+      // rather than "none at all" - a difference the operator cannot see.
+      var here = (currentDir === '/' ? 'this site' : currentDir);
+      if (empty) empty.textContent = 'No aliases point into ' + here + '.';
       if (!rows.length) { table.style.display = 'none'; empty.style.display = ''; return; }
       var html = '';
       for (var i = 0; i < rows.length; i++) {

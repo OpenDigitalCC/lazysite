@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- **The Files page's alias card describes the folder it is under.** It listed
+  every alias on the site regardless of where the operator was standing, so a
+  site with a hundred redirects answered "which of these belong to the folder
+  I am looking at?" by making them read all hundred - and it loaded once at
+  page load, so after the first click it described somewhere they had left.
+  `aliases-list` takes a `path` and filters to it; the card refreshes on
+  navigation and its empty state now says *No aliases point into /x* rather
+  than implying the site has none. **The filter is server-side deliberately**:
+  the folder-to-URL translation needs the CONTENT ROOT - a page at
+  `sites/alpha/blog/post.md` answers to `/blog/post` - which is exactly the
+  mapping SM440 got wrong, and a second copy of it in JavaScript could drift
+  from this one without anything failing. Containment is boundary-safe, so
+  `/blog` does not claim `/blogroll`.
+
 - SM445 resolved (PENDING) **an expired session says so, instead of the button
   doing nothing.** Reported from the field: *"the submit button did nothing. i
   refreshed and discovered session expired. i had no information to say that,

@@ -1001,7 +1001,9 @@ elsif ( $action eq 'mkdir' ) { $result = action_mkdir($path) }
 elsif ( $action eq 'move' )  { $result = action_move( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'copy' )  { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
-elsif ( $action eq 'aliases-list' ) { $result = action_aliases_list( $params{host} ) }
+elsif ( $action eq 'aliases-list' ) {
+    $result = action_aliases_list( $params{host}, $params{path} );
+}
 elsif ( $action eq 'git-status' )   { $result = action_git_status() }
 elsif ( $action eq 'git-history' ) { $result = action_git_history( $path, $auth_user, $params{limit} ) }
 elsif ( $action eq 'git-history-summary' ) {
