@@ -46,6 +46,19 @@ unlike( $src, qr/if\s*!\s*bash\s+"\$STAGE\/tools\/coverage\.sh"\s+--check/,
 unlike( $src, qr/coverage\.sh"?\s+--check[^\n]*\|\s*tee/,
     'and the output is NOT captured through tee, whose status hides the child' );
 
+# The log must live BESIDE the staged tree, never inside it. build-manifest.pl
+# classifies every file in the stage and refuses an unclassified one, so a log
+# written to $STAGE/... fails the very next step - which is exactly what
+# happened on the first 0.10.21 attempt. The honest-reporting change broke the
+# build it existed to make diagnosable, and the new message is what said so.
+unlike( $src, qr/COV_LOG="\$STAGE\//,
+    'the coverage log is NOT written inside the staged tree' )
+    or diag( 'build-manifest.pl refuses an unclassified file in the stage; a '
+        . 'log dropped in there stops the release one step later.' );
+
+like( $src, qr/COV_LOG="\$\{STAGE\}-/,
+    'it sits beside the stage, so it stays findable without shipping' );
+
 # --- behaviour, against two stand-ins ------------------------------------
 #
 # Reproduce release.sh's branch verbatim rather than invoking the whole

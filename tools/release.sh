@@ -558,7 +558,18 @@ fi
 # did. t/tools/34 asserts that trap against a failing stand-in, and this gate
 # must not reintroduce it.
 echo "==> coverage.sh --check (instrumented run; ~10-15 minutes)"
-COV_LOG="$STAGE/coverage-check.txt"
+# SM444 follow-up: BESIDE the stage, never inside it.
+#
+# The first version wrote this to $STAGE/coverage-check.txt and the next step
+# refused: build-manifest.pl classifies every file in the staged tree and will
+# not ship an unclassified one. So the honest-reporting change broke the build
+# it was meant to make diagnosable - caught by the manifest gate, and reported
+# by the very message this commit added ("manifest build failed", naming the
+# file, rather than a sentence about coverage).
+#
+# A sibling keeps it findable - the staging dir is retained and its path
+# printed on failure - without putting it in the payload.
+COV_LOG="${STAGE}-coverage-check.txt"
 bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1
 COV_STATUS=$?
 cat "$COV_LOG"

@@ -161,7 +161,12 @@ Naming the commit: AFTER it lands, never before
   hides the child's; `t/tools/34` asserts that trap and this must not
   reintroduce it. New `t/tools/58` covers both stand-ins, including exit 137 -
   SIGKILL, the OOM case that is the leading candidate for what actually
-  happened to 0.10.20.
+  happened to 0.10.20. **The captured log lives BESIDE the staged tree, not
+  inside it**: the first attempt wrote it to `$STAGE/` and the next step
+  refused, because `build-manifest.pl` classifies every file in the stage and
+  will not ship an unclassified one - so the honest-reporting change broke the
+  build it existed to make diagnosable, and the new message is precisely what
+  said so ("manifest build failed", naming the file). `t/tools/58` guards it.
 - SM443 resolved (PENDING) **a nav save cannot fall back to the shared file.**
   The destructive half of SM443, held from the last cut and pulled forward
   because multi-site behaviour is only exercisable where multiple sites exist.
