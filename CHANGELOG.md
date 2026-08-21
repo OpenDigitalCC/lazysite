@@ -44,6 +44,32 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM462 follow-up (PENDING) **adding a principal now grants read AND write.**
+  It defaulted to read-on/write-off, and an empty write list means NO
+  restriction - so the ordinary way of restricting a file produced a rule that
+  locked reads and left writes open, and an operator was shown *rw* while the
+  stored rule was read-only. Read+write **fails safe**: too few people able to
+  write is a nuisance, too many is what the feature exists to prevent. The
+  per-chip toggles are untouched, so narrowing it back is one visible click.
+  **This changes what a click means, not what a rule means** - enforcement and
+  every existing stored rule are unaffected.
+
+- SM461 (PENDING) **the all-files History OVERVIEW is hidden for this release.**
+  It fails with a JSON parse error while its data is fine - `git-history-summary`
+  returns valid JSON over the API - so the fault is in the page's request or
+  handling, and diagnosing it needs a browser. Hidden rather than removed: one
+  line, reversible, and the code stays for the edge fix. **The per-file History
+  panel is unaffected** and still appears beside each file; that one is a file
+  operation and works.
+
+- SM464 filed **an administrator cannot audit a permission they did not set.**
+  `acl-get` refuses on ownership and no capability overrides it, so the person
+  accountable for an estate's access control cannot read most of it. Left
+  unchanged for this beta by decision, with the reasoning recorded - including
+  that the workarounds (take ownership, or read the store off disk) are worse
+  than the question, and that `acl-set` is audited without the rule's content,
+  so the two gaps compound.
+
 - SM462 (PENDING) **a rule that locks reads and leaves writes open now says
   so**, and **Protected sections describes the folder you are in**. From an
   operator walkthrough of a gated section. They set access on a file, were

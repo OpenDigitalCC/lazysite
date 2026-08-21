@@ -325,13 +325,31 @@ function removeChip(btn) {
   chip.parentNode.removeChild(chip);
 }
 
-// Add a principal from the dropdown (default: read on, write off).
+// SM462: add a principal with BOTH rights.
+//
+// This defaulted to read on, write off - and an empty write list means NO
+// RESTRICTION, so the ordinary way of restricting a file produced a rule that
+// locked reads and left writes open. An operator was shown "rw", the stored
+// rule was read-only, and they found they could SAVE a file they could not
+// PREVIEW. Enforcement was right in both directions; the default was
+// surprising.
+//
+// Read+write is what somebody adding a person to a restricted file almost
+// always means, and it is the one that fails SAFE: too few people able to
+// write is a nuisance, too many is the thing the feature exists to prevent.
+// The per-chip r/w toggles are untouched, so narrowing it back is one click
+// and visible.
+//
+// This changes what a CLICK means, not what a rule means: enforcement and
+// every existing stored rule are unaffected. Widening acl-set to mirror read
+// into write server-side would have changed both, which is why it was not
+// done here.
 function addPrincipal(sel) {
   var name = sel.value;
   if (!name) return;
   var rights = sel.parentNode.parentNode.querySelector('.mg-rights');
   var existing = rights.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]');
-  if (!existing) rights.insertAdjacentHTML('beforeend', chipHtml(name, 1, 0));
+  if (!existing) rights.insertAdjacentHTML('beforeend', chipHtml(name, 1, 1));
   sel.value = '';
 }
 
@@ -1190,9 +1208,26 @@ function loadGitStatus() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d && d.ok) GIT.enabled = !!d.enabled;
-      // SM199: the site-level History overview button appears with the feature.
+      // SM461: the site-level History overview is HIDDEN for this release.
+      //
+      // It fails with "JSON.parse: unexpected character at line 1 column 1"
+      // while the data behind it is fine - git-history-summary returns valid
+      // JSON over the API - so the fault is in this page's request or its
+      // handling, and diagnosing it needs a browser nobody has pointed at it
+      // yet.
+      //
+      // Hidden rather than removed: one line, reversible, and the code stays
+      // present for the edge fix. The per-file History panel is UNAFFECTED and
+      // still appears beside each file - that one is a file operation and
+      // works.
+      //
+      // SM461 also argues the overview belongs in the content-history PLUGIN
+      // rather than here, because seeing it currently requires granting the
+      // Files app - full read and write over content - to somebody who only
+      // needs to know what changed. That move is an edge change; this is the
+      // beta-safe half.
       var hb = document.getElementById('hist-overview-btn');
-      if (hb) hb.style.display = GIT.enabled ? '' : 'none';
+      if (hb) hb.style.display = 'none';
     })
     .catch(function() { /* control stays hidden */ });
 }
