@@ -162,9 +162,51 @@ sub list_aliases {
 
 # Update the map for one page: clear its previous aliases (entries targeting this
 # canonical URL), then add the current set. Returns the number of aliases indexed.
+
+# SM440 follow-up: clear the entry the PRE-FIX code wrote.
+#
+# Before the fix, a page under a content root wrote its alias into the SHARED
+# map with a DOCROOT-relative target. After it, the same page writes into its
+# own domain's map with a site-relative one. Those are different files AND
+# different keys, so the old entry is untouched by anything the page does -
+# re-saving does not replace it and deleting does not remove it. Measured, not
+# assumed: both left it in place.
+#
+# That matters because the shared map is still read for the DOCROOT, which is
+# the default host - so a stale entry keeps answering there, serving another
+# site's page under the default domain, and no content operation can reach it.
+# An upgrade would have quietly frozen every pre-existing leak in that state.
+#
+# So when a page's aliases are written or removed, any shared-map entry
+# pointing at that page's OLD derivation goes too. It is precise rather than a
+# sweep: the target must equal the docroot-relative canonical for this exact
+# page, which is the one string the old code would have written for it.
+sub _forget_legacy {
+    my ( $docroot, $rel ) = @_;
+    my ( undef, $key ) = _root_for( $docroot, $rel );
+    # The docroot's own map IS the shared one, and for a docroot page the old
+    # derivation and the current one are the SAME string - so without this the
+    # purge would delete exactly what the write is about to put back. Removing
+    # it changes no observable behaviour; it avoids a redundant
+    # read-modify-write, which is why no test can distinguish it. Recorded
+    # rather than tested, because a test that cannot fail is worse than none.
+    return if $key eq '_root';
+
+    my $legacy = canonical_url_for($rel);    # what the old code derived
+    _update( $docroot, '_root', sub {
+            my ($m) = @_;
+            for my $k ( keys %{$m} ) {
+                delete $m->{$k} if _target( $m->{$k} ) eq $legacy;
+            }
+            return $m;
+    } );
+    return;
+}
+
 sub index_page {
     my ( $docroot, $rel, $content ) = @_;
     my ( $canon, $key ) = _canonical_on_its_site( $docroot, $rel );
+    _forget_legacy( $docroot, $rel );
     my @entries = (
         ( map { [ $_, 301 ] } _parse_aliases( $content, 'aliases' ) ),
         ( map { [ $_, 302 ] } _parse_aliases( $content, 'aliases_temp' ) ),
@@ -189,6 +231,7 @@ sub index_page {
 sub deindex_page {
     my ( $docroot, $rel ) = @_;
     my ( $canon,   $key ) = _canonical_on_its_site( $docroot, $rel );
+    _forget_legacy( $docroot, $rel );
     _update( $docroot, $key, sub {
             my ($m) = @_;
             for my $k ( keys %{$m} ) { delete $m->{$k} if _target( $m->{$k} ) eq $canon }

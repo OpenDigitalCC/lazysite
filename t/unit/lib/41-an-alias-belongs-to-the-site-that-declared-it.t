@@ -128,4 +128,61 @@ subtest 'deindex removes it from the same map' => sub {
             . 'could not be cleared by the operation meant to clear it.' );
 };
 
+subtest 'a PRE-FIX entry in the shared map is cleared by a re-save' => sub {
+    # Before the fix, a page under a content root wrote into the SHARED map
+    # with a DOCROOT-relative target. After it, the same page writes into its
+    # own domain's map with a site-relative one - different file AND different
+    # key - so nothing the page does touches the old entry.
+    #
+    # Measured before this was written: re-saving left it, and deleting left
+    # it. That matters because the shared map is still read for the docroot,
+    # which is the DEFAULT host, so a stale entry keeps answering there and
+    # serving another site's page under the default domain. An upgrade would
+    # have frozen every pre-existing leak in exactly that state, unreachable
+    # by any content operation.
+    my $d = fixture();
+    open my $m, '>', "$d/lazysite/aliases.json" or die $!;
+    print {$m} '{"/thesis":"/sites/one/publications/thesis"}';
+    close $m;
+
+    Lazysite::Aliases::index_page( $d, 'sites/one/publications/thesis.md', $PAGE );
+    is_deeply( map_at("$d/lazysite/aliases.json"), {},
+        'the legacy entry is gone after a re-save' )
+        or diag( 'It answers on the default host and no content operation '
+            . 'can reach it, so it would outlive the page that declared it.' );
+    is( map_at("$d/lazysite/aliases/sites_one.json")->{'/thesis'},
+        '/publications/thesis', 'and the correct entry replaced it' );
+};
+
+subtest 'and a delete clears it too' => sub {
+    my $d = fixture();
+    open my $m, '>', "$d/lazysite/aliases.json" or die $!;
+    print {$m} '{"/thesis":"/sites/one/publications/thesis"}';
+    close $m;
+    Lazysite::Aliases::deindex_page( $d, 'sites/one/publications/thesis.md' );
+    is_deeply( map_at("$d/lazysite/aliases.json"), {},
+        'removing the page removes its legacy entry' );
+};
+
+subtest 'the purge is PRECISE, not a sweep of the shared map' => sub {
+    # The docroot's own aliases live in that file legitimately. Clearing more
+    # than the one page's legacy entry would delete the primary's redirects as
+    # a side effect of editing an unrelated domain's page.
+    my $d = fixture();
+    open my $m, '>', "$d/lazysite/aliases.json" or die $!;
+    print {$m} '{"/thesis":"/sites/one/publications/thesis",'
+        . '"/keep-me":"/about","/also":"/sites/one-drafts/x"}';
+    close $m;
+
+    Lazysite::Aliases::index_page( $d, 'sites/one/publications/thesis.md', $PAGE );
+    my $shared = map_at("$d/lazysite/aliases.json");
+    is( $shared->{'/keep-me'}, '/about',
+        "the primary's own alias survives" )
+        or diag( 'A sweep would delete the default site\'s redirects whenever '
+            . 'anyone edited a page on another domain.' );
+    is( $shared->{'/also'}, '/sites/one-drafts/x',
+        'and so does an entry for a different page' );
+    ok( !exists $shared->{'/thesis'}, 'only this page\'s legacy entry goes' );
+};
+
 done_testing();

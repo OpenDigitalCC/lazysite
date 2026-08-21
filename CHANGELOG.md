@@ -57,6 +57,21 @@ Naming the commit: AFTER it lands, never before
   mapping SM440 got wrong, and a second copy of it in JavaScript could drift
   from this one without anything failing. Containment is boundary-safe, so
   `/blog` does not claim `/blogroll`.
+- SM440 follow-up (PENDING) **a pre-fix alias entry is now cleared, and could
+  not be before.** Before the fix, a page under a content root wrote into the
+  SHARED map with a docroot-relative target; after it, the same page writes
+  into its own domain's map with a site-relative one. Different file *and*
+  different key - so nothing the page did touched the old entry. **Measured:
+  re-saving left it, and deleting left it.** The shared map is still read for
+  the docroot, which is the DEFAULT host, so a stale entry kept answering
+  there and serving another site's page under the default domain - and an
+  upgrade would have frozen every pre-existing leak in that state, unreachable
+  by any content operation. `index_page` and `deindex_page` now also drop the
+  one shared-map entry matching that page's old derivation. **Precise, not a
+  sweep**: the primary's own aliases live in that file legitimately, and
+  clearing more would delete the default site's redirects as a side effect of
+  editing another domain's page. Corrects a claim in SM440's own status note,
+  which said re-saving would clear these; it would not have.
 
 - SM445 resolved (PENDING) **an expired session says so, instead of the button
   doing nothing.** Reported from the field: *"the submit button did nothing. i
