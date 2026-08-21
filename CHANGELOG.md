@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM467 resolved (PENDING) **a manager group may now CONFER api and mcp,
+  while still being unable to use either.** Reported from a new site: the
+  setup-manager admin - the only account that existed - could not add anyone to
+  `agent-ai`, because joining a group acquires its capabilities and the admin
+  group deliberately holds neither channel. It could not repair that itself:
+  `grantable` is operator-only to set, correctly, since a delegate able to
+  widen its own grant authority has no ceiling at all. Every refusal was right
+  and together they left no path. **Holding and conferring are different
+  questions and SM127 only bounds the first** - it makes manager groups
+  interactive-only so a stolen manager session cannot become a remote channel,
+  which is about USE. `grantable` (SM195) is the mechanism for exactly that
+  split, so manager groups are now seeded with grant authority for the two
+  channels they deliberately withhold. `caps_for()` builds from `@CAP_KEYS`
+  alone and never reads `grantable`, so this confers no ability to use either -
+  asserted through the resolver every consumer actually consults, because if
+  that leaked it would hand every manager group the access SM127 exists to
+  deny. Existing installs are NOT repaired: seeding authority into a deployed
+  site would widen it silently. Instead the refusals in `group-add`, `token`
+  and `claim-create` now name the remedy, matching what `group-settings-set`
+  has said since SM195.
+
 - SM467 (PENDING, filing only) **a `setup-manager` admin cannot grant API or
   MCP access, and the refusal does not say how.** `_ensure_manager_group_caps`
   seeds the admin group with every capability except `api` and `mcp`, and no

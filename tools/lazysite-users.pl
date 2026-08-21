@@ -848,8 +848,13 @@ sub cmd_group_add {
     # group is conferring them. A delegate that could not grant `mcp` could add
     # itself to a group that already had it - the ceiling, walked around.
     if ( my $c = _exceeds_authority( $actor, _caps_granted_by_group($group) ) ) {
+        # SM467: name the REMEDY, not just the refusal. cmd_group_settings_set
+        # has said "an operator can add it with: group-set ..." since SM195;
+        # this path named the capability and stopped, so the reader had no way
+        # to learn that grant authority exists or how it is set.
         die "You cannot add anyone to '$group': it grants '$c', which you may "
-            . "not confer.\n";
+            . "not confer. An operator can allow it with: "
+            . "group-set <your-group> grantable $c\n";
     }
     # Ensure the default role groups (and their capabilities) exist, so adding a
     # user to e.g. user-managers actually confers that group's caps via caps_for.
@@ -972,7 +977,28 @@ sub _ensure_manager_group_caps {
     my $gs = Lazysite::Auth::Settings::read_group_settings();
     return if ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} };
     my %caps = map { $_ => 1 } grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
-    $gs->{$group} = { label => $group, manager => 1, %caps };
+
+    # SM467: HOLDING is not CONFERRING, and SM127 only bounds the first.
+    #
+    # A manager group deliberately does not get api/mcp: SM127 makes manager
+    # groups interactive-only, so a stolen manager session cannot be turned
+    # into a remote channel. That rule is about what a manager may USE and this
+    # seed keeps it exactly.
+    #
+    # But the same exclusion made the ONLY account on a fresh site unable to
+    # set up an AI agent, because joining a group acquires its capabilities, so
+    # adding anyone to agent-ai counts as conferring `api`. And it could not
+    # repair that itself: `grantable` is operator-only to set, correctly - a
+    # delegate that could widen its own grant authority has no ceiling at all.
+    # Every refusal was right and together they left no path.
+    #
+    # `grantable` is precisely the mechanism for this split (SM195): authority
+    # to confer, conferred from above, without holding. caps_for() builds from
+    # @CAP_KEYS alone and never reads grantable - _may_confer is its ONLY
+    # consumer - so this grants no ability to use either channel. Asserted in
+    # t/unit/users/15, because that is the claim the whole change rests on.
+    $gs->{$group}
+        = { label => $group, manager => 1, %caps, grantable => [ 'api', 'mcp' ] };
     write_group_settings($gs);
     return;
 }
@@ -1351,8 +1377,10 @@ sub cmd_token {
     # destroys its password. A delegate may only do that to an account whose
     # capabilities it could confer in the first place.
     if ( my $c = _exceeds_authority( $actor, _caps_held_by($user) ) ) {
+        # SM467: name the remedy here too - see cmd_group_add.
         die "You cannot issue a credential for '$user': that account holds "
-            . "'$c', which you may not confer.\n";
+            . "'$c', which you may not confer. An operator can allow it with: "
+            . "group-set <your-group> grantable $c\n";
     }
 
     my $token = generate_token();
@@ -1851,8 +1879,10 @@ sub cmd_claim_create {
         # extra capabilities to sits inside the delegate's subtree while being
         # above it in privilege. Ancestry alone does not bound that.
         if ( my $c = _exceeds_authority( $actor, _caps_held_by($user) ) ) {
+            # SM467: name the remedy here too - see cmd_group_add.
             die "You cannot create a setup link for '$user': that account holds "
-                . "'$c', which you may not confer.\n";
+                . "'$c', which you may not confer. An operator can allow it "
+                . "with: group-set <your-group> grantable $c\n";
         }
     }
 
@@ -2923,6 +2953,9 @@ sub _ensure_groups_seeded {
         $seed->{$g}{label} //= $g;
         # SM127: manager groups are interactive-only - no remote api/mcp channels.
         $seed->{$g}{$_} = 1 for grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
+        # SM467: but they may CONFER those channels - see
+        # _ensure_manager_group_caps for why the two are different questions.
+        $seed->{$g}{grantable} = [ 'api', 'mcp' ];
     }
     write_group_settings($seed);
     _remove_conf_key('manager_groups');    # SM138: key retired once migrated
