@@ -176,10 +176,51 @@ was built.
 
 ## Access
 
-Reading and writing tables needs the **`manage_data`** capability, granted like
-any other through a group. A page binding is not a capability question: it
-renders as part of the page, and a gated section's table is as reachable as the
-section is.
+Reading and writing tables through the manager, the API or MCP needs the
+**`manage_data`** capability, granted like any other through a group.
+
+A **page binding** is not a capability question: it renders as part of the
+page, so a gated section's table is as reachable as the section is.
+
+**A table is public, and that is worth deciding before you put anything in
+one.** A page's own JavaScript reads rows from `/lazysite-data.pl?table=<name>`,
+and that address answers anyone who knows the table's name -- it is reached
+directly, so it inherits nothing from any page. Putting a table behind a gated
+page gates the page, not the table.
+
+So: **a table is as public as a published page.** Anything that should not be
+is not a table yet. (A read gate is filed as SM476; until it exists this is the
+rule, stated rather than implied.)
+
+### Who may write
+
+A write needs all three:
+
+- a signed-in session (a public visitor submitting data is what a **form** is
+  for -- forms have rate limits, spam controls and a handler that vets what it
+  accepts, and a table write has none of that);
+- the **`manage_data`** capability;
+- membership of a group in the table's **`writable_by`**, if it names any.
+
+`writable_by` only ever **takes access away**. It cannot grant a write to an
+account without `manage_data`, because the descriptor is a file an agent can
+write -- if the list could widen, an agent could hand write access to a group
+it chose.
+
+```yaml
+key: code
+writable_by:
+  - secretaries
+fields:
+  code:
+    type: text
+```
+
+Leave it out and any `manage_data` holder may write.
+
+**`writable=` on a page binding is not a permission.** It tells the page's own
+script whether to offer editing controls. The endpoint cannot see which page
+called it, so a marker in front matter could never gate anything.
 
 ## Where things live
 
