@@ -71,8 +71,8 @@ subtest 'a rebuild that drops a column is REFUSED until the column is named' => 
             . 'a boolean: "yes, destructive" would have passed here.' );
 
     # The table is untouched by either refusal.
-    is( scalar @{ read_rows( $d, 'items' )->{rows} }, 1, 'the row is still there' );
-    is( read_rows( $d, 'items' )->{rows}[0]{colour}, 'red', 'with its column' );
+    is( scalar @{ read_rows( $d, 'items', as => 'operator' )->{rows} }, 1, 'the row is still there' );
+    is( read_rows( $d, 'items', as => 'operator' )->{rows}[0]{colour}, 'red', 'with its column' );
 };
 
 subtest 'confirmed, it rebuilds - and takes a safety export first' => sub {
@@ -93,7 +93,7 @@ subtest 'confirmed, it rebuilds - and takes a safety export first' => sub {
             . 'wrong, the rows must exist in one other place and the operator '
             . 'must be told where.' );
 
-    my $rows = read_rows( $d, 'items', order_by => 'code' )->{rows};
+    my $rows = read_rows( $d, 'items', as => 'operator', order_by => 'code' )->{rows};
     is( scalar @{$rows}, 2, 'both rows survive the rebuild' );
     is( $rows->[0]{qty}, 2, 'the carried column keeps its value' );
     ok( !exists $rows->[0]{colour}, 'and the dropped column is gone' );
@@ -115,7 +115,7 @@ subtest 'a type change goes through the same door' => sub {
     my $r = rebuild_table( $d, 'items' );
     ok( $r->{ok}, 'and the rebuild needs no confirmation, because nothing is dropped' )
         or diag( $r->{error} );
-    is( read_rows( $d, 'items' )->{rows}[0]{n}, 42, 'the value carries over' );
+    is( read_rows( $d, 'items', as => 'operator' )->{rows}[0]{n}, 42, 'the value carries over' );
 };
 
 subtest 'a failure leaves the table standing' => sub {
@@ -138,7 +138,7 @@ subtest 'a failure leaves the table standing' => sub {
         or diag( 'A failure that does not say where the copy went leaves the '
             . 'operator no better off than no copy.' );
 
-    my $rows = read_rows( $d, 'items' )->{rows};
+    my $rows = read_rows( $d, 'items', as => 'operator' )->{rows};
     is( scalar @{$rows}, 1, 'the original table is intact' );
     is( $rows->[0]{colour}, 'red', 'with the column that was to be dropped' );
 

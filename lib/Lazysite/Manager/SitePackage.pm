@@ -640,7 +640,7 @@ sub package_apply {
                 next;
             }
 
-            my $existing = Lazysite::Data::Tables::read_rows( $DOCROOT, $table,
+            my $existing = Lazysite::Data::Tables::read_rows( $DOCROOT, $table, as => 'operator',
                 limit => 1 );
             if ( $existing->{ok} && @{ $existing->{rows} || [] } ) {
                 push @data_skipped,

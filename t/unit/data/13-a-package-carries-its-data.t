@@ -58,7 +58,7 @@ subtest 'export_all_rows pages past the read cap' => sub {
     insert_row( $d, 'products', { code => sprintf( 'P%04d', $_ ), name => "n$_" } )
         for 1 .. 1200;
 
-    my $capped = read_rows( $d, 'products' );
+    my $capped = read_rows( $d, 'products', as => 'operator' );
     is( scalar @{ $capped->{rows} }, 200, 'an ordinary read is capped' );
 
     my $all = export_all_rows( $d, 'products' );
@@ -99,7 +99,7 @@ subtest 'the round trip an apply performs' => sub {
     ok( $imp->{ok}, 'the export imports on the far side' ) or diag( $imp->{error} );
     insert_row( $dst, 'products', $_ ) for @{ $imp->{rows} };
 
-    my $got = read_rows( $dst, 'products', order_by => 'code' )->{rows};
+    my $got = read_rows( $dst, 'products', as => 'operator', order_by => 'code' )->{rows};
     is( scalar @{$got}, 2, 'both rows arrive' );
     is( $got->[1]{name}, q{Bob's "widget"}, 'the awkward text survives' );
     is( $got->[0]{price}, '9.99',   'and the prices' );
@@ -118,7 +118,7 @@ subtest 'an apply REFUSES a table that already holds rows' => sub {
     apply_schema( $dst, 'products' );
     insert_row( $dst, 'products', { code => 'LIVE', name => 'in use' } );
 
-    my $existing = read_rows( $dst, 'products', limit => 1 );
+    my $existing = read_rows( $dst, 'products', as => 'operator', limit => 1 );
     ok( scalar @{ $existing->{rows} },
         'the occupancy check sees the live row' )
         or diag( 'This is the check package_apply makes before restoring; if '
@@ -292,7 +292,7 @@ subtest 'APPLY: the data arrives on a fresh instance, and is refused on a busy o
             . join( ', ', map { "$_->{table} ($_->{why})" } @{ $ok->{data_skipped} || [] } ) );
     is( $done->{rows}, 2, 'both rows' );
 
-    my $got = read_rows( $dst, 'products', order_by => 'code' )->{rows};
+    my $got = read_rows( $dst, 'products', as => 'operator', order_by => 'code' )->{rows};
     is( $got->[1]{price}, '120.00', 'and the money kept its trailing zeros' );
 
     # A THIRD apply onto the now-populated instance must REFUSE, not overwrite.
@@ -305,7 +305,7 @@ subtest 'APPLY: the data arrives on a fresh instance, and is refused on a busy o
             . 'with a snapshot from whenever the package was built, and the '
             . 'operator asked for a site, not for that.' );
     like( $refused->{why}, qr/already holds rows/, 'saying why' );
-    is( scalar @{ read_rows( $dst, 'products' )->{rows} }, 2,
+    is( scalar @{ read_rows( $dst, 'products', as => 'operator' )->{rows} }, 2,
         'and the live rows are untouched' );
 };
 

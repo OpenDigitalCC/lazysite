@@ -34,6 +34,8 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
+use Lazysite::Data::Connect ();
+
 # SM469: OFF MEANS OFF, on this path too.
 #
 # ADR 0009's first clause is that every dispatch path consults the enabled
@@ -151,8 +153,30 @@ sub action_data_table_save {
     # Deliberately NOT migrated here. Writing a descriptor and changing the
     # stored table are two decisions, and the second can be refused in part -
     # an operator needs to see what the migration would do before it happens.
+    #
+    # BUT WHETHER ONE IS NEEDED IS DERIVED, not asserted. This was a hardcoded
+    # `1`, so every descriptor save reported "migration required" whether or
+    # not the stored table already matched - and SM476 made that visible,
+    # because PUBLISHING a table is a descriptor save that changes no field at
+    # all. Being told to run a migration to change a privacy setting puts a
+    # destructive-change confirmation in front of an operator for no reason,
+    # and an operator who is told that every time stops reading it.
+    #
+    # Derived the same way D2 derives schema state: the database IS the state,
+    # so plan_migration answers by looking rather than by remembering.
+    my $needed = 1;
+    my $dbh    = Lazysite::Data::Connect::read_handle($DOCROOT);
+    if ($dbh) {
+        require Lazysite::Data::Schema;
+        my $plan = Lazysite::Data::Schema::plan_migration( $d, $dbh );
+        $needed = ( $plan->{ok}
+                && !@{ $plan->{create}   // [] }
+                && !@{ $plan->{additive} // [] }
+                && !@{ $plan->{blocked}  // [] } ) ? 0 : 1;
+    }
+
     return { ok => 1, table => $table, title => $d->{title},
-        fields => $d->{fields}, migrate_required => 1 };
+        fields => $d->{fields}, migrate_required => $needed };
 }
 
 sub action_data_tables {
@@ -192,7 +216,10 @@ sub action_data_rows {
     if ( my $off = _gate() ) { return $off }
     my ( $table, %opt ) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
-    return read_rows( $DOCROOT, $table, %opt );
+    # `as => 'operator'`: every action in this module has already passed the
+    # manage_data gate in _gate, so the SM476 read check would be asking a
+    # question that is already answered.
+    return read_rows( $DOCROOT, $table, as => 'operator', %opt );
 }
 
 # Bring the store into line with the descriptor, as far as is safe.

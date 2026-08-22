@@ -230,6 +230,17 @@ sub load_descriptor {
         }
     }
 
+    # SM476: `public` is the publication flag, and it DEFAULTS TO FALSE.
+    #
+    # Chosen while there was still no installed base to break - the plugin has
+    # only ever shipped to edge, is born disabled, and the only tables in
+    # existence were three test tables. A closed default costs nothing today
+    # and cannot be chosen at all once this reaches stable.
+    return _err( 'descriptor',
+        "table '$name': public must be true or false", rule => 'public' )
+        if exists $raw->{public} && ref $raw->{public};
+    my $public = $raw->{public} ? 1 : 0;
+
     my $wb = $raw->{writable_by} // [];
     return _err( 'descriptor', "table '$name': writable_by must be a list" )
         unless ref $wb eq 'ARRAY';
@@ -249,6 +260,7 @@ sub load_descriptor {
         fields      => $fields,
         indexes     => $indexes,
         writable_by => $wb,
+        public      => $public,
         timestamps  => ( $raw->{timestamps} ? 1 : 0 ),
     };
 }

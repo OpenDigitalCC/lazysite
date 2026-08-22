@@ -115,10 +115,39 @@ sub load_table {
 # %opt is passed to select_sql, which is where the ceiling and the ORDER BY
 # membership check live - so a caller cannot widen either by coming through
 # here.
+#
+# SM476: `as` IS REQUIRED, AND IT DIES WITHOUT ONE.
+#
+# The obvious shape was a may_read() the read surfaces remember to call first,
+# and "remember to" is exactly how this went wrong in the first place: the
+# endpoint was a second door built without the gate the first door had, and no
+# reviewer noticed because nothing in the signature asked. So the question
+# moves into the call itself - a caller CANNOT read rows without saying who is
+# asking, and there is nothing to forget.
+#
+# It DIES rather than returning an error, because a missing `as` is a
+# programming fault and no visitor input can produce one. Dying is loud in the
+# suite and unreachable in the field; returning an error would be a surface
+# that silently renders nothing, which is the failure this whole filing is
+# about.
 sub read_rows {
     my ( $docroot, $name, %opt ) = @_;
+    my $as = delete $opt{as};
+    die 'read_rows needs to know who is asking: pass as => "operator" for a '
+        . 'manage_data-gated surface, or as => { user, groups } for a visitor'
+        unless defined $as;
+
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
+
+    # THE SAME ANSWER AS A TABLE THAT DOES NOT EXIST. Distinguishing "you may
+    # not read this" from "there is no such table" tells an anonymous caller
+    # which tables a site has, which is most of what an attacker wants from a
+    # store they cannot read.
+    require Lazysite::Data::Access;
+    return _err( "no table '$name' is declared", table => $name,
+        kind => 'no_such_table' )
+        unless Lazysite::Data::Access::may_read( $docroot, $d, $as );
 
     # NO STORE AT ALL is the same answer as no table, and is checked BEFORE
     # connecting. A read-only handle cannot open a file that does not exist, so
@@ -298,7 +327,7 @@ sub export_all_rows {
     my @all;
     my $offset = 0;
     while (1) {
-        my $r = read_rows( $docroot, $name,
+        my $r = read_rows( $docroot, $name, as => 'operator',
             order_by => $d->{key}, order  => 'asc',
             limit    => $batch,    offset => $offset );
         return $r unless $r->{ok};

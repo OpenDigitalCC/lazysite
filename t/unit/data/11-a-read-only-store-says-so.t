@@ -72,7 +72,7 @@ subtest 'a read-only store directory is REPORTED, not read as empty' => sub {
     is( $why->{reason}, 'directory_not_writable', 'the probe finds it' );
     like( $why->{detail}, qr/WAL/, 'and explains why a READ needs it' );
 
-    my $r = read_rows( $d, 'p' );
+    my $r = read_rows( $d, 'p', as => 'operator' );
     ok( !$r->{ok}, 'and the read is an ERROR' )
         or diag( 'It used to return ok with an empty list and '
             . 'pending_schema, so an operator was told their table was '

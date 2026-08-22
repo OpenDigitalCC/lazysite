@@ -200,6 +200,53 @@ subtest 'LOAD: a row goes in over the control API' => sub {
         'and another' );
 };
 
+subtest 'SM476: until it is published, a visitor sees nothing' => sub {
+    # The descriptor above declares no `public:`, so it defaults closed - and
+    # this is the step an author meets first, before they have read anything
+    # about publication. It has to be visible in the journey rather than
+    # arranged away by a fixture, because "I loaded the rows and the page is
+    # empty" is the exact moment somebody needs to be told why.
+    my $html = visit('/');
+    unlike( $html, qr/Widget/, 'the rows are not on the page' )
+        or diag( 'A table defaults to closed. If this renders, the default '
+            . 'has been reversed and every table declared before that change '
+            . 'is now exposed.' );
+
+    # AND THE OPERATOR CAN STILL SEE THEM. The rows went in fine; it is
+    # publication that is missing, not data - so the surface that says so must
+    # keep working, or the diagnosis is impossible.
+    my $rows = api_post('action=data-rows&table=products');
+    ok( $rows->{ok}, 'but the API still reads them' );
+    is( scalar @{ $rows->{rows} // [] }, 2, 'both of them' );
+};
+
+subtest 'PUBLISH: the operator says the table may be seen' => sub {
+    my $yaml = <<'YAML';
+public: true
+title: Products
+key: code
+fields:
+  code:
+    type: text
+    required: true
+  name:
+    type: text
+  price:
+    type: decimal
+    digits: 8
+    places: 2
+YAML
+    my $r = api_post( 'action=data-table-save',
+        { table => 'products', descriptor => $yaml } );
+    ok( $r->{ok}, 'the descriptor is re-saved with public: true' )
+        or diag( $r->{error} // '' );
+    ok( !$r->{migrate_required},
+        'and publishing is not a schema change - no migration needed' )
+        or diag( 'Publication is about who may read the rows, not about what '
+            . 'shape they are. Needing a migration to publish would put a '
+            . 'destructive-change confirmation in front of a privacy setting.' );
+};
+
 subtest 'READ: a visitor sees it on the page' => sub {
     my $html = visit('/');
     like( $html, qr/<li>Widget \@ 9\.99<\/li>/, 'the row is rendered' )

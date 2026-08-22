@@ -68,7 +68,7 @@ subtest 'declared tables come from filenames, validated' => sub {
 };
 
 subtest 'a table nobody declared says so, rather than reading empty' => sub {
-    my $r = read_rows( $docroot, 'nosuch' );
+    my $r = read_rows( $docroot, 'nosuch', as => 'operator' );
     ok( !$r->{ok}, 'it is an error' );
     is( $r->{kind}, 'no_such_table', 'of a nameable kind' );
     like( $r->{error}, qr/no table 'nosuch' is declared/, 'and says which' )
@@ -77,7 +77,7 @@ subtest 'a table nobody declared says so, rather than reading empty' => sub {
 };
 
 subtest 'declared but not yet migrated reads empty, and admits it' => sub {
-    my $r = read_rows( $docroot, 'products' );
+    my $r = read_rows( $docroot, 'products', as => 'operator' );
     ok( $r->{ok}, 'reading is not an error' )
         or diag( 'Declaring a table and not yet migrating is an ordinary '
             . 'state - the descriptor is content and arrives first.' );
@@ -101,7 +101,7 @@ subtest 'the write path, through one implementation' => sub {
     ok( $r->{ok}, 'insert' ) or diag( $r->{error} );
     is( $r->{key}, 'A1', 'and it reports the key' );
 
-    my $rows = read_rows( $docroot, 'products' )->{rows};
+    my $rows = read_rows( $docroot, 'products', as => 'operator' )->{rows};
     is( scalar @{$rows}, 1, 'one row' );
     is( $rows->[0]{name}, q{Bob's "widget"}, 'the awkward name survives' );
     is( $rows->[0]{active}, 1, 'the descriptor default was applied' );
@@ -150,7 +150,7 @@ subtest 'a decimal survives the REAL handles, trailing zeros and all' => sub {
     insert_row( $d2, 'money', { ref => $_, amount => $want{$_} } )
         for sort keys %want;
 
-    my $rows = read_rows( $d2, 'money' )->{rows};
+    my $rows = read_rows( $d2, 'money', as => 'operator' )->{rows};
     my %got = map { $_->{ref} => $_->{amount} } @{$rows};
     for my $k ( sort keys %want ) {
         is( $got{$k}, $want{$k}, "$want{$k} reads back exactly" )
@@ -190,7 +190,7 @@ subtest 'the READ PATH takes the read handle' => sub {
             $took_write++;
             return $real->(@_);
         };
-        my $r = read_rows( $docroot, 'products' );
+        my $r = read_rows( $docroot, 'products', as => 'operator' );
         ok( $r->{ok}, 'reading works' ) or diag( $r->{error} // '' );
         ok( ( grep { $_->{code} eq 'C1' } @{ $r->{rows} || [] } ),
             'and returns the row it was asked for' );
@@ -218,7 +218,7 @@ subtest 'and the read handle itself refuses writes' => sub {
             . 'where a bug becomes a write triggered by an anonymous '
             . 'visitor.' );
 
-    my $rows = read_rows( $docroot, 'products' )->{rows};
+    my $rows = read_rows( $docroot, 'products', as => 'operator' )->{rows};
     ok( ( grep { $_->{code} eq 'B1' } @{ $rows || [] } ),
         'and the row the DELETE would have removed is still there' );
 };

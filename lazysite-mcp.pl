@@ -584,7 +584,7 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => {
                 table => { type => 'string', description => 'The table name - lower-case letters, digits and underscores. This becomes the filename.' },
-                descriptor => { type => 'string', description => 'The descriptor as YAML text. Keys: title, key, timestamps, indexes, writable_by, and fields (a mapping of name to {type, required, default, ...}). Types: text, integer, decimal, boolean, date, datetime, enum. A decimal declares digits and places; an enum declares values.' },
+                descriptor => { type => 'string', description => 'The descriptor as YAML text. Keys: public, title, key, timestamps, indexes, writable_by, and fields (a mapping of name to {type, required, default, ...}). Types: text, integer, decimal, boolean, date, datetime, enum. A decimal declares digits and places; an enum declares values. public defaults to FALSE: until it is true, an anonymous visitor cannot read the table through a page binding or the data endpoint, and it answers as though it does not exist.' },
             },
             required => [ 'table', 'descriptor' ], additionalProperties => JSON::PP::false },
         run => sub {

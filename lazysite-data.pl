@@ -8,12 +8,13 @@
 # a different question with a different answer - it is a visitor, usually
 # anonymous.
 #
-# READS ARE OPEN, AND THAT IS A STATED LIMIT RATHER THAN AN OVERSIGHT. A
-# descriptor has no `readable_by`, so any declared table can be read by anyone
-# who knows its name. A page bound to a table inherits the PAGE's gate; this
-# endpoint is reached by its own URL and inherits nothing. So until a read gate
-# exists (filed as SM476), a table is as public as a published page, and the
-# docs say so where an author chooses what to put in one.
+# READS ARE GATED (SM476), and this endpoint used to be the reason they were
+# not. A page bound to a table inherits the PAGE's gate; this endpoint is
+# reached by its own URL and inherited nothing, so it was a second door to the
+# same rows with no lock on it. A table now has to be PUBLISHED before an
+# anonymous visitor sees anything, and an acls.json read list narrows it
+# further. The decision lives in Lazysite::Data::Access, and read_rows will not
+# answer at all without being told who is asking.
 #
 # IT VALIDATES ITS OWN IDENTITY, and that is the whole reason SM411 exists.
 #
@@ -248,12 +249,27 @@ sub main {
     $opt{limit}    = $q{limit}    if defined $q{limit}    && length $q{limit};
     $opt{offset}   = $q{offset}   if defined $q{offset}   && length $q{offset};
 
-    my $r = Lazysite::Data::Tables::read_rows( $docroot, $table, %opt );
+    # THE VISITOR (SM476), with no operator bypass. This endpoint is the page's
+    # data source, so it must answer exactly what the page's own binding would
+    # - an operator who saw more here than their site's visitors do would be
+    # testing a different site.
+    my $r = Lazysite::Data::Tables::read_rows(
+        $docroot, $table,
+        as => {
+            user   => $user,
+            groups => [
+                grep { length }
+                    split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
+            ],
+        },
+        %opt
+    );
     unless ( $r->{ok} ) {
-        # Worded for the gate that does not exist yet, deliberately: the
-        # wording is what a read gate would need, and pinning it now means
-        # adding one does not change what a caller sees. Today the only
-        # answer is "no such table".
+        # A table nobody declared and a table this caller may not read answer
+        # the SAME WAY, which is why the wording was chosen before the gate
+        # existed: adding the gate changed no caller-visible string. Telling an
+        # anonymous caller which tables a site has is most of what is worth
+        # having from a store they cannot read.
         return reply( 404,
             { ok => 0, error => 'no such table, or not available to you' } );
     }

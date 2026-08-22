@@ -182,15 +182,55 @@ Reading and writing tables through the manager, the API or MCP needs the
 A **page binding** is not a capability question: it renders as part of the
 page, so a gated section's table is as reachable as the section is.
 
-**A table is public, and that is worth deciding before you put anything in
-one.** A page's own JavaScript reads rows from `/cgi-bin/lazysite-data.pl?table=<name>`,
-and that address answers anyone who knows the table's name -- it is reached
-directly, so it inherits nothing from any page. Putting a table behind a gated
-page gates the page, not the table.
+### A table is closed until you publish it
 
-So: **a table is as public as a published page.** Anything that should not be
-is not a table yet. (A read gate is filed as SM476; until it exists this is the
-rule, stated rather than implied.)
+A page's own JavaScript reads rows from `/cgi-bin/lazysite-data.pl?table=<name>`,
+and that address is reached directly -- it inherits nothing from any page.
+Putting a table behind a gated page gates **the page**, not the table.
+
+So publication is declared on the table itself:
+
+```yaml
+public: true
+key: code
+fields:
+  code:
+    type: text
+```
+
+**The default is `false`**, and a table is a store rather than a published
+artefact -- a file is under the docroot because you put it there to be served,
+and a table is not. Until you publish it, an anonymous visitor sees nothing:
+not the rows, and not that the table exists at all. It answers exactly as a
+table that was never declared does, so nobody can discover your table names by
+guessing at them.
+
+`public` is about **anonymous visitors**. Any signed-in account may read an
+unpublished table unless an ACL says otherwise, which is the next section.
+
+### Narrowing to accounts and groups
+
+Tables use the **same read/write lists as files**, in the same store, with the
+same meaning: entries are a username or `@group`, and no entry means no
+restriction. A table's ACL path is its descriptor's own path:
+
+```
+lazysite/db/tables/<name>
+```
+
+Because the matcher takes the longest matching prefix, a rule on
+`lazysite/db/tables` governs **every** table at once, and a site-wide private
+rule covers tables exactly as it covers pages.
+
+A read list and `public: true` **compose rather than compete**: a published
+table that also carries a read list still refuses an anonymous visitor, because
+an anonymous visitor matches no entry in a list.
+
+**An operator is not asked.** The manager, MCP and the API have already
+answered the capability question with `manage_data`, so they read regardless. A
+**page** is never treated as an operator -- it renders the same rows for
+whoever is looking at it, so what you see while signed in is what your visitors
+see.
 
 ### Who may write
 

@@ -33,8 +33,12 @@ open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/products.yaml" or die $!;
-print {$df} "key: code\nfields:\n  code:\n    type: text\n    required: true\n"
-    . "  name:\n    type: text\n";
+# `public: true` because THIS file is about identity, not publication (SM476).
+# Leaving it unpublished would make every assertion here pass or fail for the
+# publication rule instead of the one being tested - which is how a test starts
+# measuring something other than its own subject.
+print {$df} "public: true\nkey: code\nfields:\n  code:\n    type: text\n"
+    . "    required: true\n  name:\n    type: text\n";
 close $df;
 apply_schema( $docroot, 'products' );
 insert_row( $docroot, 'products', { code => 'W1', name => 'Widget' } );
@@ -142,7 +146,7 @@ subtest 'POST is a write surface, and anonymous is not welcome on it' => sub {
         or diag( 'The kind is what a page uses to decide whether to say '
             . '"sign in" or "something went wrong".' );
 
-    my $rows = Lazysite::Data::Tables::read_rows( $docroot, 'products' );
+    my $rows = Lazysite::Data::Tables::read_rows( $docroot, 'products', as => 'operator' );
     is( scalar @{ $rows->{rows} }, 1, 'and the table is untouched' );
 };
 

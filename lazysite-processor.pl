@@ -4770,7 +4770,21 @@ sub resolve_db {
     # leaves the page uncacheable rather than cacheable-and-empty.
     $TT_DEP_LIVE = 1;
 
-    my $r = Lazysite::Data::Tables::read_rows( $DOCROOT, $table, %opt );
+    # THE VISITOR, and never an operator (SM476). A page renders the same rows
+    # for whoever is looking at it: an operator seeing rows a visitor cannot is
+    # a preview that means nothing, which is the fault SM466 fixed for layouts
+    # and themes. So the identity here is the request's, whatever it is.
+    my $r = Lazysite::Data::Tables::read_rows(
+        $DOCROOT, $table,
+        as => {
+            user   => ( $ENV{HTTP_X_REMOTE_USER} // '' ),
+            groups => [
+                grep { length }
+                    split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
+            ],
+        },
+        %opt
+    );
 
     # A TABLE WITH NO STORED SCHEMA IS LOGGED TOO, not just an error.
     #
@@ -4786,6 +4800,17 @@ sub resolve_db {
     }
 
     unless ( $r->{ok} ) {
+        # A TABLE THAT IS NOT PUBLISHED LOOKS EXACTLY LIKE ONE THAT IS ABSENT,
+        # on purpose - see Access.pm - so the log is the only place the
+        # difference can be said, and an author who has just added `db:` and
+        # seen nothing needs it said.
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable read nothing - if the table exists, it may not '
+                . 'be published (set public: true) or this visitor may not be '
+                . 'allowed to read it',
+            key => $key, table => $table )
+            if ( $r->{kind} // '' ) eq 'no_such_table';
+
         # SAID, NOT SWALLOWED. An empty list with no explanation is what SM460
         # was: a page that rendered fine and listed nothing, so the author
         # blamed their pattern.

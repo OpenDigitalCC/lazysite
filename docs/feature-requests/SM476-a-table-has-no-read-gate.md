@@ -3,8 +3,8 @@ title: "SM476: a table has no read gate, so every declared table is public"
 subtitle: "A page bound to a table inherits the page's gate. The endpoint is reached by its own URL and inherits nothing, so a table in a gated section is readable by anyone who knows its name"
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND BY READING MY OWN WRITE HALF, 2026-08-22, not by a field report - which is why it is filed rather than fixed in the same commit: the fix is a new descriptor key with a privacy default, and defaults are the release manager's call. The write half that prompted it DOES ship the missing enforcement of writable_by (declared since DP-1, validated, exported, named in the MCP tool's own documentation, and consumed by nothing until now). WHAT MAKES THIS DIFFERENT FROM AN ORDINARY MISSING FEATURE: two comments in lazysite-data.pl asserted the gate existed - the header said what a caller may see is decided by the same rules that decide what the page may show, and the 404 handler explained itself as preventing disclosure of which tables exist. Both were corrected in the same commit, because a comment claiming a protection is worse than no protection: it stops the next reader looking."
+status: shipped
+status-note: "SHIPPED 2026-08-22. THE RELEASE MANAGER CHOSE: publication flag in the DESCRIPTOR (a property of the table), user/group lists in ACLS.JSON (a property of this site's people), default CLOSED. TWO CONTROLS THAT COMPOSE RATHER THAN COMPETE - `public:` decides whether an ANONYMOUS visitor sees rows, the acls.json read list decides which accounts and groups do, and the awkward case falls out rather than being special-cased: a published table carrying a read list refuses an anonymous visitor because an anonymous visitor matches no entry in a list and _acl_allows already answers false for that reason. Nothing had to know it was a special case, which is why t/unit/data/16 asserts it - the day somebody 'fixes' the composition, that is what tells them. THE ACL KEY IS THE DESCRIPTOR'S OWN PATH, lazysite/db/tables/<name>, and that is load-bearing rather than cosmetic: lookup is longest-prefix, so a rule on lazysite/db/tables governs every table at once and a site-wide private rule covers tables exactly as it covers pages - both inherited from the existing matcher with no table-shaped concept added to it, and no collision with content because lazysite/ never holds content. THE ENFORCEMENT IS STRUCTURAL, NOT REMEMBERED: read_rows now DIES without an `as` argument, so a caller cannot read rows without saying who is asking. The alternative was a may_read() each surface remembers to call first, and 'remembers to' is precisely how this went wrong - the endpoint was a second door built without the gate the first door had, and nothing in the signature asked. It dies rather than erroring because a missing `as` is a programming fault no visitor input can produce: loud in the suite, unreachable in the field. NO OPERATOR BYPASS ON A VISITOR SURFACE, deliberately - a page renders the same rows for an operator as for a visitor, which is what SM466 guarantees for layouts and themes and the only way a preview means anything. A REFUSED READ IS INDISTINGUISHABLE FROM AN ABSENT TABLE, same status and same wording, asserted by diffing the two responses. THE DEFAULT WAS CHOSEN WHILE IT WAS STILL FREE: the plugin has only ever shipped to edge, is born disabled, and the only tables in existence were three test tables on one site - my own filing wrongly warned about breaking an installed base that does not exist, and that window closes at stable. FOUND ON THE WAY: action_data_table_save reported migrate_required => 1 HARDCODED, so every descriptor save demanded a migration whether or not the stored table already matched. Publishing a table is a descriptor save that changes no field, which is what made it visible. Now derived from plan_migration - the database is the state, per D2. EIGHT SABOTAGES, one of which reported a no-op (the descriptor normalises public to 0/1, so a `// 1` default change nothing) and was re-run where the default actually lives."
 ---
 
 # What is true today
@@ -54,16 +54,39 @@ The second and third are upgrade-breaking in a way SM471 has already shown is
 hard to see: a site that stops working after an upgrade because a new key
 defaults closed reports as "the data plugin broke", not as "a gate was added".
 
-# What was done now
+# What was built
 
-Nothing that changes who may read. Two false comments were corrected, the 404
-wording was left as-is *because* it is what a read gate would need (so adding
-one later changes no caller-visible string), and the limit is stated in the
-endpoint header and in `starter/docs/data-tables.md` where an author decides
-what to put in a table.
+```datatable
+columns: Control | Where it lives | What it decides
+widths: 3.6cm | 4.4cm | X
+bold: 1
+tone: medium
+---
+`public:` | the descriptor | may an ANONYMOUS visitor see rows -- default **false**
+read list | `acls.json`, key `lazysite/db/tables/<name>` | which accounts and groups may, in a file ACL's shape
+```
 
-# What this needs from the release manager
+Permissions stay out of the descriptor for a reason: a package carrying
+`read: [@staff]` into another site where `staff` means different people is a
+privilege accident. `public` is a property of the table and travels with it;
+the names are a property of this site's people and do not.
 
-Which default, above. It is the only open question; the implementation is one
-descriptor key, one check beside the `writable_by` check that now exists, and
-a line in the docs.
+# The default, and why it was free to choose
+
+The filing originally warned that a closed default breaks sites on upgrade, in
+the way SM471 showed is hard to see. **That was wrong, and checking cost one
+command.** The data plugin has only ever shipped to edge, it is born disabled,
+and the only tables in existence were three test tables on one site. There was
+no installed base to break, so the safe default cost nothing -- and that
+remains true only until this reaches stable.
+
+# Found on the way
+
+`action_data_table_save` returned `migrate_required => 1` **hardcoded**. Every
+descriptor save therefore demanded a migration, whether or not the stored table
+already matched. It stayed invisible while every save changed a field;
+publishing a table is a descriptor save that changes no field at all, which is
+what surfaced it. An operator told to run a destructive-change confirmation in
+order to change a privacy setting is an operator who stops reading the
+confirmation. Now derived from `plan_migration`, per D2: the database is the
+state.

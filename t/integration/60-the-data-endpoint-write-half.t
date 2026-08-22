@@ -39,8 +39,8 @@ open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/notes.yaml" or die $!;
-print {$df} "key: code\nfields:\n  code:\n    type: text\n    required: true\n"
-    . "  body:\n    type: text\n";
+print {$df} "public: true\nkey: code\nfields:\n  code:\n    type: text\n"
+    . "    required: true\n  body:\n    type: text\n";
 close $df;
 apply_schema( $docroot, 'notes' );
 
@@ -165,7 +165,7 @@ subtest 'with a token, the write goes through' => sub {
         body   => encode_json( { row => { code => 'A1', body => 'first' } } ),
     );
     ok( $d->{ok}, 'the row saves' ) or diag( $d->{error} // '' );
-    is( scalar @{ read_rows( $docroot, 'notes' )->{rows} }, 1, 'and is stored' );
+    is( scalar @{ read_rows( $docroot, 'notes', as => 'operator' )->{rows} }, 1, 'and is stored' );
 
     # The value layer still applies - the endpoint is a door, not a bypass.
     my ( $bs, $bd ) = hit(
@@ -196,7 +196,7 @@ subtest 'writable_by narrows, and manage_data alone is not enough' => sub {
     like( $d->{error}, qr/secretaries/, 'naming the group that may write' )
         or diag( 'A refusal that does not say which group leaves the operator '
             . 'guessing at a list they cannot see from here.' );
-    ok( !( grep { $_->{code} eq 'M1' } @{ read_rows( $docroot, 'minutes' )->{rows} } ),
+    ok( !( grep { $_->{code} eq 'M1' } @{ read_rows( $docroot, 'minutes', as => 'operator' )->{rows} } ),
         'and nothing is stored' );
 
     # The same account, the same token, the table that does NOT narrow.
@@ -227,7 +227,7 @@ subtest 'a group listed in writable_by may write it' => sub {
         body   => encode_json( { row => { code => 'M2' } } ),
     );
     is( $st, 200, 'the listed group writes' ) or diag( explain $d );
-    ok( ( grep { $_->{code} eq 'M2' } @{ read_rows( $docroot, 'minutes' )->{rows} } ),
+    ok( ( grep { $_->{code} eq 'M2' } @{ read_rows( $docroot, 'minutes', as => 'operator' )->{rows} } ),
         'and the row is there' );
 };
 
@@ -254,7 +254,7 @@ subtest 'a signed-in account WITHOUT manage_data is refused' => sub {
     is( $d->{kind}, 'forbidden', 'on capability grounds' );
     like( $d->{error}, qr/manage_data/, 'naming what is missing' );
 
-    ok( !( grep { $_->{code} eq 'R1' } @{ read_rows( $docroot, 'notes' )->{rows} } ),
+    ok( !( grep { $_->{code} eq 'R1' } @{ read_rows( $docroot, 'notes', as => 'operator' )->{rows} } ),
         'and nothing is stored' );
 };
 
@@ -266,11 +266,39 @@ subtest 'an anonymous CSRF request gets nothing to replay' => sub {
             . 'can fetch, which is not a token.' );
 };
 
-subtest 'reads are unchanged and still anonymous' => sub {
+subtest 'adding a write path did not close the read one' => sub {
+    # `notes` is declared `public: true`, so this is the published case and it
+    # must keep working: the point of the endpoint is a page's own script
+    # reading rows without a login.
     my ( $st, $d ) = hit( qs => 'table=notes' );
-    is( $st, 200, 'an anonymous read still answers' )
+    is( $st, 200, 'an anonymous read of a PUBLISHED table still answers' )
         or diag( 'Adding a write path must not close the read one.' );
     ok( $d->{ok}, 'with rows' );
 };
+
+subtest 'an UNPUBLISHED table is invisible, and says nothing about itself'
+    => sub {
+    # SM476. `minutes` carries no `public:`, so it defaults closed.
+    my ( $st, $d ) = hit( qs => 'table=minutes' );
+    is( $st, 404, 'an anonymous read is refused' )
+        or diag( 'A table is a store, not a published artefact. Until an '
+            . 'operator publishes it, an anonymous visitor sees nothing.' );
+
+    # THE SAME ANSWER AS A TABLE THAT DOES NOT EXIST, word for word. Anything
+    # that distinguishes them tells an anonymous caller which tables this site
+    # has, which is most of what is worth having from a store you cannot read.
+    my ( $st2, $d2 ) = hit( qs => 'table=nosuchtableatall' );
+    is( $st2, $st, 'the same status as a table that does not exist' );
+    is( $d2->{error}, $d->{error}, 'and the same wording, exactly' )
+        or diag( 'Different wording is a directory listing for anyone who '
+            . 'bothers to diff two responses.' );
+
+    # A signed-in account with no ACL narrowing it DOES see it: `public` is
+    # about anonymous visitors, not about locking the table away entirely.
+    my ( $st3, $d3 ) = hit( qs => 'table=minutes', cookie => cookie_for('writer') );
+    is( $st3, 200, 'but a signed-in account reads it' )
+        or diag( 'public: false means "not for anonymous visitors". Who among '
+            . 'the signed-in may read is the acls.json read list.' );
+    };
 
 done_testing();
