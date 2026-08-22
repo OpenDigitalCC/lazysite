@@ -18,6 +18,9 @@ separate, and what not to do.
 [AI briefing - content authoring](/docs/ai-briefing-authoring)
 : Front matter, Markdown, URLs, and the content rules.
 
+[AI briefing - data tables](/docs/ai-briefing-data)
+: Declaring tables, loading records, and rendering them - for an assistant.
+
 [AI briefing - layouts and themes](/docs/ai-briefing-layouts)
 : Layouts, themes, and the token vocabulary.
 
@@ -53,6 +56,9 @@ and cache behaviour.
 
 [Configuration](/docs/configuration)
 : `lazysite.conf`, nav and plugins.
+
+[Data tables](/docs/data-tables)
+: Declaring a table, putting records in it, and reading them on a page.
 
 [Forms](/docs/forms)
 : Defining forms, field types, validation, limits, and reading what they collect.

@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- DP-8 (PENDING) **the data plugin is documented** - `/docs/data-tables` for
+  operators and `/docs/ai-briefing-data` for assistants, both linked from the
+  docs index. Two audiences, two documents, because they need different things:
+  an operator needs to know what a refusal means and where the store lives, and
+  an agent needs to know which call to make and what will be refused before it
+  makes it. **`t/lint/80` checks the names, not the prose** - whether an
+  explanation is good is a judgement a test cannot make, but whether
+  `save_data_table` is a real tool is not, and that is what goes stale first: a
+  rename lands, the gate stays green, and the docs describe a door that no
+  longer opens. It checks both directions, since a tool nobody documents is one
+  an agent does not know it has - SM457's under-claiming defect wearing prose.
+
 - DP-3 read half (PENDING) **a page's own JavaScript can read a table**, through
   an endpoint that **verifies its own caller**. The front door routes
   `lazysite-*.pl` but wraps only the processor and manager-api, so a direct-CGI
