@@ -64,6 +64,7 @@ my @SCRIPTS = qw(
     lazysite-mcp.pl
     lazysite-oauth.pl
     lazysite-front.pl
+    lazysite-data.pl
     tools/lazysite-check.pl
 );
 

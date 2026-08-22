@@ -111,10 +111,12 @@ sub describe {
             # and nothing said so.
             storage => ['lazysite/db/'],
 
-            # None yet. The endpoint is DP-3, and it needs
-            # Lazysite::Auth::Session (SM411, shipped) because a direct-CGI
-            # plugin sees X-Remote-User exactly as the client sent it.
-            endpoints => [],
+            # DP-3. It needs Lazysite::Auth::Session (SM411) because the
+            # front door routes lazysite-*.pl but wraps only the processor and
+            # manager-api - so a direct-CGI plugin sees X-Remote-User exactly
+            # as the client sent it, and trusting that would be SM402's defect
+            # reintroduced by specification.
+            endpoints => ['lazysite-data.pl'],
 
             capabilities => ['manage_data'],
 

@@ -45,8 +45,25 @@ for my $cgi (@cgis) {
         && ( $src =~ /delete[^\n]*HTTP_X_REMOTE/ );
     my $named_gate = $src =~ /apply_trust_gate/;
 
-    ok( $inline_gate || $named_gate,
-        "$b gates client-supplied X-Remote-* (LAZYSITE_AUTH_TRUSTED + delete, or apply_trust_gate) before trusting it"
+    # A THIRD, STRICTER SHAPE: never trust the header at all.
+    #
+    # Both gates above permit the header to be believed WHEN the front door
+    # says it wrapped the request. A surface that the front door routes but
+    # does NOT wrap cannot rely on that signal - which is SM411's whole
+    # reasoning, and why lazysite-data.pl exists in the form it does: it
+    # deletes every X-Remote-* unconditionally and then sets the identity from
+    # a session cookie it verified itself.
+    #
+    # Accepted because it is STRONGER, not because it is different. The two
+    # conditions together are what make it so: an unconditional delete on its
+    # own would leave a surface with no identity, and verify_session_cookie on
+    # its own would leave the claimed header in place beside the verified one.
+    # A file that stops doing either falls back to the gates above.
+    my $self_verifies = ( $src =~ /^\s*delete \$ENV\{\$_\} for grep \{[^\n]*HTTP_X_REMOTE/m )
+        && ( $src =~ /verify_session_cookie/ );
+
+    ok( $inline_gate || $named_gate || $self_verifies,
+        "$b gates client-supplied X-Remote-* (LAZYSITE_AUTH_TRUSTED + delete, apply_trust_gate, or unconditional delete + self-verified session) before trusting it"
     );
 }
 

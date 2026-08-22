@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- DP-3 read half (PENDING) **a page's own JavaScript can read a table**, through
+  an endpoint that **verifies its own caller**. The front door routes
+  `lazysite-*.pl` but wraps only the processor and manager-api, so a direct-CGI
+  plugin sees `X-Remote-User` exactly as the client sent it - trusting it would
+  be SM402's defect reintroduced *by specification*, which is why SM411
+  extracted the session verifier. So the endpoint deletes every `X-Remote-*`
+  that arrives, verifies the session cookie itself, and sets the identity from
+  what it verified; a disabled account or a revoked session is anonymous, not
+  its former self, because a cookie outlives both. **A missing table and a
+  forbidden one answer identically** - distinguishing them tells an anonymous
+  caller which tables exist. `no-store`, because what a visitor may see depends
+  on who they are. **GET only**: a read endpoint that accepts POST invites a
+  write to be added later without the CSRF question being asked, and the
+  `writable=` half is deliberately not in this cut.
+
 - DP-5 (PENDING) **a refused schema change can be made to happen, confirmed by
   name.** `migrate_data_table` refuses a type change, a tightening to required,
   and a dropped column - right as a default and wrong as a permanent state,
