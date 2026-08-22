@@ -29,7 +29,11 @@ use TestHelper qw(repo_root env_passthrough);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
-make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/layouts/t" );
+# NO lazysite/db AT ALL. The descriptor is declared through the API below,
+# which is how a site with no shell access declares one - and hand-writing it
+# here is what hid SM470: the fixture modelled an operator with a shell, who is
+# nobody this feature is for.
+make_path("$docroot/lazysite/layouts/t");
 
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 # SM469: a contract plugin is born DISABLED. Enabling it is part of setting
@@ -44,22 +48,6 @@ print {$lt} '<html><body>[% content %]'
     . '</body></html>';
 close $lt;
 
-open my $df, '>', "$docroot/lazysite/db/tables/products.yaml" or die $!;
-print {$df} <<'YAML';
-title: Products
-key: code
-fields:
-  code:
-    type: text
-    required: true
-  name:
-    type: text
-  price:
-    type: decimal
-    digits: 8
-    places: 2
-YAML
-close $df;
 
 # The page. `db:` resolves to the rows; the layout renders them.
 open my $pg, '>', "$docroot/index.md" or die $!;
@@ -130,6 +118,70 @@ sub visit {
     delete $ENV{LAZYSITE_AUTH_TRUSTED};
     return qx($^X \Q$root/lazysite-processor.pl\E 2>/dev/null);
 }
+
+subtest 'SM470: a table is DECLARED through the API, with no file access' => sub {
+    my $yaml = <<'YAML';
+title: Products
+key: code
+fields:
+  code:
+    type: text
+    required: true
+  name:
+    type: text
+  price:
+    type: decimal
+    digits: 8
+    places: 2
+YAML
+    my $r = api_post( 'action=data-table-save', { table => 'products',
+        descriptor => $yaml } );
+    ok( $r->{ok}, 'the descriptor saves' ) or diag( $r->{error} // '' );
+    ok( $r->{migrate_required},
+        'and says the stored table still needs migrating' )
+        or diag( 'Writing a descriptor and changing the stored table are two '
+            . 'decisions; the second can be refused in part.' );
+    ok( -f "$docroot/lazysite/db/tables/products.yaml",
+        'the file is created, directory and all' );
+
+    my $bad = api_post( 'action=data-table-save',
+        { table => 'broken', descriptor => "fields:\n  x:\n    type: nosuch\n" } );
+    ok( !$bad->{ok}, 'a descriptor that does not load is REFUSED' )
+        or diag( 'Storing it would move the failure to first use, when the '
+            . 'author has moved on and it surfaces as "the table does not '
+            . 'work".' );
+    like( $bad->{error}, qr/unknown type/, 'with the loader\'s own reason' );
+    ok( !-f "$docroot/lazysite/db/tables/broken.yaml", 'and nothing is written' );
+
+    my $escape = api_post( 'action=data-table-save',
+        { table => '../../etc/passwd', descriptor => "fields:\n  a:\n    type: text\n" } );
+    ok( !$escape->{ok}, 'and the name cannot climb out of the directory' );
+
+    # TWO THINGS THIS FILE CANNOT PROVE, recorded rather than left to look
+    # covered:
+    #
+    # Removing the explicit name check in action_data_table_save does NOT fail
+    # this test, because load_descriptor refuses the same names through
+    # _bad_ident. The explicit check is defence in depth and a better message,
+    # not the only guard - and a sabotage of it passing is the correct result,
+    # not a hole.
+    #
+    # Removing the CHECKED write (print and close, before the rename) also does
+    # not fail here: provoking a torn write needs a real failed write, which is
+    # what SM404's own test does with `ulimit -f`. The shape is copied from the
+    # writer SM404 fixed; what is asserted below is the reachable half, that an
+    # unwritable directory is reported rather than silently succeeding.
+    my $dir = "$docroot/lazysite/db/tables";
+    my $mode = ( stat $dir )[2] & 07777;
+  SKIP: {
+        skip 'running as root - directory modes do not bind', 1 if $> == 0;
+        chmod 0500, $dir or skip 'cannot chmod', 1;
+        my $ro = api_post( 'action=data-table-save',
+            { table => 'nowrite', descriptor => "fields:\n  a:\n    type: text\n" } );
+        ok( !$ro->{ok}, 'an unwritable directory is reported, not swallowed' );
+        chmod $mode, $dir;
+    }
+};
 
 subtest 'the page renders before there is any data' => sub {
     my $html = visit('/');

@@ -77,6 +77,13 @@ my %EXEMPT = (
     action_theme_rename     => 'themes dir, both names validated',
     action_theme_upload     => 'themes dir, archive members validated on extract',
     action_cache_invalidate => 'render cache, engine-named paths',
+
+    # SM470: the descriptor directory, one fixed place, and the NAME is the
+    # only caller-chosen part - validated twice before it reaches a path
+    # (explicitly here, and again by load_descriptor's _bad_ident, which is
+    # what actually refuses a traversal). It cannot address the docroot at
+    # all, so the content write guard has nothing to say about it.
+    action_data_table_save => 'descriptor dir, name validated to [a-z][a-z0-9_]*',
 );
 
 {

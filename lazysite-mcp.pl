@@ -578,6 +578,22 @@ my %TOOLS = (
             );
         },
     },
+    save_data_table => {
+        description => 'Create or replace a table DESCRIPTOR - the YAML that declares a table\'s fields and their types. This is the only way to declare a table: the descriptor lives under lazysite/, which is a protected area no general file-writing tool can reach, so it is written here where it can be CHECKED first. A descriptor that does not load is refused with the reason - the field, the rule, the value - rather than stored and failing later at first use. Writing a descriptor does NOT change the stored table: call migrate_data_table afterwards, which applies what is safe and reports what it refuses.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name - lower-case letters, digits and underscores. This becomes the filename.' },
+                descriptor => { type => 'string', description => 'The descriptor as YAML text. Keys: title, key, timestamps, indexes, writable_by, and fields (a mapping of name to {type, required, default, ...}). Types: text, integer, decimal, boolean, date, datetime, enum. A decimal declares digits and places; an enum declares values.' },
+            },
+            required => [ 'table', 'descriptor' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_table_save( $a->{table},
+                $a->{descriptor} );
+        },
+    },
     migrate_data_table => {
         description => 'Bring the stored table into line with its descriptor, as far as is SAFE. Adding a field is applied, and a field with a default is filled in on the rows that predate it. Changing a field\'s type, tightening it to required, or removing it are REPORTED AND REFUSED, not performed - each of those rewrites the table and an operator decides it. Returns both what was applied and what was blocked, and the blocked list is the half that explains why a column is not there yet. Safe to run repeatedly: a table already in line is a no-op.',
         cap         => 'manage_data',

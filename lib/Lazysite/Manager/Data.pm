@@ -25,10 +25,12 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Plugins ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
-    insert_row update_row delete_row);
+    insert_row update_row delete_row descriptor_dir);
+use Lazysite::Data::Descriptor qw(load_descriptor);
 
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
-    action_data_migrate action_data_row_save action_data_row_delete);
+    action_data_migrate action_data_row_save action_data_row_delete
+    action_data_table_save);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -67,6 +69,86 @@ sub _need_table {
 # Reports a table whose descriptor is BROKEN rather than omitting it. An
 # author who has just mis-typed a descriptor is the most likely reader of this
 # list, and a silently shorter list is the least useful thing it could do.
+# SM470: WRITE A TABLE DESCRIPTOR. Without this there is no way to create one.
+#
+# The descriptor lives at lazysite/db/tables/<name>.yaml, and `lazysite` is a
+# RESERVED ROOT: the manager's content paths refuse it, and WebDAV allows only
+# lazysite/layouts/ ("the rest of lazysite/ is protected"). So before this, a
+# table could be declared only by somebody with shell access to the docroot -
+# which is nobody the feature is for.
+#
+# THE RESERVED ROOT IS NOT THE PROBLEM AND IS NOT LOOSENED. lazysite/ holds the
+# account store, the session secret and the ACLs; the guard that keeps a
+# generic write channel out of it is doing exactly its job. What was missing is
+# a NAMED door: one action, capability-gated, that writes one kind of file to
+# one place.
+#
+# IT VALIDATES BEFORE IT WRITES, which is the part a generic file write could
+# never have given. A descriptor that does not load is refused with the
+# loader's own reason - the field, the rule, the value - rather than being
+# stored and failing later at first use, when the author has moved on and the
+# error surfaces as "the table does not work".
+sub action_data_table_save {
+    my ( $table, $yaml ) = @_;
+    if ( my $bad = _gate() )             { return $bad }
+    if ( my $bad = _need_table($table) ) { return $bad }
+
+    # The NAME is the filename, so it is validated here rather than trusted -
+    # this is the one place a caller chooses a path under a reserved root.
+    return { ok => 0, error => "'$table' must be lower-case letters, digits "
+            . 'and underscores, starting with a letter', field => 'table' }
+        unless $table =~ /\A[a-z][a-z0-9_]*\z/;
+    return { ok => 0, error => 'descriptor text required' }
+        unless defined $yaml && length $yaml;
+
+    require YAML::PP;
+    my $raw = eval { YAML::PP->new->load_string($yaml) };
+    return { ok => 0, kind => 'descriptor',
+        error => "the descriptor is not valid YAML - $@" }
+        if $@ || !defined $raw;
+
+    # The SAME loader the render path uses. A descriptor accepted here and
+    # refused at read time would be the worst of both.
+    my $d = load_descriptor( $table, $raw );
+    return $d unless $d->{ok};
+
+    my $dir = descriptor_dir($DOCROOT);
+    unless ( -d $dir ) {
+        require File::Path;
+        eval { File::Path::make_path($dir); 1 }
+            or return { ok => 0,
+            error => "could not create $dir - check that lazysite/ is "
+                . 'writable by the site' };
+    }
+
+    # Written through a temp file and renamed, checked at every step. The
+    # SM404 shape: a print or close that fails must not leave a truncated
+    # descriptor renamed over a good one - and a torn descriptor is worse than
+    # most, because the table it describes still holds rows.
+    my $path = "$dir/$table.yaml";
+    my $tmp  = "$path.$$";
+    open my $fh, '>:utf8', $tmp
+        or return { ok => 0, error => "could not write $path: $!" };
+    my $ok = print {$fh} $yaml;
+    $ok = 0 unless close $fh;
+    unless ($ok) {
+        unlink $tmp;
+        return { ok => 0, error => "could not write $path (disk full?)" };
+    }
+    unless ( rename $tmp, $path ) {
+        unlink $tmp;
+        return { ok => 0, error => "could not replace $path: $!" };
+    }
+
+    log_event( 'INFO', $table, 'data descriptor saved' );
+
+    # Deliberately NOT migrated here. Writing a descriptor and changing the
+    # stored table are two decisions, and the second can be refused in part -
+    # an operator needs to see what the migration would do before it happens.
+    return { ok => 1, table => $table, title => $d->{title},
+        fields => $d->{fields}, migrate_required => 1 };
+}
+
 sub action_data_tables {
     if ( my $off = _gate() ) { return $off }
     my @out;

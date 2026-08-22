@@ -70,6 +70,7 @@ tone: medium
 `data-row-save` | manage_data | table (query_or_body), key (query_or_body), row (body)
 `data-rows` | manage_data | table (query), order_by (query), order (query), limit (query), offset (query)
 `data-table` | manage_data | table (query)
+`data-table-save` | manage_data | table (query_or_body), descriptor (body)
 `data-tables` | manage_data |  
 `delete` | cookie only | path (query)
 `describe-capabilities` | any authenticated |  

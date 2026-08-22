@@ -162,16 +162,22 @@ my %ACTION_INFO = (
         title   => 'Read and write the site\'s data tables.',
         unlocks => {
             api => [
-                qw(data-tables data-table data-rows
+                qw(data-tables data-table data-table-save data-rows
                     data-migrate data-row-save data-row-delete)
             ],
 
             mcp => [
-                qw(list_data_tables describe_data_table read_data_rows
-                    migrate_data_table save_data_row delete_data_row)
+                qw(list_data_tables describe_data_table save_data_table
+                    read_data_rows migrate_data_table save_data_row
+                    delete_data_row)
             ],
-            webdav =>
-                ['lazysite/db/tables/<table>.yaml (the field descriptors)'],
+            # NO WEBDAV ENTRY, and this used to claim one. WebDAV allows
+            # only lazysite/layouts/ - "the rest of lazysite/ is protected" -
+            # so `lazysite/db/tables/<table>.yaml` was a path this capability
+            # advertised and the front door refused. That is SM435's defect
+            # exactly, and t/lint/68 exists for it on this plane. Descriptors
+            # are written through data-table-save / save_data_table, which
+            # validate before storing.
         },
     },
     manage_config => {

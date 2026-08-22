@@ -28,29 +28,16 @@ my $mcp = "$FindBin::Bin/../../../lazysite-mcp.pl";
 plan skip_all => 'mcp entry point missing' unless -f $mcp;
 
 my $d = tempdir( CLEANUP => 1 );
-make_path( "$d/lazysite/db/tables", "$d/lazysite/auth" );
+# SM470: no lazysite/db. The table is declared through save_data_table below,
+# which is the only way an agent can declare one - hand-writing the descriptor
+# is what hid the fact that no channel could.
+make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 # SM469: a contract plugin is born disabled, so an operator enables it - the
 # fixture does what an operator would.
 print {$cf} "mcp_enabled: true\nplugins:\n  - plugins/data.pl\n";
 close $cf;
 
-open my $df, '>', "$d/lazysite/db/tables/products.yaml" or die $!;
-print {$df} <<'YAML';
-title: Products
-key: code
-fields:
-  code:
-    type: text
-    required: true
-  name:
-    type: text
-  price:
-    type: decimal
-    digits: 8
-    places: 2
-YAML
-close $df;
 
 # Caps by username, as the other MCP tests do.
 my $stub = "$d/users-stub.pl";
@@ -122,6 +109,23 @@ subtest 'and NOT to an account without it' => sub {
 };
 
 subtest 'declare, migrate, write, read - the agent path end to end' => sub {
+    my $decl = call( 'save_data_table', { table => 'products', descriptor => <<'YAML' } );
+title: Products
+key: code
+fields:
+  code:
+    type: text
+    required: true
+  name:
+    type: text
+  price:
+    type: decimal
+    digits: 8
+    places: 2
+YAML
+    ok( $decl->{ok}, 'save_data_table declares the table' )
+        or diag( $decl->{error} // '' );
+
     my $t = call( 'list_data_tables' );
     ok( $t->{ok}, 'list_data_tables answers' ) or diag( $t->{error} // '' );
     is( $t->{tables}[0]{table}, 'products', 'the declared table is there' );

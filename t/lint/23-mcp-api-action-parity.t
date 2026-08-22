@@ -111,6 +111,7 @@ my %PAIR = (
     # would have to be introduced deliberately.
     'data-tables'     => 'list_data_tables',
     'data-table'      => 'describe_data_table',
+    'data-table-save' => 'save_data_table',
     'data-rows'       => 'read_data_rows',
     'data-migrate'    => 'migrate_data_table',
     'data-row-save'   => 'save_data_row',
