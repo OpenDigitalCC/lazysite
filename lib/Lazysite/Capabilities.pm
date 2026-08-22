@@ -164,13 +164,13 @@ my %ACTION_INFO = (
         unlocks => {
             api => [
                 qw(data-tables data-table data-table-save data-rows
-                    data-migrate data-row-save data-row-delete)
+                    data-migrate data-rebuild data-row-save data-row-delete)
             ],
 
             mcp => [
                 qw(list_data_tables describe_data_table save_data_table
-                    read_data_rows migrate_data_table save_data_row
-                    delete_data_row)
+                    read_data_rows migrate_data_table rebuild_data_table
+                    save_data_row delete_data_row)
             ],
             # NO WEBDAV ENTRY, and this used to claim one. WebDAV allows
             # only lazysite/layouts/ - "the rest of lazysite/ is protected" -

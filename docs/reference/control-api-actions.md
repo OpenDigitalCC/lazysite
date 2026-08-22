@@ -66,6 +66,7 @@ tone: medium
 `copy` | cookie only | path (query), to (query)
 `csrf-token` | cookie only |  
 `data-migrate` | manage_data | table (query)
+`data-rebuild` | manage_data | table (query_or_body), confirm_lost (body)
 `data-row-delete` | manage_data | table (query_or_body), key (query_or_body)
 `data-row-save` | manage_data | table (query_or_body), key (query_or_body), row (body)
 `data-rows` | manage_data | table (query), order_by (query), order (query), limit (query), offset (query)

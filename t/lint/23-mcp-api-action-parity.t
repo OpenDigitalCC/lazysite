@@ -118,6 +118,7 @@ my %PAIR = (
     'preview-public'  => 'preview_public_page',
     'data-rows'       => 'read_data_rows',
     'data-migrate'    => 'migrate_data_table',
+    'data-rebuild'    => 'rebuild_data_table',
     'data-row-save'   => 'save_data_row',
     'data-row-delete' => 'delete_data_row',
     'nav-save'            => 'set_nav',

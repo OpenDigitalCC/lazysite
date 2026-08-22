@@ -53,7 +53,7 @@ use Lazysite::Data::SQLite
     observed_schema table_has_rows);
 use Lazysite::Data::Value qw(coerce_field);
 
-our @EXPORT_OK = qw(plan_migration);
+our @EXPORT_OK = qw(plan_migration plan_rebuild);
 
 # Index names are DERIVED from the table and its columns, exactly as
 # index_sql() derives them, so the two agree by construction rather than by a
@@ -193,6 +193,73 @@ sub plan_migration {
     # dropping it is not this function's decision to make.
 
     return { ok => 1, create => [], additive => \@additive, blocked => \@blocked };
+}
+
+# DP-5: the steps that make a BLOCKED change happen.
+#
+# plan_migration refuses a type change, a tightening to NOT NULL, and a dropped
+# column, and reports each. That is right as a default and wrong as a permanent
+# state: a refusal with no path through is a dead end, and an operator meeting
+# one edits the store by hand - which is the outcome the refusal was protecting
+# them from.
+#
+# SQLITE CANNOT ALTER A COLUMN, so every one of these is the same operation:
+# build a new table with the wanted shape, copy what carries over, drop the old
+# one, rename. That is a rewrite of the whole table, which is exactly why it is
+# not something a migration does because a descriptor changed.
+#
+# WHAT IS COPIED AND WHAT IS NOT. Columns present in BOTH shapes carry over.
+# A column the descriptor no longer declares does not, and its data is gone -
+# which is the whole reason confirming names the columns rather than saying
+# "yes". A new column arrives empty, or filled by the additive pass afterwards.
+sub plan_rebuild {
+    my ( $d, $dbh ) = @_;
+    return { ok => 0, error => 'a loaded descriptor is required' }
+        unless ref $d eq 'HASH' && $d->{ok};
+
+    my $observed = observed_schema( $dbh, $d->{table} );
+    return { ok => 0, error => "table '$d->{table}' does not exist" }
+        unless $observed->{exists};
+
+    my $table = $d->{table};
+    my $tmp   = "${table}__rebuild";
+
+    # The columns the new table will have, and which of them exist now.
+    my @want = sort keys %{ $d->{fields} };
+    push @want, 'created_at', 'updated_at' if $d->{timestamps};
+    my @carry = grep { $observed->{columns}{$_} } @want;
+
+    my @lost = sort grep {
+        !$d->{fields}{$_}
+            && $_ ne $d->{key}
+            && !( $d->{auto_key}   && $_ eq 'id' )
+            && !( $d->{timestamps} && /\A(?:created_at|updated_at)\z/ )
+    } keys %{ $observed->{columns} };
+
+    # The new table is built under a temporary name, so a failure part-way
+    # leaves the original standing. The rename is the only moment the table is
+    # not there, and it is atomic.
+    # Rename the QUOTED identifier only. A bare substitution would also hit the
+    # table's name wherever it appeared as part of something else - an index
+    # name, a column that happens to share the word - and the adapter quotes
+    # every identifier, so the quoted form is both precise and complete.
+    my $create = create_table_sql($d);
+    $create =~ s/"\Q$table\E"/"$tmp"/;
+
+    my $cols  = join ', ', map { qq{"$_"} } @carry;
+    my @steps = (
+        { sql => $create, why => "build $tmp with the new shape" },
+        ( @carry
+            ? { sql => qq{INSERT INTO "$tmp" ($cols) SELECT $cols FROM "$table"},
+                why => 'copy the columns both shapes have' }
+            : ()
+        ),
+        { sql => qq{DROP TABLE "$table"}, why => "drop the old $table" },
+        { sql => qq{ALTER TABLE "$tmp" RENAME TO "$table"}, why => "rename $tmp into place" },
+    );
+
+    return { ok => 1, table => $table, steps => \@steps,
+        carried => \@carry, lost => \@lost };
 }
 
 1;

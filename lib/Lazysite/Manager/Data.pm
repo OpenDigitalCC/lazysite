@@ -25,12 +25,12 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Plugins ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
-    insert_row update_row delete_row descriptor_dir);
+    insert_row update_row delete_row descriptor_dir rebuild_table);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
-    action_data_table_save);
+    action_data_table_save action_data_rebuild);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -209,6 +209,24 @@ sub action_data_migrate {
 # One entry point for insert AND update, because the caller knows which it
 # means by whether it has a key - and a surface that has to choose between two
 # action names for "save this row" will eventually choose wrong.
+# DP-5: perform a change apply_schema refuses, once it is confirmed by name.
+#
+# A SEPARATE ACTION rather than a flag on data-migrate, deliberately. Migrating
+# is a routine act an agent performs after editing a descriptor; rewriting a
+# table is not, and giving them one name would mean the routine call carried
+# the dangerous capability every time it was made.
+sub action_data_rebuild {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $confirm_lost ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    my $r = rebuild_table( $DOCROOT, $table,
+        confirm_lost => ( ref $confirm_lost eq 'ARRAY' ? $confirm_lost : [] ) );
+    log_event( 'INFO', $table, 'data table rebuilt',
+        lost => join( ',', @{ $r->{lost} || [] } ) )
+        if $r->{ok};
+    return $r;
+}
+
 sub action_data_row_save {
     if ( my $off = _gate() ) { return $off }
     my ( $table, $key, $values ) = @_;

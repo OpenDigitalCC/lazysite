@@ -607,6 +607,23 @@ my %TOOLS = (
             return Lazysite::Manager::Data::action_data_migrate( $_[0]->{table} );
         },
     },
+    rebuild_data_table => {
+        description => 'Perform a schema change that migrate_data_table REFUSES - changing a field\'s type, tightening it to required, or removing it. All three are the same operation underneath: the table is rebuilt, which is why they are not done because a descriptor changed. CONFIRM BY NAMING EACH COLUMN whose data will be lost, in confirm_lost: call without it first to be told which those are, then call again naming them. A list rather than a yes/no on purpose - agreeing to lose one column you read about must not agree to a second you did not notice. A safety export of every row is written before anything is dropped, and its path is returned.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table        => { type => 'string', description => 'The table name' },
+                confirm_lost => { type => 'array', items => { type => 'string' },
+                    description => 'Every column whose data you accept losing. Omit to be told which they are without changing anything.' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_rebuild( $a->{table},
+                $a->{confirm_lost} );
+        },
+    },
     save_data_row => {
         description => 'Insert a row, or update one by its key. WITHOUT `key` this inserts; WITH `key` it updates that row and touches only the fields you send, leaving the rest alone. Every value is checked against the descriptor and a value that does not fit is REFUSED with the field named - a decimal with too many places is refused rather than rounded, because a store that quietly rounds money is worse than one that will not take it. An unknown field name is refused rather than ignored, so a typo cannot look like a successful write.',
         cap         => 'manage_data',

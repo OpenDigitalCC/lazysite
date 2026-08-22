@@ -189,8 +189,8 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token
-    data-migrate data-row-delete data-row-save data-rows data-table
-    data-table-save data-tables
+    data-migrate data-rebuild data-row-delete data-row-save data-rows
+    data-table data-table-save data-tables
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
@@ -532,6 +532,7 @@ if ( !$token_auth ) {
         'data-rows'          => 'manage_data', 'data-migrate'    => 'manage_data',
         'data-row-save'      => 'manage_data', 'data-row-delete' => 'manage_data',
         'data-table-save'    => 'manage_data',
+        'data-rebuild'       => 'manage_data',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -593,6 +594,7 @@ if ( !$token_auth ) {
     # but a human confirms deletions in the manager.
     my %MUTATING = map { $_ => 1 } qw(
         data-migrate data-row-save data-row-delete data-table-save
+        data-rebuild
         save delete mkdir move copy migrate-to-local file-upload git-restore
         git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
         rotate-auth-secret backup-create backup-delete backup-restore theme-activate
@@ -720,6 +722,7 @@ if ($token_auth) {
         'data-migrate'    => sub { $_[0]->{manage_data} },
         'data-row-save'   => sub { $_[0]->{manage_data} },
         'data-table-save' => sub { $_[0]->{manage_data} },
+        'data-rebuild'    => sub { $_[0]->{manage_data} },
         'data-row-delete' => sub { $_[0]->{manage_data} },
         'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
         'domain-add'      => sub { $_[0]->{manage_domains} },
@@ -1150,6 +1153,12 @@ elsif ( $action eq 'data-table-save' ) {
     $result = Lazysite::Manager::Data::action_data_table_save(
         $req->{table} // $params{table},
         $req->{descriptor} );
+}
+elsif ( $action eq 'data-rebuild' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = Lazysite::Manager::Data::action_data_rebuild(
+        $req->{table} // $params{table},
+        $req->{confirm_lost} );
 }
 elsif ( $action eq 'data-migrate' ) {
     $result = Lazysite::Manager::Data::action_data_migrate( $params{table} );

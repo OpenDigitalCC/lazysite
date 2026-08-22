@@ -29,13 +29,14 @@ use Exporter                   qw(import);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect
     qw(read_handle write_handle store_path store_diagnosis);
-use Lazysite::Data::Schema qw(plan_migration);
+use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
 use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
     qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
-    apply_schema insert_row update_row delete_row export_all_rows);
+    apply_schema insert_row update_row delete_row export_all_rows
+    rebuild_table);
 
 sub _err {
     my ( $error, %extra ) = @_;
@@ -292,6 +293,105 @@ sub export_all_rows {
     }
     return { ok => 1, table => $name, rows => \@all,
         pending_schema => ( $offset == 0 && !@all ) ? 1 : 0 };
+}
+
+# DP-5: perform a blocked change, once it has been confirmed by name.
+#
+# apply_schema applies what is safe and REPORTS what it refuses. This is the
+# other side of that: the operator has read the refusal, decided, and named the
+# columns whose data they accept losing. Nothing here happens without that
+# list, and the list is checked against what the rebuild would actually drop -
+# confirming the wrong column name is not confirmation.
+#
+# A SAFETY EXPORT IS TAKEN FIRST, always, and its path is returned. The
+# operation drops a table; if anything about the copy is wrong, the rows exist
+# in one other place and the operator is told where. That costs a file and
+# removes the only genuinely unrecoverable step.
+sub rebuild_table {
+    my ( $docroot, $name, %opt ) = @_;
+    my $d = load_table( $docroot, $name );
+    return $d unless $d->{ok};
+
+    my $dbh = write_handle($docroot);
+    return _err( "table '$name': the data store cannot be opened for writing",
+        table => $name )
+        unless $dbh;
+
+    my $plan = plan_rebuild( $d, $dbh );
+    return _err( "table '$name': $plan->{error}", table => $name )
+        unless $plan->{ok};
+
+    # THE CONFIRMATION NAMES THE COLUMNS, and must name all of them. A caller
+    # that confirms "colour" while the rebuild would also drop "size" has not
+    # agreed to lose "size" - and a flag saying "yes, destructive" would have
+    # let exactly that through.
+    my %confirmed   = map  { $_ => 1 } @{ $opt{confirm_lost} || [] };
+    my @unconfirmed = grep { !$confirmed{$_} } @{ $plan->{lost} };
+    if (@unconfirmed) {
+        return _err(
+            "table '$name': this rebuild drops "
+                . join( ', ', @unconfirmed )
+                . ' and the data in them. Confirm by naming each column.',
+            table => $name, kind => 'needs_confirmation',
+            lost  => $plan->{lost},
+        );
+    }
+    # THE EXPORT, before anything is dropped.
+    my $rows = export_all_rows( $docroot, $name );
+    return $rows unless $rows->{ok};
+    require Lazysite::Data::Export;
+    require JSON::PP;
+    my $dir = "$docroot/lazysite/db/rebuilds";
+    unless ( -d $dir ) {
+        require File::Path;
+        eval { File::Path::make_path($dir); 1 }
+            or return _err( "table '$name': could not create $dir for the "
+                . 'safety export', table => $name );
+    }
+    my @t     = gmtime;
+    my $stamp = sprintf '%04d%02d%02dT%02d%02d%02dZ',
+        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
+    my $safety = "$dir/$name-$stamp.json";
+    my $export = Lazysite::Data::Export::export_table( $d, $rows->{rows} );
+    if ( open my $fh, '>:utf8', $safety ) {
+        my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
+        $ok = 0 unless close $fh;
+        unless ($ok) {
+            unlink $safety;
+            return _err( "table '$name': the safety export could not be "
+                    . 'written, so the rebuild was not attempted',
+                table => $name );
+        }
+    }
+    else {
+        return _err( "table '$name': the safety export could not be opened, "
+                . 'so the rebuild was not attempted', table => $name );
+    }
+
+    # IN A TRANSACTION. The steps drop a table and rename another into its
+    # place; half of that is a site with no table at all.
+    my @done;
+    my $ok = eval {
+        $dbh->begin_work;
+        for my $step ( @{ $plan->{steps} } ) {
+            $dbh->do( $step->{sql} );
+            push @done, $step->{why};
+        }
+        $dbh->commit;
+        1;
+    };
+    unless ($ok) {
+        my $err = $@ || 'unknown error';
+        eval { $dbh->rollback; 1 };
+        return _err(
+            "table '$name': the rebuild failed and was rolled back - $err. "
+                . "The rows are also in $safety.",
+            table => $name, safety_export => $safety );
+    }
+
+    return { ok => 1, table => $name, applied => \@done,
+        carried => $plan->{carried},          lost          => $plan->{lost},
+        rows    => scalar @{ $rows->{rows} }, safety_export => $safety };
 }
 
 1;

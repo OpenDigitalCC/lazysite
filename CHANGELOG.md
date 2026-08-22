@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- DP-5 (PENDING) **a refused schema change can be made to happen, confirmed by
+  name.** `migrate_data_table` refuses a type change, a tightening to required,
+  and a dropped column - right as a default and wrong as a permanent state,
+  because a refusal with no path through is a dead end and an operator who meets
+  one edits the store by hand, which is what the refusal existed to prevent.
+  SQLite cannot alter a column, so all three are one operation: build the new
+  shape, copy what carries over, drop, rename. **The confirmation names each
+  column whose data will be lost**, never a boolean - agreeing to lose one
+  column you read about must not agree to a second you did not notice, and
+  confirming the wrong name is not confirmation. **A safety export of every row
+  is written before anything is dropped**, and its path is returned, including
+  on failure. The steps run in a transaction, because half of *drop the old
+  table, rename the new one into place* is a site with no table at all. It is a
+  **separate action** from migrate rather than a flag on it: migrating is
+  routine after a descriptor edit, rewriting a table is not, and one name would
+  make the routine call carry the dangerous capability every time.
+
 - SM466 resolved / SM456 partly (PENDING) **a preview says which layout and
   theme the visitor actually got.** Nothing could confirm that a public page
   renders its own layout: `preview_page` renders through the manager,
