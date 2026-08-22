@@ -36,6 +36,7 @@ use Lazysite::Data::SQLite
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema insert_row update_row delete_row export_all_rows
+    resolve_binding
     rebuild_table);
 
 sub _err {
@@ -303,6 +304,72 @@ sub delete_row {
         kind => 'no_such_row' )
         unless $n && $n > 0;
     return { ok => 1, table => $name, key => $key_value, deleted => 0 + $n };
+}
+
+# DP-2: a binding, resolved. One entry point for `db:` on a page and for the
+# endpoint, so the two cannot answer the same binding differently.
+#
+# IT RETURNS WHAT THE BINDING ASKED FOR, not always a list: `.count` gives a
+# number and `.field` gives one value, because a page that has to write
+# `[% total.0.n %]` to show a count has been given the query engine's internal
+# shape instead of an answer.
+sub resolve_binding {
+    my ( $docroot, $spec, $as ) = @_;
+    require Lazysite::Data::Query;
+
+    # The table name has to come out before the descriptor can be loaded, so
+    # the binding is parsed twice: once for shape, once - inside the same
+    # function - with the descriptor to validate against. Parsing is pure and
+    # cheap, and the alternative is a half-parsed thing passed around.
+    my $shape = Lazysite::Data::Query::parse_binding($spec);
+    return $shape unless $shape->{ok};
+
+    my $d = load_table( $docroot, $shape->{table} );
+    return $d unless $d->{ok};
+
+    require Lazysite::Data::Access;
+    return _err( "no table '$shape->{table}' is declared",
+        table => $shape->{table}, kind => 'no_such_table' )
+        unless Lazysite::Data::Access::may_read( $docroot, $d, $as );
+
+    my $q = Lazysite::Data::Query::parse_binding( $spec, $d );
+    return $q unless $q->{ok};
+
+    my %opt = ( as => 'operator' );    # already gated, three lines above
+    $opt{where}    = $q->{filters}  if %{ $q->{filters} };
+    $opt{order_by} = $q->{order_by} if defined $q->{order_by};
+    $opt{order}    = $q->{order}    if defined $q->{order};
+    $opt{limit}    = $q->{limit}    if defined $q->{limit};
+    $opt{offset}   = $q->{offset}   if defined $q->{offset};
+
+    my $scalar = $q->{scalar} // '';
+
+    # `.field(column,key=K)` reads ONE row by its key, so the key travels as a
+    # filter and the limit is 1 whatever the binding said.
+    if ( $scalar eq 'field' ) {
+        $opt{limit} = 1;
+        my $r = read_rows( $docroot, $shape->{table}, %opt );
+        return $r unless $r->{ok};
+        my $row = $r->{rows}[0];
+        return { ok => 1, table => $shape->{table}, mode => $q->{mode},
+            value => ( $row ? $row->{ $q->{column} } : undef ) };
+    }
+
+    my $r = read_rows( $docroot, $shape->{table}, %opt );
+    return $r unless $r->{ok};
+
+    # `.count` counts what the filters SELECT, and it counts them after the
+    # limit rather than before - which is worth saying because it is the
+    # surprising choice. A count that ignored the limit would disagree with the
+    # list beside it on the same page, and two numbers on one page that
+    # disagree is worse than one number that is capped.
+    if ( $scalar eq 'count' ) {
+        return { ok => 1, table => $shape->{table}, mode => $q->{mode},
+            value => scalar @{ $r->{rows} || [] } };
+    }
+
+    return { %{$r}, mode => $q->{mode},
+        ( $q->{writable} ? ( writable => $q->{writable} ) : () ) };
 }
 
 # EVERY row, for an export. Not read_rows, which is capped.

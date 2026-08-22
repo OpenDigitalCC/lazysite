@@ -4757,34 +4757,40 @@ sub resolve_db {
         return [];
     }
 
-    my ( $table, @mods ) = split /\s+/, $spec;
-    my %opt;
-    for my $m (@mods) {
-        if    ( $m =~ /\Asort=(\w+)\z/ )   { $opt{order_by} = $1 }
-        elsif ( $m =~ /\A(asc|desc)\z/i )  { $opt{order}    = lc $1 }
-        elsif ( $m =~ /\Alimit=(\d+)\z/ )  { $opt{limit}    = $1 }
-        elsif ( $m =~ /\Aoffset=(\d+)\z/ ) { $opt{offset}   = $1 }
-    }
-
-    # LIVE: see the header. Recorded before the read, so a read that dies still
-    # leaves the page uncacheable rather than cacheable-and-empty.
-    $TT_DEP_LIVE = 1;
+    my ($table) = split /[\s(.]/, $spec;
+    $table = '' unless defined $table;
 
     # THE VISITOR, and never an operator (SM476). A page renders the same rows
     # for whoever is looking at it: an operator seeing rows a visitor cannot is
     # a preview that means nothing, which is the fault SM466 fixed for layouts
     # and themes. So the identity here is the request's, whatever it is.
-    my $r = Lazysite::Data::Tables::read_rows(
-        $DOCROOT, $table,
-        as => {
-            user   => ( $ENV{HTTP_X_REMOTE_USER} // '' ),
+    my $r = Lazysite::Data::Tables::resolve_binding(
+        $DOCROOT, $spec,
+        { user => ( $ENV{HTTP_X_REMOTE_USER} // '' ),
             groups => [
                 grep { length }
                     split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
             ],
-        },
-        %opt
+        }
     );
+
+    # SNAPSHOT IS THE DEFAULT, AND THAT IS A CORRECTION.
+    #
+    # Every db: binding used to mark the page LIVE - rendered per request,
+    # never cached. That was the safe thing to do before there was a way for an
+    # author to say what they wanted, and it is the wrong default to keep: it
+    # makes a price list on a home page cost a database read per visitor, which
+    # is a performance cliff nobody opted into and nobody can see.
+    #
+    # The brief's default is snapshot: resolved at render, cached with the
+    # page, refreshed by the page's own ttl: like any other content. An author
+    # who needs per-request freshness writes `mode=live` and pays for it
+    # knowingly.
+    #
+    # Recorded AFTER the read, because the mode comes from the parsed binding -
+    # and a binding that failed to parse gets the safe answer rather than the
+    # default one.
+    $TT_DEP_LIVE = 1 if !$r->{ok} || ( $r->{mode} // 'live' ) ne 'snapshot';
 
     # A TABLE WITH NO STORED SCHEMA IS LOGGED TOO, not just an error.
     #
@@ -4819,6 +4825,11 @@ sub resolve_db {
             key => $key, table => $table, why => ( $r->{error} // '' ) );
         return [];
     }
+    # A SCALAR BINDING IS A SCALAR. `.count` and `.field` answer a value, and
+    # handing back a one-row list would make a page write [% total.0.n %] to
+    # show a number - the query engine's internal shape leaking into a
+    # template.
+    return $r->{value} if exists $r->{value};
     return $r->{rows} || [];
 }
 

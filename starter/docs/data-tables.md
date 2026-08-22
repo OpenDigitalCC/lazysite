@@ -77,19 +77,79 @@ On a page:
 ---
 title: Our products
 tt_page_var:
-  products: db:products sort=name asc limit=20
+  products: db:products(order=name,limit=20)
+  total:    db:products.count()
 ---
 ```
 
 and in the layout:
 
 ```
+[% total %] products
 [% FOREACH p IN products %]<li>[% p.name %] — [% p.price %]</li>[% END %]
 ```
 
-`sort=` takes a **declared field name**; `limit=` and `offset=` page through.
-A page bound to a table is rendered on every request rather than cached,
-because no file timestamp can prove such a page current.
+### What you may ask for
+
+```datatable
+columns: Written | Means
+widths: 7.4cm | X
+bold: 1
+tone: medium
+---
+`db:products` | the whole table, declared order
+`db:products(featured=true,limit=4)` | filtered, AND-combined
+`db:tasks(order=due)` / `(order=-due)` | ordered, ascending or descending
+`db:tasks.count(done=false)` | a number, not a list
+`db:products.field(price,code=SKU1)` | one value out of one row
+```
+
+The older spacing -- `db:products sort=name asc limit=20` -- still means
+exactly the same thing.
+
+**A filter or an order may only name an indexed field, an enum, a boolean, or
+the key.** Anything else is a full table scan: it works on the dozen rows you
+tested with and stops working when the table is real, long after you wrote it.
+If you need to filter on a field, give it an index:
+
+```yaml
+indexes:
+  - [name]
+```
+
+A compound index `[area, street]` makes `area=` cheap and leaves `street=` a
+scan -- an index can only be entered at its first column.
+
+Filter values are checked against the field's declared type, so
+`done=perhaps` on a boolean is **refused and says so** rather than quietly
+matching nothing. `limit=` is capped at **500**; ask for more and you are told,
+rather than served 500 and left wondering.
+
+Anything this grammar will not express -- joins, ranges, OR -- is deliberate.
+Front matter is not a place for a query language.
+
+### When the rows are read
+
+```datatable
+columns: Mode | When
+widths: 3cm | X
+bold: 1
+tone: medium
+---
+`snapshot` | **the default.** Read once at render and cached with the page, refreshed by the page's `ttl:` like any other content
+`live` | read on every request. The page is never cached -- use it for stock levels and queue lengths, and pay for it knowingly
+`client` | no rows at render; the page's own script fetches them
+```
+
+```yaml
+  stock: db:stock(mode=live)
+```
+
+A snapshot is **snapshot at render**: a row you change now appears when the
+page's `ttl:` next expires, not on the next request. Nothing depends on the
+database file's timestamp, because the store is written through WAL and a row
+can change without that timestamp moving -- so a dependency on it would report
+a freshness it never established.
 
 ## Field types
 

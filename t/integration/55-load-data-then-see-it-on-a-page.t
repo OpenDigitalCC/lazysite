@@ -123,6 +123,8 @@ subtest 'SM470: a table is DECLARED through the API, with no file access' => sub
     my $yaml = <<'YAML';
 title: Products
 key: code
+indexes:
+  - [name]
 fields:
   code:
     type: text
@@ -225,6 +227,8 @@ subtest 'PUBLISH: the operator says the table may be seen' => sub {
 public: true
 title: Products
 key: code
+indexes:
+  - [name]
 fields:
   code:
     type: text
@@ -260,42 +264,71 @@ subtest 'READ: a visitor sees it on the page' => sub {
     like( $html, qr/Anvil.*Widget/s, 'in the declared order' );
 };
 
-subtest 'a change is visible on the NEXT request, not the next cache expiry' => sub {
+subtest 'a changed row reaches the page' => sub {
     ok( api_post( 'action=data-row-save&table=products&key=W1',
             { row => { price => '11.50' } } )->{ok}, 'the price changes' );
     my $html = visit('/');
-    like( $html, qr/Widget \@ 11\.50/, 'and the visitor sees the new price' )
-        or diag( 'A page bound to a table has no file whose mtime proves it '
-            . 'current - the store is written through WAL, so a row can '
-            . 'change without the database file timestamp moving. That is why '
-            . 'the binding marks the page live rather than cacheable.' );
+    like( $html, qr/Widget \@ 11\.50/, 'and the visitor sees the new price' );
+
+    # THIS SAYS LESS THAN ITS OLD NAME CLAIMED. It used to be called "visible
+    # on the NEXT request, not the next cache expiry", which was true only
+    # because every db: binding forced the page live. Under DP-2 the default is
+    # snapshot, so WHEN a change becomes visible is the page's ttl - and this
+    # fixture never fills the cache, so it could not tell the difference
+    # either way. What it still proves is that the read is not stuck on a
+    # stale descriptor or a cached statement.
 };
 
-subtest 'the page is recorded as LIVE, so it is never served stale' => sub {
+subtest 'DP-2: the mode decides whether the page is live' => sub {
     # ASSERTED ON THE DEPENDENCY RECORD, because that is where the guarantee
-    # actually lives. Trying to provoke a stale render proves nothing here -
-    # a fixture that never fills the cache passes whether the flag is set or
-    # not, and that is exactly what my first version of this subtest did.
+    # lives. Provoking a stale render proves nothing here - a fixture that
+    # never fills the cache passes whether the flag is set or not, which is
+    # what an earlier version of this subtest did.
     #
-    # A page bound to a table has no file whose mtime proves it current: the
-    # store is written through WAL, so a row can change without the database
-    # file's timestamp moving. The processor records such a page as LIVE - a
-    # leading `!` in its dependency record - which is the flag that stops the
-    # cache claiming a freshness it cannot establish.
-    visit('/');
-    my @deps = glob "$docroot/lazysite/cache/ct/*";
-    ok( scalar @deps, 'a dependency record was written for the page' )
-        or diag( 'Without one the page declares no sources at all, and the '
-            . 'cache has nothing to reason about.' );
-
-    my $live = 0;
-    for my $f (@deps) {
-        open my $fh, '<', $f or next;
-        my $first = <$fh>;
-        close $fh;
-        $live = 1 if defined $first && $first =~ /\A!/;
+    # SNAPSHOT IS THE DEFAULT NOW, and that is the correction DP-2 makes. Every
+    # db: binding used to force the page live, which made a price list on a
+    # home page cost a database read per visitor - a performance cliff nobody
+    # opted into and nobody could see. An author who needs per-request
+    # freshness asks for it.
+    sub live_flag {
+        my @deps = glob "$docroot/lazysite/cache/ct/*";
+        return ( undef, 0 ) unless @deps;
+        my $live = 0;
+        for my $f (@deps) {
+            open my $fh, '<', $f or next;
+            my $first = <$fh>;
+            close $fh;
+            $live = 1 if defined $first && $first =~ /\A!/;
+        }
+        return ( scalar @deps, $live );
     }
-    ok( $live, 'and it is marked live' )
+
+    unlink glob "$docroot/lazysite/cache/ct/*";
+    visit('/');
+    my ( undef, $live ) = live_flag();
+    ok( !$live, 'a snapshot binding does NOT force the page live' )
+        or diag( 'Snapshot means resolved at render and cached with the page, '
+            . 'refreshed by the page ttl like any other content.' );
+
+    # AND IT REGISTERS NO DEPENDENCY EITHER, which is worth stating rather than
+    # discovering. There is nothing for a snapshot to depend ON: the store is
+    # written through WAL, so a row can change without the database file's
+    # timestamp moving, and a dependency that cannot detect a change is worse
+    # than none - it would report freshness it never established. Snapshot's
+    # freshness is the page's ttl, exactly as the brief specifies, and the docs
+    # say so where an author chooses a mode.
+
+    # mode=live is the opt-in, and it must still work: a stock level or a queue
+    # length is exactly the case where a cached page would be wrong.
+    open my $p3, '>', "$docroot/index.md" or die $!;
+    print {$p3} "---\ntitle: Home\ntt_page_var:\n"
+        . "  products: db:products(order=name,limit=10,mode=live)\n---\n\nHi\n";
+    close $p3;
+    unlink glob "$docroot/lazysite/cache/ct/*";
+    visit('/');
+    my ( $n2, $live2 ) = live_flag();
+    ok( $n2, 'the live page records dependencies too' );
+    ok( $live2, 'and mode=live DOES mark it live' )
         or diag( 'A cacheable page bound to a live table would serve last '
             . "week's price list while reporting itself fresh." );
 };
