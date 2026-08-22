@@ -143,12 +143,12 @@ tone: medium
 `session-revoke` | cookie only |  
 `sessions-list` | cookie only |  
 `site-backup-apply` | manage_domains |  
-`site-backup-create` | manage_domains | host (query_or_body)
+`site-backup-create` | manage_domains | host (query_or_body), data_tables (body)
 `site-backup-delete` | manage_domains | name (query_or_body)
 `site-backup-download` | manage_domains | name (query_or_body)
 `site-backup-inspect` | manage_domains | name (query), host (query)
 `site-backup-upload` | manage_domains |  
-`site-export-primary` | manage_content |  
+`site-export-primary` | manage_content | data_tables (body)
 `theme-activate` | manage_themes | path (query), theme (query)
 `theme-delete` | manage_themes | path (query)
 `theme-list` | manage_themes / manage_layouts |  

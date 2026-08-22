@@ -35,7 +35,7 @@ use Lazysite::Data::SQLite
     qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
-    apply_schema insert_row update_row delete_row);
+    apply_schema insert_row update_row delete_row export_all_rows);
 
 sub _err {
     my ( $error, %extra ) = @_;
@@ -250,6 +250,48 @@ sub delete_row {
         kind => 'no_such_row' )
         unless $n && $n > 0;
     return { ok => 1, table => $name, key => $key_value, deleted => 0 + $n };
+}
+
+# EVERY row, for an export. Not read_rows, which is capped.
+#
+# The cap on read_rows is deliberate and stays: an unbounded select against a
+# table an agent has been filling is how a page comes to render for a minute.
+# An EXPORT is the one caller that genuinely wants all of it, so it pages
+# through in cap-sized batches rather than asking the cap to be lifted - the
+# ceiling keeps protecting every other caller, and this one costs one query per
+# thousand rows.
+#
+# Ordered by the key, so two exports of the same data page identically and the
+# batches cannot overlap or skip. Ordering by nothing would let SQLite return
+# rows in whatever order it liked BETWEEN queries, which is how a paged export
+# silently loses rows.
+sub export_all_rows {
+    my ( $docroot, $name ) = @_;
+    my $d = load_table( $docroot, $name );
+    return $d unless $d->{ok};
+
+    my $batch = 1000;
+    my @all;
+    my $offset = 0;
+    while (1) {
+        my $r = read_rows( $docroot, $name,
+            order_by => $d->{key}, order  => 'asc',
+            limit    => $batch,    offset => $offset );
+        return $r unless $r->{ok};
+        my $rows = $r->{rows} || [];
+        push @all, @{$rows};
+        last if @{$rows} < $batch;
+        $offset += $batch;
+
+        # A table that keeps returning full batches forever means something is
+        # wrong with the paging, not that the table is enormous. Stopping with
+        # an error beats looping until the process is killed.
+        return _err( "table '$name': export exceeded 1,000,000 rows - refusing "
+                . 'to continue', table => $name )
+            if $offset > 1_000_000;
+    }
+    return { ok => 1, table => $name, rows => \@all,
+        pending_schema => ( $offset == 0 && !@all ) ? 1 : 0 };
 }
 
 1;

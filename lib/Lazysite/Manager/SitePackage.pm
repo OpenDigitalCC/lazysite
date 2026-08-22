@@ -223,6 +223,87 @@ sub package_create {
         }
     }
 
+    # 3b. DATA (DP-6). OPT-IN, AND THE TABLES ARE NAMED.
+    #
+    # Opt-in is the release manager's decision (2026-08-22): a package is a
+    # portable hand-over artefact, so shipping table contents by default means
+    # handing a third party whatever an operator put in a directory or a
+    # contact table.
+    #
+    # NAMED rather than a boolean, and that came out of the build rather than
+    # the decision: the data store is INSTANCE-WIDE - one
+    # lazysite/db/data.sqlite for the whole install, not one per domain. So
+    # "this domain's data" does not exist. A boolean would have swept every
+    # table on the instance, including another domain's, into the one artefact
+    # that travels between organisations - which is the risk the opt-in was
+    # chosen to avoid, arriving from a direction the decision did not consider.
+    #
+    # Each table is exported as typed JSON rather than as the SQLite file:
+    # it restores into a FRESH database on any engine, it can be read before
+    # being handed over, and a decimal keeps its trailing zeros because the
+    # serialiser writes it as a string (D8).
+    my @data_carried;
+    my @data_failed;
+    my @wanted = grep { defined && length } @{ $opt{data_tables} || [] };
+    if (@wanted) {
+        require Lazysite::Data::Tables;
+        require Lazysite::Data::Export;
+        make_path("$stage/data");
+        for my $t (@wanted) {
+            my $d = Lazysite::Data::Tables::load_table( $DOCROOT, $t );
+            unless ( $d->{ok} ) {
+                push @data_failed, { table => $t, error => $d->{error} };
+                next;
+            }
+            my $r = Lazysite::Data::Tables::export_all_rows( $DOCROOT, $t );
+            unless ( $r->{ok} ) {
+                push @data_failed, { table => $t, error => $r->{error} };
+                next;
+            }
+            my $export = Lazysite::Data::Export::export_table( $d, $r->{rows} );
+            my $path   = "$stage/data/$t.json";
+            if ( open my $jf, '>:utf8', $path ) {
+                my $ok = print {$jf} JSON::PP->new->canonical->pretty->encode($export);
+                $ok = 0 unless close $jf;
+                if ($ok) {
+                    push @data_carried,
+                        { table => $t, rows => scalar @{ $r->{rows} } };
+                }
+                else {
+                    unlink $path;
+                    push @data_failed,
+                        { table => $t, error => 'could not write the export' };
+                }
+            }
+            else {
+                push @data_failed, { table => $t, error => "could not open $path" };
+            }
+        }
+        # A NAMED TABLE THAT DID NOT MAKE IT FAILS THE PACKAGE. An operator who
+        # asked for three tables and silently got two would hand over a package
+        # they believe is complete.
+        if (@data_failed) {
+            $cleanup->();
+            return { ok => 0, kind => 'data',
+                error => 'could not export: '
+                    . join( ', ',
+                    map { "$_->{table} ($_->{error})" } @data_failed ) };
+        }
+    }
+
+    # WHAT WAS LEFT BEHIND IS REPORTED, exactly as SM286 reports gated content.
+    # The reasoning is the same and it is the important half: the omission is
+    # correct and completely silent, so the receiving operator would have no
+    # way to learn that this instance has tables at all. A count, never the
+    # rows.
+    # `my ... if ...` is undefined behaviour in Perl - the variable is declared
+    # once and keeps its value across calls - so the require and the listing are
+    # unconditional and plain.
+    require Lazysite::Data::Tables;
+    my %carried      = map { $_->{table} => 1 } @data_carried;
+    my @declared     = @{ Lazysite::Data::Tables::list_tables($DOCROOT) || [] };
+    my $data_omitted = scalar grep { !$carried{$_} } @declared;
+
     # 4. manifest
     #
     # SM286: a package NEVER carries gated content, and says how much it left.
@@ -255,6 +336,13 @@ sub package_create {
         # discloses the thing the gate exists to protect, and this manifest
         # travels further than the content ever would.
         private_omitted => $private_omitted,
+
+        # DP-6. `data_omitted` is the number of DECLARED tables this package
+        # does not carry - the same shape as private_omitted, and there for the
+        # same reason: a receiving operator learns from the package itself that
+        # data exists, rather than from a gap they may never notice.
+        data         => \@data_carried,
+        data_omitted => $data_omitted,
     };
     if ( open my $mf, '>:utf8', "$stage/site.json" ) {
         print {$mf} JSON::PP->new->canonical->pretty->encode($manifest);
@@ -509,6 +597,86 @@ sub package_apply {
     make_path($target) unless -d $target;
     _copy_tree( "$stage/content", $target ) if -d "$stage/content";
 
+    # 1b. DATA (DP-6). Restore only what the package actually carries, and
+    # NEVER overwrite a table that already has rows.
+    #
+    # A package apply is how a site arrives on a new instance, and it is also
+    # how somebody re-applies one onto an instance already in use. The second
+    # case is the dangerous one: restoring over a populated table would replace
+    # a live product list with a snapshot from whenever the package was built,
+    # and the operator would have asked for a site, not for that.
+    #
+    # So an occupied table is REFUSED and reported. Migrating first is
+    # deliberate too - the descriptor travels with the export, and rows cannot
+    # go into a table that does not exist yet.
+    my @data_restored;
+    my @data_skipped;
+    if ( -d "$stage/data" ) {
+        require Lazysite::Data::Tables;
+        require Lazysite::Data::Export;
+        require JSON::PP;
+        for my $jf ( sort glob "$stage/data/*.json" ) {
+            my ($table) = $jf =~ m{/([a-z][a-z0-9_]*)\.json\z};
+            unless ( defined $table ) {
+                push @data_skipped,
+                    { table => ( $jf =~ s{.*/}{}r ), why => 'not a table name' };
+                next;
+            }
+            my $raw = do {
+                if ( open my $fh, '<:utf8', $jf ) { local $/; <$fh> }
+                else                              { undef }
+            };
+            my $export = defined $raw ? eval { JSON::PP->new->decode($raw) } : undef;
+            unless ( ref $export eq 'HASH' ) {
+                push @data_skipped, { table => $table, why => 'unreadable export' };
+                next;
+            }
+
+            my $d = Lazysite::Data::Tables::load_table( $DOCROOT, $table );
+            unless ( $d->{ok} ) {
+                push @data_skipped,
+                    { table => $table,
+                    why => 'no descriptor on this instance - save it first' };
+                next;
+            }
+
+            my $existing = Lazysite::Data::Tables::read_rows( $DOCROOT, $table,
+                limit => 1 );
+            if ( $existing->{ok} && @{ $existing->{rows} || [] } ) {
+                push @data_skipped,
+                    { table => $table, why => 'the table already holds rows' };
+                next;
+            }
+
+            my $sch = Lazysite::Data::Tables::apply_schema( $DOCROOT, $table );
+            unless ( $sch->{ok} ) {
+                push @data_skipped, { table => $table, why => $sch->{error} };
+                next;
+            }
+
+            # THE SAME import the export was written for, so a restore cannot
+            # put anything into the store that a write could not - and a
+            # package whose shape no longer matches this instance's descriptor
+            # is refused rather than coerced.
+            my $imp = Lazysite::Data::Export::import_table( $d, $export );
+            unless ( $imp->{ok} ) {
+                push @data_skipped, { table => $table, why => $imp->{error} };
+                next;
+            }
+            my $n = 0;
+            for my $row ( @{ $imp->{rows} } ) {
+                my $r = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, $row );
+                unless ( $r->{ok} ) {
+                    push @data_skipped,
+                        { table => $table, why => "row $n: $r->{error}" };
+                    last;
+                }
+                $n++;
+            }
+            push @data_restored, { table => $table, rows => $n } if $n;
+        }
+    }
+
     # 2. theme + layout: install the bundled layout/<...>/themes/<theme> if the
     # target does not already have that layout. Never overwrite an existing
     # layout (another site may share it) - only fill a gap.
@@ -584,6 +752,12 @@ sub package_apply {
         # The caller can then tell an integrity-checked apply from one where
         # nobody had made a claim to check against.
         integrity => $verified,
+
+        # DP-6. Both lists, always - `data_skipped` is the useful half, and a
+        # caller that shows only what was restored would report a partial data
+        # restore as a complete one.
+        data_restored => \@data_restored,
+        data_skipped  => \@data_skipped,
     };
 }
 

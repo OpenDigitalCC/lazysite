@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- DP-6 (PENDING) **a site package can carry a table's data, opt-in.** Content
+  backups exclude `./lazysite` and a package copies content, nav and layout
+  only, so a migrated site arrived **without its database and nothing said so**
+  (SM410 finding B). Now: `data_tables` names the tables to carry, each exported
+  as typed JSON that restores into a fresh database on any engine. **Named
+  rather than a boolean, and that came out of the build:** the store is
+  instance-wide, so *this domain's data* does not exist, and a flag would have
+  swept another domain's tables into the one artefact that travels between
+  organisations. **What is left behind is reported** - `data_omitted` counts
+  declared tables the package does not carry, the same shape and the same
+  reasoning as SM286's `private_omitted`, because a silent omission means the
+  receiving operator never learns the instance has tables at all. On apply, a
+  table that **already holds rows is refused**, not overwritten: restoring over
+  a live product list replaces it with a snapshot from whenever the package was
+  built. A named table that cannot be exported **fails the build**, since an
+  operator who asked for three tables and silently got two would hand over a
+  package they believe is complete.
+
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no

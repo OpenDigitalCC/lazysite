@@ -1147,7 +1147,12 @@ elsif ( $action eq 'lang-status' ) {
 }
 elsif ( $action eq 'site-backup-create' ) {
     my $req = eval { decode_json($body) } // {};
-    $result = action_site_backup_create( $req->{host} // $params{host} );
+    # DP-6: `data_tables` is a LIST the operator names, not a boolean. The
+    # data store is instance-wide, so "this domain's data" does not exist and a
+    # flag would sweep another domain's tables into an artefact that travels
+    # between organisations.
+    $result = action_site_backup_create( $req->{host} // $params{host},
+        $req->{data_tables} );
 }
 elsif ( $action eq 'site-backup-upload' ) {
     $result = action_site_backup_upload($body);
@@ -1157,7 +1162,8 @@ elsif ( $action eq 'site-backup-apply' ) {
     $result = action_site_backup_apply($req);
 }
 elsif ( $action eq 'site-export-primary' ) {
-    $result = action_site_export_primary();
+    my $req = eval { decode_json($body) } // {};
+    $result = action_site_export_primary( $req->{data_tables} );
 }
 elsif ( $action eq 'site-backup-inspect' ) {
     $result = action_site_backup_inspect( $params{name}, $params{host} );
@@ -1878,7 +1884,7 @@ sub action_domain_check {
 # have ACCESS to that domain's content root - a scope-confined editor can only
 # package a domain within their dav_scope union (operators are unconfined).
 sub action_site_backup_create {
-    my ($host) = @_;
+    my ( $host, $data_tables ) = @_;
     $host = lc( $host // '' );
     return { ok => 0, kind => 'invalid', error => 'A domain host is required' }
         unless length $host;
@@ -1897,7 +1903,7 @@ sub action_site_backup_create {
     }
 
     local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
-    return package_create($host);
+    return package_create( $host, data_tables => $data_tables );
 }
 
 # SM185: package the DEFAULT/primary site as a self-contained site package,
@@ -1906,11 +1912,12 @@ sub action_site_backup_create {
 # scope-confined editor (bound to a sub-area) may NOT export the whole default
 # site. The package excludes lazysite/ and every other domain's content.
 sub action_site_export_primary {
+    my ($data_tables) = @_;
     return { ok => 0, kind => 'forbidden',
         error => 'Exporting the default site needs full content access (you are confined to an area).' }
         if @REQUEST_SCOPES;
     local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
-    return package_create('(default)');
+    return package_create( '(default)', data_tables => $data_tables );
 }
 
 # SM183: resolve a site-package name to its path under lazysite/backups/, confined
