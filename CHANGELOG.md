@@ -44,24 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM470 resolved (PENDING) **there was no way to declare a table.** The
-  descriptor lives at `lazysite/db/tables/<name>.yaml`, and `lazysite` is a
-  reserved root: the manager's content paths refuse it, WebDAV allows only
-  `lazysite/layouts/`, and no action or tool wrote one. A table could therefore
-  be declared only by somebody with a shell on the host, which is nobody this
-  feature is for. **Every fixture had hand-written the descriptor with `open`**,
-  modelling exactly that operator - so the end-to-end proved load-then-read and
-  never proved *declare*, and the one step with no path was the one step nothing
-  exercised. A fixture that gives itself access the product does not have is not
-  testing the product. Shipped as `data-table-save` and `save_data_table`: a
-  named door, capability-gated, writing one kind of file to one place. **The
-  reserved root is not loosened** - it holds the account store, the session
-  secret and the ACLs. It validates before writing, which a generic file write
-  could never have done, and it does not migrate: writing a descriptor and
-  changing the stored table are two decisions. Also removes `manage_data`'s
-  claim to a WebDAV path the front door denies - SM435's defect, on the plane
-  `t/lint/68` guards.
-
 - SM431 (PENDING, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
@@ -85,6 +67,39 @@ Naming the commit: AFTER it lands, never before
   correspondence and was wrong; the filing and commit message never carried
   the claim, and the status-note now records "unattributed" explicitly rather
   than leaving a gap that would default to the nearest known author.
+
+## 0.10.25 - EDGE: a table can actually be declared (2026-08-22)
+
+0.10.24 shipped the data plugin complete, and it could not be started. The
+descriptor that declares a table lives under `lazysite/`, which every write
+channel refuses on purpose, so declaring one needed a shell on the host.
+
+Found while checking the 0.10.24 deployment before handing the feature to a
+tester, and worth recording as a testing lesson rather than only a fix: every
+fixture had hand-written the descriptor with `open`, so the end-to-end proved
+*load and read* and never proved *declare*. The one step with no path was the
+one step nothing exercised.
+
+The reserved root is unchanged. What was added is a named door.
+
+
+- SM470 resolved (b355ae0) **there was no way to declare a table.** The
+  descriptor lives at `lazysite/db/tables/<name>.yaml`, and `lazysite` is a
+  reserved root: the manager's content paths refuse it, WebDAV allows only
+  `lazysite/layouts/`, and no action or tool wrote one. A table could therefore
+  be declared only by somebody with a shell on the host, which is nobody this
+  feature is for. **Every fixture had hand-written the descriptor with `open`**,
+  modelling exactly that operator - so the end-to-end proved load-then-read and
+  never proved *declare*, and the one step with no path was the one step nothing
+  exercised. A fixture that gives itself access the product does not have is not
+  testing the product. Shipped as `data-table-save` and `save_data_table`: a
+  named door, capability-gated, writing one kind of file to one place. **The
+  reserved root is not loosened** - it holds the account store, the session
+  secret and the ACLs. It validates before writing, which a generic file write
+  could never have done, and it does not migrate: writing a descriptor and
+  changing the stored table are two decisions. Also removes `manage_data`'s
+  claim to a WebDAV path the front door denies - SM435's defect, on the plane
+  `t/lint/68` guards.
 
 ## 0.10.24 - EDGE: DP-1 completes, and the plugin can be turned off (2026-08-21)
 
