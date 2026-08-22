@@ -127,7 +127,15 @@ sub describe {
         },
 
         actions => [
-            { id => 'status', label => 'Status' },
+
+            # `run => 'action'` IS NOT OPTIONAL HERE, and leaving it out is
+            # what SM477 was: the manager invokes a declared action as
+            # `--scan` UNLESS it says otherwise, and this plugin's run()
+            # serves `--action status`. So the Status button ran
+            # `--scan --docroot DIR`, hit the fall-through, and showed the
+            # operator a usage string - the plugin's two halves disagreeing
+            # about their own contract.
+            { id => 'status', label => 'Status', run => 'action' },
         ],
     };
 }
@@ -138,6 +146,13 @@ sub run {
     for my $i ( 0 .. $#argv ) {
         $opt{describe} = 1 if $argv[$i] eq '--describe';
         $opt{status} = 1 if $argv[$i] eq '--action' && ( $argv[ $i + 1 ] // '' ) eq 'status';
+
+        # `--scan` IS THE MANAGER'S DEFAULT, and every other plugin here
+        # serves it. Answering it too means an action that forgets the
+        # declaration degrades to the status report rather than to a usage
+        # string - and status is the recovery surface an operator reaches for
+        # when something is already wrong.
+        $opt{status}  = 1                     if $argv[$i] eq '--scan';
         $opt{docroot} = $argv[ $i + 1 ] // '' if $argv[$i] eq '--docroot';
     }
 
