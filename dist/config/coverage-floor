@@ -1,5 +1,23 @@
 # Coverage floors for `tools/coverage.sh --check`.
 #
+# A FLOOR IS A STATEMENT ABOUT A SUITE THAT PASSED, and about the job count it
+# passed at. Both halves were learned the hard way on 2026-08-22.
+#
+# The job count: a re-baseline at LAZYSITE_COVER_JOBS=2 reported 38.6% for
+# lazysite-auth.pl against the 82.1% recorded below, and the numbers were about
+# to be written in here as the new baseline - which would have ratcheted these
+# floors DOWN, the one thing the note further down forbids. The run had not
+# happened: 465 seconds against 270 for the same suite uninstrumented, and
+# Devel::Cover does not cost 1.7x. coverage.sh was discarding the suite's
+# output and swallowing its exit code, so an incomplete run and a healthy one
+# were indistinguishable. It no longer does, and --check now refuses to give a
+# verdict about a suite that did not pass (exit 3).
+#
+# SO THESE NUMBERS REMAIN 4-JOB NUMBERS. Pinning a lower job count is still
+# wanted - it costs ~620MB against ~3.9GB - but it needs a trustworthy
+# instrumented run first, and re-baselining is the LAST step of that, not the
+# first.
+#
 # Enforced floors (2026-07-10 review D3, recommendation 3): 75% statements
 # AND 62% branches per cleanly-measured production CGI. The statement floor
 # now IS the Commercial-regime floor (75%) - met by enforcement, not just in

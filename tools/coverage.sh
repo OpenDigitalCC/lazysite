@@ -17,6 +17,11 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 DB="$ROOT/cover_db"
+
+# Where the instrumented suite's own output goes. Kept, not discarded: see the
+# note at the prove line below - a coverage report is only meaningful about a
+# suite that finished, and nothing could tell whether one had.
+SUITE_LOG="${LAZYSITE_COVER_SUITE_LOG:-$ROOT/cover_db-suite.log}"
 FLOOR_FILE="$ROOT/dist/config/coverage-floor"
 
 # ONE RUN AT A TIME. Two concurrent runs share $DB: the second one's `rm -rf`
@@ -84,12 +89,54 @@ fi
 JOBS=${LAZYSITE_COVER_JOBS:-4}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,/t/,+ignore,Devel" \
-    prove -j"$JOBS" -r t/ >/dev/null 2>&1 || true
+    prove -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
+
+# `&& ... || ...` RATHER THAN A BARE `$?`, because this file runs under
+# `set -e`: a failing prove followed by `SUITE_RC=$?` on the next line would
+# kill the script before it could report anything, which is a louder version of
+# the same fault - the run vanishes instead of explaining itself.
+
+# A COVERAGE REPORT FROM A SUITE THAT DID NOT FINISH IS NOT A MEASUREMENT,
+# and this line used to be `>/dev/null 2>&1 || true` - the suite's output
+# thrown away and its exit code swallowed. A run that died a third of the way
+# through then produced a report indistinguishable from a healthy one, just
+# with lower numbers, and there was no way to tell the two apart from outside.
+#
+# THAT COST A REAL DECISION. A 2-job run reported 38.6% for a file whose
+# recorded baseline is 82.1%, and the obvious reading - "job count changes the
+# measurement" - was about to be written into the floor file as a new baseline.
+# The giveaway was the clock: 465 seconds against 270 for the same suite
+# UNINSTRUMENTED. Devel::Cover does not cost 1.7x; the suite had not run.
+#
+# So the run is now reported on, and --check refuses to give a coverage verdict
+# when the thing being measured did not complete. A floor is a statement about
+# a suite that passed.
+suite_files=$(grep -cE '^t/.*\.t ' "$SUITE_LOG" 2>/dev/null || echo 0)
+echo "suite under instrumentation: exit=$SUITE_RC, ${suite_files} file(s) reported" >&2
+if [ "$SUITE_RC" -ne 0 ]; then
+    echo "coverage: THE SUITE DID NOT PASS under instrumentation." >&2
+    echo "coverage: the numbers below describe a run that did not finish." >&2
+    grep -E '\(Wstat' "$SUITE_LOG" | head -10 >&2
+    echo "coverage: full output in $SUITE_LOG" >&2
+fi
 
 # Report (drop the per-run noise).
 cover -silent -report text "$DB" 2>/dev/null | grep -vE '^Run:[[:space:]]'
 
 if [ "$1" = "--check" ]; then
+    # REFUSE TO GIVE A COVERAGE VERDICT ABOUT A SUITE THAT DID NOT PASS.
+    #
+    # Not a coverage failure, and it must not be reported as one: SM444 is
+    # already the filing about a failed coverage gate blaming coverage, and
+    # this is the same mistake one layer further in. The floors describe a
+    # passing suite; measuring an incomplete one and comparing it to them
+    # produces a number that means nothing and a verdict that misleads.
+    if [ "${SUITE_RC:-1}" -ne 0 ]; then
+        echo "coverage: NOT CHECKING FLOORS - the suite did not pass under" >&2
+        echo "coverage: instrumentation, so there is no measurement to check." >&2
+        echo "coverage: fix the suite first; $SUITE_LOG says what failed." >&2
+        exit 3
+    fi
     floor=$(grep -E '^floor=' "$FLOOR_FILE" 2>/dev/null | grep -oE '[0-9]+' | head -1)
     : "${floor:=60}"
     # Branch floor (eight-dimension review D3): the framework requires line AND
