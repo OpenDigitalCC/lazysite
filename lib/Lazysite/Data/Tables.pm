@@ -344,6 +344,14 @@ sub resolve_binding {
 
     my $scalar = $q->{scalar} // '';
 
+    # TIMED, so the diagnosis is about what happened rather than about what
+    # might. SLOW_MS is deliberately well above the measured worst case for a
+    # table of any size these are meant to hold - about 5 ms at 100,000 rows -
+    # so it fires on something genuinely abnormal rather than on a busy host. A
+    # warning that cries wolf gets filtered out, and then the one time it
+    # matters nobody is listening.
+    my $t0 = _now();
+
     # `.field(column,key=K)` reads ONE row by its key, so the key travels as a
     # filter and the limit is 1 whatever the binding said.
     if ( $scalar eq 'field' ) {
@@ -351,8 +359,9 @@ sub resolve_binding {
         my $r = read_rows( $docroot, $shape->{table}, %opt );
         return $r unless $r->{ok};
         my $row = $r->{rows}[0];
-        return { ok => 1, table => $shape->{table}, mode => $q->{mode},
-            value => ( $row ? $row->{ $q->{column} } : undef ) };
+        return _timed( $q, $t0,
+            { ok => 1, table => $shape->{table}, mode => $q->{mode},
+                value => ( $row ? $row->{ $q->{column} } : undef ) } );
     }
 
     my $r = read_rows( $docroot, $shape->{table}, %opt );
@@ -364,12 +373,49 @@ sub resolve_binding {
     # list beside it on the same page, and two numbers on one page that
     # disagree is worse than one number that is capped.
     if ( $scalar eq 'count' ) {
-        return { ok => 1, table => $shape->{table}, mode => $q->{mode},
-            value => scalar @{ $r->{rows} || [] } };
+        return _timed( $q, $t0,
+            { ok => 1, table => $shape->{table}, mode => $q->{mode},
+                value => scalar @{ $r->{rows} || [] } } );
     }
 
-    return { %{$r}, mode => $q->{mode},
-        ( $q->{writable} ? ( writable => $q->{writable} ) : () ) };
+    return _timed( $q, $t0,
+        { %{$r}, mode => $q->{mode},
+            ( $q->{writable} ? ( writable => $q->{writable} ) : () ) } );
+}
+
+# The threshold, in milliseconds, above which a read is worth a word. A package
+# variable rather than a constant so a test can lower it - proving the warning
+# by building a table big enough to be slow would make the suite slow instead.
+our $SLOW_MS = 25;
+
+sub _now {
+    return eval { require Time::HiRes; Time::HiRes::time() } || 0;
+}
+
+# WHAT THE WARNING SAYS AND WHY IT SAYS IT. An author who sees "this page is
+# slow" cannot act; one who is told which binding, how long it took, and which
+# field to index can. And when the table has simply outgrown SQLite, the honest
+# advice is a different engine rather than a smaller query - so it says that
+# too, because an index on a table that large only moves the problem.
+sub _timed {
+    my ( $q, $t0, $out ) = @_;
+    return $out unless $t0;
+    my $ms = ( _now() - $t0 ) * 1000;
+    $out->{elapsed_ms} = sprintf '%.1f', $ms;
+    return $out unless $ms > $SLOW_MS;
+
+    my @scans = @{ $q->{scans} || [] };
+    $out->{slow}
+        = "reading '$q->{table}' took "
+        . sprintf( '%.0f', $ms )
+        . 'ms'
+        . ( @scans
+        ? ". Nothing indexes " . join( ' or ', map { "'$_'" } @scans )
+            . ', so the whole table is examined - add an index for it in the'
+            . ' descriptor. If the table is large enough that an index does not'
+            . ' settle it, it has outgrown SQLite rather than outgrown the query'
+        : '' );
+    return $out;
 }
 
 # EVERY row, for an export. Not read_rows, which is capped.

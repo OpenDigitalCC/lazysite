@@ -4792,6 +4792,14 @@ sub resolve_db {
     # default one.
     $TT_DEP_LIVE = 1 if !$r->{ok} || ( $r->{mode} // 'live' ) ne 'snapshot';
 
+    # A SLOW READ SAYS SO, with the page, the binding and what to do about it.
+    # This is what replaced refusing an unindexed filter or order: the refusal
+    # was based on a guess about cost, and this is based on the cost.
+    if ( $r->{slow} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable was slow', key => $key, why => $r->{slow} );
+    }
+
     # A TABLE WITH NO STORED SCHEMA IS LOGGED TOO, not just an error.
     #
     # read_rows answers ok with no rows and `pending_schema` when the table is

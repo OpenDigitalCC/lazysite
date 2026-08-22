@@ -107,10 +107,14 @@ tone: medium
 The older spacing -- `db:products sort=name asc limit=20` -- still means
 exactly the same thing.
 
-**A filter or an order may only name an indexed field, an enum, a boolean, or
-the key.** Anything else is a full table scan: it works on the dozen rows you
-tested with and stops working when the table is real, long after you wrote it.
-If you need to filter on a field, give it an index:
+You may filter or order on **any declared field**. Filtering on a field with
+no index means the whole table is examined, which for the sizes these tables
+are for costs about as much as nothing: measured at 100,000 rows, an unindexed
+`order by ... limit 10` takes 5.6 ms against 0.03 ms indexed, and a filter on a
+common value costs nothing either way because the `limit` stops it early.
+
+If a read does turn out slow, **the log says which binding, how long, and which
+field to index**:
 
 ```yaml
 indexes:
@@ -120,6 +124,9 @@ indexes:
 A compound index `[area, street]` makes `area=` cheap and leaves `street=` a
 scan -- an index can only be entered at its first column.
 
+If a table is big enough that an index does not settle it, it has outgrown
+SQLite rather than outgrown the query, and the answer is a different engine.
+
 Filter values are checked against the field's declared type, so
 `done=perhaps` on a boolean is **refused and says so** rather than quietly
 matching nothing. `limit=` is capped at **500**; ask for more and you are told,
@@ -127,6 +134,10 @@ rather than served 500 and left wondering.
 
 Anything this grammar will not express -- joins, ranges, OR -- is deliberate.
 Front matter is not a place for a query language.
+
+The **data endpoint** takes `order_by`, `order`, `limit` and `offset` in its
+query string and runs them through this same grammar, so a page and its own
+script cannot be told different things about one table.
 
 ### When the rows are read
 

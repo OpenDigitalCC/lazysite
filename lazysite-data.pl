@@ -243,28 +243,52 @@ sub main {
 
 
     require Lazysite::Data::Tables;
-    my %opt;
-    $opt{order_by} = $q{order_by} if defined $q{order_by} && length $q{order_by};
-    $opt{order}    = $q{order}    if defined $q{order}    && length $q{order};
-    $opt{limit}    = $q{limit}    if defined $q{limit}    && length $q{limit};
-    $opt{offset}   = $q{offset}   if defined $q{offset}   && length $q{offset};
+
+    # THE SAME PARSER THE PAGE BINDING USES, and it has to be. This built its
+    # own %opt and handed it to read_rows, so the two doors into one table
+    # applied DIFFERENT RULES - a grammar restriction on the page, none here.
+    # That is the shape of the SM476 defect exactly, and it would have grown
+    # back every time the grammar changed on one side.
+    #
+    # The binding is assembled from the query string, so every part is checked
+    # against a strict pattern FIRST. A value carrying a comma or a bracket
+    # would otherwise inject a second parameter into the grammar - `order_by`
+    # arriving as `name,limit=99999` is not a hypothetical, it is what a query
+    # string is for.
+    my @args;
+    if ( defined $q{order_by} && length $q{order_by} ) {
+        return reply( 400, { ok => 0, error => 'order_by must be a field name' } )
+            unless $q{order_by} =~ /\A[a-z][a-z0-9_]*\z/;
+        my $dir = ( ( $q{order} // '' ) =~ /\Adesc\z/i ) ? '-' : '';
+        push @args, "order=$dir$q{order_by}";
+    }
+    for my $n (qw(limit offset)) {
+        next unless defined $q{$n} && length $q{$n};
+        return reply( 400, { ok => 0, error => "$n must be a whole number" } )
+            unless $q{$n} =~ /\A\d+\z/;
+        push @args, "$n=$q{$n}";
+    }
+    my $binding = $table . ( @args ? '(' . join( ',', @args ) . ')' : '' );
 
     # THE VISITOR (SM476), with no operator bypass. This endpoint is the page's
     # data source, so it must answer exactly what the page's own binding would
     # - an operator who saw more here than their site's visitors do would be
     # testing a different site.
-    my $r = Lazysite::Data::Tables::read_rows(
-        $docroot, $table,
-        as => {
-            user   => $user,
+    # A BAD BINDING IS A 400, NOT A 404. "no such table" for a limit that is
+    # not a number would send a caller looking for a table that is right there.
+    my $r = Lazysite::Data::Tables::resolve_binding(
+        $docroot, $binding,
+        { user => $user,
             groups => [
                 grep { length }
                     split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
             ],
-        },
-        %opt
+        }
     );
     unless ( $r->{ok} ) {
+        return reply( 400, { ok => 0, error => $r->{error} } )
+            unless ( $r->{kind} // '' ) eq 'no_such_table';
+
         # A table nobody declared and a table this caller may not read answer
         # the SAME WAY, which is why the wording was chosen before the gate
         # existed: adding the gate changed no caller-visible string. Telling an

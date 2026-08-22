@@ -13,14 +13,34 @@ package Lazysite::Data::Query;
 #     total:    db:tasks.count(done=false)           a scalar
 #     price:    db:products.field(price,key=SKU1)    one value from one row
 #
-# WHY FILTER FIELDS MUST BE INDEXED, ENUM, BOOLEAN OR THE KEY. A filter on an
-# unindexed text column is a full table scan, and it is a scan that WORKS on
-# the author's twelve test rows and stops working at fifty thousand - by which
-# point the query is in a published page and the person who wrote it has moved
-# on. Refusing it at parse time costs the author one line in a log and one
-# index in a descriptor. Enum and boolean are exempt because their cardinality
-# is bounded by the declaration itself, and the key is exempt because it is
-# already unique.
+# AN UNINDEXED FILTER OR ORDER IS ALLOWED, AND REPORTED. It was refused at
+# first, on the reasoning that a scan "works on twelve test rows and stops
+# working at fifty thousand". That was asserted rather than measured, and the
+# measurement does not support it. At 100,000 rows, best of five, warm:
+#
+#     filter, common value ....  0.04 ms   (LIMIT stops the scan early)
+#     filter, rare or absent ..  4.38 ms
+#     order by, limit 10 ......  5.63 ms
+#     any of them, indexed ....  0.03 ms
+#
+# So the worst case is about five milliseconds at a hundred thousand rows -
+# noise beside forking a Perl CGI - and these tables hold SITE state: a product
+# list, an events calendar, a directory. Refusing would have made every author
+# of a thirty-row table declare an index and run a migration in order to sort
+# by name, demanding database expertise from a system whose premise is that
+# authors do not need it, to save about a hundredth of a millisecond. A refusal
+# people routinely work around also teaches them to work around refusals.
+#
+# AND THE ANSWER TO A TABLE BIG ENOUGH TO HURT IS A DIFFERENT ENGINE, not a
+# smaller grammar. SQLite is the default because it is one file and no
+# administration; a site whose data has outgrown that has outgrown SQLite, and
+# DP-7's adapters are where that goes. Restricting what a page may ask would
+# not have made such a site work - it would have made it fail differently.
+#
+# What survives is the DIAGNOSIS: the parser records which fields would scan,
+# and a read that actually turns out slow says so in the log - naming the page,
+# the binding, the elapsed time and the index that would fix it. A warning that
+# fires on real observed cost beats a rule that fires on a guess about it.
 #
 # ANYTHING BEYOND THIS GRAMMAR IS NOT A GAP TO BE FILLED HERE. Joins,
 # subqueries, ranges and OR belong in a named query file that a human reviews,
@@ -47,9 +67,12 @@ sub ROW_CAP { return 500 }
 
 sub _err { return { ok => 0, error => $_[0] } }
 
-# Which fields may be filtered or ordered on. See the header: this is the
-# full-scan rule, and it is the only reason the grammar rejects anything an
-# operator would consider reasonable.
+# Would filtering or ordering on this field scan the table? Not a refusal (see
+# the header) - the answer travels with the parsed query so that a read which
+# turns out slow can say what to index.
+#
+# A compound index helps its FIRST column and nothing else: SQLite cannot enter
+# an index part-way, so an index on (area, street) does nothing for `street=`.
 sub _cheap_field {
     my ( $d, $f ) = @_;
     return 1 if $f eq $d->{key};
@@ -62,17 +85,19 @@ sub _cheap_field {
     return 0;
 }
 
-sub _why_not_cheap {
+# NAMING A FIELD THAT DOES NOT EXIST IS STILL AN ERROR, and it is a different
+# kind from an expensive one: it can never work, at any table size, so there is
+# nothing to diagnose and nothing to weigh.
+sub _is_field {
+    my ( $d, $f ) = @_;
+    return 1 if exists $d->{fields}{$f} || $f eq $d->{key};
+    return 1 if $d->{timestamps} && $f =~ /\A(?:created_at|updated_at)\z/;
+    return 0;
+}
+
+sub _not_a_field {
     my ( $d, $f, $what ) = @_;
-    return "cannot $what by '$f': it is not a field of '$d->{table}'"
-        unless exists $d->{fields}{$f}
-        || $f eq $d->{key}
-        || ( $d->{timestamps} && $f =~ /\A(?:created_at|updated_at)\z/ );
-    return
-        "cannot $what by '$f': add an index for it in the descriptor. "
-        . 'Only indexed, enum and boolean fields and the key may be used, '
-        . 'because anything else is a full table scan that works on a small '
-        . 'table and stops working on a real one';
+    return "cannot $what by '$f': it is not a field of '$d->{table}'";
 }
 
 # `db:table(...)` or `db:table.count(...)`, plus space-separated modifiers.
@@ -183,9 +208,11 @@ sub _validate {
             unless exists $d->{fields}{ $q->{column} };
     }
 
+    $q->{scans} = [];
     for my $f ( sort keys %{ $q->{filters} } ) {
-        return _err( _why_not_cheap( $d, $f, 'filter' ) )
-            unless _cheap_field( $d, $f );
+        return _err( _not_a_field( $d, $f, 'filter' ) )
+            unless _is_field( $d, $f );
+        push @{ $q->{scans} }, $f unless _cheap_field( $d, $f );
 
         # THE VALUE IS CHECKED AGAINST ITS DECLARED TYPE, and the reason is the
         # error rather than the safety - the value is bound either way.
@@ -206,7 +233,13 @@ sub _validate {
     }
 
     if ( defined $q->{order_by} && length $q->{order_by} ) {
-        return _err( _why_not_cheap( $d, $q->{order_by}, 'order' ) )
+        return _err( _not_a_field( $d, $q->{order_by}, 'order' ) )
+            unless _is_field( $d, $q->{order_by} );
+
+        # ORDER BY IS THE EXPENSIVE ONE, and the one case LIMIT does not
+        # rescue: ten rows cannot be chosen without examining every row first.
+        # A filter on a common value stops early; this never does.
+        push @{ $q->{scans} }, $q->{order_by}
             unless _cheap_field( $d, $q->{order_by} );
     }
 

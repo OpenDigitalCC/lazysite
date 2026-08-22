@@ -67,34 +67,48 @@ subtest 'the space form still means what it meant' => sub {
     is( $a->{limit},    $b->{limit},    'same limit' );
 };
 
-subtest 'A FULL SCAN IS REFUSED, AND THE REFUSAL SAYS WHAT TO DO' => sub {
+subtest 'AN UNINDEXED FIELD IS ALLOWED, AND RECORDED AS A SCAN' => sub {
+    # This subtest used to assert a refusal. The refusal came from a guess
+    # about cost; the measurement says the worst case is about 5 ms at 100,000
+    # rows, and these tables hold site state. So the query runs, and what the
+    # parser reports is which fields would scan - so a read that ACTUALLY turns
+    # out slow can name the index that would fix it.
     my $q = parse_binding( 'db:tasks(title=Fix the roof)', $d );
-    ok( !$q->{ok}, 'filtering an unindexed text field is refused' )
-        or diag( 'This is the query that works in testing and fails in '
-            . 'production, silently, months later.' );
-    like( $q->{error}, qr/add an index/, 'and the error says how to allow it' )
-        or diag( 'A refusal an author cannot act on just gets worked around.' );
+    ok( $q->{ok}, 'filtering an unindexed text field is allowed' )
+        or diag( $q->{error} );
+    is_deeply( $q->{scans}, ['title'], 'and recorded as a scan' );
 
-    ok( !parse_binding( 'db:tasks(order=title)', $d )->{ok},
-        'ordering by one is refused too' )
-        or diag( 'ORDER BY sorts the whole table before LIMIT takes ten rows.' );
+    # A FILTER VALUE WITH SPACES IN IT. Parsing used to split on whitespace
+    # before honouring the brackets, so this became the table name
+    # `tasks(title=Fix`. A value with a space is a title, a name or an address.
+    is_deeply( $q->{filters}, { title => 'Fix the roof' },
+        'and the value keeps its spaces' );
 
-    ok( parse_binding( 'db:tasks(due=2026-01-01)', $d )->{ok}, 'indexed: allowed' );
-    ok( parse_binding( 'db:tasks(done=true)',      $d )->{ok}, 'boolean: allowed' );
-    ok( parse_binding( 'db:tasks(state=open)',     $d )->{ok}, 'enum: allowed' );
-    ok( parse_binding( 'db:tasks(code=T1)',        $d )->{ok}, 'the key: allowed' );
+    $q = parse_binding( 'db:tasks(order=title)', $d );
+    ok( $q->{ok}, 'ordering by one is allowed too' );
+    is_deeply( $q->{scans}, ['title'], 'and recorded' )
+        or diag( 'ORDER BY is the case LIMIT does not rescue: ten rows cannot '
+            . 'be chosen without examining every row.' );
 
-    # A COMPOUND INDEX HELPS ITS FIRST COLUMN AND NOTHING ELSE. An index on
-    # (area, street) makes `area=Fife` cheap and leaves `street=High St` a full
-    # scan - the index cannot be entered part-way. Treating every named column
-    # as indexed would let exactly the expensive query through while looking
-    # like it had been checked.
-    ok( parse_binding( 'db:tasks(area=Fife)', $d )->{ok},
+    for my $ok ( 'due=2026-01-01', 'done=true', 'state=open', 'code=T1' ) {
+        my $r = parse_binding( "db:tasks($ok)", $d );
+        is_deeply( $r->{scans}, [], "$ok does not scan" ) or diag( $r->{error} );
+    }
+
+    # A COMPOUND INDEX HELPS ITS FIRST COLUMN AND NOTHING ELSE. SQLite cannot
+    # enter an index part-way, so (area, street) does nothing for `street=`.
+    is_deeply( parse_binding( 'db:tasks(area=Fife)', $d )->{scans}, [],
         'the first column of a compound index is indexed' );
-    ok( !parse_binding( 'db:tasks(street=High St)', $d )->{ok},
-        'a later column of one is NOT' )
-        or diag( 'SQLite cannot enter an index at its second column. This is '
-            . 'the scan that looks indexed in the descriptor.' );
+    is_deeply( parse_binding( 'db:tasks(street=High St)', $d )->{scans},
+        ['street'], 'a later column of one is not' );
+
+    # NAMING SOMETHING THAT IS NOT A FIELD IS STILL AN ERROR, and a different
+    # kind: it cannot work at any table size, so there is nothing to weigh.
+    my $bad = parse_binding( 'db:tasks(nosuch=1)', $d );
+    ok( !$bad->{ok}, 'a field that does not exist is refused' );
+    like( $bad->{error}, qr/not a field/, 'saying so' );
+    ok( !parse_binding( 'db:tasks(order=nosuch)', $d )->{ok},
+        'and ordering by one is refused' );
 };
 
 subtest 'a value is checked against its declared type' => sub {
