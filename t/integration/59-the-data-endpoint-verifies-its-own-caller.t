@@ -85,23 +85,65 @@ subtest 'A CLAIMED IDENTITY IS NOT AN IDENTITY' => sub {
 };
 
 subtest 'a disabled account is anonymous, not its former self' => sub {
-    my $src = do {
-        open my $fh, '<', "$root/lazysite-data.pl" or die $!;
-        local $/;
-        <$fh>;
+    # THIS USED TO GREP THE SOURCE for `account_disabled` and `session_revoked`,
+    # and it passed for a reason that had nothing to do with the behaviour:
+    # the endpoint carried a redundant re-check whose only effect was to put
+    # those two words in the file. Removing the redundancy - the verifier
+    # already decides both, and the re-check called session_revoked() with no
+    # arguments - turned this red while the behaviour was unchanged and
+    # correct.
+    #
+    # A test that asserts a STRING IS PRESENT cannot tell a working check from
+    # a dead one. So it now disables an account and asks the endpoint.
+    my $secret = "$docroot/lazysite/auth/.secret";
+    unless ( -f $secret ) {
+        open my $sf, '>', $secret or die $!;
+        print {$sf} 'a' x 64;
+        close $sf;
+    }
+    my $users = "$root/tools/lazysite-users.pl";
+    qx($^X \Q$users\E --docroot \Q$docroot\E add lapsed pw123456789 2>/dev/null);
+
+    require Lazysite::Auth::Session;
+    local $Lazysite::Auth::Session::LAZYSITE_DIR = "$docroot/lazysite";
+    require Digest::SHA;
+    my $sec = Lazysite::Auth::Session::_auth_secret_read();
+    my $mint = sub {
+        my $pay = "$_[0]:" . time . ':';
+        return 'lazysite_auth=' . $pay . ':'
+            . Digest::SHA::hmac_sha256_hex( $pay, $sec );
     };
-    like( $src, qr/account_disabled/, 'a disabled account is checked' );
-    like( $src, qr/session_revoked/,  'and a revoked session' )
-        or diag( 'A cookie outlives both, so a verified signature is not on '
-            . 'its own an answer to "may this person read".' );
+
+    my ( $st, $d ) = hit( QUERY_STRING => 'csrf=1',
+        HTTP_COOKIE => $mint->('lapsed') );
+    is( $st, 200, 'while enabled, the account is signed in' )
+        or diag( 'If this fails the fixture never signed in, so the '
+            . 'disable below would prove nothing.' );
+
+    qx($^X \Q$users\E --docroot \Q$docroot\E account-disable lapsed 2>/dev/null);
+
+    my ( $st2, $d2 ) = hit( QUERY_STRING => 'csrf=1',
+        HTTP_COOKIE => $mint->('lapsed') );
+    is( $st2, 403, 'the SAME cookie is refused once the account is disabled' )
+        or diag( 'A cookie outlives the account. A verified signature is not '
+            . 'on its own an answer to "may this person read".' );
+    ok( !$d2->{token}, 'and no token is minted for it' );
 };
 
-subtest 'it reads, and refuses to be a write surface' => sub {
+subtest 'POST is a write surface, and anonymous is not welcome on it' => sub {
+    # This asserted 405 while the read half was all there was. The write half
+    # makes POST meaningful, so the assertion that matters changes with it:
+    # what must stay true is that an anonymous POST WRITES NOTHING - which is
+    # a stronger statement than "the method is refused".
     my ( $st, $d ) = hit( REQUEST_METHOD => 'POST',
         QUERY_STRING => 'table=products' );
-    is( $st, 405, 'POST is refused' )
-        or diag( 'A read endpoint that accepts POST invites a write to be '
-            . 'added later without the CSRF question being asked.' );
+    is( $st, 403, 'an anonymous POST is refused' );
+    is( $d->{kind}, 'anonymous', 'as anonymous, not as a bad request' )
+        or diag( 'The kind is what a page uses to decide whether to say '
+            . '"sign in" or "something went wrong".' );
+
+    my $rows = Lazysite::Data::Tables::read_rows( $docroot, 'products' );
+    is( scalar @{ $rows->{rows} }, 1, 'and the table is untouched' );
 };
 
 subtest 'a missing table and a forbidden one answer the same way' => sub {
