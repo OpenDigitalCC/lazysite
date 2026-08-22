@@ -44,6 +44,36 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM473 resolved (PENDING) **a `db:` page variable rendered nothing, silently.**
+  The API returned three rows and the same table on a page returned none. The
+  processor is module-free by design and carries no global `@INC` bootstrap -
+  every other lazy-loading site in it finds the module tree first, and
+  `resolve_db` did not. **Every test passed because `prove -l` puts `lib/` on
+  `@INC`**, so the require succeeded in every test and failed on every real
+  install; a harness that supplies something production does not is a harness
+  testing itself. The failure was caught and logged, so a visitor simply got an
+  empty list - the silence was the defect rather than the require. A table
+  declared and never migrated now logs too: `pending_schema` renders
+  identically to an empty table, and nothing rendering is the hardest failure to
+  notice on a live site.
+
+- SM474 resolved (PENDING) **a JSON boolean was refused, and misdescribed.**
+  `{"live": false}` answered *"a value cannot be a list or mapping"* because
+  `ref $v` is true for a `JSON::PP::Boolean`. Strings, integers and even `"yes"`
+  were all accepted, so the one representation a JSON client naturally sends -
+  which is to say what every agent sends - was the only one rejected. Unwrapped
+  before anything else looks at it, so a boolean sent to a text field is now a
+  type error with the right message rather than a shape error with the wrong one.
+
+- SM475 resolved (PENDING) **a token client could change state with a GET.** The
+  POST requirement lived inside the cookie branch, whose comment explains it in
+  CSRF terms - true, and particular to browsers, which made the rule particular
+  to browsers too. An authenticated GET of `data-migrate` returned 200 and ran.
+  CSRF is not the only reason: a state-changing action reachable by GET is
+  prefetchable, retried by intermediaries that believe GET is safe, and lands in
+  logs and history as a URL that travels. Hoisted above the channel split, and
+  `t/lint/14` now asserts it sits there.
+
 - SM472 resolved (PENDING) **an unmet dependency said so, instead of answering
   500 - and enabling a plugin now checks.** Reported from edge: every descriptor
   save returned HTTP 500. The cause was `YAML::PP` absent on the host, and the

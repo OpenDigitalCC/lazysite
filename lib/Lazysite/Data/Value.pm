@@ -67,6 +67,21 @@ sub coerce_field {
     my ( $name, $spec, $v ) = @_;
     my $type = $spec->{type} // '';
 
+    # A JSON BOOLEAN IS A SCALAR WEARING AN OBJECT.
+    #
+    # `ref $v` is true for JSON::PP::Boolean, so `{"live": false}` - the one
+    # representation a JSON client naturally sends - was refused as "a list or
+    # mapping" while the strings "true"/"false", the integers 1/0 and even
+    # "yes" were all accepted. Reported from the field, who noted the giveaway:
+    # the coercion itself was correct, nothing stored was inverted, so the
+    # fault was in the guard rather than the conversion.
+    #
+    # Unwrapped to 1/0 before anything else looks at it, so every type below
+    # sees a plain scalar - a boolean field then normalises it as usual, and a
+    # boolean sent to a text field is a type error with the right message
+    # rather than a shape error with the wrong one.
+    if ( ref $v eq 'JSON::PP::Boolean' ) { $v = $v ? 1 : 0 }
+
     return "field '$name': a value cannot be a list or mapping" if ref $v;
 
     # An empty string is ABSENCE, not a value, for every type except text.

@@ -4727,9 +4727,27 @@ sub deps_fresh {
 sub resolve_db {
     my ( $spec, $key ) = @_;
 
-    # Modules, lazily. A failure here is reported and returns an empty list:
-    # a missing DBD on one page must not take down a site.
+    # Modules, lazily - AND THE MODULE TREE HAS TO BE FOUND FIRST.
+    #
+    # This required the module without locating it. The processor is
+    # module-free by design, so it carries NO global @INC bootstrap: every
+    # other lazy-loading site here (_chrome, fetch_url) finds the tree itself
+    # before requiring, and this one did not.
+    #
+    # It passed every test because `prove -l` puts lib/ on @INC. On a real
+    # install nothing does, so the require failed, the eval caught it, and the
+    # page rendered ZERO ROWS - silently, to a visitor. The field found it by
+    # proving the source resolved at all: scan: gave 26, an unrecognised prefix
+    # fell through to the literal, and db: gave nothing.
     my $ok = eval {
+        unless ( $INC{'Lazysite/Data/Tables.pm'} ) {
+            require Cwd;
+            require File::Basename;
+            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+            }
+        }
         require Lazysite::Data::Tables;
         1;
     };
@@ -4753,6 +4771,20 @@ sub resolve_db {
     $TT_DEP_LIVE = 1;
 
     my $r = Lazysite::Data::Tables::read_rows( $DOCROOT, $table, %opt );
+
+    # A TABLE WITH NO STORED SCHEMA IS LOGGED TOO, not just an error.
+    #
+    # read_rows answers ok with no rows and `pending_schema` when the table is
+    # declared and never migrated - an ordinary state, and indistinguishable on
+    # the page from a table that is simply empty. Both render nothing, which is
+    # the hardest failure to notice on a live site, so the reason goes in the
+    # log where somebody can find it.
+    if ( $r->{ok} && $r->{pending_schema} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable has no stored table yet - run the migration',
+            key => $key, table => $table );
+    }
+
     unless ( $r->{ok} ) {
         # SAID, NOT SWALLOWED. An empty list with no explanation is what SM460
         # was: a page that rendered fine and listed nothing, so the author

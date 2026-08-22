@@ -147,6 +147,22 @@ my %COOKIE_READ = map { $_ => 1 } qw(
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed
 # exception rather than a read.
 $COOKIE_READ{users} = 1;
+# SM475: THE POST REQUIREMENT MUST NOT LIVE INSIDE THE COOKIE BRANCH.
+#
+# It did, so it never applied to a token client - and the field proved the
+# consequence: an authenticated GET of data-migrate returned 200 and RAN, a
+# no-op only because the schema happened to be current. CSRF is the cookie
+# path's reason and not the only one; a state-changing action reachable by GET
+# is prefetchable, retried by intermediaries that believe GET is safe, and
+# lands in logs and history as a URL somebody can paste.
+{
+    my ($before) = $src =~ /\A(.*?)\nif \( !\$token_auth \) \{/s;
+    ok( defined $before && $before =~ /\$MUTATING\{\$action\} && \$method ne 'POST'/,
+        'the POST requirement applies before the cookie/token split' )
+        or diag( 'Inside the cookie branch it is a rule for one channel, and '
+            . 'the other one changes state on a GET.' );
+}
+
 my @cookie_mut_gap = sort grep { !$COOKIE_READ{$_} && !$mutating{$_} } keys %cookie_caps;
 is( "@cookie_mut_gap", '',
     'every capability-gated cookie action that is not a reviewed read is POST-forced (in %MUTATING)' )

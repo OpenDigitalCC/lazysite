@@ -510,6 +510,41 @@ if ( $action eq 'csrf-token' ) {
 # the rest of the manager. The users/sessions/keys/audit/notices actions keep
 # their own bespoke gates in dispatch (they carry actor confinement / forbidden
 # messaging), so they are not listed here.
+# SM475: A MUTATING ACTION IS POST-ONLY ON BOTH CHANNELS.
+#
+# This lived INSIDE the cookie branch below, so it never applied to a token
+# client - and the field proved the consequence: an authenticated GET of
+# data-migrate returned 200 and RAN, a no-op only because the schema happened
+# to be current.
+#
+# CSRF is the cookie path's reason and is not the only one. A state-changing
+# action reachable by GET is prefetchable, retried by any intermediary that
+# believes GET is safe, and lands in logs and browser history as a URL somebody
+# can paste. "It changes something" and "it is a GET" should not both be true,
+# whoever is asking.
+#
+my %MUTATING = map { $_ => 1 } qw(
+    data-migrate data-row-save data-row-delete data-table-save
+    data-rebuild
+    save delete mkdir move copy migrate-to-local file-upload git-restore
+    git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
+    rotate-auth-secret backup-create backup-delete backup-restore theme-activate
+    theme-delete theme-rename theme-upload layout-activate layout-delete
+    layout-install layouts-install layouts-repo-set artifact-backups-delete
+    preview-grant preview-clear nav-save handler-save handler-delete
+    form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action
+    lock unlock renew-lock notices-seen regenerate-registries
+    domain-add domain-set domain-remove
+    session-revoke user-revoke key-revoke
+    site-backup-create site-backup-upload site-backup-apply site-backup-delete
+    site-export-primary
+);
+
+if ( $MUTATING{$action} && $method ne 'POST' ) {
+    respond( { ok => 0, error => "This action must be sent as POST." } );
+    exit 0;
+}
+
 if ( !$token_auth ) {
     my %COOKIE_CAP = (
         # Content-mutation actions (save/delete/mkdir/move/copy/file-upload/
@@ -592,22 +627,6 @@ if ( !$token_auth ) {
     # submission is a destructive PII operation, so it stays interactive-only. A
     # token client discovers forms (form-list) and reads submissions (form-submissions),
     # but a human confirms deletions in the manager.
-    my %MUTATING = map { $_ => 1 } qw(
-        data-migrate data-row-save data-row-delete data-table-save
-        data-rebuild
-        save delete mkdir move copy migrate-to-local file-upload git-restore
-        git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
-        rotate-auth-secret backup-create backup-delete backup-restore theme-activate
-        theme-delete theme-rename theme-upload layout-activate layout-delete
-        layout-install layouts-install layouts-repo-set artifact-backups-delete
-        preview-grant preview-clear nav-save handler-save handler-delete
-        form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action
-        lock unlock renew-lock notices-seen regenerate-registries
-        domain-add domain-set domain-remove
-        session-revoke user-revoke key-revoke
-        site-backup-create site-backup-upload site-backup-apply site-backup-delete
-        site-export-primary
-    );
     # NB: 'users' is deliberately NOT listed - it is dual-mode (GET reads
     # list/groups; writes self-enforce POST inside action_users). session/user/
     # key revocation are pure writes, so forcing POST here (SEC-2026-07, CSRF
@@ -615,10 +634,6 @@ if ( !$token_auth ) {
     # construction, rather than relying on their target param arriving in the
     # POST body.
 
-    if ( $MUTATING{$action} && $method ne 'POST' ) {
-        respond( { ok => 0, error => "This action must be sent as POST." } );
-        exit 0;
-    }
     if ( !_is_operator() ) {
         my $caps = _user_caps($auth_user);
 
