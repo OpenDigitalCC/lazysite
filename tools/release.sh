@@ -570,6 +570,14 @@ echo "==> coverage.sh --check (instrumented run; ~10-15 minutes)"
 # A sibling keeps it findable - the staging dir is retained and its path
 # printed on failure - without putting it in the payload.
 COV_LOG="${STAGE}-coverage-check.txt"
+
+# THE SUITE LOG HAS TO OUTLIVE THE STAGE. coverage.sh writes the instrumented
+# suite's own output beside its database, which lives INSIDE the staging clone
+# - and the clone is removed when the build ends. So the one file that says why
+# a coverage gate refused disappeared at exactly the moment it was needed:
+# the run reported "the suite did not pass" and then deleted the evidence.
+# Alongside COV_LOG, which is already outside the stage for the same reason.
+export LAZYSITE_COVER_SUITE_LOG="${STAGE}-coverage-suite.txt"
 bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1
 COV_STATUS=$?
 cat "$COV_LOG"
