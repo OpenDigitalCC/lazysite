@@ -89,12 +89,31 @@ fi
 JOBS=${LAZYSITE_COVER_JOBS:-4}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,/t/,+ignore,Devel" \
-    prove -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
+    prove -l -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
 
 # `&& ... || ...` RATHER THAN A BARE `$?`, because this file runs under
 # `set -e`: a failing prove followed by `SUITE_RC=$?` on the next line would
 # kill the script before it could report anything, which is a louder version of
 # the same fault - the run vanishes instead of explaining itself.
+
+# `-l` IS NOT OPTIONAL, AND ITS ABSENCE COST ELEVEN FILES (SM478).
+#
+# The gate runs `prove -lr`; this ran `prove -r`. Tests add
+# `$FindBin::Bin/../lib` to @INC, which from t/lint resolves to t/lib - the
+# TEST library, not the engine's - and rely on -l for lib/. Without it they
+# died at `use Lazysite::Manager::Common` with "Can't locate ... in @INC",
+# which reads as a missing module and is nothing of the kind: Perl reports any
+# failed open() that way.
+#
+# So eleven files never ran under coverage, and their coverage was never
+# counted, for as long as this line has existed. The recorded floors were
+# measured without them - which means the true numbers are most likely HIGHER
+# than what is written down, not lower.
+#
+# This is SM473's lesson from the other side: there, the harness supplied
+# something production did not (`prove -l` hid a missing @INC bootstrap). Here
+# the harness failed to supply what the OTHER harness does. Either way the
+# harness was testing itself.
 
 # A COVERAGE REPORT FROM A SUITE THAT DID NOT FINISH IS NOT A MEASUREMENT,
 # and this line used to be `>/dev/null 2>&1 || true` - the suite's output

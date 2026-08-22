@@ -55,6 +55,30 @@ sub rig {
         . ( $passing ? 1 : 0 )
         . ", 'the miniature suite' );\ndone_testing();\n";
     close $t;
+
+    # A TEST THAT NEEDS THE REPO'S OWN lib/, written the way this suite writes
+    # them: `use lib "$FindBin::Bin/../lib"` resolves to t/lib - the TEST
+    # library - so the engine's lib/ arrives only because prove is run with
+    # -l. coverage.sh ran `prove -r` without it for as long as it has existed,
+    # and eleven files died at `use Lazysite::...` with "Can't locate", which
+    # reads as a missing module and is nothing of the kind (SM478).
+    # IN A SUBDIRECTORY, because that is where the real ones live and it is
+    # the whole point. From t/unit, `$FindBin::Bin/../lib` resolves to t/lib -
+    # the TEST library - and the engine's lib/ arrives only from -l. Put the
+    # same file directly in t/ and `../lib` lands on the engine lib by
+    # accident, the test passes with or without -l, and it proves nothing.
+    # Which is exactly what the first version of this did: the sabotage that
+    # removed -l could not fail it.
+    make_path( "$d/lib/Mini", "$d/t/lib", "$d/t/unit" );
+    open my $m, '>', "$d/lib/Mini/Thing.pm" or die $!;
+    print {$m} "package Mini::Thing;\nsub hello {1}\n1;\n";
+    close $m;
+    open my $u, '>', "$d/t/unit/02-needs-lib.t" or die $!;
+    print {$u} "use FindBin;\nuse lib \"\$FindBin::Bin/../lib\";\n"
+        . "use Test::More;\nuse Mini::Thing;\n"
+        . "ok( Mini::Thing::hello(), 'the engine lib was on \@INC' );\n"
+        . "done_testing();\n";
+    close $u;
     return $d;
 }
 
@@ -72,6 +96,21 @@ subtest 'a passing suite still reports' => sub {
     like( $out, qr/exit=0/, 'and says the suite passed' )
         or diag( 'The suite result has to be VISIBLE even when it is good, or '
             . 'nobody learns to look for it when it is not.' );
+};
+
+subtest 'SM478: THE ENGINE LIB REACHES THE SUITE' => sub {
+    # The whole of SM478 in one assertion. Without -l, t/02-needs-lib.t dies at
+    # `use Mini::Thing` and the run is reported as a failing suite - which is
+    # now visible, but the point is that it should not be failing at all.
+    my $d = rig(1);
+    my ( $rc, $out ) = run($d);
+    is( $rc, 0, 'the suite passes' ) or diag($out);
+    unlike( $out, qr/Can't locate/,
+        'nothing failed to find a module that is right there' )
+        or diag( 'coverage.sh must run prove the way the gate does. `-r`
+            without `-l` leaves the engine lib off @INC, and Perl reports the
+            resulting open() failure as "Can\'t locate" - which reads as a
+            missing module and sends you looking for the wrong thing.' );
 };
 
 subtest 'A FAILING SUITE IS SAID, NOT SWALLOWED' => sub {
