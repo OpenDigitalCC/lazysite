@@ -58,8 +58,13 @@ sub ensure_store {
 
 sub _connect {
     my ( $docroot, %opt ) = @_;
-    require DBI;
-    require DBD::SQLite;
+    # SM472: the engine modules, checked rather than assumed. A bare require
+    # here made a host without DBD::SQLite answer 500 to every read - and the
+    # store is opened from the RENDER path too, so that is a visitor-facing
+    # 500 on a page whose only fault is a missing package.
+    unless ( eval { require DBI; require DBD::SQLite; 1 } ) {
+        return undef;
+    }
 
     my $path = $opt{readonly} ? store_path($docroot) : ensure_store($docroot);
     return undef unless defined $path;
@@ -146,6 +151,18 @@ sub _connect {
 # question that was actually asked.
 sub store_diagnosis {
     my ($docroot) = @_;
+
+    # SM472: the module first, because it is the cause that explains every
+    # other symptom at once and the one nothing else reports.
+    for my $m (qw(DBI DBD::SQLite)) {
+        ( my $f = "$m.pm" ) =~ s{::}{/}g;
+        next if eval { require $f; 1 };
+        ( my $pkg = lc $m ) =~ s{::}{-}g;
+        return { ok => 0, reason => 'missing_module',
+            detail => "The $m module is not installed, so the data store "
+                . "cannot be opened. Install it (Debian: lib$pkg-perl)." };
+    }
+
     my $path = store_path($docroot);
     ( my $dir = $path ) =~ s{/[^/]+\z}{};
 

@@ -216,6 +216,44 @@ sub action_plugin_list {
     return { ok => 1, plugins => \@plugins };
 }
 
+# SM472: the declared modules this plugin cannot run without, that are absent.
+#
+# Reads the plugin's OWN declaration (ADR 0009 `owns.deps`) rather than a list
+# kept here - a list here would be a second opinion about the same fact, and
+# would go stale the first time a plugin gained a dependency.
+#
+# Returns a message naming what is missing, or undef.
+sub _missing_deps {
+    my ($script) = @_;
+    my $full = resolve_plugin_script($script) or return undef;
+
+    my $json = eval { qx($^X \Q$full\E --describe 2>/dev/null) };
+    my $desc = ( defined $json && length $json )
+        ? eval { decode_json($json) }
+        : undef;
+    return undef unless ref $desc eq 'HASH' && ref $desc->{owns} eq 'HASH';
+
+    my @deps = @{ $desc->{owns}{deps} || [] };
+    return undef unless @deps;
+
+    my @absent;
+    for my $m (@deps) {
+        next unless $m =~ /\A[A-Za-z][\w:]*\z/;            # never interpolate a name
+        ( my $file = "$m.pm" ) =~ s{::}{/}g;
+        next if eval { require $file; 1 };
+        ( my $pkg = lc $m ) =~ s{::}{-}g;
+        push @absent, "$m (Debian: lib$pkg-perl)";
+    }
+    return undef unless @absent;
+
+    return
+        'This plugin needs '
+        . join( ', ', @absent )
+        . ' and they are not installed. It would enable and then fail on every '
+        . 'request that used them, so it has been left off - install them and '
+        . 'enable it again.';
+}
+
 sub action_plugin_enable {
     my ($script) = @_;
     $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
@@ -225,6 +263,29 @@ sub action_plugin_enable {
     # runs a registry script).
     return { ok => 0, error => "Unknown plugin: $script" }
         unless plugin_registry()->{$script};
+
+    # SM472: A PLUGIN THAT CANNOT RUN IS NOT ENABLED.
+    #
+    # ADR 0009 has a plugin DECLARE the modules it needs, and the SBOM gate
+    # reads that list so nothing ships undeclared. Nothing was reading it at
+    # the one moment it answers a question an operator has: can this work here?
+    #
+    # It was found the expensive way. The data plugin enabled cleanly on a host
+    # without YAML::PP, listed its (empty) set of tables happily, and then
+    # answered HTTP 500 to every attempt to declare one - because the parser is
+    # only reached once there is something to parse. The field bisected five
+    # variations of the request before concluding the write path was broken.
+    # Every signal was honest and none of them said the word "YAML::PP".
+    #
+    # REFUSED RATHER THAN WARNED, because the alternative is a plugin that is
+    # on and does not work - which is the state that produced those 500s. The
+    # message names the module AND a package that provides it, so the refusal
+    # is a next step rather than a dead end; install, then enable, which is the
+    # right order anyway.
+    if ( my $missing = _missing_deps($script) ) {
+        return { ok => 0, kind => 'missing_deps', error => $missing };
+    }
+
     my $r = _update_plugins_conf( $script, 'add' );
     return $r unless $r->{ok};
     my $hook = _run_plugin_hook( $script, 'on_enable' );

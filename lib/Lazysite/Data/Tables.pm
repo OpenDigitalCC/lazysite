@@ -76,7 +76,30 @@ sub load_table {
         kind => 'no_such_table' )
         unless $file;
 
-    require YAML::PP;
+    # SM472: A MISSING MODULE IS A DIAGNOSIS, NOT A 500.
+    #
+    # This was a bare `require`, so on a host without YAML::PP it DIED - and a
+    # die in a CGI is an HTTP 500 with an HTML body. The field bisected it
+    # carefully and correctly and still could not see the cause, because
+    # nothing anywhere said the word "YAML::PP": every descriptor 500'd, an
+    # empty listing succeeded (it globs filenames and never parses), and a call
+    # with no descriptor answered properly (the parameter check runs first).
+    # Three consistent, honest signals that pointed nowhere.
+    #
+    # The dependency is declared - in sbom-deps.json, in the deb, in the
+    # plugin's `owns` - so this is not about whether it SHOULD be there. It is
+    # about what happens on the host where it is not, and "500" is the one
+    # answer that cannot be acted on.
+    unless ( eval { require YAML::PP; 1 } ) {
+        return _err(
+            "table '$name': the YAML::PP module is not installed, so a "
+                . 'descriptor cannot be read. Install it (Debian: '
+                . 'libyaml-pp-perl) and try again.',
+            table  => $name,
+            kind   => 'missing_module',
+            module => 'YAML::PP',
+        );
+    }
     my $raw = eval { YAML::PP->new->load_file($file) };
     return _err( "table '$name': the descriptor is not valid YAML - $@",
         table => $name )

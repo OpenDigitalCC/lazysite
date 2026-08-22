@@ -101,7 +101,13 @@ sub action_data_table_save {
     return { ok => 0, error => 'descriptor text required' }
         unless defined $yaml && length $yaml;
 
-    require YAML::PP;
+    # SM472: the same on the WRITE path, and this is the one the field met.
+    unless ( eval { require YAML::PP; 1 } ) {
+        return { ok => 0, kind => 'missing_module', module => 'YAML::PP',
+            error => 'the YAML::PP module is not installed, so a descriptor '
+                . 'cannot be read. Install it (Debian: libyaml-pp-perl) and '
+                . 'try again.' };
+    }
     my $raw = eval { YAML::PP->new->load_string($yaml) };
     return { ok => 0, kind => 'descriptor',
         error => "the descriptor is not valid YAML - $@" }

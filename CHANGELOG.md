@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM472 resolved (PENDING) **an unmet dependency said so, instead of answering
+  500 - and enabling a plugin now checks.** Reported from edge: every descriptor
+  save returned HTTP 500. The cause was `YAML::PP` absent on the host, and the
+  symptoms were three honest answers that together said the wrong thing -
+  `list_data_tables` fine (it globs filenames and never reached the parser), a
+  call with no descriptor answering correctly (the parameter check runs before
+  the `require`), and everything else a die, which in a CGI is a 500. Nothing
+  anywhere said the module's name. Now every `require` of a declared module is
+  checked and reports the module **and a package that provides it** - including
+  on the read path, which the render path calls, so a die there was a
+  visitor-facing 500. **And enabling a plugin verifies its declared
+  dependencies**, refusing if any are absent: ADR 0009 already has a plugin
+  declare what it needs and the SBOM gate already reads that list, but nothing
+  read it at the moment an operator asks *can this work here*. Refused rather
+  than warned, because a warning leaves a plugin that is on and does not work.
+  The check reads the plugin's own declaration, never a list in the manager,
+  which would go stale the first time a plugin gained a dependency.
+
 - SM471 reporting half (PENDING) **a capability added after a site was created
   never reaches it.** Reported from edge: *you cannot grant `manage_data` - you
   do not hold it*. The manager group is seeded **once**, with the capabilities
