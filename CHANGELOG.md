@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- DP-3b (PENDING) **the helper that makes `mode=live` and `mode=client` mean
+## 0.10.26 - EDGE: the data plugin becomes usable, and its second door gets a lock (2026-08-22)
+
+- DP-3b (c3d6c5b) **the helper that makes `mode=live` and `mode=client` mean
   something.** A region declares the binding and a `<template>` says what one
   row looks like; the shipped script fills it from the data endpoint. Values go
   in as TEXT, always - rows can arrive from a public form, so a helper that
@@ -53,7 +55,16 @@ Naming the commit: AFTER it lands, never before
   load on view, and nothing polls unless the author asks. Injected only into
   pages that actually carry a region.
 
-## 0.10.26 - EDGE: the data plugin becomes usable, and its second door gets a lock (2026-08-22)
+- The coverage gate (c1c2feb) **cannot report what it did not measure.**
+  `coverage.sh` discarded the suite's output and swallowed its exit code, so a
+  run that died partway produced a report indistinguishable from a healthy one,
+  only with lower numbers. A 2-job re-baseline reported 38.6% for a file whose
+  recorded baseline is 82.1%, and those numbers were one commit from being
+  written in as the new floor - which would have ratcheted the floors DOWN. The
+  giveaway was the clock rather than the numbers: 465 seconds against 270 for
+  the same suite uninstrumented. `--check` now refuses to compare an unmeasured
+  suite to the floors (exit 3), rather than blaming coverage for something that
+  is not coverage - SM444 one layer further in.
 
 - DP-4 (9d18c55) **a form submission becomes a row.** The anonymous write path,
   and the only one: the data endpoint refuses an anonymous POST and says a form
