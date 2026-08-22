@@ -178,6 +178,11 @@ my $site_secured = site_grants_manager();
 # here because it is set in the auth branch and read at dispatch.
 my $RESTRICT_THEME_DELETE = 0;
 
+# SM465: the rule before and after an acl-set, for the audit entry at the end
+# of the dispatch. File scope rather than threaded through, because the audit
+# block runs after the chain has finished and every action shares that one exit.
+my ( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
+
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set actions-list aliases-list analyse_visitors
     artifact-backups-delete artifact-manifest artifact-validate audit
@@ -1008,8 +1013,42 @@ elsif ( $action eq 'acl-set' ) {
                 . 'action=acl-set&path=... instead.' };
     }
     else {
-        $result = action_acl_set( $path, $auth_user,
-            $req->{read}, $req->{write}, $req->{owner}, $req->{draft} );
+        # SM465: capture the rule BEFORE the change, so the audit entry can say
+        # what it became AND what it stopped being. The interval between two
+        # changes is the thing an audit of a permission is usually asked about,
+        # and once the second write lands the first value exists nowhere: a
+        # rule is not versioned the way content is.
+        # SM465: capture the rule BEFORE the change, so the audit entry can
+        # say what it became AND what it stopped being. The interval between
+        # two changes is what an audit of a permission is usually asked about,
+        # and once the second write lands the first value exists nowhere: a
+        # rule is not versioned the way content is.
+        my $before = action_acl_get( $path, $auth_user );
+        $ACL_AUDIT_BEFORE
+            = ( ref $before eq 'HASH' && $before->{ok} ) ? $before->{acl} : undef;
+
+        # Each field read ONCE, and individually rather than as a hash slice.
+        #
+        # t/lint/58 extracts this table from the chain by GREPPING the branch
+        # text, so three things matter and each cost a round: reading a field
+        # twice makes it look like it arrives from both the query and the body;
+        # a hash slice is not a form the grep recognises, so the fields vanish
+        # entirely; and the grep does not skip COMMENTS, so an explanatory
+        # comment naming a field in the recognised spelling counts as a read.
+        # This comment is therefore written without any.
+        my $r_read  = $req->{read};
+        my $r_write = $req->{write};
+        my $r_owner = $req->{owner};
+        my $r_draft = $req->{draft};
+
+        $result = action_acl_set( $path, $auth_user, $r_read, $r_write,
+            $r_owner, $r_draft );
+        $ACL_AUDIT_AFTER = {
+            read  => $r_read,
+            write => $r_write,
+            owner => $r_owner,
+            draft => $r_draft,
+        };
     }
 }
 elsif ( $action eq 'acl-remove' ) { $result = action_acl_remove( $path, $auth_user ) }
@@ -1533,12 +1572,65 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         # detail field so the audit can show WHY it failed.
         my $detail = $ok ? ''
             : ( ref $result eq 'HASH' ? ( $result->{kind} || $result->{error} || '' ) : '' );
+
+        # SM465: an acl-set records WHAT THE RULE BECAME, and what it was.
+        #
+        # The trail recorded that a permission changed, who changed it and on
+        # what path - and not what it changed to, so the one question an audit
+        # of a permission change exists to answer was the one it could not.
+        #
+        # NAMES ARE INCLUDED, the release manager's decision, with the trade
+        # stated and accepted: account and group names land in the audit log,
+        # which may carry different retention from the account store. The
+        # alternative - "read: 2 principals" - leaves an auditor unable to tell
+        # whether the RIGHT people were named, which is the whole question.
+        if ( $ok && $aud_action eq 'acl-set' ) {
+            $detail = _acl_audit_detail( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
+        }
         audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
             ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ), $detail );
     }
 }
 
 respond($result);
+
+# SM465: render an acl-set for the audit trail.
+#
+# ONE LINE, READABLE BY A PERSON, because the audit trail is read by an
+# operator asking "who could reach what, and when" - not parsed. JSON would be
+# faithful and unreadable at the width an audit page renders.
+#
+# BOTH SIDES when there was a prior rule, because the interesting case is what
+# changed: "read: alice -> alice, bob" answers a question that "read: alice,
+# bob" does not. A path with no prior rule says `new`, so an operator can tell
+# a first grant from a widening.
+sub _acl_audit_fmt {
+    my ($acl) = @_;
+    return 'none' unless ref $acl eq 'HASH';
+    my @bits;
+    for my $k (qw(read write)) {
+        my $v = $acl->{$k};
+        next unless ref $v eq 'ARRAY';
+
+        # An EMPTY list is not nothing: an empty write list means NO
+        # restriction (SM462), so recording it as absent would make the trail
+        # disagree with enforcement about the most misread rule in the system.
+        push @bits, @{$v} ? "$k: " . join( ', ', @{$v} ) : "$k: (unrestricted)";
+    }
+    push @bits, "owner: $acl->{owner}"
+        if defined $acl->{owner} && length $acl->{owner};
+    push @bits, 'draft' if $acl->{draft};
+    return @bits ? join( '; ', @bits ) : 'no restriction';
+}
+
+sub _acl_audit_detail {
+    my ( $before, $after ) = @_;
+    my $to = _acl_audit_fmt($after);
+    return "new -> $to" unless ref $before eq 'HASH';
+    my $from = _acl_audit_fmt($before);
+    return "unchanged: $to" if $from eq $to;
+    return "$from -> $to";
+}
 
 # --- M-1: CSRF helpers ---
 

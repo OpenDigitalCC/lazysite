@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM465 resolved (PENDING) **an `acl-set` records what the rule became, and
+  what it stopped being.** The trail recorded that a permission changed, who
+  changed it and on what path - and not what it changed to, so the one question
+  an audit of a permission change exists to answer was the one it could not. It
+  matters more than an ordinary omission because **a rule is not versioned the
+  way content is**: the store holds one value, the latest, so the rule in force
+  between two changes exists nowhere once the second lands - and that interval
+  is what an audit is asked about. **Names are included**, the release manager's
+  decision with the trade stated and accepted: account and group names land in
+  the audit log, which may carry different retention from the account store; the
+  alternative leaves an auditor unable to tell whether the *right* people were
+  named. An empty list records as `(unrestricted)` rather than being omitted -
+  SM462, where an empty write list means no restriction, so recording it as
+  absent would make the trail disagree with enforcement about the most misread
+  rule in the system.
+
 - DP-6 (PENDING) **a site package can carry a table's data, opt-in.** Content
   backups exclude `./lazysite` and a package copies content, nav and layout
   only, so a migrated site arrived **without its database and nothing said so**
