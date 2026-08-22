@@ -783,6 +783,69 @@ sub run_checks {
             elsif ( !$have_pw ) { report( 'WARN', "manager user has no password (localhost-only)",
                     "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" ) }
             else { report( 'OK', "manager bootstrapped (group + user + password)" ) }
+
+            # SM471: A CAPABILITY ADDED AFTER THIS SITE WAS CREATED NEVER
+            # REACHED IT.
+            #
+            # The manager group is seeded ONCE, with the capabilities that
+            # existed that day, and _ensure_manager_group_caps returns early
+            # when the group already has an entry - so no later release
+            # backfills. Every capability added since is absent, and the
+            # operator meets it as "you do not hold it" about something their
+            # role is designed to hold.
+            #
+            # REPORTED, NOT REPAIRED, and that is the decision rather than
+            # laziness. The code cannot tell "this did not exist when the group
+            # was made" from "an operator turned it off on purpose", and
+            # granting on upgrade gets the second silently wrong. Re-granting
+            # something somebody removed is worse than telling them about
+            # something they are missing.
+            #
+            # api and mcp are excluded: SM127 keeps manager groups off the
+            # remote channels deliberately, so their absence is the design.
+            # THE CAPABILITY LIST IS A DELIBERATE LOCAL COPY. This file is
+            # core-Perl by design and cannot load Lazysite::Auth::Settings, so
+            # it carries the list the way the processor carries its ACL copy -
+            # and t/lint/81 pins the pair, which is what makes the copy safe
+            # rather than a second opinion.
+            my @CAPS = qw(
+                ui webdav
+                manage_content manage_nav manage_forms
+                manage_themes manage_layouts manage_domains manage_config
+                manage_users analytics audit notifications feedback
+                read_submissions create_sub_users delegate_sub_user_creation
+                manage_data);
+
+            my $gsettings = {};
+            if ( open my $gf, '<:raw', "$LZ/auth/groups-settings.json" ) {
+                local $/;
+                my $raw = <$gf>;
+                close $gf;
+                $gsettings = eval { JSON::PP::decode_json($raw) } || {};
+            }
+
+            my @missing;
+            for my $g (@groups) {
+                my $have = $gsettings->{$g} or next;
+                next unless $have->{manager};
+                push @missing, map { "$g/$_" } grep { !$have->{$_} } @CAPS;
+            }
+            if (@missing) {
+                my ($first) = $missing[0] =~ m{\A([^/]+)/};
+                my ($cap)   = $missing[0] =~ m{/(.+)\z};
+                report( 'WARN',
+                    'manager group(s) lack capabilities this release has: '
+                        . join( ', ', @missing )
+                        . ' - added after the site was created, so the seed '
+                        . 'never carried them',
+                    "perl tools/lazysite-users.pl --docroot '$DOC' "
+                        . "group-set $first $cap on" );
+            }
+            else {
+                report( 'OK',
+                    'manager group(s) carry every capability this release has'
+                );
+            }
         }
     }
 

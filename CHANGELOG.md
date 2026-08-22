@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM471 reporting half (PENDING) **a capability added after a site was created
+  never reaches it.** Reported from edge: *you cannot grant `manage_data` - you
+  do not hold it*. The manager group is seeded **once**, with the capabilities
+  that existed that day, and `_ensure_manager_group_caps` returns early when the
+  group already has an entry - so no later release backfills, and every
+  capability added since is absent from every site created before it,
+  permanently. `manage_data` is simply the first new capability since the seed
+  was written. **`lazysite-check` now names them, says why they are absent, and
+  gives the exact command.** Reported rather than repaired on purpose: the code
+  cannot tell *this did not exist when the group was made* from *an operator
+  turned it off*, and re-granting something somebody removed is worse than
+  telling them about something they are missing. `api` and `mcp` are excluded -
+  SM127 keeps manager groups off the remote channels, so their absence is the
+  design and flagging them would cry wolf on every site.
+
 - DP-8 (PENDING) **the data plugin is documented** - `/docs/data-tables` for
   operators and `/docs/ai-briefing-data` for assistants, both linked from the
   docs index. Two audiences, two documents, because they need different things:
