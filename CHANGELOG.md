@@ -44,7 +44,34 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- DP-3b (PENDING) **the helper that makes `mode=live` and `mode=client` mean
+  something.** A region declares the binding and a `<template>` says what one
+  row looks like; the shipped script fills it from the data endpoint. Values go
+  in as TEXT, always - rows can arrive from a public form, so a helper that
+  treated them as markup would turn a contact form into a way to run script on
+  every visitor's page. A failed refresh leaves what is on the page, regions
+  load on view, and nothing polls unless the author asks. Injected only into
+  pages that actually carry a region.
+
 ## 0.10.26 - EDGE: the data plugin becomes usable, and its second door gets a lock (2026-08-22)
+
+- DP-4 (9d18c55) **a form submission becomes a row.** The anonymous write path,
+  and the only one: the data endpoint refuses an anonymous POST and says a form
+  is how you collect data from visitors. The operator's handler decides the
+  table and the column names; the visitor decides only values, and a form field
+  nobody mapped is DROPPED - so a form gaining a field cannot start writing a
+  column, and a submission naming a real column cannot reach it. Values go
+  through the same coercion as any other write, and a refused value fails the
+  delivery rather than storing something wrong.
+
+- F-1/F-4/F-5 (091617b) **three things a real site could not say.** From the
+  field agent's attempt to describe a painting gallery: `default_order` names
+  the sequence a table is in, so a bare binding stops returning rows in
+  whatever order the store hands back; `unique: true` says no two rows share a
+  value without making it the key, and adding it to a field that already has
+  duplicates is reported - naming the value - rather than attempted; and a
+  widget on a non-text field is refused instead of silently becoming an editor
+  hint nothing can honour.
 
 - DP-2 (a058dd3) **an unindexed filter or order is diagnosed, not refused.**
   The grammar refused one on the reasoning that a scan "works on twelve test
