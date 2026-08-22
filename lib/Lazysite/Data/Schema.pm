@@ -50,6 +50,7 @@ use warnings;
 use Exporter qw(import);
 use Lazysite::Data::SQLite
     qw(create_table_sql index_sql column_type add_column_sql backfill_sql
+    unique_index_sql unique_index_name duplicate_value_sql
     observed_schema table_has_rows);
 use Lazysite::Data::Value qw(coerce_field);
 
@@ -186,6 +187,45 @@ sub plan_migration {
         push @additive, { sql => $index_sql[$i], binds => [], why => "index $name" }
             unless $observed->{indexes}{$name};
         $i++;
+    }
+
+    # F-5: A UNIQUE INDEX IS ONLY ADDITIVE IF THE DATA ALREADY AGREES.
+    #
+    # A plain index holds no data of its own and always applies. A UNIQUE one
+    # asserts something about every row already stored, so on a table with
+    # duplicates the DDL fails - and a migration that stops half way with a raw
+    # engine message about a constraint is what D5 exists to prevent. So it is
+    # CHECKED and REPORTED, naming the value that blocks it, and the operator
+    # fixes the data before migrating again.
+    # The generator returns one statement per unique field, in the descriptor's
+    # own order, so position pairs them - the same arrangement the plain-index
+    # loop above uses.
+    my @unique_sql = unique_index_sql($d);
+    my $u          = -1;
+    for my $f ( @{ $d->{unique} || [] } ) {
+        $u++;
+        my $name = unique_index_name( $d->{table}, $f );
+        next if $observed->{indexes}{$name};
+
+        if ($has_rows) {
+            my $dup = eval {
+                my $row
+                    = $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) );
+                $row ? $row->[0] : undef;
+            };
+            if ( defined $dup ) {
+                push @blocked,
+                    { field => $f,
+                    why => "'$f' cannot be made unique: the value '$dup' "
+                        . 'is in more than one row already. Make the '
+                        . 'existing values distinct, then migrate again' };
+                next;
+            }
+        }
+
+        push @additive,
+            { sql => $unique_sql[$u], binds => [], why => "unique index $name" }
+            if defined $unique_sql[$u];
     }
 
     # An index the descriptor no longer asks for is left in place and not

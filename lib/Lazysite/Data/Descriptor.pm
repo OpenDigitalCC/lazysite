@@ -61,6 +61,7 @@ my $IDENT = qr/\A[a-z][a-z0-9_]*\z/;
 # a descriptor declaring its own would collide with the ones we maintain.
 my %RESERVED = map { $_ => 1 } qw(created_at updated_at);
 
+
 sub _err {
     my ( $kind, $error, %extra ) = @_;
     return { ok => 0, kind => $kind, error => $error, %extra };
@@ -91,6 +92,27 @@ sub _check_field {
     return "field '$name': unknown type '$type' (one of: "
         . join( ', ', TYPES() ) . ')'
         unless $TYPE{$type};
+
+    # F-5: `unique: true` - a field the site guarantees no two rows share,
+    # without making it the key. The field agent could not say "slug is
+    # unique" while keying on something else, and worked around it by keying
+    # on the slug, which changes what a row IS in order to express a
+    # constraint about one of its values.
+    if ( exists $spec->{unique} && ref $spec->{unique} ) {
+        return "field '$name': unique must be true or false";
+    }
+
+    # F-4: WIDGET IS ONLY MEANINGFUL ON TEXT, and until now saying otherwise
+    # was silently accepted - the existing check lives inside the `text` branch
+    # below, so `widget: textarea` on an integer passed straight through and
+    # became an editor hint nothing could honour.
+    #
+    # The vocabulary is NOT restated here. A second list of allowed widgets
+    # would be a second answer to "which widgets exist", and the two would
+    # disagree the first time one of them gained a value.
+    return "field '$name': widget is only meaningful on a text field, and "
+        . "'$name' is $type"
+        if defined $spec->{widget} && $type ne 'text';
 
     if ( $type eq 'enum' ) {
         my $v = $spec->{values};
@@ -241,6 +263,30 @@ sub load_descriptor {
         if exists $raw->{public} && ref $raw->{public};
     my $public = $raw->{public} ? 1 : 0;
 
+    # F-1: THE ORDER THE SITE MEANS. A gallery is an ordered list - somebody
+    # chose the sequence - and without this a bare `db:gallery` returns rows in
+    # whatever order the store hands back, which is insertion order until it is
+    # not. Saying it once in the descriptor beats repeating `order=` in every
+    # binding and getting it wrong in one of them.
+    #
+    # `-field` is descending, the same spelling the query grammar uses.
+    my $dord = $raw->{default_order};
+    my ( $do_field, $do_dir ) = ( undef, 'asc' );
+    if ( defined $dord && length $dord ) {
+        return _err( 'descriptor', "table '$name': default_order must be a "
+                . 'field name, optionally prefixed with -', rule => 'order' )
+            if ref $dord;
+        ( $do_field = $dord ) =~ s/\A-// and $do_dir = 'desc';
+        return _err( 'descriptor',
+            "table '$name': default_order names '$do_field', which is not one "
+                . 'of its fields',
+            field => $do_field, rule => 'order' )
+            unless $fields->{$do_field}
+            || $do_field eq $key
+            || ( $raw->{timestamps}
+            && $do_field =~ /\A(?:created_at|updated_at)\z/ );
+    }
+
     my $wb = $raw->{writable_by} // [];
     return _err( 'descriptor', "table '$name': writable_by must be a list" )
         unless ref $wb eq 'ARRAY';
@@ -261,7 +307,11 @@ sub load_descriptor {
         indexes     => $indexes,
         writable_by => $wb,
         public      => $public,
-        timestamps  => ( $raw->{timestamps} ? 1 : 0 ),
+        ( defined $do_field
+            ? ( default_order => $do_field, default_order_dir => $do_dir )
+            : () ),
+        unique     => [ sort grep { $fields->{$_}{unique} } keys %{$fields} ],
+        timestamps => ( $raw->{timestamps} ? 1 : 0 ),
     };
 }
 

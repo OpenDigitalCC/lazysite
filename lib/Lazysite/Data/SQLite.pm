@@ -47,6 +47,7 @@ use warnings;
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
+    unique_index_sql unique_index_name duplicate_value_sql
     insert_sql update_sql delete_sql select_sql
     observed_schema add_column_sql backfill_sql table_has_rows
     last_insert_key);
@@ -183,7 +184,56 @@ sub index_sql {
             "CREATE INDEX IF NOT EXISTS " . _ident($name) . " ON $table ("
             . join( ', ', @cols ) . ')';
     }
+    push @out, unique_index_sql($d);
     return @out;
+}
+
+# F-5: a UNIQUE index per `unique: true` field, so a site can say "no two rows
+# share this" without making it the key. The field agent could not express that
+# and worked around it by keying on the value - which changes what a row IS in
+# order to state a constraint about one of its values.
+#
+# Named `ux_` rather than `ix_` so the two cannot be confused in a migration
+# plan: one makes reads cheaper, the other refuses writes.
+#
+# KEPT HERE AND NOT IN Schema.pm, per D11: every construct that RUNS lives
+# behind the adapter pair. Schema decides what a migration should do; it does
+# not decide what the SQL for it looks like.
+sub unique_index_sql {
+    my ($d) = @_;
+    die 'unique_index_sql needs a loaded descriptor'
+        unless ref $d eq 'HASH' && $d->{ok};
+    my $table = _ident( $d->{table} );
+    return map {
+        'CREATE UNIQUE INDEX IF NOT EXISTS '
+            . _ident( unique_index_name( $d->{table}, $_ ) )
+            . " ON $table ("
+            . _ident($_) . ')'
+    } @{ $d->{unique} || [] };
+}
+
+sub unique_index_name {
+    my ( $table, $field ) = @_;
+    return join '_', 'ux', $table, _raw_ident($field);
+}
+
+# Is any value of this field already in more than one row? Asked BEFORE a
+# UNIQUE index is created, because CREATE UNIQUE INDEX on a table that already
+# holds duplicates simply fails - and a migration that stops half way with a
+# raw engine message about a constraint is what D5 exists to prevent.
+#
+# NULLs are excluded: SQLite treats every NULL as distinct in a unique index,
+# so two empty values are not a clash, and reporting them as one would send an
+# operator hunting for a conflict that can never happen.
+sub duplicate_value_sql {
+    my ( $d, $field ) = @_;
+    die 'duplicate_value_sql needs a loaded descriptor'
+        unless ref $d eq 'HASH' && $d->{ok};
+    my $col = _ident($field);
+    return
+        "SELECT $col FROM "
+        . _ident( $d->{table} )
+        . " WHERE $col IS NOT NULL GROUP BY $col HAVING COUNT(*) > 1 LIMIT 1";
 }
 
 # The DSN for a docroot's store. One file, so a backup is a copy.

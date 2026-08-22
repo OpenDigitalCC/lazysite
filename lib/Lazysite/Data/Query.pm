@@ -232,6 +232,19 @@ sub _validate {
         }
     }
 
+    # F-1: THE ORDER THE SITE MEANS, when the binding does not say. A gallery
+    # is an ordered list - somebody chose the sequence - and without this a
+    # bare `db:gallery` returns rows in whatever order the store hands back,
+    # which is insertion order right up until it is not. The binding still
+    # wins: this fills a gap, it does not override an author.
+    if ( !( defined $q->{order_by} && length $q->{order_by} )
+        && defined $d->{default_order} )
+    {
+        $q->{order_by} = $d->{default_order};
+        $q->{order}    = $d->{default_order_dir} // 'asc'
+            unless defined $q->{order};
+    }
+
     if ( defined $q->{order_by} && length $q->{order_by} ) {
         return _err( _not_a_field( $d, $q->{order_by}, 'order' ) )
             unless _is_field( $d, $q->{order_by} );

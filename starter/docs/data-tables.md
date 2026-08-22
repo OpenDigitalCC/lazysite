@@ -165,7 +165,9 @@ a freshness it never established.
 ## Field types
 
 `text`
-: Any string. `max:` limits its length; `widget: textarea` hints at the editor.
+: Any string. `max:` limits its length; `widget: textarea` (or `input`) says
+  how it should be edited -- a 500-character description and a short title are
+  the same kind of value and differ only in how you type them.
 
 `integer`
 : A whole number. `min:` and `max:` bound it.
@@ -252,6 +254,39 @@ Reading and writing tables through the manager, the API or MCP needs the
 
 A **page binding** is not a capability question: it renders as part of the
 page, so a gated section's table is as reachable as the section is.
+
+### The order the table is in
+
+A gallery is an ordered list -- somebody chose the sequence. Say so once, on
+the table, rather than repeating `order=` in every binding and getting it wrong
+in one of them:
+
+```yaml
+default_order: position     # or -position, for descending
+```
+
+A binding that names its own order still wins; this fills the gap when one
+does not.
+
+### Saying a value is unique
+
+`key:` says which field identifies a row. To say that *another* field must also
+be unique -- a slug, a reference, an email -- mark the field:
+
+```yaml
+fields:
+  slug:
+    type: text
+    unique: true
+```
+
+Two rows cannot then share a value. Empty values are exempt: any number of rows
+may leave it blank, which is what "unique" means everywhere else and is worth
+saying because the opposite is a fair guess.
+
+Adding `unique: true` to a field that already holds duplicates is **reported,
+not attempted** -- the migration tells you which value appears twice, and you
+make the existing rows distinct before migrating again.
 
 ### A table is closed until you publish it
 
