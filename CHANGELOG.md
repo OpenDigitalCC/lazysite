@@ -44,7 +44,61 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM473 resolved (PENDING) **a `db:` page variable rendered nothing, silently.**
+## 0.10.26 - EDGE: the data plugin becomes usable, and its second door gets a lock (2026-08-22)
+
+- DP-2 (a058dd3) **an unindexed filter or order is diagnosed, not refused.**
+  The grammar refused one on the reasoning that a scan "works on twelve test
+  rows and stops working at fifty thousand" - asserted, not measured. Measured
+  at 100,000 rows: an unindexed `order by ... limit 10` costs 5.6ms against
+  0.03ms indexed, and a filter on a common value costs nothing either way
+  because the limit stops the scan early. Five milliseconds is noise beside
+  forking a CGI, and refusing would have made every author of a thirty-row
+  table declare an index and run a migration to sort by name. **A table big
+  enough to hurt has outgrown SQLite rather than outgrown the query**, and
+  DP-7 is where that goes. What survives is the diagnosis: a read that actually
+  exceeds the threshold logs the page, the binding, the elapsed time and the
+  field to index. The data endpoint now uses the **same parser** as a page
+  binding - it built its own options and applied different rules, which is
+  SM476's shape on a second door.
+
+- DP-2 (b26b4d1) **the generated-query grammar, and snapshot as the default.**
+  Filters, ordering, paging, `.count()` and `.field()` scalars, and the three
+  modes. Every `db:` binding used to mark its page LIVE - rendered per request,
+  never cached - which made a price list on a home page cost a database read
+  per visitor, a performance cliff nobody opted into. Snapshot is now the
+  default and `mode=live` is the opt-in. A snapshot registers no dependency,
+  because there is nothing to depend on: the store is written through WAL, so a
+  row can change without the database file's timestamp moving, and a dependency
+  that cannot detect a change reports a freshness it never established.
+
+- SM476 resolved (e9517b3) **every declared table was readable by anyone.**
+  A page bound to a table inherits the page's gate; the data endpoint is
+  reached by its own URL and inherited nothing, so it was a second door to the
+  same rows with no lock on it. An operator who put a table behind a gated
+  section had tested the page, watched it refuse, and reasonably concluded the
+  data was protected. Two controls now: `public:` in the descriptor decides
+  whether an anonymous visitor sees rows and **defaults to false**, and an
+  `acls.json` read list decides which accounts and groups do, in a file ACL's
+  own shape and store. The enforcement is structural - `read_rows` will not
+  answer without being told who is asking - because "each surface remembers to
+  check" is exactly how this went wrong.
+
+- SM477 resolved (bc2a650) **a plugin declared an action it could not serve.**
+  Clicking Status in the Plugin Manager returned a usage string, addressed to
+  whoever typed the command; nobody typed one. The manager invokes an action as
+  `--scan` unless it declares `run => 'action'`, and the data plugin declared
+  neither while implementing only the latter. No test saw it because nothing
+  had ever invoked a plugin **the way the manager does** - the one path an
+  operator uses was the one path never exercised.
+
+- DP-3 write half (211b514) **a write needs an account, and `writable_by`
+  finally means something.** It had been in the descriptor since DP-1 -
+  validated, exported, named in the MCP tool's documentation - and read by no
+  code at all, so an operator writing `writable_by: [editors]` was given a
+  promise nobody kept. It narrows only: widening would make a YAML file a grant
+  of capability, and that file can be written over MCP.
+
+- SM473 resolved (f7ec238) **a `db:` page variable rendered nothing, silently.**
   The API returned three rows and the same table on a page returned none. The
   processor is module-free by design and carries no global `@INC` bootstrap -
   every other lazy-loading site in it finds the module tree first, and
@@ -57,7 +111,7 @@ Naming the commit: AFTER it lands, never before
   identically to an empty table, and nothing rendering is the hardest failure to
   notice on a live site.
 
-- SM474 resolved (PENDING) **a JSON boolean was refused, and misdescribed.**
+- SM474 resolved (f7ec238) **a JSON boolean was refused, and misdescribed.**
   `{"live": false}` answered *"a value cannot be a list or mapping"* because
   `ref $v` is true for a `JSON::PP::Boolean`. Strings, integers and even `"yes"`
   were all accepted, so the one representation a JSON client naturally sends -
@@ -65,7 +119,7 @@ Naming the commit: AFTER it lands, never before
   before anything else looks at it, so a boolean sent to a text field is now a
   type error with the right message rather than a shape error with the wrong one.
 
-- SM475 resolved (PENDING) **a token client could change state with a GET.** The
+- SM475 resolved (f7ec238) **a token client could change state with a GET.** The
   POST requirement lived inside the cookie branch, whose comment explains it in
   CSRF terms - true, and particular to browsers, which made the rule particular
   to browsers too. An authenticated GET of `data-migrate` returned 200 and ran.
@@ -74,7 +128,7 @@ Naming the commit: AFTER it lands, never before
   logs and history as a URL that travels. Hoisted above the channel split, and
   `t/lint/14` now asserts it sits there.
 
-- SM472 resolved (PENDING) **an unmet dependency said so, instead of answering
+- SM472 resolved (c118e40) **an unmet dependency said so, instead of answering
   500 - and enabling a plugin now checks.** Reported from edge: every descriptor
   save returned HTTP 500. The cause was `YAML::PP` absent on the host, and the
   symptoms were three honest answers that together said the wrong thing -
@@ -92,7 +146,7 @@ Naming the commit: AFTER it lands, never before
   The check reads the plugin's own declaration, never a list in the manager,
   which would go stale the first time a plugin gained a dependency.
 
-- SM471 reporting half (PENDING) **a capability added after a site was created
+- SM471 reporting half (65f5e14) **a capability added after a site was created
   never reaches it.** Reported from edge: *you cannot grant `manage_data` - you
   do not hold it*. The manager group is seeded **once**, with the capabilities
   that existed that day, and `_ensure_manager_group_caps` returns early when the
@@ -107,7 +161,7 @@ Naming the commit: AFTER it lands, never before
   SM127 keeps manager groups off the remote channels, so their absence is the
   design and flagging them would cry wolf on every site.
 
-- DP-8 (PENDING) **the data plugin is documented** - `/docs/data-tables` for
+- DP-8 (0cd0162) **the data plugin is documented** - `/docs/data-tables` for
   operators and `/docs/ai-briefing-data` for assistants, both linked from the
   docs index. Two audiences, two documents, because they need different things:
   an operator needs to know what a refusal means and where the store lives, and
@@ -119,7 +173,7 @@ Naming the commit: AFTER it lands, never before
   longer opens. It checks both directions, since a tool nobody documents is one
   an agent does not know it has - SM457's under-claiming defect wearing prose.
 
-- DP-3 read half (PENDING) **a page's own JavaScript can read a table**, through
+- DP-3 read half (2b1f7a8) **a page's own JavaScript can read a table**, through
   an endpoint that **verifies its own caller**. The front door routes
   `lazysite-*.pl` but wraps only the processor and manager-api, so a direct-CGI
   plugin sees `X-Remote-User` exactly as the client sent it - trusting it would
@@ -134,7 +188,7 @@ Naming the commit: AFTER it lands, never before
   write to be added later without the CSRF question being asked, and the
   `writable=` half is deliberately not in this cut.
 
-- DP-5 (PENDING) **a refused schema change can be made to happen, confirmed by
+- DP-5 (63001d3) **a refused schema change can be made to happen, confirmed by
   name.** `migrate_data_table` refuses a type change, a tightening to required,
   and a dropped column - right as a default and wrong as a permanent state,
   because a refusal with no path through is a dead end and an operator who meets
@@ -151,7 +205,7 @@ Naming the commit: AFTER it lands, never before
   routine after a descriptor edit, rewriting a table is not, and one name would
   make the routine call carry the dangerous capability every time.
 
-- SM466 resolved / SM456 partly (PENDING) **a preview says which layout and
+- SM466 resolved / SM456 partly (edbbad2) **a preview says which layout and
   theme the visitor actually got.** Nothing could confirm that a public page
   renders its own layout: `preview_page` renders through the manager,
   `read_page` returns source, `page_status` reports metadata, and per-Host
@@ -168,7 +222,7 @@ Naming the commit: AFTER it lands, never before
   rather than by fetching the page - which is egress outside the grant model and
   cannot be attributed to any capability.
 
-- SM461 bug half (PENDING) **an overview that cannot load says what happened,
+- SM461 bug half (797aaff) **an overview that cannot load says what happened,
   instead of blaming the data.** The all-files history overview showed
   *JSON.parse: unexpected character at line 1 column 1* while the data behind it
   was fine - `git-history-summary` returns valid JSON over the API. It parsed
@@ -181,7 +235,7 @@ Naming the commit: AFTER it lands, never before
   write over content, and an auditor who needs to know what changed should not
   need permission to change it - a capability decision.
 
-- SM455 resolved (PENDING) **setting up an AI is one flow on one page.** The
+- SM455 resolved (6e6bf93) **setting up an AI is one flow on one page.** The
   connector card appeared only once an account already held `api` or `mcp`, and
   that comes from group membership set on *another* page - so the job was: go to
   Groups, add the account, come back, find this page showing what it loaded
@@ -197,7 +251,7 @@ Naming the commit: AFTER it lands, never before
   group that happens to carry the capability would be choosing a permission on
   the operator's behalf. SM100's card is unchanged; it is shown earlier.
 
-- SM465 resolved (PENDING) **an `acl-set` records what the rule became, and
+- SM465 resolved (80ce0dd) **an `acl-set` records what the rule became, and
   what it stopped being.** The trail recorded that a permission changed, who
   changed it and on what path - and not what it changed to, so the one question
   an audit of a permission change exists to answer was the one it could not. It
@@ -213,7 +267,7 @@ Naming the commit: AFTER it lands, never before
   absent would make the trail disagree with enforcement about the most misread
   rule in the system.
 
-- DP-6 (PENDING) **a site package can carry a table's data, opt-in.** Content
+- DP-6 (0000e35) **a site package can carry a table's data, opt-in.** Content
   backups exclude `./lazysite` and a package copies content, nav and layout
   only, so a migrated site arrived **without its database and nothing said so**
   (SM410 finding B). Now: `data_tables` names the tables to carry, each exported
@@ -231,7 +285,7 @@ Naming the commit: AFTER it lands, never before
   operator who asked for three tables and silently got two would hand over a
   package they believe is complete.
 
-- SM431 (PENDING, filing only) **permissions are the one part of
+- SM431 (4ae8d2a, filing only) **permissions are the one part of
   manage_content with a single route.** `get_permissions` and
   `set_permissions` exist on MCP and nowhere else - no control-API action, no
   WebDAV route - so a token grant can create gated content and then have no
@@ -246,7 +300,7 @@ Naming the commit: AFTER it lands, never before
   capability and carry a real blast radius; an MCP server for that one host is
   the cheap answer and leaves the gap in place. DECISION HELD.
 
-- SM430 provenance (PENDING, correction) **the common-functions survey is
+- SM430 provenance (4ae8d2a, correction) **the common-functions survey is
   UNATTRIBUTED.** The brief carries no author line. It names SM422's parity
   map as its evidence base and so descends from it, but the map's author has
   confirmed the survey, CF-2 and the two-write-stacks framing are not theirs
