@@ -112,6 +112,10 @@ my %PAIR = (
     'data-tables'     => 'list_data_tables',
     'data-table'      => 'describe_data_table',
     'data-table-save' => 'save_data_table',
+
+    # SM466: the existing preview-public action, given an MCP door so the field
+    # can confirm what a visitor receives without stepping outside the grant.
+    'preview-public'  => 'preview_public_page',
     'data-rows'       => 'read_data_rows',
     'data-migrate'    => 'migrate_data_table',
     'data-row-save'   => 'save_data_row',
@@ -131,7 +135,6 @@ my %API_ONLY = (
     # path" - answered in the panel where the draft section is managed. An
     # agent has no equivalent question: it can already fetch the path
     # anonymously itself, which is all this does.
-    'preview-public' => 'operator-facing; an agent can fetch the path anonymously',
     # SM281 item 3: the read surface exists now and is API-only for a reason
     # that is a decision rather than an omission. An MCP twin would be the
     # agent door SM231 described - polled, not pushed - and it wants item 2's

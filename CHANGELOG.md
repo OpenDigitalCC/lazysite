@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM466 resolved / SM456 partly (PENDING) **a preview says which layout and
+  theme the visitor actually got.** Nothing could confirm that a public page
+  renders its own layout: `preview_page` renders through the manager,
+  `read_page` returns source, `page_status` reports metadata, and per-Host
+  routing is what makes those different questions rather than three views of one
+  - the layout is chosen from the Host, so a docroot-shaped tool cannot report
+  it. **Not a new mechanism:** `preview_public` already rendered as an anonymous
+  visitor under the owning Host (SM441); it had the answer and did not say it.
+  It now reports `rendered_layout` and `rendered_theme`, **read from the
+  response and never from the configuration** - SM441 was precisely a case where
+  the two disagreed and every configuration-consulting tool sided with the
+  configuration. An unstyled page reports no layout *and says why*, because a
+  missing field reads as "the check did not look". Exposed over MCP as
+  `preview_public_page`, so the field can confirm a fix from inside the grant
+  rather than by fetching the page - which is egress outside the grant model and
+  cannot be attributed to any capability.
+
 - SM461 bug half (PENDING) **an overview that cannot load says what happened,
   instead of blaming the data.** The all-files history overview showed
   *JSON.parse: unexpected character at line 1 column 1* while the data behind it

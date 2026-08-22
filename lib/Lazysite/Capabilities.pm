@@ -72,7 +72,8 @@ my %ACTION_INFO = (
                     list_pages read_page preview_page page_status search_files
                     validate_page invalidate_cache regenerate_registries read_nav audit_site create_form
                     get_permissions set_permissions
-                    list_versions list_content_history view_version restore_version) ],
+                    list_versions list_content_history view_version restore_version preview_public_page)
+            ],
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
         },
     },

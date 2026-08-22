@@ -675,6 +675,35 @@ my %TOOLS = (
             return _domain_presentation_set( $a->{host}, $a->{key}, $a->{value} // '' );
         },
     },
+    # SM466 / SM456: the field agent could not confirm what a VISITOR receives.
+    #
+    # Every tool it held answered a different question - preview_page renders
+    # through the manager, read_page returns source, page_status reports
+    # metadata. Per-Host routing is what makes those different questions rather
+    # than three views of one: the layout is chosen from the Host, so a
+    # docroot-shaped tool cannot report it.
+    #
+    # Fetching the page directly does work and is not the answer: it is egress
+    # outside the grant model, and a result obtained that way cannot be
+    # attributed to any capability the partner holds. A grant cannot attribute
+    # its own access.
+    #
+    # This is the existing preview-public action - which already renders as an
+    # anonymous visitor under the owning domain's Host - given an MCP door and
+    # taught to report the layout and theme the visitor actually got.
+    preview_public_page => {
+        description => 'Render ONE page exactly as an anonymous visitor would receive it - no session, no token, under the Host that owns the path - and report whether it is publicly visible, which layout and theme were actually used, and an excerpt. Use this to CONFIRM a change rather than assuming it: what a page should look like is a question about configuration, and what a visitor got is a question about the response, and they come apart. A page that renders through the built-in fallback reports no layout, which is itself the answer to "why does this look wrong". Read-only: nothing is published and no cache is written.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string', description => 'The page path, e.g. /about or /clients/index. Omitted means the home page, "/" - the same default the control API applies, so the two surfaces answer identically.' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Domains::preview_public( $_[0]->{path} );
+        },
+    },
     preview_domain => {
         description => 'Render a configured domain\'s home page exactly as an anonymous visitor would see it under that Host - its own content root, layout, theme and nav - and return the HTML. Works before DNS or TLS point at the domain, because the render is server-side, so use it to CHECK a domain you have just configured rather than guessing. Read-only: nothing is published and no cache is written.',
         cap         => 'manage_domains',

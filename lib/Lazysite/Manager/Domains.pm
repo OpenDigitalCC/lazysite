@@ -357,6 +357,44 @@ sub _owner_for_path {
 # is asking. So a 404 or a redirect to /login is the CORRECT answer for a gated
 # path and is reported as the finding rather than as an error - which is the
 # whole reason an operator would run this.
+# SM466: what the rendered page says about its own presentation.
+#
+# From the RESPONSE, never the configuration. "What should this domain use" was
+# always answerable; "what did a visitor actually get" was not, and they came
+# apart in SM441 - a domain's page rendered with the BASE layout while the
+# configuration said otherwise, and every tool that consulted the configuration
+# agreed with the configuration.
+#
+# The asset path is the evidence, because SM193 mirrors an active theme to
+# /lazysite-assets/<layout>/<theme>/ - so the stylesheet a visitor loaded names
+# both. Absent when a page renders through the built-in fallback, which is
+# itself the answer to "why does this look wrong".
+sub _rendered_presentation {
+    my ( $head, $body ) = @_;
+    my %out;
+
+    my ($asset)
+        = ( $body // '' ) =~ m{/lazysite-assets/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/};
+    if ( defined $asset ) {
+        my ( $layout, $theme )
+            = ( $body // '' )
+            =~ m{/lazysite-assets/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/};
+        $out{rendered_layout} = $layout;
+        $out{rendered_theme}  = $theme;
+    }
+    else {
+        # Said explicitly rather than left absent: a missing field reads as
+        # "the check did not look", and this IS the finding when a page is
+        # unstyled.
+        $out{rendered_layout} = undef;
+        $out{rendered_theme}  = undef;
+        $out{presentation_note}
+            = 'no theme asset was referenced - this page rendered through the '
+            . 'built-in fallback, not a layout';
+    }
+    return ( \%out );
+}
+
 sub preview_public {
     my ($rel) = @_;
     $rel = '/'     unless defined $rel && length $rel;
@@ -447,6 +485,23 @@ sub preview_public {
         # scope can - but it stops the answer being mistaken for one it did
         # not give.
         rendered_as_host => $rendered_as,
+
+        # SM466: WHICH LAYOUT AND THEME THE VISITOR ACTUALLY GOT.
+        #
+        # The reported gap was that nothing could confirm a page renders its
+        # OWN layout. preview_public already renders under the owning Host
+        # (SM441), so it had the answer and did not say it - and the field
+        # agent was left comparing an excerpt of HTML by eye, or fetching the
+        # page directly, which is egress outside the grant model and proves
+        # nothing about what the grant can establish.
+        #
+        # READ OUT OF THE RENDERED HEAD, not from the configuration. Reading
+        # the config would report what SHOULD have been used, which is the
+        # question that was already answerable and not the one being asked. The
+        # generator meta and the stylesheet path are what the visitor received.
+        ( map { %{$_} }
+                _rendered_presentation( $head, $body )
+        ),
 
         # A bounded excerpt, not the page. Enough to tell a rendered 404 from a
         # rendered page without shipping a whole document through the API.
