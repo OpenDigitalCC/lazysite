@@ -550,8 +550,30 @@ function accountSettingsHtml(row) {
   // (api/mcp). A manager/human account (ui, no api/mcp) is not connectable as an
   // AI - and the transport gate would refuse it anyway - so the panel is hidden,
   // removing the path by which a manager account was accidentally connected.
-  if (mcp || api) {
-    var conn =
+  // SM455: THE PICKER IS SHOWN EVEN WITHOUT A CHANNEL YET.
+  //
+  // It used to appear only once the account already held api or mcp - and that
+  // capability comes from GROUP MEMBERSHIP, set on another page. So setting an
+  // AI up was: go to Groups, add the account, come back here, discover the page
+  // is showing what it loaded before the change, reload, and only then pick a
+  // client. The operator did something correct, saw no effect, and had to guess
+  // that a refresh was the answer - which is indistinguishable from the thing
+  // they did having failed (the SM445 shape).
+  //
+  // Picking the client first is the operator's own suggestion, and it works
+  // because the client DETERMINES the channel: a web or desktop assistant
+  // speaks MCP, a script speaks the API. So one choice can grant the right
+  // group and issue the right credential.
+  //
+  // THE GRANT STAYS VISIBLE. connectAs() names the group and what it grants and
+  // asks before doing it, and it goes through the SAME group-add action the
+  // Groups page uses - so the audit entry reads identically. Packaging must not
+  // turn "give this agent write access" into an implied side effect of a
+  // drop-down.
+  if (true) {
+    var needHint = (mcp || api) ? ''
+      : '<p class="mg-muted" style="margin:0 0 0.4rem">This account has no remote channel yet. Choosing a client below will offer to grant the group that provides one &mdash; it will say which, and ask first.</p>';
+    var conn = needHint +
       '<p class="mg-muted" style="margin:0 0 0.4rem">Pick how this account connects &mdash; we issue the one credential that works for it.</p>' +
       '<div class="mg-connect-pick">' +
         '<button class="mg-btn mg-btn-sm" onclick="connectAs(\'' + ue + '\',\'web\')">Claude.ai / ChatGPT (web)</button>' +
@@ -788,7 +810,61 @@ function savePassword(user) {
 // works for it (web -> OAuth connect code, desktop -> token, code/script ->
 // pairing brief) and show the reason inline, so there is no wrong-credential
 // dead-end. Each branch calls the existing, unchanged flow.
+// SM455: which group provides the channel each client needs.
+//
+// Read from the seeded role groups rather than invented here: `agent-ai` grants
+// api (WebDAV/control API, what a script speaks) and `mcp-ai` grants mcp (what
+// a web or desktop assistant speaks). If an operator has renamed or removed
+// them, the grant step says so rather than guessing a substitute.
+var CLIENT_GROUP = { web: 'mcp-ai', desktop: 'mcp-ai', code: 'agent-ai' };
+var CLIENT_CHANNEL = { web: 'mcp', desktop: 'mcp', code: 'api' };
+
 function connectAs(user, client) {
+  var hint = document.getElementById('connhint-' + user);
+  // The account's settings, from the same rowsByUser the page renders from -
+  // there is one source and this uses it, rather than a second cache that
+  // could disagree with what is on screen.
+  var st   = (rowsByUser[user] || {}).settings || {};
+  var need = CLIENT_CHANNEL[client];
+
+  // Already has the channel: the flow is exactly what it was.
+  if (st[need]) return connectAsChannelled(user, client);
+
+  var group = CLIENT_GROUP[client];
+  if (!allGroups.hasOwnProperty(group)) {
+    if (hint) hint.textContent = 'This account needs the "' + need +
+      '" channel, which the "' + group + '" group provides - and that group ' +
+      'does not exist on this site. Create it on the Groups page, or add the ' +
+      need + ' capability to a group this account is in.';
+    return;
+  }
+
+  // THE PERMISSION IS NAMED, AND ASKED ABOUT. A grant is a decision, not a
+  // side effect of picking a client from a list.
+  mgConfirm('Add "' + user + '" to the group "' + group + '"? That grants the "' +
+    need + '" channel, which is what this client connects over. It is the same ' +
+    'change as ticking the group on the Groups page, and it is audited the same way.',
+    { ok: 'Grant and continue' }).then(function(okd) {
+    if (!okd) return;
+    apiCall({ action: 'group-add', username: user, group: group })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error, true); return; }
+        // Keep the local cache honest, so this page does not now disagree with
+        // itself - which is the fault this whole change is about.
+        var m = Array.isArray(allGroups[group]) ? allGroups[group] : (allGroups[group] = []);
+        if (m.indexOf(user) === -1) m.push(user);
+        if (rowsByUser[user]) {
+          rowsByUser[user].settings = rowsByUser[user].settings || {};
+          rowsByUser[user].settings[need] = true;
+        }
+        showStatus('Added ' + user + ' to ' + group + '.');
+        connectAsChannelled(user, client);
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
+function connectAsChannelled(user, client) {
   var hint = document.getElementById('connhint-' + user);
   if (client === 'web') {
     if (hint) hint.textContent = 'Claude.ai and ChatGPT are OAuth-only (no token field). You get a one-time connect code to paste at the sign-in prompt.';

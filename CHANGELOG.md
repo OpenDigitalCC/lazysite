@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM455 resolved (PENDING) **setting up an AI is one flow on one page.** The
+  connector card appeared only once an account already held `api` or `mcp`, and
+  that comes from group membership set on *another* page - so the job was: go to
+  Groups, add the account, come back, find this page showing what it loaded
+  before the change, reload, then pick a client. Doing something correct and
+  seeing no effect is indistinguishable from it having failed. The picker is now
+  shown first, and **the client determines the channel** - web and desktop
+  assistants speak MCP, a script speaks the API - so one choice can grant the
+  right group. **The grant stays a decision**: the confirmation names the
+  account and the group, says what the group grants, says it is the same change
+  as ticking it on the Groups page, and goes through the same `group-add`
+  action, so the audit entry is identical whichever page was used. A role group
+  that does not exist is reported rather than substituted - granting some other
+  group that happens to carry the capability would be choosing a permission on
+  the operator's behalf. SM100's card is unchanged; it is shown earlier.
+
 - SM465 resolved (PENDING) **an `acl-set` records what the rule became, and
   what it stopped being.** The trail recorded that a permission changed, who
   changed it and on what path - and not what it changed to, so the one question
