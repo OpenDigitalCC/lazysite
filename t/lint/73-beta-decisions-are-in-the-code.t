@@ -38,17 +38,30 @@ subtest 'SM462: a new principal gets read AND write' => sub {
     unlike( $fn, qr/chipHtml\(name, 1, 0\)/, 'and not read-only' );
 };
 
-subtest 'SM461: the OVERVIEW is hidden, the per-file panel is not' => sub {
+subtest 'SM461: the overview is BACK, because the fault it hid is fixed' => sub {
+    # THIS ASSERTION USED TO SAY THE OPPOSITE, and the reversal is the point of
+    # keeping it rather than deleting it.
+    #
+    # For 0.10.22 the overview was hidden unconditionally: it reported a JSON
+    # parse error against data that was fine, and a panel that blames the data
+    # teaches an operator to distrust it. That was a decision to hold a symptom
+    # still, not a fix, and this test held it in place so it could not drift
+    # back by accident.
+    #
+    # The cause is now fixed - the page read any non-JSON body as malformed
+    # data - so the decision has been SUPERSEDED rather than abandoned. What
+    # the test guards flips accordingly: the control must be offered again, and
+    # gated only on whether content history is enabled, because a site without
+    # it can only answer "not enabled".
     my ($fn) = $src =~ /function loadGitStatus\(\)\s*\{(.*?)\n\}/s;
     ok( defined $fn, 'loadGitStatus is present' );
-    like( $fn, qr/hb\.style\.display = 'none'/,
-        'the overview button is hidden unconditionally' )
-        or diag( 'It fails with a JSON parse error while its data is fine.' );
-    unlike( $fn, qr/GIT\.enabled \? '' : 'none'/,
-        'not merely gated on the feature being enabled' );
+    unlike( $fn, qr/if \(hb\) hb\.style\.display = 'none';/,
+        'the beta hide is gone' );
+    like( $fn, qr/GIT\.enabled \? '' : 'none'/,
+        'and the control follows whether content history is enabled' );
 
-    # The per-file panel must survive. Hiding it would remove something that
-    # works to fix something that does not.
+    # The per-file panel must survive, as it had to before. Hiding it would
+    # remove something that works to fix something that did not.
     like( $src, qr/toggleHistory\(this\)/,
         'the per-file History control is still offered' )
         or diag( 'That one IS a file operation and belongs beside the file.' );

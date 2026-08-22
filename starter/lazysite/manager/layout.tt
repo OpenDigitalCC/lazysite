@@ -235,6 +235,33 @@
     // pages already report properly, and treating it as an expiry would tell
     // an operator to sign in again over a refusal that signing in will not
     // change.
+    // SM461: A NON-JSON BODY IS NOT MALFORMED DATA.
+    //
+    // SM445 fixed the 401 case here. The rest of that class did not go away: a
+    // 500, an uncaught die, a proxy timeout page or a login redirect all answer
+    // with HTML, and a caller doing `r.json()` gets "JSON.parse: unexpected
+    // character at line 1 column 1" - which the page then shows as though the
+    // DATA were broken. An operator reads that as "the history is corrupt" and
+    // goes looking at their content, when what happened was a 500.
+    //
+    // mgJson() is what a caller should use instead of r.json(). It reports the
+    // STATUS and what actually came back, so the message names the fault
+    // rather than mis-attributing it. Offered rather than imposed: the pages
+    // adopt it where a wrong diagnosis costs something, and nothing breaks
+    // where they have not.
+    window.mgJson = function (r) {
+      var ct = ( r.headers && r.headers.get('content-type') ) || '';
+      if ( r.ok && ct.indexOf('json') !== -1 ) return r.json();
+      return r.text().then(function (body) {
+        var snip = ( body || '' ).replace(/\s+/g, ' ').slice(0, 120);
+        var what = r.ok ? 'the server answered with ' + ( ct || 'no content type' )
+                        : 'the server answered ' + r.status + ' ' + ( r.statusText || '' );
+        var e = new Error( what + ( snip ? ' - ' + snip : '' ) );
+        e.mgStatus = r.status;
+        throw e;
+      });
+    };
+
     var expiredShown = false;
     function noteExpiry(r) {
       if ( !r || r.status !== 401 || expiredShown ) return r;

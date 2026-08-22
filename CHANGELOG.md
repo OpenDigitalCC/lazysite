@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM461 bug half (PENDING) **an overview that cannot load says what happened,
+  instead of blaming the data.** The all-files history overview showed
+  *JSON.parse: unexpected character at line 1 column 1* while the data behind it
+  was fine - `git-history-summary` returns valid JSON over the API. It parsed
+  every response with `r.json()` and no status or content-type check, so a 500,
+  a die or a proxy timeout page became a parse error attributed to the content.
+  SM445 fixed the 401 case in the shared wrapper; the rest of the class had not
+  gone away. **`window.mgJson`** now checks both and reports the status and what
+  came back, and the overview is shown again. **The placement half is untouched
+  and still open**: seeing it requires the Files app, which is full read and
+  write over content, and an auditor who needs to know what changed should not
+  need permission to change it - a capability decision.
+
 - SM455 resolved (PENDING) **setting up an AI is one flow on one page.** The
   connector card appeared only once an account already held `api` or `mcp`, and
   that comes from group membership set on *another* page - so the job was: go to

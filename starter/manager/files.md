@@ -1226,8 +1226,18 @@ function loadGitStatus() {
       // Files app - full read and write over content - to somebody who only
       // needs to know what changed. That move is an edge change; this is the
       // beta-safe half.
+      // SM461: SHOWN AGAIN. It was hidden for the beta because it reported a
+      // JSON parse error against data that was fine, and an overview that
+      // blames the data teaches an operator to distrust the panel. The cause
+      // was this page reading any non-JSON body as malformed data; it now
+      // reports the status and what came back, so a 500 reads as a 500.
+      //
+      // The PLACEMENT half of SM461 is untouched and still open: seeing this
+      // requires the Files app, which is full read and write over content, and
+      // an auditor who needs to know what changed should not need permission
+      // to change it. That needs a capability decision.
       var hb = document.getElementById('hist-overview-btn');
-      if (hb) hb.style.display = 'none';
+      if (hb) hb.style.display = GIT.enabled ? '' : 'none';
     })
     .catch(function() { /* control stays hidden */ });
 }
@@ -1242,8 +1252,13 @@ function openHistoryOverview() {
   if (!box || !body) return;
   box.style.display = '';
   body.innerHTML = '<p class="mg-muted">Loading&hellip;</p>';
+  // SM461: mgJson, not r.json(). Any non-JSON body - a 500, a die, a proxy
+  // timeout page - used to become "JSON.parse: unexpected character at line 1
+  // column 1", which reads as the HISTORY being corrupt. The data was always
+  // fine: git-history-summary returns valid JSON over the API. Now the message
+  // names the status and shows what came back.
   fetch(API + '?action=git-history-summary')
-    .then(function(r) { return r.json(); })
+    .then(function(r) { return (window.mgJson ? window.mgJson(r) : r.json()); })
     .then(function(d) {
       if (!d.ok) { body.innerHTML = '<p class="mg-muted">' + escHtml(d.error || 'No history available') + '</p>'; return; }
       if (!d.enabled) { body.innerHTML = '<p class="mg-muted">Content history is not enabled.</p>'; return; }
@@ -1251,7 +1266,12 @@ function openHistoryOverview() {
       HIST_OVERVIEW.summary = d.summary || { files: 0, revisions: 0 };
       renderHistoryOverview();
     })
-    .catch(function(e) { body.innerHTML = '<p class="mg-muted">Error: ' + escHtml(e.message) + '</p>'; });
+    .catch(function(e) {
+      // The message now says what happened, so it is worth showing plainly
+      // rather than prefixed with a bare "Error:".
+      body.innerHTML = '<p class="mg-muted">The history overview could not be '
+        + 'loaded: ' + escHtml(e.message) + '</p>';
+    });
 }
 function closeHistoryOverview() {
   var box = document.getElementById('hist-overview');
