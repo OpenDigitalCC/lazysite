@@ -183,7 +183,7 @@ A **page binding** is not a capability question: it renders as part of the
 page, so a gated section's table is as reachable as the section is.
 
 **A table is public, and that is worth deciding before you put anything in
-one.** A page's own JavaScript reads rows from `/lazysite-data.pl?table=<name>`,
+one.** A page's own JavaScript reads rows from `/cgi-bin/lazysite-data.pl?table=<name>`,
 and that address answers anyone who knows the table's name -- it is reached
 directly, so it inherits nothing from any page. Putting a table behind a gated
 page gates the page, not the table.
@@ -221,6 +221,31 @@ Leave it out and any `manage_data` holder may write.
 **`writable=` on a page binding is not a permission.** It tells the page's own
 script whether to offer editing controls. The endpoint cannot see which page
 called it, so a marker in front matter could never gate anything.
+
+### Calling the endpoint
+
+`/cgi-bin/lazysite-data.pl` -- reached directly, so it is available to a page's
+JavaScript wherever that page lives.
+
+```datatable
+columns: Call | Answers
+widths: 8cm | X
+bold: 1
+tone: medium
+---
+`GET ?table=notes` | `{ok, table, rows}`
+`GET ?table=notes&order_by=code&order=desc&limit=20&offset=40` | the same, ordered and paged
+`GET ?csrf=1` | `{ok, token}` for a signed-in caller, and nothing for anyone else
+`POST ?table=notes` with `X-CSRF-Token` | `{"row": {...}}` to insert, `{"key": "...", "row": {...}}` to update
+`POST ?table=notes` with `{"key": "...", "delete": 1}` | removes that row
+```
+
+A write that is refused says which of the three gates stopped it -- `kind` is
+`anonymous`, `csrf` or `forbidden` -- so a page can tell "sign in" from "your
+token went stale" from "this is not yours to edit" and say the right thing.
+
+Fetch the token once per page and reuse it; fetch a fresh one and retry if a
+write comes back `csrf`.
 
 ## Where things live
 
