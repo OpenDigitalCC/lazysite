@@ -80,8 +80,19 @@ subtest 'every control-API action the docs name exists' => sub {
     ok( scalar keys %{$actions}, 'the action table was found' )
         or BAIL_OUT('no actions - this test would prove nothing');
 
+    # `data-ls-*` IS AN HTML ATTRIBUTE, NOT AN ACTION, and the two have the
+    # same shape. This pattern was written when every backticked `data-...` in
+    # these docs was an action name, which stopped being true the moment DP-3b
+    # documented the helper's markup contract (`data-ls-db`, `data-ls-field`).
+    # Excluded by prefix rather than by a list, because the attributes are a
+    # family that will grow and each new one is not a decision this test should
+    # be making.
     my %named;
-    $named{$1} = 1 while $text =~ /`(data-[a-z-]+)`/g;
+    while ( $text =~ /`(data-[a-z-]+)`/g ) {
+        my $n = $1;
+        next if $n =~ /\Adata-ls-/;
+        $named{$n} = 1;
+    }
     $named{$1} = 1 while $text =~ /action=(data-[a-z-]+)/g;
     ok( scalar keys %named, 'the docs name some actions' );
     for my $a ( sort keys %named ) {

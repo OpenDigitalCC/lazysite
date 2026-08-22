@@ -423,6 +423,52 @@ token went stale" from "this is not yours to edit" and say the right thing.
 Fetch the token once per page and reuse it; fetch a fresh one and retry if a
 write comes back `csrf`.
 
+### Filling a region from the page itself
+
+You do not have to write the fetching. Declare a region and what one row looks
+like, and the shipped helper does the rest:
+
+```html
+<ul data-ls-db="products" data-ls-db-order="-price" data-ls-db-limit="10">
+  <template>
+    <li><span data-ls-field="name"></span> —
+        <em data-ls-field="price"></em></li>
+  </template>
+  <p data-ls-empty>Nothing here yet.</p>
+</ul>
+```
+
+```datatable
+columns: Attribute | Means
+widths: 6.4cm | X
+bold: 1
+tone: medium
+---
+`data-ls-db` | the table to read
+`data-ls-db-order` | a field, `-field` for descending
+`data-ls-db-limit` / `-offset` | how many, from where
+`data-ls-db-every` | refresh every N seconds -- **opt in**, minimum 5
+`data-ls-field` | on any element inside the template: put this column's value here
+`data-ls-empty` | shown when there are no rows, hidden when there are
+```
+
+The script is added to a page **only when that page has a region**, so a site
+that never uses one ships nothing extra.
+
+**Values are inserted as text, never as markup.** A row containing `<script>`
+renders as those characters. This matters because rows can arrive from a public
+form, and a helper that treated them as markup would turn a contact form into a
+way to run script on every visitor's page.
+
+A refresh that fails **leaves what is already on the page**. Content a minute
+old beats an empty list because one request timed out.
+
+Regions load when they come into view, so a table below the fold on a page
+nobody scrolls costs nothing. Nothing polls unless you set `data-ls-db-every`.
+
+The helper reads through the same endpoint and the same rules as anything else:
+an unpublished table returns nothing to it, exactly as it does to anyone.
+
 ## Where things live
 
 `lazysite/db/tables/<name>.yaml`

@@ -2858,8 +2858,14 @@ sub _is_engine_asset {
     my ($uri) = @_;
     return 0 unless defined $uri;
     $uri =~ s/\?.*\z//;
+    # DP-3b joins the list DELIBERATELY, which is what an exact list is for.
+    # Without it the data helper 404s on any domain with its own content root
+    # and a live table simply never refreshes - silently, because a script that
+    # does not load reports nothing. That is SM382's measured failure, and a
+    # new asset inherits none of the reasoning unless somebody adds it here.
     return ( $uri eq '/assets/lazysite-chrome.css'
-            || $uri eq '/assets/lazysite-chrome.js' ) ? 1 : 0;
+            || $uri eq '/assets/lazysite-chrome.js'
+            || $uri eq '/assets/lazysite-data.js' ) ? 1 : 0;
 }
 
 
@@ -6653,6 +6659,14 @@ sub render_template {
         $output = _inject_meta( $output, $vars );
         $output = _inject_canonical( $output, $vars );
 
+        # DP-3b, for the reason stated immediately above and worth stating
+        # once more because it caught me: a no-layout site would otherwise
+        # render a data region and never load the script that fills it. The
+        # chrome bundle does not need this - the fallback template carries its
+        # tag inline - but this one is conditional, so it cannot be in a
+        # template that does not know what the body contains.
+        $output = _inject_data_helper($output);
+
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
     }
@@ -6739,6 +6753,7 @@ sub render_template {
     # auth control. Toggles [data-ls-auth-in]/[data-ls-auth-out] from the lzs_session
     # marker cookie. Injected on every page so any layout can opt in with those attrs.
     $output = _inject_auth_sync($output);
+    $output = _inject_data_helper($output);
 
     # NOTE: the manager admin bar is deliberately NOT injected here. It is
     # per-viewer (manager-only) and this output is written to the shared page
@@ -6772,6 +6787,34 @@ sub _inject_auth_sync {
     # <script>...</script> in there closes the page's own inline <script> early
     # - "SyntaxError: literal not terminated" - and kills the whole script. The
     # negative lookahead anchors the match to the document's real closing tag.
+    $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
+    return $html;
+}
+
+# DP-3b: the data helper, injected only for a page that actually uses it.
+#
+# UNLIKE THE CHROME BUNDLE, THIS IS CONDITIONAL. Chrome goes on every page
+# because every page has chrome. A page with no live or client-side table has
+# no use for this, and shipping a script to every visitor so that a handful of
+# pages can refresh a list is a cost paid by everyone for the benefit of a few.
+#
+# THE TRIGGER IS THE RENDERED MARKUP, not the binding. A `db:` binding declares
+# a MODE, but the markup is what declares a REGION - and the two can disagree
+# in both directions: a page may carry a `data-ls-db` region with no binding at
+# all (that is what mode=client is), and a layout may ignore a binding
+# entirely. Looking at what was actually rendered cannot be wrong about what
+# the page contains.
+sub _inject_data_helper {
+    my ($html) = @_;
+    return $html unless $html =~ m{</body>}i;
+    return $html unless $html =~ m{\bdata-ls-db\b};
+    return $html if $html =~ m{/assets/lazysite-data\.js};
+    my $script = '<script src="/assets/lazysite-data.js?v='
+        . _lazysite_version() . '" defer></script>';
+
+    # Before the LAST </body>, for the reason spelled out in _inject_auth_sync:
+    # a page can carry a literal "</body>" inside a JS string, and splicing a
+    # script tag in there terminates the page's own inline script early.
     $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
     return $html;
 }
