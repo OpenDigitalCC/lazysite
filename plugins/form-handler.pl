@@ -36,6 +36,20 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     note => 'SMTP connection settings (host, port, TLS) are configured under the Email (SMTP) group header.',
                 },
                 {
+                    type   => 'db',
+                    label  => 'Store in a data table',
+                    schema => [
+                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true, default => 'Store submissions' },
+                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
+                        { key => 'table', label => 'Table', type => 'text', required => JSON::PP::true,
+                            note => 'A table declared under Data tables. It must exist before submissions arrive.' },
+                        { key => 'fields', label => 'Field mapping', type => 'text', required => JSON::PP::true,
+                            default => 'name=name,email=email,message=message',
+                            note => 'form field=column, comma separated. REQUIRED, and it is what keeps a visitor from choosing where their data goes: a form field nobody maps here is dropped, so a form gaining a field cannot start writing a column.' },
+                    ],
+                    note => 'Needs the Data tables plugin to be enabled. Values are checked against the table\'s declared types, so a submission that does not fit is refused rather than stored wrong - the visitor is told the submission failed instead of being thanked for a lost one.',
+                },
+                {
                     type   => 'file',
                     label  => 'Save to file',
                     schema => [
@@ -361,12 +375,139 @@ sub dispatch {
     my $type = $h_config{type} // '';
 
     if    ( $type eq 'file' ) { return dispatch_file( \%h_config, $form ) }
+    elsif ( $type eq 'db' )   { return dispatch_db( \%h_config, $form ) }
     elsif ( $type eq 'smtp' ) { return dispatch_smtp( \%h_config, $form ) }
     elsif ( $type eq 'webhook' || $type eq 'api' ) { return dispatch_webhook( \%h_config, $form ) }
     else {
         log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
         return 0;
     }
+}
+
+# DP-4: a form submission becomes a row in a typed table.
+#
+# THIS IS THE ANONYMOUS WRITE PATH, AND THE ONLY ONE. lazysite-data.pl refuses
+# an anonymous POST and says a form is how you collect data from visitors -
+# this is what it is pointing at. The difference is not the storage, it is
+# everything around it: a form has rate limits, spam assessment, quarantine, an
+# audit trail, and a handler an operator configured. A data binding taking
+# anonymous writes would rebuild that surface without any of it.
+#
+# SO THE OPERATOR'S HANDLER DECIDES EVERYTHING STRUCTURAL, and the visitor
+# decides only values. The table and the column names come from handlers.conf,
+# which is operator-only; the form supplies values and nothing else. A form
+# that grows a field cannot grow a column, and a field nobody mapped is
+# DROPPED rather than guessed at.
+#
+#     - id: enquiries
+#       type: db
+#       table: enquiries
+#       fields: name=name,email=email,message=body
+#
+# `fields` reads FORM=COLUMN. It is REQUIRED: mapping same-named fields
+# automatically would mean a form gaining a field silently starts writing to a
+# column, which is the accident this whole shape exists to prevent.
+#
+# THE ROW GOES THROUGH THE SAME COERCION AS ANY OTHER WRITE, so a form cannot
+# put anything into the store that the API could not - a date that is not one,
+# a value outside an enum, a decimal with too many places. A refused value
+# fails the delivery rather than storing something wrong, because a visitor
+# told "thank you" about a submission that was silently dropped is the worst of
+# the available outcomes.
+#
+# THE MODULES ARE FOUND, NOT ASSUMED. This plugin loads no Lazysite modules -
+# it has the same standalone property the processor has - so the tree is
+# located here exactly as resolve_db locates it, and a host without the data
+# modules gets a DIAGNOSIS rather than a die that becomes a 500 (SM472).
+sub dispatch_db {
+    my ( $config, $form ) = @_;
+    my $fname = $form->{_form} // '-';
+
+    my $table = $config->{table} // '';
+    unless ( $table =~ /\A[a-z][a-z0-9_]*\z/ ) {
+        log_event( 'ERROR', $fname,
+            'db handler has no usable table name', table => $table );
+        return 0;
+    }
+
+    my $map = $config->{fields} // '';
+    unless ( length $map ) {
+        log_event( 'ERROR', $fname,
+            'db handler has no fields mapping - it must say which form field '
+                . 'goes in which column, as fields: name=name,email=email' );
+        return 0;
+    }
+
+    my $ok = eval {
+        unless ( $INC{'Lazysite/Data/Tables.pm'} ) {
+            require Cwd;
+            require File::Basename;
+            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+            }
+        }
+        require Lazysite::Data::Tables;
+        require Lazysite::Manager::Plugins;
+        1;
+    };
+    unless ($ok) {
+        log_event( 'ERROR', $fname,
+            'db handler needs the data modules and they could not be loaded',
+            error => ( $@ || 'unknown' ) );
+        return 0;
+    }
+
+    # A DISABLED PLUGIN STORES NOTHING. SM409's rule is that off means off, and
+    # a form quietly writing to a table an operator has switched off would be
+    # the plugin still running after being turned off.
+    {
+        local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
+        unless (
+            Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl') )
+        {
+            log_event( 'ERROR', $fname,
+                'the data plugin is disabled, so this form cannot store a row',
+                table => $table );
+            return 0;
+        }
+    }
+
+    # VALUES ONLY. Every column is named by the operator's mapping; the form is
+    # read for values at those names and for nothing else.
+    my %row;
+    for my $pair ( split /\s*,\s*/, $map ) {
+        my ( $from, $to ) = split /\s*=\s*/, $pair, 2;
+        next unless defined $from && defined $to && length $from && length $to;
+        unless ( $to =~ /\A[a-z][a-z0-9_]*\z/ ) {
+            log_event( 'ERROR', $fname,
+                'db handler maps to something that is not a column name',
+                column => $to );
+            return 0;
+        }
+        next if $from =~ /\A_/;    # the _-prefixed keys are the form's own
+        $row{$to} = $form->{$from} if exists $form->{$from};
+    }
+
+    unless (%row) {
+        log_event( 'WARN', $fname,
+            'db handler stored nothing - no mapped field was submitted',
+            table => $table );
+        return 0;
+    }
+
+    my $r = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, \%row );
+    unless ( $r && $r->{ok} ) {
+        # SAID, WITH THE REASON. "the submission failed" sends an operator to
+        # look at the form; "field 'when': '32nd' is not a date" sends them to
+        # the one line that is wrong.
+        log_event( 'ERROR', $fname, 'db handler could not store the row',
+            table => $table, why => ( $r->{error} // 'unknown' ) );
+        return 0;
+    }
+
+    log_event( 'INFO', $fname, 'form stored a row', table => $table );
+    return 1;
 }
 
 # SM115: record a submission in the audit trail. The submitter is the public, so the

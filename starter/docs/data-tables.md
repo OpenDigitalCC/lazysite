@@ -303,9 +303,39 @@ answered the capability question with `manage_data`, so they read regardless. A
 whoever is looking at it, so what you see while signed in is what your visitors
 see.
 
+### Collecting data from visitors
+
+A visitor cannot write to a table directly, and that is deliberate: the data
+endpoint refuses an anonymous write. **Use a form.** A form has rate limits,
+spam assessment, quarantine and an audit trail, and a data binding taking
+anonymous writes would rebuild that surface without any of it.
+
+Point a form handler at a table:
+
+```
+handlers:
+  - id: store-enquiries
+    type: db
+    table: enquiries
+    fields: name=name,email=email,message=body
+```
+
+`fields` reads **form field = column**, and it is required. A form field nobody
+maps is **dropped**, so a form gaining a field cannot start writing a column,
+and a visitor cannot choose where their data goes by naming a field after one.
+
+Values go through the same checks as any other write, so a submission that does
+not fit the declared types is **refused rather than stored wrong** -- the
+visitor is told the submission failed instead of being thanked for one that was
+quietly lost.
+
+The data plugin must be enabled; a form pointed at a table while it is switched
+off refuses and says so.
+
 ### Who may write
 
-A write needs all three:
+A write through the manager, the API, MCP or the data endpoint needs all
+three:
 
 - a signed-in session (a public visitor submitting data is what a **form** is
   for -- forms have rate limits, spam controls and a handler that vets what it
