@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM492 shipped in part (GS9, GS11, GS12; PENDING) **the component mechanism
+  is documented, and an unclosed fence is named.** An estate survey found the
+  same hero panel hand-built twice because nothing told either author that
+  `::: component` existed. `ai-briefing-layouts` gains "Components: a
+  layout's reusable pieces" - `attrs`/`content`/`slots`, a worked `hero.tt`,
+  built-ins, the fenced-div fallback - and the `sections:` shape, stated
+  honestly: no shipped layout reads `sections` yet. `ai-briefing-authoring`
+  gains a `json:` gallery worked end to end, with the `db:` pointer. A
+  `::: name` fence that is never closed is logged as a build `WARN` naming
+  the component and body line, and `validate_page` reports
+  `component-fence-unmatched` at the file line (``` code blocks skipped); a
+  stray closing `:::` is `fence-close-unmatched`. GS7+GS8+GS10 refiled as
+  SM493.
+
 - SM488 resolved (PENDING) **validate_page flagged ISO dates as phone
   numbers, and reported every line short by the front matter.** The phone
   pattern matched `2026-08-22` - ten characters of digits and hyphens - so a

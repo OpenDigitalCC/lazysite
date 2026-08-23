@@ -4079,7 +4079,17 @@ sub convert_fenced_components {
                 else                          { push @inner, $x }
                 $j++;
             }
-            if ( $depth != 0 ) { push @out, $l; $i++; next; }    # unbalanced: leave as-is
+            if ( $depth != 0 ) {
+                # GS11 (SM492): unbalanced - the fence stays in the page as text,
+                # which is the visible symptom; the CAUSE is named here so the
+                # build log says which component, on which body line.
+                log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                    'component fence never closed', component => $name,
+                    body_line => $i + 1, page => $md_path // '-' );
+                push @out, $l;
+                $i++;
+                next;
+            }
             push @out, _render_component( $layout_dir, $name, $attr,
                 join( "\n", @inner ), $md_path, $meta );
             $i = $j;

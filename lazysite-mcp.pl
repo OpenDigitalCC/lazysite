@@ -1821,6 +1821,45 @@ sub _validate_page {
         push @issues, { kind => 'raw-html-page', message => $raw };
     }
 
+    # GS11 (SM492): AN OPENING FENCE THAT IS NEVER CLOSED SAYS SO, HERE.
+    #
+    # The processor leaves an unbalanced `::: name` in the page as literal text
+    # and logs a WARN the author cannot read over MCP. The symptom on the page
+    # is three colons and a word where a hero should be. Reported at the line
+    # counted from the top of the FILE (SM488), naming the fence, so the
+    # reader's cursor lands on the fence that was opened and never closed.
+    #
+    # Lines inside ``` code blocks are skipped: a page that DOCUMENTS fences
+    # would otherwise trip the check that exists to make fences safe.
+    {
+        my $off = length($fm) ? ( ( () = $fm =~ /\n/g ) + 1 ) + 2 : 0;
+        my ( @open, $in_code );
+        my $n = 0;
+        for my $line ( split /\n/, ( $body // '' ) ) {
+            $n++;
+            if ( $line =~ /^[ \t]{0,3}(?:```|~~~)/ ) { $in_code = !$in_code; next }
+            next if $in_code;
+            if    ( $line =~ /^:::[ \t]+([\w-]+)/ ) { push @open, [ $1, $n + $off ] }
+            elsif ( $line =~ /^:::[ \t]*$/ ) {
+                if (@open) { pop @open }
+                else {
+                    push @warnings, { kind => 'fence-close-unmatched', line => $n + $off,
+                        message => 'a closing ::: with no open fence above it. It renders '
+                            . 'as literal text; remove it or find the opening line it '
+                            . 'was meant to close' };
+                }
+            }
+        }
+        for my $o (@open) {
+            push @warnings, { kind => 'component-fence-unmatched', line => $o->[1],
+                fence   => $o->[0],
+                message => "the '::: $o->[0]' fence opened here is never closed. The "
+                    . 'processor leaves it in the page as literal text and the block '
+                    . 'is not rendered as a component or a div; add the closing ::: '
+                    . '(count them when you nest)' };
+        }
+    }
+
     # SM481: A `db:` BINDING THAT WILL RENDER NOTHING SAYS SO, HERE.
     #
     # The engine already logs the reason - "it may not be published (set

@@ -225,7 +225,10 @@ The inner Markdown is the component's `content`; `key="value"` on the opening
 line are `attrs`; a nested `::: <name>` block is a named `slot`. A name with no
 matching component falls back to `<div class="name">`. Available components are
 layout-specific. For all-structure pages a layout may also read a front-matter
-`sections:` list and compose the page from components.
+`sections:` list and compose the page from components. How to WRITE a
+component, and the `sections:` shape, are in `/docs/ai-briefing-layouts`.
+An opening fence with no closing `:::` is left in the page as text:
+`validate_page` reports it as `component-fence-unmatched` with the line.
 
 ### oEmbed
 
@@ -298,6 +301,52 @@ This feature is in beta.
 
 Inline code and fenced code blocks are protected from TT. Put TT tags
 outside code blocks if you want them to render.
+
+### A gallery from a JSON file (`json:`) - worked end to end (GS12)
+
+A page can loop over structured data instead of repeating Markdown by hand.
+Put the data in a local JSON file, bind it with `json:` in `tt_page_var`,
+and loop with Template Toolkit in the body. The whole gallery is three
+pieces, and adding a painting is one more object in the file:
+
+`/gallery/paintings.json`:
+
+    {
+      "paintings": [
+        { "title": "Harbour, dusk", "file": "harbour.jpg",
+          "year": 2024, "medium": "oil on board", "sold": false },
+        { "title": "Two chairs",    "file": "chairs.jpg",
+          "year": 2023, "medium": "acrylic",      "sold": true }
+      ]
+    }
+
+`/gallery/index.md`:
+
+    ---
+    title: Paintings
+    tt_page_var:
+      art: json:/gallery/paintings.json
+    ---
+    [% FOREACH p IN art.paintings %]
+    ::: card
+    ![[% p.title %]](/gallery/img/[% p.file %])
+
+    **[% p.title %]** - [% p.medium %], [% p.year %][% IF p.sold %] - *sold*[% END %]
+    :::
+    [% END %]
+
+The page's TT runs first, so the loop emits one `::: card` block per row;
+if the layout ships a `card` component those blocks render through it,
+otherwise each becomes `<div class="card">`. The file path is resolved
+against the page's content root, then the docroot, and must stay inside
+the docroot; a missing or invalid file makes `art` empty (the loop renders
+nothing) and the build logs a `WARN`. Values arrive as data, so they are
+escaped by TT's output as text - do not wrap them in raw HTML.
+
+`json:` is right for a list the author edits as a file. For a table that
+others edit through the manager, that changes often, or that needs types,
+keys and per-row access rules, bind `db:<table>` instead - see
+`/docs/ai-briefing-data`. The body loop is identical.
 
 ### The theme variables resolve in a page body
 

@@ -279,6 +279,92 @@ need to duplicate CSS structure.
     </body>
     </html>
 
+## Components: a layout's reusable pieces (GS9)
+
+A component is a Template Toolkit file at `components/<name>.tt` inside the
+layout directory. Once it exists, any Markdown page on the site can use it
+with a fenced block, and the author never writes HTML:
+
+    ::: hero eyebrow="Workshop"
+    # The barn, restored
+
+    ::: actions
+    [Book a visit](/visit)
+    :::
+    :::
+
+The component receives three variables:
+
+- `attrs` - the `key="value"` pairs on the opening line (`attrs.eyebrow`).
+- `content` - the inner Markdown, already rendered to HTML. Print it as-is;
+  adding `| html` would double-escape it.
+- `slots` - each nested `::: <name>` block whose name is NOT itself a
+  component, rendered to HTML (`slots.actions`). A nested block that IS a
+  component renders inside `content` instead, so components nest.
+
+A worked `components/hero.tt`:
+
+    <section class="hero">
+    [% IF attrs.eyebrow %]<span class="eyebrow">[% attrs.eyebrow | html %]</span>[% END %]
+    [% content %]
+    [% IF slots.actions %]<div class="cta">[% slots.actions %]</div>[% END %]
+    </section>
+
+`attrs` values are raw author text, so escape them; `content` and `slots`
+are rendered HTML, so do not. Style `.hero`, `.eyebrow` and `.cta` in the
+theme's CSS against the theme tokens (`var(--theme-colors-accent)` and
+friends), so the same component restyles with every theme.
+
+Built-in components ship under `lazysite/templates/components/` and work on
+every layout (`::: qr` is one). A layout component of the same name wins.
+
+A `:::` block whose name matches no component becomes a plain
+`<div class="name">` - that is the fenced-div fallback, and it is silent on
+purpose. An OPENING fence with no closing `:::` is different: it is left in
+the page as literal text, the build logs a `WARN` naming the component and
+the body line, and `validate_page` reports `component-fence-unmatched` at
+the line. Close every fence you open; count them when you nest.
+
+The same hero panel has been hand-built twice on two sites because nobody
+told either author this existed. If your layout has a visual pattern a page
+will want more than once, ship it as a component and name it in the
+layout's README.
+
+### `sections:` - a page composed entirely from components
+
+For a page that is all structure and no prose, the front matter can carry a
+`sections:` list. The engine parses it (a sequence of single-key maps, with
+nested maps, lists and `{inline: maps}`) into a `sections` variable for the
+LAYOUT. The layout decides what to do with it; the engine draws nothing.
+No shipped layout reads `sections` yet, so a layout that wants this adds
+the loop itself:
+
+    [% FOREACH s IN sections %]
+    [% type = s.keys.first %]
+    [% INCLUDE "components/${type}.tt" data = s.$type %]
+    [% END %]
+    <main>[% content %]</main>
+
+and a page then reads:
+
+    ---
+    title: Home
+    sections:
+      - hero:
+          heading: The barn, restored
+          actions:
+            - { label: Book a visit, href: /visit, style: primary }
+      - features:
+          items:
+            - { title: Workshops, body: Hands-on, small groups. }
+            - { title: Stays, body: Two rooms above the forge. }
+    ---
+    Any Markdown body still renders below, in [% content %].
+
+Under `sections:` a component gets its values as `data` (`data.heading`,
+`data.actions`), whereas under a `:::` fence it gets `attrs`/`content`/
+`slots`. A component meant for both reads whichever is set.
+
 ## Activating layout + theme
 
 A site has ONE active layout + theme, set in `lazysite.conf`:
