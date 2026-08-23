@@ -3226,6 +3226,9 @@ elsif ( $method eq 'tools/call' ) {
     }
 
     setup_context($user);
+    # SM464: the grant's own settings, for the acl audit-read override - same
+    # line the control API sets, so the two token surfaces cannot disagree.
+    %Lazysite::Auth::Acl::token_caps = %{ $caps || {} };
     my $args = $params->{arguments} || {};
 
     # SM278: the published schema is enforced here, after the channel and

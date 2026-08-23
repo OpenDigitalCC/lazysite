@@ -56,6 +56,15 @@ Naming the commit: AFTER it lands, never before
   resolve public unconditionally, and a PUT that finds a stale private copy
   there removes it and says so in the log - the field site heals on its next
   publish instead of needing delete-then-create.
+- SM464 resolved (PENDING) **an administrator can audit a permission they did
+  not set.** Filed as a question; the answer splits the two acts the filing
+  said to split: reading a rule is the audit half and follows manage_users -
+  an operator, a cookie-session admin, or a token whose OWN grant carries
+  manage_users may read any rule - while modifying stays owner-only for
+  everyone. The token override keys on the grant the operator wrote for that
+  partner, never on group membership (SM127). The filing's asymmetry note is
+  stale: SM465 already records before/after rule content in the acl-set
+  audit entry.
 
 - SM495 resolved (PENDING) **the data plugin's Status button said "Done."**
   The plugin returned modules, store and table list; the Plugin Manager

@@ -368,6 +368,9 @@ $Lazysite::Manager::Sessions::auth_user = $auth_user;    # SM141
 $Lazysite::Manager::Domains::auth_user  = $auth_user;    # SM154
 $Lazysite::Auth::Acl::auth_user         = $auth_user;
 $Lazysite::Auth::Acl::token_auth        = $token_auth;
+# SM464: the token's own grant, so may_read_any_rule can key the audit-read
+# override on what the operator explicitly granted THIS token.
+%Lazysite::Auth::Acl::token_caps = %token_caps;
 # SM077 / SM288: the requester's groups, for @group ACL entries.
 #
 # A COOKIE client's groups arrive in X-Remote-Groups, set by the auth wrapper

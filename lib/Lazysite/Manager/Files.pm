@@ -19,7 +19,7 @@ use Lazysite::Paths ();
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
-    qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
+    qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
 use Lazysite::Private         ();                    # SM286: where content actually lives
 use Exporter 'import';
@@ -1258,7 +1258,10 @@ sub action_acl_get {
         my $acls      = load_acls();
         my ($present) = grep { exists $acls->{$_} } ( '/', '', '.', './' );
         my $a         = defined $present ? $acls->{$present} : undef;
-        unless ( _is_operator() ) {
+        # SM464: reading is the audit half - manage_users (or an operator, or a
+        # token grant carrying manage_users) may read ANY rule. Modifying stays
+        # owner-only; the split is the point.
+        unless ( may_read_any_rule() ) {
             return { ok => 0, error => "Not the owner of this file" }
                 if $a && ( $a->{owner} // '' ) ne ( $user // '' );
         }
@@ -1270,7 +1273,7 @@ sub action_acl_get {
     return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path( $r->{rel} ) || is_blocked_config( $r->{rel} );
     my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
-    unless ( _is_operator() ) {
+    unless ( may_read_any_rule() ) {    # SM464: read-any; write stays owner-only
         return { ok => 0, error => "Not the owner of this file" }
             if $a && ( $a->{owner} // '' ) ne ( $user // '' );
     }

@@ -15,7 +15,7 @@ use Exporter 'import';
 use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
-    _is_operator _acl_denied groups_for_user);
+    _is_operator _acl_denied groups_for_user may_read_any_rule);
 
 our $DOCROOT;             # set by the script
 
@@ -370,6 +370,31 @@ sub _is_operator {
     # A site where no group grants manager access at all is unsecured/dev: any
     # authenticated user is an operator.
     return 1 unless Lazysite::Auth::Settings::site_grants_manager();
+    return 0;
+}
+
+# SM464: may this caller READ any rule - the audit half of ownership, split
+# from the right to modify.
+#
+# Ownership stays absolute for WRITES: acl-set on somebody else's rule is
+# refused whoever asks, and nothing here touches that. But the person
+# accountable for an estate's access control is precisely the person who did
+# not set most of its rules, and the measured workarounds - take ownership
+# (which CHANGES the rule under inspection) or read the store off disk (which
+# bypasses everything and leaves no trace) - are worse than the read they
+# route around.
+#
+# Who reads: an operator or a cookie-session holder of manage_users, which
+# _is_operator already answers - and a TOKEN whose OWN GRANT carries
+# manage_users. _is_operator refuses every token by design (a token is never
+# an operator), and that stays; the token override is deliberately keyed on
+# the grant the operator wrote for that partner, not on the account's group
+# memberships, so holding it is an explicit per-grant decision and never a
+# side effect of a group intended for the cookie UI (SM127).
+our %token_caps;    # the token's OWN grant settings; set by the API/MCP entry
+sub may_read_any_rule {
+    return 1 if _is_operator();
+    return 1 if $token_auth && $token_caps{manage_users};
     return 0;
 }
 
