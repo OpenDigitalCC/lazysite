@@ -85,6 +85,18 @@ sub rig {
 sub run {
     my ( $d, @args ) = @_;
     my $args = join ' ', map { quotemeta } @args;
+
+    # PERL5OPT IS CLEARED, because this file runs coverage.sh INSIDE a coverage
+    # run. Inherited, the outer run's Devel::Cover follows every process the
+    # miniature one starts, writes into the OUTER database, and the inner run
+    # measures and reports something other than itself - so this file passed
+    # standalone and failed in the suite, which is the least useful pair of
+    # outcomes a test can have.
+    #
+    # A harness that tests a harness has to stand outside the one it is testing.
+    local $ENV{PERL5OPT} = '';
+    local $ENV{HARNESS_PERL_SWITCHES} = '';
+
     my $out = qx(cd \Q$d\E && sh tools/coverage.sh $args 2>&1);
     return ( $? >> 8, $out );
 }

@@ -101,13 +101,28 @@ sub _regenerate_registries_once {
 }
 NOLOCK
 
-my $stale_herd = regenerations( $N, $unlocked, 1 );
-cmp_ok( $stale_herd, '>', 1,
-    "without the lock a stale file stampedes ($stale_herd of $N regenerated)" );
+# THE NEGATIVE CONTROL NEEDS THE RACE TO ACTUALLY HAPPEN, and under
+# Devel::Cover it does not. Instrumentation slows every process by roughly the
+# same factor, so twelve of them that would collide arrive in single file, one
+# regenerates, and the control reports "no stampede" - which is the right
+# observation and the wrong conclusion. The control exists to prove the hazard
+# is real; it cannot prove that on a machine where the hazard is suppressed.
+#
+# The POSITIVE assertions below are untouched and still run: the lock still has
+# to make twelve concurrent requests regenerate exactly once.
+SKIP: {
+    skip 'Devel::Cover serialises the processes this control needs to collide',
+        2
+        if $INC{'Devel/Cover.pm'} || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/;
 
-my $cold_herd = regenerations( $N, $unlocked, 0 );
-cmp_ok( $cold_herd, '>', 1,
-    "without the lock a cold start stampedes ($cold_herd of $N regenerated)" );
+    my $stale_herd = regenerations( $N, $unlocked, 1 );
+    cmp_ok( $stale_herd, '>', 1,
+        "without the lock a stale file stampedes ($stale_herd of $N regenerated)" );
+
+    my $cold_herd = regenerations( $N, $unlocked, 0 );
+    cmp_ok( $cold_herd, '>', 1,
+        "without the lock a cold start stampedes ($cold_herd of $N regenerated)" );
+}
 
 # --- the fix -----------------------------------------------------------
 is( regenerations( $N, $sub, 1 ), 1,

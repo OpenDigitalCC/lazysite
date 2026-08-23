@@ -42,10 +42,18 @@ my $src = do { open my $fh, '<', $COV or die $!; local $/; <$fh> };
 my $code = join "\n", grep { !/^\s*#/ } split /\n/, $src;
 
 subtest 'the suite runs in parallel under coverage' => sub {
-    like( $src, qr/prove -j"\$JOBS" -r t\//,
+    like( $src, qr/prove -l -j"\$JOBS" -r t\//,
         'prove is given a job count' )
         or diag( 'Serial coverage is 92% of an eighty-minute gate and no other '
             . 'lever moves it.' );
+
+    # `-l` IS LOAD-BEARING (SM478). Without it the engine's lib/ is not on
+    # @INC - tests add $FindBin::Bin/../lib, which from a subdirectory of t/ is
+    # the TEST library - and eleven files died at `use Lazysite::...` with
+    # "Can't locate", which reads as a missing module and is nothing of the
+    # kind. Their coverage was absent from every report for as long as the flag
+    # was missing.
+    like( $src, qr/prove -l\b/, 'and the engine lib, which is not optional' );
     like( $src, qr/JOBS=\$\{LAZYSITE_COVER_JOBS:-\d+\}/,
         'with a default and an override' );
 };
@@ -53,7 +61,9 @@ subtest 'the suite runs in parallel under coverage' => sub {
 subtest 'and the shared database is still the merge point' => sub {
     # Not N databases and a merge step. One db, many writers - the mechanism
     # that already counts the CGI subprocesses.
-    my ($cmd) = $src =~ /(PERL5OPT=.*?prove -j.*?\|\| true)/s;
+    # `|| true` is gone (SM478): the suite's exit code is recorded now, because
+    # a report about a run that did not finish is not a measurement.
+    my ($cmd) = $src =~ /(PERL5OPT=.*?prove -l -j.*?SUITE_RC=\$\?)/s;
     ok( $cmd, 'the run is identifiable' ) or return;
     like( $cmd, qr/-db,\$DB/, 'every writer targets the one db' );
     unlike( $code, qr/cover\s.*-add\b/,
