@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM495 resolved (PENDING) **the data plugin's Status button said "Done."**
+  The plugin returned modules, store and table list; the Plugin Manager
+  shows `message` or the literal `Done.`, so the structured answer went
+  unread. Status now carries a one-line message - worst news first: missing
+  modules, then a store that does not exist yet, then the table count and
+  names with the store size. Reported from the field on 0.10.27.
+
 - SM494 resolved (PENDING) **the menu could not see a Data grant.** The
   processor resolves a hand-written list of nav-gating capabilities into
   `manager_caps`; `manage_data` was never added to it, so the menu showed

@@ -199,6 +199,22 @@ sub status {
     }
     $out{tables} = \@tables;
 
+    # SM495: the Plugin Manager shows data.message or the literal 'Done.' -
+    # so a status with no message is a button that answers 'Done.' while
+    # three fields go unread. Say what was found, in one line, worst news
+    # first: a missing module is why nothing else will work.
+    my @missing = sort grep { $out{modules}{$_} eq 'missing' } keys %{ $out{modules} };
+    my $summary =
+        @missing               ? 'missing Perl module(s): ' . join( ', ', @missing )
+        : !$out{store}{exists} ? 'no store yet - it is created on the first declared table'
+        : @tables
+        ? scalar(@tables)
+        . ' table(s): '
+        . join( ', ', @tables )
+        . sprintf( '; store %.0f KB', $out{store}{bytes} / 1024 )
+        : 'store present, no tables declared';
+    $out{message} = "Data tables: $summary";
+
     return \%out;
 }
 
