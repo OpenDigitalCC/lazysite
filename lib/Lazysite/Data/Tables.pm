@@ -741,7 +741,37 @@ sub rebuild_table {
         table => $name )
         unless $dbh;
 
+    # SM489: A REBUILD WITH NOTHING TO DO DOES NOTHING - the way data-migrate
+    # already does. The field agent pointed data-rebuild at a live table with
+    # no pending change, and it dropped and recreated the table anyway: built
+    # the copy, copied the rows, dropped the original, renamed into place.
+    # Nothing was lost, so nothing was confirmed - which is correct in
+    # isolation and wrong here, because a stray or scripted rebuild had just
+    # replaced a production table with no prompt and no change to justify it.
+    #
+    # So the migration plan is consulted first. If it has nothing additive,
+    # nothing blocked and nothing to create, the shapes already agree and
+    # there is no rebuild to perform. Refusing here closes the no-confirmation
+    # gap without adding a confirmation: the thing that would have been
+    # confirmed does not happen.
+    #
+    # THE REBUILD PLAN'S `lost` IS NOT CONSULTED HERE, and the first draft did.
+    # A dropped column always arrives from plan_migration as a BLOCKED step -
+    # that is what makes it a rebuild rather than a migration - so a `lost`
+    # clause could never be the one that refused, and sabotage proved it:
+    # deleting that clause changed nothing. A condition no test can reach is
+    # one that will be wrong one day without anybody noticing.
+    my $mig  = plan_migration( $d, $dbh );
     my $plan = plan_rebuild( $d, $dbh );
+    if ( $mig->{ok}
+        && !@{ $mig->{additive} || [] }
+        && !@{ $mig->{blocked}  || [] }
+        && !@{ $mig->{create}   || [] } )
+    {
+        return { ok => 1, table => $name, rebuilt => 0, noop => 1,
+            note => "the stored table already matches the descriptor - "
+                . 'nothing to rebuild' };
+    }
     return _err( "table '$name': $plan->{error}", table => $name )
         unless $plan->{ok};
 

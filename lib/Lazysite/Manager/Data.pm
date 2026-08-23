@@ -252,6 +252,17 @@ sub action_data_table {
     if ( my $bad = _need_table($table) ) { return $bad }
     my $d = load_table( $DOCROOT, $table );
     return $d unless $d->{ok};
+    # SM489 (minor): the SAME two facts the listing carries. data-tables said
+    # public and pending_schema per table and data-table said neither, so the
+    # reply for a published and an unpublished table was identical - and
+    # data-table is what somebody inspecting ONE table reaches for when asking
+    # why a page is empty. Derived the same way, per D2.
+    my $pending = 1;
+    if ( my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT) ) {
+        require Lazysite::Data::Schema;
+        my $obs = eval { Lazysite::Data::Schema::observed_schema( $dbh, $table ) };
+        $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
+    }
     return {
         ok         => 1,
         table      => $d->{table},
@@ -261,6 +272,8 @@ sub action_data_table {
         fields     => $d->{fields},
         indexes    => $d->{indexes},
         timestamps => $d->{timestamps},
+        public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
+        ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
     };
 }
 
