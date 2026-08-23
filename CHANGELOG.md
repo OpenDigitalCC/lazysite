@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM488 resolved (PENDING) **validate_page flagged ISO dates as phone
+  numbers, and reported every line short by the front matter.** The phone
+  pattern matched `2026-08-22` - ten characters of digits and hyphens - so a
+  page with three dates produced three warnings, two of them filenames of
+  this project's own filings. And the scan counted from zero over the body,
+  so every line was short by the front matter plus its two fences: reported
+  15/58/59, actual 24/67/68. Dates are stripped before the pattern runs, and
+  the counter starts where the body does.
+
+- SM489 resolved (PENDING) **a rebuild with nothing to do dropped and
+  recreated the table anyway.** Found by the site agent pointing
+  `data-rebuild` at a live table with no pending change: it built the copy,
+  copied the rows, dropped the original and renamed into place - with no
+  prompt, because nothing was lost and so nothing was confirmed. Now a no-op
+  when the shapes already agree, the way `data-migrate` was. `data-table`
+  also reports `public` and `pending_schema`, as the listing does.
+
 - Task 5 (c1f30b7) **the data-tables walk says which half is the agent's and
   which is the operator's.** The site agent corrected the premise: a
   manager-UI walk is a cookie session, which a partner token is excluded from
