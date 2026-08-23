@@ -47,6 +47,37 @@ search: false
   </div>
 </div>
 
+<!-- DM-5: THE DESCRIPTOR IS EDITED AS TEXT, on purpose. A descriptor is a
+     thing an operator reads - their comments, their key order and their
+     spacing are part of what they wrote, and a form that regenerated the file
+     would throw all three away. The server validates it with the SAME loader
+     the render path uses, so a refusal here is the refusal a page would get,
+     named by field and rule. Saving never migrates: the plan below says what
+     a migration WOULD do, and the operator decides. -->
+<div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;max-width:48rem;">
+  <div class="mg-card-header"><span class="mg-card-title" id="descriptor-title"></span></div>
+  <textarea id="descriptor-text" class="mg-inp" rows="18" spellcheck="false" style="width:100%;font-family:monospace;font-size:0.9em;"></textarea>
+  <div id="descriptor-error" class="mg-status" style="margin-top:8px;"></div>
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+    <button class="mg-btn mg-btn-primary" onclick="saveDescriptor()">Save descriptor</button>
+    <button class="mg-btn" onclick="planMigration()">What would migrating do?</button>
+    <button class="mg-btn" onclick="closeDescriptor()">Close</button>
+  </div>
+
+  <!-- The plan. Three outcomes, and the panel says which: nothing to do;
+       additive steps that migrate applies; or BLOCKED steps that need a
+       rebuild - at which point SM487's data checks are shown, so "2 rows have
+       no when" is read at the moment of deciding, not after confirming. -->
+  <div id="plan-panel" style="display:none;margin-top:12px;border-top:1px solid #eee;padding-top:10px;">
+    <div id="plan-body" style="font-size:0.9em;"></div>
+    <div id="plan-error" class="mg-status"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="mg-btn mg-btn-primary" id="plan-migrate-btn" onclick="runMigrate()" style="display:none;">Migrate</button>
+      <button class="mg-btn mg-btn-danger" id="plan-rebuild-btn" onclick="runRebuild()" style="display:none;">Rebuild, losing the named columns</button>
+    </div>
+  </div>
+</div>
+
 <!-- DM-3: THE EDITOR IS BUILT FROM THE DESCRIPTOR, NOT WRITTEN BY HAND. One
      input per declared field, its kind chosen by the field's type; enum is a
      select of the declared values, boolean a checkbox, textarea when the
@@ -142,6 +173,7 @@ function loadTables() {
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
+          + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
@@ -365,6 +397,148 @@ function saveRow() {
     loadRows(table);
   })
   .catch(function(e) { setError('Could not save: ' + e); });
+}
+
+/* --- DM-5: the descriptor and the migration plan ------------------------ */
+var DESC = { table: null, lost: [] };
+
+function openDescriptor(table) {
+  DESC.table = table;
+  DESC.lost  = [];
+  document.getElementById('descriptor-title').textContent = 'Fields of ' + table;
+  document.getElementById('descriptor-error').textContent = '';
+  document.getElementById('plan-panel').style.display = 'none';
+  document.getElementById('descriptor-panel').style.display = 'block';
+  fetch(API + '?action=data-table-source&table=' + encodeURIComponent(table))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { setDescError(d.error || 'could not read the descriptor'); return; }
+      document.getElementById('descriptor-text').value = d.descriptor;
+    })
+    .catch(function(e) { setDescError('Could not load: ' + e); });
+}
+
+function closeDescriptor() {
+  document.getElementById('descriptor-panel').style.display = 'none';
+  DESC.table = null;
+}
+
+function setDescError(msg) {
+  var el = document.getElementById('descriptor-error');
+  el.textContent = msg || '';
+  el.className = msg ? 'mg-status mg-status-error' : 'mg-status';
+}
+
+function saveDescriptor() {
+  setDescError('');
+  fetch(API + '?action=data-table-save&table=' + encodeURIComponent(DESC.table), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ descriptor: document.getElementById('descriptor-text').value })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) {
+      /* THE SERVER'S SENTENCE, and the field it named. It already says the
+         rule - "key 'slug' must be type text", "enum needs a values list". */
+      setDescError(d.error + (d.field ? ' (field: ' + d.field + ')' : ''));
+      return;
+    }
+    showStatus('Descriptor saved.' + (d.migrate_required ? ' The stored table does not match it yet - see what migrating would do.' : ''));
+    loadTables();
+    if (d.migrate_required) planMigration();
+  })
+  .catch(function(e) { setDescError('Could not save: ' + e); });
+}
+
+function planMigration() {
+  var panel = document.getElementById('plan-panel');
+  var body  = document.getElementById('plan-body');
+  panel.style.display = 'block';
+  body.textContent = 'Comparing the descriptor with the stored table\u2026';
+  document.getElementById('plan-error').textContent = '';
+  document.getElementById('plan-migrate-btn').style.display = 'none';
+  document.getElementById('plan-rebuild-btn').style.display = 'none';
+  DESC.lost = [];
+
+  fetch(API + '?action=data-migrate-plan&table=' + encodeURIComponent(DESC.table))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { body.textContent = d.error || 'could not plan'; return; }
+      var html = '';
+      if (d.create) html += '<p>The stored table does not exist yet. <strong>Migrate</strong> creates it.</p>';
+      if (d.additive && d.additive.length) {
+        html += '<p>Migrate will apply, keeping every row:</p><ul>';
+        d.additive.forEach(function(w) { html += '<li>' + escHtml(w) + '</li>'; });
+        html += '</ul>';
+      }
+      if (d.blocked && d.blocked.length) {
+        html += '<p><strong>Migrate will refuse</strong> these, because applying them in place could lose data:</p><ul>';
+        d.blocked.forEach(function(b) { html += '<li>' + escHtml(b.why) + '</li>'; });
+        html += '</ul>';
+        if (d.rebuild) {
+          /* SM487: the DATA checks. This is the list that used to arrive as a
+             rollback after the operator had already confirmed. */
+          if (d.rebuild.data_blocked && d.rebuild.data_blocked.length) {
+            html += '<p><strong>A rebuild would fail on the existing rows.</strong> Fix these first:</p><ul>';
+            d.rebuild.data_blocked.forEach(function(b) { html += '<li>' + escHtml(b.why) + '</li>'; });
+            html += '</ul>';
+          } else {
+            DESC.lost = d.rebuild.lost || [];
+            html += '<p>A <strong>rebuild</strong> can make them happen'
+              + (DESC.lost.length
+                  ? ', and it will <strong>drop ' + DESC.lost.map(escHtml).join(', ') + '</strong> and every value in ' + (DESC.lost.length === 1 ? 'it' : 'them') + '. A safety export is written first.'
+                  : ', losing no columns. A safety export is written first.')
+              + '</p>';
+            document.getElementById('plan-rebuild-btn').style.display = '';
+          }
+        }
+      }
+      if (!d.create && !(d.additive && d.additive.length) && !(d.blocked && d.blocked.length)) {
+        html += '<p>The stored table already matches the descriptor. Nothing to do.</p>';
+      } else if (d.create || (d.additive && d.additive.length)) {
+        document.getElementById('plan-migrate-btn').style.display = '';
+      }
+      body.innerHTML = html;
+    })
+    .catch(function(e) { document.getElementById('plan-error').textContent = 'Could not plan: ' + e; });
+}
+
+function runMigrate() {
+  fetch(API + '?action=data-migrate&table=' + encodeURIComponent(DESC.table), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) { document.getElementById('plan-error').textContent = d.error || 'migration refused'; return; }
+    showStatus('Migrated.');
+    loadTables();
+    planMigration();
+  });
+}
+
+function runRebuild() {
+  /* CONFIRMED BY NAMING EACH COLUMN. The prompt lists them and the operator
+     types them back; agreeing to lose one column you read about must not
+     agree to a second you did not notice. An empty list is a rebuild that
+     loses nothing, and needs no typing. */
+  var confirm_lost = [];
+  if (DESC.lost.length) {
+    var typed = prompt('This rebuild drops: ' + DESC.lost.join(', ') + '\n\nType the column names, separated by spaces, to confirm losing them:');
+    if (typed === null) return;
+    confirm_lost = typed.split(/[\s,]+/).filter(function(x) { return x; });
+  }
+  fetch(API + '?action=data-rebuild&table=' + encodeURIComponent(DESC.table), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table: DESC.table, confirm_lost: confirm_lost })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) { document.getElementById('plan-error').textContent = d.error || 'rebuild refused'; return; }
+    showStatus('Rebuilt. Safety export: ' + (d.safety_export || 'written'));
+    loadTables();
+    planMigration();
+  });
 }
 
 /* --- DM-4: staged import --------------------------------------------- */

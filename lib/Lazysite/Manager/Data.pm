@@ -32,7 +32,7 @@ use Lazysite::Data::Descriptor qw(load_descriptor);
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
     action_data_table_save action_data_rebuild action_data_export
-    action_data_import);
+    action_data_import action_data_table_source action_data_migrate_plan);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -222,6 +222,29 @@ sub action_data_tables {
 
 # One table's declared shape, as the manager and an agent both need it: the
 # fields, their types, and what is required.
+# DM-5: the descriptor's SOURCE, for an editor. data-table returns the parsed
+# shape, which is right for an agent and wrong for a person editing a file -
+# their comments, their key order and their spacing are part of what they
+# wrote, and a round trip through the parser would throw all three away.
+sub action_data_table_source {
+    if ( my $off = _gate() ) { return $off }
+    my ($table) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    return { ok => 0, error => "'$table' must be lower-case letters, digits "
+            . 'and underscores, starting with a letter', field => 'table' }
+        unless $table =~ /\A[a-z][a-z0-9_]*\z/;
+    my $dir = descriptor_dir($DOCROOT);
+    my ($file) = grep { -f $_ } ( "$dir/$table.yaml", "$dir/$table.yml" );
+    return { ok => 0, error => "no table '$table' is declared",
+        kind => 'no_such_table' }
+        unless $file;
+    open my $fh, '<:utf8', $file or return { ok => 0,
+        error => "table '$table': the descriptor cannot be read" };
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    return { ok => 1, table => $table, descriptor => $text };
+}
+
 sub action_data_table {
     if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
@@ -311,6 +334,46 @@ sub action_data_export {
 
     return { ok => 1, streamed_body => $body, content_type => $type,
         filename => "$table.$ext", ( $note ? ( note => $note ) : () ) };
+}
+
+# DM-5: what a migration WOULD do, with nothing done. The same plan_migration
+# apply_schema runs, so the preview and the action cannot disagree - and the
+# UI can show "this will add a column and refuse a type change" before an
+# operator commits to either.
+sub action_data_migrate_plan {
+    if ( my $off = _gate() ) { return $off }
+    my ($table) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+
+    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
+    return { ok => 1, table => $table, create => 1, additive => [],
+        blocked => [], note => 'no store yet - the migration creates it' }
+        unless $dbh;
+
+    require Lazysite::Data::Schema;
+    my $plan = Lazysite::Data::Schema::plan_migration( $d, $dbh );
+    return $plan unless $plan->{ok};
+
+    # A plan that has blocked steps is a rebuild in waiting. Ask the rebuild
+    # pre-flight too, so the operator sees SM487's data checks - "2 rows have
+    # no when" - at the moment they are deciding, not after confirming.
+    my $rebuild;
+    if ( @{ $plan->{blocked} || [] } ) {
+        $rebuild = eval { Lazysite::Data::Schema::plan_rebuild( $d, $dbh ) };
+    }
+    return {
+        ok       => 1,
+        table    => $table,
+        create   => ( @{ $plan->{create}                     || [] } ? 1 : 0 ),
+        additive => [ map { $_->{why} } @{ $plan->{additive} || [] } ],
+        blocked  => $plan->{blocked} || [],
+        ( $rebuild && $rebuild->{ok}
+            ? ( rebuild => { lost => $rebuild->{lost} || [],
+                    data_blocked => $rebuild->{blocked} || [] } )
+            : () ),
+    };
 }
 
 sub action_data_migrate {

@@ -165,7 +165,7 @@ my %ACTION_INFO = (
             api => [
                 qw(data-tables data-table data-table-save data-rows
                     data-migrate data-rebuild data-row-save data-row-delete
-                    data-export data-import)
+                    data-export data-import data-table-source data-migrate-plan)
             ],
 
             mcp => [

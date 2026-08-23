@@ -148,6 +148,8 @@ my %API_ONLY = (
     # to put.
     'data-export' => 'a file download for a person; an agent has read_data_rows and site_backup',
     'data-import' => 'a file upload from a person; an agent has save_data_row and can loop',
+    'data-table-source' => 'the descriptor as TEXT for a human editor; an agent gets the parsed shape from describe_data_table',
+    'data-migrate-plan' => 'a preview for a person deciding; an agent calls migrate_data_table and reads its reply',
     'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read' => 'undecided - no MCP twin for site configuration',
     'config-set'  => 'undecided - as config-read',

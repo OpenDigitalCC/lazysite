@@ -149,6 +149,10 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # end, so a CSRF-free GET discloses nothing a session could not already
     # ask for. It is a GET because a browser download is a navigation.
     data-export
+
+    # DM-5: two more reads. The descriptor's source text, and a migration
+    # PLAN that applies nothing - a preview for a person deciding.
+    data-table-source data-migrate-plan
 );
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

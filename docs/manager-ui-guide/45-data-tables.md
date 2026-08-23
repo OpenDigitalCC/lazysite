@@ -141,8 +141,32 @@ Negative
 : A file that came out of Download CSV and goes straight back in changes
   nothing. If it does, that is a defect, and worth reporting with the file.
 
+## Change a table's fields
+
+Where
+: Content -> Data tables -> Fields
+
+Do
+: Add an optional field and save. Then make an existing field required while
+  some rows leave it empty, and press *What would migrating do?*
+
+Expect
+: The descriptor is edited **as text** -- your comments and layout are kept --
+  and validated on save with the same loader a page uses, so a refusal names
+  the field and the rule. **Saving never migrates.** The plan says what a
+  migration would do in three parts: steps Migrate will apply keeping every
+  row; steps it will **refuse** because applying them in place could lose
+  data; and, for those, whether a rebuild can make them happen and which
+  columns it would drop. If existing rows cannot satisfy the new shape -- *2
+  rows have no 'when'* -- the plan says so **before** anything is confirmed,
+  and the rebuild button does not appear until the rows are fixed.
+
+Negative
+: A rebuild that drops columns is confirmed by **typing their names**, not by
+  a yes. Agreeing to lose one column you read about must not agree to a second
+  you did not notice. A safety export is written before anything is dropped.
+
 ## What is not here yet
 
-Editing a table's **shape**. To change its fields, or whether it is published,
-edit its descriptor; a change that would lose data is refused and explained
-rather than performed.
+Nothing on this page is read-only any more. Spreadsheet-style editing in the
+grid itself is the remaining enhancement.

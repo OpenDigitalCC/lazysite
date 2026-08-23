@@ -98,6 +98,8 @@ our %ACTION = (
     'data-row-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body' } ] },
     'data-rows' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
     'data-table' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
+    'data-table-source' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
+    'data-migrate-plan' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-import' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'apply', in => 'query' } ] },

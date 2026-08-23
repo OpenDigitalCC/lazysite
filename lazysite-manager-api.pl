@@ -190,7 +190,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token
     data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
-    data-table data-table-save data-tables
+    data-migrate-plan data-table data-table-save data-table-source data-tables
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
@@ -570,6 +570,8 @@ if ( !$token_auth ) {
         'data-rebuild'       => 'manage_data',
         'data-export'        => 'manage_data',
         'data-import'        => 'manage_data',
+        'data-table-source'  => 'manage_data',
+        'data-migrate-plan'  => 'manage_data',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -733,22 +735,24 @@ if ($token_auth) {
             # with a manage_domains token, same as the CLI/UI.
             # SM447: token clients are the point of the data plugin - an agent
             # populating a table is the primary use, not an afterthought.
-        'data-tables'     => sub { $_[0]->{manage_data} },
-        'data-table'      => sub { $_[0]->{manage_data} },
-        'data-rows'       => sub { $_[0]->{manage_data} },
-        'data-migrate'    => sub { $_[0]->{manage_data} },
-        'data-row-save'   => sub { $_[0]->{manage_data} },
-        'data-table-save' => sub { $_[0]->{manage_data} },
-        'data-rebuild'    => sub { $_[0]->{manage_data} },
-        'data-export'     => sub { $_[0]->{manage_data} },
-        'data-import'     => sub { $_[0]->{manage_data} },
-        'data-row-delete' => sub { $_[0]->{manage_data} },
-        'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
-        'domain-add'      => sub { $_[0]->{manage_domains} },
-        'domain-set'      => sub { $_[0]->{manage_domains} },
-        'domain-remove'   => sub { $_[0]->{manage_domains} },
-        'domain-preview'  => sub { $_[0]->{manage_domains} },   # SM155: pre-DNS render
-        'domain-check'    => sub { $_[0]->{manage_domains} },   # SM156: live config check
+        'data-tables'       => sub { $_[0]->{manage_data} },
+        'data-table'        => sub { $_[0]->{manage_data} },
+        'data-rows'         => sub { $_[0]->{manage_data} },
+        'data-migrate'      => sub { $_[0]->{manage_data} },
+        'data-row-save'     => sub { $_[0]->{manage_data} },
+        'data-table-save'   => sub { $_[0]->{manage_data} },
+        'data-rebuild'      => sub { $_[0]->{manage_data} },
+        'data-export'       => sub { $_[0]->{manage_data} },
+        'data-import'       => sub { $_[0]->{manage_data} },
+        'data-table-source' => sub { $_[0]->{manage_data} },
+        'data-migrate-plan' => sub { $_[0]->{manage_data} },
+        'data-row-delete'   => sub { $_[0]->{manage_data} },
+        'domains-list'      => sub { $_[0]->{manage_domains} }, # read-only domains view
+        'domain-add'        => sub { $_[0]->{manage_domains} },
+        'domain-set'        => sub { $_[0]->{manage_domains} },
+        'domain-remove'     => sub { $_[0]->{manage_domains} },
+        'domain-preview'    => sub { $_[0]->{manage_domains} }, # SM155: pre-DNS render
+        'domain-check'      => sub { $_[0]->{manage_domains} }, # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
             # SM301: the twin of MCP's regenerate_registries. Same capability, and
             # now the same availability - the account that holds manage_content can
@@ -1216,6 +1220,12 @@ elsif ( $action eq 'data-export' ) {
 elsif ( $action eq 'data-table' ) {
     $result = Lazysite::Manager::Data::action_data_table( $params{table} );
 }
+elsif ( $action eq 'data-table-source' ) {
+    $result = Lazysite::Manager::Data::action_data_table_source( $params{table} );
+}
+elsif ( $action eq 'data-migrate-plan' ) {
+    $result = Lazysite::Manager::Data::action_data_migrate_plan( $params{table} );
+}
 elsif ( $action eq 'data-rows' ) {
     $result = Lazysite::Manager::Data::action_data_rows(
         $params{table},
@@ -1585,7 +1595,9 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
         backup-list sessions-list keys-list git-status git-history git-history-summary git-show
         site-backup-inspect protected-sections
-        data-tables data-table data-rows );
+        data-tables data-table data-rows
+        data-table-source data-migrate-plan
+    );
 
     # SM447: the three data READS are skip-listed for the same reason as every
     # other read here - they change nothing, and an audit trail of who looked
