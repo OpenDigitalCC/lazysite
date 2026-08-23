@@ -54,9 +54,10 @@ DM-6 (in-grid ergonomics) is deferred by decision: the brief's own test for it
 is whether the CSV round trip proves insufficient in use, and nothing has been
 used yet.
 
-Two of the field agent's findings from 0.10.26 are fixed here, and one of them
-- a read list silently discarded with every signal saying protected - is the
-reason this cut should go to edge promptly.
+Three of the field agent's findings from 0.10.26 are fixed here, and one of
+them - a read list silently discarded with every signal saying protected - is
+the reason this cut should go to edge promptly. The third, the table that could
+not be removed, is the one that was holding up their testing.
 
 - DM-7 (b466fbd) **the operator docs pass, and the walk that cannot be run
   from here.** `MANUAL-CHECKS.md` says why the Data tables page is out of the
@@ -141,8 +142,16 @@ reason this cut should go to edge promptly.
   the nav gates on plugin-enabled *and* capability, which mean different
   things.
 
-**Not in this build:** SM480, the table drop, which is on a branch awaiting
-review. A table declared on 0.10.27 still cannot be removed from it.
+- SM480 resolved (c3674f8) **a table could be declared from three surfaces
+  and removed from none.** Found by a field agent tidying up after a testing
+  session: no API action, no MCP tool, and the descriptor lives under
+  `lazysite/` where every write channel refuses - so a table made by mistake
+  or for one afternoon was permanent. `data-table-drop` / `drop_data_table`
+  take everything and ask first, confirmed by typing the table's name. The
+  safety export comes first, and if it cannot be written nothing is dropped;
+  the descriptor goes last so a partial failure leaves the recoverable state.
+  `safety_export` no longer returns an absolute server path - it handed over
+  the hosting account name and the filesystem layout.
 
 ## 0.10.26 - EDGE: the data plugin becomes usable, and its second door gets a lock (2026-08-22)
 
