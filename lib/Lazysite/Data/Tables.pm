@@ -38,7 +38,7 @@ use Lazysite::Data::SQLite
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema insert_row update_row delete_row export_all_rows
-    resolve_binding import_rows
+    resolve_binding import_rows drop_table
     rebuild_table);
 
 sub _err {
@@ -572,6 +572,111 @@ sub import_rows {
     return $plan;
 }
 
+# SM480: REMOVE A TABLE - the descriptor and the stored rows together.
+#
+# WHY THIS DID NOT EXIST, AND WHY THAT WAS NOT SURVIVABLE. Declaring a table
+# was reachable from three surfaces and removing one was reachable from none:
+# no API action, no MCP tool, and the descriptor lives under lazysite/, which
+# every write channel refuses on purpose. So a table declared by mistake, or
+# renamed, or made for a single test, was PERMANENT - and the field agent found
+# it the way anybody would, by trying to tidy up after themselves and
+# discovering they could not. Every test table they had made was going to
+# outlive the testing.
+#
+# IT TAKES EVERYTHING, so it asks first. `confirm` must name the table exactly.
+# That is the same shape DP-5 uses for a destructive migration, and the reason
+# is the same: an operator who confirms by typing the name has read the name,
+# where one who clicks yes may not have.
+#
+# THE SAFETY EXPORT COMES FIRST, and a failure to write it stops the drop. The
+# rows are about to stop existing; a copy on disk is the difference between a
+# mistake and a loss. It goes beside the rebuild exports, because it is the
+# same kind of artefact and an operator looking for "what did I have before"
+# should find one place, not two.
+#
+# THE DESCRIPTOR GOES LAST. If the store drops and the descriptor survives, the
+# table reads as declared-but-never-migrated - an ordinary, recoverable state.
+# The other order leaves rows in a store nothing describes, which nothing in
+# this system can read or clean up.
+sub drop_table {
+    my ( $docroot, $name, %opt ) = @_;
+
+    my $d = load_table( $docroot, $name );
+    return $d unless $d->{ok};
+
+    my $confirm = $opt{confirm} // '';
+    unless ( $confirm eq $name ) {
+        return _err(
+            "dropping '$name' deletes the table, its descriptor and every row "
+                . "in it. Confirm by naming it exactly: confirm=$name",
+            table => $name, kind => 'needs_confirmation',
+        );
+    }
+
+    my $rows = export_all_rows( $docroot, $name );
+    return $rows unless $rows->{ok};
+
+    require Lazysite::Data::Export;
+    require JSON::PP;
+    my $dir = "$docroot/lazysite/db/rebuilds";
+    unless ( -d $dir ) {
+        require File::Path;
+        eval { File::Path::make_path($dir); 1 }
+            or return _err( "table '$name': could not create $dir for the "
+                . 'safety export, so nothing was dropped', table => $name );
+    }
+    my @t     = gmtime;
+    my $stamp = sprintf '%04d%02d%02dT%02d%02d%02dZ',
+        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
+    my $safety = "$dir/$name-dropped-$stamp.json";
+    my $export = Lazysite::Data::Export::export_table( $d, $rows->{rows} );
+    if ( open my $fh, '>:utf8', $safety ) {
+        my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
+        $ok = 0 unless close $fh;
+        unless ($ok) {
+            unlink $safety;
+            return _err( "table '$name': the safety export could not be "
+                    . 'written, so nothing was dropped', table => $name );
+        }
+    }
+    else {
+        return _err( "table '$name': the safety export could not be opened, "
+                . 'so nothing was dropped', table => $name );
+    }
+
+    my $dbh = write_handle($docroot);
+    if ($dbh) {
+        require Lazysite::Data::SQLite;
+        my $sql = Lazysite::Data::SQLite::drop_table_sql($d);
+        my $ok  = eval { $dbh->do($sql); 1 };
+        unless ($ok) {
+            my $why = $@ || $dbh->errstr || 'unknown';
+            return _err( "table '$name': the stored table could not be "
+                    . "dropped, so the descriptor was left in place - $why",
+                table => $name );
+        }
+    }
+
+    # The descriptor last. Both spellings, because load_table accepts either.
+    my $removed = 0;
+    for my $ext (qw(yaml yml)) {
+        my $f = descriptor_dir($docroot) . "/$name.$ext";
+        next unless -f $f;
+        unless ( unlink $f ) {
+            return _err( "table '$name': the rows are gone but the descriptor "
+                    . "could not be removed ($!). The table now reads as "
+                    . 'declared-but-not-migrated; remove the file or migrate '
+                    . 'to recreate it empty.', table => $name );
+        }
+        $removed++;
+    }
+
+    return { ok => 1, table => $name, dropped => 1,
+        rows_dropped  => scalar @{ $rows->{rows} || [] },
+        descriptors   => $removed,
+        safety_export => "lazysite/db/rebuilds/$name-dropped-$stamp.json" };
+}
+
 # EVERY row, for an export. Not read_rows, which is capped.
 #
 # The cap on read_rows is deliberate and stays: an unbounded select against a
@@ -684,7 +789,16 @@ sub rebuild_table {
     my $stamp = sprintf '%04d%02d%02dT%02d%02d%02dZ',
         $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
     my $safety = "$dir/$name-$stamp.json";
-    my $export = Lazysite::Data::Export::export_table( $d, $rows->{rows} );
+
+    # SM480: REPORTED AS A SITE-RELATIVE PATH, not the absolute one. The field
+    # agent found this handing back /home/<account>/web/<domain>/... - the
+    # hosting account name, the layout of the server's filesystem, and the fact
+    # that both are guessable for the next site. It is the same disclosure
+    # class as the manager edit link, and an operator has no use for the
+    # absolute form: they reach the file through Files, which is rooted at the
+    # site.
+    my $safety_rel = "lazysite/db/rebuilds/$name-$stamp.json";
+    my $export     = Lazysite::Data::Export::export_table( $d, $rows->{rows} );
     if ( open my $fh, '>:utf8', $safety ) {
         my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
         $ok = 0 unless close $fh;
@@ -730,12 +844,12 @@ sub rebuild_table {
         return _err(
             "table '$name': the rebuild failed and was rolled back - $err. "
                 . "The rows are also in $safety.",
-            table => $name, safety_export => $safety );
+            table => $name, safety_export => $safety_rel );
     }
 
     return { ok => 1, table => $name, applied => \@done,
         carried => $plan->{carried},          lost          => $plan->{lost},
-        rows    => scalar @{ $rows->{rows} }, safety_export => $safety };
+        rows    => scalar @{ $rows->{rows} }, safety_export => $safety_rel };
 }
 
 1;

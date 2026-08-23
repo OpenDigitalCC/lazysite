@@ -624,6 +624,23 @@ my %TOOLS = (
                 $a->{confirm_lost} );
         },
     },
+    drop_data_table => {
+        description => 'Remove a table entirely - its descriptor, its stored rows, and every value in them. THIS EXISTS BECAUSE THERE WAS NO WAY BACK: declaring a table was reachable from three surfaces and removing one from none, and the descriptor lives under lazysite/ where every write channel refuses, so a table made by mistake or for a single test was permanent. CONFIRM BY NAMING THE TABLE EXACTLY in confirm: call without it first to be told what will be lost. A safety export of every row is written before anything is dropped and its path is returned, so a mistake is recoverable even though the table is not.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table   => { type => 'string', description => 'The table name' },
+                confirm => { type => 'string',
+                    description => 'The table name again, exactly. Omit to be told what dropping it would remove, without changing anything.' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_table_drop( $a->{table},
+                $a->{confirm} );
+        },
+    },
     save_data_row => {
         description => 'Insert a row, or update one by its key. WITHOUT `key` this inserts; WITH `key` it updates that row and touches only the fields you send, leaving the rest alone. Every value is checked against the descriptor and a value that does not fit is REFUSED with the field named - a decimal with too many places is refused rather than rounded, because a store that quietly rounds money is worse than one that will not take it. An unknown field name is refused rather than ignored, so a typo cannot look like a successful write.',
         cap         => 'manage_data',

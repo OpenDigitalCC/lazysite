@@ -26,13 +26,14 @@ use Lazysite::Manager::Plugins ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
     insert_row update_row delete_row descriptor_dir rebuild_table export_all_rows
-    import_rows);
+    import_rows drop_table);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
     action_data_table_save action_data_rebuild action_data_export
-    action_data_import action_data_table_source action_data_migrate_plan);
+    action_data_import action_data_table_source action_data_migrate_plan
+    action_data_table_drop);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -445,6 +446,21 @@ sub action_data_import {
     log_event( 'INFO', $table, 'data table imported',
         inserts => $r->{inserts}, updates => $r->{updates} )
         if $r->{ok} && $r->{applied};
+    return $r;
+}
+
+# SM480: remove a table entirely. Destructive by definition, so `confirm` must
+# name it - the same shape a destructive migration uses.
+sub action_data_table_drop {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $confirm ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+
+    my $r = drop_table( $DOCROOT, $table, confirm => $confirm );
+    log_event( 'INFO', $table, 'data table dropped',
+        rows   => ( $r->{rows_dropped}  // 0 ),
+        export => ( $r->{safety_export} // '' ) )
+        if $r->{ok};
     return $r;
 }
 

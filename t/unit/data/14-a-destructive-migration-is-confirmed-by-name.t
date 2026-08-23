@@ -87,11 +87,17 @@ subtest 'confirmed, it rebuilds - and takes a safety export first' => sub {
     is_deeply( $r->{lost}, ['colour'], 'reporting what was dropped' );
     is( $r->{rows}, 2, 'and how many rows it held' );
 
-    ok( $r->{safety_export} && -s $r->{safety_export},
+    # SM480: THE PATH IS SITE-RELATIVE NOW, so it is resolved against the
+    # docroot here rather than opened as given. The field agent found this
+    # returning /home/<account>/web/<domain>/... - the hosting account name and
+    # the server's filesystem layout, both guessable for the next site.
+    ok( $r->{safety_export} && -s "$d/$r->{safety_export}",
         'a safety export was written BEFORE the drop' )
         or diag( 'The operation drops a table. If anything about the copy is '
             . 'wrong, the rows must exist in one other place and the operator '
             . 'must be told where.' );
+    unlike( $r->{safety_export}, qr{\A/},
+        'and the path it reports does not start at the server root' );
 
     my $rows = read_rows( $d, 'items', as => 'operator', order_by => 'code' )->{rows};
     is( scalar @{$rows}, 2, 'both rows survive the rebuild' );

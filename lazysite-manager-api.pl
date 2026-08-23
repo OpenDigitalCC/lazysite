@@ -190,7 +190,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token
     data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
-    data-migrate-plan data-table data-table-save data-table-source data-tables
+    data-migrate-plan data-table data-table-drop data-table-save data-table-source data-tables
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
@@ -525,7 +525,7 @@ if ( $action eq 'csrf-token' ) {
 #
 my %MUTATING = map { $_ => 1 } qw(
     data-migrate data-row-save data-row-delete data-table-save
-    data-rebuild data-import
+    data-rebuild data-import data-table-drop
     save delete mkdir move copy migrate-to-local file-upload git-restore
     git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
@@ -572,6 +572,7 @@ if ( !$token_auth ) {
         'data-import'        => 'manage_data',
         'data-table-source'  => 'manage_data',
         'data-migrate-plan'  => 'manage_data',
+        'data-table-drop'    => 'manage_data',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -746,6 +747,7 @@ if ($token_auth) {
         'data-import'       => sub { $_[0]->{manage_data} },
         'data-table-source' => sub { $_[0]->{manage_data} },
         'data-migrate-plan' => sub { $_[0]->{manage_data} },
+        'data-table-drop'   => sub { $_[0]->{manage_data} },
         'data-row-delete'   => sub { $_[0]->{manage_data} },
         'domains-list'      => sub { $_[0]->{manage_domains} }, # read-only domains view
         'domain-add'        => sub { $_[0]->{manage_domains} },
@@ -1181,6 +1183,16 @@ elsif ( $action eq 'domain-check' ) {
 }
 elsif ( $action eq 'data-tables' ) {
     $result = Lazysite::Manager::Data::action_data_tables();
+}
+elsif ( $action eq 'data-table-drop' ) {
+    # The same shape as data-rebuild, deliberately: table from either, and the
+    # CONFIRMATION from the body. Both destructive actions should be called the
+    # same way, and SM479 is what happens when two neighbouring arguments take
+    # different routes and one is silently ignored.
+    my $req = eval { decode_json($body) } // {};
+    $result = Lazysite::Manager::Data::action_data_table_drop(
+        $req->{table} // $params{table},
+        $req->{confirm} );
 }
 elsif ( $action eq 'data-import' ) {
     # The CSV arrives as a multipart upload, the part named `file`, exactly as

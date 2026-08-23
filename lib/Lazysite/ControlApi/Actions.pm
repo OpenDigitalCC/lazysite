@@ -104,6 +104,7 @@ our %ACTION = (
     'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-import' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'apply', in => 'query' } ] },
     'data-export' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'format', in => 'query' } ] },
+    'data-table-drop' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm', in => 'body' } ] },
     'data-tables' => { caps => ['manage_data'], params => [] },
     'delete'      => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { caps => [], params => [] },

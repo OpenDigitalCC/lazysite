@@ -49,7 +49,7 @@ use Exporter qw(import);
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
     unique_index_sql unique_index_name duplicate_value_sql
     insert_sql update_sql delete_sql select_sql key_list_sql
-    null_count_sql column_values_sql
+    null_count_sql column_values_sql drop_table_sql
     observed_schema add_column_sql backfill_sql table_has_rows
     last_insert_key);
 
@@ -243,6 +243,16 @@ sub key_list_sql {
     my ($d) = @_;
     die 'key_list_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
     return 'SELECT ' . _ident( $d->{key} ) . ' FROM ' . _ident( $d->{table} );
+}
+
+# SM480: the statement that removes a stored table. Here rather than in
+# Tables.pm because every construct that RUNS lives behind the adapter pair
+# (D11), and `DROP TABLE` is as much a dialect as `CREATE` is.
+sub drop_table_sql {
+    my ($d) = @_;
+    die 'drop_table_sql needs a loaded descriptor'
+        unless ref $d eq 'HASH' && $d->{ok};
+    return 'DROP TABLE IF EXISTS ' . _ident( $d->{table} );
 }
 
 sub unique_index_name {

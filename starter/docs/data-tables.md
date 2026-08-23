@@ -162,6 +162,32 @@ database file's timestamp, because the store is written through WAL and a row
 can change without that timestamp moving -- so a dependency on it would report
 a freshness it never established.
 
+## Removing a table
+
+A table can be removed, and until 0.10.27 it could not be -- declaring one was
+reachable from three surfaces and removing one from none, so a table made by
+mistake, or renamed, or created for a single test was permanent.
+
+- MCP: `drop_data_table`
+- Control API: `data-table-drop`
+
+**It takes everything**: the descriptor, the stored table and every row. So it
+asks first, and the confirmation is the table's own name rather than a yes:
+
+```
+drop_data_table { "table": "old_prices" }
+-> needs_confirmation, naming what would be lost
+
+drop_data_table { "table": "old_prices", "confirm": "old_prices" }
+-> dropped
+```
+
+**A safety export is written before anything is dropped**, beside the rebuild
+exports in `lazysite/db/rebuilds/`, and its path is returned. The table is not
+recoverable; the data is.
+
+If the export cannot be written, nothing is dropped.
+
 ## Field types
 
 `text`
