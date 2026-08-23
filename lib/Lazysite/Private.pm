@@ -121,6 +121,17 @@ sub resolve_for_write {
     return ( undef, '' ) unless defined $rel && length $rel;
     $rel =~ s{\A/+}{};
 
+    # SM438: the theme-asset mirror is ENGINE-OWNED, DERIVED output, and its
+    # canonical writer - the activation mirror's cp -r - writes the public tree
+    # unconditionally. So a write to it resolves public unconditionally too.
+    # Before this, "existing content keeps its home" sent an UPDATE of any
+    # mirror file that had a private-store copy to the private store: the PUT
+    # answered 204, the bytes landed where nothing serves them, and the public
+    # mirror kept serving the old content - create worked, update was a silent
+    # no-op, which is exactly what the field reported. The one write path that
+    # disagreed with the mirror writer about where the mirror lives loses.
+    return ( "$docroot/$rel", 'public' ) if $rel =~ m{\Alazysite-assets(?:/|\z)};
+
     my ( $abs, $where ) = resolve( $docroot, $rel );
     return ( $abs, $where ) if $where;
 

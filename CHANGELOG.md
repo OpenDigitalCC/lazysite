@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM438 resolved (PENDING) **updating a mirrored theme asset over WebDAV was a
+  silent no-op.** Filed deliberately without a cause; the settling test the
+  filing specified was run and it is outcome (a): the write was REDIRECTED.
+  resolve_for_write's "existing content keeps its home" sent an update of any
+  mirror file with a private-store copy to the private store - 204, fresh
+  mtime, bytes where nothing serves them - while the public mirror kept
+  serving the old content. Create worked because no private copy existed to
+  win. The mirror is engine-owned derived output and its canonical writer
+  (activation's cp -r) is public-only, so writes to lazysite-assets/ now
+  resolve public unconditionally, and a PUT that finds a stale private copy
+  there removes it and says so in the log - the field site heals on its next
+  publish instead of needing delete-then-create.
+
 - SM495 resolved (PENDING) **the data plugin's Status button said "Done."**
   The plugin returned modules, store and table list; the Plugin Manager
   shows `message` or the literal `Done.`, so the structured answer went

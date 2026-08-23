@@ -92,15 +92,34 @@ for my $j ( 0 .. $#heads ) {
 # happens to follow it, months before the fix; it carries no changelog entry
 # and is not something a release announces. SM446 was filed in v0.10.21 and
 # fixed for 0.10.22, which is the ordinary shape, not a fault.
-my %shipped_sm;
+my %shipped_sm;    # SM => [ tag, hash, hash, ... ] - every tagged commit
 for my $tag ( grep { /\S/ } split /\n/, `git -C \Q$root\E tag --list 'v*.*.*'` ) {
     chomp $tag;
-    for my $s ( split /\n/, `git -C \Q$root\E log --format=%s \Q$tag\E` ) {
-        next unless $s =~ /^(SM\d+)\b/;
+    for my $line ( split /\n/, `git -C \Q$root\E log --format='%H %s' \Q$tag\E` ) {
+        my ( $h, $s ) = split / /, $line, 2;
+        next unless defined $s && $s =~ /^(SM\d+)\b/;
         my $sm = $1;
         next if $s =~ /^SM\d+[^:]*:\s*file\b/i;
-        $shipped_sm{$sm} = $tag;
+        $shipped_sm{$sm} //= [$tag];
+        push @{ $shipped_sm{$sm} }, $h;
     }
+}
+
+# A commit is WORK when it touches anything outside docs/. SM438's landing
+# found the subject convention above too narrow on its own: six investigation
+# commits ("SM438: resolved as measured - ...", "SM438: WITHDRAW ...") sat
+# under v0.10.27, none of them work a release should announce, and none spelt
+# "file" after the colon. A filing or investigation commit is DEFINED by what
+# it touches, not by what it says. Checked lazily, only for an SM about to be
+# called stranded, so the tag walk above stays one pass.
+sub touches_code {
+    my (@hashes) = @_;
+    for my $h (@hashes) {
+        my @touched = grep { /\S/ } split /\n/,
+            `git -C \Q$root\E show --name-only --format= \Q$h\E`;
+        return 1 if grep { !m{^docs/} } @touched;
+    }
+    return 0;
 }
 
 my ( @dupes, @stranded );
@@ -109,9 +128,10 @@ for my $e ( entries_in( $unrel, $next_head ) ) {
         push @dupes, "$e->{sm} '$e->{title}' is already in $sec";
     }
     elsif ( $shipped_sm{ $e->{sm} } && !$released_sm{ $e->{sm} } ) {
+        my ( $tag, @hashes ) = @{ $shipped_sm{ $e->{sm} } };
         push @stranded,
-            "$e->{sm} shipped in $shipped_sm{ $e->{sm} } and no released "
-            . "section mentions it";
+            "$e->{sm} shipped in $tag and no released section mentions it"
+            if touches_code(@hashes);
     }
 }
 

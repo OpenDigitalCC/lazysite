@@ -524,6 +524,18 @@ sub do_put {
     }
 
     invalidate_cache( $r->{abs} );
+    # SM438: a stale PRIVATE copy of a mirror asset is what redirected updates
+    # into the void (resolve() prefers private, so it would ALSO shadow this
+    # write for every engine read). The mirror is derived output; the stray is
+    # removed, named in the log, and the site heals on its own next publish
+    # instead of needing delete-then-create.
+    if ( $a{rel} =~ m{\Alazysite-assets/} ) {
+        my $stray = Lazysite::Private::private_path( $DOCROOT, $a{rel} );
+        if ( defined $stray && -f $stray && unlink $stray ) {
+            log_event( 'INFO', $a{user}, 'removed stale private copy of mirror asset',
+                path => $a{rel} );
+        }
+    }
     # SM134: keep the alias-redirect map current for content pages.
     if ( $a{rel} =~ /\.md\z/ ) {
         require Lazysite::Aliases;
