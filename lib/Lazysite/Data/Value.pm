@@ -214,6 +214,26 @@ sub coerce_row {
             field => $d->{key}, rule => 'auto_key' );
     }
 
+    # DM-3: THE KEY CANNOT BE CHANGED BY AN UPDATE, and that used to be
+    # enforced by dropping it. update_sql deleted the key from the SET list -
+    # its comment says why, correctly - and the update then reported ok with
+    # the row unmoved. So a caller who asked to re-key a row got success and
+    # did not get what they asked for, which is SM479's shape: every signal
+    # says it worked, and it did not.
+    #
+    # A key is the row's ADDRESS. Changing it is a delete-and-insert wearing
+    # the name of an edit, and the honest answer is to say so. Refused for
+    # both kinds of key: an auto id on a partial write was already silently
+    # discarded by the same delete, and a natural key is the case the row
+    # editor renders read-only - the server has to agree, or that attribute
+    # is decoration a client can remove.
+    if ( $partial && exists $input->{ $d->{key} } ) {
+        return _err(
+            "'$d->{key}' is the row's key and cannot be changed by an update. "
+                . 'To move a row to a new key, delete it and add it again.',
+            field => $d->{key}, rule => 'key_immutable' );
+    }
+
     # UNKNOWN FIELDS ARE REFUSED, matching Descriptor.pm's stance. Ignoring
     # them would let a typo in a column name look like a successful write and
     # lose the value - the operator sees "saved" and the data is not there.

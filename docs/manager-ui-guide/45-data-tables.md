@@ -93,9 +93,32 @@ Negative
   quietly stopped at the read ceiling would be a backup missing rows nobody
   was told about.
 
+## Add, edit or delete a row
+
+Where
+: Content -> Data tables -> Rows -> Add a row, or Edit / Delete beside a row
+
+Do
+: Add a row leaving a field with a declared default blank. Edit a row and type
+  a word into an integer field. Edit a row and try to change its key.
+
+Expect
+: The form is built from the table's descriptor -- one input per declared
+  field, a select for an enum, a checkbox for a boolean, a text area where the
+  descriptor asks for one. **A blank field is not sent**, so the declared
+  default applies and "never set" stays distinct from "set to empty". A
+  refused value is named by the server and the form points at that field; the
+  message is the server's own, because the page decides nothing about what is
+  valid. **The key is read-only on an edit** -- it is the row's address, and
+  the server refuses to change it even if the read-only attribute is removed.
+  To move a row to a new key, delete it and add it again.
+
+Negative
+: Delete names the row in its confirmation. A yes/no that does not say which
+  row is the one an operator clicks through on the wrong line.
+
 ## What is not here yet
 
-Editing, adding and deleting rows, downloads and CSV import. Rows are written
-through the API, over MCP, or by a form pointed at a table. To change a table's
-shape -- its fields, or whether it is published -- edit its descriptor; a change
-that would lose data is refused and explained rather than performed.
+CSV import, and editing a table's **shape**. To change its fields, or whether
+it is published, edit its descriptor; a change that would lose data is refused
+and explained rather than performed.

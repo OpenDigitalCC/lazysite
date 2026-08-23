@@ -305,6 +305,13 @@ sub update_sql {
     # The key is not settable through an update. Changing it would move the
     # row's identity while the WHERE clause still names the old one, so the
     # statement would either match nothing or rename something silently.
+    #
+    # THIS DELETE IS A BACKSTOP, NOT THE RULE. It used to be the only
+    # enforcement, which meant a caller sending a new key got ok:1 with the key
+    # silently discarded and the rest of the update applied - success reported
+    # for a request that was not carried out. Value.pm now REFUSES a key on a
+    # partial write (rule key_immutable) before anything reaches here; this
+    # stays so that a path which bypasses coercion still cannot rename a row.
     delete $set{$key};
     die 'update_sql needs at least one field to set' unless %set;
 
