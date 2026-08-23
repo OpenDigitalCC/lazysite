@@ -32,11 +32,12 @@ use Lazysite::Data::Connect
 use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
 use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
-    qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key);
+    qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key
+    key_list_sql);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema insert_row update_row delete_row export_all_rows
-    resolve_binding
+    resolve_binding import_rows
     rebuild_table);
 
 sub _err {
@@ -416,6 +417,158 @@ sub _timed {
             . ' settle it, it has outgrown SQLite rather than outgrown the query'
         : '' );
     return $out;
+}
+
+# DM-4: A STAGED IMPORT - validate everything, show the diff, then commit.
+#
+# The brief's rule, and this layer's: "a reject in any row aborts the whole
+# import". So this runs in two halves that share one function, selected by
+# `apply`:
+#
+#   apply => 0   PLAN. Every row is coerced through the descriptor exactly as
+#                a live write would be, every key is classified insert-or-
+#                update against the store, and NOTHING is written. The plan
+#                says what would happen. A row that fails names its ROW NUMBER
+#                and field, and the whole import is refused - a partial import
+#                that stopped at row 40 of 200 leaves an operator with a table
+#                that is half one thing and half another, and no way to tell
+#                which rows landed.
+#   apply => 1   COMMIT, in one transaction. The same validation runs again -
+#                the store may have moved since the plan was shown - and if
+#                every row still passes, they are written together or not at
+#                all.
+#
+# KEYS ARE READ ONCE. Classifying 200 rows as insert-or-update with one query
+# each would be 200 round trips to learn one fact; the existing keys come back
+# in a single select and the classification is a hash lookup.
+#
+# THE CSV HEADER IS MATCHED TO THE DESCRIPTOR BY NAME, EXACTLY. A column the
+# table does not have is refused - a spreadsheet that grew a column is telling
+# you something, and importing around it would lose that column's values in
+# silence. A declared field the CSV omits is fine: a partial column set is a
+# partial write, and the missing fields keep their stored values on update or
+# take their defaults on insert, exactly as a row save does.
+#
+# AN EMPTY CELL MEANS "NOT SENT". CSV cannot say unset, so an empty field is
+# left out of the row - the same rule the row editor's collectRow() applies,
+# and for the same reason: sending '' for every blank cell would overwrite
+# every default with an empty string on every import.
+sub import_rows {
+    my ( $docroot, $name, $header, $rows, %opt ) = @_;
+    my $apply = $opt{apply} ? 1 : 0;
+
+    my $d = load_table( $docroot, $name );
+    return $d unless $d->{ok};
+
+    return _err( "table '$name': the CSV has no header row", table => $name,
+        kind => 'validation' )
+        unless ref $header eq 'ARRAY' && @{$header};
+
+    # The header, checked against the declared fields. The key counts as a
+    # field here even when it is automatic - an export includes it, so an
+    # edited export will too, and it is how an update knows which row it is.
+    my %known = map { $_ => 1 } keys %{ $d->{fields} };
+    $known{ $d->{key} } = 1;
+    $known{$_} = 1 for ( $d->{timestamps} ? qw(created_at updated_at) : () );
+    my %seen;
+    for my $col ( @{$header} ) {
+        return _err( "table '$name': the CSV has a column '$col' that the "
+                . 'table does not have. Remove it, or add the field to the '
+                . 'descriptor first', table => $name, kind => 'validation',
+            field => $col, rule => 'unknown_column' )
+            unless $known{$col};
+        return _err( "table '$name': the CSV names column '$col' twice",
+            table => $name, kind => 'validation', field => $col,
+            rule  => 'duplicate_column' )
+            if $seen{$col}++;
+    }
+    my $key = $d->{key};
+    my ($key_col) = grep { $header->[$_] eq $key } 0 .. $#{$header};
+
+    # THE EXISTING KEYS, ONCE.
+    my %exists;
+    if ( -f store_path($docroot) ) {
+        my $dbh = read_handle($docroot);
+        return _err( "table '$name': the data store cannot be opened",
+            table => $name )
+            unless $dbh;
+        my $keys = eval { $dbh->selectcol_arrayref( key_list_sql($d) ) } || [];
+        %exists = map { $_ => 1 } grep { defined } @{$keys};
+    }
+
+    # VALIDATE EVERY ROW BEFORE TOUCHING ANY.
+    my ( @inserts, @updates );
+    my $n = 1;    # the header is line 1; the operator's spreadsheet agrees
+    for my $r ( @{$rows} ) {
+        $n++;
+        my %in;
+        for my $i ( 0 .. $#{$header} ) {
+            my $v = $r->[$i];
+            next unless defined $v && length $v;    # empty cell: not sent
+            $in{ $header->[$i] } = $v;
+        }
+        # Timestamps are the plugin's; an export carries them, an import must
+        # not try to write them back.
+        delete @in{qw(created_at updated_at)};
+
+        my $kv        = defined $key_col ? $r->[$key_col] : undef;
+        my $is_update = defined $kv && length $kv && $exists{$kv};
+
+        my $c;
+        if ($is_update) {
+            my %partial = %in;
+            delete $partial{$key};    # the key is the address, never a value
+            $c = coerce_row( $d, \%partial, partial => 1 );
+        }
+        else {
+            # An auto key cannot be supplied on insert; an export carries it,
+            # so strip it rather than refuse a file the system itself wrote.
+            delete $in{$key} if $d->{auto_key};
+            $c = coerce_row( $d, \%in );
+        }
+        unless ( $c->{ok} ) {
+            return _err( "row $n: $c->{error}", table => $name,
+                kind => 'validation', row => $n,
+                ( $c->{field} ? ( field => $c->{field} ) : () ),
+                ( $c->{rule}  ? ( rule  => $c->{rule} )  : () ) );
+        }
+        if ($is_update) { push @updates, [ $kv, $c->{values}, $n ] }
+        else            { push @inserts, [ $c->{values}, $n ] }
+    }
+
+    my $plan = { ok => 1, table => $name, rows => scalar @{$rows},
+        inserts => scalar @inserts, updates => scalar @updates,
+        applied => 0 };
+    return $plan unless $apply;
+
+    # COMMIT, ALL OR NOTHING.
+    my $dbh = write_handle($docroot);
+    return _err( "table '$name': the data store cannot be opened for writing",
+        table => $name )
+        unless $dbh;
+    my $ok = eval {
+        $dbh->begin_work;
+        for my $u (@updates) {
+            my ( $sql, $binds )
+                = update_sql( $d, $u->[0], $u->[1] );
+            $dbh->do( $sql, undef, @{$binds} );
+        }
+        for my $ins (@inserts) {
+            my ( $sql, $binds )
+                = insert_sql( $d, $ins->[0] );
+            $dbh->do( $sql, undef, @{$binds} );
+        }
+        $dbh->commit;
+        1;
+    };
+    unless ($ok) {
+        my $why = $@ || $dbh->errstr || 'unknown';
+        eval { $dbh->rollback; 1 };
+        return _err( "table '$name': the import failed and was rolled back - "
+                . "nothing was written. $why", table => $name );
+    }
+    $plan->{applied} = 1;
+    return $plan;
 }
 
 # EVERY row, for an export. Not read_rows, which is capped.

@@ -25,12 +25,14 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Plugins ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
-    insert_row update_row delete_row descriptor_dir rebuild_table export_all_rows);
+    insert_row update_row delete_row descriptor_dir rebuild_table export_all_rows
+    import_rows);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
-    action_data_table_save action_data_rebuild action_data_export);
+    action_data_table_save action_data_rebuild action_data_export
+    action_data_import);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -341,6 +343,45 @@ sub action_data_rebuild {
     log_event( 'INFO', $table, 'data table rebuilt',
         lost => join( ',', @{ $r->{lost} || [] } ) )
         if $r->{ok};
+    return $r;
+}
+
+# DM-4: a CSV import, staged. `apply` false plans and writes nothing; true
+# commits in one transaction. Both parse the same file the same way, so what
+# the operator was shown is what is applied - or refused again, if the store
+# moved in between.
+sub action_data_import {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $body, $content_type, $apply ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+
+    # The CSV is the multipart part named `file`, as site-backup-upload takes
+    # its tarball. Parsed HERE, after the gate: a disabled plugin must not
+    # read the upload at all, and the parser is the plugin's to call.
+    require Lazysite::Manager::Upload;
+    my @parts = Lazysite::Manager::Upload::parse_multipart_body( $body // '',
+        $content_type // '' );
+    my ($file) = grep { ( $_->{name} // '' ) eq 'file' } @parts;
+    my $csv_text = $file ? $file->{data} : undef;
+    return { ok => 0, error => 'a CSV file is required, as the multipart part '
+            . 'named "file"', kind => 'validation' }
+        unless defined $csv_text && length $csv_text;
+
+    require Lazysite::Data::Csv;
+    my ( $header, $rows, $why ) = Lazysite::Data::Csv::from_csv($csv_text);
+    return { ok => 0, error => "the file is not valid CSV: $why",
+        kind => 'validation' }
+        if defined $why;
+
+    my $r = import_rows( $DOCROOT, $table, $header, $rows,
+        apply => ( $apply ? 1 : 0 ) );
+
+    # AN IMPORT AUDITS AS ONE EVENT, with the counts - the brief's rule. Two
+    # hundred row-level entries would bury the one fact the trail is asked
+    # for, which is that an import happened, by whom, and how big it was.
+    log_event( 'INFO', $table, 'data table imported',
+        inserts => $r->{inserts}, updates => $r->{updates} )
+        if $r->{ok} && $r->{applied};
     return $r;
 }
 

@@ -189,7 +189,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token
-    data-export data-migrate data-rebuild data-row-delete data-row-save data-rows
+    data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
     data-table data-table-save data-tables
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
@@ -525,7 +525,7 @@ if ( $action eq 'csrf-token' ) {
 #
 my %MUTATING = map { $_ => 1 } qw(
     data-migrate data-row-save data-row-delete data-table-save
-    data-rebuild
+    data-rebuild data-import
     save delete mkdir move copy migrate-to-local file-upload git-restore
     git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
@@ -569,6 +569,7 @@ if ( !$token_auth ) {
         'data-table-save'    => 'manage_data',
         'data-rebuild'       => 'manage_data',
         'data-export'        => 'manage_data',
+        'data-import'        => 'manage_data',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -740,6 +741,7 @@ if ($token_auth) {
         'data-table-save' => sub { $_[0]->{manage_data} },
         'data-rebuild'    => sub { $_[0]->{manage_data} },
         'data-export'     => sub { $_[0]->{manage_data} },
+        'data-import'     => sub { $_[0]->{manage_data} },
         'data-row-delete' => sub { $_[0]->{manage_data} },
         'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
         'domain-add'      => sub { $_[0]->{manage_domains} },
@@ -1175,6 +1177,21 @@ elsif ( $action eq 'domain-check' ) {
 }
 elsif ( $action eq 'data-tables' ) {
     $result = Lazysite::Manager::Data::action_data_tables();
+}
+elsif ( $action eq 'data-import' ) {
+    # The CSV arrives as a multipart upload, the part named `file`, exactly as
+    # site-backup-upload takes its tarball. A JSON body would have to carry
+    # the whole file as a string inside a string, which is how a 5MB
+    # spreadsheet becomes a 7MB request that times out.
+    #
+    # THE RAW BODY GOES IN, AND THE DATA MODULE PARSES IT. An earlier version
+    # parsed the multipart here and handed the CSV across, and t/lint/77
+    # refused it: a module named in a data-* branch is one that answers for
+    # the plugin, and must consult its enabled state. The parser cannot
+    # sensibly do that - so the whole path, parse included, lives behind the
+    # one _gate() in Manager::Data, which is what SM469 wants anyway.
+    $result = Lazysite::Manager::Data::action_data_import( $params{table},
+        $body, $ENV{CONTENT_TYPE} // '', ( $params{apply} // '' ) eq '1' );
 }
 elsif ( $action eq 'data-export' ) {
     # DM-2: STREAMED, not returned. The action hands back the bytes and the

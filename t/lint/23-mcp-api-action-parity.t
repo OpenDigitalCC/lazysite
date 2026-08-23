@@ -147,6 +147,7 @@ my %API_ONLY = (
     # exact typed export, so an MCP twin would hand back a file it has nowhere
     # to put.
     'data-export' => 'a file download for a person; an agent has read_data_rows and site_backup',
+    'data-import' => 'a file upload from a person; an agent has save_data_row and can loop',
     'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read' => 'undecided - no MCP twin for site configuration',
     'config-set'  => 'undecided - as config-read',

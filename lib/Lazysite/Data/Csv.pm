@@ -33,7 +33,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(to_csv csv_columns);
+our @EXPORT_OK = qw(to_csv csv_columns from_csv);
 
 # The characters a spreadsheet reads as "this is a formula".
 my $DANGEROUS = qr/\A[=+\-\@\t\r]/;
@@ -102,6 +102,71 @@ sub to_csv {
     # terminator is the kind of thing that reads fine everywhere except the one
     # tool somebody uses.
     return ( join( "\r\n", @out ) . "\r\n", $guarded );
+}
+
+
+# DM-4: CSV back IN, as the spreadsheet wrote it.
+#
+# RFC 4180, read the way to_csv writes: CRLF or LF, a quoted field may hold
+# commas, newlines and doubled quotes. Nothing cleverer than that - a reader
+# that guesses delimiters or trims whitespace "helpfully" is a reader that
+# silently changes data, and this layer's whole stance is that a value is
+# either accepted exactly or refused by name.
+#
+# THE GUARD COMES OFF ON THE WAY IN. to_csv prefixes a cell beginning =, +, -
+# or @ with an apostrophe so a spreadsheet will not run it (see above). A round
+# trip must not accumulate apostrophes, so a leading apostrophe FOLLOWED BY one
+# of those characters is removed here - and only that shape, because a value
+# that genuinely starts with an apostrophe and a letter was never guarded and
+# must come back as typed.
+#
+# Returns ( \@header, \@rows, $error ). Rows are arrayrefs of strings in
+# header order; an empty field is the empty string and is NOT turned into undef
+# here - CSV cannot say "unset", so that decision belongs to the import, which
+# knows what the descriptor would have defaulted it to.
+sub from_csv {
+    my ($text) = @_;
+    return ( [], [], 'no CSV text' ) unless defined $text && length $text;
+    $text =~ s/\A\x{FEFF}//;    # a BOM from Excel is not a column
+
+    my @records;
+    my @field;
+    my $cur = '';
+    my $inq = 0;
+    my $i   = 0;
+    my $n   = length $text;
+    while ( $i < $n ) {
+        my $c = substr $text, $i, 1;
+        if ($inq) {
+            if ( $c eq '"' ) {
+                if ( substr( $text, $i + 1, 1 ) eq '"' ) { $cur .= '"'; $i += 2; next }
+                $inq = 0; $i++; next;
+            }
+            $cur .= $c; $i++; next;
+        }
+        if ( $c eq '"' )  { $inq = 1; $i++; next }
+        if ( $c eq ',' )  { push @field, $cur; $cur = ''; $i++; next }
+        if ( $c eq "\r" ) { $i++; next }
+        if ( $c eq "\n" ) {
+            push @field, $cur; push @records, [@field];
+            @field = (); $cur = ''; $i++; next;
+        }
+        $cur .= $c; $i++;
+    }
+    return ( [], [], 'unterminated quoted field' ) if $inq;
+    if ( length $cur || @field ) { push @field, $cur; push @records, [@field] }
+
+    # A trailing empty record from a final CRLF is not a row.
+    pop @records while @records && @{ $records[-1] } == 1 && $records[-1][0] eq '';
+    return ( [], [], 'no header row' ) unless @records;
+
+    my $header = shift @records;
+    for my $r (@records) {
+        for my $v ( @{$r} ) {
+            $v =~ s/\A'(?=[=+\-\@\t\r])//;
+        }
+    }
+    return ( $header, \@records, undef );
 }
 
 1;

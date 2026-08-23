@@ -48,7 +48,7 @@ use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
     unique_index_sql unique_index_name duplicate_value_sql
-    insert_sql update_sql delete_sql select_sql
+    insert_sql update_sql delete_sql select_sql key_list_sql
     observed_schema add_column_sql backfill_sql table_has_rows
     last_insert_key);
 
@@ -210,6 +210,16 @@ sub unique_index_sql {
             . " ON $table ("
             . _ident($_) . ')'
     } @{ $d->{unique} || [] };
+}
+
+# DM-4: every key in a table, for classifying an import as insert-or-update.
+# One statement rather than one per row: 200 rows is 200 round trips to learn
+# one fact. Here, not in Tables.pm, because every construct that RUNS lives
+# behind the adapter pair (D11).
+sub key_list_sql {
+    my ($d) = @_;
+    die 'key_list_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    return 'SELECT ' . _ident( $d->{key} ) . ' FROM ' . _ident( $d->{table} );
 }
 
 sub unique_index_name {

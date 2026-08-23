@@ -22,7 +22,26 @@ search: false
 <div id="rows-panel" style="display:none;margin-top:18px;">
   <h2 style="font-size:1.05em;margin:0 0 4px;" id="rows-title"></h2>
   <p style="font-size:0.85em;color:#888;margin:0 0 10px;" id="rows-note"></p>
-  <div style="margin:0 0 10px;"><button class="mg-btn mg-btn-primary" id="row-add-btn" onclick="openEditor(null)">Add a row</button></div>
+  <div style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <button class="mg-btn mg-btn-primary" id="row-add-btn" onclick="openEditor(null)">Add a row</button>
+    <label class="mg-btn" style="cursor:pointer;">Import CSV&hellip;<input type="file" id="import-file" accept=".csv,text/csv" style="display:none;" onchange="planImport()"></label>
+  </div>
+
+  <!-- DM-4: THE IMPORT IS STAGED. The file is sent once for a PLAN, which
+       validates every row and writes nothing; the plan is shown with its
+       counts; only then is the same file sent again with apply=1. A reject in
+       any row refuses the whole file, naming the row as the spreadsheet
+       numbers it, so an operator fixes one cell and re-uploads rather than
+       discovering half a file landed. -->
+  <div id="import-panel" class="mg-card" style="display:none;margin:0 0 12px;max-width:40rem;">
+    <div class="mg-card-header"><span class="mg-card-title">Import</span></div>
+    <div id="import-plan" style="font-size:0.9em;"></div>
+    <div id="import-error" class="mg-status"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="mg-btn mg-btn-primary" id="import-apply-btn" onclick="applyImport()" style="display:none;">Apply</button>
+      <button class="mg-btn" onclick="cancelImport()">Cancel</button>
+    </div>
+  </div>
   <div style="overflow-x:auto;">
     <table class="mg-table" id="rows-table"><thead></thead><tbody></tbody></table>
   </div>
@@ -346,6 +365,74 @@ function saveRow() {
     loadRows(table);
   })
   .catch(function(e) { setError('Could not save: ' + e); });
+}
+
+/* --- DM-4: staged import --------------------------------------------- */
+var IMPORT = { file: null };
+
+function sendImport(apply) {
+  var fd = new FormData();
+  fd.append('file', IMPORT.file);
+  return fetch(API + '?action=data-import&table=' + encodeURIComponent(CURRENT.table) + (apply ? '&apply=1' : ''), {
+    method: 'POST',
+    body: fd
+  }).then(function(r) { return r.json(); });
+}
+
+function planImport() {
+  var input = document.getElementById('import-file');
+  if (!input.files || !input.files[0]) return;
+  IMPORT.file = input.files[0];
+  input.value = '';
+  var panel = document.getElementById('import-panel');
+  panel.style.display = 'block';
+  document.getElementById('import-plan').textContent = 'Checking ' + IMPORT.file.name + '\u2026';
+  document.getElementById('import-error').textContent = '';
+  document.getElementById('import-apply-btn').style.display = 'none';
+
+  sendImport(false).then(function(d) {
+    if (!d.ok) {
+      /* THE SERVER'S SENTENCE, UNCHANGED. It already names the row as the
+         spreadsheet numbers it and the field that failed. */
+      document.getElementById('import-plan').textContent = 'Nothing was imported.';
+      var err = document.getElementById('import-error');
+      err.className = 'mg-status mg-status-error';
+      err.textContent = d.error || 'The file was refused.';
+      return;
+    }
+    document.getElementById('import-plan').innerHTML =
+      '<strong>' + escHtml(IMPORT.file.name) + '</strong>: ' + d.rows + ' row' + (d.rows === 1 ? '' : 's') + ' \u2014 '
+      + '<strong>' + d.inserts + '</strong> new, <strong>' + d.updates + '</strong> updating existing rows by key. '
+      + 'Nothing has been written yet.';
+    document.getElementById('import-apply-btn').style.display = '';
+  }).catch(function(e) {
+    document.getElementById('import-error').textContent = 'Could not check the file: ' + e;
+  });
+}
+
+function applyImport() {
+  document.getElementById('import-apply-btn').style.display = 'none';
+  sendImport(true).then(function(d) {
+    if (!d.ok) {
+      /* The store may have moved between plan and apply - a row that was an
+         insert is now a clash, say. Every row is re-checked, and a refusal
+         here means nothing was written, exactly as at plan time. */
+      var err = document.getElementById('import-error');
+      err.className = 'mg-status mg-status-error';
+      err.textContent = d.error || 'The import was refused.';
+      return;
+    }
+    cancelImport();
+    showStatus('Imported: ' + d.inserts + ' added, ' + d.updates + ' updated.');
+    loadRows(CURRENT.table);
+  }).catch(function(e) {
+    document.getElementById('import-error').textContent = 'Could not apply: ' + e;
+  });
+}
+
+function cancelImport() {
+  IMPORT.file = null;
+  document.getElementById('import-panel').style.display = 'none';
 }
 
 function deleteRow(index) {

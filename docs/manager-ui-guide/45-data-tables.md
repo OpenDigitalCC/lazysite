@@ -117,8 +117,32 @@ Negative
 : Delete names the row in its confirmation. A yes/no that does not say which
   row is the one an operator clicks through on the wrong line.
 
+## Import a CSV
+
+Where
+: Content -> Data tables -> Rows -> Import CSV
+
+Do
+: Download a table as CSV, change a few cells in a spreadsheet, add a row, and
+  import the file. Then put a word in an integer column and import it again.
+
+Expect
+: The file is **checked first and written second**. After the upload you are
+  shown a plan -- how many rows, how many are new, how many update an existing
+  row by its key -- and nothing has been written. Apply commits them all in one
+  transaction. A cell that does not fit its declared type refuses the **whole
+  file**, naming the row as your spreadsheet numbers it and the field, and
+  nothing lands -- not the rows before it, not the ones after. Fix the cell and
+  import again. An empty cell is not sent, so a stored value survives a blank
+  in the spreadsheet, and a column the table does not have is refused rather
+  than ignored.
+
+Negative
+: A file that came out of Download CSV and goes straight back in changes
+  nothing. If it does, that is a defect, and worth reporting with the file.
+
 ## What is not here yet
 
-CSV import, and editing a table's **shape**. To change its fields, or whether
-it is published, edit its descriptor; a change that would lose data is refused
-and explained rather than performed.
+Editing a table's **shape**. To change its fields, or whether it is published,
+edit its descriptor; a change that would lose data is refused and explained
+rather than performed.
