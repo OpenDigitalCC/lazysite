@@ -1998,7 +1998,16 @@ sub _validate_page {
 
     # Public-data warnings - private/operational details that should not be
     # published accidentally (guest-instruction uploads carry these).
-    my $ln = 0;
+    # SM488: LINE NUMBERS ARE REPORTED AGAINST THE WHOLE PAGE, not the body.
+    # The scan runs over $body, which _split_front_matter returns WITHOUT its
+    # fences, so a counter starting at zero here named every line short by
+    # the front matter plus two. The field agent measured it exactly: reported
+    # 15/58/59, actual 24/67/68, delta 9 - seven lines of front matter and two
+    # fences. A warning that points at the wrong line is worse than none: the
+    # reader opens line 15, finds a canonical link, and concludes the tool is
+    # broken - which is nearly right and completely useless.
+    my $fm_lines = length($fm) ? ( () = $fm =~ /\n/g ) + 1 : 0;
+    my $ln       = length($fm) ? $fm_lines + 2             : 0;    # + the two --- fences
     for my $line ( split /\n/, $body ) {
         $ln++;
         push @warnings, { kind => 'public-credential', line => $ln,
@@ -2007,9 +2016,16 @@ sub _validate_page {
         push @warnings, { kind => 'public-postcode', line => $ln,
             message => 'looks like a UK postcode - confirm the full address should be public' }
             if $line =~ /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/;
+        # SM488: AN ISO DATE IS NOT A PHONE NUMBER. /\d[\d\s().-]{8,}\d/ matched
+        # 2026-08-22 - ten characters of digits and hyphens - so a page with
+        # three dates produced three phone warnings, two of them the filenames
+        # of this project's own inbox filings. Dates are stripped from the line
+        # before the phone pattern runs; a real number beside a date still
+        # fires, because only the date is removed, not the line.
+        ( my $undated = $line ) =~ s/\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\b//g;
         push @warnings, { kind => 'public-phone', line => $ln,
             message => 'contains a phone number - fine for a contact CTA, not for a private number' }
-            if $line =~ /\+?\d[\d\s().-]{8,}\d/ && $line =~ /\d{3}/;
+            if $undated =~ /\+?\d[\d\s().-]{8,}\d/ && $undated =~ /\d{3}/;
     }
 
     return { ok => 1, valid => ( @issues ? JSON::PP::false : JSON::PP::true ),
