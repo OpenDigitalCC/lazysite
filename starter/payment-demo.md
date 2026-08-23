@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: demonstration
 title: Premium Content
 subtitle: This page requires payment to access.
 payment: required

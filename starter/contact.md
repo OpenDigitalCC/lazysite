@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: content
 title: Contact
 subtitle: Get in touch.
 form: contact

@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: infrastructure
 title: Signed out
 auth: none
 search: false

@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: content
 title: Welcome
 subtitle: A new lazysite site
 register:

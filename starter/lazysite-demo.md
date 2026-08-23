@@ -1,11 +1,9 @@
 ---
 provenance: lazysite-starter
+starter_role: demonstration
 title: lazysite Feature Test
 subtitle: Validates processor features and serves as a live demonstrator
 ttl: 60
-register:
-  - llms.txt
-  - sitemap.xml
 tt_page_var:
   page_greeting: Hello from a page variable
   page_base_url: https://example.com/downloads

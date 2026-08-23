@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: infrastructure
 title: Reset your password
 auth: none
 search: false

@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: infrastructure
 title: Search Results
 search: false
 query_params:

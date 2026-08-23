@@ -1,5 +1,6 @@
 ---
 provenance: lazysite-starter
+starter_role: infrastructure
 title: Search Index
 api: true
 content_type: application/json; charset=utf-8
