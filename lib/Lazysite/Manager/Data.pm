@@ -35,6 +35,7 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
 use Lazysite::Data::Connect ();
+use JSON::PP                ();
 
 # SM469: OFF MEANS OFF, on this path too.
 #
@@ -182,12 +183,37 @@ sub action_data_table_save {
 sub action_data_tables {
     if ( my $off = _gate() ) { return $off }
     my @out;
+    # WHETHER IT IS PUBLISHED, AND WHETHER IT EXISTS YET, both travel with the
+    # listing (DM-1). An operator looking at a list of tables has exactly two
+    # questions about each one - can anybody see it, and is it real yet - and
+    # answering them per-table would mean a request per row.
+    #
+    # Both are DERIVED rather than remembered: `public` off the descriptor,
+    # existence off the database, per D2. The database is the state.
+    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
     for my $name ( @{ list_tables($DOCROOT) } ) {
         my $d = load_table( $DOCROOT, $name );
+        unless ( $d->{ok} ) {
+            push @out, { table => $name, ok => 0, error => $d->{error} };
+            next;
+        }
+
+        my $pending = 1;
+        if ($dbh) {
+            require Lazysite::Data::Schema;
+            my $obs = eval {
+                Lazysite::Data::Schema::observed_schema( $dbh, $name );
+            };
+            $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
+        }
+
         push @out,
-            $d->{ok}
-            ? { table => $name, title => $d->{title}, ok => 1 }
-            : { table => $name, ok => 0, error => $d->{error} };
+            { table => $name,
+            title => $d->{title},
+            public => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
+            ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
+            ok => 1,
+            };
     }
     return { ok => 1, tables => \@out };
 }

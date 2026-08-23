@@ -482,6 +482,7 @@
       <a href="/manager/cache" [% IF request_uri.match('^/manager/cache') %]class="active" aria-current="page"[% END %]>Cache</a>
       <a href="/manager/backups" [% IF request_uri.match('^/manager/backups') %]class="active" aria-current="page"[% END %]>Backups</a>
       [% IF manager_caps.audit %]<a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit log</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Read the append-only audit trail. To enable it, grant 'Audit trail' to a group on the Groups page.">Audit log &#128274;</a>[% END %]
+      [% IF enabled_plugins.data %][% IF manager_caps.manage_data %]<a href="/manager/data" [% IF request_uri.match('^/manager/data') %]class="active" aria-current="page"[% END %]>Data tables</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="See and manage the site's data tables. To enable it, grant 'Data' to a group on the Groups page.">Data tables &#128274;</a>[% END %][% END %]
       [% IF enabled_plugins.stats %]<a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Visitor statistics</a>[% END %]
     </nav>
   </aside>
