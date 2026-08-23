@@ -159,6 +159,96 @@ text box or accepts a typed name that does not exist; if arrowing through the
 Groups list added someone without you pressing Add; if a tag could not be
 removed; or if the saved reader list in step 2 did not match what you chose.
 
+# Task 5 - a table, from nothing to a spreadsheet and back
+
+You need the **Data tables** plugin switched on (Plugin Manager), and your
+account in a group that holds **Data**.
+
+1. In your manager window, go to **Data tables**.
+
+   *You should see:* a list of tables, or the words *No tables are declared
+   yet*. If instead you see *The data plugin is disabled*, switch it on and
+   come back - that message is the plugin doing its job.
+
+2. Declare a small table through the API or an agent - `describe_data_table`'s
+   own text shows the shape. Three fields is enough: a text key, an integer
+   with a default, and a date. Do **not** add `public: true`. Press
+   **Refresh**.
+
+   *You should see:* your table listed as **not published** and **needs
+   migrating**. Both are the expected state of a new table.
+
+3. Click **Fields** on its row.
+
+   *You should see:* the descriptor, exactly as it was written - comments,
+   spacing, and the order you put the keys in. Click **What would migrating
+   do?**
+
+   *You should see:* *The stored table does not exist yet. Migrate creates
+   it.* Click **Migrate**, then **Refresh**. *needs migrating* should be gone.
+
+4. Click **Rows**, then **Add a row**. Fill in the key, leave the integer
+   blank, type a word into the date, and **Save**.
+
+   *You should see:* the save refused, the date input **outlined and
+   focused**, and the server's own sentence about what a date looks like.
+   Fix the date and save again. The row appears; the integer shows its
+   default, which you never typed.
+
+   It is a FAIL if the message appeared but no input was outlined.
+
+5. Click **Edit** on that row.
+
+   *You should see:* the key field **greyed and read-only**. Change the
+   integer, save, reload the page, open the row again: the change persisted
+   and the key did not move.
+
+6. Click **CSV** to download the table. Open it in a spreadsheet, change the
+   integer on your row, add a second row, and save it back as CSV. Click
+   **Import CSV...** and choose the file.
+
+   *You should see:* a plan - *2 rows - 1 new, 1 updating existing rows by
+   key. Nothing has been written yet.* - and nothing changed in the grid
+   behind it. Click **Apply**. Now both rows are there.
+
+7. Put a word into the integer column of that file, import it again.
+
+   *You should see:* the whole file refused, the message naming the **row as
+   your spreadsheet numbers it** and the field, and nothing in the grid
+   changed - not the good row either.
+
+8. Click **Fields** again. Make the date field `required: true` while your
+   second row has no date. **Save descriptor**, then **What would migrating
+   do?**
+
+   *You should see:* Migrate will refuse the tightening, and underneath: *A
+   rebuild would fail on the existing rows. Fix these first: 1 row has no
+   'when'* - naming the count. There is **no rebuild button**. Fill in that
+   row's date, plan again: now the rebuild button appears and says which
+   columns it would drop (none, this time).
+
+   It is a FAIL if a rebuild button was offered while a row still lacked the
+   date.
+
+9. Click **Fields**, remove the integer field entirely, save, plan, and click
+   **Rebuild**.
+
+   *You should see:* a prompt that **names the column** and asks you to type
+   it. Type something else first: refused. Type the name: the rebuild runs and
+   reports the safety export as a path **inside the site**, starting
+   `lazysite/`, never `/home/` or `/var/`.
+
+10. Back on the list, click **JSON** on your table, and then use
+    `drop_data_table` (or `data-table-drop`) naming the table in `confirm`.
+
+    *You should see:* the JSON file contain your rows with the date as text
+    and the integer as a number; and after the drop, the table gone from the
+    list and a safety export path returned, again inside the site.
+
+Write down: PASS or FAIL, and **which step** you stopped at if not all ten.
+It is a FAIL if any *You should see* did not happen; it is a PASS only if all
+ten did.
+
 # When you are done
 
 Send back the four results with your notes, and say which site and which day

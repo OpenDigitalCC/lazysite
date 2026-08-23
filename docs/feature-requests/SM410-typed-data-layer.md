@@ -179,6 +179,8 @@ that is applied below, so nothing is built twice:
     DM-5  descriptor editor + destructive-migration UI.   [DM-1, DP-5]
     DM-6  spreadsheet ergonomics.                         [DM-3, DM-4]
     DM-7  consolidated operator-docs pass + manual-check walk.
+          Docs pass DONE 2026-08-23; the walk is WRITTEN (Task 5 in
+          MANUAL-CHECKS-WALKTHROUGH) and needs a deployed build to run.
 
 Minimum coherent releases: DP-1+2 (agent-populated data rendering on pages);
 add DM-1+2 for operator visibility. DP-1..4 + DM-1..4 is the intended v1.

@@ -20,6 +20,42 @@ smallest manual pass that covers it. Where a lint pins the *structure* of
 something whose *behaviour* is unreachable, that is called out - a passing lint
 there means "the shape is still right", never "it works".
 
+# Data tables
+
+## Why it is out of reach
+
+The Data tables page is the largest single piece of manager JavaScript in the
+tree: a descriptor-driven row editor, a staged CSV import, a descriptor text
+editor and a migration plan, all on one page. As with every manager page,
+nothing executes it under test - the gate reads its source and can say a
+function exists; it cannot click Save.
+
+What the gate **can** reach is the server side of every control, and it does:
+the listing's `public` and `pending_schema` flags, the refusal that names a
+field, the blank-means-not-sent rule, the key that cannot be re-written, the
+import that writes nothing on plan and everything-or-nothing on apply, the
+source that round-trips a comment, and the plan that surfaces SM487's data
+checks. Each has a sabotage that fails its file. So a green gate means **the
+server would answer correctly if the page asked**. It does not mean the page
+asks.
+
+Two things in particular cannot be seen from the suite:
+
+- **whether a refusal lands on the right input.** The server names the field;
+  the page is supposed to outline that input and focus it. A page that shows
+  the message and highlights nothing looks identical in the source.
+- **whether the rebuild prompt reads as a confirmation.** Typing column names
+  into a `prompt()` is a deliberate friction. Whether it is the right amount of
+  friction is a judgement only a person at the page can make.
+
+## The pass
+
+Walk `docs/manager-ui-guide/45-data-tables.md` end to end - every *Do* and
+*Expect* - on a deployed build with the data plugin enabled. The walkthrough
+below is the same pass written for somebody who has never seen the page.
+Record the result in `docs/manual-check-register.md` as a row against the
+version walked.
+
 # Manager UI JavaScript
 
 ## Why it is out of reach
