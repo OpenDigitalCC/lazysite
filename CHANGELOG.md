@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM494 resolved (PENDING) **the menu could not see a Data grant.** The
+  processor resolves a hand-written list of nav-gating capabilities into
+  `manager_caps`; `manage_data` was never added to it, so the menu showed
+  "Data tables" padlocked no matter what a group granted, and the DM-1 nav
+  test could not notice - it hands `manager_caps` to the template, testing
+  the layout but never the derivation. The capability is in the list, and a
+  new lint requires every `manager_caps.X` the manager layout references to
+  appear in the processor's derivation, so the next capability cannot be
+  forgotten the same way. Reported from the field on 0.10.27.
+
 - SM492 shipped in part (GS9, GS11, GS12; PENDING) **the component mechanism
   is documented, and an unclosed fence is named.** An estate survey found the
   same hero panel hand-built twice because nothing told either author that

@@ -6092,7 +6092,8 @@ sub render_content {
         # caps (content/nav/themes/layouts) and audit are surfaced as well.
         for my $cap (
             qw(manage_config manage_domains manage_users
-            manage_content manage_nav manage_themes manage_layouts audit)
+            manage_content manage_nav manage_themes manage_layouts audit
+            manage_data)
             )
         {
             $manager_caps{$cap}
