@@ -164,6 +164,16 @@ removed; or if the saved reader list in step 2 did not match what you chose.
 You need the **Data tables** plugin switched on (Plugin Manager), and your
 account in a group that holds **Data**.
 
+**This task has two halves, and they are walked by different people.** Steps
+1-2 and the server-side checks are done by a partner agent over the API: it
+declares the table to exactly the shape step 2 wants, confirms the rebuild
+pre-flight refuses up front naming the row count, and drops the test tables at
+the end. Everything that says *click*, *in your manager window* or *outlined
+and focused* is a browser cookie session, which a partner token is excluded
+from by design - so those steps are the operator's, and only theirs. When the
+agent has gone first, **start at step 3**: the table is already there, and
+the register row records whose half was walked.
+
 1. In your manager window, go to **Data tables**.
 
    *You should see:* a list of tables, or the words *No tables are declared

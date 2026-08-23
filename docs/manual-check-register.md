@@ -38,7 +38,7 @@ bold: 3
 tone: medium
 ---
 2026-08-11 | 0.10.7-pre | Manager guide: Domains | PASS | operator
-2026-08-23 | 0.10.26+ | Manager guide: Data tables (DM-7) | NOT WALKED - pass written, needs a deployed build | claude
+2026-08-23 | 0.10.26+ | Manager guide: Data tables (DM-7) | NOT WALKED - pass written; server half is the site agent's, browser half is the operator's | claude
 ```
 
 ## Committed before the next promotion
