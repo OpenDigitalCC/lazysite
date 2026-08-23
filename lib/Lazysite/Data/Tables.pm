@@ -26,6 +26,7 @@ package Lazysite::Data::Tables;
 use strict;
 use warnings;
 use Exporter                   qw(import);
+use Lazysite::Util             qw(log_event);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect
     qw(read_handle write_handle store_path store_diagnosis);
@@ -643,6 +644,19 @@ sub rebuild_table {
     # that confirms "colour" while the rebuild would also drop "size" has not
     # agreed to lose "size" - and a flag saying "yes, destructive" would have
     # let exactly that through.
+    # SM487: A BLOCKED REBUILD IS REFUSED BEFORE CONFIRMATION IS ASKED FOR.
+    # Asking somebody to confirm losing `note` when the rebuild is going to
+    # fail on `when` anyway is a prompt about the wrong thing - and once they
+    # have confirmed, the failure arrives as a rollback they did not expect.
+    # The data has to be fixed first; nothing here can fix it for them.
+    if ( @{ $plan->{blocked} || [] } ) {
+        return _err(
+            "table '$name': the rebuild would fail on the existing rows - "
+                . join( '; ', map { $_->{why} } @{ $plan->{blocked} } ),
+            table => $name, kind => 'blocked', blocked => $plan->{blocked},
+        );
+    }
+
     my %confirmed   = map  { $_ => 1 } @{ $opt{confirm_lost} || [] };
     my @unconfirmed = grep { !$confirmed{$_} } @{ $plan->{lost} };
     if (@unconfirmed) {
@@ -699,7 +713,19 @@ sub rebuild_table {
         1;
     };
     unless ($ok) {
-        my $err = $@ || 'unknown error';
+        # THE DRIVER'S SENTENCE DOES NOT REACH THE OPERATOR. It names an
+        # internal table (`x__rebuild`) and no row, which is the one message
+        # in this feature that did not meet the standard the rest sets. The
+        # pre-flight above now catches every refusal it can predict; what is
+        # left here is the unpredictable - so say that, keep the driver text
+        # for the log, and point at the pre-flight's own language.
+        my $raw = $@ || 'unknown error';
+        log_event( 'ERROR', $name, 'rebuild failed', why => $raw );
+        my $err = ( $raw =~ /NOT NULL constraint failed: \S+__rebuild\.(\w+)/ )
+            ? "a row has no '$1' and the new descriptor requires one"
+            : ( $raw =~ /UNIQUE constraint failed: \S+__rebuild\.(\w+)/ )
+            ? "'$1' is declared unique and an existing value is repeated"
+            : 'the database refused the new shape for the existing rows';
         eval { $dbh->rollback; 1 };
         return _err(
             "table '$name': the rebuild failed and was rolled back - $err. "

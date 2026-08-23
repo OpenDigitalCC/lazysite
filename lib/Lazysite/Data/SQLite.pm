@@ -49,6 +49,7 @@ use Exporter qw(import);
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
     unique_index_sql unique_index_name duplicate_value_sql
     insert_sql update_sql delete_sql select_sql key_list_sql
+    null_count_sql column_values_sql
     observed_schema add_column_sql backfill_sql table_has_rows
     last_insert_key);
 
@@ -216,6 +217,28 @@ sub unique_index_sql {
 # One statement rather than one per row: 200 rows is 200 round trips to learn
 # one fact. Here, not in Tables.pm, because every construct that RUNS lives
 # behind the adapter pair (D11).
+# SM487: how many rows would a tightened constraint refuse? Asked BEFORE a
+# rebuild copies rows into the new shape, because the copy is one INSERT ...
+# SELECT and a NOT NULL that one row violates fails the whole statement with a
+# message naming an internal table and no row. Counting first lets the
+# pre-flight say "2 rows have no `when`" instead.
+sub null_count_sql {
+    my ( $d, $field ) = @_;
+    die 'null_count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my $col = _ident($field);
+    return "SELECT COUNT(*) FROM " . _ident( $d->{table} ) . " WHERE $col IS NULL";
+}
+
+# Every distinct non-null value of one column, for a type-narrowing check the
+# database cannot make itself: whether "abc" is a valid integer is Value.pm's
+# question, so the values come out and are coerced one by one.
+sub column_values_sql {
+    my ( $d, $field ) = @_;
+    die 'column_values_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my $col = _ident($field);
+    return "SELECT DISTINCT $col FROM " . _ident( $d->{table} ) . " WHERE $col IS NOT NULL";
+}
+
 sub key_list_sql {
     my ($d) = @_;
     die 'key_list_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};

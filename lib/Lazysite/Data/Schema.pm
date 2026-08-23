@@ -51,6 +51,7 @@ use Exporter qw(import);
 use Lazysite::Data::SQLite
     qw(create_table_sql index_sql column_type add_column_sql backfill_sql
     unique_index_sql unique_index_name duplicate_value_sql
+    null_count_sql column_values_sql
     observed_schema table_has_rows);
 use Lazysite::Data::Value qw(coerce_field);
 
@@ -298,8 +299,72 @@ sub plan_rebuild {
         { sql => qq{ALTER TABLE "$tmp" RENAME TO "$table"}, why => "rename $tmp into place" },
     );
 
+    # SM487: THE PRE-FLIGHT CHECKS THE DATA, NOT JUST THE COLUMNS.
+    #
+    # This used to report only @lost - the columns that would be dropped - and
+    # the field agent watched it name the wrong risk: the prompt warned about
+    # losing `note`, they confirmed `note`, and the rebuild FAILED on a null
+    # `when` that the new descriptor had made required. The copy is one INSERT
+    # ... SELECT; the first row that cannot satisfy a tightened constraint
+    # fails the whole statement, and the error named an internal table and no
+    # row. A confirmation that names a risk which is not the one that will
+    # bite trains an operator to confirm without reading.
+    #
+    # So for every carried column, ask what the EXISTING rows would do against
+    # the NEW constraint, and report it with a count - "2 rows have no `when`"
+    # is the useful sentence. Three ways a carried column can refuse:
+    #
+    #   required   rows where it is NULL
+    #   unique     a value already in more than one row
+    #   narrowed   a stored value the new type will not coerce - which only
+    #              Value.pm can judge, so the distinct values come out and go
+    #              through coerce_field one at a time
+    my @blocked;
+    require Lazysite::Data::Value;
+    for my $f (@carry) {
+        my $spec = $d->{fields}{$f} or next;    # timestamps carry no spec
+        my $have = $observed->{columns}{$f};
+
+        if ( $spec->{required} && !$have->{notnull} ) {
+            my ($n) = eval { $dbh->selectrow_array( null_count_sql( $d, $f ) ) };
+            push @blocked, { field => $f, rule => 'required', rows => 0 + ( $n // 0 ),
+                why => "$n row" . ( $n == 1 ? ' has' : 's have' )
+                    . " no '$f', and the new descriptor makes it required. "
+                    . 'Fill them in, or leave the field optional' }
+                if $n;
+        }
+
+        if ( grep { $_ eq $f } @{ $d->{unique} || [] } ) {
+            my $dup = eval {
+                my $r = $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) );
+                $r ? $r->[0] : undef;
+            };
+            push @blocked, { field => $f, rule => 'unique',
+                why => "'$f' cannot be made unique: the value '$dup' is in "
+                    . 'more than one row already' }
+                if defined $dup;
+        }
+
+        my $want_type = column_type($spec);
+        if ( uc( $have->{type} // '' ) ne uc($want_type) ) {
+            my $vals = eval { $dbh->selectcol_arrayref( column_values_sql( $d, $f ) ) } || [];
+            my @bad;
+            for my $v ( @{$vals} ) {
+                my ($why) = Lazysite::Data::Value::coerce_field( $f, $spec, $v );
+                push @bad, $v if defined $why;
+                last if @bad >= 3;
+            }
+            push @blocked, { field => $f, rule => 'type', examples => \@bad,
+                why => "'$f' is becoming $spec->{type}, and stored values "
+                    . 'will not convert: ' . join( ', ', map { "'$_'" } @bad )
+                    . ( @{$vals} > 3 ? ' ...' : '' )
+                    . '. Fix those rows first' }
+                if @bad;
+        }
+    }
+
     return { ok => 1, table => $table, steps => \@steps,
-        carried => \@carry, lost => \@lost };
+        carried => \@carry, lost => \@lost, blocked => \@blocked };
 }
 
 1;
