@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM491 resolved (PENDING) **whoami says which of the grant's doors can reach
+  each capability.** An agent with analytics:true and mcp:false tried an
+  action name guessed from the capability, was refused namelessly, and
+  concluded the capability had no surface - while the API route existed as
+  analyse_visitors the whole time. Both whoamis (API and MCP, one shared
+  derivation) now carry `reachable`: per held capability, the channels of
+  THIS grant that reach it and the channels that would but are off - derived
+  from the unlocks map, so a capability that gains or loses a surface changes
+  the answer without anybody remembering to.
+
 - SM438 resolved (PENDING) **updating a mirrored theme asset over WebDAV was a
   silent no-op.** Filed deliberately without a cause; the settling test the
   filing specified was run and it is outcome (a): the write was REDIRECTED.
