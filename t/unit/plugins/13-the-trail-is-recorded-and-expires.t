@@ -40,8 +40,40 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_url: https://d.example.io\nfirst_party_analytics: on\n";
 close $cf;
 
-my $ymd = do { my @t = gmtime; sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3] };
+# THE FIXTURE MUST NOT STRADDLE A UTC MIDNIGHT, and it did.
+#
+# Events are timestamped up to 5400 seconds (90 minutes) in the past, while the
+# log file and the expected trail file were both named from `gmtime` at the
+# moment of the call. Run this between 00:00 and 01:30 UTC and the events fall
+# on YESTERDAY while the assertions look for TODAY's file - so the test fails
+# for ninety minutes a day and passes for the other twenty-two and a half
+# hours.
+#
+# It cost a full coverage measurement to find. The run started at 00:51, this
+# file BAIL_OUTed, and prove stops the whole suite on a bail - so eighty-four
+# later files never ran and every one of their coverage numbers was missing
+# from the report. Nothing about it looked like a clock problem.
+#
+# Anchored instead: if the current UTC time-of-day is inside the danger window,
+# the whole fixture moves back into the previous day, where 90 minutes of
+# events cannot cross anything. Every date below derives from $now, so they
+# cannot disagree with each other again.
 my $now = time();
+{
+    my @g   = gmtime($now);
+    my $sod = $g[2] * 3600 + $g[1] * 60 + $g[0];
+    $now -= ( $sod + 60 ) if $sod < 5400 + 600;    # the oldest event, plus slack
+}
+my $ymd = do { my @t = gmtime($now); sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3] };
+
+# SELF-CHECK, because the whole failure was two dates that were computed
+# separately and silently disagreed. If this ever fails, the fixture is
+# straddling again and nothing below it means anything.
+{
+    my $a = do { my @t = gmtime($now);        sprintf '%04d%02d%02d', $t[5]+1900, $t[4]+1, $t[3] };
+    my $b = do { my @t = gmtime($now - 5400); sprintf '%04d%02d%02d', $t[5]+1900, $t[4]+1, $t[3] };
+    is( $a, $b, 'the fixture does not straddle a UTC midnight' );
+}
 open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;
 
 # Every event is aged well past SESSION_GAP so the visits are CLOSED by the
@@ -77,8 +109,10 @@ my $cmd = qq{DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export --window 30};
 my $out = `$cmd 2>/dev/null`;
 ok( length $out, 'the export ran' );
 
+# FROM $now, NOT FROM A FRESH gmtime. The two used to be computed
+# independently and were the pair that disagreed.
 my $file = "$d/lazysite/stats/trails/"
-    . do { my @t = gmtime; sprintf '%04d-%02d-%02d', $t[5] + 1900, $t[4] + 1, $t[3] }
+    . do { my @t = gmtime($now); sprintf '%04d-%02d-%02d', $t[5] + 1900, $t[4] + 1, $t[3] }
     . '.json';
 ok( -f $file, 'a trail file was written for today' )
     or BAIL_OUT('no trail file - nothing below can be judged');

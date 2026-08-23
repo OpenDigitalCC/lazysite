@@ -32,9 +32,23 @@ LOCK="$ROOT/.coverage.lock"
 if command -v flock >/dev/null 2>&1; then
     exec 9>"$LOCK"
     if ! flock -n 9; then
-        echo "coverage: another run holds $LOCK - refusing to share cover_db." >&2
-        echo "  Wait for it, or stop it first. Two runs corrupt each other's" >&2
-        echo "  results and report every CGI as NOT MEASURED." >&2
+        echo "coverage: $LOCK is held - refusing to share cover_db." >&2
+        echo "  Two runs corrupt each other's results and report every CGI as" >&2
+        echo "  NOT MEASURED." >&2
+
+        # NAME THE HOLDER. "Another run holds it" is a guess, and it was wrong
+        # the one time it mattered: the holder was a leaked lazysite-server.pl
+        # from a test fixture, four and a half hours old, with no coverage run
+        # anywhere. `exec 9>` leaves the fd inheritable, so every process
+        # forked during a run gets it, and one that outlives the run holds the
+        # lock for ever. Being told to "wait for it, or stop it first" sends
+        # you looking for a coverage run that does not exist.
+        for _p in /proc/[0-9]*; do
+            [ -d "$_p/fd" ] || continue
+            if ls -l "$_p/fd" 2>/dev/null | grep -q "$(basename "$LOCK")"; then
+                echo "  held by pid ${_p#/proc/}: $(tr '\0' ' ' < "$_p/cmdline" 2>/dev/null | cut -c1-100)" >&2
+            fi
+        done
         exit 2
     fi
 fi
@@ -88,7 +102,18 @@ fi
 # contention.
 JOBS=${LAZYSITE_COVER_JOBS:-4}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
-PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,/t/,+ignore,Devel" \
+# `+ignore,^/tmp/` KEEPS THE INSTRUMENT OUT OF EPHEMERAL COPIES.
+#
+# Several fixtures copy a CGI into a tempdir and run it there. Instrumenting
+# those copies measures nothing useful - the floor file already excludes
+# tempdir-split files from the gate - and it actively BREAKS them: Devel::Cover
+# emits "Deleting old coverage for changed file /tmp/.../lazysite-processor.pl"
+# when a temp path is reused with different content, the processor produces no
+# CGI response, and the product code correctly reports "returned no CGI
+# response" for a fault that exists only under measurement.
+#
+# A measuring instrument that changes the thing it measures is not measuring it.
+PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore,/t/,+ignore,Devel" \
     prove -l -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
 
 # `&& ... || ...` RATHER THAN A BARE `$?`, because this file runs under
