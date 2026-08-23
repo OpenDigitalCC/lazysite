@@ -178,6 +178,9 @@ that is applied below, so nothing is built twice:
     DM-4  CSV import: staged validate/diff/confirm.       [DM-2; CSV decision]
     DM-5  descriptor editor + destructive-migration UI.   [DM-1, DP-5]
     DM-6  spreadsheet ergonomics.                         [DM-3, DM-4]
+          DEFERRED 2026-08-23 by decision: the brief's own test is
+          whether the CSV round trip proves insufficient in use, and
+          nothing has been used yet. Revisit on an operator report.
     DM-7  consolidated operator-docs pass + manual-check walk.
           Docs pass DONE 2026-08-23; the walk is WRITTEN (Task 5 in
           MANUAL-CHECKS-WALKTHROUGH) and needs a deployed build to run.

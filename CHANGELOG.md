@@ -44,6 +44,106 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.10.27 - EDGE: the data manager, and a table that can finally be removed (2026-08-23)
+
+The manager half of the typed-data plan. An operator can now see a table, read
+and download it, edit its rows, import a spreadsheet back into it, edit its
+descriptor, and see what a migration would do before doing it. The intended
+v1 scope - DP-1..4 plus DM-1..4 - is complete, and DM-5 and DM-7 with it.
+DM-6 (in-grid ergonomics) is deferred by decision: the brief's own test for it
+is whether the CSV round trip proves insufficient in use, and nothing has been
+used yet.
+
+Two of the field agent's findings from 0.10.26 are fixed here, and one of them
+- a read list silently discarded with every signal saying protected - is the
+reason this cut should go to edge promptly.
+
+- DM-7 (b466fbd) **the operator docs pass, and the walk that cannot be run
+  from here.** `MANUAL-CHECKS.md` says why the Data tables page is out of the
+  gate's reach, and the walkthrough gains Task 5 - ten steps from an undeclared
+  table to a spreadsheet round trip, a blocked rebuild with its row count, and
+  a drop. The register row says **not walked**: the manager has no browser
+  harness, and the register's own rule is that a pass nobody took is not
+  recorded as one. It needs this build deployed.
+
+- DM-5 (676523c) **an operator can edit a descriptor and see what migrating
+  would do.** Edited as text, deliberately - a form regenerating the file would
+  save one the operator did not write, comments and all, so the source
+  round-trips byte for byte. `data-migrate` planned and applied in one call; a
+  new `data-migrate-plan` applies nothing, and when a step is blocked it asks
+  the rebuild pre-flight too, so SM487's *"1 row has no 'when'"* is read at
+  decision time rather than as a rollback after confirming.
+
+- SM487 resolved (88f7c78) **the rebuild pre-flight named a risk that was not
+  the one that bit.** The prompt warned about losing `note`; the operator
+  confirmed; the rebuild failed on a row with no `when`, with a driver string
+  naming an internal table and no row. The pre-flight only considered dropped
+  columns. It now counts NULLs against a new `required`, names a repeated value
+  against a new `unique`, and runs stored values through `Value.pm` for a
+  narrowed type - because only `Value.pm` knows that `"ten"` is not an integer.
+  A blocked rebuild is refused **before** confirmation is asked for, since no
+  confirmation can fix data.
+
+- DM-4 (924be05) **a CSV import validates everything, shows the plan, then
+  commits - or nothing.** One bad row refuses the whole file, naming the row
+  as the spreadsheet numbers it. An empty cell means *not sent*, so a stored
+  value survives a blank. The export-import round trip is asserted
+  byte-identical, and the formula guard comes off on the way in so it cannot
+  accumulate.
+
+- DM-3 (0f68603) **an operator can add, edit and delete a row - and a re-key is
+  refused.** The editor is built from the descriptor and decides nothing about
+  validity: it sends what was typed and points at the field the server names.
+  It found a defect: an update carrying a new key returned `ok:1` and silently
+  discarded the key while applying the rest. Now refused, naming the field and
+  saying how to move a row.
+
+- SM486 resolved (faec722) **a feature-test page put itself in customers'
+  sitemaps.** Four of nine live sites served `/lazysite-demo` publicly, one
+  under the client's own name and offered to search engines - it declared
+  `register: [llms.txt, sitemap.xml]` and did as told. Demonstration pages no
+  longer register themselves, every starter page declares `starter_role`, and
+  the separable-folder proposal stays open on its own merits because a folder
+  marked deletable would invite deleting the file that switches search on.
+
+- Register hygiene (939bd71) **every partial closed.** Seven filings carried
+  `status: partial`; four were stale and are shipped, three were real and are
+  refiled as SM483, SM484 and SM485 so each has an owner.
+
+- SM482 resolved (75352b6) **an alias redirect kept the path and threw away
+  the parameters.** On cloudient.net the query string *was* the payload - the
+  affected customer's URL - and the alias discarded it while fixing the 404.
+  Every redirect now carries the query through, joined with `&` to any the
+  alias target already has, CR/LF stripped.
+
+- SM481 resolved (1a5ec58) **the engine knew why the page was empty, and told
+  nobody who could read it.** SM476's "not published" diagnostic fired - to
+  stderr, the web server's error log, which an agent over MCP cannot reach. It
+  is now answered in `validate_page`, where the author is already looking,
+  with the sentence that would have saved the afternoon: *the API and the
+  manager still read it, so the page looks broken and the data looks fine.*
+
+- SM479 resolved (2eeb695) **acl-set discarded a read list and reported
+  success.** A `read` sent in the query string was dropped silently while a
+  `path` in the body had been refused since SM306 - one direction guarded, the
+  other not. The reply said `ok:1` and *content moved out of the document
+  root*; the page stayed public. All four lists in the query are now refused,
+  and a rule with no read list says plainly that anyone may still fetch the
+  pages.
+
+- DM-2 (602e135) **the table as a file, in the format that fits the job.**
+  Typed JSON is exact and goes back in; CSV is for a spreadsheet, and cells a
+  spreadsheet would run as formulas are prefixed and counted, because since
+  DP-4 rows can arrive from a public form.
+
+- DM-1 (20066da) **an operator can see a table.** The listing answers the two
+  questions somebody actually has - can anyone see it, is it real yet - and
+  the nav gates on plugin-enabled *and* capability, which mean different
+  things.
+
+**Not in this build:** SM480, the table drop, which is on a branch awaiting
+review. A table declared on 0.10.27 still cannot be removed from it.
+
 ## 0.10.26 - EDGE: the data plugin becomes usable, and its second door gets a lock (2026-08-22)
 
 - DP-3b (c3d6c5b) **the helper that makes `mode=live` and `mode=client` mean
