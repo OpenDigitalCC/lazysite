@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- Task 5 (c1f30b7) **the data-tables walk says which half is the agent's and
+  which is the operator's.** The site agent corrected the premise: a
+  manager-UI walk is a cookie session, which a partner token is excluded from
+  by design. The agent declares the table and does the server-side checks;
+  the operator's run starts at step 3. The register row records the split.
+  Landed after 0.10.27's pre-cut pass, so it is the first item of the next
+  cut rather than a late addition to this one.
+
 ## 0.10.27 - EDGE: the data manager, and a table that can finally be removed (2026-08-23)
 
 The manager half of the typed-data plan. An operator can now see a table, read
