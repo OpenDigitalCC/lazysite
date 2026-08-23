@@ -25,12 +25,12 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Plugins ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
-    insert_row update_row delete_row descriptor_dir rebuild_table);
+    insert_row update_row delete_row descriptor_dir rebuild_table export_all_rows);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
-    action_data_table_save action_data_rebuild);
+    action_data_table_save action_data_rebuild action_data_export);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -253,6 +253,64 @@ sub action_data_rows {
 # Returns `blocked` as well as `applied`, and the caller must show both: the
 # blocked list is the operator's account of why their column is not there yet,
 # and dropping it would leave them believing the migration succeeded.
+# DM-2: the table as a file.
+#
+# TWO FORMATS, FOR TWO DIFFERENT JOBS, and the difference is worth stating
+# rather than leaving somebody to discover:
+#
+#   json  exact. Types survive, NULL and empty stay distinct, a decimal keeps
+#         its trailing zeros. This is the one that goes back in.
+#   csv   for the spreadsheet a person actually works in. No types, no null,
+#         and cells that could be read as formulas are altered to make them
+#         safe. Useful, and not an interchange format.
+#
+# STREAMED AS AN ATTACHMENT rather than returned as JSON-in-JSON: a download an
+# operator has to copy out of a response body is not a download.
+sub action_data_export {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $format ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+
+    # EVERY row, not read_rows' capped page. A download that silently stopped
+    # at the read ceiling would be a backup missing rows nobody was told about.
+    my $all = export_all_rows( $DOCROOT, $table );
+    return $all unless $all->{ok};
+
+    $format = lc( $format // 'json' );
+    my ( $body, $type, $ext, $note );
+
+    if ( $format eq 'csv' ) {
+        require Lazysite::Data::Csv;
+        my $guarded;
+        ( $body, $guarded ) = Lazysite::Data::Csv::to_csv( $d, $all->{rows} );
+        $type = 'text/csv; charset=utf-8';
+        $ext  = 'csv';
+        $note = $guarded ? "$guarded cell(s) prefixed to disarm formulas" : '';
+    }
+    elsif ( $format eq 'json' ) {
+        require Lazysite::Data::Export;
+        my $export = Lazysite::Data::Export::export_table( $d, $all->{rows} );
+        $body = Lazysite::Data::Export::to_json($export);
+        $type = 'application/json; charset=utf-8';
+        $ext  = 'json';
+    }
+    else {
+        return { ok => 0,
+            error => "'$format' is not a format - they are json and csv" };
+    }
+
+    log_event( 'INFO', $table, 'data table downloaded',
+        format => $format,
+        rows   => scalar @{ $all->{rows} || [] },
+        ( $note ? ( note => $note ) : () ) );
+
+    return { ok => 1, streamed_body => $body, content_type => $type,
+        filename => "$table.$ext", ( $note ? ( note => $note ) : () ) };
+}
+
 sub action_data_migrate {
     if ( my $off = _gate() ) { return $off }
     my ($table) = @_;

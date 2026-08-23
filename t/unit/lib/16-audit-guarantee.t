@@ -212,6 +212,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         site-export-primary form-submission-delete
         form-submission-confirm form-submissions-delete-bulk
         data-migrate data-row-save data-row-delete data-table-save data-rebuild
+        data-export
     );
 
     # SM447 note, OUTSIDE the qw() because qw() has no comments - a `#` inside
@@ -221,6 +222,13 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # about, and a row is site data somebody may later dispute. The three data
     # READS are in the %skip list instead - an audit of who LOOKED at a table
     # would bury the entries recording who changed one.
+    #
+    # DM-2's data-export is audited DESPITE being a read, and the distinction
+    # is not "read versus write" but "a page versus the whole thing". Paging
+    # through data-rows is somebody working; downloading an entire table as a
+    # file is a discrete, deliberate act with a copy of the data at the end of
+    # it. That is the shape of event a trail exists to hold, and there will not
+    # be enough of them to bury anything.
 
     my @unclassified;
     for my $a ( sort keys %dispatch ) {

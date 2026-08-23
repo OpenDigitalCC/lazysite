@@ -141,6 +141,12 @@ my %API_ONLY = (
     # agent door SM231 described - polled, not pushed - and it wants item 2's
     # addressing first, or every agent reads every operator notice.
     'notices' => 'undecided - an MCP twin wants per-notice addressing (SM281 item 2) first',
+    # DM-2: a browser download, and deliberately not a tool. It streams bytes
+    # with Content-Disposition, which is an affordance for a person clicking a
+    # button. An agent has read_data_rows for the rows and site_backup for the
+    # exact typed export, so an MCP twin would hand back a file it has nowhere
+    # to put.
+    'data-export' => 'a file download for a person; an agent has read_data_rows and site_backup',
     'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read' => 'undecided - no MCP twin for site configuration',
     'config-set'  => 'undecided - as config-read',

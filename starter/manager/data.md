@@ -13,6 +13,8 @@ search: false
 <span id="table-count" style="font-size:0.85em;color:#888;"></span>
 </div>
 
+<p style="font-size:0.85em;color:#888;margin:0 0 12px;"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</p>
+
 <div class="mg-file-list" id="table-list">
 <div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
 </div>
@@ -98,10 +100,16 @@ function loadTables() {
         if (t.title && t.title !== name) bits.push(escHtml(t.title));
         bits.push(t.public ? 'published' : 'not published');
         if (t.pending_schema) bits.push('needs migrating');
+        var enc = encodeURIComponent(name);
         html += '<div class="mg-file-item">'
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
-          + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button></span>'
+          + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
+          /* Plain links, not fetch(): a download is a navigation, and letting
+             the browser do it means the file lands where the operator expects
+             instead of being assembled in memory. */
+          + '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=json&amp;table=' + enc + '">JSON</a> '
+          + '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=csv&amp;table=' + enc + '">CSV</a></span>'
           + '</div>';
       }
       list.innerHTML = html;

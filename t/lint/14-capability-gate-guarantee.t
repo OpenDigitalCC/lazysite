@@ -142,6 +142,13 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # anyway. The three data WRITERS - data-migrate, data-row-save,
     # data-row-delete - are in %MUTATING and POST-forced.
     data-tables data-table data-rows
+
+    # DM-2: the download is a READ, and a big one. It returns every row rather
+    # than a capped page, which is worth saying out loud - but the caller
+    # already holds manage_data and could page through data-rows to the same
+    # end, so a CSRF-free GET discloses nothing a session could not already
+    # ask for. It is a GET because a browser download is a navigation.
+    data-export
 );
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

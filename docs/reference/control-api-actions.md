@@ -65,6 +65,7 @@ tone: medium
 `config-set` | manage_config | key (query_or_body), value (query_or_body)
 `copy` | cookie only | path (query), to (query)
 `csrf-token` | cookie only |  
+`data-export` | manage_data | table (query), format (query)
 `data-migrate` | manage_data | table (query)
 `data-rebuild` | manage_data | table (query_or_body), confirm_lost (body)
 `data-row-delete` | manage_data | table (query_or_body), key (query_or_body)

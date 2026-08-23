@@ -189,7 +189,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token
-    data-migrate data-rebuild data-row-delete data-row-save data-rows
+    data-export data-migrate data-rebuild data-row-delete data-row-save data-rows
     data-table data-table-save data-tables
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
@@ -568,6 +568,7 @@ if ( !$token_auth ) {
         'data-row-save'      => 'manage_data', 'data-row-delete' => 'manage_data',
         'data-table-save'    => 'manage_data',
         'data-rebuild'       => 'manage_data',
+        'data-export'        => 'manage_data',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -738,6 +739,7 @@ if ($token_auth) {
         'data-row-save'   => sub { $_[0]->{manage_data} },
         'data-table-save' => sub { $_[0]->{manage_data} },
         'data-rebuild'    => sub { $_[0]->{manage_data} },
+        'data-export'     => sub { $_[0]->{manage_data} },
         'data-row-delete' => sub { $_[0]->{manage_data} },
         'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
         'domain-add'      => sub { $_[0]->{manage_domains} },
@@ -1146,6 +1148,26 @@ elsif ( $action eq 'domain-check' ) {
 }
 elsif ( $action eq 'data-tables' ) {
     $result = Lazysite::Manager::Data::action_data_tables();
+}
+elsif ( $action eq 'data-export' ) {
+    # DM-2: STREAMED, not returned. The action hands back the bytes and the
+    # headers they need; sending them as a JSON field would make the operator
+    # extract their own download from a response body.
+    $result = Lazysite::Manager::Data::action_data_export( $params{table},
+        $params{format} );
+    if ( $result->{ok} && defined $result->{streamed_body} ) {
+        my $body = $result->{streamed_body};
+        ( my $safe = $result->{filename} // 'table.json' ) =~ s/[\r\n";\\]//g;
+        binmode STDOUT, ':raw';
+        print "Status: 200 OK\r\n";
+        print "Content-Type: $result->{content_type}\r\n";
+        print 'Content-Length: ' . length($body) . "\r\n";
+        print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
+        print "Cache-Control: no-store, private\r\n";
+        print "\r\n";
+        print $body;
+        exit 0;
+    }
 }
 elsif ( $action eq 'data-table' ) {
     $result = Lazysite::Manager::Data::action_data_table( $params{table} );

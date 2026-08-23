@@ -67,6 +67,32 @@ Anyone else sees nothing at all.
 The page itself is capability-gated as well as hidden: reaching `/manager/data`
 directly without `manage_data` is refused rather than served.
 
+## Download a table
+
+Where
+: Content -> Data tables -> JSON or CSV
+
+Do
+: Download both formats for a table that has a decimal field, a row with a
+  value left unset and another with it set to empty, and - if you can put one
+  there - a row whose text begins with `=`.
+
+Expect
+: **JSON** is the exact copy: types survive, a decimal keeps its trailing
+  zeros, and unset and empty stay distinguishable. It is the format that goes
+  back in.
+: **CSV** is for the spreadsheet you actually work in. It has no types, cannot
+  tell unset from empty (both are an empty field), and any cell beginning `=`,
+  `+`, `-` or `@` is **prefixed with an apostrophe**. A spreadsheet reads such
+  a cell as a formula and will run it, and since rows can arrive from a public
+  form that is a stranger's content in your spreadsheet. The prefix changes the
+  value, which is the trade: use JSON when you need the data back unaltered.
+
+Negative
+: Neither download is capped at the page size the grid shows. A download that
+  quietly stopped at the read ceiling would be a backup missing rows nobody
+  was told about.
+
 ## What is not here yet
 
 Editing, adding and deleting rows, downloads and CSV import. Rows are written
