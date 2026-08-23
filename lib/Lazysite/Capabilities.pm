@@ -16,7 +16,7 @@ use warnings;
 use JSON::PP                 ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys channel_keys action_keys channel_service action_channel_surface);
+our @EXPORT_OK = qw(describe capability_keys reachability channel_keys action_keys channel_service action_channel_surface);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -440,6 +440,39 @@ sub _holds_why {
 # optionally, groups => [...] and account => "name" to include the "holds" block;
 # docroot => "..." adds the SM225 documentation index. Omit caps for the static
 # model only (e.g. the generated doc).
+# SM491: WHICH OF THIS GRANT'S CHANNELS CAN ACTUALLY REACH EACH CAPABILITY.
+#
+# A capability is a permission; a channel is a door. An account can hold a
+# capability whose every door is shut on a different switch - analytics:true
+# with mcp:false was the field case - and whoami reported a bare `true`,
+# which is not operationally true. The operator saw the grant applied, the
+# agent saw the capability held, and neither could use it.
+#
+# Derived from the `unlocks` map rather than declared, so a capability that
+# gains or loses a surface changes this answer without anybody remembering to.
+# Returns, per capability the account holds, the channels it is reachable on
+# and the channels that would unlock it but are off for this grant.
+sub reachability {
+    my ($settings) = @_;
+    my %out;
+    for my $cap (@CAP_KEYS) {
+        next unless $settings->{$cap};
+        my $u = ( $ACTION_INFO{$cap} || {} )->{unlocks} || {};
+        my ( @via, @shut );
+        for my $ch (qw(api mcp)) {
+            next unless ref $u->{$ch} eq 'ARRAY' && @{ $u->{$ch} };
+            if   ( $settings->{$ch} ) { push @via,  $ch }
+            else                      { push @shut, $ch }
+        }
+        # `ui` is the manager itself; webdav carries no capability-gated
+        # actions of its own. A capability with NO api/mcp surface is a
+        # manager-page capability and reachability is not the question.
+        next unless @via || @shut;
+        $out{$cap} = { via => \@via, ( @shut ? ( requires => \@shut ) : () ) };
+    }
+    return \%out;
+}
+
 sub describe {
     my (%opt) = @_;
     my $T     = JSON::PP::true();

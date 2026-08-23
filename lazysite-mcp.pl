@@ -381,6 +381,10 @@ my %TOOLS = (
             # Echo the full tool list so an agent sees every available tool in one
             # call (the connector loads tools a few at a time, which can hide some).
             return { ok => 1, user => $user, capabilities => $caps,
+                # SM491: the same reachability block the API whoami carries,
+                # from the same derivation - so the two surfaces cannot
+                # disagree about which door is open (SM288).
+                reachable     => Lazysite::Capabilities::reachability($caps),
                 active_layout => $layout, active_theme => $theme,
                 tools         => _tool_names(),
                 # How this session authenticated + when the credential expires
