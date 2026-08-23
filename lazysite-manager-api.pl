@@ -1032,6 +1032,33 @@ elsif ( $action eq 'acl-set' ) {
                 . 'ignored and the rule applied somewhere else. Pass it as '
                 . 'action=acl-set&path=... instead.' };
     }
+
+    # SM479: AND THE SAME MISTAKE IN THE OTHER DIRECTION, which was not
+    # refused and cost far more.
+    #
+    # The branch above catches a path sent in the body. A LIST sent in the
+    # QUERY was silently discarded, and the call still returned ok:1 with
+    # `content_moved` - so a caller who asked for a folder to be restricted was
+    # told it had succeeded, watched the content move out of the document root,
+    # and served the page to the public. The field agent tried seven spellings
+    # and every one reported success; the rule stayed owner-only, which
+    # restricts no reads at all.
+    #
+    # Every signal available to them said protected. That is worse than an
+    # unimplemented parameter, and it is why this refuses rather than warns.
+    elsif ( my @misrouted = grep { exists $params{$_} }
+        qw(read write owner draft) )
+    {
+        $result = { ok => 0,
+            kind  => 'misrouted-argument',
+            error => 'acl-set reads its lists from the JSON request body, not '
+                . 'the query string, so '
+                . join( ' and ', map { "\"$_\"" } @misrouted )
+                . ' would have been ignored and the rule written without it. Send the path in the '
+                . 'query and the lists in the body: '
+                . 'action=acl-set&path=/section with '
+                . '{"read":["' . '@' . 'team"]}.' };
+    }
     else {
         # SM465: capture the rule BEFORE the change, so the audit entry can say
         # what it became AND what it stopped being. The interval between two

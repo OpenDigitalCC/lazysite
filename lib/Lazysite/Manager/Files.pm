@@ -1658,10 +1658,32 @@ sub action_acl_set {
         . '(open_file_cache_valid). The engine serves nothing from the old path '
         . 'from now on; nothing needs changing on the front end.';
 
+    # SM479: SAY WHEN THE RULE RESTRICTS NO READS, because the rest of this
+    # reply reads like confirmation that it does.
+    #
+    # An entry with an owner and no read list is a legitimate rule - it governs
+    # WRITES and leaves reading open, and that is documented. But paired with
+    # `content_moved` it produces a reply in which every visible signal says
+    # protected: ok:1, an acl object, and a note about content leaving the
+    # document root. The field agent read exactly that and the page was public.
+    #
+    # So the reply says so plainly, in its own field rather than in `warnings`
+    # - nothing went wrong, and a caller filtering warnings for failures should
+    # not find this there. It is the same reasoning content_moved_note is
+    # written under, two paragraphs up.
+    my $reads_open = !( ref $rec{read} eq 'ARRAY' && @{ $rec{read} } );
+
     return { ok => 1, path => $rel, acl => \%rec,
         content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
         ( $CONTENT_MOVED ? ( content_moved_note => $moved_note ) : () ),
-        ( @warnings      ? ( warnings => \@warnings )            : () ) };
+        ( $reads_open
+            ? ( reads_unrestricted => 1,
+                reads_unrestricted_note => 'this rule does not restrict '
+                    . 'READING: it has no read list, so anyone may still fetch '
+                    . "these pages. Pass a read list in the request body - "
+                    . '{"read":["' . '@' . 'team"]} - to gate them.' )
+            : () ),
+        ( @warnings ? ( warnings => \@warnings ) : () ) };
 }
 
 # SM267 (carved out of SM181): what is held back right now.
