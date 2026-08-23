@@ -1800,6 +1800,57 @@ sub _validate_page {
         push @issues, { kind => 'raw-html-page', message => $raw };
     }
 
+    # SM481: A `db:` BINDING THAT WILL RENDER NOTHING SAYS SO, HERE.
+    #
+    # The engine already logs the reason - "it may not be published (set
+    # public: true) or this visitor may not be allowed to read it" - and it
+    # logs it to STDERR, which on a real install is the web server's error log.
+    # An agent working over MCP cannot read that, and a site agent lost an
+    # afternoon to a page rendering zero rows while the API returned three from
+    # the same table at the same moment. They said it exactly right: nothing in
+    # the empty result said "this table is not published".
+    #
+    # A diagnostic the person who needs it cannot reach is not a diagnostic. So
+    # it is answered where they are already looking, and STATICALLY - the
+    # descriptor says whether a visitor would see anything, without rendering.
+    #
+    # Read from the front-matter TEXT rather than the parsed hash: tt_page_var
+    # is nested, _parse_fm is deliberately flat, and a checker that silently saw
+    # no bindings would be a check that always passes.
+    for my $line ( split /\n/, ( $fm // '' ) ) {
+        next unless $line =~ /:\s*db:([a-z][a-z0-9_]*)/;
+        my $table = $1;
+        my $d     = eval {
+            require Lazysite::Data::Tables;
+            Lazysite::Data::Tables::load_table( $DOCROOT, $table );
+        };
+        unless ( ref $d eq 'HASH' ) {
+            push @warnings, { kind => 'db-binding-unchecked',
+                message => "could not check the table '$table' - the data "
+                    . 'modules are not available here' };
+            next;
+        }
+
+        unless ( $d->{ok} ) {
+            push @issues, { kind => 'db-table-missing',
+                message => "this page binds db:$table, and $d->{error}. The "
+                    . 'binding will render nothing.' };
+            next;
+        }
+
+        # THE ONE THAT COST THE AFTERNOON. An unpublished table answers a
+        # visitor exactly as a table that was never declared does - which is
+        # deliberate, and is why nothing on the page could say which it was.
+        unless ( $d->{public} ) {
+            push @issues, { kind => 'db-table-not-published',
+                message => "this page binds db:$table, which is NOT PUBLISHED. "
+                    . 'An anonymous visitor sees no rows and no sign the table '
+                    . 'exists, while the API and the manager still read it - so '
+                    . 'the page looks broken and the data looks fine. Add '
+                    . "public: true to the $table descriptor." };
+        }
+    }
+
     # Form-field rules (catch typos/unsupported rules before publish).
     if ( $content =~ /:::\s*form\b(.*?):::/s ) {
         for my $line ( split /\n/, $1 ) {
