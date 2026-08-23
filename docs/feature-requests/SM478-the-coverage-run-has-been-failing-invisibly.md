@@ -73,6 +73,32 @@ SM478: the harness failed to supply what the *other* harness does.
 Either way the harness was testing itself, and in both cases the symptom
 appeared in the product rather than in the harness.
 
+# What the measurement then found in the product
+
+Getting one clean instrumented run took four attempts, and each obstacle was a
+real defect rather than an inconvenience:
+
+```datatable
+columns: What stopped it | What it actually was
+widths: 6.4cm | X
+bold: 1
+tone: medium
+---
+Eleven files "missing modules" | `coverage.sh` ran `prove -r`, not `-lr`
+`users.pl` at 59% | one `BAIL_OUT` stopped the whole suite; 84 files never ran
+A test failing at 00:51 | a fixture that straddles UTC midnight for 90 minutes a day
+"processor returned no CGI response" | Devel::Cover instrumenting tempdir copies of a CGI it then broke
+A control asserting a stampede | instrumentation serialises the processes it needs to collide
+`id=lazysite` missing from the plugin list | a 2-second `--describe` budget, and a plugin that overruns is dropped **in silence**
+```
+
+The last one is a product defect in its own right and would never have been
+found any other way. `action_plugin_list` gives each plugin two seconds to
+describe itself and drops it with `next if $@` -- nothing written anywhere. On
+a loaded host an operator watches a plugin vanish from the Plugin Manager with
+no way to discover why. It now says so in the log, and the budget scales under
+instrumentation, because measurement must not change behaviour.
+
 # What else was fixed alongside
 
 - `coverage.sh` no longer discards the suite's output or swallows its exit

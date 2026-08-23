@@ -183,11 +183,34 @@ sub action_plugin_list {
         my $full = $reg->{$rel};
         next unless -f $full && -r $full;
 
+        # A PLUGIN THAT OVERRUNS IS DROPPED, AND IT USED TO BE DROPPED IN
+        # SILENCE. `next if $@` removed it from the Plugin Manager with nothing
+        # written anywhere - so on a loaded host an operator watches a plugin
+        # disappear from the list and has no way at all to find out why. Two
+        # seconds is a generous budget for a --describe and a mean one for a
+        # host under load.
+        #
+        # THE BUDGET SCALES UNDER MEASUREMENT. Devel::Cover makes every
+        # subprocess start far slower than two seconds, so an instrumented run
+        # dropped lazysite-processor.pl from its own plugin list - the
+        # instrument changing the thing it measures, exactly as the tempdir
+        # instrumentation did. It is the same principle: measurement must not
+        # alter behaviour.
+        my $budget
+            = ( $INC{'Devel/Cover.pm'}
+                || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/ ) ? 30 : 2;
+
         local $SIG{ALRM} = sub { die "timeout\n" };
-        alarm(2);
+        alarm($budget);
         my $json = eval { qx($^X \Q$full\E --describe 2>/dev/null) };
         alarm(0);
-        next if $@ || !$json;
+        if ( $@ || !$json ) {
+            log_event( 'WARN', 'plugin-list',
+                'a plugin did not describe itself in time and is not listed',
+                plugin => $rel,
+                why    => ( $@ ? "no answer within ${budget}s" : 'empty answer' ) );
+            next;
+        }
 
         my $desc = eval { decode_json($json) };
         next unless $desc && ref $desc eq 'HASH' && $desc->{id};
