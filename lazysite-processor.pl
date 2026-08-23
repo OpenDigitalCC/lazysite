@@ -2651,7 +2651,33 @@ sub main {
         # aliases -> aliases.json). Strip CR/LF from the Location header (no
         # header injection) and HTML-escape it in the body (no reflected XSS).
         ( my $loc = $canon ) =~ s/[\r\n]//g;
-        my $canon_h = _esc_html($canon);
+
+        # SM482: THE QUERY STRING TRAVELS WITH THE REDIRECT.
+        #
+        # It was dropped, and on a live hosting site that discarded the only
+        # thing the URL was carrying: a customer whose service is down lands on
+        # `/forms/service-report.shtml?https://their-site/`, and the page reads
+        # the query string to say WHICH service. The alias resolved the path
+        # and threw the payload away, so the form no longer knew what it was
+        # reporting on.
+        #
+        # A redirect that keeps the path and discards the parameters is not the
+        # same URL: `?page=3`, `?utm_source=...`, a search term and a session
+        # marker all vanish, and every one of them is somebody's link. This is
+        # what a 301 is expected to preserve, and every other redirect in this
+        # file already does.
+        #
+        # THE ALIAS TARGET MAY CARRY ITS OWN QUERY, since it is an author's
+        # front-matter string. When it does, the request's parameters are
+        # APPENDED to it rather than replacing it - the author's are part of
+        # where they are sending people, and the visitor's are what they
+        # brought with them.
+        if ( defined $ENV{QUERY_STRING} && length $ENV{QUERY_STRING} ) {
+            ( my $qs = $ENV{QUERY_STRING} ) =~ s/[\r\n]//g;
+            $loc .= ( $loc =~ /\?/ ? '&' : '?' ) . $qs;
+        }
+
+        my $canon_h = _esc_html($loc);
         print "Status: $code $phrase\r\n";
         print "$_\r\n" for _security_headers();    # SM381
         print "Location: $loc\r\n";
