@@ -52,7 +52,8 @@ our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
     insert_sql update_sql delete_sql select_sql key_list_sql
     null_count_sql column_values_sql drop_table_sql
     observed_schema add_column_sql backfill_sql table_has_rows
-    last_insert_key);
+    last_insert_key count_sql
+);
 
 # Re-assert the identifier rule at the point of interpolation.
 #
@@ -390,6 +391,26 @@ sub delete_sql {
 # LIMIT IS BOUND rather than interpolated, and always present. An unbounded
 # select against a table an agent has been filling is how a page renders for a
 # minute; the caller may raise the ceiling but cannot remove it.
+# SM502 U-1: the total behind a limited page. Same descriptor, same WHERE
+# rules as select_sql, no order or limit - the number the pager needs.
+sub count_sql {
+    my ( $d, %opt ) = @_;
+    die 'count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my $table  = _ident( $d->{table} );
+    my $fields = $d->{fields};
+    my ( @where, @binds );
+    my $filter = $opt{where} || {};
+    for my $f ( sort keys %{$filter} ) {
+        die "count_sql: '$f' is not a field of '$d->{table}'"
+            unless exists $fields->{$f} || $f eq $d->{key};
+        if ( defined $filter->{$f} ) { push @where, _ident($f) . ' = ?'; push @binds, $filter->{$f} }
+        else                         { push @where, _ident($f) . ' IS NULL' }
+    }
+    my $sql = "SELECT COUNT(*) FROM $table";
+    $sql .= ' WHERE ' . join( ' AND ', @where ) if @where;
+    return ( $sql, \@binds );
+}
+
 sub select_sql {
     my ( $d, %opt ) = @_;
     die 'select_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};

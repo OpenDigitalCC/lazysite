@@ -33,7 +33,7 @@ use Lazysite::Data::Connect
 use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
 use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
-    qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key
+    qw(select_sql count_sql insert_sql update_sql delete_sql observed_schema last_insert_key
     key_list_sql history_table_sql history_insert_sql history_rows_sql);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
@@ -204,7 +204,14 @@ sub read_rows {
     my $rows = eval { $dbh->selectall_arrayref( $sql, { Slice => {} }, @{$binds} ) };
     return _err( "table '$name': the query failed - $@", table => $name ) if $@;
 
-    return { ok => 1, table => $name, rows => $rows || [] };
+    # SM502 U-1: the listing knows its total. select_sql has ALWAYS capped at
+    # 200 rows by default, so a big table silently showed one page with
+    # nothing saying so - the reply now carries the count behind the page.
+    my ( $csql, $cbinds ) = count_sql( $d, where => $opt{where} );
+    my ($total) = eval { $dbh->selectrow_array( $csql, undef, @{$cbinds} ) };
+    $total = scalar @{ $rows || [] } unless defined $total;
+
+    return { ok => 1, table => $name, rows => $rows || [], total => 0 + $total };
 }
 
 # Bring the store into line with the descriptor, as far as is safe.

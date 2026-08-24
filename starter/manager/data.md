@@ -10,6 +10,7 @@ search: false
 
 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
 <button class="mg-btn" onclick="loadTables()">Refresh</button>
+<button class="mg-btn" onclick="declareTable()">Declare a table&hellip;</button>
 <span id="table-count" style="font-size:0.85em;color:#888;"></span>
 </div>
 
@@ -25,6 +26,10 @@ search: false
   <div style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <button class="mg-btn mg-btn-primary" id="row-add-btn" onclick="openEditor(null)">Add a row</button>
     <label class="mg-btn" style="cursor:pointer;">Import CSV&hellip;<input type="file" id="import-file" accept=".csv,text/csv" style="display:none;" onchange="planImport()"></label>
+    <span id="rows-pager" style="display:none;margin-left:auto;">
+      <button class="mg-btn" id="rows-prev" onclick="pageRows(-1)">&larr; Prev</button>
+      <button class="mg-btn" id="rows-next" onclick="pageRows(1)">Next &rarr;</button>
+    </span>
   </div>
 
   <!-- DM-4: THE IMPORT IS STAGED. The file is sent once for a PLAN, which
@@ -186,9 +191,22 @@ function loadTables() {
     .catch(function(e) { showStatus('Could not load tables: ' + e, true); });
 }
 
-function loadRows(table) {
+var PAGE = { size: 200, page: 0, total: 0 };
+
+function pageRows(step) {
+  var last = Math.max(0, Math.ceil(PAGE.total / PAGE.size) - 1);
+  var p = Math.min(last, Math.max(0, PAGE.page + step));
+  if (p !== PAGE.page) loadRows(CURRENT.table, p);
+}
+
+function loadRows(table, page) {
   showStatus('');
-  fetch(API + '?action=data-rows&table=' + encodeURIComponent(table))
+  /* SM502 U-1: the server has ALWAYS capped this read (200 by default), so a
+     big table silently showed one page with nothing saying so. Page it
+     honestly: ask for one page, show which slice this is of how many. */
+  PAGE.page = page || 0;
+  fetch(API + '?action=data-rows&table=' + encodeURIComponent(table)
+        + '&limit=' + PAGE.size + '&offset=' + (PAGE.page * PAGE.size))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var panel = document.getElementById('rows-panel');
@@ -206,6 +224,7 @@ function loadRows(table) {
       var rows = data.rows || [];
       CURRENT.table = table;
       CURRENT.rows  = rows;
+      PAGE.total    = data.total || rows.length;
 
       /* The rows reply does not carry the descriptor; fetch it once per table
          so the editor and the column list are both driven by the same
@@ -239,8 +258,16 @@ function renderRows(rows, desc) {
   else if (desc && desc.key) { cols.splice(cols.indexOf(desc.key), 1); cols.unshift(desc.key); }
   if (!cols.length && rows.length) cols = Object.keys(rows[0]).sort();
 
+  var first = PAGE.page * PAGE.size + 1;
   document.getElementById('rows-note').textContent =
-    (rows.length === 1 ? '1 row' : rows.length + ' rows');
+    PAGE.total <= rows.length
+      ? (rows.length === 1 ? '1 row' : rows.length + ' rows')
+      : 'rows ' + first + '\u2013' + (first + rows.length - 1) + ' of ' + PAGE.total;
+  var pager = document.getElementById('rows-pager');
+  pager.style.display = PAGE.total > PAGE.size ? '' : 'none';
+  document.getElementById('rows-prev').disabled = PAGE.page === 0;
+  document.getElementById('rows-next').disabled =
+    (PAGE.page + 1) * PAGE.size >= PAGE.total;
   document.getElementById('row-add-btn').style.display = desc ? '' : 'none';
 
   var head = '<tr>';
@@ -402,6 +429,36 @@ function saveRow() {
 /* --- DM-5: the descriptor and the migration plan ------------------------ */
 var DESC = { table: null, lost: [] };
 
+/* SM502 U-5: the one manager page about tables can declare one. The name is
+   asked for up front (it keys the descriptor); the descriptor opens with a
+   commented starter shape and saves through the same data-table-save the
+   editor uses, so validation and the migrate plan behave exactly as for an
+   existing table. */
+function declareTable() {
+  var name = prompt('Name of the new table (letters, digits, underscore):');
+  if (name === null) return;
+  name = name.replace(/^\s+|\s+$/g, '');
+  if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+    showStatus('A table name is lowercase letters, digits and underscores, starting with a letter.', true);
+    return;
+  }
+  DESC.table = name;
+  DESC.lost  = [];
+  document.getElementById('descriptor-title').textContent = 'Declare ' + name;
+  document.getElementById('descriptor-error').textContent = '';
+  document.getElementById('plan-panel').style.display = 'none';
+  document.getElementById('descriptor-panel').style.display = 'block';
+  document.getElementById('descriptor-text').value =
+      'title: ' + name.charAt(0).toUpperCase() + name.slice(1) + '\n'
+    + 'key: id\n'
+    + 'fields:\n'
+    + '  id:\n'
+    + '    type: text\n'
+    + '  name:\n'
+    + '    type: text\n';
+  showStatus('Edit the starter descriptor, then Save. Migrating afterwards creates the table.');
+}
+
 function openDescriptor(table) {
   DESC.table = table;
   DESC.lost  = [];
@@ -465,7 +522,8 @@ function planMigration() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { body.textContent = d.error || 'could not plan'; return; }
-      var html = '';
+      /* SM502 U-6: the contract, stated where the deciding happens. */
+      var html = '<p style="color:#888;font-size:0.95em;"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>';
       if (d.create) html += '<p>The stored table does not exist yet. <strong>Migrate</strong> creates it.</p>';
       if (d.additive && d.additive.length) {
         html += '<p>Migrate will apply, keeping every row:</p><ul>';

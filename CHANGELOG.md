@@ -44,6 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM502 partly resolved (PENDING) **the data manager after its walk: three
+  of six.** U-1: data-rows always carried a silent 200-row server cap - the
+  reply now returns the total behind the page and the panel pages honestly
+  (rows X-Y of N). U-5: the tables page can declare a table (name prompt +
+  starter descriptor through the same save/validate/plan path). U-6: the
+  migrate panel states the apply-vs-rebuild contract where the deciding
+  happens. U-2/U-3/U-4 (modals, label sweep, structured descriptor) remain
+  queued.
+
 - SM510 resolved (PENDING) **a new path may be deep.** validate_path
   anchored realpath at the immediate parent, so /a/b.md validated while
   /a/b/c.md was "Invalid path" - while the writers behind it create parent
