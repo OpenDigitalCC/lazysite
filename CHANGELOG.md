@@ -44,6 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM484 resolved (PENDING) **the two snapshot paths agree.** The restore's
+  safety snapshot scopes to the archive's own blast radius (derived from
+  its members - nothing else records it), so a partner who can back up can
+  roll back; the site package reports what its staging copy could not read
+  - unreadable directories collected at the find level, where the silent
+  omission actually happened - as site-relative names in the result and a
+  count in the travelling manifest; and tar's ./-relative member names
+  survive the path scrub whole.
+
 - SM483 resolved (PENDING) **the registry reaches every writer.** All three
   reproduced conditions fixed: the invalidator keys on realpaths exactly as
   the processor does (a symlink no longer splits the cache pair and

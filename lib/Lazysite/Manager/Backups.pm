@@ -301,6 +301,41 @@ sub action_backup_delete {
 # site-relative form a caller can act on; anything else absolute is replaced
 # wholesale rather than trimmed, because a path outside the site tells a remote
 # caller about the host and nothing about their problem.
+# SM484: the common top directory of an archive's members, or undef. Reads
+# the member list the same tar reads the archive; ./lazysite members are
+# ignored (no content archive carries them and the restore excludes them).
+sub _archive_scope {
+    my ($archive) = @_;
+    my @members   = split /\n/, qx(tar -tzf \Q$archive\E 2>/dev/null);
+    my $common;
+    for my $m (@members) {
+        $m =~ s{\A\./}{};
+        next unless length $m;
+        next if $m eq 'lazysite' || $m =~ m{\Alazysite/};
+        my ($top) = $m =~ m{\A([^/]+)/};
+        next unless defined $top;    # a bare top-level file has no directory scope
+        if    ( !defined $common ) { $common = $top }
+        elsif ( $common ne $top )  { return undef }
+    }
+    return undef unless defined $common && length $common;
+    # Deepen to the longest common directory under the top, one level at a
+    # time, so a sites/edge archive scopes to sites/edge rather than sites.
+    my $prefix = $common;
+    while (1) {
+        my %next;
+        for my $m (@members) {
+            ( my $r = $m ) =~ s{\A\./}{};
+            next unless length $r && index( $r, "$prefix/" ) == 0;
+            my $rest = substr( $r, length($prefix) + 1 );
+            my ($seg) = $rest =~ m{\A([^/]+)/};
+            return $prefix unless defined $seg;
+            $next{$seg} = 1;
+        }
+        return $prefix unless keys %next == 1;
+        $prefix .= '/' . ( keys %next )[0];
+    }
+}
+
 sub _scrub_paths {
     my ($text) = @_;
     return '' unless defined $text;
@@ -337,8 +372,12 @@ sub _scrub_paths {
 
     # Anything still absolute is outside the site. Keep the tail so the reader
     # can tell a lock file from a library, and drop the rest.
-    $text =~ s{(?<![\w<>])(/(?:[\w.\-]+/)*)([\w.\-]+/[\w.\-]+)}{<outside>/$2}g;
-    $text =~ s{(?<![\w<>/])/[\w.\-]+(?=\s|:|\z)}{<outside>}g;
+    # SM484: '.' joins both lookbehinds - tar's ./-relative member names
+    # ("tar: ./primary-only:") matched the generic absolute rule through the
+    # leading dot and came back as ".<outside>", partly undoing SM386's
+    # name-the-path repair for exactly the messages this sub exists to keep.
+    $text =~ s{(?<![\w<>.])(/(?:[\w.\-]+/)*)([\w.\-]+/[\w.\-]+)}{<outside>/$2}g;
+    $text =~ s{(?<![\w<>/.])/[\w.\-]+(?=\s|:|\z)}{<outside>}g;
 
     $text =~ s/\s+\z//;
     my @lines = split /\n/, $text;
@@ -619,7 +658,17 @@ sub action_backup_restore {
     my $full = _dir() . "/$name";
     return { ok => 0, error => 'Backup not found' } unless -f $full;
 
-    my $safety = action_backup_create('prerestore');
+    # SM484: the archive's members ARE its blast radius - a scoped backup
+    # restores exactly its own subtree - so the safety snapshot scopes to the
+    # common top directory of the members (excluding ./lazysite, which no
+    # content archive carries). Reproduced: the unscoped snapshot tarred the
+    # WHOLE tree and refused on an unreadable dir the restore would never
+    # touch, so a partner who could back up could not roll back. An archive
+    # with no single common directory (a primary-site backup) keeps the full
+    # snapshot - for that target it IS the blast radius.
+    my $scope  = _archive_scope($full);
+    my $safety = action_backup_create( 'prerestore',
+        ( defined $scope && length $scope ? ( root => $scope ) : () ) );
     unless ( $safety->{ok} ) {
         # SM378: the same discard as the apply path, in the operation where
         # being unable to roll back matters most.

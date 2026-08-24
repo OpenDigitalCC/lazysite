@@ -38,6 +38,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
 our $DOCROOT = '';
+our @COPY_FAILED;    # SM484: what the staging copy could not read, per package_create run
 
 # SM293: this site's engine tree - beside the docroot once migrated,
 # inside it before. Asked, never computed, so both layouts work on one
@@ -97,11 +98,23 @@ sub _copy_base_content {
                 }
                 my $target = length $rel ? "$dst/$rel" : $dst;
                 if    ( -l $p ) { return }
-                elsif ( -d $p ) { make_path($target) }
+                elsif ( -d $p ) {
+                    # SM484: an unreadable DIRECTORY is where the silent omission
+                    # happened - File::Find cannot descend, so no copy() ever fails
+                    # and the subtree just never exists. Collected and pruned, so
+                    # the package can say what it does not carry.
+                    unless ( -r $p && -x $p ) {
+                        push @COPY_FAILED, substr( $p, length($src) + 1 ) . '/';
+                        $File::Find::prune = 1;
+                        return;
+                    }
+                    make_path($target);
+                }
                 elsif ( -f $p ) {
                     return if $p =~ /\.html\z/ && -f ( $p =~ s/\.html\z/.md/r );
                     make_path( dirname($target) );
-                    copy( $p, $target );
+                    copy( $p, $target )
+                        or push @COPY_FAILED, substr( $p, length($src) + 1 );
                 }
             },
         },
@@ -137,9 +150,24 @@ sub _copy_tree {
                 }
                 my $rel    = ( $p eq $src ) ? '' : substr( $p, length($src) + 1 );
                 my $target = length $rel    ? "$dst/$rel" : $dst;
-                if    ( -l $p ) { return }               # never follow/copy links
-                elsif ( -d $p ) { make_path($target) }
-                elsif ( -f $p ) { make_path( dirname($target) ); copy( $p, $target ) }
+                if    ( -l $p ) { return }    # never follow/copy links
+                elsif ( -d $p ) {
+                    # SM484: an unreadable DIRECTORY is where the silent omission
+                    # happened - File::Find cannot descend, so no copy() ever fails
+                    # and the subtree just never exists. Collected and pruned, so
+                    # the package can say what it does not carry.
+                    unless ( -r $p && -x $p ) {
+                        push @COPY_FAILED, substr( $p, length($src) + 1 ) . '/';
+                        $File::Find::prune = 1;
+                        return;
+                    }
+                    make_path($target);
+                }
+                elsif ( -f $p ) {
+                    make_path( dirname($target) );
+                    copy( $p, $target )
+                        or push @COPY_FAILED, ( length $rel ? $rel : $p );
+                }
             },
         },
         $src
@@ -320,6 +348,11 @@ sub package_create {
     # completely silent. Count it and report it - in the result to the operator
     # building the package, and in the manifest so the receiving operator learns
     # it from the package itself rather than from a gap they may not notice.
+    # SM484: what the copy could not read - drained here so both the
+    # manifest (a COUNT, never paths - it travels) and the returned result
+    # (site-relative paths, for the operator building the package) see it.
+    my @unreadable = @COPY_FAILED;
+    @COPY_FAILED = ();
     my $private_omitted =
         Lazysite::Private::count_private( $DOCROOT, $primary_base ? '' : $croot );
 
@@ -335,7 +368,8 @@ sub package_create {
         # A count, never the paths. A filename is content: "members/2026-payroll"
         # discloses the thing the gate exists to protect, and this manifest
         # travels further than the content ever would.
-        private_omitted => $private_omitted,
+        private_omitted    => $private_omitted,
+        unreadable_omitted => scalar(@unreadable),
 
         # DP-6. `data_omitted` is the number of DECLARED tables this package
         # does not carry - the same shape as private_omitted, and there for the
@@ -368,8 +402,9 @@ sub package_create {
 
     my @st = stat $out;
     log_event( 'INFO', 'site-package-create', 'site packaged',
-        host            => $host, file => $name, user => $auth_user,
-        private_omitted => $private_omitted );
+        host             => $host, file => $name, user => $auth_user,
+        private_omitted  => $private_omitted,
+        unreadable_count => scalar(@unreadable) );
     return {
         ok       => 1,
         name     => $name,
@@ -383,6 +418,7 @@ sub package_create {
         # package that quietly contains less of the site than its builder assumes
         # is discovered by the person applying it, in front of their client.
         private_omitted => $private_omitted,
+        ( @unreadable ? ( unreadable => \@unreadable ) : () ),
         ( $private_omitted
             ? ( notice => "$private_omitted protected "
                     . ( $private_omitted == 1 ? 'file is' : 'files are' )
