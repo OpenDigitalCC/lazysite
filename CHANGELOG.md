@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM511 resolved (PENDING) **the cap reaches the page, and the page can
+## 0.10.30 - EDGE: the briefs ring, the cap that reached the page, and the queue before the cut (2026-08-24)
+
+- SM511 resolved (d5b03ad) **the cap reaches the page, and the page can
   say so.** A db: binding with no limit rendered 200 of 250 looking
   complete, .count agreeing; an over-cap limit rendered ZERO rows with no
   signal. One ceiling now (500, stated once - the API's 501-1000 range is
@@ -52,7 +54,7 @@ Naming the commit: AFTER it lands, never before
   <var>_total; capped renders log N-of-M naming the page; .count is the
   true count before the limit.
 
-- SM502 partly resolved (PENDING) **the data manager after its walk: three
+- SM502 partly resolved (87dafc9) **the data manager after its walk: three
   of six.** U-1: data-rows always carried a silent 200-row server cap - the
   reply now returns the total behind the page and the panel pages honestly
   (rows X-Y of N). U-5: the tables page can declare a table (name prompt +
@@ -61,14 +63,14 @@ Naming the commit: AFTER it lands, never before
   happens. U-2/U-3/U-4 (modals, label sweep, structured descriptor) remain
   queued.
 
-- SM510 resolved (PENDING) **a new path may be deep.** validate_path
+- SM510 resolved (c38ad35, 940d1ee) **a new path may be deep.** validate_path
   anchored realpath at the immediate parent, so /a/b.md validated while
   /a/b/c.md was "Invalid path" - while the writers behind it create parent
   directories anyway. The anchor now walks to the nearest existing
   ancestor (both trees); the `..` rejection, symlink collapse and H3
   containment are pinned unchanged.
 
-- SM509 resolved (PENDING) **the manager sees the submissions the store
+- SM509 resolved (de49b2a) **the manager sees the submissions the store
   holds.** The panel said "No submissions yet" for a store the API read
   five rows from: its directory-listing probe hit the carve-out's prefix
   test, which matched only paths UNDER the store - the directory itself
@@ -76,7 +78,7 @@ Naming the commit: AFTER it lands, never before
   now joins its own carve-out (boundary-safe) and answers to the same
   capability as its files.
 
-- SM506 resolved (PENDING) **the briefings teach the store.** The documents
+- SM506 resolved (e47c40c) **the briefings teach the store.** The documents
   every connecting agent reads before authoring still taught the retired
   .brief sidecar - including the promise ("not a blocked extension, writes
   through your normal content scope") that SM504 inverts in this same cut.
@@ -84,7 +86,7 @@ Naming the commit: AFTER it lands, never before
   repointed, the connector-tools carriage claims match SM507, and the dead
   createBrief() is gone from the Files panel source.
 
-- SM508 resolved (PENDING) **a brief can be listed, and an orphan can be
+- SM508 resolved (1c09956) **a brief can be listed, and an orphan can be
   cleared.** The store had read, append and migrate - no list, no delete,
   so an orphaned entry was undiscoverable (the field produced three as
   proof). briefs-list / list_briefs returns every entry with an orphan
@@ -92,7 +94,7 @@ Naming the commit: AFTER it lands, never before
   explicit-path guard. The delete keys on the store, not validate_path -
   an orphan's content path may no longer validate.
 
-- SM507 resolved (PENDING) **the store entry follows its file.** SM245's
+- SM507 resolved (e4820dd) **the store entry follows its file.** SM245's
   recorded interim - a moved file's brief staying under its old key "until
   a reconcile adopts it" - met the field first: rename_page silently split
   a page from its record of intent and delete_page left an unlistable
@@ -100,7 +102,7 @@ Naming the commit: AFTER it lands, never before
   manager, MCP and DAV surfaces alike; a COPY starts unbriefed, as it
   starts with a fresh ACL. read_page's has_brief consults the store.
 
-- SM505 resolved (PENDING) **a row action's audit entry names the row.**
+- SM505 resolved (6aea28c) **a row action's audit entry names the row.**
   Raised by the site agent building the SM503 retest: "someone edited that
   table" is half an answer when the question a trail gets asked is which
   row. data-row-save and data-row-delete entries now carry row=<key> in the
@@ -108,7 +110,7 @@ Naming the commit: AFTER it lands, never before
   key, so an ADD names the row it created. Row keys land in the audit log:
   the SM465 trade, accepted again.
 
-- SM504 resolved (PENDING) **a sidecar write refuses once the store owns
+- SM504 resolved (1af3758) **a sidecar write refuses once the store owns
   the record.** The operator's instruction: on a site whose briefs plugin
   is enabled, a .brief write fails on every channel with the replacement
   named (append_brief / brief-append) - never lands as an inert note
@@ -116,7 +118,7 @@ Naming the commit: AFTER it lands, never before
   half-migrated estate is the normal state, a site on sidecars keeps
   working indefinitely, and reads stay untouched.
 
-- SM484 resolved (PENDING) **the two snapshot paths agree.** The restore's
+- SM484 resolved (c9ecb79) **the two snapshot paths agree.** The restore's
   safety snapshot scopes to the archive's own blast radius (derived from
   its members - nothing else records it), so a partner who can back up can
   roll back; the site package reports what its staging copy could not read
@@ -125,7 +127,14 @@ Naming the commit: AFTER it lands, never before
   count in the travelling manifest; and tar's ./-relative member names
   survive the path scrub whole.
 
-- SM483 resolved (PENDING) **the registry reaches every writer.** All three
+- SM500 resolved (9db1d4a) **shadowed_by_files stays site-relative.** The
+  report of a file shadowing a generated registry carried the absolute
+  server path for any non-docroot content root - over MCP, exactly where
+  multi-domain registry conditions get debugged. Every root's report is
+  now docroot-relative, asserted inside the SM483 regression's
+  symlinked-root scenario.
+
+- SM483 resolved (d125af6) **the registry reaches every writer.** All three
   reproduced conditions fixed: the invalidator keys on realpaths exactly as
   the processor does (a symlink no longer splits the cache pair and
   regenerate clears what was cached); the reader accepts flow-style
