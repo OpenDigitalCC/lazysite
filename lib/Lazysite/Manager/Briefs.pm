@@ -14,7 +14,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path);
 use Exporter 'import';
 our @EXPORT_OK = qw(action_brief_read action_brief_append
-    action_briefs_migrate plugin_status);
+    action_briefs_migrate plugin_status store_entry_move store_entry_remove);
 
 our $DOCROOT;
 our $auth_user = '';
@@ -27,6 +27,42 @@ sub _gate {
     return { ok => 0,
         error => 'The briefs plugin is disabled. An operator can enable it '
             . 'on the Plugin Manager page.' };
+}
+
+# SM507: the store entry follows its file. SM245 recorded a moved file's
+# entry staying under the old key as a tolerable interim "until a reconcile
+# adopts it" - the field found the interim's cost first (a renamed page
+# silently split from its record of intent, a deleted page's entry orphaned
+# and undiscoverable). These two helpers are that reconcile, called by every
+# surface that moves or deletes content. They are DELIBERATELY UNGATED:
+# carrying a store entry is filesystem consistency, not an agent surface -
+# a site with the plugin disabled but entries on disk still deserves them
+# kept consistent. The docroot is a PARAMETER, never the package var: the
+# DAV process does not set it (the SM504 lesson).
+sub store_entry_move {
+    my ( $docroot, $src_rel, $dst_rel ) = @_;
+    return unless defined $docroot && length $docroot;
+    for ( $src_rel, $dst_rel ) { return unless defined; s{\A/+}{}; return if m{\.\.} }
+    my $src = "$docroot/lazysite/briefs/$src_rel";
+    return unless -e $src;
+    my $dst = "$docroot/lazysite/briefs/$dst_rel";
+    make_path( dirname($dst) ) unless -d dirname($dst);
+    rename $src, $dst
+        or log_event( 'WARN', $src_rel, 'brief store entry not carried',
+        to => $dst_rel, error => "$!" );
+    return;
+}
+
+sub store_entry_remove {
+    my ( $docroot, $rel ) = @_;
+    return unless defined $docroot && length $docroot;
+    return unless defined $rel;
+    $rel =~ s{\A/+}{};
+    return if $rel =~ m{\.\.};
+    my $f = "$docroot/lazysite/briefs/$rel";
+    if    ( -f $f ) { unlink $f }
+    elsif ( -d $f ) { require File::Path; File::Path::remove_tree( $f, { safe => 1 } ) }
+    return;
 }
 
 sub _store_path {

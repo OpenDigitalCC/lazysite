@@ -1743,8 +1743,12 @@ sub _read_page {
     ( my $rel = $path ) =~ s{^/+}{};
     return { ok => 1, path => "/$rel",
         front_matter => _parse_fm($fm), body => $body,
-        has_brief    => ( -f "$DOCROOT/$rel.brief" ? JSON::PP::true : JSON::PP::false ),
-        public_url   => _public_url($rel), modified => $r->{mtime} };
+        has_brief    => (
+            ( -f "$DOCROOT/lazysite/briefs/$rel" || -f "$DOCROOT/$rel.brief" )
+            ? JSON::PP::true
+            : JSON::PP::false
+        ),
+        public_url => _public_url($rel), modified => $r->{mtime} };
 }
 
 # Walk top-level + content/ .md pages (skip infra/manager/generated partials).
@@ -2817,7 +2821,6 @@ sub _delete_page {
     return { ok => 0, error => 'slug required' } unless length $slug;
     my $r = action_delete( "/$slug.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
-    action_delete( "/$slug.md.brief", $user ) if -f "$DOCROOT/$slug.md.brief";
     # Report remaining references (nav, other pages).
     my $s = _mcp_search( "/$slug", '/' );
     my %seen;

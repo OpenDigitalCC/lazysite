@@ -669,6 +669,10 @@ sub do_delete {
     # drift - and the comment above, claiming the manager already did this, was
     # wrong for four surfaces until CF-2.
     Lazysite::Auth::Acl::forget_path($key) if length $key;
+    # SM507: the brief store entry goes with the file, on this surface too.
+    # Docroot passed explicitly - this process never sets the package var.
+    require Lazysite::Manager::Briefs;
+    Lazysite::Manager::Briefs::store_entry_remove( $DOCROOT, $key );
     # SM085: a deletion (file or whole collection) is one history commit.
     require Lazysite::Git;
     Lazysite::Git::commit_paths( $DOCROOT, $a{user}, "delete $a{rel}", $a{rel} );
@@ -867,6 +871,14 @@ sub do_copy_move {
         my $acls = Lazysite::Auth::Acl::load_acls();
         $acls->{ _dav_acl_key($drel) } = { owner => $a{user} };
         Lazysite::Auth::Acl::save_acls($acls);
+    }
+
+    # SM507: a MOVE carries the brief store entry to the new key (a COPY is
+    # a fresh file and starts unbriefed, exactly as it starts with a fresh
+    # ACL). Docroot passed explicitly.
+    if ($move) {
+        require Lazysite::Manager::Briefs;
+        Lazysite::Manager::Briefs::store_entry_move( $DOCROOT, $a{rel}, $drel );
     }
 
     {

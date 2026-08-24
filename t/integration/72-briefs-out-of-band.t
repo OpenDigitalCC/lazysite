@@ -228,4 +228,66 @@ subtest 'SM504-B3: A SITE STILL ON SIDECARS KEEPS WORKING, INDEFINITELY' => sub 
     ok( -f "$other/content/note.md.brief", 'and lands as the working record it still is' );
 };
 
+subtest 'SM507: THE STORE ENTRY FOLLOWS ITS FILE, on every surface' => sub {
+    # SM245 recorded the rename gap as "a tolerable interim until a reconcile
+    # adopts it". The field found the cost first: a renamed page silently
+    # split from its record of intent, and a deleted page's entry orphaned
+    # where nothing can list it. This is the reconcile.
+    my $store = "$docroot/lazysite/briefs";
+
+    # Manager/MCP surface: move carries, delete removes.
+    api_post( 'action=save&path=/content/m1.md',
+        { content => "---\ntitle: M\n---\nx\n", mtime => undef } );
+    api_post( 'action=brief-append&path=/content/m1.md',
+        { entry => 'born briefed' } );
+    ok( -f "$store/content/m1.md", 'the entry exists under the old key' );
+    my $mv = api_post( 'action=move&path=/content/m1.md&to=/content/m2.md', {} );
+    ok( $mv->{ok},                  'moved' ) or diag explain $mv;
+    ok( -f "$store/content/m2.md",  'the entry followed the rename' );
+    ok( !-e "$store/content/m1.md", 'and left the old key' );
+    my $rd = api_get('action=brief-read&path=/content/m2.md');
+    ok( $rd->{ok} && $rd->{exists}, 'the renamed page still answers its brief' )
+        or diag explain $rd;
+    my $del = api_post( 'action=delete&path=/content/m2.md', {} );
+    ok( $del->{ok},                 'deleted' ) or diag explain $del;
+    ok( !-e "$store/content/m2.md", 'the entry went with the file' );
+
+    # DAV surface: same promise, own process (the docroot rides as a
+    # parameter - this process never sets the package var).
+    require MIME::Base64;
+    api_post( 'action=save&path=/content/d1.md',
+        { content => "---\ntitle: D\n---\nx\n", mtime => undef } );
+    api_post( 'action=brief-append&path=/content/d1.md',
+        { entry => 'dav-bound' } );
+    ok( -f "$store/content/d1.md", 'entry in place before the DAV move' );
+    my %dav = (
+        DOCUMENT_ROOT      => $docroot,
+        SCRIPT_NAME        => '/dav',
+        REMOTE_ADDR        => '127.0.0.1',
+        CONTENT_LENGTH     => 0,
+        HTTP_AUTHORIZATION => 'Basic '
+            . MIME::Base64::encode_base64( 'davpub:pw123456789', '' ),
+    );
+    {
+        local %ENV = ( %ENV, %dav,
+            REQUEST_METHOD   => 'MOVE',
+            PATH_INFO        => '/content/d1.md',
+            HTTP_DESTINATION => '/dav/content/d2.md',
+        );
+        my $out = qx($^X \Q$root/lazysite-dav.pl\E 2>/dev/null);
+        like( $out, qr/Status: 20[14]/, 'DAV MOVE succeeded' ) or diag "[$out]";
+    }
+    ok( -f "$store/content/d2.md",  'the entry followed the DAV move' );
+    ok( !-e "$store/content/d1.md", 'and left the old key there too' );
+    {
+        local %ENV = ( %ENV, %dav,
+            REQUEST_METHOD => 'DELETE',
+            PATH_INFO      => '/content/d2.md',
+        );
+        my $out = qx($^X \Q$root/lazysite-dav.pl\E 2>/dev/null);
+        like( $out, qr/Status: 204/, 'DAV DELETE succeeded' ) or diag "[$out]";
+    }
+    ok( !-e "$store/content/d2.md", 'the entry went with the DAV delete' );
+};
+
 done_testing();

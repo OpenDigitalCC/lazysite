@@ -820,6 +820,11 @@ sub action_delete {
     # so the fix reached one surface out of four.
     Lazysite::Auth::Acl::forget_path( $result->{rel} );
 
+    # SM507: the store entry goes with the file - an entry for a deleted
+    # page is an orphan nothing can discover (the field proved it with three).
+    require Lazysite::Manager::Briefs;
+    Lazysite::Manager::Briefs::store_entry_remove( $DOCROOT, $result->{rel} );
+
     log_event( 'INFO', $action, 'file deleted', path => $rel_path, user => $auth_user );
     # SM085: record the deletion in the content history.
     _git_commit( $username, "delete $result->{rel}", $result->{rel} );
@@ -892,7 +897,7 @@ sub action_move {
     rename( $src_full, $dst_full )
         or return { ok => 0, error => "Move failed: $!" };
 
-    # Move the .brief sidecar and any generated .html cache alongside.
+    # Move any generated .html cache alongside.
     if ( $src_full =~ /\.md$/ ) {
         ( my $src_cache = $src_full ) =~ s/\.md$/.html/;
         ( my $dst_cache = $dst_full ) =~ s/\.md$/.html/;
@@ -931,6 +936,12 @@ sub action_move {
     # alias-redirect entries too (per page under a moved directory).
     require Lazysite::Aliases;
     Lazysite::Aliases::reindex_move( $DOCROOT, $s->{rel}, $d->{rel} );
+
+    # SM507: the store entry follows the rename - SM245's recorded interim
+    # (entry stays under the old key), closed. A rename must not split a
+    # page from its own record of intent.
+    require Lazysite::Manager::Briefs;
+    Lazysite::Manager::Briefs::store_entry_move( $DOCROOT, $s->{rel}, $d->{rel} );
 
     unlink $lock_file if -f $lock_file;
     log_event( 'INFO', $action, 'file moved',

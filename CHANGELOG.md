@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM507 resolved (PENDING) **the store entry follows its file.** SM245's
+  recorded interim - a moved file's brief staying under its old key "until
+  a reconcile adopts it" - met the field first: rename_page silently split
+  a page from its record of intent and delete_page left an unlistable
+  orphan. Move now carries the store entry and delete removes it, on the
+  manager, MCP and DAV surfaces alike; a COPY starts unbriefed, as it
+  starts with a fresh ACL. read_page's has_brief consults the store.
+
 - SM505 resolved (PENDING) **a row action's audit entry names the row.**
   Raised by the site agent building the SM503 retest: "someone edited that
   table" is half an answer when the question a trail gets asked is which
