@@ -60,7 +60,11 @@
       var status = form.querySelector('.form-status');
       if (btn) { btn.disabled = true; }
       if (status) { status.textContent = 'Sending...'; }
-      fetch(form.action, { method: 'POST', body: new FormData(form) })
+      /* SM415: declare JSON so the handler keeps answering this path JSON;
+       * a browser's native post says text/html and gets the redirect-back
+       * pattern instead. */
+      fetch(form.action, { method: 'POST', body: new FormData(form),
+                           headers: { 'Accept': 'application/json' } })
         .then(function (r) {
           if (!r.ok) { throw new Error('Server returned ' + r.status); }
           return r.json();

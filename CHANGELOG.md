@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM415 resolved (PENDING) **a form post without JavaScript lands on the
+  page, not on raw JSON.** The chrome JS declares Accept: application/json
+  and keeps today's reply byte-for-byte; a native browser post is answered
+  the way login answers - 303 back to the form's own page (named by a
+  validated _page hidden field the renderer embeds; same-site absolute
+  paths only, absent means JSON) with the outcome riding the query string,
+  which the :::form renderer shows as a banner. Refusals redirect too,
+  carrying the user-safe text; typed values are not re-presented in this
+  cut (recorded in the filing, with SM501 pointing at it).
+
 - SM476 docs (PENDING) **the `public:` key reaches the data briefing.** The
   one flag that decides whether a data-backed page shows anything to a
   visitor was absent from /docs/ai-briefing-data - reported by the site

@@ -3922,12 +3922,39 @@ sub _render_form {
         $fields_html = join( '', @{ $steps[0]{fields} } );
     }
 
+    # SM415: the page's own path rides as a hidden field, so a no-JS post can
+    # be redirected BACK here with its outcome - the login pattern, which the
+    # forms were missing. And when this request's query string carries that
+    # outcome (form=<this form>&outcome=...), it renders as a banner above
+    # the form: ok as success, anything else as the user-safe refusal text
+    # the handler chose to show. Escaped, capped, and only for THIS form's
+    # name, so a page with two forms banners the right one.
+    my $page = $ENV{REDIRECT_URL} // '';
+    $page = '' unless $page =~ m{\A/} && $page !~ m{\A//} && $page !~ /[\r\n<>"]/;
+    my $page_esc = $page;
+    $page_esc =~ s/&/&amp;/g;
+    my $banner = '';
+    my $qs     = $ENV{QUERY_STRING} // '';
+    if ( $qs =~ /(?:\A|&)form=\Q$form_name\E(?:&|\z)/ && $qs =~ /(?:\A|&)outcome=([^&]*)/ ) {
+        my $o = $1;
+        $o =~ tr/+/ /;
+        $o =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+        $o = substr( $o, 0, 300 );
+        $o =~ s/&/&amp;/g;
+        $o =~ s/</&lt;/g;
+        $o =~ s/>/&gt;/g;
+        $banner =
+            $o eq 'ok'
+            ? qq(<p class="form-status form-status-ok" role="status">Thank you - your message has been sent.</p>\n)
+            : qq(<p class="form-status form-status-error" role="alert">$o</p>\n);
+    }
     return <<"END_FORM";
-$step_css<form method="POST"
+$banner$step_css<form method="POST"
       action="/cgi-bin/form-handler.pl"$enctype
       class="lazysite-form"
       data-form="$form_name"$multistep_attr>
   <input type="hidden" name="_form" value="$form_name">
+  <input type="hidden" name="_page" value="$page_esc">
   <input type="hidden" name="_ts" value="$ts">
   <input type="hidden" name="_tk" value="$tk">
   <div style="position:absolute;left:-9999px;top:-9999px;"

@@ -83,6 +83,10 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
+# SM415: where a native (no-JS) post redirects back to, captured after
+# parse_post and consumed by respond_ok/respond_error at the bottom -
+# declared here because the capture site precedes them in file order.
+our ( $REDIRECT_PAGE, $REDIRECT_FORM ) = ( '', '' );
 
 # Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
 # per-form size limits are even checked. Generous; real limits are per-form.
@@ -99,6 +103,17 @@ eval {
     $name = $form{_form} // '';
     $name =~ s/[^a-zA-Z0-9_-]//g;
     reject('Missing form name') unless $name;
+
+    # SM415: capture where a native post goes back to, BEFORE any check can
+    # die - the redirect answers refusals too. Validation is the whole guard
+    # against an open redirect: same-site absolute path or nothing.
+    {
+        my $pg = $form{_page} // '';
+        if ( $pg =~ m{\A/} && $pg !~ m{\A//} && $pg !~ /[\r\n]/ && length($pg) <= 500 ) {
+            $REDIRECT_PAGE = $pg;
+            $REDIRECT_FORM = $name;
+        }
+    }
 
     # SM402: this handler reads NO identity from the request, because it has no
     # way to verify one.
@@ -127,7 +142,7 @@ eval {
     my $conf     = load_form_conf($name);
     my %handlers = load_handlers();
 
-    check_honeypot( $form{_hp}  // '' );
+    check_honeypot( $form{_hp} // '' );
     check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret() );
 
     # SM425: a signed-in member is not the traffic the anonymous rate limit
@@ -151,7 +166,7 @@ eval {
             require Cwd;
             require File::Basename;
             my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ("$bin/lib", "$bin/../lib", "$bin/../../lib") {
+            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
                 if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
             }
         }
@@ -1053,9 +1068,34 @@ sub load_form_secret {
 
 # --- Response ---
 
+# SM415: a post WITHOUT JavaScript used to land on raw JSON - with HTTP 200
+# on failure. The JS path declares Accept: application/json and keeps
+# today's reply byte-for-byte; a native post (a browser says text/html) is
+# answered the way login answers: a redirect back to the page it came from,
+# carrying the outcome for the form renderer to show as a banner. The page
+# rides in the _page hidden field the renderer embeds - validated here as a
+# same-site absolute path (no scheme, no protocol-relative, no CRLF), and
+# ABSENT means JSON: a stale cached page without the field must never be
+# redirected to nowhere.
+sub _wants_json {
+    return 1 if ( $ENV{HTTP_ACCEPT} // '' ) =~ m{application/json};
+    return 1 unless length $REDIRECT_PAGE;
+    return 0;
+}
+
+sub _redirect_back {
+    my ($outcome) = @_;
+    $outcome =~ s/([^A-Za-z0-9\-. _])/sprintf '%%%02X', ord $1/ge;
+    $outcome =~ tr/ /+/;
+    my $to = $REDIRECT_PAGE . '?form=' . $REDIRECT_FORM . '&outcome=' . $outcome;
+    print "Status: 303 See Other\r\n";
+    print "Location: $to\r\n\r\n";
+}
+
 sub respond_ok {
     my ($msg) = @_;
     binmode( STDOUT, ':utf8' );
+    return _redirect_back('ok') unless _wants_json();
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json( { ok => 1, message => $msg } );
@@ -1064,6 +1104,7 @@ sub respond_ok {
 sub respond_error {
     my ($msg) = @_;
     binmode( STDOUT, ':utf8' );
+    return _redirect_back($msg) unless _wants_json();
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json( { ok => 0, error => $msg } );
