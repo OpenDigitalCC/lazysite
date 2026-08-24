@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM468 resolved (PENDING) **the store remembers what its shape was.** An
+## 0.10.29 - EDGE: the consent banner, briefs out of band, and the twins agreeing (2026-08-24)
+
+- SM468 resolved (9480c16) **the store remembers what its shape was.** An
   internal _schema_history table - undeclarable by construction, invisible
   to every operator surface, travelling with the data through
   backup/restore - gains one row per apply, rebuild and drop: when, who
@@ -53,7 +55,7 @@ Naming the commit: AFTER it lands, never before
   and the change proceeds. Surfaced as `history` on the data-table
   response across manager, API and MCP.
 
-- SM425 resolved (PENDING) **a member is not the traffic the rate limit
+- SM425 resolved (3901541) **a member is not the traffic the rate limit
   stops.** A submission carrying a session cookie the shared verifier
   (SM411) accepts cryptographically bypasses the anonymous IP rate limit;
   anonymous traffic keeps it unchanged, and a forged signature is anonymous
@@ -66,13 +68,13 @@ Naming the commit: AFTER it lands, never before
   options (SM401) and number min:/max: value bounds all pre-exist; the
   filing records it.
 
-- SM503 resolved (PENDING) **a data action's audit entry names the table.**
+- SM503 resolved (01608c2) **a data action's audit entry names the table.**
   Observed by the operator in their own trail: every data-* row targeted
   "/" - the dispatcher's path default, which no data action uses. The audit
   block now consults the query's table and then the body's, so the trail
   answers which table was migrated, imported into, row-edited or dropped.
 
-- SM245 resolved (PENDING) **briefs move out of band.** The record stays;
+- SM245 resolved (6ed2aca) **briefs move out of band.** The record stays;
   the sidecar file goes. A contract plugin owns a store at
   lazysite/briefs/<content-path>; brief-read/brief-append (API) and
   read_brief/append_brief (MCP) under manage_content; an idempotent
@@ -83,7 +85,7 @@ Naming the commit: AFTER it lands, never before
   (a stray sidecar on a deployed site still answers 404; the filing
   records the deviation and its reason).
 
-- SM431 resolved (PENDING) **the permissions twins agree about who reaches
+- SM431 resolved (d612308) **the permissions twins agree about who reaches
   them.** The control API has had acl actions since SM074 - the filed
   "nothing" was wrong - but they needed the webdav channel while their MCP
   twins sat under manage_content, so a token that could create gated
@@ -93,7 +95,7 @@ Naming the commit: AFTER it lands, never before
   23's channel-gated exemption is removed, and the twins are recorded in
   its pair table. Per-file ownership rules are untouched.
 
-- SM415 resolved (PENDING) **a form post without JavaScript lands on the
+- SM415 resolved (d22b396, 7604b3d) **a form post without JavaScript lands on the
   page, not on raw JSON.** The chrome JS declares Accept: application/json
   and keeps today's reply byte-for-byte; a native browser post is answered
   the way login answers - 303 back to the form's own page (named by a
@@ -103,7 +105,7 @@ Naming the commit: AFTER it lands, never before
   carrying the user-safe text; typed values are not re-presented in this
   cut (recorded in the filing, with SM501 pointing at it).
 
-- SM476 docs (PENDING) **the `public:` key reaches the data briefing.** The
+- SM476 docs (9834167) **the `public:` key reaches the data briefing.** The
   one flag that decides whether a data-backed page shows anything to a
   visitor was absent from /docs/ai-briefing-data - reported by the site
   agent, who lost an afternoon to exactly that silence before SM476 was
@@ -111,7 +113,7 @@ Naming the commit: AFTER it lands, never before
   publication gate, the signed-in behaviour, the ACL read list, and the
   gated-application composition.
 
-- SM499 resolved (PENDING) **the Keys page offered a revoke it would always
+- SM499 resolved (1ede8ba) **the Keys page offered a revoke it would always
   refuse.** SM439 lists interactive accounts that hold a machine channel so
   no access is hidden, and its guard refuses to revoke a login password -
   both by design - but the page rendered the Revoke key button on those
@@ -121,7 +123,7 @@ Naming the commit: AFTER it lands, never before
   button would be. The refusal guard is untouched. Observed by the operator
   on 0.10.28.
 
-- SM429 resolved (PENDING) **cross-origin-opener-policy is emitted, and the
+- SM429 resolved (e882d59) **cross-origin-opener-policy is emitted, and the
   authorize page joins the header set.** same-origin-allow-popups on HTML
   responses, beside the CSP, in both copies of the set - the strict value
   would break the two popup behaviours the filing names (the manager's
@@ -133,7 +135,7 @@ Naming the commit: AFTER it lands, never before
   registration, and t/integration/44 asserts COOP on pages and not on
   stylesheets.
 
-- SM498 resolved (PENDING) **the GS12 gallery example could not work.** Field
+- SM498 resolved (b4dbda5, df4fea9) **the GS12 gallery example could not work.** Field
   report from the 0.10.28 verification: published verbatim, every image
   rendered as a literal `!` and a link - Markdown image syntax cannot carry
   a template expression, because the body becomes HTML first and TT runs
@@ -147,7 +149,7 @@ Naming the commit: AFTER it lands, never before
   Follow-up from the same reporter: the briefing also states the bound the
   ordering implies - a loop cannot compute a fence's name or emit one
   conditionally, because the fence is gone before TT runs.
-- SM491 completed (PENDING) **the control-API whoami carries `reachable`
+- SM491 completed (7d93c9e) **the control-API whoami carries `reachable`
   after all.** The 0.10.28 field verification found it on MCP and absent on
   the API - the edit existed in the SM491 worktree and was not in its
   commit; the landing lost the API half and no test noticed, because the
@@ -156,7 +158,7 @@ Naming the commit: AFTER it lands, never before
   a surface cannot silently lose it again. The remaining field gap ("a
   control-API-first client cannot see reachable at all") closes with this.
 
-- SM496 resolved (PENDING) **a capability added by a release asks the
+- SM496 resolved (2f7a3c0) **a capability added by a release asks the
   administrator, in the UI.** SM471 stands - an upgrade never grants - but
   its warning's only remedy was a CLI command on the box, and the operator's
   requirement is that app support needs no sysadmin after first setup. The
