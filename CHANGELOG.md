@@ -44,18 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM513 resolved (PENDING) **delete_page takes a path as well as a slug.**
+## 0.10.31 - EDGE, beta candidate: the editors are modal, and the tidy tools (2026-08-24)
+
+- SM513 resolved (2b406c7) **delete_page takes a path as well as a slug.**
   read_page took path and delete_page only slug - two page tools, two
   identifiers. Either works now, and the refusal names both.
 
-- SM512 resolved (PENDING) **a safety export can be listed and cleared.**
+- SM512 resolved (1b83041, 509f4e0) **a safety export can be listed and cleared.**
   Every drop and lossy rebuild writes one under lazysite/db/rebuilds/ -
   correctly, and until now permanently. data-safety-exports /
   list_data_safety_exports lists them (table, kind, stamp, size);
   data-safety-export-delete / delete_data_safety_export clears one by its
   exact minted name, audited. The SM508 pattern, for tables.
 
-- SM502 partly resolved (PENDING) **the editors are modal.** The operator's
+- SM502 partly resolved (a9d6efb, 0655926) **the editors are modal.** The operator's
   Task-5 finding, asked for twice: adding or editing a row and editing a
   table's fields opened inline below the fold. Both open in a modal now,
   the submissions viewer's shape, with click-outside and Escape as Cancel.
