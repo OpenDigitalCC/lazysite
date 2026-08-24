@@ -9,7 +9,7 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
@@ -67,20 +67,20 @@ sub mcp {
     waitpid $pid, 0;
     my ($status) = $resp =~ /Status:\s*(\d+)/;
     my ($jb)     = $resp =~ /\r?\n\r?\n(.*)/s;
-    my $obj = ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
+    my $obj      = ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
     return ( $status, $obj, $resp );
 }
 
 sub call { mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
-    params => { name => $_[0], arguments => $_[1] || {} } }, auth => $_[2] ) }
+            params => { name => $_[0], arguments => $_[1] || {} } }, auth => $_[2] ) }
 
-my $bearer_full = 'Bearer claudefull:lzs_tok';   # /full/ -> all caps
-my $bearer_lim  = 'Bearer claudelim:lzs_tok';    # webdav only
+my $bearer_full = 'Bearer claudefull:lzs_tok';    # /full/ -> all caps
+my $bearer_lim  = 'Bearer claudelim:lzs_tok';     # webdav only
 
 # --- handshake + discovery (no auth) ---
 my ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'initialize', params => {} } );
-is( $st, 200, 'initialize: 200' );
-is( $r->{result}{protocolVersion}, '2025-11-25', 'initialize: protocol version' );
+is( $st,                            200,            'initialize: 200' );
+is( $r->{result}{protocolVersion},  '2025-11-25',   'initialize: protocol version' );
 is( $r->{result}{serverInfo}{name}, 'lazysite-mcp', 'initialize: serverInfo' );
 
 # SM210: an unidentified caller (no bearer, or an unrecognised/revoked token -
@@ -103,9 +103,9 @@ ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' )
     my ( undef, $rf ) = mcp( { jsonrpc => '2.0', id => 20, method => 'tools/list' },
         auth => $bearer_full );
     my %fn = map { $_->{name} => $_ } @{ $rf->{result}{tools} };
-    ok( $fn{whoami},          'authed list keeps whoami (introspection)' );
-    ok( $fn{write_file},      'full caps: write_file present' );
-    ok( $fn{activate_theme},  'full caps: activate_theme present (manage_themes)' );
+    ok( $fn{whoami},         'authed list keeps whoami (introspection)' );
+    ok( $fn{write_file},     'full caps: write_file present' );
+    ok( $fn{activate_theme}, 'full caps: activate_theme present (manage_themes)' );
     ok( !$fn{submit_feedback}, 'full caps, no feedback: submit_feedback filtered out (SM196)' );
 
     # Tool schema + annotation shape (asserted on the authed list, where the write
@@ -124,9 +124,9 @@ ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' )
     my ( undef, $rl ) = mcp( { jsonrpc => '2.0', id => 22, method => 'tools/list' },
         auth => $bearer_lim );
     my %ln = map { $_->{name} => 1 } @{ $rl->{result}{tools} };
-    ok( $ln{write_file},      'content session: write_file present' );
+    ok( $ln{write_file}, 'content session: write_file present' );
     ok( !$ln{activate_theme}, 'content-only session: activate_theme filtered (no manage_themes) (SM196)' );
-    ok( $ln{whoami},          'content session: whoami present (introspection)' );
+    ok( $ln{whoami}, 'content session: whoami present (introspection)' );
 
     # Annotation + output-schema shape (authed list; SM210 keeps these tools out
     # of the anonymous surface).
@@ -160,7 +160,7 @@ is( $r->{error}{data}{reason}, 'token-invalid',
     'an unrecognised OAuth token reports reason token-invalid (SM200)' );
 
 ( $st, $r ) = call( 'list_files', { path => '/content' }, $bearer_lim );
-ok( !$r->{error}, 'authenticated tools/call succeeds' );
+ok( !$r->{error},           'authenticated tools/call succeeds' );
 ok( !$r->{result}{isError}, 'list_files is not an error' );
 my $sc = $r->{result}{structuredContent};
 ok( ( grep { $_->{name} eq 'page.md' } @{ $sc->{entries} } ), 'list_files returns page.md' );
@@ -212,14 +212,14 @@ ok( $r->{result}{structuredContent}{error}, 'replace_text errors when old text i
 
 # --- search_files: grep over content ---
 ( $st, $r ) = call( 'search_files', { query => 'updated' }, $bearer_lim );
-ok( !$r->{result}{isError}, 'search_files succeeds' );
+ok( !$r->{result}{isError},                      'search_files succeeds' );
 ok( $r->{result}{structuredContent}{count} >= 1, 'search_files finds a match' );
 ok( ( grep { ( $_->{path} // '' ) =~ m{new\.md} } @{ $r->{result}{structuredContent}{matches} || [] } ),
     'search_files reports the matching file + path' );
 
 # --- page_status ---
 ( $st, $r ) = call( 'page_status', { path => '/content/new.md' }, $bearer_lim );
-ok( !$r->{result}{isError}, 'page_status succeeds' );
+ok( !$r->{result}{isError},                  'page_status succeeds' );
 ok( $r->{result}{structuredContent}{exists}, 'page_status: source exists' );
 like( $r->{result}{structuredContent}{public_url}, qr{/content/new$}, 'page_status: public URL derived' );
 
@@ -229,7 +229,7 @@ is( $r->{result}{structuredContent}{kind}, 'not-found', 'read of a missing file 
 
 # --- page API: read_page + list_pages ---
 call( 'write_file', { path => '/content/about.md',
-    content => "---\ntitle: About Us\nregister: [sitemap, llms]\n---\nBody text here.\n" }, $bearer_lim );
+        content => "---\ntitle: About Us\nregister: [sitemap, llms]\n---\nBody text here.\n" }, $bearer_lim );
 ( $st, $r ) = call( 'read_page', { path => '/content/about.md' }, $bearer_lim );
 is( $r->{result}{structuredContent}{front_matter}{title}, 'About Us', 'read_page parses the front-matter title' );
 like( $r->{result}{structuredContent}{body}, qr/Body text here/, 'read_page returns the body' );
@@ -239,7 +239,7 @@ is_deeply( $r->{result}{structuredContent}{front_matter}{register}, [ 'sitemap',
 ( $st, $r ) = call( 'list_pages', {}, $bearer_lim );
 ok( $r->{result}{structuredContent}{count} >= 1, 'list_pages returns pages' );
 ok( ( grep { $_->{path} eq '/content/about.md' && $_->{title} eq 'About Us' }
-        @{ $r->{result}{structuredContent}{pages} || [] } ),
+            @{ $r->{result}{structuredContent}{pages} || [] } ),
     'list_pages includes the page with its title' );
 
 # --- page verbs: create_page / rename_page (update_links) / delete_page ---
@@ -256,11 +256,17 @@ ok( $r->{result}{structuredContent}{ok}, 'rename_page succeeds' );
 like( $r->{result}{structuredContent}{content}, qr{/renamed}, 'rename_page update_links rewrote the internal link' );
 ( $st, $r ) = call( 'delete_page', { slug => 'renamed' }, $bearer_lim );
 ok( $r->{result}{structuredContent}{ok} && !( -f "$d/renamed.md" ), 'delete_page removes the page' );
+# SM513: delete_page takes read_page's identifier too.
+call( 'create_page', { slug => 'bypath', title => 'By path' }, $bearer_lim );
+( $st, $r ) = call( 'delete_page', { path => '/bypath.md' }, $bearer_lim );
+ok( $r->{result}{structuredContent}{ok} && !( -f "$d/bypath.md" ), 'delete_page accepts a path as read_page spells it' );
+( $st, $r ) = call( 'delete_page', {}, $bearer_lim );
+like( $r->{result}{structuredContent}{error} // '', qr/slug or path/, 'and names both identifiers when given neither' );
 
 # --- nav: set_nav + read_nav round-trip ---
 ( $st, $r ) = call( 'set_nav', { items => [
-    { label => 'Home', url => '/' },
-    { label => 'Info', children => [ { label => 'About', url => '/about' } ] },
+            { label => 'Home', url      => '/' },
+            { label => 'Info', children => [ { label => 'About', url => '/about' } ] },
 ] }, $bearer_lim );
 ok( $r->{result}{structuredContent}{ok}, 'set_nav succeeds' ) or diag( encode_json($r) );
 ( $st, $r ) = call( 'read_nav', {}, $bearer_lim );
@@ -276,16 +282,16 @@ like( $r->{result}{structuredContent}{html}, qr/Body text here/, 'preview_page r
 
 # --- validate_page: public-data warning + form-rule check ---
 ( $st, $r ) = call( 'validate_page', { content =>
-    "---\ntitle: Guest Info\n---\nWiFi password: hunter2\nCall +44 20 7946 0958\n" }, $bearer_lim );
+            "---\ntitle: Guest Info\n---\nWiFi password: hunter2\nCall +44 20 7946 0958\n" }, $bearer_lim );
 my $vw = $r->{result}{structuredContent}{warnings} || [];
 ok( ( grep { $_->{kind} eq 'public-credential' } @$vw ), 'validate_page warns on a published password' );
-ok( ( grep { $_->{kind} eq 'public-phone' } @$vw ),      'validate_page warns on a phone number' );
+ok( ( grep { $_->{kind} eq 'public-phone' } @$vw ), 'validate_page warns on a phone number' );
 ( $st, $r ) = call( 'validate_page', { content =>
-    "---\ntitle: T\n---\n::: form\nname | Name | requierd\nsubmit | Go\n:::\n" }, $bearer_lim );
+            "---\ntitle: T\n---\n::: form\nname | Name | requierd\nsubmit | Go\n:::\n" }, $bearer_lim );
 ok( ( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
     'validate_page flags an unknown form rule (typo)' );
 ( $st, $r ) = call( 'validate_page', { content =>
-    "---\ntitle: T\n---\n::: form\ndog | Dog | required select:No,Yes - one small to medium dog\nsubmit | Go\n:::\n" }, $bearer_lim );
+            "---\ntitle: T\n---\n::: form\ndog | Dog | required select:No,Yes - one small to medium dog\nsubmit | Go\n:::\n" }, $bearer_lim );
 ok( !( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
     'validate_page does not flag the words inside a multi-word select option' );
 

@@ -1362,11 +1362,14 @@ my %TOOLS = (
         run => sub { _create_page( $_[0], $_[1] ) },
     },
     delete_page => {
-        description => 'Delete a page - its brief store entry goes with it - and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically. A delete ends the page content history thread; to RELOCATE a page use rename_page (not delete-then-recreate) so its history follows.',
+        description => 'Delete a page by slug or by path (either works) - its brief store entry goes with it - and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically. A delete ends the page content history thread; to RELOCATE a page use rename_page (not delete-then-recreate) so its history follows.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
-            properties => { slug => { type => 'string' } },
-            required   => ['slug'], additionalProperties => JSON::PP::false },
+            properties => {
+                slug => { type => 'string', description => 'The page slug (about, or docs/install)' },
+                path => { type => 'string', description => 'Or the page path as read_page spells it (/about.md) - either identifier works' },
+            },
+            additionalProperties => JSON::PP::false },
         run => sub { _delete_page( $_[0], $_[1] ) },
     },
     rename_page => {
@@ -2861,9 +2864,14 @@ sub _create_page {
 
 sub _delete_page {
     my ( $a, $user ) = @_;
-    my $slug = $a->{slug} // '';
+
+    # SM513: `slug` as before, or `path` in read_page's spelling - two page
+    # tools with two identifiers was a mistake every agent made once.
+    my $slug = $a->{slug} // $a->{path} // '';
     $slug =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md\z}{};
-    return { ok => 0, error => 'slug required' } unless length $slug;
+    return { ok => 0, error => 'slug or path required - the page to delete, '
+            . 'as a slug (about) or a path (/about.md)' }
+        unless length $slug;
     my $r = action_delete( "/$slug.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     # Report remaining references (nav, other pages).

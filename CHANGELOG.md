@@ -44,6 +44,10 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM513 resolved (PENDING) **delete_page takes a path as well as a slug.**
+  read_page took path and delete_page only slug - two page tools, two
+  identifiers. Either works now, and the refusal names both.
+
 - SM512 resolved (PENDING) **a safety export can be listed and cleared.**
   Every drop and lossy rebuild writes one under lazysite/db/rebuilds/ -
   correctly, and until now permanently. data-safety-exports /
