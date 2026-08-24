@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM491 resolved (PENDING) **whoami says which of the grant's doors can reach
+## 0.10.28 - EDGE: the field reports answered - menu, status, mirror, and the audit read (2026-08-23)
+
+- SM491 resolved (539df5b) **whoami says which of the grant's doors can reach
   each capability.** An agent with analytics:true and mcp:false tried an
   action name guessed from the capability, was refused namelessly, and
   concluded the capability had no surface - while the API route existed as
@@ -54,7 +56,7 @@ Naming the commit: AFTER it lands, never before
   from the unlocks map, so a capability that gains or loses a surface changes
   the answer without anybody remembering to.
 
-- SM438 resolved (PENDING) **updating a mirrored theme asset over WebDAV was a
+- SM438 resolved (5a692fc) **updating a mirrored theme asset over WebDAV was a
   silent no-op.** Filed deliberately without a cause; the settling test the
   filing specified was run and it is outcome (a): the write was REDIRECTED.
   resolve_for_write's "existing content keeps its home" sent an update of any
@@ -66,7 +68,7 @@ Naming the commit: AFTER it lands, never before
   resolve public unconditionally, and a PUT that finds a stale private copy
   there removes it and says so in the log - the field site heals on its next
   publish instead of needing delete-then-create.
-- SM464 resolved (PENDING) **an administrator can audit a permission they did
+- SM464 resolved (c02346b) **an administrator can audit a permission they did
   not set.** Filed as a question; the answer splits the two acts the filing
   said to split: reading a rule is the audit half and follows manage_users -
   an operator, a cookie-session admin, or a token whose OWN grant carries
@@ -76,14 +78,14 @@ Naming the commit: AFTER it lands, never before
   stale: SM465 already records before/after rule content in the acl-set
   audit entry.
 
-- SM495 resolved (PENDING) **the data plugin's Status button said "Done."**
+- SM495 resolved (3e5c1d1) **the data plugin's Status button said "Done."**
   The plugin returned modules, store and table list; the Plugin Manager
   shows `message` or the literal `Done.`, so the structured answer went
   unread. Status now carries a one-line message - worst news first: missing
   modules, then a store that does not exist yet, then the table count and
   names with the store size. Reported from the field on 0.10.27.
 
-- SM494 resolved (PENDING) **the menu could not see a Data grant.** The
+- SM494 resolved (6ff6499) **the menu could not see a Data grant.** The
   processor resolves a hand-written list of nav-gating capabilities into
   `manager_caps`; `manage_data` was never added to it, so the menu showed
   "Data tables" padlocked no matter what a group granted, and the DM-1 nav
@@ -93,7 +95,7 @@ Naming the commit: AFTER it lands, never before
   appear in the processor's derivation, so the next capability cannot be
   forgotten the same way. Reported from the field on 0.10.27.
 
-- SM492 shipped in part (GS9, GS11, GS12; PENDING) **the component mechanism
+- SM492 shipped in part (GS9, GS11, GS12; 7589ede) **the component mechanism
   is documented, and an unclosed fence is named.** An estate survey found the
   same hero panel hand-built twice because nothing told either author that
   `::: component` existed. `ai-briefing-layouts` gains "Components: a
@@ -107,7 +109,7 @@ Naming the commit: AFTER it lands, never before
   stray closing `:::` is `fence-close-unmatched`. GS7+GS8+GS10 refiled as
   SM493.
 
-- SM488 resolved (PENDING) **validate_page flagged ISO dates as phone
+- SM488 resolved (b35bf33) **validate_page flagged ISO dates as phone
   numbers, and reported every line short by the front matter.** The phone
   pattern matched `2026-08-22` - ten characters of digits and hyphens - so a
   page with three dates produced three warnings, two of them filenames of
@@ -116,7 +118,7 @@ Naming the commit: AFTER it lands, never before
   15/58/59, actual 24/67/68. Dates are stripped before the pattern runs, and
   the counter starts where the body does.
 
-- SM489 resolved (PENDING) **a rebuild with nothing to do dropped and
+- SM489 resolved (5c59f09) **a rebuild with nothing to do dropped and
   recreated the table anyway.** Found by the site agent pointing
   `data-rebuild` at a live table with no pending change: it built the copy,
   copied the rows, dropped the original and renamed into place - with no
