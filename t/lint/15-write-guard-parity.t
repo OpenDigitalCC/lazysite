@@ -59,6 +59,12 @@ my %GUARDED = map { $_ => 1 } qw(
 # path - so validate_path has no request to validate. Each carries its reason,
 # because "exempt" without one is indistinguishable from "forgotten".
 my %EXEMPT = (
+    action_brief_delete =>
+        'SM508: deliberately does NOT validate_path - an orphan\'s content '
+        . 'path may no longer validate (its directory can be gone), and '
+        . 'refusing to delete precisely the entries that most need deleting '
+        . 'would be the gap again. It writes only inside lazysite/briefs/ '
+        . 'via _store_path, refuses .., and t/integration/72 pins the guard.',
     # SM245: the migration enumerates sidecars from its own docroot walk and
     # writes store entries at paths IT derives - no caller-supplied path
     # exists to validate.

@@ -290,4 +290,33 @@ subtest 'SM507: THE STORE ENTRY FOLLOWS ITS FILE, on every surface' => sub {
     ok( !-e "$store/content/d2.md", 'the entry went with the DAV delete' );
 };
 
+subtest 'SM508: A BRIEF CAN BE LISTED, AND AN ORPHAN CAN BE CLEARED' => sub {
+    # The field's proof was three orphans nothing could list or remove.
+    # brief-append never checks its target exists (deliberately - brief-first
+    # authoring), so an orphan is one append away.
+    api_post( 'action=brief-append&path=/content/ghost.md',
+        { entry => 'a brief for a page that never was' } );
+    my $l = api_get('action=briefs-list');
+    ok( $l->{ok}, 'the store can be listed' ) or diag explain $l;
+    my %by = map { $_->{path} => $_ } @{ $l->{briefs} || [] };
+    ok( $by{'/content/ghost.md'}, 'the orphan is visible' );
+    is( $by{'/content/ghost.md'}{orphan}, 1, 'and flagged as an orphan' );
+    ok( $by{'/content/page.md'}, 'the briefed live page is listed too' );
+    is( $by{'/content/page.md'}{orphan}, 0, 'and not an orphan' );
+
+    my $d = api_post( 'action=brief-delete&path=/content/ghost.md', {} );
+    ok( $d->{ok}, 'the orphan can be cleared' ) or diag explain $d;
+    my $l2 = api_get('action=briefs-list');
+    ok( !( grep { $_->{path} eq '/content/ghost.md' } @{ $l2->{briefs} || [] } ),
+        'and is gone from the listing' );
+
+    my $again = api_post( 'action=brief-delete&path=/content/ghost.md', {} );
+    ok( !$again->{ok}, 'a second delete refuses' );
+    is( $again->{kind} // '', 'not-found', 'with the honest kind' );
+
+    my $noarg = api_post( 'action=brief-delete', {} );
+    ok( !$noarg->{ok}, 'an omitted path refuses (the SM306 shape)' );
+    like( $noarg->{error} // '', qr/explicit path/, 'and says so' );
+};
+
 done_testing();

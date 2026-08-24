@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM508 resolved (PENDING) **a brief can be listed, and an orphan can be
+  cleared.** The store had read, append and migrate - no list, no delete,
+  so an orphaned entry was undiscoverable (the field produced three as
+  proof). briefs-list / list_briefs returns every entry with an orphan
+  flag; brief-delete / delete_brief removes one, audited, with the
+  explicit-path guard. The delete keys on the store, not validate_path -
+  an orphan's content path may no longer validate.
+
 - SM507 resolved (PENDING) **the store entry follows its file.** SM245's
   recorded interim - a moved file's brief staying under its old key "until
   a reconcile adopts it" - met the field first: rename_page silently split

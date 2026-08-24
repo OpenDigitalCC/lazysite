@@ -185,7 +185,7 @@ my ( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
 
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set actions-list aliases-list analyse_visitors
-    brief-read brief-append briefs-migrate
+    brief-read brief-append briefs-migrate briefs-list brief-delete
     artifact-backups-delete artifact-manifest artifact-validate audit
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
@@ -533,7 +533,7 @@ my %MUTATING = map { $_ => 1 } qw(
     data-rebuild data-import data-table-drop
     save delete mkdir move copy migrate-to-local file-upload git-restore
     git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
-    brief-append briefs-migrate
+    brief-append briefs-migrate brief-delete
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
     theme-delete theme-rename theme-upload layout-activate layout-delete
     layout-install layouts-install layouts-repo-set artifact-backups-delete
@@ -582,6 +582,8 @@ if ( !$token_auth ) {
         'brief-read'         => 'manage_content',    # SM245: the brief store
         'brief-append'       => 'manage_content',
         'briefs-migrate'     => 'manage_content',
+        'briefs-list'        => 'manage_content',
+        'brief-delete'       => 'manage_content',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -760,6 +762,8 @@ if ($token_auth) {
         'brief-read'        => sub { $_[0]->{manage_content} },
         'brief-append'      => sub { $_[0]->{manage_content} },
         'briefs-migrate'    => sub { $_[0]->{manage_content} },
+        'briefs-list'       => sub { $_[0]->{manage_content} },
+        'brief-delete'      => sub { $_[0]->{manage_content} },
         'data-row-delete'   => sub { $_[0]->{manage_data} },
         'domains-list'      => sub { $_[0]->{manage_domains} }, # read-only domains view
         'domain-add'        => sub { $_[0]->{manage_domains} },
@@ -1240,6 +1244,31 @@ elsif ( $action eq 'briefs-migrate' ) {
     $Lazysite::Manager::Briefs::auth_user = $auth_user;
     $result = Lazysite::Manager::Briefs::action_briefs_migrate();
 }
+elsif ( $action eq 'briefs-list' ) {
+    require Lazysite::Manager::Briefs;
+    $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+    $Lazysite::Manager::Briefs::auth_user = $auth_user;
+    $result = Lazysite::Manager::Briefs::action_briefs_list();
+}
+elsif ( $action eq 'brief-delete' ) {
+
+    # SM508: as brief-read - a delete must name its entry explicitly. The
+    # dispatcher's '/' default deleting the site root's brief on an omitted
+    # argument is exactly the acl-set/SM306 shape, and the explicit check is
+    # what t/lint/52 requires of a paired action whose MCP twin declares the
+    # argument required.
+    if ( !( defined $params{path} && length $params{path} ) ) {
+        $result = { ok => 0,
+            error => 'brief-delete needs an explicit path - the store entry '
+                . 'to remove, as briefs-list reports it.' };
+    }
+    else {
+        require Lazysite::Manager::Briefs;
+        $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+        $Lazysite::Manager::Briefs::auth_user = $auth_user;
+        $result = Lazysite::Manager::Briefs::action_brief_delete($path);
+    }
+}
 elsif ( $action eq 'data-tables' ) {
     $result = Lazysite::Manager::Data::action_data_tables();
 }
@@ -1668,7 +1697,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         site-backup-inspect protected-sections
         data-tables data-table data-rows
         data-table-source data-migrate-plan
-        brief-read
+        brief-read briefs-list
     );
 
     # SM447: the three data READS are skip-listed for the same reason as every
@@ -1680,6 +1709,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # migration and a row edit are exactly what an operator asks the trail
     # about. SM245: brief-read skips as a read; brief-append and
     # briefs-migrate stay out for the same reason the data writers do.
+    # SM508: briefs-list skips as a read; brief-delete is audited - removing
+    # a record of intent is exactly what a trail should remember.
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );

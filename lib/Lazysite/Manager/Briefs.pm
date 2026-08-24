@@ -14,6 +14,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path);
 use Exporter 'import';
 our @EXPORT_OK = qw(action_brief_read action_brief_append
+    action_briefs_list action_brief_delete
     action_briefs_migrate plugin_status store_entry_move store_entry_remove);
 
 our $DOCROOT;
@@ -110,6 +111,60 @@ sub action_brief_append {
     close $fh;
     log_event( 'INFO', $r->{rel}, 'brief appended', actor => $actor );
     return { ok => 1, path => $r->{rel} };
+}
+
+# SM508: the lifecycle's missing half, raised by the site agent with three
+# orphans as the proof. brief-read needs a path you already know, so an
+# orphaned entry could not even be DISCOVERED - and rows of debris were
+# accumulating with no way to see or clear them. The list answers "which
+# paths have a brief"; the delete clears one. The delete keys on the STORE,
+# not on validate_path: an orphan's content path may no longer validate
+# (its directory can be gone), and refusing to delete precisely the entries
+# that most need deleting would be the gap all over again.
+sub action_briefs_list {
+    if ( my $off = _gate() ) { return $off }
+    my $dir = "$DOCROOT/lazysite/briefs";
+    my @briefs;
+    if ( -d $dir ) {
+        require File::Find;
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    my $f = $File::Find::name;
+                    return unless -f $f;
+                    ( my $rel = $f ) =~ s{\A\Q$dir\E/}{};
+                    my @st = stat $f;
+                    push @briefs,
+                        { path => "/$rel",
+                        size   => $st[7] // 0,
+                        mtime  => $st[9] // 0,
+                        orphan => ( -e "$DOCROOT/$rel" ? 0 : 1 ),
+                        };
+                },
+            },
+            $dir );
+    }
+    @briefs = sort { $a->{path} cmp $b->{path} } @briefs;
+    return { ok => 1, briefs => \@briefs, count => scalar @briefs };
+}
+
+sub action_brief_delete {
+    if ( my $off = _gate() ) { return $off }
+    my ($path) = @_;
+    return { ok => 0, error => 'path required' }
+        unless defined $path && length $path;
+    ( my $rel = $path ) =~ s{\A/+}{};
+    return { ok => 0, error => 'Path is blocked' }
+        if $rel =~ m{\.\.} || $rel !~ /\S/;
+    my $f = _store_path($rel);
+    return { ok => 0, error => 'no brief store entry for that path',
+        kind => 'not-found' }
+        unless -f $f;
+    unlink $f
+        or return { ok => 0, error => 'the brief store entry could not be removed' };
+    my $actor = length $auth_user ? $auth_user : '(unattributed)';
+    log_event( 'INFO', $rel, 'brief deleted', actor => $actor );
+    return { ok => 1, path => "/$rel", deleted => 1 };
 }
 
 # The status the Plugin Manager shows (SM495's lesson: a message, always).

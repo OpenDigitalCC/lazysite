@@ -59,7 +59,9 @@ tone: medium
 `bad-url-blocks` | manage_config |  
 `bad-url-unblock` | manage_config | ip (query)
 `brief-append` | manage_content | path (query), entry (body)
+`brief-delete` | manage_content | path (query)
 `brief-read` | manage_content | path (query)
+`briefs-list` | manage_content |  
 `briefs-migrate` | manage_content |  
 `cache-invalidate` | cookie only | path (query), host (query)
 `cache-list` | cookie only |  

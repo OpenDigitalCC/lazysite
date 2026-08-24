@@ -660,6 +660,30 @@ my %TOOLS = (
             return Lazysite::Manager::Briefs::action_brief_append( $a->{path}, $a->{entry} );
         },
     },
+    list_briefs => {
+        description => 'List every brief in the store: path, size, mtime, and whether it is an ORPHAN (no content answers its key - the brief was written for a path that never existed, or its page predates the engine carrying briefs through renames and deletes). The discovery half of the lifecycle: read_brief needs a path you already know; this answers WHICH paths have one.',
+        schema => { type => 'object', properties => {} },
+        run    => sub {
+            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+            local $Lazysite::Manager::Briefs::auth_user = $_[1];
+            require Lazysite::Manager::Briefs;
+            return Lazysite::Manager::Briefs::action_briefs_list();
+        },
+    },
+    delete_brief => {
+        description => 'Delete one brief store entry by its content path (as list_briefs reports it). The cleanup half of the lifecycle: an orphan surfaced by list_briefs is removed with this. Deleting a live page\'s brief discards its record of intent - prefer appending a correction with append_brief. Audited as brief-delete.',
+        schema => {
+            type     => 'object',
+            required => ['path'],
+            properties => { path => { type => 'string', description => 'The store entry to remove' } },
+        },
+        run => sub {
+            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+            local $Lazysite::Manager::Briefs::auth_user = $_[1];
+            require Lazysite::Manager::Briefs;
+            return Lazysite::Manager::Briefs::action_brief_delete( $_[0]->{path} );
+        },
+    },
     drop_data_table => {
         description => 'Remove a table entirely - its descriptor, its stored rows, and every value in them. THIS EXISTS BECAUSE THERE WAS NO WAY BACK: declaring a table was reachable from three surfaces and removing one from none, and the descriptor lives under lazysite/ where every write channel refuses, so a table made by mistake or for a single test was permanent. CONFIRM BY NAMING THE TABLE EXACTLY in confirm: call without it first to be told what will be lost. A safety export of every row is written before anything is dropped and its path is returned, so a mistake is recoverable even though the table is not.',
         cap         => 'manage_data',
@@ -2931,6 +2955,8 @@ my %ANNOTATE = (
     whoami       => [ 1, 0, 0 ],
     read_brief   => [ 1, 0, 0 ],
     append_brief => [ 0, 0, 0 ],    # writes the engine store, changes nothing live
+    list_briefs  => [ 1, 0, 0 ],
+    delete_brief => [ 0, 1, 0 ],    # destroys a record; changes nothing live
 
     list_files         => [ 1, 0, 0 ],
     read_file          => [ 1, 0, 0 ],

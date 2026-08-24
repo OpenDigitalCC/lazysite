@@ -131,6 +131,9 @@ my %PAIR = (
     # SM245: the brief store's twins.
     'brief-read'   => 'read_brief',
     'brief-append' => 'append_brief',
+    # SM508: the lifecycle's discovery and cleanup halves.
+    'briefs-list'  => 'list_briefs',
+    'brief-delete' => 'delete_brief',
 );
 for my $a ( sort keys %PAIR ) {
     ok( ( grep { $_ eq $a } @api_live ), "paired API action '$a' still exists" );

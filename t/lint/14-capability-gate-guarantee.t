@@ -146,7 +146,7 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # SM245: the brief store's read. Takes a path, returns the recorded
     # "why", changes nothing; the writers (brief-append, briefs-migrate) are
     # in %MUTATING and POST-forced.
-    brief-read
+    brief-read briefs-list
 
     # DM-2: the download is a READ, and a big one. It returns every row rather
     # than a capped page, which is worth saying out loud - but the caller

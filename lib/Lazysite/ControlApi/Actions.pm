@@ -61,6 +61,8 @@ our %ACTION = (
     'brief-read' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
     'brief-append' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'entry', in => 'body' } ] },
     'briefs-migrate' => { caps => ['manage_content'], params => [] },
+    'briefs-list'    => { caps => ['manage_content'], params => [] },
+    'brief-delete' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
     'aliases-list' => { caps => ['manage_content'], params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { caps => ['analytics'], params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
     'artifact-backups-delete' => { caps => [ 'manage_layouts', 'manage_themes' ], params => [ { name => 'path', in => 'query' } ] },
