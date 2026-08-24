@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM509 resolved (PENDING) **the manager sees the submissions the store
+  holds.** The panel said "No submissions yet" for a store the API read
+  five rows from: its directory-listing probe hit the carve-out's prefix
+  test, which matched only paths UNDER the store - the directory itself
+  was denied and the refusal drawn as an empty state. The store directory
+  now joins its own carve-out (boundary-safe) and answers to the same
+  capability as its files.
+
 - SM506 resolved (PENDING) **the briefings teach the store.** The documents
   every connecting agent reads before authoring still taught the retired
   .brief sidecar - including the promise ("not a blocked extension, writes

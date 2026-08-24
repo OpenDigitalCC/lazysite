@@ -264,8 +264,17 @@ our @LAZYSITE_OPEN_EXACT    = ('lazysite/nav.conf');
 
 sub _is_carveout {
     my ($rel) = @_;
-    for my $e (@LAZYSITE_OPEN_EXACT)    { return 1 if $rel eq $e }
-    for my $p (@LAZYSITE_OPEN_PREFIXES) { return 1 if index( $rel, $p ) == 0 }
+    for my $e (@LAZYSITE_OPEN_EXACT) { return 1 if $rel eq $e }
+    for my $p (@LAZYSITE_OPEN_PREFIXES) {
+
+        # SM509: the DIRECTORY ITSELF is part of its own carve-out. The prefix
+        # test alone matched only paths UNDER the store, so listing
+        # lazysite/forms/submissions - the exact call the manager's submissions
+        # panel makes - was refused as "blocked lazysite tree", and the panel
+        # read the refusal as "No submissions yet" while the API read five rows
+        # from the same store. A boundary bug wearing an empty-state costume.
+        return 1 if index( $rel, $p ) == 0 || "$rel/" eq $p;
+    }
     return 0;
 }
 
@@ -343,7 +352,13 @@ sub is_blocked_path {
 # that is ungated.
 sub _is_submission_store_path {
     my ($rel) = @_;
-    return 1 if index( $rel, 'lazysite/forms/submissions/' ) == 0;
+
+    # SM509: the store DIRECTORY answers as store too, so a listing of it is
+    # capability-gated (read_submissions|manage_forms) exactly like the files
+    # in it - opened by the carve-out, governed by the requirement.
+    return 1
+        if index( $rel, 'lazysite/forms/submissions/' ) == 0
+        || $rel eq 'lazysite/forms/submissions';
     my @dirs = eval {
         require Lazysite::Manager::Plugins;
         Lazysite::Manager::Plugins::submission_store_dirs();
@@ -351,7 +366,7 @@ sub _is_submission_store_path {
     return 0 unless @dirs;
     for my $d (@dirs) {
         next unless defined $d && length $d;
-        return 1 if index( $rel, "$d/" ) == 0;
+        return 1 if index( $rel, "$d/" ) == 0 || $rel eq $d;    # SM509
     }
     return 0;
 }
