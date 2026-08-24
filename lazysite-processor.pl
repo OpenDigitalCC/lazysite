@@ -4920,7 +4920,30 @@ sub resolve_db {
     # show a number - the query engine's internal shape leaking into a
     # template.
     return $r->{value} if exists $r->{value};
-    return $r->{rows} || [];
+
+    # SM511: a binding's parse warnings reach the log, naming the page and
+    # the binding - a clamped limit used to be a refusal that rendered ZERO
+    # rows and said nothing anywhere.
+    for my $w ( @{ $r->{warnings} || [] } ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable warning', key => $key, table => $table,
+            why => $w );
+    }
+
+    # SM511: A CAPPED RENDER SAYS SO. The default limit is 200, so a table
+    # that outgrows it renders short while looking complete - the exact
+    # moment a site has become worth something. The page can say it too:
+    # `<var>_total` carries the true count (see resolve_tt_vars).
+    my $rows = $r->{rows} || [];
+    if ( defined $r->{total} && $r->{total} > @{$rows} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable is capped - rendering '
+                . scalar( @{$rows} )
+                . " of $r->{total} rows; add limit/offset paging, or render "
+                . '<var>_total so the page can say so',
+            key => $key, table => $table );
+    }
+    return ( $rows, $r->{total} );
 }
 
 sub resolve_tt_vars {
@@ -4940,7 +4963,13 @@ sub resolve_tt_vars {
         }
         elsif ( $val =~ s/^db://i ) {
             $val =~ s/^\s+|\s+$//g;
-            $vars{$key} = resolve_db( $val, $key );
+            my ( $v, $total ) = resolve_db( $val, $key );
+            $vars{$key} = $v;
+
+            # SM511: the true count, beside the (possibly capped) list, so a
+            # page can say "showing 200 of 250". Scalar bindings (.count,
+            # .field) answer a value and carry no companion.
+            $vars{ $key . '_total' } = 0 + $total if defined $total;
         }
         elsif ( $val =~ s/^json://i ) {
             $val = interpolate_env($val);

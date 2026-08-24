@@ -63,7 +63,10 @@ our @EXPORT_OK = qw(parse_binding ROW_CAP);
 # The ceiling a page may ask for. select_sql caps again on its own account;
 # this one exists so that an author asking for 5000 is TOLD, rather than
 # quietly served 1000 and left to wonder where the rest went.
-sub ROW_CAP { return 500 }
+sub ROW_CAP {
+    require Lazysite::Data::SQLite;
+    return Lazysite::Data::SQLite::MAX_ROWS();
+}
 
 sub _err { return { ok => 0, error => $_[0] } }
 
@@ -172,9 +175,19 @@ sub parse_binding {
         }
         elsif ( $k eq 'limit' || $k eq 'offset' ) {
             return _err("$k must be a whole number") unless $v =~ /\A\d+\z/;
-            return _err( "limit is capped at " . ROW_CAP()
-                    . " - ask for fewer rows, or page through them with offset" )
-                if $k eq 'limit' && $v > ROW_CAP();
+
+            # SM511: an over-cap limit CLAMPS, loudly, instead of refusing.
+            # The refusal was right in principle and invisible in practice:
+            # a parse error never reaches a rendered page, so limit=501 on a
+            # 9-row table rendered ZERO rows with no signal anywhere. The
+            # author who asked for 700 because the table holds 700 now gets
+            # the cap's worth of rows AND a warning the processor logs.
+            if ( $k eq 'limit' && $v > ROW_CAP() ) {
+                push @{ $out{warnings} },
+                    "limit $v is above the cap of " . ROW_CAP()
+                    . " - clamped; page through the rest with offset";
+                $v = ROW_CAP();
+            }
             $out{$k} = $v + 0;
         }
         elsif ( $k eq 'mode' ) {

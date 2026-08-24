@@ -25,16 +25,16 @@ use Lazysite::Data::Descriptor qw(load_descriptor);
 
 my $d = load_descriptor(
     'tasks',
-    {   key     => 'code',
+    { key => 'code',
         indexes => [ ['due'], [ 'area', 'street' ] ],
         fields  => {
             code   => { type => 'text' },
             area   => { type => 'text' },
             street => { type => 'text' },
             title  => { type => 'text' },
-            due   => { type => 'date' },
-            done  => { type => 'boolean' },
-            state => { type => 'enum', values => [qw(new open shut)] },
+            due    => { type => 'date' },
+            done   => { type => 'boolean' },
+            state  => { type => 'enum', values => [qw(new open shut)] },
         },
     }
 );
@@ -42,8 +42,8 @@ ok( $d->{ok}, 'the fixture descriptor loads' ) or BAIL_OUT( $d->{error} );
 
 subtest 'the shapes an author writes' => sub {
     my $q = parse_binding( 'db:tasks', $d );
-    is( $q->{table}, 'tasks', 'a bare table' );
-    is( $q->{mode}, 'snapshot', 'and snapshot is the default mode' )
+    is( $q->{table}, 'tasks',    'a bare table' );
+    is( $q->{mode},  'snapshot', 'and snapshot is the default mode' )
         or diag( 'Live-by-default makes every bound page cost a database read '
             . 'per visitor, which nobody opted into.' );
 
@@ -60,8 +60,8 @@ subtest 'the shapes an author writes' => sub {
 subtest 'the space form still means what it meant' => sub {
     # It shipped in 0.10.24 and pages use it. Both forms go through one parser,
     # so they cannot drift into disagreeing.
-    my $a = parse_binding( 'db:tasks sort=due desc limit=5',  $d );
-    my $b = parse_binding( 'db:tasks(order=-due,limit=5)',    $d );
+    my $a = parse_binding( 'db:tasks sort=due desc limit=5', $d );
+    my $b = parse_binding( 'db:tasks(order=-due,limit=5)',   $d );
     is( $a->{order_by}, $b->{order_by}, 'same field' );
     is( $a->{order},    $b->{order},    'same direction' );
     is( $a->{limit},    $b->{limit},    'same limit' );
@@ -146,20 +146,26 @@ subtest 'scalars' => sub {
 };
 
 subtest 'the ceiling is stated, not silently applied' => sub {
+    # SM511: this used to REFUSE an over-cap limit, and the refusal was right
+    # in principle and invisible in practice - a parse error never reaches a
+    # rendered page, so limit=501 on a 9-row table rendered ZERO rows with
+    # nothing anywhere to explain it. Now it clamps, and the warning rides
+    # the parse for the processor to log.
     my $q = parse_binding( 'db:tasks(limit=' . ( ROW_CAP() + 1 ) . ')', $d );
-    ok( !$q->{ok}, 'asking for more than the cap is refused' )
-        or diag( 'Serving 500 when 5000 was asked for leaves an author '
-            . 'wondering where the rest went, and looking at their data.' );
-    like( $q->{error}, qr/offset/, 'and the error points at paging' );
+    ok( $q->{ok}, 'asking for more than the cap parses' ) or diag explain $q;
+    is( $q->{limit}, ROW_CAP(), 'clamped to the cap, not refused to zero' );
+    like( join( ' ', @{ $q->{warnings} || [] } ),
+        qr/offset/, 'and the warning points at paging' );
 
-    ok( parse_binding( 'db:tasks(limit=' . ROW_CAP() . ')', $d )->{ok},
-        'the cap itself is allowed' );
+    my $at = parse_binding( 'db:tasks(limit=' . ROW_CAP() . ')', $d );
+    ok( $at->{ok},        'the cap itself is allowed' );
+    ok( !$at->{warnings}, 'without a warning - asking for the cap is fine' );
     ok( !parse_binding( 'db:tasks(limit=lots)', $d )->{ok},
         'a limit that is not a number is refused' );
 };
 
 subtest 'a mode has to be one of the three' => sub {
-    is( parse_binding( 'db:tasks(mode=live)', $d )->{mode}, 'live', 'live' );
+    is( parse_binding( 'db:tasks(mode=live)',   $d )->{mode}, 'live',   'live' );
     is( parse_binding( 'db:tasks(mode=client)', $d )->{mode}, 'client', 'client' );
     my $q = parse_binding( 'db:tasks(mode=turbo)', $d );
     ok( !$q->{ok}, 'and anything else is refused' );
@@ -167,8 +173,8 @@ subtest 'a mode has to be one of the three' => sub {
 };
 
 subtest 'a table name is a table name' => sub {
-    ok( !parse_binding( 'db:../../etc/passwd',   $d )->{ok}, 'no traversal' );
-    ok( !parse_binding( 'db:Tasks',              $d )->{ok}, 'no capitals' );
+    ok( !parse_binding( 'db:../../etc/passwd',    $d )->{ok}, 'no traversal' );
+    ok( !parse_binding( 'db:Tasks',               $d )->{ok}, 'no capitals' );
     ok( !parse_binding( 'db:tasks; DROP TABLE x', $d )->{ok}, 'no SQL' );
 };
 

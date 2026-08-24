@@ -23,7 +23,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Data::Descriptor qw(load_descriptor);
-use Lazysite::Data::Value qw(coerce_row);
+use Lazysite::Data::Value      qw(coerce_row);
 use Lazysite::Data::SQLite
     qw(create_table_sql insert_sql update_sql delete_sql select_sql);
 
@@ -31,12 +31,12 @@ my $has_dbi = eval { require DBI; require DBD::SQLite; 1 };
 
 my $d = load_descriptor(
     'orders',
-    {   key    => 'ref',
+    { key => 'ref',
         fields => {
             ref   => { type => 'text', required => 1, max => 40 },
             note  => { type => 'text' },
             qty   => { type => 'integer' },
-            total => { type => 'decimal', digits => 8, places => 2 },
+            total => { type => 'decimal', digits  => 8, places => 2 },
             paid  => { type => 'boolean', default => 0 },
         },
     }
@@ -64,7 +64,7 @@ subtest 'no value reaches the statement text' => sub {
     my ( $usql, $ubinds ) = update_sql( $d, $HOSTILE{ref}, $row->{values} );
     ok( index( $usql, $HOSTILE{ref} ) < 0,
         'the KEY is bound too, even though it identifies the row' )
-        or diag( 'It is data. Only its column NAME is interpolated.' );
+        or diag('It is data. Only its column NAME is interpolated.');
     is( $ubinds->[-1], $HOSTILE{ref}, 'and it is the last bind, for the WHERE' );
 
     my ( $dsql, $dbinds ) = delete_sql( $d, $HOSTILE{ref} );
@@ -78,7 +78,7 @@ subtest 'no unbounded UPDATE or DELETE can be generated' => sub {
         or diag( 'A generator that CAN emit an unbounded UPDATE eventually '
             . 'will. There is no code path to one.' );
     ok( !eval { update_sql( $d, 'A1', {} ); 1 }, 'update with nothing to set dies' );
-    ok( !eval { delete_sql( $d, '' ); 1 },       'delete without a key dies' );
+    ok( !eval { delete_sql( $d, '' );       1 }, 'delete without a key dies' );
 
     my ( $sql, undef ) = update_sql( $d, 'A1', { ref => 'A2', note => 'x' } );
     # The SET clause ALONE. An earlier version of this assertion used
@@ -89,7 +89,7 @@ subtest 'no unbounded UPDATE or DELETE can be generated' => sub {
     ok( defined $set_clause && $set_clause !~ /"ref"/,
         'the key is not SETTABLE through an update' );
     like( $sql, qr/WHERE "ref" = \?/, 'it is only the WHERE target' );
-    like( $sql, qr/SET "note" = \?/, 'only the other field is set' )
+    like( $sql, qr/SET "note" = \?/,  'only the other field is set' )
         or diag( 'Changing the key would move the row identity while the '
             . 'WHERE still names the old one.' );
 };
@@ -102,7 +102,9 @@ subtest 'select is bounded, and orders only by a declared field' => sub {
     is( $binds->[-1], 200, 'with the default ceiling' );
 
     ( $sql, $binds ) = select_sql( $d, limit => 99999 );
-    is( $binds->[-1], 1000, 'and the caller cannot raise it past the cap' );
+    is( $binds->[-1], Lazysite::Data::SQLite::MAX_ROWS(),
+        'and the caller cannot raise it past the cap - THE cap, the one '
+            . 'number SM511 unified' );
 
     ( $sql, $binds ) = select_sql( $d, order_by => 'qty', order => 'desc' );
     like( $sql, qr/ORDER BY "qty" DESC/, 'ordering by a declared field works' );

@@ -302,7 +302,13 @@ sub main {
         { ok => 1,
             table => $r->{table},
             rows  => $r->{rows},
-            ( $r->{pending_schema} ? ( pending_schema => JSON::PP::true ) : () ),
+
+            # SM511: the endpoint answers exactly what the page's binding
+            # does - the true count beside the (possibly capped) rows, and
+            # any clamp warning said rather than swallowed.
+            ( defined $r->{total}  ? ( total          => 0 + $r->{total} ) : () ),
+            ( $r->{warnings}       ? ( warnings       => $r->{warnings} )  : () ),
+            ( $r->{pending_schema} ? ( pending_schema => JSON::PP::true )  : () ),
         } );
 }
 

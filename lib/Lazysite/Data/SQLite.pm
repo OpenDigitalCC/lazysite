@@ -52,7 +52,7 @@ our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
     insert_sql update_sql delete_sql select_sql key_list_sql
     null_count_sql column_values_sql drop_table_sql
     observed_schema add_column_sql backfill_sql table_has_rows
-    last_insert_key count_sql
+    last_insert_key count_sql MAX_ROWS
 );
 
 # Re-assert the identifier rule at the point of interpolation.
@@ -393,6 +393,12 @@ sub delete_sql {
 # minute; the caller may raise the ceiling but cannot remove it.
 # SM502 U-1: the total behind a limited page. Same descriptor, same WHERE
 # rules as select_sql, no order or limit - the number the pager needs.
+# SM511: THE one row ceiling, stated once. The binding parser capped at 500
+# and this file capped at 1000, so 500-1000 was reachable by the API and
+# unreachable from a page for no stated reason. One number now; both
+# surfaces clamp to it.
+sub MAX_ROWS { return 500 }
+
 sub count_sql {
     my ( $d, %opt ) = @_;
     die 'count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
@@ -450,7 +456,7 @@ sub select_sql {
 
     my $limit = $opt{limit};
     $limit = 200 unless defined $limit && $limit =~ /\A\d+\z/ && $limit > 0;
-    $limit = 1000 if $limit > 1000;
+    $limit = MAX_ROWS() if $limit > MAX_ROWS();    # SM511: one ceiling
     $sql .= ' LIMIT ?';
     push @binds, $limit;
 

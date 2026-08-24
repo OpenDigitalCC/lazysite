@@ -425,19 +425,21 @@ sub resolve_binding {
     my $r = read_rows( $docroot, $shape->{table}, %opt );
     return $r unless $r->{ok};
 
-    # `.count` counts what the filters SELECT, and it counts them after the
-    # limit rather than before - which is worth saying because it is the
-    # surprising choice. A count that ignored the limit would disagree with the
-    # list beside it on the same page, and two numbers on one page that
-    # disagree is worse than one number that is capped.
+    # `.count` is the TRUE count of what the filters select - before any
+    # limit. It used to count after the limit, on the reasoning that two
+    # numbers on one page that disagree are worse than one capped number;
+    # SM511 changed the calculus by giving the page the total (`<var>_total`),
+    # so the capped count stopped being the only honest option and started
+    # being the wrong one: a gallery of 250 said "250" nowhere at all.
     if ( $scalar eq 'count' ) {
         return _timed( $q, $t0,
             { ok => 1, table => $shape->{table}, mode => $q->{mode},
-                value => scalar @{ $r->{rows} || [] } } );
+                value => 0 + ( $r->{total} // scalar @{ $r->{rows} || [] } ) } );
     }
 
     return _timed( $q, $t0,
         { %{$r}, mode => $q->{mode},
+            ( $q->{warnings} ? ( warnings => $q->{warnings} ) : () ),
             ( $q->{writable} ? ( writable => $q->{writable} ) : () ) } );
 }
 
@@ -754,7 +756,12 @@ sub export_all_rows {
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
 
-    my $batch = 1000;
+    # SM511: the batch is THE ceiling, not a private second number. It was a
+    # literal 1000 while select_sql clamped to MAX_ROWS - the moment the two
+    # disagreed, "a short page means done" concluded after one page and the
+    # export silently lost every row past the cap. The gate caught it; the
+    # batch now asks for exactly what the reader can serve.
+    my $batch = Lazysite::Data::SQLite::MAX_ROWS();
     my @all;
     my $offset = 0;
     while (1) {

@@ -129,8 +129,14 @@ SQLite rather than outgrown the query, and the answer is a different engine.
 
 Filter values are checked against the field's declared type, so
 `done=perhaps` on a boolean is **refused and says so** rather than quietly
-matching nothing. `limit=` is capped at **500**; ask for more and you are told,
-rather than served 500 and left wondering.
+matching nothing. `limit=` is capped at **500**: ask for more and the binding
+**clamps to 500 and warns in the render log**, naming the page -- serving what
+it can beats rendering nothing. With no `limit=` at all the default is **200**,
+so a list that outgrows 200 renders short; the render log says so, and the
+page can too: every list binding gets a companion **`<var>_total`** variable
+carrying the true count, so a template can write `showing [% items.size %] of
+[% items_total %]`. `.count()` is the **true count** as well -- it ignores any
+`limit=` beside it.
 
 Anything this grammar will not express -- joins, ranges, OR -- is deliberate.
 Front matter is not a place for a query language.

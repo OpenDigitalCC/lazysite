@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM511 resolved (PENDING) **the cap reaches the page, and the page can
+  say so.** A db: binding with no limit rendered 200 of 250 looking
+  complete, .count agreeing; an over-cap limit rendered ZERO rows with no
+  signal. One ceiling now (500, stated once - the API's 501-1000 range is
+  gone); over-cap clamps with a logged warning; every list binding gets
+  <var>_total; capped renders log N-of-M naming the page; .count is the
+  true count before the limit.
+
 - SM502 partly resolved (PENDING) **the data manager after its walk: three
   of six.** U-1: data-rows always carried a silent 200-row server cap - the
   reply now returns the total behind the page and the panel pages honestly

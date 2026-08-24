@@ -45,6 +45,8 @@ close $cf;
 open my $lt, '>', "$docroot/lazysite/layouts/t/layout.tt" or die $!;
 print {$lt} '<html><body>[% content %]'
     . '[% FOREACH p IN products %]<li>[% p.name %] @ [% p.price %]</li>[% END %]'
+    . '[% IF products_total %]<p>TOT=[% products_total %]</p>[% END %]'
+    . '[% IF many %]<p>MANY=[% many.size %]/[% many_total %]</p>[% END %]'
     . '</body></html>';
 close $lt;
 
@@ -137,7 +139,7 @@ fields:
     places: 2
 YAML
     my $r = api_post( 'action=data-table-save', { table => 'products',
-        descriptor => $yaml } );
+            descriptor => $yaml } );
     ok( $r->{ok}, 'the descriptor saves' ) or diag( $r->{error} // '' );
     ok( $r->{migrate_required},
         'and says the stored table still needs migrating' )
@@ -173,9 +175,9 @@ YAML
     # what SM404's own test does with `ulimit -f`. The shape is copied from the
     # writer SM404 fixed; what is asserted below is the reachable half, that an
     # unwritable directory is reported rather than silently succeeding.
-    my $dir = "$docroot/lazysite/db/tables";
+    my $dir  = "$docroot/lazysite/db/tables";
     my $mode = ( stat $dir )[2] & 07777;
-  SKIP: {
+SKIP: {
         skip 'running as root - directory modes do not bind', 1 if $> == 0;
         chmod 0500, $dir or skip 'cannot chmod', 1;
         my $ro = api_post( 'action=data-table-save',
@@ -188,7 +190,7 @@ YAML
 subtest 'the page renders before there is any data' => sub {
     my $html = visit('/');
     like( $html, qr/Everything we sell/, 'the page itself renders' )
-        or diag( 'A table with no rows must not take the page down.' );
+        or diag('A table with no rows must not take the page down.');
     unlike( $html, qr/<li>/, 'with no rows' );
 };
 
@@ -254,7 +256,7 @@ YAML
 subtest 'READ: a visitor sees it on the page' => sub {
     my $html = visit('/');
     like( $html, qr/<li>Widget \@ 9\.99<\/li>/, 'the row is rendered' )
-        or diag( "the page was:\n$html" );
+        or diag("the page was:\n$html");
     like( $html, qr/<li>Anvil \@ 120\.00<\/li>/, 'and the second' )
         or diag( 'The money kept its trailing zeros, which is the decimal '
             . 'type doing its job all the way to the browser.' );
@@ -327,7 +329,7 @@ subtest 'DP-2: the mode decides whether the page is live' => sub {
     unlink glob "$docroot/lazysite/cache/ct/*";
     visit('/');
     my ( $n2, $live2 ) = live_flag();
-    ok( $n2, 'the live page records dependencies too' );
+    ok( $n2,    'the live page records dependencies too' );
     ok( $live2, 'and mode=live DOES mark it live' )
         or diag( 'A cacheable page bound to a live table would serve last '
             . "week's price list while reporting itself fresh." );
@@ -342,6 +344,32 @@ subtest 'a page naming a table that does not exist still renders' => sub {
         or diag( 'A mis-typed table name must not take a page down - the '
             . 'author needs the page in order to fix it.' );
     unlike( $html, qr/<li>/, 'with no rows' );
+};
+
+subtest 'SM511: the page can say the whole count' => sub {
+    my $html = visit('/');
+    like( $html, qr/TOT=2/,
+        'products_total reaches the template beside the (possibly capped) list' )
+        or diag($html);
+};
+
+subtest 'SM511: an over-cap limit renders rows, not zero' => sub {
+    open my $cp, '>', "$docroot/caps.md" or die $!;
+    print {$cp} <<'MD';
+---
+title: Caps
+tt_page_var:
+  many: db:products(limit=501)
+---
+
+Capped ask.
+MD
+    close $cp;
+    my $html = visit('/caps');
+    like( $html, qr{MANY=2/2}, 'the clamp serves the rows it can' )
+        or diag( $html
+            . 'This used to be a parse refusal that reached the page as an '
+            . 'empty list - a blank gallery with nothing to explain it.' );
 };
 
 done_testing();

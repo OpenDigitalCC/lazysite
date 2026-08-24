@@ -29,7 +29,7 @@ BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
         or plan skip_all => 'DBI/DBD::SQLite/YAML::PP not available';
 }
-use TestHelper qw(repo_root env_passthrough);
+use TestHelper             qw(repo_root env_passthrough);
 use Lazysite::Data::Tables qw(apply_schema insert_row resolve_binding);
 
 my $root    = repo_root();
@@ -80,14 +80,14 @@ subtest 'an INDEXED order is never called a scan, however slow the box is'
         'but does not blame an index that already exists' )
         or diag( 'Telling an author to index the key would send them to fix '
             . 'something that is not broken.' );
-};
+    };
 
 # --- the endpoint uses the same parser ------------------------------------
 sub hit {
     my (%env) = @_;
     local %ENV = ( env_passthrough(), DOCUMENT_ROOT => $docroot,
         REQUEST_METHOD => 'GET', QUERY_STRING => '', %env );
-    my $out = qx($^X \Q$root/lazysite-data.pl\E 2>/dev/null);
+    my $out      = qx($^X \Q$root/lazysite-data.pl\E 2>/dev/null);
     my ($status) = $out =~ /Status:\s*(\d+)/;
     my ($body)   = $out =~ /\r?\n\r?\n(.*)/s;
     return ( $status // 0, ( eval { decode_json( $body // '' ) } || {} ) );
@@ -100,7 +100,7 @@ subtest 'THE ENDPOINT CANNOT INJECT INTO THE GRAMMAR' => sub {
     # whatever the grammar grows next.
     my ( $st, $d1 ) = hit( QUERY_STRING => 'table=notes&order_by=body,limit=99999' );
     is( $st, 400, 'a comma in a field name is refused' )
-        or diag( 'If this parses, the query string can write grammar.' );
+        or diag('If this parses, the query string can write grammar.');
     like( $d1->{error}, qr/field name/, 'as a bad field name' );
 
     my ( $st2, $d2 ) = hit( QUERY_STRING => 'table=notes&limit=nine' );
@@ -115,11 +115,16 @@ subtest 'THE ENDPOINT CANNOT INJECT INTO THE GRAMMAR' => sub {
         or diag( 'Every value assembled into the binding has to be checked, '
             . 'not only the one that looked like a name.' );
 
-    # AND NOT A 404. "no such table" for a bad limit sends a caller looking for
-    # a table that is sitting right there.
+    # SM511: an over-cap limit CLAMPS here exactly as it does on a rendered
+    # page - this endpoint's contract is to answer what the page's binding
+    # would, and the page clamps loudly rather than refusing invisibly. The
+    # warning is IN THE BODY, so the caller is told rather than left to
+    # count.
     my ( $st3, $d3 ) = hit( QUERY_STRING => 'table=notes&limit=99999' );
-    is( $st3, 400, 'over the row cap is refused' );
-    like( $d3->{error}, qr/capped/, 'saying it is a cap' );
+    is( $st3, 200, 'over the row cap is clamped, not refused' );
+    like( join( ' ', @{ $d3->{warnings} || [] } ),
+        qr/cap/, 'saying it is a cap' );
+    ok( @{ $d3->{rows} || [] } > 0, 'and the rows it can serve, it serves' );
 };
 
 subtest 'the endpoint and the page agree about one binding' => sub {
