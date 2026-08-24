@@ -62,6 +62,21 @@ subtest 'THE SYMLINKED ROOT: invalidation reaches what the processor cached' => 
             . 'spelling while the processor cached under the realpath.' );
     my $after = run_processor( $docroot, '/sitemap.xml', HTTP_HOST => 'alpha.test' );
     unlike( $after, qr{URL: .*page}, 'and the deleted page is gone, not TTL-frozen' );
+
+    # SM500 rides the same fixture, AFTER the invalidation assertions (its
+    # first placement drained the cache before the cleared-check and failed
+    # it): a pre-existing file where the generated registry would go, and
+    # its report must never carry an absolute filesystem path.
+    open my $shadow, '>', "$docroot/sites/real/sitemap.xml" or die $!;
+    print {$shadow} "hand-made\n";
+    close $shadow;
+    my ($shadowed) = Lazysite::Manager::Files::_invalidate_registries();
+    ok( !( grep { m{\A/(?:tmp|home|srv)/} } @{$shadowed} ),
+        'SM500: no shadowed-file report carries an absolute server path' )
+        or diag explain $shadowed;
+    ok( ( grep { m{sitemap\.xml\z} } @{$shadowed} ),
+        'while the shadowing file itself is still named' );
+    unlink "$docroot/sites/real/sitemap.xml";
 };
 
 subtest 'A DAV WRITE INVALIDATES: the published page reaches the sitemap' => sub {

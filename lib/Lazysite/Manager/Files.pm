@@ -715,7 +715,16 @@ sub _invalidate_registries {
             push @cleared, "$key/$out" if -f $cached && unlink $cached;
 
             # Not deleted - reported. See above.
-            push @shadowed, ( $root eq $DOCROOT ? "/$out" : "$root/$out" )
+            # SM500: NEVER an absolute filesystem path in a partner-facing
+            # report. The docroot case was trimmed site-relative; a non-docroot
+            # content root fell through as $root/$out - the full server path,
+            # over MCP, precisely on the multi-domain sites where SM483's
+            # registry conditions live and people debug them. The path is now
+            # docroot-relative for every root (the roots all live under it).
+            push @shadowed,
+                ( $root eq $DOCROOT
+                ? "/$out"
+                : do { ( my $rel = "$root/$out" ) =~ s{\A\Q$DOCROOT\E/?}{/}; $rel } )
                 if -f "$root/$out";
         }
     }
