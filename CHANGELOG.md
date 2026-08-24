@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM476 docs (PENDING) **the `public:` key reaches the data briefing.** The
+  one flag that decides whether a data-backed page shows anything to a
+  visitor was absent from /docs/ai-briefing-data - reported by the site
+  agent, who lost an afternoon to exactly that silence before SM476 was
+  explained to them. The Reading-on-a-page section now states the
+  publication gate, the signed-in behaviour, the ACL read list, and the
+  gated-application composition.
+
 - SM499 resolved (PENDING) **the Keys page offered a revoke it would always
   refuse.** SM439 lists interactive accounts that hold a machine channel so
   no access is hidden, and its guard refuses to revoke a login password -

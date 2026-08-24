@@ -84,6 +84,21 @@ tt_page_var:
 `sort=` takes a **declared field name**. The layout then iterates it exactly as
 it would a `scan:` list.
 
+**Who sees the rows: the `public:` key** (SM476). A table is closed to
+anonymous visitors until its descriptor says `public: true` -- an unpublished
+table renders nothing for a visitor, on every page that binds it, and the
+data endpoint answers them nothing either. A **signed-in** account is
+different: `public:` is about anonymous visitors only, so an authenticated
+reader gets rows from an unpublished table unless a **read list** narrows it
+-- an ACL entry on `lazysite/db/tables/<name>` (users and `@groups`, same
+store and shape as a file ACL; a rule on `lazysite/db/tables` governs every
+table at once). That composition is what a gated application wants: leave the
+table unpublished, gate the pages, and add a read list when only named
+accounts may see the rows. `public: true` plus a read list still refuses the
+anonymous visitor -- a list that names accounts cannot name an anonymous one.
+If a bound page shows nothing and you expected rows, check `public:` and the
+read list before anything else; `validate_page` says which is closed.
+
 If a read returns no rows and says `pending_schema`, the table is declared and
 not yet created -- run `migrate_data_table`. That is different from a table
 being empty, and the answer says which.
