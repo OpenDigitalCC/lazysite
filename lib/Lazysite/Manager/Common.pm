@@ -21,7 +21,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
-    raw_html_page_refusal processor_path);
+    raw_html_page_refusal processor_path brief_write_refusal);
 
 our $DOCROOT;    # set by the script
 
@@ -692,6 +692,42 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 # artifact (a non-script content_type, e.g. application/json / text/csv) passes.
 # The api/raw/content_type matching mirrors the processor's front-matter parse and
 # peek_content_type, so write-refusal and serve-time downgrade agree.
+# SM504: once the briefs plugin is enabled on a site, a .brief WRITE is
+# refused - the operator's instruction, relayed with the field agent's
+# argument verbatim: a brief is the record of WHY something was done, often
+# the channel between two agents who never speak, so its failure mode is
+# not a broken page anyone notices - it is a note nobody reads, found
+# months later by someone looking for a decision that was, as far as its
+# author knew, written down. Every signal the writer gets says it worked:
+# 201, file on disk, reads back byte-identical. None is wrong on its own
+# terms, which is what makes the combination misleading.
+#
+# GATED ON THE PLUGIN, NEVER THE VERSION (B3): migration is per site, as
+# each site is next revisited - a half-migrated estate is the NORMAL state
+# for a long time, and a site still on sidecars must keep working
+# indefinitely. Reads are untouched (B4): an existing sidecar stays
+# readable so an agent can see what is there before migrating it.
+sub brief_write_refusal {
+    my ($rel) = @_;
+    return undef unless defined $rel && $rel =~ /\.brief\z/;
+    require Lazysite::Manager::Plugins;
+    # The api and mcp set Common's $DOCROOT in their setup blocks; the DAV
+    # process never does - it carries the docroot in the environment. An
+    # empty docroot must read as "cannot tell", never as "disabled": no
+    # refusal, the write proceeds, exactly as before SM504.
+    my $droot = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
+    return undef unless length $droot;
+    local $Lazysite::Manager::Plugins::DOCROOT = $droot;
+    return undef
+        unless eval { Lazysite::Manager::Plugins::plugin_enabled('plugins/briefs.pl') };
+    return 'This site holds briefs in the brief store, not in .brief sidecar '
+        . 'files - a sidecar written here would be an inert file no listing '
+        . 'shows and no migration imports, a note nobody reads. Append to the '
+        . "record instead: append_brief over MCP, or brief-append on the "
+        . 'control API, with {path, entry}. Reading an existing sidecar still '
+        . 'works.';
+}
+
 sub raw_html_page_refusal {
     my ($content) = @_;
     return undef unless defined $content;

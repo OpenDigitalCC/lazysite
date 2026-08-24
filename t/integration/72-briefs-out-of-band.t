@@ -141,4 +141,91 @@ subtest 'THE DENIES OUTLIVE THE FEATURE - a stray sidecar is still unserved' => 
             . 'keeps one unserved once the engine is in the static path.' );
 };
 
+subtest 'SM504: A SIDECAR WRITE REFUSES ONCE THE STORE OWNS THE RECORD' => sub {
+    # The operator's instruction: not an inert file - a refusal that names
+    # the replacement. Gated on the PLUGIN (enabled above), never version.
+    my $w = api_post( 'action=save&path=/content/late.md.brief',
+        { content => "a note nobody would read\n", mtime => undef } );
+    ok( !$w->{ok}, 'the manager/MCP write path refuses' ) or diag explain $w;
+    like( $w->{error} // '', qr/append_brief|brief-append/,
+        'and names the replacement (SM228 shape)' );
+    ok( !-e "$docroot/content/late.md.brief", 'nothing landed' );
+
+    # And the DAV channel refuses the same way - the first build of this
+    # subtest never covered DAV, and the wire there had silently failed to
+    # apply; this case is what makes that impossible to miss again.
+    require MIME::Base64;
+    my $dav_body = "why: because\n";
+    my $dbf      = "$docroot/.davbody";
+    open my $db, '>', $dbf or die $!;
+    print {$db} $dav_body;
+    close $db;
+    open my $wc, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
+    print {$wc} "webdav_enabled: true\n";
+    close $wc;
+    # TestHelper's proven pair: the account, then a role group WITH the user
+    # as a member (the hand-rolled version granted the group and never joined
+    # the user - a 403 from the capability layer, not the wire under test).
+    TestHelper::dav_users_tool( $docroot, 'add', 'davpub', 'pw123456789' );
+    TestHelper::grant_caps( $docroot, 'davpub', qw(webdav manage_content) );
+    {
+        local %ENV = ( %ENV,
+            DOCUMENT_ROOT      => $docroot,
+            SCRIPT_NAME        => '/dav',
+            REMOTE_ADDR        => '127.0.0.1',
+            REQUEST_METHOD     => 'PUT',
+            PATH_INFO          => '/content/over-dav.md.brief',
+            CONTENT_LENGTH     => length $dav_body,
+            HTTP_AUTHORIZATION => 'Basic '
+                . MIME::Base64::encode_base64( 'davpub:pw123456789', '' ),
+        );
+        my $out = qx(sh -c \Q$^X \Q$root/lazysite-dav.pl\E < \Q$dbf\E 2>/dev/null\E);
+        like( $out, qr/Status: 415/, 'the DAV channel refuses too' ) or diag "[$out]";
+        like( $out, qr/append_brief|brief-append/, 'naming the replacement there as well' );
+        ok( !-e "$docroot/content/over-dav.md.brief", 'nothing landed over DAV' );
+    }
+
+    # B4: reading an existing sidecar still works - an agent can see what is
+    # there before migrating it.
+    open my $old, '>', "$docroot/content/pre.md.brief" or die $!;
+    print {$old} "written before the store\n";
+    close $old;
+    my $r = api_get('action=read&path=/content/pre.md.brief');
+    ok( $r->{ok}, 'an existing sidecar is still readable' ) or diag explain $r;
+    unlink "$docroot/content/pre.md.brief";
+};
+
+subtest 'SM504-B3: A SITE STILL ON SIDECARS KEEPS WORKING, INDEFINITELY' => sub {
+    # Migration is per site, as each is revisited - a half-migrated estate is
+    # the normal state. The refusal is a consequence of the store existing on
+    # THIS site, never of the version number.
+    my $other = tempdir( CLEANUP => 1 );
+    make_path("$other/lazysite/auth");
+    make_path("$other/content");
+    open my $cf2, '>', "$other/lazysite/lazysite.conf" or die $!;
+    print {$cf2} "site_name: Legacy\n";    # briefs plugin NOT enabled
+    close $cf2;
+    local %ENV = ( cgi_env(), DOCUMENT_ROOT => $other,
+        REQUEST_METHOD => 'GET', QUERY_STRING => 'action=csrf-token' );
+    my $out = qx($^X \Q$root/lazysite-manager-api.pl\E 2>/dev/null);
+    $out =~ s/\A.*?\r?\n\r?\n//s;
+    my $tok  = ( eval { decode_json($out) } || {} )->{token};
+    my $body = encode_json( { content => "still the right file here\n", mtime => undef } );
+    my $bf   = "$other/.body";
+    open my $b, '>', $bf or die $!;
+    print {$b} $body;
+    close $b;
+    local %ENV = ( cgi_env(), DOCUMENT_ROOT => $other,
+        REQUEST_METHOD    => 'POST',
+        QUERY_STRING      => 'action=save&path=/content/note.md.brief',
+        CONTENT_TYPE      => 'application/json',
+        CONTENT_LENGTH    => length $body,
+        HTTP_X_CSRF_TOKEN => $tok );
+    my $out2 = qx($^X \Q$root/lazysite-manager-api.pl\E < \Q$bf\E 2>/dev/null);
+    $out2 =~ s/\A.*?\r?\n\r?\n//s;
+    my $w = eval { decode_json($out2) } || {};
+    ok( $w->{ok}, 'a sidecar still writes on an unmigrated site' ) or diag explain $w;
+    ok( -f "$other/content/note.md.brief", 'and lands as the working record it still is' );
+};
+
 done_testing();

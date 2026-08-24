@@ -467,6 +467,17 @@ sub do_put {
         return send_status( $code, body => "Locked\n" );
     }
 
+    # SM504: a .brief write refuses once the briefs plugin owns the record on
+    # this site (path-based, so the body is never read). A site still on
+    # sidecars - the plugin disabled - keeps working; migration is per site.
+    # Common loads LAZILY on this path (the SM189 check below carries the
+    # only require, which sits after this wire) - so load it here first; the
+    # probe that found this met "Undefined subroutine" with the sub defined.
+    require Lazysite::Manager::Common;
+    if ( my $err = Lazysite::Manager::Common::brief_write_refusal( $a{rel} ) ) {
+        return send_status( 415, body => "$err\n" );
+    }
+
     # Size gate before reading the body.
     my $max  = max_bytes( $a{conf} );
     my $clen = $ENV{CONTENT_LENGTH};

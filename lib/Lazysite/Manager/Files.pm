@@ -17,7 +17,7 @@ use POSIX           qw(strftime);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal brief_write_refusal load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -466,6 +466,13 @@ sub action_save {
     # the WebDAV PUT path enforces the same guard in lazysite-dav.pl.
     if ( my $err = raw_html_page_refusal($content) ) {
         return { ok => 0, error => $err, kind => 'raw-content-refused' };
+    }
+
+    # SM504: a .brief write refuses once the briefs plugin owns the record on
+    # this site. Covers the manager save AND MCP (write_file / create_page
+    # route through here), exactly as the SM189 guard above does.
+    if ( my $err = brief_write_refusal( $result->{rel} ) ) {
+        return { ok => 0, error => $err, kind => 'brief-sidecar-refused' };
     }
 
     my $full = $result->{full};

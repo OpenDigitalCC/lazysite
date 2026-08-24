@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM504 resolved (PENDING) **a sidecar write refuses once the store owns
+  the record.** The operator's instruction: on a site whose briefs plugin
+  is enabled, a .brief write fails on every channel with the replacement
+  named (append_brief / brief-append) - never lands as an inert note
+  nobody reads. Gated on the plugin per site, never the version: a
+  half-migrated estate is the normal state, a site on sidecars keeps
+  working indefinitely, and reads stay untouched.
+
 - SM484 resolved (PENDING) **the two snapshot paths agree.** The restore's
   safety snapshot scopes to the archive's own blast radius (derived from
   its members - nothing else records it), so a partner who can back up can
