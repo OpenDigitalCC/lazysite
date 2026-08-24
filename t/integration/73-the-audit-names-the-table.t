@@ -21,7 +21,8 @@ open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nplugins:\n  - plugins/data.pl\n";
 close $cf;
 open my $df, '>', "$docroot/lazysite/db/tables/events.yaml" or die $!;
-print {$df} "title: Events\nkey: slug\nfields:\n  slug:\n    type: text\n";
+print {$df}
+    "title: Events\nkey: slug\nfields:\n  slug:\n    type: text\n  name:\n    type: text\n";
 close $df;
 
 sub cgi_env {
@@ -83,6 +84,33 @@ subtest 'body-carried: data-row-save audits the table' => sub {
     my $line = audit_line('data-row-save');
     like( $line, qr/\bevents\b/, 'the entry names the table' )
         or diag("line: $line");
+};
+
+subtest 'SM505: a row ADD names the row it created' => sub {
+    my $r = api_post( 'action=data-row-save',
+        { table => 'events', row => { slug => 'y' } } );
+    ok( $r->{ok}, 'row added' ) or diag explain $r;
+    my $line = audit_line('data-row-save');
+    like( $line, qr/row=y\b/, 'detail names the assigned key' )
+        or diag("line: $line");
+};
+
+subtest 'SM505: a body-only row EDIT names table and row' => sub {
+    my $r = api_post( 'action=data-row-save',
+        { table => 'events', key => 'y', row => { name => 'z' } } );
+    ok( $r->{ok}, 'row updated' ) or diag explain $r;
+    my $line = audit_line('data-row-save');
+    like( $line, qr/\bevents\b/, 'body-only table still lands' );
+    like( $line, qr/row=y\b/,    'and the row is named' );
+};
+
+subtest 'SM505: a body-only row DELETE names table and row' => sub {
+    my $r = api_post( 'action=data-row-delete',
+        { table => 'events', key => 'y' } );
+    ok( $r->{ok}, 'row deleted' ) or diag explain $r;
+    my $line = audit_line('data-row-delete');
+    like( $line, qr/\bevents\b/, 'the entry names the table' );
+    like( $line, qr/row=y\b/,    'and the row it removed' );
 };
 
 subtest 'a non-data action keeps its path target (the control)' => sub {

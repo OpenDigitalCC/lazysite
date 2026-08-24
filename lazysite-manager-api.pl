@@ -1775,6 +1775,23 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         if ( $ok && $aud_action eq 'acl-set' ) {
             $detail = _acl_audit_detail( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
         }
+
+        # SM505: a row action's material object is the ROW - "someone edited
+        # that table" is half an answer when the question the trail gets asked
+        # is which row. The handler's result carries the authoritative key
+        # (insert returns the ASSIGNED key, so an add names the row it
+        # created). ROW KEYS LAND IN THE AUDIT LOG - the release manager's
+        # decision, the SM465 trade accepted again: a key is a content
+        # identifier, and "a row changed" leaves an auditor unable to tell
+        # WHICH, which is the whole question.
+        if ( $ok
+            && $aud_action =~ /^data-row-/
+            && ref $result eq 'HASH'
+            && defined $result->{key}
+            && length $result->{key} )
+        {
+            $detail = 'row=' . $result->{key};
+        }
         audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
             ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ), $detail );
     }

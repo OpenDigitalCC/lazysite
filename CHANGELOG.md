@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM505 resolved (PENDING) **a row action's audit entry names the row.**
+  Raised by the site agent building the SM503 retest: "someone edited that
+  table" is half an answer when the question a trail gets asked is which
+  row. data-row-save and data-row-delete entries now carry row=<key> in the
+  audit detail field, read from the handler's result - the authoritative
+  key, so an ADD names the row it created. Row keys land in the audit log:
+  the SM465 trade, accepted again.
+
 - SM504 resolved (PENDING) **a sidecar write refuses once the store owns
   the record.** The operator's instruction: on a site whose briefs plugin
   is enabled, a .brief write fails on every channel with the replacement
