@@ -88,7 +88,7 @@ Navigation | never |
 Appearance | never | the no-CDN check has no gate in this repo - manual only
 Plugin Manager + Config | never | includes SM231 notification emission control, and the SM336 "Record internal search terms" checkbox added in the 0.10.13 line - the one new operator-facing control in that release, and the only setting that changes what is recorded about visitors
 Users | never | connect-code regeneration (tier C), and the 0.10.10 add-group picker (tier A4)
-Groups | never | grant authority is the one with teeth; the 0.10.10 member picker is tier A4, including that selection must not post
+Groups | never | grant authority is the one with teeth; the 0.10.10 member picker is tier A4, including that selection must not post; SM496 added the new-capability decision banner (Task 6, NOT WALKED)
 Sessions and keys | never |
 Site settings | never | includes the Services holder counts (batch tier B/C)
 Cache, Backups, Audit, Stats | never | includes apply-confidence + Undo (tier A); SM363 added the SM336 blocks - visits, depth, entry/exit, devices and (where enabled) search terms - and none of them has been LOOKED at, only asserted

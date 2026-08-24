@@ -25,6 +25,25 @@ Negative
 : A granted channel whose **service** is off is flagged dormant here too, with
   the service named. The Services page shows the reciprocal count.
 
+## Decide on a release-added capability (SM496)
+
+Where
+: Access -> Groups -> a manager group -> the "never decided on" banner at the
+  top of the card
+
+Do
+: When a release adds a capability, every manager group seeded before it shows
+  the banner. Grant it, or Dismiss it to record the "no" - both are one click,
+  both are audited, and either way the warning stops (in the banner and in
+  `lazysite check`).
+
+Expect
+: The banner row disappears on the decision. A granted capability shows ticked
+  in the grid below; a dismissed one shows unticked and can be granted later
+  from the grid like anything else. `lazysite check` reports "carry a decision
+  on every capability" with declined ones counted, and warns only about
+  capabilities nobody has decided on.
+
 ## Nest one group inside another
 
 Where

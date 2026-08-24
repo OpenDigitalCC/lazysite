@@ -152,6 +152,47 @@ function groupSummaryInner(g) {
     nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
     members.length + ' member' + (members.length === 1 ? '' : 's') + '</span>';
 }
+// SM496: the new-capabilities decision banner for one manager group.
+function capLabel(cap) {
+  for (var i = 0; i < CAPS.length; i++) if (CAPS[i][0] === cap) return CAPS[i][1];
+  return cap;
+}
+function pendingBannerHtml(g) {
+  var info = allGroups[g] || {};
+  var pending = Array.isArray(info.pending) ? info.pending : [];
+  if (!pending.length) return '';
+  var ge = escHtml(g);
+  var rows = pending.map(function(cap) {
+    var ce = escHtml(cap);
+    return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0;">' +
+      '<span style="flex:1;">' + escHtml(capLabel(cap)) + ' <code style="color:#888;">' + ce + '</code></span>' +
+      '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',true)">Grant</button>' +
+      '<button class="mg-btn mg-btn-sm" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',false)">Dismiss</button>' +
+      '</div>';
+  }).join('');
+  return '<div class="mg-cap-dormant" style="margin:0.25rem 0 0.5rem;padding:8px 10px;">' +
+    '&#9888; This release has ' + pending.length + ' capabilit' + (pending.length === 1 ? 'y' : 'ies') +
+    ' this group has never decided on. Grant it, or dismiss it to record the "no" - ' +
+    'either way the warning stops; a dismissed capability can be granted later from the grid below.' +
+    rows + '</div>';
+}
+function capDecide(g, cap, on) {
+  apiCall({ action: 'group-settings-set', group: g, key: cap, value: on ? 'on' : 'off' })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Decision failed', true); return; }
+      var info = allGroups[g] || {};
+      if (info.caps) info.caps[cap] = !!on;
+      info.pending = (info.pending || []).filter(function(c) { return c !== cap; });
+      var box = document.getElementById('gpend-' + escHtml(g));
+      if (box) box.innerHTML = pendingBannerHtml(g);
+      // The grid checkbox and summary refresh in place - the page's idiom is
+      // that an edit never reloads the list. The tick appears on next open of
+      // the card, which renderGroups draws from allGroups (already updated).
+      refreshGroupSummary(g);
+      showStatus((on ? 'Granted ' : 'Dismissed ') + capLabel(cap) + ' for @' + g);
+    })
+    .catch(function(e) { showStatus('Decision failed: ' + e.message, true); });
+}
 function refreshGroupSummary(g) {
   var s = document.getElementById('gsum-' + escHtml(g));
   if (s) s.innerHTML = groupSummaryInner(g);
@@ -204,6 +245,14 @@ function renderGroups() {
       return '<label class="mg-chk"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
         ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + warn + '</label>';
     };
+    // SM496: capabilities this release has that this manager group has never
+    // decided on - server-derived (info.pending). The decision is offered at
+    // the TOP of the card, where the work starts, and both buttons write
+    // through the same group-settings-set path as every toggle below, so the
+    // SM195 ceiling and the audit trail apply unchanged. Dismiss records an
+    // explicit "no" (the capability stops warning everywhere); the grid below
+    // shows it unticked and it can be granted later like anything else.
+    h += '<div id="gpend-' + ge + '">' + pendingBannerHtml(g) + '</div>';
     h += '<div class="mg-sec">Channels <span style="font-weight:400;color:#888">— where members may operate</span></div>';
     h += '<div class="mg-checks">' + CHANNELS.map(function(c) { return row(c, true); }).join('') + '</div>';
     h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';

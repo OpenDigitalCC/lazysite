@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM496 resolved (PENDING) **a capability added by a release asks the
+  administrator, in the UI.** SM471 stands - an upgrade never grants - but
+  its warning's only remedy was a CLI command on the box, and the operator's
+  requirement is that app support needs no sysadmin after first setup. The
+  store can now record a decision: turning a capability off writes an
+  explicit 0 (declined) instead of deleting the key, so ABSENT means
+  undecided. Each manager group's card on the Groups page opens with a
+  banner of undecided capabilities - Grant / Dismiss, one click, through the
+  same group-settings-set path as every toggle (SM195 ceiling and audit
+  trail unchanged). lazysite-check warns only about undecided capabilities,
+  names the Groups page first and the CLI second, and counts declined ones
+  as decisions rather than re-warning about them.
+
 ## 0.10.28 - EDGE: the field reports answered - menu, status, mirror, and the audit read (2026-08-23)
 
 - SM491 resolved (539df5b) **whoami says which of the grant's doors can reach

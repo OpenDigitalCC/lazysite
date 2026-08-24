@@ -60,11 +60,11 @@ sub drop_cap {
 subtest 'a site with every capability is reported clean' => sub {
     my $d   = site();
     my $out = run_check($d);
-    like( $out, qr/manager group\(s\) carry every capability/,
+    like( $out, qr/manager group\(s\) carry a decision on every capability/,
         'the check says so' )
         or diag( 'Saying nothing when all is well would make the warning '
             . 'below indistinguishable from the check not running.' );
-    unlike( $out, qr/lack capabilities/, 'and warns about nothing' );
+    unlike( $out, qr/have not decided/, 'and warns about nothing' );
 };
 
 subtest 'a site missing one is told, and told what to run' => sub {
@@ -72,16 +72,20 @@ subtest 'a site missing one is told, and told what to run' => sub {
     drop_cap( $d, 'manage_data' );    # as every pre-0.10.24 site is
     my $out = run_check($d);
 
-    like( $out, qr/lack capabilities this release has/, 'the check warns' )
+    # SM496: the wording moved from "lack" to "have not decided on" - absence
+    # means UNDECIDED now, and an explicit 0 (declined) does not warn at all.
+    like( $out, qr/have not decided on capabilities this release has/, 'the check warns' )
         or diag( 'This is the whole finding: the operator otherwise meets it '
             . 'as a refusal about a capability their role should hold.' );
     like( $out, qr/lazysite-admins\/manage_data/, 'naming the group and the capability' );
-    like( $out, qr/added after the site was created/,
+    like( $out, qr/added after the group was seeded/,
         'and saying WHY it is absent' )
         or diag( 'Without that, an operator reads it as their configuration '
             . 'being wrong rather than as a seed that predates the feature.' );
+    like( $out, qr/Groups -> the group -> the "new\s+capabilities" banner/,
+        'the remedy is the UI first (SM496: app support needs no shell)' );
     like( $out, qr/group-set lazysite-admins manage_data on/,
-        'with the exact command' );
+        'with the exact command as the shell fallback' );
 };
 
 subtest 'the remote channels are not reported as missing' => sub {

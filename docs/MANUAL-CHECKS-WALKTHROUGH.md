@@ -265,3 +265,25 @@ Send back the four results with your notes, and say which site and which day
 you did the walk on. If anything surprised you - even something not covered by
 a FAIL condition above - write it down too. Things a checklist did not
 anticipate are often the most valuable finds.
+
+
+# Task 6 - a release-added capability is decided in the UI (SM496)
+
+The store distinguishes undecided (absent) from declined (explicit off) now,
+so this task walks the decision surface end to end.
+
+1. Pick a manager group and remove one capability's key from
+   `lazysite/auth/groups-settings.json` by hand (simulating a capability this
+   release added), or use a site whose check already warns.
+2. Open Groups -> that group. The card opens with a banner: "this release has
+   N capabilities this group has never decided on", one row per capability,
+   Grant and Dismiss.
+3. Dismiss one. The row disappears, the toast names the decision, the grid
+   below shows it unticked, and `lazysite check` no longer warns about it -
+   it counts it as "declined by decision".
+4. Grant one. Ticked in the grid, live immediately (open a second browser as
+   a member and confirm the capability works).
+5. Re-grant the dismissed one from the ordinary grid checkbox - a dismissal
+   is a decision, not a lock.
+6. Audit trail: both decisions appear, attributed to you, as
+   user-group-settings-set entries.

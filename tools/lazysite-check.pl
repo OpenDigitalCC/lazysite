@@ -824,26 +824,44 @@ sub run_checks {
                 $gsettings = eval { JSON::PP::decode_json($raw) } || {};
             }
 
-            my @missing;
+            # SM496: ABSENT and DECLINED are different answers now. An
+            # explicit 0 is a recorded human decision (the Groups page banner
+            # or a group-set off wrote it) and stays silent as a warning -
+            # re-warning about a decision is how warnings get ignored. Only a
+            # capability the store has never seen a decision on warns, and
+            # the remedy is the UI first: capability upkeep is app support,
+            # and app support must not need a shell on the box.
+            my ( @missing, @declined );
             for my $g (@groups) {
                 my $have = $gsettings->{$g} or next;
                 next unless $have->{manager};
-                push @missing, map { "$g/$_" } grep { !$have->{$_} } @CAPS;
+                for my $c (@CAPS) {
+                    if    ( !exists $have->{$c} ) { push @missing,  "$g/$c" }
+                    elsif ( !$have->{$c} )        { push @declined, "$g/$c" }
+                }
             }
             if (@missing) {
-                my ($first) = $missing[0] =~ m{\A([^/]+)/};
-                my ($cap)   = $missing[0] =~ m{/(.+)\z};
                 report( 'WARN',
-                    'manager group(s) lack capabilities this release has: '
+                    'manager group(s) have not decided on capabilities this '
+                        . 'release has: '
                         . join( ', ', @missing )
-                        . ' - added after the site was created, so the seed '
-                        . 'never carried them',
-                    "perl tools/lazysite-users.pl --docroot '$DOC' "
-                        . "group-set $first $cap on" );
+                        . ' - added after the group was seeded. Decide in the '
+                        . 'manager UI: Groups -> the group -> the "new '
+                        . 'capabilities" banner (grant or dismiss)',
+                    do {
+                        my ($fg) = $missing[0] =~ m{\A([^/]+)/};
+                        my ($fc) = $missing[0] =~ m{/(.+)\z};
+                        'or from a shell, exactly: perl tools/lazysite-users.pl '
+                            . "--docroot '$DOC' group-set $fg $fc on|off";
+                    } );
             }
             else {
                 report( 'OK',
-                    'manager group(s) carry every capability this release has'
+                    'manager group(s) carry a decision on every capability '
+                        . 'this release has'
+                        . ( @declined
+                        ? ' (' . scalar(@declined) . ' declined by decision)'
+                        : '' )
                 );
             }
         }

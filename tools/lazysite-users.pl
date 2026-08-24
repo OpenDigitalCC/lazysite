@@ -3198,7 +3198,18 @@ sub _group_settings_view {
     for my $g ( keys %all ) {
         my $cfg = $gs->{$g} || {};
         my %caps = map { $_ => ( $cfg->{$_} ? JSON::PP::true() : JSON::PP::false() ) } @CAP_KEYS;
+        # SM496: capabilities this release has that this MANAGER group has
+        # never decided on - absent from the store entirely, as opposed to an
+        # explicit 0 (declined) or 1 (granted). Derived here, server-side, so
+        # the Groups page renders a decision list rather than computing policy
+        # (SM286: the front end makes no decisions). api/mcp are excluded the
+        # same way the seed and the check exclude them (SM127).
+        my @pending;
+        if ( $cfg->{manager} && %$cfg ) {
+            @pending = grep { !exists $cfg->{$_} && $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
+        }
         $view{$g} = {
+            pending     => \@pending,
             label       => ( defined $cfg->{label}       ? $cfg->{label}       : $g ),
             description => ( defined $cfg->{description} ? $cfg->{description} : '' ),
             manager     => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
@@ -3526,8 +3537,15 @@ sub cmd_group_settings_set {
     }
 
     $gs->{$group} ||= { label => $group };
-    if ($on) { $gs->{$group}{$key} = 1 }
-    else     { delete $gs->{$group}{$key} }
+    # SM496: off writes an EXPLICIT 0 rather than deleting the key. Absent and
+    # off used to be the same byte, which is why SM471 could only warn: the
+    # store could not tell "this capability did not exist when the group was
+    # seeded" from "an operator turned it off on purpose". Now absent means
+    # UNDECIDED (the Groups page offers it, the check warns) and 0 means
+    # DECIDED NO (both stay silent). Every truthiness-based grant check reads
+    # 0 exactly as it read absence, so nothing widens.
+    if   ($on) { $gs->{$group}{$key} = 1 }
+    else       { $gs->{$group}{$key} = 0 }
     write_group_settings($gs);
     log_event( 'INFO', $group, 'group setting changed', key => $key, value => $on );
     cli_audit( 'user-group-settings-set', $group, "key $key=" . ( $on ? 'on' : 'off' ) );
