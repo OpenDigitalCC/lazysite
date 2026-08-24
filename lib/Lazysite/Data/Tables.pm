@@ -34,10 +34,10 @@ use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
 use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
     qw(select_sql insert_sql update_sql delete_sql observed_schema last_insert_key
-    key_list_sql);
+    key_list_sql history_table_sql history_insert_sql history_rows_sql);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
-    apply_schema insert_row update_row delete_row export_all_rows
+    apply_schema schema_history insert_row update_row delete_row export_all_rows
     resolve_binding import_rows drop_table
     rebuild_table);
 
@@ -212,8 +212,54 @@ sub read_rows {
 # Returns what it DID and what it REFUSED, both, because the refused list is
 # the useful half: it is the operator's account of why their column is not
 # there yet, and DP-5 is the flow that resolves it.
-sub apply_schema {
+# SM468: what the shape used to be, and who changed it. Derivation answers
+# NOW perfectly and BEFORE not at all - so the three operations that change
+# a table's shape append one row each to an internal store table. IN THE
+# STORE deliberately: it travels with the data through backup/restore by
+# construction, where a file beside the database is exactly the desync the
+# D2 decision removed. NEVER FATAL: history is a record of the change, and
+# a broken record must not block the change it records - failures are
+# logged and the operation proceeds.
+sub _record_history {
+    my ( $dbh, $actor, $table, $op, $detail ) = @_;
+    require JSON::PP;
+    eval {
+        $dbh->do( history_table_sql() );
+        $dbh->do( history_insert_sql(), undef,
+            _now_iso(),
+            ( defined $actor && length $actor ? $actor : '(unattributed)' ),
+            $table, $op, JSON::PP->new->canonical->encode( $detail || {} ) );
+        1;
+    } or log_event( 'WARN', $table,
+        'schema history write failed - the change itself succeeded',
+        op => $op, error => "$@" );
+    return;
+}
+
+sub _now_iso {
+    my @t = gmtime;
+    return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ',
+        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
+}
+
+# The reader: newest first, capped by the adapter's query. Answers [] for a
+# table with no recorded changes - including every table from before SM468,
+# where absence of history is a fact, not an error.
+sub schema_history {
     my ( $docroot, $name ) = @_;
+    my $dbh  = Lazysite::Data::Connect::read_handle($docroot) or return [];
+    my $rows = eval {
+        $dbh->selectall_arrayref( history_rows_sql(), { Slice => {} }, $name );
+    } || [];
+    require JSON::PP;
+    for my $r (@$rows) {
+        $r->{detail} = eval { JSON::PP::decode_json( $r->{detail} ) } // {};
+    }
+    return $rows;
+}
+
+sub apply_schema {
+    my ( $docroot, $name, %opt ) = @_;
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
 
@@ -238,6 +284,9 @@ sub apply_schema {
         push @done, $step->{why};
     }
 
+    _record_history( $dbh, $opt{actor}, $name, 'apply',
+        { applied => \@done, blocked => $plan->{blocked} } )
+        if @done;
     return { ok => 1, table => $name, applied => \@done,
         blocked => $plan->{blocked} };
 }
@@ -671,6 +720,9 @@ sub drop_table {
         $removed++;
     }
 
+    _record_history( $dbh, $opt{actor}, $name, 'drop',
+        { rows_dropped => scalar @{ $rows->{rows} || [] },
+            safety_export => "lazysite/db/rebuilds/$name-dropped-$stamp.json" } );
     return { ok => 1, table => $name, dropped => 1,
         rows_dropped  => scalar @{ $rows->{rows} || [] },
         descriptors   => $removed,
@@ -877,6 +929,9 @@ sub rebuild_table {
             table => $name, safety_export => $safety_rel );
     }
 
+    _record_history( $dbh, $opt{actor}, $name, 'rebuild',
+        { lost => $plan->{lost}, rows => scalar @{ $rows->{rows} },
+            safety_export => $safety_rel } );
     return { ok => 1, table => $name, applied => \@done,
         carried => $plan->{carried},          lost          => $plan->{lost},
         rows    => scalar @{ $rows->{rows} }, safety_export => $safety_rel };

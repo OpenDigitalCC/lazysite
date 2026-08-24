@@ -350,6 +350,7 @@ sub setup_context {
     $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
     $Lazysite::Manager::Plugins::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::Data::auth_user        = $user;    # SM468: schema-history actor
     $Lazysite::Manager::Common::action         = 'mcp';
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Auth::Acl::DOCROOT              = $DOCROOT;

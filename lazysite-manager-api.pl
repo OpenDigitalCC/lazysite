@@ -360,6 +360,7 @@ $Lazysite::Manager::Plugins::action     = $action;
 $Lazysite::Manager::Files::auth_user    = $auth_user;
 $Lazysite::Manager::Files::action       = $action;
 $Lazysite::Manager::Themes::auth_user   = $auth_user;
+$Lazysite::Manager::Data::auth_user     = $auth_user;    # SM468: schema-history actor
 $Lazysite::Manager::Nav::auth_user      = $auth_user;
 $Lazysite::Manager::Themes::action      = $action;
 $Lazysite::Manager::Layouts::auth_user  = $auth_user;

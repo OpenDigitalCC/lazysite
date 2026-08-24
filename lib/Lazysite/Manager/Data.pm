@@ -35,7 +35,8 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_import action_data_table_source action_data_migrate_plan
     action_data_table_drop);
 
-our $DOCROOT;    # set by the caller (manager-api or the CLI)
+our $DOCROOT;           # set by the caller (manager-api or the CLI)
+our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
 
 use Lazysite::Data::Connect ();
 use JSON::PP                ();
@@ -264,6 +265,10 @@ sub action_data_table {
         $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
     }
     return {
+        # SM468: the shape's own history - who changed it, when, and what
+        # happened - read from the store table that travels with the data.
+        history =>
+            Lazysite::Data::Tables::schema_history( $DOCROOT, $table ),
         ok         => 1,
         table      => $d->{table},
         title      => $d->{title},
@@ -394,7 +399,7 @@ sub action_data_migrate {
     if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
-    my $r = apply_schema( $DOCROOT, $table );
+    my $r = apply_schema( $DOCROOT, $table, actor => $auth_user );
     log_event( 'INFO', $table, 'data schema applied',
         applied => scalar @{ $r->{applied} || [] },
         blocked => scalar @{ $r->{blocked} || [] } )
@@ -415,7 +420,7 @@ sub action_data_rebuild {
     if ( my $off = _gate() ) { return $off }
     my ( $table, $confirm_lost ) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
-    my $r = rebuild_table( $DOCROOT, $table,
+    my $r = rebuild_table( $DOCROOT, $table, actor => $auth_user,
         confirm_lost => ( ref $confirm_lost eq 'ARRAY' ? $confirm_lost : [] ) );
     log_event( 'INFO', $table, 'data table rebuilt',
         lost => join( ',', @{ $r->{lost} || [] } ) )
@@ -469,7 +474,7 @@ sub action_data_table_drop {
     my ( $table, $confirm ) = @_;
     if ( my $bad = _need_table($table) ) { return $bad }
 
-    my $r = drop_table( $DOCROOT, $table, confirm => $confirm );
+    my $r = drop_table( $DOCROOT, $table, actor => $auth_user, confirm => $confirm );
     log_event( 'INFO', $table, 'data table dropped',
         rows   => ( $r->{rows_dropped}  // 0 ),
         export => ( $r->{safety_export} // '' ) )

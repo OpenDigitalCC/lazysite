@@ -47,6 +47,7 @@ use warnings;
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
+    history_table_sql history_insert_sql history_rows_sql
     unique_index_sql unique_index_name duplicate_value_sql
     insert_sql update_sql delete_sql select_sql key_list_sql
     null_count_sql column_values_sql drop_table_sql
@@ -541,6 +542,29 @@ sub backfill_sql {
 sub last_insert_key {
     my ( $dbh, $table ) = @_;
     return $dbh->last_insert_id( undef, undef, _ident($table), undef );
+}
+
+
+# SM468: the schema-history table. INTERNAL - it lives in the store so it
+# travels with the data through backup and restore (the whole point: a state
+# file beside the database is the desync D2 removed), and it is invisible to
+# every operator surface by construction: listings iterate DESCRIPTORS, and a
+# declared table name must start with a letter, so `_schema_history` cannot
+# be declared, dropped, imported or collided with.
+sub history_table_sql {
+    return 'CREATE TABLE IF NOT EXISTS "_schema_history" ('
+        . '"at" TEXT NOT NULL, "actor" TEXT NOT NULL, '
+        . '"tbl" TEXT NOT NULL, "op" TEXT NOT NULL, "detail" TEXT NOT NULL)';
+}
+
+sub history_insert_sql {
+    return 'INSERT INTO "_schema_history" ("at","actor","tbl","op","detail") '
+        . 'VALUES (?,?,?,?,?)';
+}
+
+sub history_rows_sql {
+    return 'SELECT "at","actor","op","detail" FROM "_schema_history" '
+        . 'WHERE "tbl" = ? ORDER BY "at" DESC LIMIT 50';
 }
 
 1;
