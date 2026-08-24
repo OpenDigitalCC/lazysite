@@ -342,7 +342,11 @@ match across the TT tag, and renders a literal `!` and a link instead of an
 image. When any part of an image - alt or src - is templated, write the raw
 `<img>` tag as above. Loops are unaffected: the fence has already become one
 `<div>`, and the surrounding `[% FOREACH %]` multiplies that rendered HTML -
-one card per row, as here. If the layout ships a `card` component those
+one card per row, as here. The same fact bounds what a loop CAN do: since
+the fence is gone before TT runs, a loop cannot compute a fence's name
+(`::: [% p.kind %]` is literal text, never a component) or emit a fence
+conditionally - put the `[% IF %]` around the fence's CONTENT, or emit the
+raw HTML the component would have produced. If the layout ships a `card` component those
 blocks render through it, otherwise each becomes `<div class="card">`. The file path is resolved
 against the page's content root, then the docroot, and must stay inside
 the docroot; a missing or invalid file makes `art` empty (the loop renders

@@ -55,6 +55,9 @@ Naming the commit: AFTER it lands, never before
   from the same report: the layouts briefing's `--theme-colors-accent` is
   now `--theme-colours-accent`, matching the engine's emission (the names
   mirror the theme.json's own keys) and the document's own schema examples.
+  Follow-up from the same reporter: the briefing also states the bound the
+  ordering implies - a loop cannot compute a fence's name or emit one
+  conditionally, because the fence is gone before TT runs.
 - SM491 completed (PENDING) **the control-API whoami carries `reachable`
   after all.** The 0.10.28 field verification found it on MCP and absent on
   the API - the edit existed in the SM491 worktree and was not in its
