@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM468 resolved (PENDING) **the store remembers what its shape was.** An
+  internal _schema_history table - undeclarable by construction, invisible
+  to every operator surface, travelling with the data through
+  backup/restore - gains one row per apply, rebuild and drop: when, who
+  (threaded from all three surfaces), and what happened, including lost
+  columns and the safety-export receipt. Never fatal: a broken record logs
+  and the change proceeds. Surfaced as `history` on the data-table
+  response across manager, API and MCP.
+
+- SM425 resolved (PENDING) **a member is not the traffic the rate limit
+  stops.** A submission carrying a session cookie the shared verifier
+  (SM411) accepts cryptographically bypasses the anonymous IP rate limit;
+  anonymous traffic keeps it unchanged, and a forged signature is anonymous
+  traffic. The verified identity is a boolean for the limiter only - the
+  submission stays actor-less and the audit column stays empty, exactly the
+  SM402 line, now held by behaviour as well as source. The exemption
+  degrades to anonymous if the session module cannot load (the resolve_db
+  lesson - a broken exemption must never cost anybody a form). The brief's
+  second item was already built: radio/checklist/checklist-qty/quoted
+  options (SM401) and number min:/max: value bounds all pre-exist; the
+  filing records it.
+
 - SM503 resolved (PENDING) **a data action's audit entry names the table.**
   Observed by the operator in their own trail: every data-* row targeted
   "/" - the dispatcher's path default, which no data action uses. The audit
