@@ -1683,6 +1683,19 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
+    # SM503: a data action's material object is the TABLE, not the dispatcher
+    # path - the operator's trail showed data-import and data-row-save rows
+    # all targeting "/", which answers none of the questions a trail exists
+    # for. The name rides the query for the migrate family and the body for
+    # the row/import family, so both are consulted.
+    if ( $action =~ /^data-/ ) {
+        my $t = $params{table};
+        unless ( defined $t && length $t ) {
+            my $b = eval { decode_json($body) };
+            $t = ( ref $b eq 'HASH' ) ? $b->{table} : undef;
+        }
+        $aud_target = $t if defined $t && length $t;
+    }
 
     # action=users carries its sub-action in the POST body; audit only the
     # material ones (add / remove / settings-set / token / ...), not the reads.

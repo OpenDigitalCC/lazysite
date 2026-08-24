@@ -44,6 +44,12 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM503 resolved (PENDING) **a data action's audit entry names the table.**
+  Observed by the operator in their own trail: every data-* row targeted
+  "/" - the dispatcher's path default, which no data action uses. The audit
+  block now consults the query's table and then the body's, so the trail
+  answers which table was migrated, imported into, row-edited or dropped.
+
 - SM245 resolved (PENDING) **briefs move out of band.** The record stays;
   the sidecar file goes. A contract plugin owns a store at
   lazysite/briefs/<content-path>; brief-read/brief-append (API) and
