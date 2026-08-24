@@ -178,3 +178,10 @@ in a modal over the page (SM502 U-2). Save keeps you there until the server
 accepts the row or descriptor; Cancel, clicking outside, or Escape discards
 the edit. The migrate plan opens inside the fields modal, beneath the
 descriptor, so the decision is read next to the text that caused it.
+
+The fields modal opens on a **form** -- title, key, published, timestamps,
+indexes, and one row per field with its type and options -- and keeps the
+stored YAML as a tab. Save from the form and the YAML is regenerated (its
+comments do not survive that; the tab says so); save from the YAML tab and
+the text goes exactly as typed. The same loader validates both, so a
+refusal names the field and the rule either way.

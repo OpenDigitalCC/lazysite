@@ -60,8 +60,11 @@ Naming the commit: AFTER it lands, never before
   table's fields opened inline below the fold. Both open in a modal now,
   the submissions viewer's shape, with click-outside and Escape as Cancel.
   The Cancel/Close convention (Cancel discards edits; Close dismisses a
-  viewer) is stated in the manager UI guide and swept here. The structured
-  descriptor form (U-4) remains queued.
+  viewer) is stated in the manager UI guide and swept here. U-4 ships in
+  full too: the fields modal opens on a FORM built from the parsed
+  descriptor, with the stored YAML as a tab; saving from the form
+  regenerates the text, the same loader validates both. All six Task-5
+  findings are now shipped.
 
 ## 0.10.30 - EDGE: the briefs ring, the cap that reached the page, and the queue before the cut (2026-08-24)
 

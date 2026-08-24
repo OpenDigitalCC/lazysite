@@ -61,7 +61,18 @@ search: false
      a migration WOULD do, and the operator decides. -->
 <div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;max-width:48rem;">
   <div class="mg-card-header"><span class="mg-card-title" id="descriptor-title"></span></div>
-  <textarea id="descriptor-text" class="mg-inp" rows="18" spellcheck="false" style="width:100%;font-family:monospace;font-size:0.9em;"></textarea>
+  <!-- SM502 U-4: THE FORM IS A SECOND DOOR ONTO THE TEXT. The YAML stays
+       authoritative (DM-5: it is a thing an operator reads); the form edits
+       the same declaration without asking anyone to type YAML, and saving
+       from it regenerates the text - comments do not survive that, and the
+       tab says so. -->
+  <div style="display:flex;gap:6px;margin:0 0 10px;">
+    <button class="mg-btn" id="desc-tab-form" onclick="descTab('form')">Fields</button>
+    <button class="mg-btn" id="desc-tab-yaml" onclick="descTab('yaml')">YAML</button>
+  </div>
+  <div id="descriptor-form" style="font-size:0.9em;"></div>
+  <p id="descriptor-yaml-note" style="display:none;font-size:0.85em;color:#888;margin:0 0 6px;">The text as stored. Saving from the Fields tab regenerates it; comments and ordering are kept only when you save from here.</p>
+  <textarea id="descriptor-text" class="mg-inp" rows="18" spellcheck="false" style="display:none;width:100%;font-family:monospace;font-size:0.9em;"></textarea>
   <div id="descriptor-error" class="mg-status" style="margin-top:8px;"></div>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
     <button class="mg-btn mg-btn-primary" onclick="saveDescriptor()">Save descriptor</button>
@@ -486,15 +497,152 @@ function declareTable() {
   document.getElementById('descriptor-error').textContent = '';
   document.getElementById('plan-panel').style.display = 'none';
   showModal('descriptor-panel', closeDescriptor);
-  document.getElementById('descriptor-text').value =
-      'title: ' + name.charAt(0).toUpperCase() + name.slice(1) + '\n'
-    + 'key: id\n'
-    + 'fields:\n'
-    + '  id:\n'
-    + '    type: text\n'
-    + '  name:\n'
-    + '    type: text\n';
-  showStatus('Edit the starter descriptor, then Save. Migrating afterwards creates the table.');
+  var starter = { title: name.charAt(0).toUpperCase() + name.slice(1), key: 'id',
+                  fields: { id: { type: 'text' }, name: { type: 'text' } } };
+  buildDescForm(starter);
+  document.getElementById('descriptor-text').value = emitYaml(readDescForm());
+  descTab('form');
+  showStatus('Declare the fields, then Save. Migrating afterwards creates the table.');
+}
+
+/* --- SM502 U-4: the descriptor form ------------------------------------ */
+var DESC_TAB = 'form';
+var TYPES = ['text', 'integer', 'decimal', 'boolean', 'date', 'datetime', 'enum'];
+
+function descTab(which) {
+  if (which === 'yaml' && DESC_TAB === 'form') {
+    /* Leaving the form: the text shows what the form would save. */
+    document.getElementById('descriptor-text').value = emitYaml(readDescForm());
+  }
+  DESC_TAB = which;
+  document.getElementById('descriptor-form').style.display = which === 'form' ? '' : 'none';
+  document.getElementById('descriptor-text').style.display = which === 'yaml' ? '' : 'none';
+  document.getElementById('descriptor-yaml-note').style.display = which === 'yaml' ? '' : 'none';
+  document.getElementById('desc-tab-form').disabled = which === 'form';
+  document.getElementById('desc-tab-yaml').disabled = which === 'yaml';
+}
+
+/* Type-specific options, one text input each, in the order the server
+   names them. The server still validates: a bad value comes back naming
+   the field and the rule, exactly as it does for typed YAML. */
+function optionHint(type) {
+  return { enum: 'values, comma-separated', decimal: 'digits,places (e.g. 8,2)',
+           integer: 'min,max (either may be blank)', text: 'max length; add ",textarea" for a textarea' }[type] || '';
+}
+function optionsOf(spec) {
+  if (!spec) return '';
+  if (spec.type === 'enum')    return (spec.values || []).join(', ');
+  if (spec.type === 'decimal') return (spec.digits !== undefined ? spec.digits : '') + ',' + (spec.places !== undefined ? spec.places : '');
+  if (spec.type === 'integer') return (spec.min !== undefined ? spec.min : '') + ',' + (spec.max !== undefined ? spec.max : '');
+  if (spec.type === 'text')    return (spec.max !== undefined ? spec.max : '') + (spec.widget === 'textarea' ? ',textarea' : '');
+  return '';
+}
+
+function fieldRow(name, spec) {
+  spec = spec || { type: 'text' };
+  var h = '<tr class="desc-field">'
+    + '<td><input class="mg-inp desc-name" value="' + escHtml(name || '') + '" placeholder="name" style="width:9em;"></td>'
+    + '<td><select class="mg-inp desc-type" onchange="this.parentNode.parentNode.querySelector(\'.desc-opts\').placeholder = optionHint(this.value)">';
+  TYPES.forEach(function(t) { h += '<option' + (spec.type === t ? ' selected' : '') + '>' + t + '</option>'; });
+  h += '</select></td>'
+    + '<td style="text-align:center;"><input type="checkbox" class="desc-req"' + (spec.required ? ' checked' : '') + '></td>'
+    + '<td style="text-align:center;"><input type="checkbox" class="desc-uniq"' + (spec.unique ? ' checked' : '') + '></td>'
+    + '<td><input class="mg-inp desc-default" value="' + escHtml(spec['default'] !== undefined && spec['default'] !== null ? String(spec['default']) : '') + '" style="width:7em;"></td>'
+    + '<td><input class="mg-inp desc-opts" value="' + escHtml(optionsOf(spec)) + '" placeholder="' + escHtml(optionHint(spec.type)) + '" style="width:13em;"></td>'
+    + '<td><button class="mg-btn mg-btn-sm" onclick="this.closest(\'tr\').remove()">Remove</button></td>'
+    + '</tr>';
+  return h;
+}
+
+function buildDescForm(shape) {
+  var names = Object.keys(shape.fields || {}).sort();
+  var h = '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;max-width:32rem;margin:0 0 10px;">'
+    + '<label>Title</label><input class="mg-inp" id="desc-title" value="' + escHtml(shape.title || '') + '">'
+    + '<label>Key</label><select class="mg-inp" id="desc-key"><option value="">automatic id</option>';
+  names.forEach(function(n) { h += '<option' + (!shape.auto_key && shape.key === n ? ' selected' : '') + '>' + escHtml(n) + '</option>'; });
+  h += '</select>'
+    + '<label>Published</label><input type="checkbox" id="desc-public"' + (shape['public'] ? ' checked' : '') + '>'
+    + '<label>Timestamps</label><input type="checkbox" id="desc-ts"' + (shape.timestamps ? ' checked' : '') + '>'
+    + '<label>Indexes</label><input class="mg-inp" id="desc-indexes" placeholder="one per line: area, street" value="' + escHtml((shape.indexes || []).map(function(ix) { return ix.join(', '); }).join('\n')) + '">'
+    + '</div>'
+    + '<table class="mg-table" id="desc-fields"><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Unique</th><th>Default</th><th>Options</th><th></th></tr></thead><tbody>';
+  names.forEach(function(n) { h += fieldRow(n, shape.fields[n]); });
+  h += '</tbody></table>'
+    + '<button class="mg-btn mg-btn-sm" style="margin-top:6px;" onclick="addDescField()">Add a field</button>'
+    + '<p style="font-size:0.85em;color:#888;margin:8px 0 0;">The key field, if not automatic, is required and unique by implication. Saving from here regenerates the YAML; comments in it are dropped.</p>';
+  document.getElementById('descriptor-form').innerHTML = h;
+}
+
+function addDescField() {
+  var tb = document.querySelector('#desc-fields tbody');
+  tb.insertAdjacentHTML('beforeend', fieldRow('', { type: 'text' }));
+  var last = tb.lastElementChild.querySelector('.desc-name');
+  if (last) last.focus();
+}
+
+function readDescForm() {
+  var shape = { title: document.getElementById('desc-title').value, fields: {} };
+  var key = document.getElementById('desc-key').value;
+  if (key) shape.key = key;
+  shape['public'] = document.getElementById('desc-public').checked;
+  shape.timestamps = document.getElementById('desc-ts').checked;
+  var ix = document.getElementById('desc-indexes').value.split(/\n/).map(function(l) {
+    return l.split(',').map(function(x) { return x.replace(/^\s+|\s+$/g, ''); }).filter(function(x) { return x; });
+  }).filter(function(l) { return l.length; });
+  if (ix.length) shape.indexes = ix;
+  var order = [];
+  document.querySelectorAll('#desc-fields tr.desc-field').forEach(function(tr) {
+    var name = tr.querySelector('.desc-name').value.replace(/^\s+|\s+$/g, '');
+    if (!name) return;
+    var spec = { type: tr.querySelector('.desc-type').value };
+    if (tr.querySelector('.desc-req').checked)  spec.required = true;
+    if (tr.querySelector('.desc-uniq').checked) spec.unique = true;
+    var def = tr.querySelector('.desc-default').value;
+    if (def !== '') spec['default'] = def;
+    var o = tr.querySelector('.desc-opts').value.replace(/^\s+|\s+$/g, '');
+    if (spec.type === 'enum' && o) spec.values = o.split(',').map(function(x) { return x.replace(/^\s+|\s+$/g, ''); }).filter(function(x) { return x; });
+    if (spec.type === 'decimal' && o) { var dp = o.split(','); spec.digits = dp[0].replace(/\s/g, ''); spec.places = (dp[1] || '').replace(/\s/g, ''); }
+    if (spec.type === 'integer' && o) { var mm = o.split(','); if (mm[0].replace(/\s/g, '') !== '') spec.min = mm[0].replace(/\s/g, ''); if (mm[1] && mm[1].replace(/\s/g, '') !== '') spec.max = mm[1].replace(/\s/g, ''); }
+    if (spec.type === 'text' && o) { var tx = o.split(','); if (tx[0].replace(/\s/g, '') !== '') spec.max = tx[0].replace(/\s/g, ''); if (/textarea/.test(o)) spec.widget = 'textarea'; }
+    shape.fields[name] = spec;
+    order.push(name);
+  });
+  shape._order = order;
+  return shape;
+}
+
+/* A small emitter for a flat, known shape. Scalars that could be read as
+   YAML syntax are double-quoted; numbers and booleans are written bare. */
+function yscalar(v) {
+  if (v === true) return 'true';
+  if (v === false) return 'false';
+  var s = String(v);
+  if (/^-?\d+(\.\d+)?$/.test(s)) return s;
+  if (/^(true|false|yes|no|null|~)$/i.test(s) || /[:#\[\]{},&*!|>'"%@`]/.test(s) || /^\s|\s$/.test(s) || s === '') return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  return s;
+}
+function emitYaml(shape) {
+  var y = '';
+  if (shape.title) y += 'title: ' + yscalar(shape.title) + '\n';
+  if (shape.key) y += 'key: ' + shape.key + '\n';
+  if (shape['public']) y += 'public: true\n';
+  if (shape.timestamps) y += 'timestamps: true\n';
+  if (shape.indexes && shape.indexes.length) {
+    y += 'indexes:\n';
+    shape.indexes.forEach(function(ix) { y += '  - [' + ix.join(', ') + ']\n'; });
+  }
+  y += 'fields:\n';
+  (shape._order || Object.keys(shape.fields)).forEach(function(n) {
+    var f = shape.fields[n];
+    y += '  ' + n + ':\n    type: ' + f.type + '\n';
+    if (f.required) y += '    required: true\n';
+    if (f.unique)   y += '    unique: true\n';
+    ['digits', 'places', 'min', 'max'].forEach(function(k) { if (f[k] !== undefined && f[k] !== '') y += '    ' + k + ': ' + yscalar(f[k]) + '\n'; });
+    if (f.widget) y += '    widget: ' + f.widget + '\n';
+    if (f.values) y += '    values: [' + f.values.map(yscalar).join(', ') + ']\n';
+    if (f['default'] !== undefined) y += '    default: ' + yscalar(f['default']) + '\n';
+  });
+  return y;
 }
 
 function openDescriptor(table) {
@@ -509,6 +657,14 @@ function openDescriptor(table) {
     .then(function(d) {
       if (!d.ok) { setDescError(d.error || 'could not read the descriptor'); return; }
       document.getElementById('descriptor-text').value = d.descriptor;
+      /* U-4: the parsed shape drives the form; the text stays as stored. */
+      return fetch(API + '?action=data-table&table=' + encodeURIComponent(table))
+        .then(function(r) { return r.json(); })
+        .then(function(shape) {
+          if (!shape.ok) { descTab('yaml'); setDescError(shape.error || 'the descriptor does not load - edit the YAML'); return; }
+          buildDescForm(shape);
+          descTab('form');
+        });
     })
     .catch(function(e) { setDescError('Could not load: ' + e); });
 }
@@ -526,6 +682,11 @@ function setDescError(msg) {
 
 function saveDescriptor() {
   setDescError('');
+  /* U-4: saving from the form sends what the form says; from the YAML tab,
+     the text exactly as typed. */
+  if (DESC_TAB === 'form') {
+    document.getElementById('descriptor-text').value = emitYaml(readDescForm());
+  }
   fetch(API + '?action=data-table-save&table=' + encodeURIComponent(DESC.table), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
