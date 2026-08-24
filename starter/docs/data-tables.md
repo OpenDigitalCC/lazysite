@@ -177,6 +177,13 @@ mistake, or renamed, or created for a single test was permanent.
 - MCP: `drop_data_table`
 - Control API: `data-table-drop`
 
+Every drop, and every rebuild that loses a column, writes a **safety export**
+first under `lazysite/db/rebuilds/` -- the only copy of the rows it removed.
+`list_data_safety_exports` (control API `data-safety-exports`) lists them with
+their table, kind and stamp; `delete_data_safety_export`
+(`data-safety-export-delete`) clears one by its exact file name, audited. Read
+an export, or know it came from a throwaway, before clearing it.
+
 **It takes everything**: the descriptor, the stored table and every row. So it
 asks first, and the confirmation is the table's own name rather than a yes:
 
