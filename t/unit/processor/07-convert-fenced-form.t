@@ -215,4 +215,53 @@ load_processor($docroot);
     is( scalar @steps, 2, 'leading delimiter does not spawn an empty first step' );
 }
 
+# --- SM415: the outcome banner ------------------------------------------
+# A native post redirects back with form=<name>&outcome=... in the query
+# string; the renderer shows it as a banner above the form. The banner is
+# for THIS form only, and outcome text is escaped - the query string is
+# attacker-writable by construction.
+{
+    local $ENV{QUERY_STRING} = 'form=contact&outcome=ok';
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    like( $out, qr/form-status-ok/, 'outcome=ok renders the success banner' );
+    like( $out, qr/has been sent/,  'with the success line' );
+}
+{
+    local $ENV{QUERY_STRING} = 'form=contact&outcome=Rate+limit+exceeded';
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    like( $out, qr/form-status-error/,    'a non-ok outcome renders the error banner' );
+    like( $out, qr/Rate limit exceeded/,  'carrying the user-safe text' );
+}
+{
+    local $ENV{QUERY_STRING} = 'form=OTHER&outcome=ok';
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    unlike( $out, qr/form-status-ok/,
+        'an outcome addressed to a different form banners nothing here' );
+}
+{
+    local $ENV{QUERY_STRING} = 'form=contact&outcome=%3Cscript%3Ealert(1)%3C%2Fscript%3E';
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    unlike( $out, qr/<script>/, 'outcome text is escaped - the query string is attacker-writable' );
+    like( $out, qr/&lt;script&gt;/, 'and shown as text' );
+}
+{
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    like( $out, qr/name="_page"/, 'the _page field the redirect depends on is embedded' );
+}
+
 done_testing();
