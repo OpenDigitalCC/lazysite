@@ -101,8 +101,8 @@ describe_capabilities
 ### Reading and inspecting (reads - not audited)
 
 list_files `{ path }`
-: Files and folders under a directory (default `/`) with size, mtime, ext,
-  has_brief, generated, is_brief.
+: Files and folders under a directory (default `/`) with size, mtime, ext
+  and generated. Brief presence left the listing with SM245 - ask `list_briefs`.
 
 read_file `{ path }`
 : A text file's contents. Refuses binary (`kind: binary`) and files over 512 KB
@@ -203,11 +203,12 @@ create_page `{ slug, title, subtitle, body, register }`
 : Create a new page from front-matter fields + body; errors if it already exists.
 
 delete_page `{ slug }`
-: Delete a page and its `.brief`, and report `still_referenced_in` (nav, other
-  pages) for cleanup; generated indexes refresh automatically.
+: Delete a page - its brief store entry goes with it - and report
+  `still_referenced_in` (nav, other pages) for cleanup; generated indexes
+  refresh automatically.
 
 rename_page `{ old, new, update_links }`
-: Rename / move a page (carries `.brief` + ACL); with `update_links`, rewrites
+: Rename / move a page (carries its brief store entry + ACL); with `update_links`, rewrites
   internal links to the old path across pages (nav.conf is not rewritten).
 
 replace_text `{ path, old, new }`
@@ -218,7 +219,7 @@ copy_file `{ from, to }`
 : Copy a text file to a new path (templating). Destination starts with a fresh ACL.
 
 move_file `{ from, to }`
-: Rename / move a file; carries its `.brief` and re-keys its ACL.
+: Rename / move a file; carries its brief store entry and re-keys its ACL.
 
 delete_file `{ path }`
 : Delete a file. Audited as `delete`.

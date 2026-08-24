@@ -320,78 +320,61 @@ gate, not a missing endpoint:
 : Normal when unauthenticated - retry with your token as HTTP Basic auth
   (username = your partner id, password = the `lzs_` token).
 
-## Document your intent: `.brief` sidecars
+## Document your intent: briefs
 
-Every file you author should carry a sidecar **`<file>.brief`** beside it -
-`index.md.brief` next to `index.md`, `main.css.brief` next to a theme's
-`main.css`. The brief records *why* the file exists and *what* each edit
-changed, so the next agent (or the operator) understands intent before
-touching it.
+Every file you author should carry a **brief** - the record of *why* the
+file exists and *what* each edit changed, so the next agent (or the
+operator) understands intent before touching it. A brief is **not a
+sidecar file**: it lives out of band in an engine-owned store, keyed by
+the content path it describes. Briefs are private at every layer - never
+served, never in `sitemap.xml` or `llms.txt` - and readable only through
+the tools below and the operator's manager.
 
-A brief is a real spec, not a thin note - the richer it is, the better the
-owner can steer the page by editing it. Write it in markdown and cover:
+How to work with briefs:
+
+- **Over MCP**: `read_brief { path }` and `append_brief { path, entry }`.
+- **Over the control API**: `brief-read` and `brief-append` (an explicit
+  `path` is always required). `briefs-list` shows every entry - with an
+  `orphan` flag for briefs whose content path no longer answers - and
+  `brief-delete` clears one, so you can clean up anything you orphan.
+- **Never write a `<file>.brief` file.** On a site where the briefs
+  plugin is enabled, that write is **refused on every channel**, and the
+  refusal names the replacement. On a site not yet migrated a sidecar
+  still writes, but the store is the standard: the operator imports
+  existing sidecars from the Plugin Manager's *Migrate sidecars*, and
+  the engine carries store entries through renames and deletes for you.
+
+A brief is **append-only**: the store stamps every entry with the date
+and your identity, so the history builds itself. Your *first* append for
+a file should capture the spec:
 
 - **Purpose** - the page's goal and who it is for.
 - **Sections, in order** - what is on the page and why each part is there.
-- **Tone & style** - voice and language conventions (e.g. British English, no
-  em-dashes, warm but honest).
-- **Images & sources** - which images are used, and which source document the
-  content came from.
+- **Tone & style** - voice and language conventions (e.g. British English,
+  no em-dashes, warm but honest).
+- **Images & sources** - which images are used, and which source document
+  the content came from.
 - **Constraints** - anything that must hold: "genuine quotes only, never
-  invent", photo-permission rules, a required credit, or a dependency (e.g.
-  "the enquiry form needs `forms/enquire.conf`").
-- **To change this page…** - a closing line with concrete examples of edits an
-  owner might ask for, so they know what they can change.
-- **## Log** - append-only `date · action · who · what`, one line per edit.
+  invent", photo-permission rules, a required credit, or a dependency
+  (e.g. "the enquiry form needs `forms/enquire.conf`").
+- **To change this page…** - concrete examples of edits an owner might
+  ask for, so they know what they can change.
 
-Maintain it as you work: `PUT` the brief when you create the file; on every
-later edit `GET` it, append a log line, and `PUT` it back (append - never
-rewrite the history).
+Later appends are log lines - what changed and why, one entry per
+substantive edit.
 
-```text
-# Brief - index.md
+A brief can describe **any path the site holds** - a folder (`/docs`), an
+asset (`/favicon.ico`), a theme stylesheet, even the site root - not only
+Markdown pages. Brief-first authoring is welcome: appending to a path
+that does not exist yet records intent for the file you are about to
+create.
 
-## Purpose
-The landing page: convince a visitor to enquire within one screen.
-
-## Sections
-1. Hero - the doorway photo + a one-line promise.
-2. Highlights strip - three short proof points.
-3. Contact CTA - links to /enquire.
-
-## Tone & style
-Warm rustic-luxury; British English; no em-dashes; honest, never overstated.
-
-## Images & sources
-hero: doorway.jpg. Copy drawn from the owner's "Welcome" document.
-
-## To change this page
-e.g. "swap the hero to the garden photo", "drop the highlights strip",
-"make the CTA say Book a viewing".
-
-## Log
-- 2026-06-23 · created · <you> · initial landing page
-- 2026-06-24 · edit · <you> · reworded hero, added contact CTA
-```
-
-**The brief is a two-way spec, not just a record** - it is how you and the
-owner collaborate on a page without hand-editing its markup:
-
-- **Backfill what already exists.** For every page on the site, write a brief
-  capturing your best understanding of its purpose and structure. A page with
-  no brief is undocumented - give it one, based on what the page currently is.
-- **The owner drives changes through the brief.** When they want a change, they
-  edit the `.brief` in plain language. On your next pass, read the brief, diff
-  it against the page, and **refactor the page to match the brief**, then
-  append a log line. The brief is the source of intent; the `.md` is its
-  current rendering - so the editable thing is the brief, and the page follows.
-
-Briefs are **private**: they are denied to public visitors at every layer and
-never appear in `sitemap.xml` or `llms.txt`. They are reachable only to you
-over WebDAV and to the operator in the manager. A `.brief` is not a blocked
-extension, so it writes through your normal content (and theme/layout) scope
-exactly like the file it accompanies. Briefs are encouraged, not enforced - a
-publish without one still succeeds, but the Files page flags what is missing.
+**The brief is a two-way spec, not just a record.** Backfill one for
+every page you maintain, based on what the page currently is. The owner
+reads and appends through the manager's Brief affordance; when an
+appended entry asks for a change, refactor the page to match it and
+append what you did. The brief is the source of intent; the page is its
+current rendering.
 
 ## Own your pages: ACLs
 

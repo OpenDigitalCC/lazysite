@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM506 resolved (PENDING) **the briefings teach the store.** The documents
+  every connecting agent reads before authoring still taught the retired
+  .brief sidecar - including the promise ("not a blocked extension, writes
+  through your normal content scope") that SM504 inverts in this same cut.
+  The publishing brief section is rewritten for the store, authoring step 6
+  repointed, the connector-tools carriage claims match SM507, and the dead
+  createBrief() is gone from the Files panel source.
+
 - SM508 resolved (PENDING) **a brief can be listed, and an orphan can be
   cleared.** The store had read, append and migrate - no list, no delete,
   so an orphaned entry was undiscoverable (the field produced three as

@@ -1341,7 +1341,7 @@ my %TOOLS = (
         run => sub { _create_page( $_[0], $_[1] ) },
     },
     delete_page => {
-        description => 'Delete a page and its .brief, and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically. A delete ends the page content history thread; to RELOCATE a page use rename_page (not delete-then-recreate) so its history follows.',
+        description => 'Delete a page - its brief store entry goes with it - and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically. A delete ends the page content history thread; to RELOCATE a page use rename_page (not delete-then-recreate) so its history follows.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { slug => { type => 'string' } },
@@ -1349,7 +1349,7 @@ my %TOOLS = (
         run => sub { _delete_page( $_[0], $_[1] ) },
     },
     rename_page => {
-        description => 'Rename / move a page: carries its .brief + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten). The result always reports alias_suggested - the old URL, which should be added to the new page so the retired URL keeps working; pass add_alias:true to have it written for you. A published URL that starts 404ing is the most common avoidable cost of a rename.',
+        description => 'Rename / move a page: carries its brief store entry + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten). The result always reports alias_suggested - the old URL, which should be added to the new page so the retired URL keeps working; pass add_alias:true to have it written for you. A published URL that starts 404ing is the most common avoidable cost of a rename.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -1768,7 +1768,7 @@ sub _read_page {
     return { ok => 1, path => "/$rel",
         front_matter => _parse_fm($fm), body => $body,
         has_brief    => (
-            ( -f "$DOCROOT/lazysite/briefs/$rel" || -f "$DOCROOT/$rel.brief" )
+            ( -f "$LAZYSITE_DIR/briefs/$rel" || -f "$DOCROOT/$rel.brief" )
             ? JSON::PP::true
             : JSON::PP::false
         ),

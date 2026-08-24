@@ -471,11 +471,13 @@ TTL expires (default 4 hours).
 4. Register in relevant feeds: `sitemap.xml`, `llms.txt`, and
    `feed.rss` or `feed.atom` if it is a dated article.
 5. Write the body in Markdown, starting headings at `##`.
-6. Write a `<file>.brief` sidecar capturing the page's intent - purpose,
-   sections, tone, image/content sources, and a "To change this page…" line.
+6. Record the page's intent with `append_brief` (MCP) or `brief-append`
+   (API): purpose, sections, tone, image/content sources, and a "To change
+   this page…" line. Never write a `<file>.brief` sidecar - on a site with
+   the briefs plugin enabled that write is refused, naming the replacement.
    The brief is the source of intent, the `.md` is the build: when the owner
-   edits the brief, refactor the page to match it. See *Document your intent:
-   `.brief` sidecars* in [AI briefing - publishing](/docs/ai-briefing-publishing)
+   appends a change request, refactor the page to match it. See *Document
+   your intent: briefs* in [AI briefing - publishing](/docs/ai-briefing-publishing)
    for the full structure and workflow.
 
 ### Creating a blog/news index with scan

@@ -213,7 +213,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         form-submission-confirm form-submissions-delete-bulk
         data-migrate data-row-save data-row-delete data-table-save data-rebuild
         data-export data-import data-table-drop
-        brief-append briefs-migrate);
+        brief-append brief-delete briefs-migrate);
 
     # SM447 note, OUTSIDE the qw() because qw() has no comments - a `#` inside
     # one is a literal word, and putting it there added twenty imaginary action

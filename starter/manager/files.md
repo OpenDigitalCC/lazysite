@@ -878,24 +878,6 @@ function populateTypeFilter(files) {
   if (sel.value !== current) sel.value = '';
 }
 
-function createBrief(filePath) {
-  var bpath = filePath + '.brief';
-  var stem = filePath.split('/').pop();
-  var tmpl = '# Brief - ' + stem + '\n\nintent: \n\n## Log\n\n- '
-           + isoDate() + ' · created · · \n';
-  fetch(API + '?action=save&path=' + encodeURIComponent(bpath), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: tmpl, mtime: null })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (!d.ok) { showStatus(d.error || 'Could not create brief', true); return; }
-      window.location = '/manager/edit?path=' + encodeURIComponent(bpath);
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-}
-
 function isoDate() { return new Date().toISOString().slice(0, 10); }
 
 // Combined text + type filter. Operates on file/dir rows (those carry
