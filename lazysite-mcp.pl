@@ -701,6 +701,27 @@ my %TOOLS = (
                 $a->{confirm} );
         },
     },
+    list_data_safety_exports => {
+        description => 'List the safety exports that drop_data_table and rebuild_data_table wrote under lazysite/db/rebuilds/: file, table, kind (dropped or rebuild), stamp, size, mtime. A read. These accumulate - one per drop or rebuild - and this is how you see them; delete_data_safety_export clears one you no longer need.',
+        cap => 'manage_data',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_safety_exports();
+        },
+    },
+    delete_data_safety_export => {
+        description => 'Delete one safety export by its file name as list_data_safety_exports reports it. Permanent: the export is the only copy of the rows a drop or a lossy rebuild removed, so read it (or confirm it is a throwaway) before clearing it. Audited as data-safety-export-delete.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => { file => { type => 'string', description => 'The export file name, exactly as listed' } },
+            required => ['file'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT   = $DOCROOT;
+            local $Lazysite::Manager::Data::auth_user = $_[1];
+            return Lazysite::Manager::Data::action_data_safety_export_delete( $_[0]->{file} );
+        },
+    },
     save_data_row => {
         description => 'Insert a row, or update one by its key. WITHOUT `key` this inserts; WITH `key` it updates that row and touches only the fields you send, leaving the rest alone. Every value is checked against the descriptor and a value that does not fit is REFUSED with the field named - a decimal with too many places is refused rather than rounded, because a store that quietly rounds money is worse than one that will not take it. An unknown field name is refused rather than ignored, so a typo cannot look like a successful write.',
         cap         => 'manage_data',
@@ -2956,7 +2977,9 @@ my %ANNOTATE = (
     read_brief   => [ 1, 0, 0 ],
     append_brief => [ 0, 0, 0 ],    # writes the engine store, changes nothing live
     list_briefs  => [ 1, 0, 0 ],
-    delete_brief => [ 0, 1, 0 ],    # destroys a record; changes nothing live
+    list_data_safety_exports  => [ 1, 0, 0 ],
+    delete_data_safety_export => [ 0, 1, 0 ],    # destroys the only copy of dropped rows
+    delete_brief              => [ 0, 1, 0 ],    # destroys a record; changes nothing live
 
     list_files         => [ 1, 0, 0 ],
     read_file          => [ 1, 0, 0 ],

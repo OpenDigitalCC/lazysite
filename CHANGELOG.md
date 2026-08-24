@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM512 resolved (PENDING) **a safety export can be listed and cleared.**
+  Every drop and lossy rebuild writes one under lazysite/db/rebuilds/ -
+  correctly, and until now permanently. data-safety-exports /
+  list_data_safety_exports lists them (table, kind, stamp, size);
+  data-safety-export-delete / delete_data_safety_export clears one by its
+  exact minted name, audited. The SM508 pattern, for tables.
+
 - SM502 partly resolved (PENDING) **the editors are modal.** The operator's
   Task-5 finding, asked for twice: adding or editing a row and editing a
   table's fields opened inline below the fold. Both open in a modal now,

@@ -68,7 +68,8 @@ my %EXEMPT = (
     # SM245: the migration enumerates sidecars from its own docroot walk and
     # writes store entries at paths IT derives - no caller-supplied path
     # exists to validate.
-    action_briefs_migrate  => 'engine-walked sidecars into the engine-named store',
+    action_briefs_migrate => 'engine-walked sidecars into the engine-named store',
+    action_data_safety_export_delete => 'SM512: unlinks only under lazysite/db/rebuilds, the name validated to the exact minted shape (no separators can reach it); t/unit/data/25 pins the refusals',
     action_backup_delete   => 'backups dir, name validated by _valid_name',
     action_backup_create   => 'backups dir, name minted by _claim_name',
     action_backup_restore  => 'extracts into the docroot; name validated, tar confined',

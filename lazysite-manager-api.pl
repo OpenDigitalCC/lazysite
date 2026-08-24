@@ -192,6 +192,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     config-read config-set copy csrf-token
     data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
     data-migrate-plan data-table data-table-drop data-table-save data-table-source data-tables
+    data-safety-exports data-safety-export-delete
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
@@ -530,7 +531,7 @@ if ( $action eq 'csrf-token' ) {
 #
 my %MUTATING = map { $_ => 1 } qw(
     data-migrate data-row-save data-row-delete data-table-save
-    data-rebuild data-import data-table-drop
+    data-rebuild data-import data-table-drop data-safety-export-delete
     save delete mkdir move copy migrate-to-local file-upload git-restore
     git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
     brief-append briefs-migrate brief-delete
@@ -569,21 +570,23 @@ if ( !$token_auth ) {
             # SM447: the data plugin's capability. Reads and writes alike -
             # unlike content, a table row has no per-file ACL to self-authorize
             # against, so the capability IS the gate.
-        'data-tables'        => 'manage_data', 'data-table'      => 'manage_data',
-        'data-rows'          => 'manage_data', 'data-migrate'    => 'manage_data',
-        'data-row-save'      => 'manage_data', 'data-row-delete' => 'manage_data',
-        'data-table-save'    => 'manage_data',
-        'data-rebuild'       => 'manage_data',
-        'data-export'        => 'manage_data',
-        'data-import'        => 'manage_data',
-        'data-table-source'  => 'manage_data',
-        'data-migrate-plan'  => 'manage_data',
-        'data-table-drop'    => 'manage_data',
-        'brief-read'         => 'manage_content',    # SM245: the brief store
-        'brief-append'       => 'manage_content',
-        'briefs-migrate'     => 'manage_content',
-        'briefs-list'        => 'manage_content',
-        'brief-delete'       => 'manage_content',
+        'data-tables'               => 'manage_data', 'data-table'      => 'manage_data',
+        'data-rows'                 => 'manage_data', 'data-migrate'    => 'manage_data',
+        'data-row-save'             => 'manage_data', 'data-row-delete' => 'manage_data',
+        'data-table-save'           => 'manage_data',
+        'data-rebuild'              => 'manage_data',
+        'data-export'               => 'manage_data',
+        'data-import'               => 'manage_data',
+        'data-table-source'         => 'manage_data',
+        'data-migrate-plan'         => 'manage_data',
+        'data-table-drop'           => 'manage_data',
+        'data-safety-exports'       => 'manage_data',
+        'data-safety-export-delete' => 'manage_data',
+        'brief-read'                => 'manage_content',    # SM245: the brief store
+        'brief-append'              => 'manage_content',
+        'briefs-migrate'            => 'manage_content',
+        'briefs-list'               => 'manage_content',
+        'brief-delete'              => 'manage_content',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -747,30 +750,32 @@ if ($token_auth) {
             # with a manage_domains token, same as the CLI/UI.
             # SM447: token clients are the point of the data plugin - an agent
             # populating a table is the primary use, not an afterthought.
-        'data-tables'       => sub { $_[0]->{manage_data} },
-        'data-table'        => sub { $_[0]->{manage_data} },
-        'data-rows'         => sub { $_[0]->{manage_data} },
-        'data-migrate'      => sub { $_[0]->{manage_data} },
-        'data-row-save'     => sub { $_[0]->{manage_data} },
-        'data-table-save'   => sub { $_[0]->{manage_data} },
-        'data-rebuild'      => sub { $_[0]->{manage_data} },
-        'data-export'       => sub { $_[0]->{manage_data} },
-        'data-import'       => sub { $_[0]->{manage_data} },
-        'data-table-source' => sub { $_[0]->{manage_data} },
-        'data-migrate-plan' => sub { $_[0]->{manage_data} },
-        'data-table-drop'   => sub { $_[0]->{manage_data} },
-        'brief-read'        => sub { $_[0]->{manage_content} },
-        'brief-append'      => sub { $_[0]->{manage_content} },
-        'briefs-migrate'    => sub { $_[0]->{manage_content} },
-        'briefs-list'       => sub { $_[0]->{manage_content} },
-        'brief-delete'      => sub { $_[0]->{manage_content} },
-        'data-row-delete'   => sub { $_[0]->{manage_data} },
-        'domains-list'      => sub { $_[0]->{manage_domains} }, # read-only domains view
-        'domain-add'        => sub { $_[0]->{manage_domains} },
-        'domain-set'        => sub { $_[0]->{manage_domains} },
-        'domain-remove'     => sub { $_[0]->{manage_domains} },
-        'domain-preview'    => sub { $_[0]->{manage_domains} }, # SM155: pre-DNS render
-        'domain-check'      => sub { $_[0]->{manage_domains} }, # SM156: live config check
+        'data-tables'               => sub { $_[0]->{manage_data} },
+        'data-table'                => sub { $_[0]->{manage_data} },
+        'data-rows'                 => sub { $_[0]->{manage_data} },
+        'data-migrate'              => sub { $_[0]->{manage_data} },
+        'data-row-save'             => sub { $_[0]->{manage_data} },
+        'data-table-save'           => sub { $_[0]->{manage_data} },
+        'data-rebuild'              => sub { $_[0]->{manage_data} },
+        'data-export'               => sub { $_[0]->{manage_data} },
+        'data-import'               => sub { $_[0]->{manage_data} },
+        'data-table-source'         => sub { $_[0]->{manage_data} },
+        'data-migrate-plan'         => sub { $_[0]->{manage_data} },
+        'data-table-drop'           => sub { $_[0]->{manage_data} },
+        'data-safety-exports'       => sub { $_[0]->{manage_data} },
+        'data-safety-export-delete' => sub { $_[0]->{manage_data} },
+        'brief-read'                => sub { $_[0]->{manage_content} },
+        'brief-append'              => sub { $_[0]->{manage_content} },
+        'briefs-migrate'            => sub { $_[0]->{manage_content} },
+        'briefs-list'               => sub { $_[0]->{manage_content} },
+        'brief-delete'              => sub { $_[0]->{manage_content} },
+        'data-row-delete'           => sub { $_[0]->{manage_data} },
+        'domains-list'   => sub { $_[0]->{manage_domains} },    # read-only domains view
+        'domain-add'     => sub { $_[0]->{manage_domains} },
+        'domain-set'     => sub { $_[0]->{manage_domains} },
+        'domain-remove'  => sub { $_[0]->{manage_domains} },
+        'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
+        'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
             # SM301: the twin of MCP's regenerate_registries. Same capability, and
             # now the same availability - the account that holds manage_content can
@@ -1272,6 +1277,24 @@ elsif ( $action eq 'brief-delete' ) {
 elsif ( $action eq 'data-tables' ) {
     $result = Lazysite::Manager::Data::action_data_tables();
 }
+elsif ( $action eq 'data-safety-exports' ) {
+    $result = Lazysite::Manager::Data::action_data_safety_exports();
+}
+elsif ( $action eq 'data-safety-export-delete' ) {
+
+    # SM512: as brief-delete - the delete names its file explicitly (the
+    # t/lint/52 shape for a paired action whose MCP twin requires it).
+    my $req  = eval { decode_json($body) } // {};
+    my $file = $req->{file}                // $params{file};
+    if ( !( defined $file && length $file ) ) {
+        $result = { ok => 0,
+            error => 'data-safety-export-delete needs an explicit file - '
+                . 'the export name as data-safety-exports reports it.' };
+    }
+    else {
+        $result = Lazysite::Manager::Data::action_data_safety_export_delete($file);
+    }
+}
 elsif ( $action eq 'data-table-drop' ) {
     # The same shape as data-rebuild, deliberately: table from either, and the
     # CONFIRMATION from the body. Both destructive actions should be called the
@@ -1696,7 +1719,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         backup-list sessions-list keys-list git-status git-history git-history-summary git-show
         site-backup-inspect protected-sections
         data-tables data-table data-rows
-        data-table-source data-migrate-plan
+        data-table-source data-migrate-plan data-safety-exports
         brief-read briefs-list
     );
 
@@ -1720,7 +1743,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # for. The name rides the query for the migrate family and the body for
     # the row/import family, so both are consulted.
     if ( $action =~ /^data-/ ) {
-        my $t = $params{table};
+        # SM512: a safety-export action's object is the FILE.
+        my $t = $params{table} // $params{file};
         unless ( defined $t && length $t ) {
             my $b = eval { decode_json($body) };
             $t = ( ref $b eq 'HASH' ) ? $b->{table} : undef;

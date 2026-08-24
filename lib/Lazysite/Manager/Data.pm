@@ -33,7 +33,8 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
     action_data_table_save action_data_rebuild action_data_export
     action_data_import action_data_table_source action_data_migrate_plan
-    action_data_table_drop);
+    action_data_table_drop action_data_safety_exports
+    action_data_safety_export_delete);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
@@ -508,6 +509,55 @@ sub action_data_row_delete {
     my $r = delete_row( $DOCROOT, $table, $key );
     log_event( 'INFO', $table, 'data row deleted' ) if $r->{ok};
     return $r;
+}
+
+# SM512: the safety exports a drop or a rebuild writes, listed and cleared.
+# They live under lazysite/db/rebuilds/, denied to every write channel -
+# correctly - which made each one permanent until an operator's filesystem
+# trip. The name is validated to the EXACT shape the engine mints, so no
+# path separator can reach the unlink.
+my $EXPORT_NAME = qr/\A([a-z][a-z0-9_]*)-(dropped-)?(\d{8}T\d{6}Z)\.json\z/;
+
+sub action_data_safety_exports {
+    if ( my $off = _gate() ) { return $off }
+    my $dir = "$DOCROOT/lazysite/db/rebuilds";
+    my @out;
+    if ( opendir my $dh, $dir ) {
+        for my $f ( readdir $dh ) {
+            next unless $f =~ $EXPORT_NAME;
+            my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
+            my @st = stat "$dir/$f";
+            push @out,
+                { file => $f,
+                table => $table,
+                kind  => ( $dropped ? 'dropped' : 'rebuild' ),
+                stamp => $stamp,
+                size  => $st[7] // 0,
+                mtime => $st[9] // 0,
+                };
+        }
+        closedir $dh;
+    }
+    @out = sort { $b->{mtime} <=> $a->{mtime} || $a->{file} cmp $b->{file} } @out;
+    return { ok => 1, dir => 'lazysite/db/rebuilds', exports => \@out,
+        count => scalar @out };
+}
+
+sub action_data_safety_export_delete {
+    my ($file) = @_;
+    if ( my $off = _gate() ) { return $off }
+    return { ok => 0, error => 'file required - the export name as '
+            . 'data-safety-exports reports it' }
+        unless defined $file && length $file;
+    return { ok => 0, error => "'$file' is not a safety export name", kind => 'name' }
+        unless $file =~ $EXPORT_NAME;
+    my $abs = "$DOCROOT/lazysite/db/rebuilds/$file";
+    return { ok => 0, error => 'no such safety export', kind => 'not-found' }
+        unless -f $abs;
+    unlink $abs
+        or return { ok => 0, error => "could not remove the export: $!" };
+    log_event( 'INFO', $1, 'safety export removed', file => $file, actor => $auth_user );
+    return { ok => 1, file => $file, deleted => 1 };
 }
 
 1;

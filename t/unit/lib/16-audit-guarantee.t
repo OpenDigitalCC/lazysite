@@ -212,7 +212,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         site-export-primary form-submission-delete
         form-submission-confirm form-submissions-delete-bulk
         data-migrate data-row-save data-row-delete data-table-save data-rebuild
-        data-export data-import data-table-drop
+        data-export data-import data-table-drop data-safety-export-delete
         brief-append brief-delete briefs-migrate);
 
     # SM447 note, OUTSIDE the qw() because qw() has no comments - a `#` inside

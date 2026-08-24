@@ -78,6 +78,8 @@ tone: medium
 `data-row-delete` | manage_data | table (query_or_body), key (query_or_body)
 `data-row-save` | manage_data | table (query_or_body), key (query_or_body), row (body)
 `data-rows` | manage_data | table (query), order_by (query), order (query), limit (query), offset (query)
+`data-safety-export-delete` | manage_data | file (query_or_body)
+`data-safety-exports` | manage_data |  
 `data-table` | manage_data | table (query)
 `data-table-drop` | manage_data | table (query_or_body), confirm (body)
 `data-table-save` | manage_data | table (query_or_body), descriptor (body)
