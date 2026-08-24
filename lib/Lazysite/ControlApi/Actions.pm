@@ -104,7 +104,6 @@ our %ACTION = (
     'data-table-source' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-migrate-plan' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
-    'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-import' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'apply', in => 'query' } ] },
     'data-export' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'format', in => 'query' } ] },
     'data-table-drop' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm', in => 'body' } ] },
