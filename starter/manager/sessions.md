@@ -240,7 +240,15 @@ function renderKeys(d) {
       '<td>' + status + '</td>' +
       '<td style="white-space:nowrap">' + ttlSel + slides + '</td>' +
       '<td style="white-space:nowrap">' +
-      '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>' +
+      // SM499: an interactive account's credential is its login PASSWORD, and
+      // cmd_key_revoke refuses it by design (SM439: "listing is not
+      // offering"). Offering the button anyway made the refusal the
+      // operator's first contact with the design - a control that refuses
+      // when used teaches an operator to distrust the page. The row carries
+      // the flag for exactly this moment.
+      (k.interactive
+        ? '<span class="mg-muted" style="font-size:0.85em">interactive - manage on the <a href="/manager/users">Users page</a></span>'
+        : '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>') +
       '</td></tr>';
   });
   h += '</tbody></table></div>';

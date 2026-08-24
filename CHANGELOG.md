@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM499 resolved (PENDING) **the Keys page offered a revoke it would always
+  refuse.** SM439 lists interactive accounts that hold a machine channel so
+  no access is hidden, and its guard refuses to revoke a login password -
+  both by design - but the page rendered the Revoke key button on those
+  rows anyway, so the operator met the refusal instead of the design. The
+  row already carried `interactive: true`; the page now consumes it: an
+  interactive row says "interactive - manage on the Users page" where the
+  button would be. The refusal guard is untouched. Observed by the operator
+  on 0.10.28.
+
 - SM429 resolved (PENDING) **cross-origin-opener-policy is emitted, and the
   authorize page joins the header set.** same-origin-allow-popups on HTML
   responses, beside the CSP, in both copies of the set - the strict value
