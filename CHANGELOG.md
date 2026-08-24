@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM498 resolved (PENDING) **the GS12 gallery example could not work.** Field
+  report from the 0.10.28 verification: published verbatim, every image
+  rendered as a literal `!` and a link - Markdown image syntax cannot carry
+  a template expression, because the body becomes HTML first and TT runs
+  second, which the doc stated backwards. The example now uses the raw
+  `<img>` form the field agent tested, the limitation and the real pipeline
+  order are stated beside it, and t/integration/68 renders the documented
+  shape executably so a worked example can no longer ship unrendered. Also
+  from the same report: the layouts briefing's `--theme-colors-accent` is
+  now `--theme-colours-accent`, matching the engine's emission (the names
+  mirror the theme.json's own keys) and the document's own schema examples.
+
 - SM496 resolved (PENDING) **a capability added by a release asks the
   administrator, in the UI.** SM471 stands - an upgrade never grants - but
   its warning's only remedy was a CLI command on the box, and the operator's

@@ -312,8 +312,10 @@ A worked `components/hero.tt`:
 
 `attrs` values are raw author text, so escape them; `content` and `slots`
 are rendered HTML, so do not. Style `.hero`, `.eyebrow` and `.cta` in the
-theme's CSS against the theme tokens (`var(--theme-colors-accent)` and
-friends), so the same component restyles with every theme.
+theme's CSS against the theme tokens (`var(--theme-colours-accent)` and
+friends - the variable names mirror YOUR theme.json's own group and key
+spellings, `--theme-<group>-<key>`, so check the generated theme-tokens.css
+rather than guessing), so the same component restyles with every theme.
 
 Built-in components ship under `lazysite/templates/components/` and work on
 every layout (`::: qr` is one). A layout component of the same name wins.

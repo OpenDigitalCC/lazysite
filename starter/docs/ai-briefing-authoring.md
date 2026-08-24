@@ -329,15 +329,21 @@ pieces, and adding a painting is one more object in the file:
     ---
     [% FOREACH p IN art.paintings %]
     ::: card
-    ![[% p.title %]](/gallery/img/[% p.file %])
+    <img src="/gallery/img/[% p.file %]" alt="[% p.title %]">
 
     **[% p.title %]** - [% p.medium %], [% p.year %][% IF p.sold %] - *sold*[% END %]
     :::
     [% END %]
 
-The page's TT runs first, so the loop emits one `::: card` block per row;
-if the layout ships a `card` component those blocks render through it,
-otherwise each becomes `<div class="card">`. The file path is resolved
+**Markdown image syntax cannot carry a template expression** (SM498). The
+body becomes HTML first and TT runs second, over the rendered HTML - so
+`![[% p.title %]](...)` meets the image converter as raw text, fails to
+match across the TT tag, and renders a literal `!` and a link instead of an
+image. When any part of an image - alt or src - is templated, write the raw
+`<img>` tag as above. Loops are unaffected: the fence has already become one
+`<div>`, and the surrounding `[% FOREACH %]` multiplies that rendered HTML -
+one card per row, as here. If the layout ships a `card` component those
+blocks render through it, otherwise each becomes `<div class="card">`. The file path is resolved
 against the page's content root, then the docroot, and must stay inside
 the docroot; a missing or invalid file makes `art` empty (the loop renders
 nothing) and the build logs a `WARN`. Values arrive as data, so they are
