@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM431 resolved (PENDING) **the permissions twins agree about who reaches
+  them.** The control API has had acl actions since SM074 - the filed
+  "nothing" was wrong - but they needed the webdav channel while their MCP
+  twins sat under manage_content, so a token that could create gated
+  content met refusals on one door and working tools on the other. The acl
+  actions join manage_content's unlocks (describe_capabilities and
+  reachable now say so), the gate becomes webdav OR manage_content, lint
+  23's channel-gated exemption is removed, and the twins are recorded in
+  its pair table. Per-file ownership rules are untouched.
+
 - SM415 resolved (PENDING) **a form post without JavaScript lands on the
   page, not on raw JSON.** The chrome JS declares Accept: application/json
   and keeps today's reply byte-for-byte; a native browser post is answered

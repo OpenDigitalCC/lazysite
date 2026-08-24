@@ -95,12 +95,24 @@ my %SAFE_WITH_DEFAULT = (
         . 'before anything is written, so the default cannot restore over a '
         . 'directory. NOTE this is safety DOWNSTREAM, not a guard here - the '
         . 'same shape acl-set had before SM287 made a root rule effective.',
+    # SM431 paired acl-get with get_permissions, which brought it under this
+    # check. The defaulted path reads the rule governing the site root - the
+    # canonical way to ask for it since SM310 - and the operation only reads;
+    # the hazardous sibling (acl-set) is guarded, not excepted, above.
+    'acl-get' => 'a defaulted path reads the root rule, which SM310 made the '
+        . 'canonical spelling of that question. Read-only either way.',
 );
 
 subtest 'every argument MCP requires is not silently supplied by the API' => sub {
     my @unrecorded;
 
     for my $action ( sort keys %pair ) {
+        # SM431 paired acl-set with set_permissions in the shared pair table,
+        # which would drag it back into this loop - the loop the file below
+        # DELIBERATELY routes it around: its guard is asserted directly in its
+        # own subtest, because the branch-extraction regex here is documented
+        # there as having once reported a guard that was plainly present.
+        next if $action eq 'acl-set';
         my $tool = $pair{$action};
         my $req  = $requires{$tool} or next;
 
@@ -140,7 +152,7 @@ subtest 'the recorded exceptions are still paired, and still exempt' => sub {
         ok( exists $pair{$action},
             "$action is still a paired action" );
         cmp_ok( length $SAFE_WITH_DEFAULT{$action}, '>', 60,
-            "$action's exemption states an actual reason, not a shrug" );
+            "${action}'s exemption states an actual reason, not a shrug" );
     }
 };
 

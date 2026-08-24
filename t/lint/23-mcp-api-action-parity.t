@@ -36,9 +36,9 @@ my $mcp_src = slurp("$root/lazysite-mcp.pl");
 
 # The live surfaces: %need keys are the token-callable actions, %TOOLS keys the
 # MCP tools.
-my ($need_block) = $api_src =~ /my \%need = \((.*?)\n    \);/s;
-my @api_live = $need_block =~ /'([a-z0-9_-]+)'\s*=>\s*sub/g;
-my @mcp_live = $mcp_src =~ /^    ([a-z_]+)\s*=>\s*\{/mg;
+my ($need_block) = $api_src    =~ /my \%need = \((.*?)\n    \);/s;
+my @api_live     = $need_block =~ /'([a-z0-9_-]+)'\s*=>\s*sub/g;
+my @mcp_live     = $mcp_src    =~ /^    ([a-z_]+)\s*=>\s*\{/mg;
 cmp_ok( scalar @api_live, '>=', 40, 'the control-API action table was parsed' );
 cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );
 
@@ -51,10 +51,9 @@ cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );
 my %INTROSPECTION = map { $_ => 1 }
     qw(whoami describe-capabilities describe_capabilities actions-list);
 
-# The ACL actions are gated by the WEBDAV CHANNEL capability rather than an
-# action capability, so they legitimately have no action-capability home; the
-# channel's own description names them instead.
-my %CHANNEL_GATED = map { $_ => 1 } qw(acl-get acl-set acl-remove);
+# SM431 removed the CHANNEL_GATED exemption that lived here: the ACL actions
+# now have an action-capability home (manage_content, matching their MCP
+# twins), so the completeness check below covers them like everything else.
 
 # --- 1. the map must be COMPLETE, or everything below measures nothing -------
 my $map = describe();
@@ -65,7 +64,7 @@ for my $c ( action_keys() ) {
     $mcp_cap{$_} = $c for @{ $u->{mcp} || [] };
 }
 for my $a ( sort @api_live ) {
-    next if $INTROSPECTION{$a} || $CHANNEL_GATED{$a};
+    next if $INTROSPECTION{$a};
     ok( $api_cap{$a}, "control-API action '$a' is declared under a capability" )
         or diag( "  '$a' is callable but appears in no unlocks list, so "
             . 'describe_capabilities under-reports what its capability gives.' );
@@ -77,34 +76,34 @@ for my $t ( sort @mcp_live ) {
 
 # --- 2. the twins, by name ---------------------------------------------------
 my %PAIR = (
-    'analyse_visitors'    => 'analyse_visitors',
+    'analyse_visitors' => 'analyse_visitors',
     # SM301: was an MCP-only entry whose recorded reason was "the API path can
     # add one when someone asks for it". A live site asked, having taken its own
     # sitemap.xml down by deleting the generated file for want of this.
     'regenerate-registries' => 'regenerate_registries',
-    'domains-list'        => 'list_domains',
-    'domain-set'          => 'domain_set',
-    'domain-preview'      => 'preview_domain',
-    'site-backup-create'  => 'site_backup',
-    'site-backup-apply'   => 'site_apply',
-    'form-submissions'    => 'read_form_submissions',
-    'form-list'           => 'form_list',
-    'git-history'         => 'list_versions',
-    'git-history-summary' => 'list_content_history',
-    'git-show'            => 'view_version',
-    'git-restore'         => 'restore_version',
-    'layout-activate'     => 'activate_layout',
-    'layout-install'      => 'install_layout',
-    'layout-delete'       => 'delete_layout',
-    'layouts-manifest'    => 'list_layout_catalogue',
-    'theme-activate'      => 'activate_theme',
+    'domains-list'          => 'list_domains',
+    'domain-set'            => 'domain_set',
+    'domain-preview'        => 'preview_domain',
+    'site-backup-create'    => 'site_backup',
+    'site-backup-apply'     => 'site_apply',
+    'form-submissions'      => 'read_form_submissions',
+    'form-list'             => 'form_list',
+    'git-history'           => 'list_versions',
+    'git-history-summary'   => 'list_content_history',
+    'git-show'              => 'view_version',
+    'git-restore'           => 'restore_version',
+    'layout-activate'       => 'activate_layout',
+    'layout-install'        => 'install_layout',
+    'layout-delete'         => 'delete_layout',
+    'layouts-manifest'      => 'list_layout_catalogue',
+    'theme-activate'        => 'activate_theme',
     # SM262: paired, but NOT identical - the MCP tool is always restricted to
     # themes the caller created, while the API action restricts only for token
     # clients and leaves the manager UI's cookie session unrestricted. Same
     # action, two channels, one of which can have a human behind it.
-    'theme-delete'        => 'delete_theme',
-    'themes-list-all'     => 'list_themes',
-    'nav-read'            => 'read_nav',
+    'theme-delete'    => 'delete_theme',
+    'themes-list-all' => 'list_themes',
+    'nav-read'        => 'read_nav',
 
     # SM447: the data tables. Both channels, one implementation - each pair
     # routes through Lazysite::Manager::Data, so a difference between them
@@ -122,8 +121,13 @@ my %PAIR = (
     'data-table-drop' => 'drop_data_table',
     'data-row-save'   => 'save_data_row',
     'data-row-delete' => 'delete_data_row',
-    'nav-save'            => 'set_nav',
-    'pages'               => 'list_pages',
+    'nav-save'        => 'set_nav',
+    'pages'           => 'list_pages',
+    # SM431: the permissions twins, recorded as twins. acl-remove has no
+    # named MCP twin (set_permissions with empty lists clears a rule) and
+    # passes the completeness check under manage_content like the others.
+    'acl-get' => 'get_permissions',
+    'acl-set' => 'set_permissions',
 );
 for my $a ( sort keys %PAIR ) {
     ok( ( grep { $_ eq $a } @api_live ), "paired API action '$a' still exists" );
@@ -133,6 +137,10 @@ for my $a ( sort keys %PAIR ) {
 
 # --- 3. one-sided actions, each with a recorded reason -----------------------
 my %API_ONLY = (
+    # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
+    # has no named twin because set_permissions with empty read/write lists
+    # clears a rule - a twin would be a second spelling of the same operation.
+    'acl-remove' => 'set_permissions with empty lists is the MCP spelling',
     # SM282: an operator-facing check - "what does a VISITOR get for this
     # path" - answered in the panel where the draft section is managed. An
     # agent has no equivalent question: it can already fetch the path
@@ -151,27 +159,27 @@ my %API_ONLY = (
     'data-import' => 'a file upload from a person; an agent has save_data_row and can loop',
     'data-table-source' => 'the descriptor as TEXT for a human editor; an agent gets the parsed shape from describe_data_table',
     'data-migrate-plan' => 'a preview for a person deciding; an agent calls migrate_data_table and reads its reply',
-    'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
-    'config-read' => 'undecided - no MCP twin for site configuration',
-    'config-set'  => 'undecided - as config-read',
-    'git-init'    => 'undecided - enabling content history is a site-configuration act',
-    'git-status'  => 'undecided - the MCP side exposes versions, not repo state',
-    'aliases-list'      => 'undecided',
-    'lang-status'       => 'undecided',
-    'domain-add'    => 'deliberate (SM238) - creating a domain has DNS and certificate consequences beyond this instance',
-    'domain-remove' => 'deliberate (SM238) - destructive and instance-level',
-    'domain-check'  => 'deliberate (SM238) - an outbound probe; held with add/remove',
-    'theme-list'          => 'superseded by themes-list-all, which is paired',
-    'themes-for-layout'   => 'undecided',
-    'layouts-available'   => 'undecided - list_layout_catalogue covers the repo, not the installed set',
+    'audit'        => 'undecided - an agent cannot read the audit trail over MCP',
+    'config-read'  => 'undecided - no MCP twin for site configuration',
+    'config-set'   => 'undecided - as config-read',
+    'git-init'     => 'undecided - enabling content history is a site-configuration act',
+    'git-status'   => 'undecided - the MCP side exposes versions, not repo state',
+    'aliases-list' => 'undecided',
+    'lang-status'  => 'undecided',
+    'domain-add' => 'deliberate (SM238) - creating a domain has DNS and certificate consequences beyond this instance',
+    'domain-remove'     => 'deliberate (SM238) - destructive and instance-level',
+    'domain-check'      => 'deliberate (SM238) - an outbound probe; held with add/remove',
+    'theme-list'        => 'superseded by themes-list-all, which is paired',
+    'themes-for-layout' => 'undecided',
+    'layouts-available' => 'undecided - list_layout_catalogue covers the repo, not the installed set',
     # SM263: settled, so it stops being re-asked. A token client needing the
     # bytes uses WebDAV; the control API and MCP are for structured actions.
     'site-backup-download' => 'deliberate (SM263) - streams bytes; WebDAV is the file channel for a token client, and an action API is the wrong shape for a byte stream',
-    'site-backup-upload'   => 'deliberate - as site-backup-download',
-    'site-backup-delete'   => 'undecided',
-    'site-backup-inspect'  => 'undecided',
-    'site-export-primary'  => 'undecided',
-    'preview-grant'        => 'deliberate - mints a browser preview cookie; meaningless to a connector',
+    'site-backup-upload'  => 'deliberate - as site-backup-download',
+    'site-backup-delete'  => 'undecided',
+    'site-backup-inspect' => 'undecided',
+    'site-export-primary' => 'undecided',
+    'preview-grant' => 'deliberate - mints a browser preview cookie; meaningless to a connector',
     'artifact-manifest'       => 'undecided',
     'artifact-validate'       => 'undecided',
     'artifact-backups-delete' => 'undecided',
@@ -181,8 +189,8 @@ my %API_ONLY = (
 my %MCP_ONLY = (
     'submit_feedback' => 'deliberate - an agent-to-operator channel with no API caller',
     'upload_file'     => 'deliberate (SM240) - the API channel has WebDAV for bulk bytes',
-    'theme_tokens'       => 'undecided',
-    'create_theme'       => 'undecided',
+    'theme_tokens'    => 'undecided',
+    'create_theme'    => 'undecided',
     # SM262: create_theme's counterpart now exists; see the %PAIR entry.
     'list_form_handlers' => 'undecided',
     'bind_form'          => 'undecided',
@@ -207,7 +215,7 @@ my %paired_api = map { $_ => 1 } keys %PAIR;
 my %paired_mcp = map { $_ => 1 } values %PAIR;
 
 for my $a ( sort @api_live ) {
-    next if $INTROSPECTION{$a} || $CHANNEL_GATED{$a} || $paired_api{$a};
+    next if $INTROSPECTION{$a} || $paired_api{$a};
     ok( $API_ONLY{$a}, "API-only action '$a' has a recorded reason" )
         or diag( "  '$a' has no MCP twin and no entry in \%API_ONLY. Decide "
             . 'whether MCP needs it, then record the answer - "undecided" is '

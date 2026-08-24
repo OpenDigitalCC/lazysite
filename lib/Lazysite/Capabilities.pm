@@ -32,7 +32,7 @@ sub capability_keys { return @CAP_KEYS }
 # the MCP tools/call dispatch.
 my %CHANNEL_INFO = (
     ui => 'Interactive manager UI over a browser cookie session.',
-    webdav => 'The /dav publishing endpoint (files, themes, layouts). Also gates the per-file ACL actions on the control API (acl-get / acl-set / acl-remove): a publishing partner manages permissions on the content it owns.',
+    webdav => 'The /dav publishing endpoint (files, themes, layouts). Also gates the per-file ACL actions on the control API (acl-get / acl-set / acl-remove) - alongside manage_content since SM431, because a capability that lets you CREATE gated content must let you inspect and set the rule governing it, on the same surface.',
     api =>
         'The token-authenticated control API (structured actions). Call '
         . '`action=actions-list` for the actions THIS account may use, with '
@@ -66,7 +66,8 @@ my %ACTION_INFO = (
         unlocks => {
             api => [ qw(aliases-list git-status git-history git-history-summary
                     git-show git-restore lang-status site-export-primary
-                    regenerate-registries preview-public) ],
+                    regenerate-registries preview-public
+                    acl-get acl-set acl-remove) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files

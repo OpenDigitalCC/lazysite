@@ -841,9 +841,15 @@ if ($token_auth) {
         # The audit trail is its own capability, separate from visitor analytics.
         'audit' => sub { $_[0]->{audit} },
         # SM074: a publishing partner manages ACLs on the content it owns.
-        'acl-get'    => sub { $_[0]->{webdav} },
-        'acl-set'    => sub { $_[0]->{webdav} },
-        'acl-remove' => sub { $_[0]->{webdav} },
+        # SM431: and so does a manage_content grant - the MCP twins
+        # (get_permissions / set_permissions) sat under manage_content while
+        # these needed webdav, so a token that could CREATE gated content
+        # could not inspect or set the rule governing it through this door.
+        # Per-file authorization (ownership, SM464's read split) is unchanged
+        # inside the actions; this is only which grants reach them.
+        'acl-get'    => sub { $_[0]->{webdav} || $_[0]->{manage_content} },
+        'acl-set'    => sub { $_[0]->{webdav} || $_[0]->{manage_content} },
+        'acl-remove' => sub { $_[0]->{webdav} || $_[0]->{manage_content} },
     );
     # SM212: why a KNOWN action is withheld from token clients, where the answer
     # is a decision and not just "the manager UI owns this screen". Only the

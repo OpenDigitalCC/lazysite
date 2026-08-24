@@ -41,9 +41,9 @@ widths: 5.4cm | 4.8cm | X
 bold: 1
 tone: medium
 ---
-`acl-get` | webdav | path (query)
-`acl-remove` | webdav | path (query)
-`acl-set` | webdav | path (query_or_body), read (body), write (body), owner (body), draft (body)
+`acl-get` | manage_content / webdav | path (query)
+`acl-remove` | manage_content / webdav | path (query)
+`acl-set` | manage_content / webdav | path (query_or_body), read (body), write (body), owner (body), draft (body)
 `actions-list` | any authenticated |  
 `aliases-list` | manage_content | host (query), path (query)
 `analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query)
