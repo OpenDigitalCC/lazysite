@@ -58,6 +58,9 @@ tone: medium
 `backup-restore` | cookie only | name (query)
 `bad-url-blocks` | manage_config |  
 `bad-url-unblock` | manage_config | ip (query)
+`brief-append` | manage_content | path (query), entry (body)
+`brief-read` | manage_content | path (query)
+`briefs-migrate` | manage_content |  
 `cache-invalidate` | cookie only | path (query), host (query)
 `cache-list` | cookie only |  
 `channel-services` | cookie only |  

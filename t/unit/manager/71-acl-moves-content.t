@@ -190,17 +190,15 @@ subtest 'the notes and the stale render follow the page' => sub {
     # A move that takes the .md and leaves these behind protects the page and
     # publishes its substance. The .html especially: it is a complete public
     # copy of the page sitting in the docroot, which is what SM283 WAS.
-    spit( "$d/briefed/page.md",       "BODY\n" );
-    spit( "$d/briefed/page.md.brief", "WHY\n" );
-    spit( "$d/briefed/page.html",     "<p>BODY</p>\n" );
+    # (SM245: the .brief companion moved out of band with the sidecar's
+    # removal; only the render cache remains a companion here.)
+    spit( "$d/briefed/page.md",   "BODY\n" );
+    spit( "$d/briefed/page.html", "<p>BODY</p>\n" );
 
     ok( action_acl_set( 'briefed/page.md', 'alice', ['alice'], undef, undef, undef )
             ->{ok},
         'the page is protected' );
 
-    is( slurp( private_path( $d, 'briefed/page.md.brief' ) ), "WHY\n",
-        'the notes moved with it' );
-    ok( !-e "$d/briefed/page.md.brief", 'and are not left public' );
     ok( !-e "$d/briefed/page.html",
         'and the render cache from before the gate is gone from the docroot - '
             . 'it was a full public copy of the page now protected' );

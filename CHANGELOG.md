@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM245 resolved (PENDING) **briefs move out of band.** The record stays;
+  the sidecar file goes. A contract plugin owns a store at
+  lazysite/briefs/<content-path>; brief-read/brief-append (API) and
+  read_brief/append_brief (MCP) under manage_content; an idempotent
+  migration imports every sidecar and never removes one it did not import.
+  The engine forgets briefs exist - listing metadata, move/copy/convert
+  carriage, private-store companionship and the DAV sync all gone - while
+  the extension-level DENIES deliberately stay as legacy-file protection
+  (a stray sidecar on a deployed site still answers 404; the filing
+  records the deviation and its reason).
+
 - SM431 resolved (PENDING) **the permissions twins agree about who reaches
   them.** The control API has had acl actions since SM074 - the filed
   "nothing" was wrong - but they needed the webdav channel while their MCP

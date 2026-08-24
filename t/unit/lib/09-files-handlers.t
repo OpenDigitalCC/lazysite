@@ -107,14 +107,12 @@ sub _write_dav_lock {
     close $lf;
 }
 
-# --- action_move (rename/move + .brief + ACL re-key) ---
-open my $of, '>', "$d/content/orig.md"       or die $!; print {$of} 'body'; close $of;
-open my $ob, '>', "$d/content/orig.md.brief" or die $!; print {$ob} 'why';  close $ob;
+# --- action_move (rename/move + ACL re-key; SM245 removed brief carriage) ---
+open my $of, '>', "$d/content/orig.md" or die $!; print {$of} 'body'; close $of;
 action_acl_set( 'content/orig.md', 'alice', undef, ['alice'], 'alice' );
 my $mv = action_move( 'content/orig.md', 'content/renamed.md', 'alice' );
-ok( $mv->{ok}, 'move succeeds' );
-ok( -f "$d/content/renamed.md" && !-e "$d/content/orig.md",             'file moved' );
-ok( -f "$d/content/renamed.md.brief" && !-e "$d/content/orig.md.brief", '.brief sidecar moved' );
+ok( $mv->{ok},                                              'move succeeds' );
+ok( -f "$d/content/renamed.md" && !-e "$d/content/orig.md", 'file moved' );
 my $acls = load_acls();
 ok( exists $acls->{'content/renamed.md'} && !exists $acls->{'content/orig.md'},
     'ACL entry re-keyed to the new path' );
@@ -128,9 +126,8 @@ ok( !action_move( 'content/missing.md', 'content/x.md', 'alice' )->{ok},
     'move of a missing source is refused' );
 
 # --- action_copy (duplicate: source kept, fresh owner, no cache copy) ---
-open my $cf, '>', "$d/content/src.md"       or die $!; print {$cf} 'dup me';  close $cf;
-open my $cb, '>', "$d/content/src.md.brief" or die $!; print {$cb} 'why';     close $cb;
-open my $ch, '>', "$d/content/src.html"     or die $!; print {$ch} '<cache>'; close $ch;
+open my $cf, '>', "$d/content/src.md"   or die $!; print {$cf} 'dup me';  close $cf;
+open my $ch, '>', "$d/content/src.html" or die $!; print {$ch} '<cache>'; close $ch;
 action_acl_set( 'content/src.md', 'alice', ['bob'], ['alice'], 'alice' );
 my $cp = action_copy( 'content/src.md', 'content/dup.md', 'carol' );
 ok( $cp->{ok}, 'copy succeeds' );
@@ -143,8 +140,7 @@ ok( !-e "$d/content/src.md", 'and not also in the docroot - one tree, never two'
 ok( -f "$d/content/dup.md",  'the duplicate is created, and is public' );
 is( do { open my $f, '<', "$d/content/dup.md"; local $/; <$f> }, 'dup me',
     'duplicate has the source content' );
-ok( -f "$d/content/dup.md.brief", '.brief sidecar copied' );
-ok( !-e "$d/content/dup.html",    'generated .html cache is NOT copied (re-renders)' );
+ok( !-e "$d/content/dup.html", 'generated .html cache is NOT copied (re-renders)' );
 my $ca = load_acls();
 is( $ca->{'content/dup.md'}{owner}, 'carol', 'duplicate is owned by its creator, not the source owner' );
 ok( !$ca->{'content/dup.md'}{read}, 'duplicate does not inherit the source read list' );
@@ -163,7 +159,6 @@ require Lazysite::Fetch;
     *Lazysite::Fetch::fetch_url = sub { "# Migrated\n\nremote body from $_[0]\n" }; }
 
 open my $uf, '>', "$d/content/remote.url" or die $!; print {$uf} 'https://example.com/page'; close $uf;
-open my $ub, '>', "$d/content/remote.url.brief" or die $!; print {$ub} 'why'; close $ub;
 action_acl_set( 'content/remote.url', 'alice', ['bob'], ['alice'], 'alice' );
 
 my $mig = action_migrate_to_local( 'content/remote.url', 'alice' );
@@ -179,7 +174,6 @@ ok( !-e "$d/content/remote.md",
     'and the fetched body was NOT published into the document root' );
 like( do { open my $f, '<', $md_priv; local $/; <$f> }, qr/remote body from/,
     '.md holds the fetched content' );
-ok( -f "$md_priv.brief", '.brief sidecar carried over, into the store too' );
 my $ma = load_acls();
 ok( exists $ma->{'content/remote.md'} && !exists $ma->{'content/remote.url'},
     'ACL entry re-keyed from .url to .md (ownership carried)' );

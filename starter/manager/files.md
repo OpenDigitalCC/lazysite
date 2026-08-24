@@ -394,12 +394,37 @@ function ownerOptions(owner) {
   return h;
 }
 
+// SM245: briefs live in the plugin store, out of band - the listing no
+// longer says whether one exists (is_brief/has_brief are gone), so the one
+// button reads the store when asked. prompt() for the append is the interim
+// affordance; SM502's modal rework is where this gets a real editor.
 function briefButton(f) {
-  if (f.is_brief) return '';
-  if (f.has_brief) {
-    return '<a class="mg-btn" href="/manager/edit?path=' + encodeURIComponent(f.path + '.brief') + '">&#128221; Edit brief</a>';
-  }
-  return '<button class="mg-btn" onclick="addBrief(this)">&#128221; Add brief</button>';
+  return '<button class="mg-btn" onclick="viewBrief(this)">&#128221; Brief</button>';
+}
+function viewBrief(btn) {
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  var path = row.getAttribute('data-path');
+  fetch(API + '?action=brief-read&path=' + encodeURIComponent(path))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not read the brief', true); return; }
+      var current = d.exists ? d.brief : '(no brief yet)';
+      var entry = window.prompt(
+        'Brief for ' + path + ':\n\n' + current +
+        '\n\nAdd an entry (what changed and why), or Cancel:', '');
+      if (entry === null || !entry.trim()) return;
+      fetch(API + '?action=brief-append&path=' + encodeURIComponent(path), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry: entry })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d2) {
+          if (!d2.ok) { showStatus(d2.error || 'Could not append', true); return; }
+          showStatus('Brief entry added for ' + path);
+        });
+    });
 }
 
 // Protection, shown where the folder is rather than only at the foot of the
@@ -564,7 +589,6 @@ function rowHtml(f) {
     name = isEditable(f.name)
       ? '<a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a>'
       : escHtml(f.name);
-    if (f.is_brief) name += ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
   }
   html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + recentDot(f.path) + '</td>';
   html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
@@ -809,12 +833,6 @@ function migrateToLocal(btn) {
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
   });
-}
-
-function addBrief(btn) {
-  var card = btn.closest('tr');
-  var row  = card.previousElementSibling;
-  createBrief(row.getAttribute('data-path'));
 }
 
 // Delete a single file from its expand card (path read from the row, no escaping).

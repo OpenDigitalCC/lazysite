@@ -120,7 +120,14 @@ subtest 'every argument MCP requires is not silently supplied by the API' => sub
             next unless exists $api_default{$arg};
 
             # The API side either refuses when it is absent, or is recorded.
-            my ($branch) = $api =~ /\$action eq '\Q$action\E'.*?(?=\nelsif|\nelse\b)/s;
+            # SM245's landing found this line had NEVER captured: without
+            # parentheses, a list-context match yields (1), so $branch was the
+            # string "1" and the guard check below could not succeed for any
+            # action - the exemptions and acl-set's direct assertion masked it
+            # until the first new paired action relied on a real guard. The
+            # acl-set subtest's comment already distrusted this extraction; it
+            # was righter than it knew.
+            my ($branch) = $api =~ /(\$action eq '\Q$action\E'.*?)(?=\nelsif|\nelse\b)/s;
             my $guards = defined $branch
                 && $branch =~ /defined \$params\{\Q$arg\E\}|exists \$params\{\Q$arg\E\}/;
 

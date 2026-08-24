@@ -629,6 +629,37 @@ my %TOOLS = (
                 $a->{confirm_lost} );
         },
     },
+    read_brief => {
+        description => 'Read the authoring brief for a content path - the "why" record SM073 invented, held out of band in the engine-owned brief store since SM245 (no .brief sidecar exists any more; migrated sites moved theirs into the store). Answers exists:false with an empty brief for a path nobody has briefed.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'The content path the brief is about' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            require Lazysite::Manager::Briefs;
+            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+            local $Lazysite::Manager::Briefs::auth_user = $_[1];
+            return Lazysite::Manager::Briefs::action_brief_read( $a->{path} );
+        },
+    },
+    append_brief => {
+        description => 'Append one entry to a content path\'s authoring brief (append-only, like the sidecar it replaced): what changed and why, in your words. The store stamps the date and your identity. Use this when you make a substantive change to a page you maintain.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string', description => 'The content path the brief is about' },
+                entry => { type => 'string', description => 'The entry text (one log line; 64KB cap)' },
+            },
+            required => [ 'path', 'entry' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            require Lazysite::Manager::Briefs;
+            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+            local $Lazysite::Manager::Briefs::auth_user = $_[1];
+            return Lazysite::Manager::Briefs::action_brief_append( $a->{path}, $a->{entry} );
+        },
+    },
     drop_data_table => {
         description => 'Remove a table entirely - its descriptor, its stored rows, and every value in them. THIS EXISTS BECAUSE THERE WAS NO WAY BACK: declaring a table was reachable from three surfaces and removing one from none, and the descriptor lives under lazysite/ where every write channel refuses, so a table made by mistake or for a single test was permanent. CONFIRM BY NAMING THE TABLE EXACTLY in confirm: call without it first to be told what will be lost. A safety export of every row is written before anything is dropped and its path is returned, so a mistake is recoverable even though the table is not.',
         cap         => 'manage_data',
@@ -890,7 +921,7 @@ my %TOOLS = (
         run => sub { action_acl_get( $_[0]->{path}, $_[1] ) },
     },
     move_file => {
-        description => 'Rename or move a file: carries its .brief, re-keys its ACL, and PRESERVES its content history across the move. Always use this (or rename_page for a page) to relocate a file - never write a new file at the destination and delete the old one, which starts a fresh history and loses the past.',
+        description => 'Rename or move a file: re-keys its ACL and PRESERVES its content history across the move. Always use this (or rename_page for a page) to relocate a file - never write a new file at the destination and delete the old one, which starts a fresh history and loses the past.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
@@ -2875,7 +2906,10 @@ sub _rename_page {
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
 my %ANNOTATE = (
-    whoami             => [ 1, 0, 0 ],
+    whoami       => [ 1, 0, 0 ],
+    read_brief   => [ 1, 0, 0 ],
+    append_brief => [ 0, 0, 0 ],    # writes the engine store, changes nothing live
+
     list_files         => [ 1, 0, 0 ],
     read_file          => [ 1, 0, 0 ],
     search_files       => [ 1, 0, 0 ],

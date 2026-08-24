@@ -128,6 +128,9 @@ my %PAIR = (
     # passes the completeness check under manage_content like the others.
     'acl-get' => 'get_permissions',
     'acl-set' => 'set_permissions',
+    # SM245: the brief store's twins.
+    'brief-read'   => 'read_brief',
+    'brief-append' => 'append_brief',
 );
 for my $a ( sort keys %PAIR ) {
     ok( ( grep { $_ eq $a } @api_live ), "paired API action '$a' still exists" );
@@ -141,6 +144,9 @@ my %API_ONLY = (
     # has no named twin because set_permissions with empty read/write lists
     # clears a rule - a twin would be a second spelling of the same operation.
     'acl-remove' => 'set_permissions with empty lists is the MCP spelling',
+    # SM245: the sidecar migration is an operator's one-shot, reached from the
+    # Plugin Manager; an agent has no standing to run it.
+    'briefs-migrate' => 'a one-shot operator migration, driven from the Plugin Manager',
     # SM282: an operator-facing check - "what does a VISITOR get for this
     # path" - answered in the panel where the draft section is managed. An
     # agent has no equivalent question: it can already fetch the path

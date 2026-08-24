@@ -52,12 +52,17 @@ sub sub_body {
 my %GUARDED = map { $_ => 1 } qw(
     action_save action_save_binary action_delete action_mkdir action_move
     action_copy action_migrate_to_local action_file_upload
+    action_brief_append
 );
 
 # EXEMPT: writes only to a location the ENGINE names, never a caller-supplied
 # path - so validate_path has no request to validate. Each carries its reason,
 # because "exempt" without one is indistinguishable from "forgotten".
 my %EXEMPT = (
+    # SM245: the migration enumerates sidecars from its own docroot walk and
+    # writes store entries at paths IT derives - no caller-supplied path
+    # exists to validate.
+    action_briefs_migrate  => 'engine-walked sidecars into the engine-named store',
     action_backup_delete   => 'backups dir, name validated by _valid_name',
     action_backup_create   => 'backups dir, name minted by _claim_name',
     action_backup_restore  => 'extracts into the docroot; name validated, tar confined',

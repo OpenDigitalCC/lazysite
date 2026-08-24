@@ -264,14 +264,10 @@ sub action_list {
                     ? JSON::PP::true : JSON::PP::false;
             }
 
-            # SM073: brief presence. A .brief is itself a sidecar; any other
-            # file may carry one at "<file>.brief".
-            if ( $name =~ /\.brief$/ ) {
-                $entry->{is_brief} = JSON::PP::true;
-            }
-            else {
-                $entry->{has_brief} =
-                    ( -f "$full.brief" ) ? JSON::PP::true : JSON::PP::false;
+            # SM245: the brief-presence metadata (is_brief / has_brief) is
+            # gone with the sidecar itself - briefs live in the plugin's
+            # store and the listing no longer knows they exist.
+            {
                 # SM074: surface ownership from the central ACL store.
                 # SM077: also surface the read/write lists (for the inline
                 # permissions editor) and any live lock (for the lock glyph).
@@ -868,7 +864,6 @@ sub action_move {
         or return { ok => 0, error => "Move failed: $!" };
 
     # Move the .brief sidecar and any generated .html cache alongside.
-    rename( "$src_full.brief", "$dst_full.brief" ) if -e "$src_full.brief";
     if ( $src_full =~ /\.md$/ ) {
         ( my $src_cache = $src_full ) =~ s/\.md$/.html/;
         ( my $dst_cache = $dst_full ) =~ s/\.md$/.html/;
@@ -916,7 +911,7 @@ sub action_move {
     # (Lazysite-Renamed-From: $s->{rel}) so content history follows the rename.
     _git_commit_move( $username, "move $s->{rel} -> $d->{rel}", $s->{rel},
         $s->{rel}, $d->{rel},
-        ( -e "$dst_full.brief" ? ( "$s->{rel}.brief", "$d->{rel}.brief" ) : () ) );
+    );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel},
         ( @store_warnings ? ( warnings => \@store_warnings ) : () ) };
@@ -950,7 +945,6 @@ sub action_copy {
     make_path($dst_dir) unless -d $dst_dir;
     copy( $src_full, $dst_full )
         or return { ok => 0, error => "Copy failed: $!" };
-    copy( "$src_full.brief", "$dst_full.brief" ) if -e "$src_full.brief";
 
     # The duplicate is a fresh file owned by its creator (fresh ACL, no inherited
     # read/write lists from the source).
@@ -970,7 +964,7 @@ sub action_copy {
         from => $src_rel, to => $dst_rel, user => $auth_user );
     # SM085: the duplicate (and its copied sidecar) is one commit.
     _git_commit( $username, "copy $s->{rel} -> $d->{rel}",
-        $d->{rel}, ( -e "$dst_full.brief" ? ("$d->{rel}.brief") : () ) );
+        $d->{rel} );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel} };
 }
@@ -1014,7 +1008,6 @@ sub action_migrate_to_local {
     return { ok => 0, error => "Could not write the local page: $werr" } unless $wok;
 
     unlink $url_full;    # the page is now local; the .md serves it
-    rename( "$url_full.brief", "$md_full.brief" ) if -e "$url_full.brief";
 
     # Re-key the ACL entry from the .url to the .md (ownership carries over).
     my $acls = load_acls();
@@ -1039,7 +1032,7 @@ sub action_migrate_to_local {
     # SM085: the .url removal and the new local .md are one commit.
     _git_commit( $username, "migrate $s->{rel} -> $md_rel",
         $s->{rel}, $md_rel,
-        ( -e "$md_full.brief" ? ( "$s->{rel}.brief", "$md_rel.brief" ) : () ) );
+    );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $md_rel, url => $url };
 }
@@ -1386,11 +1379,9 @@ sub _sync_private_store {
         ? Lazysite::Private::move_in( $DOCROOT, $path )
         : Lazysite::Private::move_out( $DOCROOT, $path );
 
-    # SM286: the companions a page drags along. A move that takes the .md and
-    # leaves these behind protects the page and publishes its substance.
-    #
-    #   .brief  - the authored "why" sidecar. Content, and about the very page
-    #             being protected, so it follows it in both directions.
+    # SM286: the companion a page drags along. (The .brief sidecar used to be
+    # carried here too; SM245 moved briefs out of band, so the engine no
+    # longer knows they exist.)
     #
     #   .html   - the render cache from BEFORE the gate existed. It is a
     #             complete public copy of the page, sitting in the docroot,
@@ -1400,17 +1391,6 @@ sub _sync_private_store {
     #             into the store (the processor's _private_twin) - and deleting a
     #             regenerable file cannot lose anything.
     if ($ok) {
-        my $brief = "$path.brief";
-        my ( $bok, $berr ) =
-            $gates
-            ? Lazysite::Private::move_in( $DOCROOT, $brief )
-            : Lazysite::Private::move_out( $DOCROOT, $brief );
-        if ( !$bok ) {
-            push @warnings,
-                "the notes beside this page could not be moved with it"
-                . ( defined $berr && length $berr ? ": $berr" : '' ) . '.';
-        }
-
         if ( $gates && $path =~ /\.md\z/ ) {
             ( my $cache = $path ) =~ s/\.md\z/.html/;
             if ( -f "$DOCROOT/$cache" ) {

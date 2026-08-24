@@ -143,6 +143,11 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # data-row-delete - are in %MUTATING and POST-forced.
     data-tables data-table data-rows
 
+    # SM245: the brief store's read. Takes a path, returns the recorded
+    # "why", changes nothing; the writers (brief-append, briefs-migrate) are
+    # in %MUTATING and POST-forced.
+    brief-read
+
     # DM-2: the download is a READ, and a big one. It returns every row rather
     # than a capped page, which is worth saying out loud - but the caller
     # already holds manage_data and could page through data-rows to the same

@@ -185,6 +185,7 @@ my ( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
 
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set actions-list aliases-list analyse_visitors
+    brief-read brief-append briefs-migrate
     artifact-backups-delete artifact-manifest artifact-validate audit
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
@@ -532,6 +533,7 @@ my %MUTATING = map { $_ => 1 } qw(
     data-rebuild data-import data-table-drop
     save delete mkdir move copy migrate-to-local file-upload git-restore
     git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
+    brief-append briefs-migrate
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
     theme-delete theme-rename theme-upload layout-activate layout-delete
     layout-install layouts-install layouts-repo-set artifact-backups-delete
@@ -577,6 +579,9 @@ if ( !$token_auth ) {
         'data-table-source'  => 'manage_data',
         'data-migrate-plan'  => 'manage_data',
         'data-table-drop'    => 'manage_data',
+        'brief-read'         => 'manage_content',    # SM245: the brief store
+        'brief-append'       => 'manage_content',
+        'briefs-migrate'     => 'manage_content',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -752,6 +757,9 @@ if ($token_auth) {
         'data-table-source' => sub { $_[0]->{manage_data} },
         'data-migrate-plan' => sub { $_[0]->{manage_data} },
         'data-table-drop'   => sub { $_[0]->{manage_data} },
+        'brief-read'        => sub { $_[0]->{manage_content} },
+        'brief-append'      => sub { $_[0]->{manage_content} },
+        'briefs-migrate'    => sub { $_[0]->{manage_content} },
         'data-row-delete'   => sub { $_[0]->{manage_data} },
         'domains-list'      => sub { $_[0]->{manage_domains} }, # read-only domains view
         'domain-add'        => sub { $_[0]->{manage_domains} },
@@ -1191,6 +1199,47 @@ elsif ( $action eq 'domain-preview' ) {
 elsif ( $action eq 'domain-check' ) {
     $result = action_domain_check( $params{host} );
 }
+elsif ( $action eq 'brief-read' ) {
+
+    # SM245: a brief is ABOUT a path; the dispatcher's '/' default would read
+    # the site root's brief on an omitted argument, which is only ever a
+    # caller's mistake. Same reasoning as acl-set's SM306 guard, and the
+    # explicit check is what t/lint/52 requires of a paired action whose MCP
+    # twin declares the argument required.
+    if ( !( defined $params{path} && length $params{path} ) ) {
+        $result = { ok => 0,
+            error => 'brief-read needs an explicit path - the content file '
+                . 'the brief is about.' };
+    }
+    else {
+        require Lazysite::Manager::Briefs;
+        $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+        $Lazysite::Manager::Briefs::auth_user = $auth_user;
+        $result = Lazysite::Manager::Briefs::action_brief_read($path);
+    }
+}
+elsif ( $action eq 'brief-append' ) {
+
+    # SM245: as brief-read - an appended entry must name its file explicitly.
+    if ( !( defined $params{path} && length $params{path} ) ) {
+        $result = { ok => 0,
+            error => 'brief-append needs an explicit path - the content file '
+                . 'the entry is about.' };
+    }
+    else {
+        require Lazysite::Manager::Briefs;
+        $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+        $Lazysite::Manager::Briefs::auth_user = $auth_user;
+        my $req = eval { decode_json($body) } // {};
+        $result = Lazysite::Manager::Briefs::action_brief_append( $path, $req->{entry} );
+    }
+}
+elsif ( $action eq 'briefs-migrate' ) {
+    require Lazysite::Manager::Briefs;
+    $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+    $Lazysite::Manager::Briefs::auth_user = $auth_user;
+    $result = Lazysite::Manager::Briefs::action_briefs_migrate();
+}
 elsif ( $action eq 'data-tables' ) {
     $result = Lazysite::Manager::Data::action_data_tables();
 }
@@ -1619,6 +1668,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         site-backup-inspect protected-sections
         data-tables data-table data-rows
         data-table-source data-migrate-plan
+        brief-read
     );
 
     # SM447: the three data READS are skip-listed for the same reason as every
@@ -1628,7 +1678,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # The three data WRITERS - data-migrate, data-row-save, data-row-delete -
     # are deliberately NOT here, so they are audited by construction. A schema
     # migration and a row edit are exactly what an operator asks the trail
-    # about.
+    # about. SM245: brief-read skips as a read; brief-append and
+    # briefs-migrate stay out for the same reason the data writers do.
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );

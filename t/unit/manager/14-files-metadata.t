@@ -24,9 +24,8 @@ spit( "$docroot/lazysite/lazysite.conf", "site_name: Test\n" );
 spit( "$docroot/index.md",   "---\ntitle: Home\n---\nHome.\n" );
 spit( "$docroot/index.html", "<html>cached</html>" );
 # about.md WITH a brief sidecar; contact.md WITHOUT one
-spit( "$docroot/about.md",       "---\ntitle: About\n---\nAbout.\n" );
-spit( "$docroot/about.md.brief", "intent: the about page\n" );
-spit( "$docroot/contact.md",     "---\ntitle: Contact\n---\nContact.\n" );
+spit( "$docroot/about.md",   "---\ntitle: About\n---\nAbout.\n" );
+spit( "$docroot/contact.md", "---\ntitle: Contact\n---\nContact.\n" );
 # an author partial: note.html with NO source -> not "generated"
 spit( "$docroot/partials/note.html", "<p>partial</p>" );
 
@@ -39,16 +38,11 @@ ok( $r->{ok}, 'list ok' );
 my %by = map { $_->{name} => $_ } @{ $r->{entries} };
 
 is( $by{'about.md'}{ext}, 'md', 'file extension surfaced' );
-ok(  $by{'about.md'}{has_brief},      'about.md flagged as having a brief' );
-ok( !$by{'contact.md'}{has_brief},    'contact.md flagged as missing a brief' );
-ok(  $by{'about.md.brief'}{is_brief}, '.brief file flagged as a brief sidecar' );
-ok( !exists $by{'about.md.brief'}{has_brief},
-    'a brief carries no has_brief of its own' );
-ok(  $by{'index.html'}{generated},
+ok( $by{'index.html'}{generated},
     'index.html (with an index.md source) is a generated cache file' );
 
 # A partial in a subdir: list it, confirm an author .html is NOT "generated".
-my $r2 = main::action_list('/partials');
+my $r2  = main::action_list('/partials');
 my %by2 = map { $_->{name} => $_ } @{ $r2->{entries} };
 ok( !$by2{'note.html'}{generated},
     'author .html with no source is not flagged generated' );
