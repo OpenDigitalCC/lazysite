@@ -127,9 +127,45 @@ eval {
     my $conf     = load_form_conf($name);
     my %handlers = load_handlers();
 
-    check_honeypot( $form{_hp}          // '' );
-    check_timestamp( $form{_ts}         // '', $form{_tk} // '', load_form_secret() );
-    check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0', $conf->{rate_limit} );
+    check_honeypot( $form{_hp}  // '' );
+    check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret() );
+
+    # SM425: a signed-in member is not the traffic the anonymous rate limit
+    # exists to stop, and meeting it mid-form reads as the site being broken.
+    # The session cookie is verified CRYPTOGRAPHICALLY (SM411's shared
+    # verifier - HMAC over the payload, registry and account checks inside),
+    # which is different in kind from the header identity SM402 rightly
+    # stripped: nothing here reads X-Remote-User, and the verified name is
+    # used as a BOOLEAN for this one decision - it is not recorded on the
+    # submission, not written to the audit actor column, and not passed to
+    # any handler. The submission stays actor-less; only the limiter learns
+    # that SOME verified member is asking.
+    # THE MODULE TREE HAS TO BE FOUND FIRST (the resolve_db lesson, SM473):
+    # `prove -l` puts lib/ on @INC and a real install does not, so a bare
+    # require here passes every test and dies on every deployed submission.
+    # Same locate as the db target below - and the whole attempt degrades to
+    # ANONYMOUS on any failure, because a broken exemption must cost a member
+    # a rate limit, never anybody a form.
+    my $signed_in = eval {
+        unless ( $INC{'Lazysite/Auth/Session.pm'} ) {
+            require Cwd;
+            require File::Basename;
+            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+            for my $cand ("$bin/lib", "$bin/../lib", "$bin/../../lib") {
+                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+            }
+        }
+        require Lazysite::Auth::Session;
+        local $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
+        my ($session) = Lazysite::Auth::Session::verify_session_cookie();
+        ( ref $session eq 'HASH' ) ? 1 : 0;
+    } // 0;
+    if ($signed_in) {
+        log_event( 'INFO', 'form', 'rate limit waived: verified session' );
+    }
+    else {
+        check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0', $conf->{rate_limit} );
+    }
 
     # Binary uploads: reject up front (before any handler runs) if the form does
     # not accept files, or a file breaks the form's size / type / count limits.
@@ -964,12 +1000,18 @@ sub check_timestamp {
 # authenticated office team working through twenty-five data-entry pages from one
 # office address - which is a real deployment, not a hypothetical.
 #
-# WHY NOT "EXEMPT LOGGED-IN USERS", WHICH IS WHAT WAS ASKED FOR. This handler is
-# NOT behind the auth wrapper: the templates front only lazysite-processor.pl and
-# lazysite-manager-api.pl with it, and /cgi-bin/ is otherwise a plain ScriptAlias.
-# So HTTP_X_REMOTE_USER arrives here exactly as the client sent it. Exempting on
-# it would mean any request carrying `X-Remote-User: anything` skipped the limit -
-# turning a spam control into a header away from useless. See SM402 for the
+# WHY NOT "EXEMPT LOGGED-IN USERS" ON A HEADER - AND WHY THE COOKIE PATH NOW
+# DOES (SM425). This handler is NOT behind the auth wrapper: the templates
+# front only lazysite-processor.pl and lazysite-manager-api.pl with it, and
+# /cgi-bin/ is otherwise a plain ScriptAlias. So HTTP_X_REMOTE_USER arrives
+# here exactly as the client sent it, and exempting on it would mean any
+# request carrying `X-Remote-User: anything` skipped the limit - a spam
+# control one header away from useless. That refusal STANDS for headers. The
+# SM425 exemption above is different in kind: it verifies the session COOKIE
+# cryptographically (SM411's shared verifier - HMAC, registry, account
+# checks), which no client can mint without the site secret. The identity it
+# yields is used as a boolean for the limiter and recorded nowhere, so the
+# SM402 line holds unchanged. See SM402 for the
 # related finding that the same header is already trusted for ATTRIBUTION here.
 #
 # An operator setting `rate_limit:` on the one gated form they built is explicit,
