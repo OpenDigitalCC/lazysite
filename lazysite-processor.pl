@@ -7406,6 +7406,11 @@ sub _security_headers {
     # firing, which no processor-driven test can see because the failure is in a
     # browser.
     if ( defined $opt{html} ) {
+        # SM429: see Lazysite::SecurityHeaders - this is the processor's pinned
+        # copy (t/lint/55 compares the two by value). same-origin-allow-popups,
+        # because the manager's open-in-new-tab and the OAuth popup flow both
+        # depend on opened windows keeping their opener.
+        push @h, 'Cross-Origin-Opener-Policy: same-origin-allow-popups';
         my $mode = _csp_mode();
 
         # SM380: THE MANAGER IS NEVER ENFORCED, whatever the site is set to,

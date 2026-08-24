@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM429 resolved (PENDING) **cross-origin-opener-policy is emitted, and the
+  authorize page joins the header set.** same-origin-allow-popups on HTML
+  responses, beside the CSP, in both copies of the set - the strict value
+  would break the two popup behaviours the filing names (the manager's
+  open-in-new-tab, the OAuth flow handing its result back). Following the
+  filing's advice to test the real authorize page found the bigger gap: the
+  OAuth consent page - an authorisation surface - hand-printed its response
+  and carried no security headers at all. It now emits the full html set;
+  t/integration/70 drives the real page via the script's own client
+  registration, and t/integration/44 asserts COOP on pages and not on
+  stylesheets.
+
 - SM498 resolved (PENDING) **the GS12 gallery example could not work.** Field
   report from the 0.10.28 verification: published verbatim, every image
   rendered as a literal `!` and a link - Markdown image syntax cannot carry

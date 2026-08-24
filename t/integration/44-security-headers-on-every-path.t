@@ -83,6 +83,16 @@ subtest 'a rendered page' => sub {
     my $out = run_processor( $docroot, '/' );
     carries( $out, 0, 'a page' );
 };
+subtest 'COOP is an HTML header, present on pages and only there (SM429)' => sub {
+    my $page = run_processor( $docroot, '/' );
+    like( $page, qr/^Cross-Origin-Opener-Policy:\s*same-origin-allow-popups\s*$/mi,
+        'a page carries COOP, at the popup-preserving value' )
+        or diag( 'same-origin would break the manager\'s open-in-new-tab and '
+            . 'the OAuth popup flow - the two interactions SM429 names.' );
+    my $css = static_get();
+    unlike( $css, qr/^Cross-Origin-Opener-Policy:/mi,
+        'a stylesheet does not - it has no window to sever' );
+};
 
 subtest 'a 404' => sub {
     my $out = run_processor( $docroot, '/no-such-page' );

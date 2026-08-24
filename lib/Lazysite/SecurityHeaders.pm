@@ -262,6 +262,15 @@ sub security_headers {
     # exists because a header that cannot be turned off is one an operator will
     # work around by other means.
     if ( $opt{html} ) {
+        # SM429: sever the window.opener relationship INTO this document while
+        # keeping windows it opens able to talk back - same-origin-allow-popups,
+        # not same-origin, because two things in this tree depend on popups
+        # working: the manager opens the site in a new tab, and the OAuth
+        # authorize flow hands its result back through the opener. The strict
+        # value is the classic way to break a connector's popup flow, usually
+        # discovered by a partner rather than by a test. HTML only, beside the
+        # CSP: a stylesheet has no window to sever.
+        push @h, 'Cross-Origin-Opener-Policy: same-origin-allow-popups';
         my $mode = _csp_mode( $opt{csp_mode} );
         if ( $mode ne 'off' ) {
             my $name

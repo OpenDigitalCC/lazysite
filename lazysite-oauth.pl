@@ -115,7 +115,19 @@ sub consent_page {
     my $err = $error
         ? '<p style="color:#c33">' . hesc($error) . '</p>' : '';
     binmode STDOUT, ':utf8';
-    print "Status: 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\n\r\n";
+    # SM429: the consent page is an AUTHORISATION SURFACE and carried no
+    # security headers at all - every hand-printed response path in this
+    # script predates SM352's consolidation. It gets the full set, html
+    # flavour, which includes Cross-Origin-Opener-Policy
+    # same-origin-allow-popups: the popup flow this very page exists for is
+    # the reason the strict value would be wrong (the opened window must be
+    # able to hand the result back through its opener).
+    require Lazysite::SecurityHeaders;
+    my @sec = Lazysite::SecurityHeaders::security_headers(
+        https => $ENV{HTTPS} ? 1 : 0, html => 1 );
+    print "Status: 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\n";
+    print "$_\r\n" for @sec;
+    print "\r\n";
     print <<"HTML";
 <!doctype html><html><head><meta charset="utf-8">
 <title>Authorise connection</title>
