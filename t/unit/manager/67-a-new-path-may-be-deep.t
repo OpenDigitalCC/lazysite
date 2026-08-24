@@ -65,4 +65,20 @@ subtest 'the save that motivated it' => sub {
     ok( -f "$docroot/guides/setup/intro.md", 'and the file is where it says' );
 };
 
+subtest 'a deep new path inside a GATED section still goes private' => sub {
+    # The first cut of SM510 anchored every new path at the docroot (which
+    # always exists), silently bypassing the SM458 private branch - and with
+    # it the private tree's symlink collapse and containment. The chooser:
+    # the tree with the DEEPER existing ancestor claims the path.
+    require Lazysite::Private;
+    my $proot = Lazysite::Private::private_root($docroot);
+    plan skip_all => 'no private root on this rig' unless defined $proot;
+    require File::Path;
+    File::Path::make_path("$proot/intranet");
+    my $v = validate_path('/intranet/sub/deeper/file.md');
+    ok( $v->{ok}, 'validates' ) or diag explain $v;
+    is( $v->{store} // '', 'private', 'and is claimed by the private tree' )
+        or diag explain $v;
+};
+
 done_testing();

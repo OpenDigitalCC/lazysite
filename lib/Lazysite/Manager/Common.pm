@@ -126,6 +126,30 @@ sub validate_path {
     # containment test below is unchanged.
     my $anchor = $full;
     $anchor = dirname($anchor) until -e $anchor;
+
+    # SM510 (the gate's catch): the walk above ALWAYS terminates - at the
+    # docroot itself if nothing deeper exists - so on its own it made the
+    # SM458 private branch unreachable for new paths, and a gated section's
+    # deep path resolved as docroot WITHOUT the private tree's symlink
+    # collapse and containment. t/unit/manager/90 refused to let that land.
+    # So when the immediate parent is missing, BOTH trees walk to their
+    # nearest existing ancestor and the DEEPER anchor claims the path; the
+    # docroot wins ties, which preserves every pre-SM510 decision exactly
+    # (a path whose parent exists never reaches this chooser).
+    my $use_private = 0;
+    if ( !-e $full && !-d dirname($full) ) {
+        my $proot = Lazysite::Private::private_root($DOCROOT);
+        my $pfull = defined $proot
+            ? Lazysite::Private::private_path( $DOCROOT, $rel_path )
+            : undef;
+        if ( defined $pfull ) {
+            my $panchor = $pfull;
+            $panchor     = dirname($panchor) until -e $panchor;
+            $use_private = 1
+                if length($pfull) - length($panchor)
+                < length($full) - length($anchor);
+        }
+    }
     my $real = realpath($anchor);
 
     # SEC-2026-07 (H3): boundary-safe containment. A bare index($real,$DOCROOT)
@@ -133,7 +157,9 @@ sub validate_path {
     # the docroot (public_html vs public_html.bak), letting a write escape the
     # docroot. Require equality or a "$DOCROOT/" prefix.
     my $in_docroot
-        = $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
+        = !$use_private
+        && $real
+        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
 
     # The blocklist string-matches on rel, so rel MUST be the CANONICAL in-docroot
     # path, never the request spelling. Derive it from the resolved realpath
@@ -144,7 +170,11 @@ sub validate_path {
     if ($in_docroot) {
 
         # SM510: re-attach everything below the anchor, not only the basename.
+        # And normalise the tail: the old basename() rebuild never carried a
+        # trailing slash, and rel is a KEY (ACLs, blocklist, audit) - a
+        # 'members/' spelling must not mint a second key beside 'members'.
         $canon = ( -e $full ) ? $real : $real . substr( $full, length($anchor) );
+        $canon =~ s{(?<=.)/+\z}{};
         ( $rel = $canon ) =~ s{\A\Q$DOCROOT\E/?}{};
     }
     else {
@@ -183,6 +213,7 @@ sub validate_path {
 
         my $pcanon
             = ( -e $pfull ) ? $preal : $preal . substr( $pfull, length($panchor) );
+        $pcanon =~ s{(?<=.)/+\z}{};                # SM510: rel is a key, never 'members/'
         ( $rel = $pcanon ) =~ s{\A\Q$proot\E/?}{};
 
         # rel stays the DOCROOT key - the ACL store, the blocklist and every
