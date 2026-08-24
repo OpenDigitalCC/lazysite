@@ -111,9 +111,22 @@ sub validate_path {
     return { ok => 0, error => "Invalid path" }
         if $rel_path =~ m{(?:\A|/)\.\.(?:/|\z)};
 
-    my $full  = "$DOCROOT/$rel_path";
-    my $check = -e $full ? $full : dirname($full);
-    my $real  = realpath($check);
+    my $full = "$DOCROOT/$rel_path";
+
+    # SM510: resolve against the NEAREST EXISTING ancestor, not only the
+    # immediate parent. dirname() alone meant a depth-two new path -
+    # /newdir/sub/file.md - handed realpath a directory that does not exist,
+    # got undef back, and the caller was told "Invalid path" about a path that
+    # is perfectly fine (action_save and action_mkdir both create parents).
+    # Found by the site agent as an incoherence that also blocks the
+    # brief-first authoring the briefings themselves recommend. The walk is
+    # SAFE where it matters: `..` was rejected above unconditionally, symlinks
+    # in the EXISTING ancestors still collapse through realpath, and segments
+    # that do not exist yet cannot contain a symlink to follow. The H3
+    # containment test below is unchanged.
+    my $anchor = $full;
+    $anchor = dirname($anchor) until -e $anchor;
+    my $real = realpath($anchor);
 
     # SEC-2026-07 (H3): boundary-safe containment. A bare index($real,$DOCROOT)
     # prefix test also passed for a SIBLING whose name is a string-superset of
@@ -129,7 +142,9 @@ sub validate_path {
     # resolved absolute path too, so a symlink can't point a write elsewhere.
     my ( $canon, $rel );
     if ($in_docroot) {
-        $canon = ( -e $full ) ? $real : "$real/" . basename($full);
+
+        # SM510: re-attach everything below the anchor, not only the basename.
+        $canon = ( -e $full ) ? $real : $real . substr( $full, length($anchor) );
         ( $rel = $canon ) =~ s{\A\Q$DOCROOT\E/?}{};
     }
     else {
@@ -157,12 +172,17 @@ sub validate_path {
         return { ok => 0, error => "Invalid path" }
             unless defined $proot && defined $pfull;
 
-        my $pcheck = -e $pfull ? $pfull : dirname($pfull);
-        my $preal  = realpath($pcheck);
+        # SM510: the same nearest-existing-ancestor walk as the docroot
+        # branch, for the same reason - a deep new path inside a gated
+        # section is as ordinary as a shallow one.
+        my $panchor = $pfull;
+        $panchor = dirname($panchor) until -e $panchor;
+        my $preal = realpath($panchor);
         return { ok => 0, error => "Invalid path" }
             unless $preal && ( $preal eq $proot || index( $preal, "$proot/" ) == 0 );
 
-        my $pcanon = ( -e $pfull ) ? $preal : "$preal/" . basename($pfull);
+        my $pcanon
+            = ( -e $pfull ) ? $preal : $preal . substr( $pfull, length($panchor) );
         ( $rel = $pcanon ) =~ s{\A\Q$proot\E/?}{};
 
         # rel stays the DOCROOT key - the ACL store, the blocklist and every

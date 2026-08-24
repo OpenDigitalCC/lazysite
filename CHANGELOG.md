@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM510 resolved (PENDING) **a new path may be deep.** validate_path
+  anchored realpath at the immediate parent, so /a/b.md validated while
+  /a/b/c.md was "Invalid path" - while the writers behind it create parent
+  directories anyway. The anchor now walks to the nearest existing
+  ancestor (both trees); the `..` rejection, symlink collapse and H3
+  containment are pinned unchanged.
+
 - SM509 resolved (PENDING) **the manager sees the submissions the store
   holds.** The panel said "No submissions yet" for a store the API read
   five rows from: its directory-listing probe hit the carve-out's prefix
