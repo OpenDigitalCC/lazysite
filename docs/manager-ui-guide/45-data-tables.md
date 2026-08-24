@@ -170,3 +170,11 @@ Negative
 
 Nothing on this page is read-only any more. Spreadsheet-style editing in the
 grid itself is the remaining enhancement.
+
+## Editors open in a modal
+
+Adding or editing a row, declaring a table and editing its fields all open
+in a modal over the page (SM502 U-2). Save keeps you there until the server
+accepts the row or descriptor; Cancel, clicking outside, or Escape discards
+the edit. The migrate plan opens inside the fields modal, beneath the
+descriptor, so the decision is read next to the text that caused it.

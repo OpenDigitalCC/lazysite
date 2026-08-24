@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM502 partly resolved (PENDING) **the editors are modal.** The operator's
+  Task-5 finding, asked for twice: adding or editing a row and editing a
+  table's fields opened inline below the fold. Both open in a modal now,
+  the submissions viewer's shape, with click-outside and Escape as Cancel.
+  The Cancel/Close convention (Cancel discards edits; Close dismisses a
+  viewer) is stated in the manager UI guide and swept here. The structured
+  descriptor form (U-4) remains queued.
+
 ## 0.10.30 - EDGE: the briefs ring, the cap that reached the page, and the queue before the cut (2026-08-24)
 
 - SM511 resolved (d5b03ad) **the cap reaches the page, and the page can

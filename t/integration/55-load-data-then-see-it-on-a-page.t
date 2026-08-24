@@ -372,4 +372,41 @@ MD
             . 'empty list - a blank gallery with nothing to explain it.' );
 };
 
+subtest 'SM511: a capped render says so in the log' => sub {
+    # The one SM511 claim a token client cannot confirm: the WARN. Pinned
+    # here mechanically instead of by someone eyeballing a log line.
+    open my $cp, '>', "$docroot/few.md" or die $!;
+    print {$cp} <<'MD';
+---
+title: Few
+tt_page_var:
+  many: db:products(limit=1)
+---
+
+One of two.
+MD
+    close $cp;
+    # log_event writes to STDERR - the web server's error log - so the
+    # render is run with stderr captured rather than discarded.
+    my $errf = "$docroot/.stderr";
+    my $html = do {
+        local %ENV = (
+            env_passthrough(),
+            DOCUMENT_ROOT  => $docroot,
+            REDIRECT_URL   => '/few',
+            REQUEST_METHOD => 'GET',
+            QUERY_STRING   => '',
+        );
+        delete $ENV{HTTP_X_REMOTE_USER};
+        delete $ENV{LAZYSITE_AUTH_TRUSTED};
+        qx($^X \Q$root/lazysite-processor.pl\E 2>\Q$errf\E);
+    };
+    like( $html, qr{MANY=1/2}, 'the page renders one of two' ) or diag($html);
+    my $err = do { local $/; open my $e, '<', $errf or die $!; <$e> };
+    like( $err, qr/is capped/, 'and the render log carries the capped-render WARN' )
+        or diag($err);
+    like( $err, qr/1 of 2 rows/, 'naming N of M' );
+    like( $err, qr/key=many/,    'and the binding' );
+};
+
 done_testing();

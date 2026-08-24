@@ -66,7 +66,7 @@ search: false
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
     <button class="mg-btn mg-btn-primary" onclick="saveDescriptor()">Save descriptor</button>
     <button class="mg-btn" onclick="planMigration()">What would migrating do?</button>
-    <button class="mg-btn" onclick="closeDescriptor()">Close</button>
+    <button class="mg-btn" onclick="closeDescriptor()">Cancel</button>
   </div>
 
   <!-- The plan. Three outcomes, and the panel says which: nothing to do;
@@ -327,6 +327,44 @@ function inputFor(name, spec, value) {
   return label + '<input class="mg-inp" type="' + html + '" id="' + id + '" data-field="' + escHtml(name) + '" value="' + escHtml(v) + '" style="width:100%;">';
 }
 
+/* SM502 U-2: EDITORS ARE MODAL. The same overlay shape the submissions
+   viewer uses. The panel's own markup is MOVED into the overlay and moved
+   back on close, so every id and handler below stays exactly as it was.
+   Click-outside and Escape are Cancel: they discard, like the button. */
+var MODAL = {};
+function showModal(panelId, cancelFn) {
+  var panel = document.getElementById(panelId);
+  if (!panel || MODAL[panelId]) return;
+  var mark = document.createElement('span');
+  mark.style.display = 'none';
+  panel.parentNode.insertBefore(mark, panel);
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:48rem;max-height:90vh;overflow:auto;border-radius:8px;';
+  panel.style.display = 'block';
+  panel.style.marginTop = '0';
+  panel.style.maxWidth = 'none';
+  box.appendChild(panel);
+  ov.appendChild(box);
+  ov.addEventListener('click', function(e) { if (e.target === ov) cancelFn(); });
+  var onKey = function(e) { if (e.key === 'Escape') cancelFn(); };
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(ov);
+  MODAL[panelId] = { ov: ov, mark: mark, onKey: onKey };
+}
+function hideModal(panelId) {
+  var m = MODAL[panelId];
+  var panel = document.getElementById(panelId);
+  if (!m || !panel) return;
+  panel.style.display = 'none';
+  m.mark.parentNode.insertBefore(panel, m.mark);
+  m.mark.parentNode.removeChild(m.mark);
+  document.removeEventListener('keydown', m.onKey);
+  if (m.ov.parentNode) m.ov.parentNode.removeChild(m.ov);
+  delete MODAL[panelId];
+}
+
 function openEditor(index) {
   var desc = CURRENT.desc;
   if (!desc) return;
@@ -356,13 +394,13 @@ function openEditor(index) {
   });
   document.getElementById('editor-fields').innerHTML = html;
   setError('');
-  document.getElementById('row-editor').style.display = 'block';
+  showModal('row-editor', closeEditor);
   var first = document.querySelector('#editor-fields .mg-inp');
   if (first) first.focus();
 }
 
 function closeEditor() {
-  document.getElementById('row-editor').style.display = 'none';
+  hideModal('row-editor');
   CURRENT.editing = null;
 }
 
@@ -447,7 +485,7 @@ function declareTable() {
   document.getElementById('descriptor-title').textContent = 'Declare ' + name;
   document.getElementById('descriptor-error').textContent = '';
   document.getElementById('plan-panel').style.display = 'none';
-  document.getElementById('descriptor-panel').style.display = 'block';
+  showModal('descriptor-panel', closeDescriptor);
   document.getElementById('descriptor-text').value =
       'title: ' + name.charAt(0).toUpperCase() + name.slice(1) + '\n'
     + 'key: id\n'
@@ -465,7 +503,7 @@ function openDescriptor(table) {
   document.getElementById('descriptor-title').textContent = 'Fields of ' + table;
   document.getElementById('descriptor-error').textContent = '';
   document.getElementById('plan-panel').style.display = 'none';
-  document.getElementById('descriptor-panel').style.display = 'block';
+  showModal('descriptor-panel', closeDescriptor);
   fetch(API + '?action=data-table-source&table=' + encodeURIComponent(table))
     .then(function(r) { return r.json(); })
     .then(function(d) {
@@ -476,7 +514,7 @@ function openDescriptor(table) {
 }
 
 function closeDescriptor() {
-  document.getElementById('descriptor-panel').style.display = 'none';
+  hideModal('descriptor-panel');
   DESC.table = null;
 }
 

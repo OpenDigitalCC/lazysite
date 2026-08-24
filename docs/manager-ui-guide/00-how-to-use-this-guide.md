@@ -94,3 +94,19 @@ a guide entry, and a retired one cannot leave a stale entry behind.
 If an item genuinely should not have a walkthrough, say so in its chunk with an
 `Intentionally omitted:` line and the reason. The lint accepts that and the next
 reader learns it was a decision rather than an oversight.
+
+## Dismiss buttons: Cancel and Close
+
+One convention, everywhere in the manager (SM502 U-3):
+
+Cancel
+: The panel holds edits that have not been saved -- a row editor, a
+  descriptor editor, a staged import. Cancel discards them. Clicking outside
+  a modal editor, or pressing Escape, is Cancel.
+
+Close
+: The panel has nothing to discard -- a viewer, a report, a plan you have
+  read. Close simply dismisses it.
+
+A dismiss button that says Close on a panel with unsaved edits is a Cancel
+wearing the wrong name; fix the label, not the behaviour.
