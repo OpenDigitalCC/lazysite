@@ -3427,6 +3427,19 @@ sub parse_yaml_front_matter {
             $meta{register} = \@registries;
         }
 
+        # SM483: FLOW-STYLE too - `register: [sitemap.xml, llms.txt]`. The MCP
+        # writer emitted exactly this shape while only the block form parsed,
+        # so every MCP-created page was invisible to every registry while
+        # list_pages echoed its registers back as though registered. The
+        # writer is fixed to emit block style; this heals the pages already
+        # deployed in the field.
+        elsif ( $yaml =~ /^register\s*:\s*\[([^\]\n]*)\]/m ) {
+            my @registries = grep { length }
+                map { my $v = $_; $v =~ s/^\s+|\s+$//g; $v =~ s/^["']|["']$//g; strip_tt_directives($v) }
+                split /,/, $1;
+            $meta{register} = \@registries if @registries;
+        }
+
         # Parse tt_page_var block (indented key: value pairs)
         # The alternation (?:\n|$) handles the last line which may have no
         # trailing newline if it is the final line of the front matter block

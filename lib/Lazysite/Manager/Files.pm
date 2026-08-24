@@ -690,9 +690,22 @@ sub _invalidate_registries {
     my $cache = _lz() . "/cache/registries";
     my @shadowed;
     my @cleared;
+    # SM483: derive the key the way the PROCESSOR derives it - from realpaths
+    # on BOTH sides. A symlink anywhere in a content root (or in the docroot
+    # itself) used to split the pair: the processor cached under the resolved
+    # path's key while this stripped the configured spelling, so regenerate
+    # reported cleared_count:0 while the stale registry kept serving until
+    # its TTL. Reproduced by rig against HEAD; the mechanism is recorded in
+    # the SM483 filing.
+    require Cwd;
+    my $real_docroot = Cwd::realpath($DOCROOT) // $DOCROOT;
     for my $root ( _registry_roots() ) {
-        my $key = $root;
-        $key =~ s{\A\Q$DOCROOT\E/?}{};
+        my $real_root = Cwd::realpath($root) // $root;
+        my $key       = $real_root;
+        # Strip whichever docroot spelling prefixes the resolved root - the
+        # env's own, or its resolution - so the key matches the processor's
+        # for a symlinked docroot AND a symlinked content root alike.
+        $key =~ s{\A\Q$real_docroot\E/?}{} or $key =~ s{\A\Q$DOCROOT\E/?}{};
         $key =~ s{[^A-Za-z0-9._-]+}{_}g;
         $key = '_root' unless length $key;
 

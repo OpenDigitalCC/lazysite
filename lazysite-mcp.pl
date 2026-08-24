@@ -1311,7 +1311,7 @@ my %TOOLS = (
                 title    => { type => 'string' },
                 subtitle => { type => 'string' },
                 body     => { type => 'string', description => 'Markdown body' },
-                register => { type => 'array', items => { type => 'string' }, description => 'registries, e.g. ["sitemap","llms"]' },
+                register => { type => 'array', items => { type => 'string' }, description => 'registries by output name, e.g. ["sitemap.xml","llms.txt"] (a bare stem like "sitemap" is resolved to its template output name)' },
             },
             required => ['slug'], additionalProperties => JSON::PP::false },
         run => sub { _create_page( $_[0], $_[1] ) },
@@ -2783,8 +2783,27 @@ sub _create_page {
     my $fm = "---\n";
     $fm .= 'title: ' . _yaml_scalar( $a->{title} ) . "\n" if defined $a->{title} && length $a->{title};
     $fm .= 'subtitle: ' . _yaml_scalar( $a->{subtitle} ) . "\n" if defined $a->{subtitle} && length $a->{subtitle};
-    $fm .= 'register: [' . join( ', ', @{ $a->{register} } ) . "]\n"
-        if ref $a->{register} eq 'ARRAY' && @{ $a->{register} };
+    # SM483: BLOCK style, because that is what the reader has always parsed -
+    # the flow form this emitted made every page created here invisible to
+    # every registry. And names are NORMALISED against the registries that
+    # exist: the schema's old example said "sitemap" while the reader matches
+    # template output names ("sitemap.xml"), so a stem is resolved to its
+    # template's output name and an unknown name is kept as given.
+    if ( ref $a->{register} eq 'ARRAY' && @{ $a->{register} } ) {
+        my %out;
+        if ( opendir my $rdh, "$LAZYSITE_DIR/templates/registries" ) {
+            for my $t ( readdir $rdh ) {
+                next unless $t =~ /^(.+)\.tt$/;
+                my $o = $1;
+                $out{$o} = $o;
+                ( my $stem = $o ) =~ s/\.[^.]+$//;
+                $out{$stem} //= $o;
+            }
+            closedir $rdh;
+        }
+        my @names = map { $out{$_} // $_ } @{ $a->{register} };
+        $fm .= "register:\n" . join( '', map { "  - $_\n" } @names );
+    }
     $fm .= "---\n";
     my $body = defined $a->{body} ? $a->{body} : '';
     $body .= "\n" unless $body eq '' || $body =~ /\n\z/;

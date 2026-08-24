@@ -536,6 +536,15 @@ sub do_put {
                 path => $a{rel} );
         }
     }
+    # SM483: a DAV content write never invalidated the registries at all, so
+    # a page published this way stayed out of the sitemap until the TTL. Same
+    # trigger as the alias map below - .md content changed.
+    if ( $a{rel} =~ /\.md\z/ ) {
+        require Lazysite::Manager::Files;
+        local $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
+        eval { Lazysite::Manager::Files::invalidate_registries(); 1 }
+            or log_event( 'WARN', $a{user}, 'registry invalidation failed', error => "$@" );
+    }
     # SM134: keep the alias-redirect map current for content pages.
     if ( $a{rel} =~ /\.md\z/ ) {
         require Lazysite::Aliases;
@@ -627,6 +636,11 @@ sub do_delete {
     if ( $a{rel} =~ /\.md\z/ ) {
         require Lazysite::Aliases;
         Lazysite::Aliases::deindex_page( $DOCROOT, $key );
+        # SM483: a deleted page must leave the registries too.
+        require Lazysite::Manager::Files;
+        local $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
+        eval { Lazysite::Manager::Files::invalidate_registries(); 1 }
+            or log_event( 'WARN', $a{user}, 'registry invalidation failed', error => "$@" );
     }
 
     # SM212 (site-agent report): drop the ACL entry with the file.

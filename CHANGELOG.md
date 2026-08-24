@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM483 resolved (PENDING) **the registry reaches every writer.** All three
+  reproduced conditions fixed: the invalidator keys on realpaths exactly as
+  the processor does (a symlink no longer splits the cache pair and
+  regenerate clears what was cached); the reader accepts flow-style
+  register lists - healing every MCP-created page already in the field -
+  while the MCP writer emits block style with names normalised against the
+  real registries and an honest schema example; and DAV writes and deletes
+  invalidate the registries beside the alias map, so a page published over
+  WebDAV reaches the sitemap now rather than at the TTL.
+
 ## 0.10.29 - EDGE: the consent banner, briefs out of band, and the twins agreeing (2026-08-24)
 
 - SM468 resolved (9480c16) **the store remembers what its shape was.** An
