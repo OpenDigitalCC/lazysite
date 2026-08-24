@@ -23,11 +23,11 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util                qw(log_event const_eq);
-use Lazysite::Paths               ();
-use Lazysite::Audit               qw(audit_log);
-use Lazysite::Capabilities        qw(describe capability_keys channel_service);
-use Lazysite::ControlApi::Actions ();                                             # SM350
+use Lazysite::Util         qw(log_event const_eq);
+use Lazysite::Paths        ();
+use Lazysite::Audit        qw(audit_log);
+use Lazysite::Capabilities qw(describe capability_keys channel_service reachability);
+use Lazysite::ControlApi::Actions ();                        # SM350
 use Lazysite::BadUrl              qw(list_blocks unblock);
 use Lazysite::Auth::Settings      qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
@@ -2982,8 +2982,15 @@ sub action_whoami {
                     : $bool->( $s->{$_} ) )
             } capability_keys()
         },
-        groups => \@groups,
-        scope  => {
+        # SM491: per held capability, which channels of THIS grant reach it
+        # (via) and which would but are off (requires). Same derivation as the
+        # MCP whoami, so the two doors cannot disagree. THIS LINE WAS IN THE
+        # SM491 WORKTREE AND NOT IN ITS COMMIT - the landing lost the API half
+        # and no test noticed, because the test pinned the derivation and
+        # neither surface's emission. t/integration/69 now pins both.
+        reachable => reachability($s),
+        groups    => \@groups,
+        scope     => {
             # SM155: group-derived; a comma-joined list for a multi-domain editor.
             allow => ( @{ $s->{dav_scopes} || [] }
                 ? join( ', ', @{ $s->{dav_scopes} } ) : '/' ),

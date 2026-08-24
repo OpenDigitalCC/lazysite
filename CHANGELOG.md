@@ -55,6 +55,14 @@ Naming the commit: AFTER it lands, never before
   from the same report: the layouts briefing's `--theme-colors-accent` is
   now `--theme-colours-accent`, matching the engine's emission (the names
   mirror the theme.json's own keys) and the document's own schema examples.
+- SM491 completed (PENDING) **the control-API whoami carries `reachable`
+  after all.** The 0.10.28 field verification found it on MCP and absent on
+  the API - the edit existed in the SM491 worktree and was not in its
+  commit; the landing lost the API half and no test noticed, because the
+  test pinned the derivation and neither surface's emission. Restored, and
+  t/integration/69 now drives BOTH whoamis and requires the block on each -
+  a surface cannot silently lose it again. The remaining field gap ("a
+  control-API-first client cannot see reachable at all") closes with this.
 
 - SM496 resolved (PENDING) **a capability added by a release asks the
   administrator, in the UI.** SM471 stands - an upgrade never grants - but
