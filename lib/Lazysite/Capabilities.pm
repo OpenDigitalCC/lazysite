@@ -170,14 +170,16 @@ my %ACTION_INFO = (
                 qw(data-tables data-table data-table-save data-rows
                     data-migrate data-rebuild data-row-save data-row-delete
                     data-export data-import data-table-source data-migrate-plan
-                    data-table-drop data-safety-exports data-safety-export-delete)
+                    data-table-drop data-safety-exports data-safety-export-delete
+                    data-safety-export-read data-safety-export-restore)
             ],
 
             mcp => [
                 qw(list_data_tables describe_data_table save_data_table
                     read_data_rows migrate_data_table rebuild_data_table
                     save_data_row delete_data_row drop_data_table
-                    list_data_safety_exports delete_data_safety_export)
+                    list_data_safety_exports delete_data_safety_export
+                    read_data_safety_export restore_data_safety_export)
             ],
             # NO WEBDAV ENTRY, and this used to claim one. WebDAV allows
             # only lazysite/layouts/ - "the rest of lazysite/ is protected" -

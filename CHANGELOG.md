@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM514 resolved (PENDING) **a safety export can be read, judged from the
+  listing, and offered back.** SM512 shipped list and delete; an export
+  could only be listed and destroyed. The listing now carries row count
+  and a key sample; data-safety-export-read / read_data_safety_export
+  opens one; data-safety-export-restore / restore_data_safety_export
+  offers the rows back (plan, then apply), restoring the columns the
+  table still has and reporting the ones it no longer does.
+
 ## 0.10.31 - EDGE, beta candidate: the editors are modal, and the tidy tools (2026-08-24)
 
 - SM513 resolved (2b406c7) **delete_page takes a path as well as a slug.**

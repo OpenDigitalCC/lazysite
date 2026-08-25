@@ -34,7 +34,8 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_table_save action_data_rebuild action_data_export
     action_data_import action_data_table_source action_data_migrate_plan
     action_data_table_drop action_data_safety_exports
-    action_data_safety_export_delete);
+    action_data_safety_export_delete action_data_safety_export_read
+    action_data_safety_export_restore);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
@@ -527,6 +528,17 @@ sub action_data_safety_exports {
             next unless $f =~ $EXPORT_NAME;
             my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
             my @st = stat "$dir/$f";
+
+            # SM514: a summary, so an export can be judged without opening
+            # it - the row count and a sample of keys.
+            my ( $rows, $keys ) = ( undef, [] );
+            if ( my $data = _read_export_file("$dir/$f") ) {
+                my $k = $data->{key} // '';
+                my @r = @{ $data->{rows} || [] };
+                $rows = scalar @r;
+                my @ks = map { $_->{$k} } grep { ref $_ eq 'HASH' && defined $_->{$k} } @r;
+                $keys = @ks > 4 ? [ @ks[ 0 .. 2 ], '...', $ks[-1] ] : \@ks;
+            }
             push @out,
                 { file => $f,
                 table => $table,
@@ -534,6 +546,7 @@ sub action_data_safety_exports {
                 stamp => $stamp,
                 size  => $st[7] // 0,
                 mtime => $st[9] // 0,
+                ( defined $rows ? ( rows => $rows, keys => $keys ) : () ),
                 };
         }
         closedir $dh;
@@ -558,6 +571,86 @@ sub action_data_safety_export_delete {
         or return { ok => 0, error => "could not remove the export: $!" };
     log_event( 'INFO', $1, 'safety export removed', file => $file, actor => $auth_user );
     return { ok => 1, file => $file, deleted => 1 };
+}
+
+sub _read_export_file {
+    my ($abs) = @_;
+    open my $fh, '<:utf8', $abs or return undef;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $data = eval { JSON::PP->new->decode($text) };
+    return ( ref $data eq 'HASH' && defined $data->{lazysite_data} ) ? $data : undef;
+}
+
+# SM514: the read. "When a store gains a delete, check it has a read" - the
+# briefs store had one before its delete, and that third verb is why an
+# orphaned brief could be read and copied before it was cleared; an export
+# could only be listed and destroyed.
+sub action_data_safety_export_read {
+    my ($file) = @_;
+    if ( my $off = _gate() ) { return $off }
+    return { ok => 0, error => 'file required - the export name as '
+            . 'data-safety-exports reports it' }
+        unless defined $file && length $file;
+    return { ok => 0, error => "'$file' is not a safety export name", kind => 'name' }
+        unless $file =~ $EXPORT_NAME;
+    my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
+    my $abs = "$DOCROOT/lazysite/db/rebuilds/$file";
+    return { ok => 0, error => 'no such safety export', kind => 'not-found' }
+        unless -f $abs;
+    my $data = _read_export_file($abs)
+        or return { ok => 0, error => 'the export is not a readable lazysite data export' };
+    return { ok => 1, file => $file, table => $table,
+        kind      => ( $dropped ? 'dropped' : 'rebuild' ),
+        stamp     => $stamp,
+        key       => $data->{key},
+        fields    => $data->{fields},
+        rows      => $data->{rows} || [],
+        row_count => scalar @{ $data->{rows} || [] },
+    };
+}
+
+# SM514: the offer-back. The rows go back to the table they came from
+# through import_rows - the same plan-then-apply, the same coercion as a
+# live write. Columns the table still has are restored; columns it no
+# longer has are REPORTED, not refused: a lossy rebuild export is lossy by
+# definition, and the way to recover those columns is to re-declare them
+# and restore again. A drop export needs its table re-declared first.
+sub action_data_safety_export_restore {
+    my ( $file, $apply ) = @_;
+    if ( my $off = _gate() ) { return $off }
+    my $r = action_data_safety_export_read($file);
+    return $r unless $r->{ok};
+    my $d = load_table( $DOCROOT, $r->{table} );
+    return { ok => 0, kind => 'no_such_table',
+        error => "table '$r->{table}' is not declared - re-declare it (and "
+            . 'migrate) before restoring its export into it' }
+        unless $d->{ok};
+    my %known = map { $_ => 1 } keys %{ $d->{fields} };
+    $known{ $d->{key} } = 1;
+    my @export_cols = sort keys %{ $r->{fields} || {} };
+    push @export_cols, $r->{key}
+        if defined $r->{key} && !grep { $_ eq $r->{key} } @export_cols;
+    my @header = grep { $known{$_} } @export_cols;
+    my @gone   = grep { !$known{$_} } @export_cols;
+    return { ok => 0, error => "none of the export's columns exist in the "
+            . "table '$r->{table}' any more; re-declare them first",
+        not_restored_columns => \@gone }
+        unless @header;
+    my @rows = map {
+        my $row = $_;
+        [ map { ref $row->{$_} ? ( $row->{$_} ? 1 : 0 ) : $row->{$_} } @header ]
+    } grep { ref $_ eq 'HASH' } @{ $r->{rows} };
+    my $res = import_rows( $DOCROOT, $r->{table}, \@header, \@rows,
+        apply => ( $apply ? 1 : 0 ) );
+    $res->{file}                 = $file;
+    $res->{restored_columns}     = \@header;
+    $res->{not_restored_columns} = \@gone if @gone;
+    log_event( 'INFO', $r->{table}, 'safety export restored',
+        file  => $file, inserts => $res->{inserts}, updates => $res->{updates},
+        actor => $auth_user )
+        if $res->{ok} && $res->{applied};
+    return $res;
 }
 
 1;

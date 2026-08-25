@@ -122,10 +122,12 @@ my %PAIR = (
     'data-row-save'   => 'save_data_row',
     'data-row-delete' => 'delete_data_row',
     # SM512: the safety exports, listed and cleared - the SM508 pattern for tables.
-    'data-safety-exports'       => 'list_data_safety_exports',
-    'data-safety-export-delete' => 'delete_data_safety_export',
-    'nav-save'                  => 'set_nav',
-    'pages'                     => 'list_pages',
+    'data-safety-exports'        => 'list_data_safety_exports',
+    'data-safety-export-delete'  => 'delete_data_safety_export',
+    'data-safety-export-read'    => 'read_data_safety_export',
+    'data-safety-export-restore' => 'restore_data_safety_export',
+    'nav-save'                   => 'set_nav',
+    'pages'                      => 'list_pages',
     # SM431: the permissions twins, recorded as twins. acl-remove has no
     # named MCP twin (set_permissions with empty lists clears a rule) and
     # passes the completeness check under manage_content like the others.

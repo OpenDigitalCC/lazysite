@@ -112,6 +112,8 @@ our %ACTION = (
     'data-tables'         => { caps => ['manage_data'], params => [] },
     'data-safety-exports' => { caps => ['manage_data'], params => [] },
     'data-safety-export-delete' => { caps => ['manage_data'], params => [ { name => 'file', in => 'query_or_body' } ] },
+    'data-safety-export-read' => { caps => ['manage_data'], params => [ { name => 'file', in => 'query' } ] },
+    'data-safety-export-restore' => { caps => ['manage_data'], params => [ { name => 'file', in => 'query_or_body' }, { name => 'apply', in => 'query_or_body' } ] },
     'delete' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { caps => [], params => [] },
     'domain-add' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body' }, { name => 'content_root', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' }, { name => 'seed', in => 'body' } ] },

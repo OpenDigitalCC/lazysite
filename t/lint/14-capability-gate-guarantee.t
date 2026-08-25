@@ -141,7 +141,7 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # discloses to a session that already holds manage_data and could ask
     # anyway. The three data WRITERS - data-migrate, data-row-save,
     # data-row-delete - are in %MUTATING and POST-forced.
-    data-tables data-table data-rows data-safety-exports
+    data-tables data-table data-rows data-safety-exports data-safety-export-read
 
     # SM245: the brief store's read. Takes a path, returns the recorded
     # "why", changes nothing; the writers (brief-append, briefs-migrate) are

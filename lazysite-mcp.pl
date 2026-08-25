@@ -722,6 +722,33 @@ my %TOOLS = (
             return Lazysite::Manager::Data::action_data_safety_export_delete( $_[0]->{file} );
         },
     },
+    read_data_safety_export => {
+        description => 'Read one safety export - the rows a drop or a lossy rebuild removed - by its file name as list_data_safety_exports reports it: table, key, fields and rows. This is how you JUDGE an export before clearing it, or before offering it back with restore_data_safety_export. A read.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => { file => { type => 'string', description => 'The export file name, exactly as listed' } },
+            required => ['file'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_safety_export_read( $_[0]->{file} );
+        },
+    },
+    restore_data_safety_export => {
+        description => 'Offer a safety export\'s rows back to the table they came from. Without apply it is a PLAN (how many rows would be inserted or updated by key, and which columns can be restored); with apply:true it writes, through the same coercion as a live write. Columns the table no longer has are reported as not_restored_columns rather than refused - a lossy rebuild export is lossy by definition; to recover those columns, re-declare them and restore again. A drop export needs its table re-declared (and migrated) first; the refusal says so. Audited as data-safety-export-restore.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                file => { type => 'string', description => 'The export file name, exactly as listed' },
+                apply => { type => 'boolean', description => 'Write the rows. Omit or false to see the plan.' },
+            },
+            required => ['file'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT   = $DOCROOT;
+            local $Lazysite::Manager::Data::auth_user = $_[1];
+            return Lazysite::Manager::Data::action_data_safety_export_restore( $_[0]->{file},
+                $_[0]->{apply} ? 1 : 0 );
+        },
+    },
     save_data_row => {
         description => 'Insert a row, or update one by its key. WITHOUT `key` this inserts; WITH `key` it updates that row and touches only the fields you send, leaving the rest alone. Every value is checked against the descriptor and a value that does not fit is REFUSED with the field named - a decimal with too many places is refused rather than rounded, because a store that quietly rounds money is worse than one that will not take it. An unknown field name is refused rather than ignored, so a typo cannot look like a successful write.',
         cap         => 'manage_data',
@@ -2985,9 +3012,11 @@ my %ANNOTATE = (
     read_brief   => [ 1, 0, 0 ],
     append_brief => [ 0, 0, 0 ],    # writes the engine store, changes nothing live
     list_briefs  => [ 1, 0, 0 ],
-    list_data_safety_exports  => [ 1, 0, 0 ],
-    delete_data_safety_export => [ 0, 1, 0 ],    # destroys the only copy of dropped rows
-    delete_brief              => [ 0, 1, 0 ],    # destroys a record; changes nothing live
+    list_data_safety_exports   => [ 1, 0, 0 ],
+    delete_data_safety_export  => [ 0, 1, 0 ],   # destroys the only copy of dropped rows
+    read_data_safety_export    => [ 1, 0, 0 ],
+    restore_data_safety_export => [ 0, 0, 1 ],   # writes rows into a live table
+    delete_brief               => [ 0, 1, 0 ],   # destroys a record; changes nothing live
 
     list_files         => [ 1, 0, 0 ],
     read_file          => [ 1, 0, 0 ],
