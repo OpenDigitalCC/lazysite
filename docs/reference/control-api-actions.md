@@ -47,7 +47,7 @@ tone: medium
 `actions-list` | any authenticated |  
 `aliases-list` | manage_content | host (query), path (query)
 `analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query)
-`artifact-backups-delete` | manage_layouts / manage_themes | path (query)
+`artifact-backups-delete` | purge | path (query)
 `artifact-manifest` | manage_themes / manage_layouts |  
 `artifact-validate` | manage_themes / manage_layouts |  
 `audit` | audit | user (query), target (query), start (query), end (query), page (query), per_page (query)
@@ -59,7 +59,7 @@ tone: medium
 `bad-url-blocks` | manage_config |  
 `bad-url-unblock` | manage_config | ip (query)
 `brief-append` | manage_briefs | path (query), entry (body)
-`brief-delete` | manage_briefs | path (query)
+`brief-delete` | purge | path (query)
 `brief-read` | manage_content / manage_briefs | path (query)
 `briefs-list` | manage_content / manage_briefs |  
 `briefs-migrate` | manage_briefs |  
@@ -78,12 +78,12 @@ tone: medium
 `data-row-delete` | manage_data | table (query_or_body), key (query_or_body)
 `data-row-save` | manage_data | table (query_or_body), key (query_or_body), row (body)
 `data-rows` | manage_data | table (query), order_by (query), order (query), limit (query), offset (query)
-`data-safety-export-delete` | manage_data | file (query_or_body)
+`data-safety-export-delete` | purge | file (query_or_body)
 `data-safety-export-read` | manage_data | file (query)
 `data-safety-export-restore` | manage_data | file (query_or_body), apply (query_or_body)
 `data-safety-exports` | manage_data |  
 `data-table` | manage_data | table (query)
-`data-table-drop` | manage_data | table (query_or_body), confirm (body)
+`data-table-drop` | housekeeping | table (query_or_body), confirm (body)
 `data-table-save` | manage_data | table (query_or_body), descriptor (body)
 `data-table-source` | manage_data | table (query)
 `data-tables` | manage_data |  

@@ -131,7 +131,7 @@ my %ACTION_INFO = (
             # one was admitted and never told.
             api => [ qw(theme-activate theme-list themes-for-layout themes-list-all
                     artifact-manifest artifact-validate preview-grant theme-delete
-                    artifact-backups-delete layouts-available layouts-manifest) ],
+                    layouts-available layouts-manifest) ],
             mcp => [qw(list_themes theme_tokens activate_theme create_theme delete_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
@@ -141,7 +141,7 @@ my %ACTION_INFO = (
         unlocks => {
             # SM457: as above - cross-gated actions belong on both lists.
             api => [ qw(layout-activate layout-install layout-delete layouts-available
-                    layouts-manifest artifact-backups-delete
+                    layouts-manifest
                     artifact-manifest artifact-validate preview-grant
                     theme-list themes-for-layout themes-list-all) ],
             mcp => [qw(activate_layout install_layout delete_layout list_layout_catalogue)],
@@ -175,15 +175,15 @@ my %ACTION_INFO = (
                 qw(data-tables data-table data-table-save data-rows
                     data-migrate data-rebuild data-row-save data-row-delete
                     data-export data-import data-table-source data-migrate-plan
-                    data-table-drop data-safety-exports data-safety-export-delete
+                    data-safety-exports
                     data-safety-export-read data-safety-export-restore)
             ],
 
             mcp => [
                 qw(list_data_tables describe_data_table save_data_table
                     read_data_rows migrate_data_table rebuild_data_table
-                    save_data_row delete_data_row drop_data_table
-                    list_data_safety_exports delete_data_safety_export
+                    save_data_row delete_data_row
+                    list_data_safety_exports
                     read_data_safety_export restore_data_safety_export
                     read_data_table_source plan_data_migration)
             ],
@@ -213,8 +213,46 @@ my %ACTION_INFO = (
             . 'and DELETING one needs this. Declared by the briefs plugin, so it is '
             . 'grantable only where that plugin is installed.',
         unlocks => {
-            api => [qw(brief-read brief-append briefs-migrate briefs-list brief-delete)],
-            mcp => [qw(read_brief append_brief list_briefs delete_brief)],
+            api => [qw(brief-read brief-append briefs-migrate briefs-list)],
+            mcp => [qw(read_brief append_brief list_briefs)],
+        },
+    },
+    # SM591: THE LATERAL GRANTS. Deletion and tidying are the same job wherever
+    # they happen, so they answer these rather than the module capability that
+    # lets a partner USE the module. Which tier an action joins is SM587's copy
+    # test and nothing else - see the rule beside %MUTATING / %DESTRUCTIVE /
+    # %CHANGES_ACCESS in lazysite-manager-api.pl, which is where an action is
+    # classified.
+    #
+    # THE ACL VERBS ARE DELIBERATELY ABSENT. acl-set, acl-remove, preview-grant
+    # and preview-clear stay under manage_content / manage_themes /
+    # manage_layouts, carrying SM587's `changes_access` flag. Folding them in
+    # here would mean whoever may clear old backups may also un-gate content -
+    # an operator who wanted a housekeeper handing over the permission surface.
+    # Housekeeping and permission management are different jobs.
+    housekeeping => {
+        title => 'Destroy things the engine keeps a copy of. The RECOVERABLE tier of '
+            . 'the housekeeping grant: a drop mints a safety export of every row before '
+            . 'anything goes, so the object is gone and the data is not. Granting a '
+            . 'module capability lets a partner USE that module; this is what lets them '
+            . 'destroy inside it, which are two different decisions.',
+        unlocks => { api => [qw(data-table-drop)], mcp => [qw(drop_data_table)] },
+    },
+    purge => {
+        title => 'Destroy things NO copy survives. The IRREVERSIBLE tier: deleting a '
+            . 'safety export is what makes an earlier table drop permanent, and deleting '
+            . 'a brief or a backup ends the only record there was. Held separately from '
+            . '`housekeeping` and not implied by it. SM577: A BACKUP STORE IS '
+            . 'INSTANCE-WIDE - one instance serves many domains from one backups '
+            . 'directory, so this reaches archives of OTHER sites on the same instance '
+            . 'and a deletion is NOT scoped by the site whose grant authorised it.',
+        unlocks => {
+            api => [qw(brief-delete data-safety-export-delete artifact-backups-delete)],
+            mcp => [qw(delete_brief delete_data_safety_export)],
+            # Cookie-only on the API (see Actions.pm), so it is named on the
+            # surface that serves it. A capability claiming it under `api` would
+            # send a token client after a door that is not there.
+            ui => ['the manager Backups page: backup-delete (instance-wide store)'],
         },
     },
     manage_config => {

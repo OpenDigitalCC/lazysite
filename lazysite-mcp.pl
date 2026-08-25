@@ -714,7 +714,7 @@ my %TOOLS = (
     },
     delete_brief => {
         description => 'Delete one brief store entry by its content path (as list_briefs reports it). The cleanup half of the lifecycle: an orphan surfaced by list_briefs is removed with this. Deleting a live page\'s brief discards its record of intent - prefer appending a correction with append_brief. Audited as brief-delete.',
-        cap         => 'manage_briefs',
+        cap         => 'purge',    # SM591: the lateral grant
         inputSchema => {
             type     => 'object',
             required => ['path'],
@@ -728,7 +728,7 @@ my %TOOLS = (
     },
     drop_data_table => {
         description => 'Remove a table entirely - its descriptor, its stored rows, and every value in them. THIS EXISTS BECAUSE THERE WAS NO WAY BACK: declaring a table was reachable from three surfaces and removing one from none, and the descriptor lives under lazysite/ where every write channel refuses, so a table made by mistake or for a single test was permanent. CONFIRM BY NAMING THE TABLE EXACTLY in confirm: call without it first to be told what will be lost. A safety export of every row is written before anything is dropped and its path is returned, so a mistake is recoverable even though the table is not.',
-        cap         => 'manage_data',
+        cap         => 'housekeeping',       # SM591: the lateral grant
         inputSchema => { type => 'object',
             properties => {
                 table   => { type => 'string', description => 'The table name' },
@@ -752,7 +752,7 @@ my %TOOLS = (
     },
     delete_data_safety_export => {
         description => 'Delete one safety export by its file name as list_data_safety_exports reports it. Permanent: the export is the only copy of the rows a drop or a lossy rebuild removed, so read it (or confirm it is a throwaway) before clearing it. Audited as data-safety-export-delete.',
-        cap         => 'manage_data',
+        cap         => 'purge',              # SM591: the lateral grant
         inputSchema => { type => 'object',
             properties => { file => { type => 'string', description => 'The export file name, exactly as listed' } },
             required => ['file'], additionalProperties => JSON::PP::false },

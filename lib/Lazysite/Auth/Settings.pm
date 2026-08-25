@@ -48,7 +48,27 @@ our @CAP_KEYS = qw(
     manage_themes manage_layouts manage_domains manage_config
     manage_users analytics audit notifications feedback read_submissions
     create_sub_users delegate_sub_user_creation
-    manage_data manage_briefs);
+    manage_data manage_briefs
+    housekeeping purge);
+
+# SM591: the LATERAL grants. Deletion and tidying are the same job wherever they
+# happen, and they are the operations an operator most often reserves to one
+# person - so they answer a grant of their own instead of each module's, and
+# "may use this module" stops meaning "may destroy inside it".
+#
+# TWO tiers, and which one an action joins is SM587's copy test - does the
+# engine retain a copy? - never a judgement about how alarming the verb sounds:
+#
+#   housekeeping  a copy survives (data-table-drop mints a safety export)
+#   purge         no copy survives (brief-delete, data-safety-export-delete,
+#                 backup-delete, artefact backups)
+#
+# They are INDEPENDENT. `purge` does not imply `housekeeping`; an operator who
+# wants a housekeeper grants both. A tier that silently contained the other
+# would be a rule nobody can read off the table.
+#
+# Self-healing operations (cache-invalidate, the registry sweeps) join neither:
+# they rebuild on the next request, so there is nothing to reserve.
 
 # SM447 / ADR 0009: `manage_data` is DECLARED BY THE DATA PLUGIN and mirrored
 # here, which is a different thing from being a core capability. SM576 part 1

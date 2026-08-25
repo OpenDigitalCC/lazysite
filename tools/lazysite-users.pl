@@ -1338,6 +1338,11 @@ sub effective_settings {
         # does nothing on every surface that reads effective_settings, which is
         # what SEC-2026-07 (F3) was.
         manage_briefs => $caps->{manage_briefs} ? JSON::PP::true() : JSON::PP::false(),
+        # SM591: the two lateral tiers, here for the same reason as every
+        # other capability above - one that reaches caps_for and not this map
+        # is a grant that resolves and then does nothing.
+        housekeeping  => $caps->{housekeeping}  ? JSON::PP::true() : JSON::PP::false(),
+        purge         => $caps->{purge}         ? JSON::PP::true() : JSON::PP::false(),
         manage_config => $caps->{manage_config} ? JSON::PP::true() : JSON::PP::false(),
         # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
         # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained

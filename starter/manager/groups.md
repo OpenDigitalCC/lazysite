@@ -50,6 +50,8 @@ var ACTIONS = [
   ['manage_layouts', 'Layouts'],
   ['manage_data', 'Data tables'],
   ['manage_briefs', 'Authoring briefs (write)'],
+  ['housekeeping', 'Housekeeping — destroy what a copy survives'],
+  ['purge', 'Purge — destroy what no copy survives'],
   ['manage_domains', 'Domains & site packages'],
   ['manage_config', 'Site config (+ plugins)'],
   ['manage_users', 'Users & groups'],

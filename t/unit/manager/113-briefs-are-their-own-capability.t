@@ -150,8 +150,11 @@ my %cap;
 }
 like( $cap{append_brief} // '', qr/cap\s*=>\s*'manage_briefs'/,
     'MCP append_brief is gated on manage_briefs' );
-like( $cap{delete_brief} // '', qr/cap\s*=>\s*'manage_briefs'/,
-    'MCP delete_brief too' );
+# SM591 moved the DELETE on to the lateral purge grant - a brief write and a
+# brief destruction are different rights, which is the whole of SM575. What
+# manage_briefs must not do is leave the WRITE behind on manage_content.
+like( $cap{delete_brief} // '', qr/cap\s*=>\s*'purge'/,
+    'MCP delete_brief answers the lateral purge grant (SM591)' );
 like( $cap{read_brief} // '', qr/cap\s*=>\s*'manage_briefs'/,
     'MCP read_brief names manage_briefs as its gate' );
 like( $cap{read_brief} // '', qr/cap_also\s*=>\s*'manage_content'/,

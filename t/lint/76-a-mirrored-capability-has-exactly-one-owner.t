@@ -44,15 +44,15 @@ plan skip_all => 'no plugins directory' unless -d $plugins;
 # Every capability every plugin claims, and who claims it.
 my %claimed_by;
 for my $f ( sort glob "$plugins/*.pl" ) {
-    my $d = eval { decode_json( `$^X \Q$f\E --describe 2>/dev/null` ) };
+    my $d = eval { decode_json(`$^X \Q$f\E --describe 2>/dev/null`) };
     next unless ref $d eq 'HASH' && ref $d->{owns} eq 'HASH';
     my $id = $d->{id} // ( $f =~ s{.*/}{}r );
     push @{ $claimed_by{$_} }, $id
         for @{ $d->{owns}{capabilities} || [] };
 }
 
-my %cap_key = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
-my $desc    = Lazysite::Capabilities::describe();
+my %cap_key   = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
+my $desc      = Lazysite::Capabilities::describe();
 my $described = $desc->{capabilities} || {};
 
 subtest 'no capability is claimed by two plugins' => sub {
@@ -85,6 +85,7 @@ my %CORE = map { $_ => 1 } qw(
     manage_content manage_nav manage_forms manage_themes manage_layouts
     manage_domains manage_config manage_users
     analytics audit notifications feedback read_submissions
+    housekeeping purge
     create_sub_users delegate_sub_user_creation);
 
 subtest 'no capability is grantable with nobody implementing it' => sub {

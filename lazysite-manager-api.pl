@@ -624,18 +624,23 @@ if ( !$token_auth ) {
             # SM447: the data plugin's capability. Reads and writes alike -
             # unlike content, a table row has no per-file ACL to self-authorize
             # against, so the capability IS the gate.
-        'data-tables'                => 'manage_data', 'data-table'      => 'manage_data',
-        'data-rows'                  => 'manage_data', 'data-migrate'    => 'manage_data',
-        'data-row-save'              => 'manage_data', 'data-row-delete' => 'manage_data',
-        'data-table-save'            => 'manage_data',
-        'data-rebuild'               => 'manage_data',
-        'data-export'                => 'manage_data',
-        'data-import'                => 'manage_data',
-        'data-table-source'          => 'manage_data',
-        'data-migrate-plan'          => 'manage_data',
-        'data-table-drop'            => 'manage_data',
+        'data-tables'       => 'manage_data', 'data-table'      => 'manage_data',
+        'data-rows'         => 'manage_data', 'data-migrate'    => 'manage_data',
+        'data-row-save'     => 'manage_data', 'data-row-delete' => 'manage_data',
+        'data-table-save'   => 'manage_data',
+        'data-rebuild'      => 'manage_data',
+        'data-export'       => 'manage_data',
+        'data-import'       => 'manage_data',
+        'data-table-source' => 'manage_data',
+        'data-migrate-plan' => 'manage_data',
+        # SM591: the lateral tiers. The module capability carries the working
+        # verbs; destroying inside the module is its own grant, assigned by
+        # SM587's copy test - a drop mints a safety export, so it is the
+        # recoverable tier; deleting that export is what makes the drop
+        # permanent, so it is the irreversible one.
+        'data-table-drop'            => 'housekeeping',
         'data-safety-exports'        => 'manage_data',
-        'data-safety-export-delete'  => 'manage_data',
+        'data-safety-export-delete'  => 'purge',
         'data-safety-export-read'    => 'manage_data',
         'data-safety-export-restore' => 'manage_data',
         # SM245: the brief store. SM576 part 1 splits it: WRITING a brief needs
@@ -646,7 +651,7 @@ if ( !$token_auth ) {
         'brief-append'       => 'manage_briefs',
         'briefs-migrate'     => 'manage_briefs',
         'briefs-list'        => 'manage_content|manage_briefs',
-        'brief-delete'       => 'manage_briefs',
+        'brief-delete'       => 'purge',                         # SM591: no copy survives
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -673,16 +678,21 @@ if ( !$token_auth ) {
         'backup-create'      => 'manage_config', 'backup-restore'     => 'manage_config',
         # SM268 03-F11: removing a snapshot is the same authority as taking or
         # restoring one.
-        'backup-delete'   => 'manage_config',
-        'backup-download' => 'manage_config',  'backup-list'     => 'manage_config',
-        'theme-activate'  => 'manage_themes',  'theme-delete'    => 'manage_themes',
-        'theme-rename'    => 'manage_themes',  'theme-upload'    => 'manage_themes',
-        'layout-activate' => 'manage_layouts', 'layout-delete'   => 'manage_layouts',
-        'layout-install'  => 'manage_layouts', 'layouts-install' => 'manage_layouts',
-        'layouts-repo-set'        => 'manage_layouts',
-        'preview-grant'           => 'manage_themes|manage_layouts',
-        'preview-clear'           => 'manage_themes|manage_layouts',
-        'artifact-backups-delete' => 'manage_themes|manage_layouts',
+        # SM591 + SM577: the backups store is INSTANCE-wide (package_create
+        # writes any configured domain's archive into the local _backups_dir),
+        # so this reaches archives of other sites on the same instance. Still
+        # cookie-only - SM591 changes WHICH grant reaches it, not whether a
+        # token can.
+        'backup-delete'    => 'purge',
+        'backup-download'  => 'manage_config',  'backup-list'     => 'manage_config',
+        'theme-activate'   => 'manage_themes',  'theme-delete'    => 'manage_themes',
+        'theme-rename'     => 'manage_themes',  'theme-upload'    => 'manage_themes',
+        'layout-activate'  => 'manage_layouts', 'layout-delete'   => 'manage_layouts',
+        'layout-install'   => 'manage_layouts', 'layouts-install' => 'manage_layouts',
+        'layouts-repo-set' => 'manage_layouts',
+        'preview-grant'    => 'manage_themes|manage_layouts',
+        'preview-clear'    => 'manage_themes|manage_layouts',
+        'artifact-backups-delete' => 'purge',                  # SM591: no copy survives
         'nav-save'                => 'manage_nav',
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
@@ -818,9 +828,9 @@ if ($token_auth) {
         'data-import'                => sub { $_[0]->{manage_data} },
         'data-table-source'          => sub { $_[0]->{manage_data} },
         'data-migrate-plan'          => sub { $_[0]->{manage_data} },
-        'data-table-drop'            => sub { $_[0]->{manage_data} },
+        'data-table-drop'            => sub { $_[0]->{housekeeping} },
         'data-safety-exports'        => sub { $_[0]->{manage_data} },
-        'data-safety-export-delete'  => sub { $_[0]->{manage_data} },
+        'data-safety-export-delete'  => sub { $_[0]->{purge} },
         'data-safety-export-read'    => sub { $_[0]->{manage_data} },
         'data-safety-export-restore' => sub { $_[0]->{manage_data} },
         # SM576 part 1: see %COOKIE_CAP above - the write half moves to
@@ -829,7 +839,7 @@ if ($token_auth) {
         'brief-append'    => sub { $_[0]->{manage_briefs} },
         'briefs-migrate'  => sub { $_[0]->{manage_briefs} },
         'briefs-list'     => sub { $_[0]->{manage_content} || $_[0]->{manage_briefs} },
-        'brief-delete'    => sub { $_[0]->{manage_briefs} },
+        'brief-delete'    => sub { $_[0]->{purge} },
         'data-row-delete' => sub { $_[0]->{manage_data} },
         'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
         'domain-add'      => sub { $_[0]->{manage_domains} },
@@ -895,7 +905,7 @@ if ($token_auth) {
         # keeps the unrestricted delete: a human at the console is the case the
         # UI-only rule was protecting, and it still is.
         'theme-delete'            => sub { $_[0]->{manage_themes} },
-        'artifact-backups-delete' => sub { $_[0]->{manage_layouts} || $_[0]->{manage_themes} },
+        'artifact-backups-delete' => sub { $_[0]->{purge} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.

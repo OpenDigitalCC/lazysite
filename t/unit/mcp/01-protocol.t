@@ -294,11 +294,14 @@ like( $r->{result}{structuredContent}{content}, qr{/renamed}, 'rename_page updat
 ( $st, $r ) = call( 'delete_page', { slug => 'renamed' }, $bearer_lim );
 ok( $r->{result}{structuredContent}{ok} && !( -f "$d/renamed.md" ), 'delete_page removes the page' );
 # SM515: a cap-less tool is a channel-only tool to the dispatcher. delete_brief
-# shipped without one; a theme-only bearer (no manage_content) must be refused, naming the cap.
+# shipped without one; a theme-only bearer must be refused, naming the cap.
+# SM591 moved that cap from manage_content to the lateral `purge` grant - no
+# copy of a brief survives its deletion - so what is asserted here is that the
+# refusal still NAMES whatever the gate is, which is the SM515 property.
 ( $st, $r ) = call( 'delete_brief', { path => '/anything.md' }, $bearer_theme );
 ok( $r->{result}{isError} || !$r->{result}{structuredContent}{ok},
-    'delete_brief refuses a theme-only bearer (no manage_content)' );
-like( JSON::PP->new->encode($r), qr/manage_content/, 'and names the capability it needs' );
+    'delete_brief refuses a theme-only bearer' );
+like( JSON::PP->new->encode($r), qr/purge/, 'and names the capability it needs' );
 ( $st, $r ) = call( 'delete_brief', { path => '/x.md', bogus => 1 }, $bearer_full );
 ok( $r->{result}{isError} || !$r->{result}{structuredContent}{ok},
     'and an argument outside the schema is refused (validation runs now)' );

@@ -44,13 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM586 resolved (PENDING) **YAML's own `false` is false.** SM519 refused
-  `public: false` - the one spelling that makes a table private - because
-  YAML::PP returns a bare `false` as a defined, ZERO-LENGTH string, which
-  matched neither the true nor the false set; `'false'`, `0` and `true` all
-  passed. Found on a live site in the first ten minutes of the 0.10.32
-  retest. The empty string is now false, and t/unit/data/01 drives the YAML
-  text rather than a hash so the parser's representation is what is pinned.
+- SM591 resolved (PENDING) **housekeeping is a grant of its own, in two
+  tiers.** Granting somebody the ability to USE a module granted them the
+  ability to DESTROY inside it: measured on edge, a principal holding
+  `manage_data` and nothing else dropped another principal's table and
+  deleted its safety export four seconds later. Destruction now answers a
+  lateral grant, split by SM587's copy test: `housekeeping` for what a
+  copy survives (`data-table-drop`, which mints a safety export first) and
+  `purge` for what none does (`brief-delete`,
+  `data-safety-export-delete`, `backup-delete`, artefact backups).
+  Self-healing operations join neither - a cache or registry sweep
+  rebuilds on the next request. The two tiers are independent: `purge`
+  does not imply `housekeeping`. THE ACL VERBS DO NOT JOIN: `acl-set`,
+  `acl-remove`, `preview-grant` and `preview-clear` stay under
+  `manage_content` / `manage_themes` / `manage_layouts` carrying SM587's
+  `changes_access` flag, so an operator who wants a housekeeper does not
+  hand over the permission surface. Carries SM577: a backup store is
+  instance-wide, so `backup-delete` reaches archives of other sites on
+  the same instance and is NOT scoped by the site whose grant authorised
+  it - said where the capability is described. `backup-delete` stays
+  cookie-only. t/unit/manager/114 proves each boundary over the real CGI.
+
 - SM576 part 3 resolved (PENDING) **a group says whether it is a role or a
   backend group.** Group-of-group nesting already existed and was already
   the enforcement path, so composing a role out of capability groups
@@ -99,6 +113,14 @@ Naming the commit: AFTER it lands, never before
   `describe-capabilities` beside `mutating`, and as `changesAccessHint`
   in the MCP tool annotations. t/lint/23 keeps the two spellings equal;
   t/unit/manager/112 proves the divergence in both directions.
+
+- SM586 resolved (PENDING) **YAML's own `false` is false.** SM519 refused
+  `public: false` - the one spelling that makes a table private - because
+  YAML::PP returns a bare `false` as a defined, ZERO-LENGTH string, which
+  matched neither the true nor the false set; `'false'`, `0` and `true` all
+  passed. Found on a live site in the first ten minutes of the 0.10.32
+  retest. The empty string is now false, and t/unit/data/01 drives the YAML
+  text rather than a hash so the parser's representation is what is pinned.
 
 - SM584 resolved (PENDING) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status

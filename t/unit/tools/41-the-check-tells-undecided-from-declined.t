@@ -42,7 +42,7 @@ sub site_with {
 my @all = qw(ui webdav manage_content manage_nav manage_forms manage_themes
     manage_layouts manage_domains manage_config manage_users analytics audit
     notifications feedback read_submissions create_sub_users
-    delegate_sub_user_creation manage_data manage_briefs);
+    delegate_sub_user_creation manage_data manage_briefs housekeeping purge);
 my %granted = ( manager => 1, map { $_ => 1 } @all );
 
 subtest 'all decided: no warning' => sub {
