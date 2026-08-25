@@ -313,7 +313,11 @@ sub _archive_scope {
         next unless length $m;
         next if $m eq 'lazysite' || $m =~ m{\Alazysite/};
         my ($top) = $m =~ m{\A([^/]+)/};
-        next unless defined $top;    # a bare top-level file has no directory scope
+        # SM544: a bare top-level file is written at the ROOT by the restore,
+        # so the root is the blast radius - the full content snapshot. This
+        # used to skip it, and the snapshot then missed exactly the file the
+        # restore replaced.
+        return undef unless defined $top;
         if    ( !defined $common ) { $common = $top }
         elsif ( $common ne $top )  { return undef }
     }
@@ -327,7 +331,12 @@ sub _archive_scope {
             ( my $r = $m ) =~ s{\A\./}{};
             next unless length $r && index( $r, "$prefix/" ) == 0;
             my $rest = substr( $r, length($prefix) + 1 );
+            # SM544: tar lists the prefix directory itself (./sites/), whose
+            # rest is empty; that is not a bare file, so it must not stop the
+            # deepening here.
+            next unless length $rest;
             my ($seg) = $rest =~ m{\A([^/]+)/};
+            # A bare file at this level: the scope is its parent, $prefix.
             return $prefix unless defined $seg;
             $next{$seg} = 1;
         }

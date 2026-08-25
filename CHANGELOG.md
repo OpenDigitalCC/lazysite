@@ -259,6 +259,17 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM544 resolved (PENDING) **the safety snapshot covers what the restore
+  overwrites.** Backups::_archive_scope skipped bare top-level members and
+  its deepening loop stopped at tar's own directory entry for the prefix,
+  so an archive carrying ./index.md and ./sites/edge/page.md scoped the
+  prerestore snapshot to sites/ and the restore overwrote index.md with no
+  rollback copy. Found by the backups structural review (N1), proven by
+  probe. A bare file at any level now widens the scope to its parent (the
+  root for a top-level file), and directory entries are skipped while
+  deepening, so an unscoped archive of one subtree scopes to that subtree
+  as the comment promised. t/unit/manager/105 restores a mixed archive and
+  asserts the safety tarball carries the pre-restore ./index.md.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
