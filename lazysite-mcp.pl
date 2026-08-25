@@ -1984,13 +1984,19 @@ sub _check_db_bindings {
     # Read from the front-matter TEXT rather than the parsed hash: tt_page_var
     # is nested, _parse_fm is deliberately flat, and a checker that silently saw
     # no bindings would be a check that always passes.
+    my $have_tables;
     for my $line ( split /\n/, ( $fm // '' ) ) {
         next unless $line =~ /:\s*db:([a-z][a-z0-9_]*)/;
         my $table = $1;
-        my $d     = eval {
-            require Lazysite::Data::Tables;
-            Lazysite::Data::Tables::load_table( $DOCROOT, $table );
-        };
+        # MCO-2: `require` is a no-op after the first load, but the eval and
+        # the lookup are not free and the answer cannot change between two
+        # bindings on the same page. Asked on the first binding, not on each
+        # - and still not at all on a page that binds nothing, which is why
+        # it is lazy here rather than hoisted to the top of the sub.
+        $have_tables //= eval { require Lazysite::Data::Tables; 1 } ? 1 : 0;
+        my $d = $have_tables
+            ? eval { Lazysite::Data::Tables::load_table( $DOCROOT, $table ) }
+            : undef;
         unless ( ref $d eq 'HASH' ) {
             push @$warnings, { kind => 'db-binding-unchecked',
                 message => "could not check the table '$table' - the data "
@@ -3079,7 +3085,12 @@ sub _delete_page {
     my $r = action_delete( "/$slug.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     # Report remaining references (nav, other pages).
-    my $s = _mcp_search( "/$slug", '/' );
+    # MCO-4: without a limit this takes _mcp_search's DEFAULT of 200, so on a
+    # site with more references than that `still_referenced_in` was silently
+    # short - and the one thing the caller uses it for is deciding whether
+    # deleting this page breaks anything. Ask for the ceiling the search will
+    # enforce anyway.
+    my $s = _mcp_search( "/$slug", '/', $SEARCH_LIMIT_MAX );
     my %seen;
     $r->{still_referenced_in} = [ grep { !$seen{$_}++ } map { $_->{path} } @{ $s->{matches} || [] } ];
 
@@ -3180,6 +3191,18 @@ sub _rename_page {
     }
     return $r;
 }
+
+# MCO-1: two constant rosters the dispatch reads and never writes - which tools
+# are reads (so the audit skips them) and which refusal kinds are worth retrying.
+# Both were built inside the request path, one of them inside an `if` that runs
+# only on a failure, so a literal that cannot change was assembled per request
+# and per refusal. They live with %ANNOTATE now: same three lists, one place a
+# reader looks to find out what the dispatch believes about a tool.
+my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
+    page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, form_list => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
+    list_versions => 1, list_content_history => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
+
+my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
 
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
@@ -3603,9 +3626,6 @@ elsif ( $method eq 'tools/call' ) {
         tool => $name, user => $user, ok => ( $out->{ok} ? 1 : 0 ) );
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
-    my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, form_list => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
-        list_versions => 1, list_content_history => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme}
             // $args->{name} // $args->{layout} // '';
@@ -3633,8 +3653,7 @@ elsif ( $method eq 'tools/call' ) {
     # permanent refusal (permission, blocked, bad path, already-exists, ...) instead
     # of hammering. Only a small set of kinds is genuinely transient.
     if ( ref $out eq 'HASH' && !$out->{ok} ) {
-        my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
-        my $retry     = $TRANSIENT{ $out->{kind} // '' } ? 1 : 0;
+        my $retry = $TRANSIENT{ $out->{kind} // '' } ? 1 : 0;
         $out->{retryable} = $retry ? JSON::PP::true : JSON::PP::false;
         $out->{hint} = 'Do not retry - this will not succeed unless the request changes '
             . 'or the operator grants access.'
