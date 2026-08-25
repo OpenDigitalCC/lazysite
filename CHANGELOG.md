@@ -56,6 +56,13 @@ Naming the commit: AFTER it lands, never before
   would silently truncate as the header grew. Proven by
   `t/tools/42-the-watcher-can-be-told-what-it-last-deployed.t`, whose control
   is the same tree with no `--baseline`, deploying nothing.
+- SM590 resolved (PENDING) **table delivery is handler-only, in writing.**
+  `bind_form` offers an inline `target` for a destination the operator has
+  not pre-defined, and `db`/`table` are deliberately not among the types it
+  accepts - a form writing rows into a declared data table is what an
+  operator should vet. The code already refused them; nothing said so, so an
+  agent could only discover it by being refused. The tool description and
+  `/docs/forms` now say it and why, and `t/unit/mcp/17` pins both spellings.
 
 - SM574 resolved (PENDING) **the field practice ships with every site.** The
   site agent's two best-practice files - what building and breaking real

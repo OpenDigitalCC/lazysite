@@ -58,6 +58,17 @@ subtest 'the shape is validated even though the destination is not' => sub {
     # Which URL a form may deliver to is the operator's decision, expressed by
     # whether they granted manage_forms. The SHAPE is still checked, because a
     # malformed target is a form that silently does not deliver.
+    # SM590: db and table delivery is HANDLER-ONLY, and the docs now say so.
+    # An inline target names a destination the operator has not vetted, and a
+    # form writing rows into a declared table is exactly what they should vet -
+    # so these two are refused here rather than merely undocumented.
+    for my $t (qw(db table)) {
+        my $r = _inline_target_block( { type => $t, path => 'anything' } );
+        ok( !$r->{ok}, "an inline '$t' target is refused - delivery into a table is handler-only" );
+        like( $r->{error}, qr/webhook, api or file/,
+            "the refusal of '$t' names the types that ARE allowed" );
+    }
+
     ok( !_inline_target_block( { type => 'ftp', url => 'ftp://x/' } )->{ok},
         'an unknown type is refused' );
     ok( !_inline_target_block( { type => 'webhook' } )->{ok},

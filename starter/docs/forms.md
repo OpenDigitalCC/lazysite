@@ -200,6 +200,22 @@ Handlers with `enabled: false` are skipped.
   submission failed, and the stored copy is marked `_row_refused`. See
   [Data tables](/docs/data-tables).
 
+### Which types an agent may set inline
+
+A partner agent binding a form over MCP, WebDAV or the control API may
+name a handler by `id`, or pass an inline `target` for a delivery the
+operator has not pre-defined - `{type: webhook|api, url: ...}` or
+`{type: file, path: ...}`.
+
+`db` and `table` are **handler-only**: they cannot be set as an inline
+target. The inline route exists to reach somewhere the operator has not
+defined, and a form writing rows into a declared data table is precisely
+what an operator should vet - an inline table target would let any
+declared table be named as a destination without them wiring it. To
+deliver a form into a table, an operator defines a `db` or `table`
+handler in `handlers.conf` and the agent binds to its `id`.
+
+
 ## Where a submission is POSTed
 
 Only `/cgi-bin/form-handler.pl` accepts a submission. The generated form carries
