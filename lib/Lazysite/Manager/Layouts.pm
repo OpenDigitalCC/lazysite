@@ -8,14 +8,13 @@ package Lazysite::Manager::Layouts;
 
 use strict;
 use warnings;
-use JSON::PP                   qw(encode_json decode_json);
-use File::Path                 qw(make_path remove_tree);
+use JSON::PP                   qw(decode_json);
+use File::Path                 qw(make_path);
 use File::Copy                 qw(copy);
-use File::Basename             qw(basename dirname);
+use File::Basename             qw(dirname);
 use Cwd                        qw(realpath);
-use POSIX                      qw(strftime);
 use Lazysite::Util             qw(log_event);
-use Lazysite::Manager::Common  qw(write_file_checked _write_conf_key);
+use Lazysite::Manager::Common  qw(_write_conf_key);
 use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan)
 use Lazysite::Paths            ();
 use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
@@ -38,7 +37,23 @@ our $LAZYSITE_DIR;
 our $auth_user = '';
 our $action    = '';
 
-# === moved from Manager::Themes (SM079 polish) ===
+# The catalogue repo as OWNER/REPO. Five actions ask the same question of the
+# same value before they use it; repo-set applies GitHub's own, stricter naming
+# rule and deliberately keeps its own check.
+sub _valid_repo {
+    my ($repo) = @_;
+    return ( defined $repo
+            && length $repo
+            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$} ) ? 1 : 0;
+}
+
+# Archive::Zip is an optional dependency: install.sh warns when it is absent and
+# every action that needs it answers with the apt line rather than dying. The
+# import runs in THIS package, which is where AZ_OK is read.
+sub _have_azip {
+    return eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 }
+        ? 1 : 0;
+}
 
 sub _layouts_repo {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
@@ -60,8 +75,7 @@ sub action_layouts_releases {
     my $repo = _layouts_repo();
     return { ok => 0,
         error => 'Unable to fetch releases. Check the Layouts repo setting above.' }
-        unless defined $repo && length $repo
-        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        unless _valid_repo($repo);
 
     require LWP::UserAgent;
     my $ua  = LWP::UserAgent->new( timeout => 10, agent => 'lazysite/1.0' );
@@ -104,13 +118,11 @@ sub action_layouts_install {
 
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
-        unless defined $repo && length $repo
-        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        unless _valid_repo($repo);
 
-    my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
     return { ok => 0,
         error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
-        unless $have_azip;
+        unless _have_azip();
 
     require LWP::UserAgent;
     # Zipballs are larger than the releases JSON; allow more time.
@@ -124,14 +136,12 @@ sub action_layouts_install {
     make_path($tmp_dir);
 
     my $zip_path = "$tmp_dir/release.zip";
-    unless ( open my $zfh, '>:raw', $zip_path ) {
+    open my $zfh, '>:raw', $zip_path or do {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot write zipball' };
-    }
-    else {
-        print $zfh $res->content;
-        close $zfh;
-    }
+    };
+    print $zfh $res->content;
+    close $zfh;
 
     my $extract_dir = "$tmp_dir/extracted";
     make_path($extract_dir);
@@ -163,17 +173,15 @@ sub action_layouts_install {
     # dir named OWNER-REPO-SHA. Strip it so the theme subdirs sit at
     # the top of our walk.
     my @top;
-    unless ( opendir my $dh, $extract_dir ) {
+    opendir my $dh, $extract_dir or do {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot read extracted dir' };
+    };
+    for my $e ( readdir $dh ) {
+        next if $e =~ /^\./;
+        push @top, $e if -d "$extract_dir/$e";
     }
-    else {
-        for my $e ( readdir $dh ) {
-            next if $e =~ /^\./;
-            push @top, $e if -d "$extract_dir/$e";
-        }
-        closedir $dh;
-    }
+    closedir $dh;
 
     unless ( @top == 1 ) {
         _cleanup_tmp_layouts($tmp_dir);
@@ -197,119 +205,117 @@ sub action_layouts_install {
 
     my @results;
     my @layout_results;    # SM060: per-layout install outcomes
-    unless ( opendir my $ld, $layouts_dir ) {
+    opendir my $ld, $layouts_dir or do {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot read layouts dir' };
-    }
-    else {
-        for my $layout_name ( sort readdir $ld ) {
-            next if $layout_name =~ /^\./;
-            my $layout_path = "$layouts_dir/$layout_name";
-            next unless -d $layout_path;
+    };
+    for my $layout_name ( sort readdir $ld ) {
+        next if $layout_name =~ /^\./;
+        my $layout_path = "$layouts_dir/$layout_name";
+        next unless -d $layout_path;
 
-            # SM060: install the layout itself before its themes, so
-            # _install_theme_from_dir's target-site check finds the
-            # expected layout.tt on disk. A layout without a themes/
-            # subdir still gets installed — operators can publish a
-            # release with just a layout update.
-            my $layout_src_rel = "layouts/$layout_name";
-            my $layout_had_tt  = -f "$layout_path/layout.tt";
-            my $layout_ok      = 1;
-            if ($layout_had_tt) {
-                my $lr = _install_layout_from_dir(
-                    $layout_path,      $layout_name,
-                    'layouts-install', $auth_user );
-                push @layout_results,
-                    { source => $layout_src_rel, %$lr };
-                $layout_ok = $lr->{ok} ? 1 : 0;
-            }
-            # If there's no layout.tt in the release for this layout
-            # dir, we don't record a layout entry — this is common
-            # for release repos that ship only themes, and the
-            # existing theme-level error ('Theme targets missing
-            # layout(s): X') carries the useful message when the
-            # target site doesn't have the layout either.
+        # SM060: install the layout itself before its themes, so
+        # _install_theme_from_dir's target-site check finds the
+        # expected layout.tt on disk. A layout without a themes/
+        # subdir still gets installed — operators can publish a
+        # release with just a layout update.
+        my $layout_src_rel = "layouts/$layout_name";
+        my $layout_had_tt  = -f "$layout_path/layout.tt";
+        my $layout_ok      = 1;
+        if ($layout_had_tt) {
+            my $lr = _install_layout_from_dir(
+                $layout_path,      $layout_name,
+                'layouts-install', $auth_user );
+            push @layout_results,
+                { source => $layout_src_rel, %$lr };
+            $layout_ok = $lr->{ok} ? 1 : 0;
+        }
+        # If there's no layout.tt in the release for this layout
+        # dir, we don't record a layout entry — this is common
+        # for release repos that ship only themes, and the
+        # existing theme-level error ('Theme targets missing
+        # layout(s): X') carries the useful message when the
+        # target site doesn't have the layout either.
 
-            my $themes_path = "$layout_path/themes";
-            next unless -d $themes_path;
+        my $themes_path = "$layout_path/themes";
+        next unless -d $themes_path;
 
-            # Per-layout failure: don't install orphaned themes under
-            # a layout we couldn't successfully place or verify.
-            unless ($layout_ok) {
-                if ( opendir my $th_skip, $themes_path ) {
-                    for my $theme_name ( sort readdir $th_skip ) {
-                        next if $theme_name =~ /^\./;
-                        my $theme_path = "$themes_path/$theme_name";
-                        next unless -d $theme_path;
-                        push @results, {
-                            source => "layouts/$layout_name/themes/$theme_name",
-                            ok     => JSON::PP::false(),
-                            error  => "Skipped: layout $layout_name install did "
-                                . "not succeed",
-                        };
-                    }
-                    closedir $th_skip;
+        # Per-layout failure: don't install orphaned themes under
+        # a layout we couldn't successfully place or verify.
+        unless ($layout_ok) {
+            if ( opendir my $th_skip, $themes_path ) {
+                for my $theme_name ( sort readdir $th_skip ) {
+                    next if $theme_name =~ /^\./;
+                    my $theme_path = "$themes_path/$theme_name";
+                    next unless -d $theme_path;
+                    push @results, {
+                        source => "layouts/$layout_name/themes/$theme_name",
+                        ok     => JSON::PP::false(),
+                        error  => "Skipped: layout $layout_name install did "
+                            . "not succeed",
+                    };
                 }
+                closedir $th_skip;
+            }
+            next;
+        }
+
+        opendir my $th, $themes_path or next;
+        for my $theme_name ( sort readdir $th ) {
+            next if $theme_name =~ /^\./;
+            my $theme_path = "$themes_path/$theme_name";
+            next unless -d $theme_path;
+
+            my $source_rel = "layouts/$layout_name/themes/$theme_name";
+
+            unless ( -f "$theme_path/theme.json" ) {
+                push @results, {
+                    source => $source_rel,
+                    ok     => JSON::PP::false(),
+                    error  => 'Missing theme.json',
+                };
                 next;
             }
 
-            opendir my $th, $themes_path or next;
-            for my $theme_name ( sort readdir $th ) {
-                next if $theme_name =~ /^\./;
-                my $theme_path = "$themes_path/$theme_name";
-                next unless -d $theme_path;
-
-                my $source_rel = "layouts/$layout_name/themes/$theme_name";
-
-                unless ( -f "$theme_path/theme.json" ) {
-                    push @results, {
-                        source => $source_rel,
-                        ok     => JSON::PP::false(),
-                        error  => 'Missing theme.json',
-                    };
-                    next;
-                }
-
-                # SM046 consistency check: theme.json's layouts[] must
-                # include the source-path LAYOUT. Catches repo-author
-                # mistakes (theme filed under the wrong layout dir) at
-                # install time rather than at render time. Does NOT
-                # replace _install_theme_from_dir's target-site check
-                # — that validates every declared layout exists on
-                # this install.
-                my $mismatch;
-                if ( open my $jf, '<:utf8', "$theme_path/theme.json" ) {
-                    my $raw = do { local $/; <$jf> };
-                    close $jf;
-                    my $meta = eval { decode_json($raw) };
-                    if ( ref $meta eq 'HASH' && ref $meta->{layouts} eq 'ARRAY' ) {
-                        unless ( grep { $_ eq $layout_name } @{ $meta->{layouts} } ) {
-                            $mismatch = sprintf(
-                                "Theme %s under %s declares layouts: [%s], "
-                                    . "mismatching source path",
-                                $theme_name, $source_rel,
-                                join( ', ', @{ $meta->{layouts} } )
-                            );
-                        }
+            # SM046 consistency check: theme.json's layouts[] must
+            # include the source-path LAYOUT. Catches repo-author
+            # mistakes (theme filed under the wrong layout dir) at
+            # install time rather than at render time. Does NOT
+            # replace _install_theme_from_dir's target-site check
+            # — that validates every declared layout exists on
+            # this install.
+            my $mismatch;
+            if ( open my $jf, '<:utf8', "$theme_path/theme.json" ) {
+                my $raw = do { local $/; <$jf> };
+                close $jf;
+                my $meta = eval { decode_json($raw) };
+                if ( ref $meta eq 'HASH' && ref $meta->{layouts} eq 'ARRAY' ) {
+                    unless ( grep { $_ eq $layout_name } @{ $meta->{layouts} } ) {
+                        $mismatch = sprintf(
+                            "Theme %s under %s declares layouts: [%s], "
+                                . "mismatching source path",
+                            $theme_name, $source_rel,
+                            join( ', ', @{ $meta->{layouts} } )
+                        );
                     }
                 }
-                if ($mismatch) {
-                    push @results, {
-                        source => $source_rel,
-                        ok     => JSON::PP::false(),
-                        error  => $mismatch,
-                    };
-                    next;
-                }
-
-                my $r = _install_theme_from_dir(
-                    $theme_path, 'layouts-install', $auth_user );
-                push @results, { source => $source_rel, %$r };
             }
-            closedir $th;
+            if ($mismatch) {
+                push @results, {
+                    source => $source_rel,
+                    ok     => JSON::PP::false(),
+                    error  => $mismatch,
+                };
+                next;
+            }
+
+            my $r = _install_theme_from_dir(
+                $theme_path, 'layouts-install', $auth_user );
+            push @results, { source => $source_rel, %$r };
         }
-        closedir $ld;
+        closedir $th;
     }
+    closedir $ld;
 
     _cleanup_tmp_layouts($tmp_dir);
 
@@ -416,13 +422,11 @@ sub action_layouts_release_contents {
 
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
-        unless defined $repo && length $repo
-        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        unless _valid_repo($repo);
 
-    my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
     return { ok => 0,
         error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
-        unless $have_azip;
+        unless _have_azip();
 
     require LWP::UserAgent;
     my $ua  = LWP::UserAgent->new( timeout => 30, agent => 'lazysite/1.0' );
@@ -435,14 +439,12 @@ sub action_layouts_release_contents {
     make_path($tmp_dir);
 
     my $zip_path = "$tmp_dir/release.zip";
-    unless ( open my $zfh, '>:raw', $zip_path ) {
+    open my $zfh, '>:raw', $zip_path or do {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot write zipball' };
-    }
-    else {
-        print $zfh $res->content;
-        close $zfh;
-    }
+    };
+    print $zfh $res->content;
+    close $zfh;
 
     my $extract_dir = "$tmp_dir/extracted";
     make_path($extract_dir);
@@ -898,8 +900,7 @@ sub _resolve_manifest_install {
 sub action_layouts_manifest {
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
-        unless defined $repo && length $repo
-        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        unless _valid_repo($repo);
 
     my ( $ok, $body ) = _http_get( _raw_base() . '/manifest.json' );
     return { ok => 0,
@@ -992,14 +993,11 @@ sub action_layout_install {
 
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
-        unless defined $repo && length $repo
-        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        unless _valid_repo($repo);
 
-    my $have_azip =
-        eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
     return { ok => 0,
         error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
-        unless $have_azip;
+        unless _have_azip();
 
     my ( $mok, $mbody ) = _http_get( _raw_base() . '/manifest.json' );
     return { ok => 0, error => "Could not fetch manifest.json ($mbody)" }
@@ -1081,6 +1079,27 @@ sub action_layout_install {
     };
 }
 
+# Copy each release-relative file into the target layout, making the parent
+# directory the component paths need. The update branch and the fresh-install
+# branch do exactly this and differ only in the words they use when a copy
+# fails, so those travel in. Returns undef on success, or the caller's own
+# error hash.
+sub _copy_rel_files {
+    my ( $src_dir, $target_dir, $rel_files, $action_label, $layout_name,
+        $log_message, $verb ) = @_;
+    for my $f (@$rel_files) {
+        make_path( dirname("$target_dir/$f") );
+        my $rc = system( 'cp', "$src_dir/$f", "$target_dir/$f" );
+        if ( $rc != 0 ) {
+            log_event( 'ERROR', $action_label, $log_message,
+                file => $f, layout => $layout_name, rc => ( $rc >> 8 ) );
+            return { ok => 0,
+                error => "$verb failed (cp $f to layout $layout_name)" };
+        }
+    }
+    return undef;
+}
+
 sub _install_layout_from_dir {
     my ( $layout_source, $layout_name, $action_label, $user, $force ) = @_;
 
@@ -1140,15 +1159,11 @@ sub _install_layout_from_dir {
             # the layout files. themes/ is left untouched.
             _snapshot_artifact( _lz() . "/layouts", $layout_name );
             _prune_backups( _lz() . "/layouts", $layout_name );
-            for my $f (@rel_files) {
-                make_path( dirname("$target_dir/$f") );
-                my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );
-                if ( $rc != 0 ) {
-                    log_event( 'ERROR', $action_label, 'cp layout (update) failed',
-                        file => $f, layout => $layout_name, rc => ( $rc >> 8 ) );
-                    return { ok => 0,
-                        error => "Update failed (cp $f to layout $layout_name)" };
-                }
+            if ( my $e = _copy_rel_files( $layout_source, $target_dir, \@rel_files,
+                    $action_label, $layout_name, 'cp layout (update) failed',
+                    'Update' ) )
+            {
+                return $e;
             }
             log_event( 'INFO', $action_label, 'layout updated',
                 name => $layout_name, files => join( ',', @differs ), user => $user );
@@ -1159,15 +1174,10 @@ sub _install_layout_from_dir {
 
     # New install.
     make_path($target_dir);
-    for my $f (@rel_files) {
-        make_path( dirname("$target_dir/$f") );
-        my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );
-        if ( $rc != 0 ) {
-            log_event( 'ERROR', $action_label, 'cp layout failed',
-                file => $f, layout => $layout_name, rc => ( $rc >> 8 ) );
-            return { ok => 0,
-                error => "Install failed (cp $f to layout $layout_name)" };
-        }
+    if ( my $e = _copy_rel_files( $layout_source, $target_dir, \@rel_files,
+            $action_label, $layout_name, 'cp layout failed', 'Install' ) )
+    {
+        return $e;
     }
 
     log_event( 'INFO', $action_label, 'layout installed',

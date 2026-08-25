@@ -18,7 +18,7 @@ use warnings;
 use Cwd                       qw(realpath);
 use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
-use Lazysite::Manager::Common qw(path_is_reserved processor_path conf_batch);
+use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths ();
 our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path);
@@ -167,6 +167,17 @@ sub _set_base {
     return $content;
 }
 
+# The value a host actually resolves to: its own alias.<host>.<key> override
+# where it has one, the base site's key otherwise. '' is the base site itself,
+# which has no overrides to consult. Every surface that answers "what does this
+# host use" resolves it here, so the listing, the usage map and the mirror
+# cannot drift apart.
+sub _effective {
+    my ( $base, $ov, $host, $key ) = @_;
+    return $base->{$key} // '' if $host eq '';
+    return defined $ov->{$host}{$key} ? $ov->{$host}{$key} : ( $base->{$key} // '' );
+}
+
 # --- public: list ----------------------------------------------------------
 
 # The domains this instance serves: the primary/default host (base keys) plus
@@ -190,25 +201,6 @@ sub domains_list {
     return { ok => 1, domains => \@domains, keys => \@DOMAIN_KEYS };
 }
 
-# SM177: which configured domains (base + every alias/sub-domain) currently
-# depend on a given layout - or a given theme UNDER a given layout. Sub-domains
-# are first-class peers here: a theme/layout one of them uses must block its
-# deletion just as the primary's active one does. Effective values resolve the
-# same way the engine serves them - a per-host override wins, else the base value
-# is inherited - so an alias that inherits the base layout but pins its own theme
-# is matched correctly. Returns the list of host labels ('(default)' for the
-# primary) that use it, most useful hosts first. Pass (layout => L) to find
-# layout users; (theme => T, layout => L) to find theme users under layout L.
-
-# SM238: render a configured domain as an anonymous visitor would see it, under
-# its own Host - so a domain can be prepared and checked before DNS or TLS point
-# at it. Moved here from lazysite-manager-api.pl so the control API and the MCP
-# connector share ONE implementation rather than the connector growing a copy;
-# that shared-module shape is also what SM239 asks for across the two surfaces.
-#
-# Shells the processor exactly as the dev server does: no auth headers, the
-# target Host, and cache bypassed - so what comes back is the real per-Host
-# render, with that domain's content root, layout, theme and nav all applied.
 # SM238 follow-up: shared by domain_preview here and action_domain_check in the
 # control API, so it carries a public name. Both bound an outbound probe or a
 # render to operator-declared hosts - never an arbitrary target.
@@ -339,24 +331,6 @@ sub _owner_for_path {
     return ( $tied[0], scalar @tied, $best );
 }
 
-# SM282: what a PUBLIC visitor gets for one path.
-#
-# A draft section is invisible to the public and visible to a signed-in editor.
-# That is the feature working, and it is exactly why the editor is the one
-# person who cannot check it: everything looks fine from where they are
-# standing. The current answer is a private browsing window, which works and
-# means leaving the manager - while the thing being checked is precisely
-# whether leaving the manager changes what you see.
-#
-# The machinery already existed one scope up. domain_preview shells the
-# processor with every auth marker stripped, so a domain can be seen before DNS
-# points at it. This is the same trick at page scope.
-#
-# SAFE BY CONSTRUCTION, and the construction is the point: the processor applies
-# the identical refusal it would apply to a visitor, because it is not told who
-# is asking. So a 404 or a redirect to /login is the CORRECT answer for a gated
-# path and is reported as the finding rather than as an error - which is the
-# whole reason an operator would run this.
 # SM466: what the rendered page says about its own presentation.
 #
 # From the RESPONSE, never the configuration. "What should this domain use" was
@@ -373,12 +347,9 @@ sub _rendered_presentation {
     my ( $head, $body ) = @_;
     my %out;
 
-    my ($asset)
+    my ( $layout, $theme )
         = ( $body // '' ) =~ m{/lazysite-assets/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/};
-    if ( defined $asset ) {
-        my ( $layout, $theme )
-            = ( $body // '' )
-            =~ m{/lazysite-assets/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/};
+    if ( defined $layout ) {
         $out{rendered_layout} = $layout;
         $out{rendered_theme}  = $theme;
     }
@@ -410,11 +381,29 @@ sub _anonymous_env {
                 | HTTP_COOKIE | HTTP_AUTHORIZATION ) }x
         } keys %ENV
     };
-    delete $ENV{HTTP_COOKIE};
-    delete $ENV{HTTP_AUTHORIZATION};
     return;
 }
 
+# --- public: preview -------------------------------------------------------
+
+# SM282: what a PUBLIC visitor gets for one path.
+#
+# A draft section is invisible to the public and visible to a signed-in editor.
+# That is the feature working, and it is exactly why the editor is the one
+# person who cannot check it: everything looks fine from where they are
+# standing. The current answer is a private browsing window, which works and
+# means leaving the manager - while the thing being checked is precisely
+# whether leaving the manager changes what you see.
+#
+# The machinery already existed one scope up. domain_preview shells the
+# processor with every auth marker stripped, so a domain can be seen before DNS
+# points at it. This is the same trick at page scope.
+#
+# SAFE BY CONSTRUCTION, and the construction is the point: the processor applies
+# the identical refusal it would apply to a visitor, because it is not told who
+# is asking. So a 404 or a redirect to /login is the CORRECT answer for a gated
+# path and is reported as the finding rather than as an error - which is the
+# whole reason an operator would run this.
 sub preview_public {
     my ($rel) = @_;
     $rel = '/'     unless defined $rel && length $rel;
@@ -521,6 +510,15 @@ sub preview_public {
     };
 }
 
+# SM238: render a configured domain as an anonymous visitor would see it, under
+# its own Host - so a domain can be prepared and checked before DNS or TLS point
+# at it. Moved here from lazysite-manager-api.pl so the control API and the MCP
+# connector share ONE implementation rather than the connector growing a copy;
+# that shared-module shape is also what SM239 asks for across the two surfaces.
+#
+# Shells the processor exactly as the dev server does: no auth headers, the
+# target Host, and cache bypassed - so what comes back is the real per-Host
+# render, with that domain's content root, layout, theme and nav all applied.
 sub domain_preview {
     my ($host) = @_;
     $host = lc( $host // '' );
@@ -635,13 +633,8 @@ sub domain_usage {
     my ( $base, $ov, $hosts ) = _parse();
     my %use = ( layouts => {}, themes => {} );
     for my $h ( '', @$hosts ) {
-        my $eff = sub {
-            my ($k) = @_;
-            return $base->{$k} // '' if $h eq '';
-            return defined $ov->{$h}{$k} ? $ov->{$h}{$k} : ( $base->{$k} // '' );
-        };
-        my $layout = $eff->('layout');
-        my $theme  = $eff->('theme');
+        my $layout = _effective( $base, $ov, $h, 'layout' );
+        my $theme  = _effective( $base, $ov, $h, 'theme' );
         my $who    = ( $h eq '' ? '(default)' : $h );
         next unless length $layout;
         push @{ $use{layouts}{$layout} },          $who;
@@ -650,26 +643,26 @@ sub domain_usage {
     return \%use;
 }
 
+# SM177: which configured domains (base + every alias/sub-domain) currently
+# depend on a given layout - or a given theme UNDER a given layout. Sub-domains
+# are first-class peers here: a theme/layout one of them uses must block its
+# deletion just as the primary's active one does. Effective values resolve the
+# same way the engine serves them - a per-host override wins, else the base value
+# is inherited - so an alias that inherits the base layout but pins its own theme
+# is matched correctly. Returns the list of host labels ('(default)' for the
+# primary) that use it, most useful hosts first. Pass (layout => L) to find
+# layout users; (theme => T, layout => L) to find theme users under layout L.
+
 sub domains_using {
     my (%q) = @_;
     my ( $base, $ov, $hosts ) = _parse();
 
-    my $eff = sub {
-        my ( $h, $k ) = @_;
-        return $base->{$k} // '' if $h eq '';
-        return defined $ov->{$h}{$k} ? $ov->{$h}{$k} : ( $base->{$k} // '' );
-    };
-
     my @using;
     for my $h ( '', @$hosts ) {
-        my $layout = $eff->( $h, 'layout' );
-        if ( defined $q{theme} ) {
-            next unless $layout eq ( $q{layout} // '' );
-            next unless $eff->( $h, 'theme' ) eq $q{theme};
-        }
-        else {
-            next unless $layout eq ( $q{layout} // '' );
-        }
+        next unless _effective( $base, $ov, $h, 'layout' ) eq ( $q{layout} // '' );
+        next
+            if defined $q{theme}
+            && _effective( $base, $ov, $h, 'theme' ) ne $q{theme};
         push @using, ( $h eq '' ? '(default)' : $h );
     }
     return @using;
@@ -895,7 +888,8 @@ sub domain_set {
                 # is in the Themes @EXPORT_OK set (SitePackage imports it the
                 # ordinary way), so this is a published helper, not a reach inside.
                 require Lazysite::Manager::Themes;
-                Lazysite::Manager::Themes->import('_mirror_theme_assets');
+                Lazysite::Manager::Themes->import(
+                    '_mirror_theme_assets', '_mirror_warning' );
                 no warnings 'once';    # fully-qualified package vars
                 local $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
                 local $Lazysite::Manager::Themes::LAZYSITE_DIR = _lz();
@@ -910,20 +904,15 @@ sub domain_set {
     my $res = { ok => 1, host => $host, key => $key, value => $value };
     if ( ref $mirror eq 'HASH' ) {
         $res->{assets_mirrored} = $mirror->{mirrored};
-        if ( !$mirror->{mirrored} ) {
-            push @{ $res->{warnings} ||= [] },
-                'no theme assets were mirrored for this domain: '
-                . ( $mirror->{reason} // 'unknown' )
-                . ( $mirror->{expected}
-                ? ". Assets belong in $mirror->{expected}"
-                : '' )
-                . ( $mirror->{misplaced}
-                ? ' (found outside it: '
-                    . join( ', ', @{ $mirror->{misplaced} } ) . ')'
-                : '' )
-                . '. This domain will render with no stylesheet, and every page '
-                . 'will still return 200.';
-        }
+        # Themes is loaded by the block above - a mirror result only exists
+        # because the require succeeded - so the shared builder is reachable.
+        push @{ $res->{warnings} ||= [] },
+            _mirror_warning(
+            $mirror,
+            'no theme assets were mirrored for this domain: ',
+            'This domain will render with no stylesheet, and every page '
+                . 'will still return 200.'
+            ) unless $mirror->{mirrored};
     }
     return $res;
 }
@@ -934,11 +923,8 @@ sub domain_set {
 sub _effective_presentation {
     my ($host) = @_;
     my ( $base, $ov ) = _parse();
-    my $eff = sub {
-        my ($k) = @_;
-        return defined $ov->{$host}{$k} ? $ov->{$host}{$k} : ( $base->{$k} // '' );
-    };
-    return ( $eff->('layout'), $eff->('theme') );
+    return ( _effective( $base, $ov, $host, 'layout' ),
+        _effective( $base, $ov, $host, 'theme' ) );
 }
 
 # --- public: remove --------------------------------------------------------
@@ -983,7 +969,6 @@ sub domain_remove {
                 && $real ne $droot
                 && index( $real, "$droot/" ) == 0 )
             {
-                require File::Path;
                 eval { File::Path::remove_tree($real); $purged = 1; 1 };
             }
         }

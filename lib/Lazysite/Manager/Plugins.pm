@@ -7,7 +7,7 @@ package Lazysite::Manager::Plugins;
 use strict;
 use warnings;
 use JSON::PP                  qw(encode_json decode_json);
-use File::Basename            qw(basename dirname);
+use File::Basename            qw(dirname);
 use File::Path                qw(make_path);
 use Cwd                       qw(realpath);
 use Digest::SHA               qw(sha256_hex);
@@ -202,7 +202,7 @@ sub action_plugin_list {
 
         local $SIG{ALRM} = sub { die "timeout\n" };
         alarm($budget);
-        my $json = eval { qx($^X \Q$full\E --describe 2>/dev/null) };
+        my $json = eval { _describe_json($full) };
         alarm(0);
         if ( $@ || !$json ) {
             log_event( 'WARN', 'plugin-list',
@@ -239,6 +239,26 @@ sub action_plugin_list {
     return { ok => 1, plugins => \@plugins };
 }
 
+# SM152/ADR 0009: the ONE way this module asks a plugin to describe itself.
+# The path is always a registry value (resolve_plugin_script or the registry
+# scan), never request text. Deliberately UNGATED - a descriptor is metadata,
+# and _run_plugin_hook reads it on the disable path - and deliberately carrying
+# no timeout of its own: action_plugin_list is the caller that budgets the
+# probe, and it wraps this call in its own alarm so an overrun still dies there.
+sub _describe_json {
+    my ($full) = @_;
+    my $out = qx($^X \Q$full\E --describe 2>/dev/null);
+    return $out;
+}
+
+# The decoded descriptor, or undef when the script said nothing or said
+# something that is not JSON. Returns exactly what decode_json returned, so a
+# caller may test it as it always has.
+sub _describe {
+    my ($full) = @_;
+    return eval { decode_json( _describe_json($full) ) };
+}
+
 # SM472: the declared modules this plugin cannot run without, that are absent.
 #
 # Reads the plugin's OWN declaration (ADR 0009 `owns.deps`) rather than a list
@@ -250,10 +270,7 @@ sub _missing_deps {
     my ($script) = @_;
     my $full = resolve_plugin_script($script) or return undef;
 
-    my $json = eval { qx($^X \Q$full\E --describe 2>/dev/null) };
-    my $desc = ( defined $json && length $json )
-        ? eval { decode_json($json) }
-        : undef;
+    my $desc = _describe($full);
     return undef unless ref $desc eq 'HASH' && ref $desc->{owns} eq 'HASH';
 
     my @deps = @{ $desc->{owns}{deps} || [] };
@@ -339,8 +356,7 @@ sub _run_plugin_hook {
     my ( $script, $hook_key ) = @_;
     my $full_script = resolve_plugin_script($script);
     return undef unless $full_script;
-    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
-    my $desc = eval { decode_json($json) };
+    my $desc = _describe($full_script);
     return undef unless $desc && ref $desc eq 'HASH';
 
     # SM409: hooks are deliberately NOT gated. They run only from the toggle
@@ -432,6 +448,39 @@ sub _update_plugins_conf {
     return { ok => 1, action => $op, script => $script };
 }
 
+# The one `key: value` reader this module uses. Comments and blank lines are
+# dropped; every remaining line is split on its first colon. Returns EVERY pair
+# the file carries - which keys are wanted, and whether a key with no value
+# counts, is the caller's question and the two callers answer it differently.
+sub _read_kv_lines {
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
+    my ($path) = @_;
+    my %kv;
+    if ( -f $path and open my $fh, '<:utf8', $path ) {
+        while (<$fh>) {
+            chomp;
+            s/^\s+|\s+$//g;
+            next if /^#/ || !length;
+            my ( $k, $v ) = split /\s*:\s*/, $_, 2;
+            $kv{$k} = $v if defined $k;
+        }
+        close $fh;
+    }
+    return \%kv;
+}
+
+# The whole file, or '' when there is no file to read. A file that exists and is
+# empty reads as undef, exactly as the hand-written slurps it replaces did.
+sub _slurp_or_empty {
+    my ($path) = @_;
+    my $content = '';
+    if ( -f $path and open my $fh, '<:utf8', $path ) {
+        $content = do { local $/; <$fh> };
+        close $fh;
+    }
+    return $content;
+}
+
 sub action_plugin_read {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ( $plugin_id, $script ) = @_;
@@ -439,38 +488,23 @@ sub action_plugin_read {
     my $full_script = resolve_plugin_script($script);
     return { ok => 0, error => 'Plugin not found' } unless $full_script;
 
-    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
-    my $desc = eval { decode_json($json) }
+    my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
 
     my $config_file = $desc->{config_file} // '';
     my %values;
 
     if ($config_file) {
-        my $plugin_conf = "$DOCROOT/$config_file";
-        if ( -f $plugin_conf and open my $fh, '<:utf8', $plugin_conf ) {
-            while (<$fh>) {
-                chomp;
-                s/^\s+|\s+$//g;
-                next if /^#/ || !length;
-                my ( $k, $v ) = split /\s*:\s*/, $_, 2;
-                $values{$k} = $v if defined $k && defined $v;
-            }
-            close $fh;
+        my $kv = _read_kv_lines("$DOCROOT/$config_file");
+        for my $k ( keys %$kv ) {
+            $values{$k} = $kv->{$k} if defined $kv->{$k};
         }
     }
     elsif ( $desc->{config_keys} ) {
-        my %want      = map { $_ => 1 } @{ $desc->{config_keys} };
-        my $conf_path = _lz() . "/lazysite.conf";
-        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
-            while (<$fh>) {
-                chomp;
-                s/^\s+|\s+$//g;
-                next if /^#/ || !length;
-                my ( $k, $v ) = split /\s*:\s*/, $_, 2;
-                $values{$k} = $v if $want{$k};
-            }
-            close $fh;
+        my %want = map { $_ => 1 } @{ $desc->{config_keys} };
+        my $kv   = _read_kv_lines( _lz() . "/lazysite.conf" );
+        for my $k ( keys %$kv ) {
+            $values{$k} = $kv->{$k} if $want{$k};
         }
     }
 
@@ -488,8 +522,7 @@ sub action_plugin_save {
     my $full_script = resolve_plugin_script($script);
     return { ok => 0, error => 'Plugin not found' } unless $full_script;
 
-    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
-    my $desc = eval { decode_json($json) }
+    my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
 
     my %allowed = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
@@ -522,11 +555,7 @@ sub action_plugin_save {
         # config file, while the branch below writes lazysite.conf. They had the
         # same variable name, which reads as one thing written two ways.
         my $plugin_conf = "$DOCROOT/$config_file";
-        my $content     = '';
-        if ( -f $plugin_conf and open my $fh, '<:utf8', $plugin_conf ) {
-            $content = do { local $/; <$fh> };
-            close $fh;
-        }
+        my $content     = _slurp_or_empty($plugin_conf);
 
         $apply->( \$content, $_ ) for keys %safe;
 
@@ -546,11 +575,7 @@ sub action_plugin_save {
     elsif ( $desc->{config_keys} ) {
         my %want      = map { $_ => 1 } @{ $desc->{config_keys} };
         my $conf_path = _lz() . "/lazysite.conf";
-        my $content   = '';
-        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
-            $content = do { local $/; <$fh> };
-            close $fh;
-        }
+        my $content   = _slurp_or_empty($conf_path);
 
         $apply->( \$content, $_ ) for grep { $want{$_} } keys %safe;
 
@@ -576,8 +601,7 @@ sub action_plugin_action {
     my $full_script = resolve_plugin_script($script);
     return { ok => 0, error => 'Plugin not found' } unless $full_script;
 
-    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
-    my $desc = eval { decode_json($json) }
+    my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
 
     # SM409: a contract plugin that is not enabled executes nothing.

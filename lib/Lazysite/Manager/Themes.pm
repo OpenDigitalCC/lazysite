@@ -10,16 +10,16 @@ package Lazysite::Manager::Themes;
 
 use strict;
 use warnings;
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP qw(decode_json);
 use File::Find;
-use File::Path                  qw(make_path remove_tree);
+use File::Path                  qw(make_path);
 use File::Copy                  qw(copy);
-use File::Basename              qw(basename dirname);
+use File::Basename              qw(dirname);
 use Cwd                         qw(realpath);
 use POSIX                       qw(strftime);
 use Digest::SHA                 qw(sha256_hex);
 use Lazysite::Util              qw(log_event);
-use Lazysite::Manager::Common   qw(write_file_checked _write_conf_key);
+use Lazysite::Manager::Common   ();
 use Lazysite::Manager::Files    qw(acquire_lock release_lock);
 use Lazysite::Manager::Artifact qw(_artifact_dir _compute_manifest _artifact_digest);
 use Lazysite::Manager::Domains  ();    # SM177: domains_using (delete-safety scan)
@@ -35,7 +35,7 @@ our @EXPORT_OK = qw(
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
-    _snapshot_artifact _prune_backups _mirror_theme_assets
+    _snapshot_artifact _prune_backups _mirror_theme_assets _mirror_warning
 );
 
 our $DOCROOT;
@@ -61,8 +61,6 @@ sub _write_conf_content {
     local $Lazysite::Manager::Common::auth_user = $auth_user;
     return Lazysite::Manager::Common::write_conf_content( $content, $message );
 }
-
-# === moved from lazysite-manager-api.pl (SM079a) ===
 
 sub _read_active_layout_and_theme {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
@@ -90,6 +88,39 @@ sub _usage {
     return Lazysite::Manager::Domains::domain_usage();
 }
 
+# The same bridge for the delete-safety scan: this module carries its own
+# $DOCROOT (the dispatcher sets it per request), so point Domains at it for the
+# duration of the query. Both the delete and the rename guard ask this.
+sub _domains_using {
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    return Lazysite::Manager::Domains::domains_using(@_);
+}
+
+# SM234: the theme rows under ONE layout's themes/ directory, each carrying the
+# domains that resolve to it. Both listings walk the same directory in the same
+# way and differ only in which layouts they ask about, so the walk is written
+# once; action_themes_list_all adds the `layout` key its rows carry.
+sub _themes_under {
+    my ( $dir, $layout, $use, $active_layout, $active_theme ) = @_;
+    my @out;
+    opendir my $dh, $dir or return @out;
+    for my $name ( sort readdir $dh ) {
+        next if $name =~ /^\./;
+        next unless -d "$dir/$name";
+        my $by = $use->{themes}{"$layout\0$name"} || [];
+        push @out, {
+            name   => $name,
+            active => ( $layout eq $active_layout && $name eq $active_theme )
+            ? 1 : 0,
+            valid   => -f "$dir/$name/theme.json" ? 1 : 0,
+            used_by => $by,           # SM234: domains that resolve to it
+            in_use  => scalar @$by,
+        };
+    }
+    closedir $dh;
+    return @out;
+}
+
 sub action_theme_list {
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
     my $use = _usage();
@@ -97,22 +128,9 @@ sub action_theme_list {
     my @themes;
     if ( length $active_layout ) {
         my $themes_dir = _lz() . "/layouts/$active_layout/themes";
-        if ( -d $themes_dir ) {
-            opendir( my $dh, $themes_dir );
-            for my $name ( sort readdir $dh ) {
-                next if $name =~ /^\./;
-                next unless -d "$themes_dir/$name";
-                my $by = $use->{themes}{"$active_layout\0$name"} || [];
-                push @themes, {
-                    name    => $name,
-                    active  => $name eq $active_theme            ? 1 : 0,
-                    valid   => -f "$themes_dir/$name/theme.json" ? 1 : 0,
-                    used_by => $by,           # SM234: domains that resolve to it
-                    in_use  => scalar @$by,
-                };
-            }
-            closedir $dh;
-        }
+        @themes = _themes_under( $themes_dir, $active_layout, $use,
+            $active_layout, $active_theme )
+            if -d $themes_dir;
     }
 
     return {
@@ -140,25 +158,9 @@ sub action_themes_list_all {
             my $themes_path = "$layouts_dir/$layout_name/themes";
             next unless -d $themes_path;
 
-            opendir my $th, $themes_path or next;
-            for my $name ( sort readdir $th ) {
-                next if $name =~ /^\./;
-                next unless -d "$themes_path/$name";
-
-                my $valid  = -f "$themes_path/$name/theme.json" ? 1 : 0;
-                my $active = ( $layout_name eq $active_layout
-                        && $name eq $active_theme ) ? 1 : 0;
-                my $by = $use->{themes}{"$layout_name\0$name"} || [];
-                push @themes, {
-                    layout  => $layout_name,
-                    name    => $name,
-                    active  => $active,
-                    valid   => $valid,
-                    used_by => $by,            # SM234
-                    in_use  => scalar @$by,
-                };
-            }
-            closedir $th;
+            push @themes, map { { layout => $layout_name, %$_ } }
+                _themes_under( $themes_path, $layout_name, $use,
+                $active_layout, $active_theme );
         }
         closedir $ld;
     }
@@ -567,20 +569,11 @@ sub action_theme_activate {
         # indistinguishable from a working one: every page returns 200.
         if ( ref $mirror eq 'HASH' ) {
             $res->{assets_mirrored} = $mirror->{mirrored};
-            if ( !$mirror->{mirrored} ) {
-                push @{ $res->{warnings} ||= [] },
-                    'no theme assets were mirrored: '
-                    . ( $mirror->{reason} // 'unknown' )
-                    . ( $mirror->{expected}
-                    ? ". Assets belong in $mirror->{expected}"
-                    : '' )
-                    . ( $mirror->{misplaced}
-                    ? ' (found outside it: '
-                        . join( ', ', @{ $mirror->{misplaced} } ) . ')'
-                    : '' )
-                    . '. The site will render with no stylesheet, and every '
-                    . 'page will still return 200.';
-            }
+            push @{ $res->{warnings} ||= [] },
+                _mirror_warning( $mirror, 'no theme assets were mirrored: ',
+                'The site will render with no stylesheet, and every '
+                    . 'page will still return 200.' )
+                unless $mirror->{mirrored};
         }
         return $res;
     };
@@ -894,6 +887,25 @@ sub _write_theme_tokens {
     return scalar @lines;
 }
 
+# SM315/SM322: the sentence a caller gets when a theme published no assets.
+# Both the site-wide activate and the per-domain bind report it, in the same
+# words bar the subject they are talking about: $lead opens it, $tail says what
+# the consequence is. The middle - the reason, where the assets should have
+# been, and any found outside it - is the mirror's own answer and is identical
+# on both paths.
+sub _mirror_warning {
+    my ( $mirror, $lead, $tail ) = @_;
+    return
+        $lead
+        . ( $mirror->{reason} // 'unknown' )
+        . ( $mirror->{expected} ? ". Assets belong in $mirror->{expected}" : '' )
+        . ( $mirror->{misplaced}
+        ? ' (found outside it: ' . join( ', ', @{ $mirror->{misplaced} } ) . ')'
+        : '' )
+        . '. '
+        . $tail;
+}
+
 sub _mirror_theme_assets {
     my ( $layout, $theme ) = @_;
     return { mirrored => 0, reason => 'no layout or theme named' }
@@ -994,12 +1006,21 @@ sub _backup_base {
     return $base;
 }
 
-sub _latest_backup_dir {
+# Every snapshot of $base under $parent, oldest first: the timestamps sort
+# lexically, so the last is the newest. The scan is written once - the "which is
+# the latest" and "which are past retention" questions are the same readdir.
+sub _backup_dirs {
     my ( $parent, $base ) = @_;
-    opendir my $dh, $parent or return undef;
+    opendir my $dh, $parent or return ();
     my @b = sort grep { /^\Q$base\E-backup-/ && -d "$parent/$_" } readdir $dh;
     closedir $dh;
-    return @b ? "$parent/$b[-1]" : undef;    # timestamps sort lexically; last = newest
+    return @b;
+}
+
+sub _latest_backup_dir {
+    my ( $parent, $base ) = @_;
+    my @b = _backup_dirs( $parent, $base );
+    return @b ? "$parent/$b[-1]" : undef;
 }
 
 # SM176: a per-theme "pristine" baseline - the artifact digest captured at
@@ -1057,10 +1078,7 @@ sub _prune_backups {
     my ( $parent, $name ) = @_;
     my $keep = _backup_retention();
     return if $keep <= 0;    # 0 (or negative) = keep all
-    my $base = _backup_base($name);
-    opendir my $dh, $parent or return;
-    my @backups = sort grep { /^\Q$base\E-backup-/ && -d "$parent/$_" } readdir $dh;
-    closedir $dh;
+    my @backups = _backup_dirs( $parent, _backup_base($name) );
     while ( @backups > $keep ) {
         my $old = shift @backups;
         system( 'rm', '-rf', "$parent/$old" );
@@ -1082,14 +1100,9 @@ sub _backup_retention {
 # declares it, else '' (the layout renders with no theme override).
 sub _default_theme_for_layout {
     my ($layout) = @_;
-    my $ldir = "$LAZYSITE_DIR/layouts/$layout";
-    if ( open my $jf, '<:utf8', "$ldir/layout.json" ) {
-        my $raw = do { local $/; <$jf> };
-        close $jf;
-        my $meta = eval { decode_json($raw) };
-        my $dt   = ( ref $meta eq 'HASH' ) ? ( $meta->{default_theme} // '' ) : '';
-        return $dt if length $dt && _theme_declares_layout( $layout, $dt );
-    }
+    my $ldir     = "$LAZYSITE_DIR/layouts/$layout";
+    my $dt       = _read_layout_json($layout)->{default_theme} // '';
+    return $dt if length $dt && _theme_declares_layout( $layout, $dt );
     if ( opendir my $dh, "$ldir/themes" ) {
         for my $name ( sort readdir $dh ) {
             next if $name =~ /^\./ || $name =~ /-backup-\d/;
@@ -1288,9 +1301,7 @@ sub action_theme_delete {
     # break that domain. Block and name them, just as the active-theme guard does
     # for the primary. domains_using resolves effective per-host values, so an
     # alias that inherits the active layout but pins this theme is caught.
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my @in_use = Lazysite::Manager::Domains::domains_using(
-        theme => $theme_name, layout => $active_layout );
+    my @in_use = _domains_using( theme => $theme_name, layout => $active_layout );
     if (@in_use) {
         return { ok => 0,
             error => "Theme '$theme_name' is in use by "
@@ -1390,9 +1401,7 @@ sub action_theme_rename {
     return { ok => 0, error => "No active layout set" }
         unless length $active_layout;
 
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my @in_use = Lazysite::Manager::Domains::domains_using(
-        theme => $old_name, layout => $active_layout );
+    my @in_use = _domains_using( theme => $old_name, layout => $active_layout );
     if (@in_use) {
         return { ok => 0,
             error => "Theme '$old_name' is in use by "
@@ -1619,17 +1628,6 @@ sub _cleanup_tmp {
     my ($dir) = @_;
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-theme-\d+$};
 }
-
-
-
-
-
-
-
-
-
-
-
 
 # The content root a host serves (its alias.<host>.content_root override, else
 # the base content_root, else the docroot) - used to check whether a host cache
@@ -1876,11 +1874,6 @@ sub action_cache_invalidate {
     # true and useful answer rather than a silent one.
     return { ok => 1, path => $rel_path, cleared => $cleared };
 }
-
-
-
-
-
 
 sub action_artifact_manifest {
     my ($p) = @_;
