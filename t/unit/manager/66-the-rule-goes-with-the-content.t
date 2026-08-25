@@ -31,6 +31,7 @@ use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files  ();
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl       ();
+use Lazysite::Private         ();
 
 sub fixture {
     my $d = tempdir( CLEANUP => 1 );
@@ -87,6 +88,67 @@ subtest 'the shared helpers do what their names say' => sub {
     ok( !exists $after->{'old/x.md'}, 'the old key is gone' );
     is_deeply( $after->{'new/x.md'}{read}, ['members'],
         'and the rule arrived intact at the new key' );
+};
+
+subtest 'a manager move of a folder carries every rule beneath it' => sub {
+    # SM518 (path-core review NR-6). action_move re-keyed the EXACT source
+    # key only, so a per-file rule under a renamed folder stayed at the old
+    # path: docs/team/a.md under read:[alice] became archive/team/a.md with
+    # no rule and no report. DAV had used Acl::rekey_path since CF-2; this
+    # was the copy it missed.
+    #
+    # The rule is set through action_acl_set so the bytes sit where SM286
+    # puts them - in the private store - and the move has to carry BOTH
+    # halves: the rule to the new key and the governed copy to the new
+    # path, with nothing left public.
+    my $base = tempdir( CLEANUP => 1 );
+    my $d    = "$base/public_html";
+    make_path( "$d/lazysite/auth", "$d/lazysite/manager/locks",
+        "$d/lazysite/cache", "$d/docs/team" );
+    $Lazysite::Manager::Files::DOCROOT  = $d;
+    $Lazysite::Manager::Common::DOCROOT = $d;
+    $Lazysite::Manager::Files::LOCK_DIR = "$d/lazysite/manager/locks";
+    $Lazysite::Auth::Acl::DOCROOT       = $d;
+    $Lazysite::Auth::Acl::LAZYSITE_DIR  = "$d/lazysite";
+    local $Lazysite::Auth::Acl::auth_user = 'local';
+
+    spit( "$d/docs/team/a.md", "SECRETBYTES\n" );
+    spit( "$d/docs/open.md",   "public\n" );
+    my $set = Lazysite::Manager::Files::action_acl_set( 'docs/team/a.md',
+        'op', ['alice'], undef, undef, undef );
+    ok( $set->{ok}, 'rule set on the file' ) or diag explain $set;
+    my $priv_old = Lazysite::Private::private_path( $d, 'docs/team/a.md' );
+    ok( -f $priv_old && !-f "$d/docs/team/a.md",
+        'precondition: the gated bytes live in the private store' );
+
+    my $r = Lazysite::Manager::Files::action_move( 'docs', 'archive', 'op' );
+    ok( $r->{ok}, 'moved docs -> archive' ) or diag explain $r;
+
+    my $after = store($d);
+    ok( exists $after->{'archive/team/a.md'}, 'the descendant key moved' )
+        or diag( 'keys: ' . join ', ', sort keys %$after );
+    is_deeply( $after->{'archive/team/a.md'}{read}, ['alice'],
+        'and the rule arrived intact at the new key' );
+    ok( !exists $after->{'docs/team/a.md'}, 'and is gone from the old one' )
+        or diag( 'keys: ' . join ', ', sort keys %$after );
+
+    {
+        # A site with no manager group treats any authenticated user as an
+        # operator (dev shape); a TOKEN never is, so ask as one.
+        local $Lazysite::Auth::Acl::auth_user  = 'visitor';
+        local $Lazysite::Auth::Acl::token_auth = 1;
+        my $deny = Lazysite::Auth::Acl::_acl_denied( 'archive/team/a.md',
+            'read', 'visitor' );
+        ok( $deny && !$deny->{ok},
+            'a visitor read of the new path is still refused' );
+    }
+
+    my $priv_new = Lazysite::Private::private_path( $d, 'archive/team/a.md' );
+    ok( -f $priv_new, 'the governed copy followed to the store under the new key' )
+        or diag("expected $priv_new");
+    ok( !-e "$d/archive/team/a.md", 'and no public copy exists at the new path' );
+    ok( !-e $priv_old,              'nor an orphan in the store at the old key' );
+    ok( -f "$d/archive/open.md",    'an ungated sibling moved publicly, as before' );
 };
 
 subtest 'THE MANAGER DELETE now drops the rule (it never did)' => sub {

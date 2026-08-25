@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM518 resolved (PENDING) **the rules move with the folder.** A directory
+  move through the manager (and so MCP move_file) re-keyed only the exact
+  source ACL key, so every per-file rule beneath a renamed folder stayed
+  at the old path: gated content silently public after a rename, ok:1,
+  nothing reported. Found by the path-core review (NR-6), proven by probe.
+  action_move now re-keys through Acl::rekey_path (the definition DAV
+  already used) and runs the SM286 store sync for every re-keyed key; a
+  folder present in both trees is renamed in each tree rather than having
+  its store half dragged into the public destination. t/unit/manager/66
+  pins the rule at the new key, a visitor refused, and no public copy.
+
 - SM517 resolved (PENDING) **downloads honour the carve-out.** SM268 H4
   gates nav.conf (manage_nav) and the submission store (read_submissions)
   on every file verb in %file_surface; file-download and file-zip-download

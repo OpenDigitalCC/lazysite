@@ -858,10 +858,9 @@ sub action_mkdir {
 
 # SM077: rename / move a file or directory. Validates + deny-checks both ends,
 # refuses an existing target or a live foreign lock on the source, enforces the
-# per-file ACL (write on the source), then moves the file, its .brief sidecar
-# and any generated .html cache, and re-keys the source's ACL entry to the new
-# path. (A moved directory's own ACL entry is re-keyed; descendant entries are
-# not - rare, noted.)
+# per-file ACL (write on the source), then moves the file and any generated
+# .html cache, and re-keys the source's ACL entry AND every entry beneath it
+# to the new path (SM518), re-syncing the private store for each.
 sub action_move {
     my ( $src_rel, $dst_rel, $username ) = @_;
     my $s = validate_path($src_rel);
@@ -894,8 +893,54 @@ sub action_move {
 
     my $dst_dir = dirname($dst_full);
     make_path($dst_dir) unless -d $dst_dir;
-    rename( $src_full, $dst_full )
-        or return { ok => 0, error => "Move failed: $!" };
+
+    # SM518: A FOLDER THAT SPANS BOTH TREES MOVES IN BOTH TREES.
+    #
+    # A public folder holding one gated file exists in the docroot AND in the
+    # private store (SM286 moved the file, and its parent directories came
+    # with it). validate_path resolves such a folder to the store half -
+    # private wins, the fail-safe direction for a READ - so the single
+    # rename below carried the gated half into the public destination and
+    # left the public half at the old path: the protected pages exposed, the
+    # ordinary ones stranded, ok:1 either way. Each half is renamed within
+    # its own tree, so no byte changes tree here; the store sync further
+    # down is the one sanctioned mover and settles each rule's placement.
+    # A mixed folder bound for a destination INSIDE a gated folder would need
+    # the two halves merged into one, and is refused rather than half-done.
+    my $priv_src = Lazysite::Private::private_path( $DOCROOT, $s->{rel} );
+    my $pub_src  = $s->{public_full};
+    my $split    = ( -d $src_full
+            && defined $priv_src
+            && -d $priv_src
+            && defined $pub_src
+            && -d $pub_src ) ? 1 : 0;
+    if ($split) {
+        return { ok => 0,
+            error => 'Source folder holds both public and protected content '
+                . 'and the target is inside a protected folder; move the '
+                . 'protected entries separately first' }
+            if ( $d->{store} // '' ) eq 'private';
+        my $priv_dst = Lazysite::Private::private_path( $DOCROOT, $d->{rel} );
+        return { ok => 0, error => "Target already exists" }
+            if !defined $priv_dst || -e $priv_dst;
+        my $priv_dir = dirname($priv_dst);
+        eval { make_path($priv_dir) unless -d $priv_dir };    # croaks (SM296)
+        return { ok => 0,
+            error => 'Move failed: cannot create the private store folder '
+                . 'for the target' }
+            unless -d $priv_dir;
+        rename( $priv_src, $priv_dst )
+            or return { ok => 0, error => "Move failed: $!" };
+        unless ( rename( $pub_src, $dst_full ) ) {
+            my $err = $!;
+            rename( $priv_dst, $priv_src );    # put the store half back
+            return { ok => 0, error => "Move failed: $err" };
+        }
+    }
+    else {
+        rename( $src_full, $dst_full )
+            or return { ok => 0, error => "Move failed: $!" };
+    }
 
     # Move any generated .html cache alongside.
     if ( $src_full =~ /\.md$/ ) {
@@ -909,13 +954,21 @@ sub action_move {
         unlink_host_copies( $DOCROOT, $dst_cache );
     }
 
-    # Re-key the ACL entry to the new path.
-    my $acls = load_acls();
+    # Re-key the ACL entries to the new path.
+    #
+    # SM518: the key AND EVERY KEY BENEATH IT. This re-keyed the exact source
+    # key only, so a folder rename left each per-file rule under it at the
+    # old path - docs/team/a.md under read:[alice] became archive/team/a.md
+    # with no rule and no report. Acl::rekey_path is the one definition (CF-2)
+    # and DAV already used it; this was the copy it missed. The old keys are
+    # listed BEFORE the re-key so each new key can be synced below; the same
+    # prefix test as rekey_path, so docs-archive is not a child of docs.
     my ( $sk, $dk ) = ( _acl_norm( $s->{rel} ), _acl_norm( $d->{rel} ) );
     my @store_warnings;
-    if ( exists $acls->{$sk} ) {
-        $acls->{$dk} = delete $acls->{$sk};
-        save_acls($acls);
+    my @old_keys = grep { $_ eq $sk || index( $_, "$sk/" ) == 0 }
+        sort keys %{ load_acls() };
+    if ( @old_keys && Lazysite::Auth::Acl::rekey_path( $sk, $dk ) ) {
+        my $acls = load_acls();
 
         # SM286: the ACL follows the path, so the CONTENT has to follow the ACL.
         #
@@ -926,10 +979,15 @@ sub action_move {
         # ignored by any front end serving the file directly: SM283 exactly,
         # reintroduced by a rename.
         #
-        # Re-syncing against the NEW key settles it in one place, whichever
+        # Re-syncing against each NEW key settles it in one place, whichever
         # direction the move went, and covers un-protecting by moving out of a
-        # gated folder just as well.
-        push @store_warnings, _sync_private_store( $dk, $acls->{$dk} );
+        # gated folder just as well. Parent before child (sorted), so a folder
+        # rule moves the folder and a file rule inside it then finds its
+        # bytes already where they belong.
+        for my $old (@old_keys) {
+            my $new = $old eq $sk ? $dk : $dk . substr( $old, length $sk );
+            push @store_warnings, _sync_private_store( $new, $acls->{$new} );
+        }
     }
 
     # SM134 follow-ups: the page's canonical URL changed - re-key its
