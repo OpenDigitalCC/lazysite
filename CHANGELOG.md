@@ -437,6 +437,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM543 resolved (PENDING) **a recount uses the loaded ruleset.**
+  `--recount --apply` was dispatched before the SM391 ruleset load and
+  re-entered the export in-process, so the repair tool reclassified
+  history under the built-in rules the operator had replaced with
+  classifiers.json - and reported `changed=1` for the damage. The recount
+  dispatch now compiles the ruleset first. t/unit/plugins/31 recounts a
+  day classified under a loaded rule and reads the same version and
+  verdicts back.
+
 - SM542 resolved (PENDING) **the page refresh keeps form outcomes.** A
   closed day first reached by the manager Stats page's refresh (`--scan`)
   was persisted and finalised with `forms:{}` - only the export path

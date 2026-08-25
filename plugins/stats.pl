@@ -636,6 +636,11 @@ if ( $arg{resolve_log} ) {
 # what the marker is for. A partial repair that says where it stops is worth
 # more than one that quietly does less than it claims.
 if ( $arg{recount} ) {
+    # SM543: the recount re-enters export_stats in-process, so the SM391
+    # ruleset load must happen first here too - or a repair run reclassifies
+    # history under the built-ins the operator replaced, and counts its own
+    # misclassification as a change.
+    _compile_rules();
     print encode_json( cmd_recount( $arg{apply} ? 1 : 0 ) );
     exit 0;
 }
