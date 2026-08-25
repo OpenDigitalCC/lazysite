@@ -324,6 +324,16 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM560 resolved (PENDING) **an abort says what became of the stage,
+  truthfully.** release.sh printed "staging dir retained: PATH" on eleven
+  abort paths while the SM328 EXIT trap removed it unless `--keep-stage` was
+  given. The trap stays; every abort now reports through one
+  `stage_disposition` helper that says "retained" only under `--keep-stage`
+  and otherwise "removed (re-run with --keep-stage to inspect)". The header
+  and the SM444 comment agree. NEW
+  t/tools/61-an-abort-keeps-what-it-says-it-kept.t: the printed path
+  exists, or the line says it was removed and how to keep it.
+
 - SM552 resolved (PENDING) **the coverage verdict is reachable under set -e.**
   A non-zero coverage.sh exited release.sh on the line that ran it, before
   `COV_STATUS` was read, so neither "below the declared floor" nor "FAILED

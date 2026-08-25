@@ -54,9 +54,10 @@
 #   - Tag vVERSION does not already exist on origin.
 #   - dist/config/sbom-deps.json exists in the target commit.
 #
-# On abort: the staging dir is retained and its path printed so the
-# operator can inspect what failed. Clean up with
-#   rm -rf /tmp/lazysite-release-$$  (PID is in the printed path).
+# On abort: the staging dir is REMOVED by the EXIT trap (SM328) and the
+# abort message says so. Pass --keep-stage to retain it for inspection;
+# the printed path is then real (SM560). Clean up a kept stage with
+#   rm -rf $STAGE_BASE/lazysite-release-$$  (PID is in the printed path).
 set -e
 
 ORIGIN=/srv/projects/lazysite
@@ -342,6 +343,18 @@ STAGE="$STAGE_BASE/lazysite-release-$$"
 cleanup_stage() { [ "$KEEP_STAGE" = 1 ] || rm -rf "$STAGE"; }
 trap cleanup_stage EXIT
 
+# SM560: every abort names what became of the stage - and it must be TRUE.
+# Eleven abort paths printed "staging dir retained" while the trap above
+# removed it, so the first diagnostic step after any gate failure was a dead
+# end. The trap stays (SM328); the sentence now matches it.
+stage_disposition() {
+    if [ "$KEEP_STAGE" = 1 ]; then
+        echo "release.sh: staging dir retained: $STAGE" >&2
+    else
+        echo "release.sh: staging dir removed (re-run with --keep-stage to inspect): $STAGE" >&2
+    fi
+}
+
 # Refuse EARLY if the staging filesystem cannot hold a gate run. Inodes as well
 # as bytes: bytes were never what ran out, and checking only those would repeat
 # the failure this guards against.
@@ -434,7 +447,7 @@ printf '%s\n' "$STAGE_NEXT" > "$STAGE/NEXT_VERSION"
 
 if [ ! -f "$STAGE/dist/config/sbom-deps.json" ]; then
     echo "release.sh: dist/config/sbom-deps.json missing at $TARGET_SHA" >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
@@ -445,7 +458,7 @@ fi
 for tool in perlcritic perltidy shellcheck; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "release.sh: gate tool '$tool' is not installed on this host; not releasing." >&2
-        echo "release.sh: staging dir retained: $STAGE" >&2
+        stage_disposition
         exit 1
     fi
 done
@@ -467,7 +480,7 @@ done
 echo "==> lazysite-compliance.pl --check (channel: $CHANNEL)"
 if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; then
     echo "release.sh: compliance records are not current for this cut; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
@@ -505,7 +518,7 @@ GATE_OUT="$STAGE/.gate-output.txt"
 echo "==> Running full test suite"
 if ! ( cd "$STAGE" && set -o pipefail && prove -lr t/ 2>&1 | tee "$GATE_OUT" ); then
     echo "release.sh: test suite failed; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
@@ -515,7 +528,7 @@ GATE_TESTS=$(sed -n 's/^Files=[0-9]*, Tests=\([0-9]*\),.*/\1/p' "$GATE_OUT" | ta
 if [ -z "$GATE_FILES" ] || [ -z "$GATE_TESTS" ]; then
     echo "release.sh: could not read the gate summary from prove output." >&2
     echo "release.sh: refusing to record a release as validated without it." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
@@ -527,7 +540,7 @@ echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
 echo "==> bench.pl --check"
 if ! perl "$STAGE/tools/bench.pl" --check; then
     echo "release.sh: benchmark regression; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
@@ -567,8 +580,9 @@ echo "==> coverage.sh --check (instrumented run; ~10-15 minutes)"
 # by the very message this commit added ("manifest build failed", naming the
 # file, rather than a sentence about coverage).
 #
-# A sibling keeps it findable - the staging dir is retained and its path
-# printed on failure - without putting it in the payload.
+# A sibling keeps it findable - beside the stage, which the EXIT trap removes
+# on failure unless --keep-stage was given (SM560) - without putting it in
+# the payload.
 COV_LOG="${STAGE}-coverage-check.txt"
 
 # THE SUITE LOG HAS TO OUTLIVE THE STAGE. coverage.sh writes the instrumented
@@ -596,7 +610,7 @@ if [ "$COV_STATUS" -ne 0 ]; then
         echo "release.sh: last lines of $COV_LOG:" >&2
         tail -15 "$COV_LOG" >&2
     fi
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     echo "release.sh: coverage output kept at: $COV_LOG" >&2
     exit 1
 fi
@@ -616,7 +630,7 @@ if ! perl "$STAGE/tools/build-manifest.pl" \
         --gate-files  "$GATE_FILES" \
         --gate-tests  "$GATE_TESTS" ; then
     echo "release.sh: manifest build failed; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
@@ -630,7 +644,7 @@ if ! perl "$STAGE/tools/manifest-to-sbom.pl" --strict \
         --version  "$VERSION" \
         --staged   "$STAGE" ; then
     echo "release.sh: SBOM strictness check failed; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
@@ -639,7 +653,7 @@ fi
 echo "==> Generating man pages"
 if ! perl "$STAGE/tools/gen-manpages.pl" "$STAGE/man/man1"; then
     echo "release.sh: man-page generation failed; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 MAN_ADD=()
@@ -652,7 +666,7 @@ done
 MAN_ADD+=("--prefix=lazysite-$VERSION/")
 if [ "${#MAN_ADD[@]}" -eq 0 ]; then
     echo "release.sh: gen-manpages.pl produced no pages; not releasing." >&2
-    echo "release.sh: staging dir retained: $STAGE" >&2
+    stage_disposition
     exit 1
 fi
 
