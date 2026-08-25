@@ -371,25 +371,6 @@ sub is_blocked_path {
     return 0;
 }
 
-# SM268 H4: the carve-outs above are reachable by PATH on the generic file
-# surface, and each of them is governed by a CAPABILITY on every other plane.
-# nav.conf needs manage_nav for nav-read/nav-save and over WebDAV; the
-# submission store needs read_submissions (or manage_forms) for
-# form-submissions and read_form_submissions, and WebDAV refuses it outright.
-# read_file/write_file asked only "is this path blocked", so a partner holding
-# manage_content alone could read every submission - names, email addresses,
-# message bodies - and rewrite the site navigation, defeating the three
-# capabilities that exist to say otherwise. The blocklist cannot decide this
-# itself: it takes a path and no caller identity, and the manager UI and its
-# agents legitimately reach both paths when they hold the capability.
-#
-# So the requirement is stated ONCE here, and the two dispatchers that expose
-# the file surface by path (the control API and MCP) apply it against the
-# caller's resolved capabilities, alongside the scope and blocklist gates they
-# already run. An empty `caps` list means "no capability reaches this" - the
-# submission store is written by the form handler, never by hand.
-#
-# Returns { caps => [...], mode, why } or undef if the path is not governed.
 # SM422: is this path inside ANY configured submission store?
 #
 # The default store, plus each file-handler `path` - the same set the control
@@ -422,6 +403,25 @@ sub _is_submission_store_path {
     return 0;
 }
 
+# SM268 H4: the carve-outs above are reachable by PATH on the generic file
+# surface, and each of them is governed by a CAPABILITY on every other plane.
+# nav.conf needs manage_nav for nav-read/nav-save and over WebDAV; the
+# submission store needs read_submissions (or manage_forms) for
+# form-submissions and read_form_submissions, and WebDAV refuses it outright.
+# read_file/write_file asked only "is this path blocked", so a partner holding
+# manage_content alone could read every submission - names, email addresses,
+# message bodies - and rewrite the site navigation, defeating the three
+# capabilities that exist to say otherwise. The blocklist cannot decide this
+# itself: it takes a path and no caller identity, and the manager UI and its
+# agents legitimately reach both paths when they hold the capability.
+#
+# So the requirement is stated ONCE here, and the two dispatchers that expose
+# the file surface by path (the control API and MCP) apply it against the
+# caller's resolved capabilities, alongside the scope and blocklist gates they
+# already run. An empty `caps` list means "no capability reaches this" - the
+# submission store is written by the form handler, never by hand.
+#
+# Returns { caps => [...], mode, why } or undef if the path is not governed.
 sub carveout_requirement {
     my ( $rel, $mode ) = @_;
     return undef unless defined $rel && length $rel;
@@ -611,8 +611,9 @@ sub load_upload_limits {
     # memoises, so ONLY THE FIRST call corrupts: the first element of the
     # first such grep in a process comes out empty and every later one is
     # fine, which reads like anything except what it is. Found when the SM419
-    # summary filter dropped its first path.
-    local $_;
+    # summary filter dropped its first path. The localisation itself is the
+    # one at the top of this sub (SM420); a second in the same scope only
+    # re-saves a value already saved.
     while (<$fh>) {
         if (/^manager_upload_max_mb\s*:\s*(\S+)/) {
             my $mb = $1;

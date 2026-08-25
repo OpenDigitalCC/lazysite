@@ -1,19 +1,21 @@
 package Lazysite::Manager::Files;
 
-# SM079: manager file CRUD (list / read / save / delete / mkdir), the edit-lock
-# store, and the per-file ACL actions. Context ($DOCROOT, $LOCK_DIR,
-# $LOCK_TIMEOUT, $auth_user, $action) is set by the dispatcher.
+# SM079: the manager's path surface. File CRUD (list / read / save /
+# save-binary / delete / mkdir / move / copy / migrate-to-local), the
+# registry and render-cache invalidators, the read-only aliases card, the
+# edit-lock store, the per-file ACL actions (get / set / remove and the
+# protected-sections panel) and the SM085 content-history reads. Context
+# ($DOCROOT, $LOCK_DIR, $LOCK_TIMEOUT, $auth_user, $action) is set by the
+# dispatcher.
 
 use strict;
 use warnings;
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP qw(decode_json);
 use File::Find;
 use File::Path      qw(make_path);
 use File::Copy      qw(copy);
 use File::Basename  qw(dirname);
 use Cwd             qw(realpath);
-use Fcntl           qw(:flock);
-use POSIX           qw(strftime);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
@@ -106,6 +108,11 @@ sub _governing_acl_key {
     }
     return $acls->{'/'} ? '/' : undef;
 }
+
+# --- File CRUD ----------------------------------------------------------------
+# list / read / save / save-binary / delete / mkdir / move / copy /
+# migrate-to-local. Every one of them opens on validate_path and the two
+# blocklists before it touches the filesystem.
 
 sub action_list {
     my ($dir_path) = @_;
@@ -582,207 +589,6 @@ sub action_save {
         ( $nav_change ? ( cache_rebuilt => 'all-pages' ) : () ) };
 }
 
-# SM087: a content create/delete/move changes the page set (or a page's lastmod),
-# so the generated registries (sitemap.xml, llms.txt, feed.*) are now stale.
-# Removing the generated outputs makes the processor regenerate them fresh on the
-# next request (update_registries rebuilds a missing output) - the cross-process
-# refresh that fixes "deleted page still in sitemap/llms".
-#
-# SM251: and it must clear them for EVERY content root, not just the docroot.
-# update_registries (SM110/SM151) writes a domain's registries INTO that domain's
-# content root - that is the whole point of per-domain registries - while this
-# only ever unlinked "$DOCROOT/$out". So on a multi-domain instance the
-# invalidation missed the file it was aiming at: deleting a page under a domain's
-# content root left THAT domain's sitemap and llms.txt untouched, and the entry
-# survived until the TTL expired. The reported symptom ("a deleted page stays in
-# the sitemap") was read as slow convergence; it was the refresh aiming at the
-# wrong file.
-#
-# Over-invalidating is the safe direction here: a registry that is regenerated
-# unnecessarily costs one rebuild on the next request, whereas one that is missed
-# serves a page that no longer exists.
-sub _registry_roots {
-    my %seen  = ( $DOCROOT => 1 );
-    my @roots = ($DOCROOT);
-
-    # Reuse the domain parser rather than re-reading the conf here - SM255's
-    # lesson about one file with several readers applies to parsing too.
-    require Lazysite::Manager::Domains;
-    no warnings 'once';
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my $r = eval { Lazysite::Manager::Domains::domains_list() };
-    return @roots unless ref $r eq 'HASH' && $r->{ok};
-
-    for my $d ( @{ $r->{domains} || [] } ) {
-        my $cr = $d->{content_root} // '';
-        next unless length $cr;
-        $cr =~ s{^/+|/+$}{}g;
-        next if !length $cr || $cr =~ m{(?:^|/)\.\.(?:/|$)};
-        my $full = "$DOCROOT/$cr";
-        next if $seen{$full}++;
-        push @roots, $full if -d $full;
-    }
-    return @roots;
-}
-
-# SM264: the public entry points. The invalidator and its root list are called
-# from outside this module now (the regenerate_registries MCP tool), and reaching
-# into a private sub from another file is exactly the coupling the leading
-# underscore is there to discourage.
-sub invalidate_registries { return _invalidate_registries() }
-
-# SM301: the control-API twin of MCP's regenerate_registries (SM264). One
-# implementation for both channels, so the two cannot answer differently - the
-# thing t/lint/23 exists to prevent.
-#
-# Clears every content root, not just the docroot's (SM251), so a multi-domain
-# instance is handled in one call.
-sub action_regenerate_registries {
-    my $docroot = $DOCROOT;
-    my @roots   = _registry_roots();
-    my ( $shadowed, $cleared ) = _invalidate_registries();
-    my @shadowed = @{$shadowed};
-    my @rel      = map {
-        my $r = $_;
-        $r =~ s{^\Q$docroot\E/*}{};
-        length $r ? "/$r" : '/';
-    } @roots;
-    return {
-        ok            => 1,
-        cleared_roots => \@rel,
-        # SM442: what was actually unlinked, alongside the roots considered.
-        # cleared_roots alone could not tell four files from none.
-        cleared_files => $cleared,
-        cleared_count => scalar @{$cleared},
-        # SM433: a file sitting at the old in-docroot location WINS over the
-        # generated one, so clearing the cache changes nothing a visitor sees.
-        # Say which files, because "I regenerated and nothing changed" is
-        # exactly the report this used to produce and could not explain.
-        ( @shadowed ? ( shadowed_by_files => \@shadowed ) : () ),
-        note => (
-            @shadowed
-            ? 'The registries are cleared, BUT the file(s) in shadowed_by_files '
-                . 'sit in the document root and are served in preference to the '
-                . 'generated ones - so regenerating will not change what a '
-                . 'visitor sees until they are removed or renamed. They are not '
-                . 'deleted here: an operator may have written them deliberately.'
-            : 'The registries are cleared and rebuild on the next '
-                . 'request for one. Fetch /sitemap.xml (or the registry you care '
-                . 'about) to force it, then verify.'
-        ),
-    };
-}
-sub registry_roots { return _registry_roots() }
-
-# SM433: CLEAR WHAT THE SERVER ACTUALLY READS.
-#
-# SM293 step 3 moved the generated registries OUT of the document root and into
-# lazysite/cache/registries/<root-key>/<name>, served on request. This
-# invalidator was not moved with them: it went on deleting $root/<name>, the
-# pre-SM293 location, so `regenerate-registries` reported cleared_roots and
-# cleared nothing the server reads. The artefact then stayed stale for the full
-# four-hour TTL while the control said it had done its job - the
-# reports-success-does-nothing shape, in the one control an operator reaches
-# for when a registry looks wrong. Measured in the field: two regenerate calls,
-# both reporting success, the served sitemap unchanged.
-#
-# AND THE OLD BEHAVIOUR WAS DESTRUCTIVE. Since SM293, _serve_registry returns
-# early when $root/<name> exists, because "an operator who wrote their OWN
-# sitemap.xml as content keeps it". So the path this used to delete is now a
-# supported place for OPERATOR CONTENT - and a regenerate call would have
-# deleted a hand-written sitemap without saying so. It no longer touches it.
-#
-# A leftover engine-written copy from before SM293 still shadows the generated
-# registry, and that is now REPORTED rather than silently removed: telling an
-# operator which file is winning is better than deleting a file we cannot prove
-# we wrote.
-# SM442: returns ( \@shadowed, \@cleared ) - the second list being the cache
-# files this call ACTUALLY unlinked.
-#
-# It used to return @shadowed alone, and the caller reported `cleared_roots`
-# built from _registry_roots() - the roots CONSIDERED, never the unlinks. So a
-# call that removed four files and a call that removed none returned the same
-# thing, and "I regenerated and nothing changed" - the exact report SM433 was
-# written to explain - came back from the field against a call that may have
-# done nothing at all. Every early return below is silent to the caller for the
-# same reason: no templates directory means this returns immediately having
-# cleared nothing, and the response still listed every root.
-#
-# Reporting the unlinks makes that visible in the FIRST response instead of
-# after an afternoon of probing: zero files against seven roots is a finding.
-sub _invalidate_registries {
-    my $rdir = _lz() . "/templates/registries";
-    return ( [], [] ) unless -d $rdir;
-    opendir my $dh, $rdir or return ( [], [] );
-    my @tt = grep { /\.tt$/ } readdir $dh;
-    closedir $dh;
-
-    my $cache = _lz() . "/cache/registries";
-    my @shadowed;
-    my @cleared;
-    # SM483: derive the key the way the PROCESSOR derives it - from realpaths
-    # on BOTH sides. A symlink anywhere in a content root (or in the docroot
-    # itself) used to split the pair: the processor cached under the resolved
-    # path's key while this stripped the configured spelling, so regenerate
-    # reported cleared_count:0 while the stale registry kept serving until
-    # its TTL. Reproduced by rig against HEAD; the mechanism is recorded in
-    # the SM483 filing.
-    require Cwd;
-    my $real_docroot = Cwd::realpath($DOCROOT) // $DOCROOT;
-    for my $root ( _registry_roots() ) {
-        my $real_root = Cwd::realpath($root) // $root;
-        my $key       = $real_root;
-        # Strip whichever docroot spelling prefixes the resolved root - the
-        # env's own, or its resolution - so the key matches the processor's
-        # for a symlinked docroot AND a symlinked content root alike.
-        $key =~ s{\A\Q$real_docroot\E/?}{} or $key =~ s{\A\Q$DOCROOT\E/?}{};
-        $key =~ s{[^A-Za-z0-9._-]+}{_}g;
-        $key = '_root' unless length $key;
-
-        for my $t (@tt) {
-            ( my $out = $t ) =~ s/\.tt$//;
-            my $cached = "$cache/$key/$out";
-            push @cleared, "$key/$out" if -f $cached && unlink $cached;
-
-            # Not deleted - reported. See above.
-            # SM500: NEVER an absolute filesystem path in a partner-facing
-            # report. The docroot case was trimmed site-relative; a non-docroot
-            # content root fell through as $root/$out - the full server path,
-            # over MCP, precisely on the multi-domain sites where SM483's
-            # registry conditions live and people debug them. The path is now
-            # docroot-relative for every root (the roots all live under it).
-            push @shadowed,
-                ( $root eq $DOCROOT
-                ? "/$out"
-                : do { ( my $rel = "$root/$out" ) =~ s{\A\Q$DOCROOT\E/?}{/}; $rel } )
-                if -f "$root/$out";
-        }
-    }
-    return ( \@shadowed, \@cleared );
-}
-
-# SM087: a site-wide config change (nav.conf) appears on every rendered page, so
-# the per-page cache clear isn't enough - drop every generated .html so all pages
-# re-render with the new nav on the next request.
-sub _invalidate_all_html {
-    my @stack = ($DOCROOT);
-    while (@stack) {
-        my $dir = pop @stack;
-        opendir my $dh, $dir or next;
-        for my $e ( readdir $dh ) {
-            next if $e =~ /^\./;
-            my $full = "$dir/$e";
-            if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
-            unlink $full if $e =~ /\.html$/;
-        }
-        closedir $dh;
-    }
-    # SM110: the sweep above skips lazysite/ - drop the per-alias-host cache
-    # tree wholesale too (a nav change shows on every page of every host).
-    clear_host_cache($DOCROOT);
-    return;
-}
-
 sub action_delete {
     my ( $rel_path, $username ) = @_;
 
@@ -1062,7 +868,7 @@ sub action_move {
 # SM: duplicate a file. Like action_move but copies rather than renames, needs
 # only READ on the source, and the duplicate is a fresh file owned by whoever
 # made it. The generated .html cache is NOT copied - the copy re-renders on
-# first request; the .brief sidecar IS copied.
+# first request. (SM245 retired the .brief sidecar; there is none to copy.)
 sub action_copy {
     my ( $src_rel, $dst_rel, $username ) = @_;
     my $s = validate_path($src_rel);
@@ -1115,8 +921,9 @@ sub action_copy {
 # SM096: migrate a remote .url page to local ownership. Fetch the remote body
 # through the shared GUARDED fetch (Lazysite::Fetch - same SSRF guard the
 # processor uses), write it as a sibling .md, then drop the .url. The page becomes
-# local content (the .md wins over the .url in the processor anyway); the .brief
-# sidecar and the ACL entry are carried across and any cached render is cleared.
+# local content (the .md wins over the .url in the processor anyway); the ACL
+# entry is carried across and any cached render is cleared. (SM245 retired the
+# .brief sidecar; there is none to carry.)
 sub action_migrate_to_local {
     my ( $rel, $username ) = @_;
     my $s = validate_path($rel);
@@ -1178,6 +985,211 @@ sub action_migrate_to_local {
     );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $md_rel, url => $url };
+}
+
+# --- Registries and the render cache ------------------------------------------
+# Invalidation for the generated registries (sitemap.xml, llms.txt, feed.*) and
+# for the .html render cache. Called by the CRUD actions above and exposed to
+# MCP and the control API through the two public wrappers.
+
+# SM087: a content create/delete/move changes the page set (or a page's lastmod),
+# so the generated registries (sitemap.xml, llms.txt, feed.*) are now stale.
+# Removing the generated outputs makes the processor regenerate them fresh on the
+# next request (update_registries rebuilds a missing output) - the cross-process
+# refresh that fixes "deleted page still in sitemap/llms".
+#
+# SM251: and it must clear them for EVERY content root, not just the docroot.
+# update_registries (SM110/SM151) writes a domain's registries INTO that domain's
+# content root - that is the whole point of per-domain registries - while this
+# only ever unlinked "$DOCROOT/$out". So on a multi-domain instance the
+# invalidation missed the file it was aiming at: deleting a page under a domain's
+# content root left THAT domain's sitemap and llms.txt untouched, and the entry
+# survived until the TTL expired. The reported symptom ("a deleted page stays in
+# the sitemap") was read as slow convergence; it was the refresh aiming at the
+# wrong file.
+#
+# Over-invalidating is the safe direction here: a registry that is regenerated
+# unnecessarily costs one rebuild on the next request, whereas one that is missed
+# serves a page that no longer exists.
+sub _registry_roots {
+    my %seen  = ( $DOCROOT => 1 );
+    my @roots = ($DOCROOT);
+
+    # Reuse the domain parser rather than re-reading the conf here - SM255's
+    # lesson about one file with several readers applies to parsing too.
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $r = eval { Lazysite::Manager::Domains::domains_list() };
+    return @roots unless ref $r eq 'HASH' && $r->{ok};
+
+    for my $d ( @{ $r->{domains} || [] } ) {
+        my $cr = $d->{content_root} // '';
+        next unless length $cr;
+        $cr =~ s{^/+|/+$}{}g;
+        next if !length $cr || $cr =~ m{(?:^|/)\.\.(?:/|$)};
+        my $full = "$DOCROOT/$cr";
+        next if $seen{$full}++;
+        push @roots, $full if -d $full;
+    }
+    return @roots;
+}
+
+# SM264: the public entry points. The invalidator and its root list are called
+# from outside this module now (the regenerate_registries MCP tool), and reaching
+# into a private sub from another file is exactly the coupling the leading
+# underscore is there to discourage.
+sub invalidate_registries { return _invalidate_registries() }
+
+# SM301: the control-API twin of MCP's regenerate_registries (SM264). One
+# implementation for both channels, so the two cannot answer differently - the
+# thing t/lint/23 exists to prevent.
+#
+# Clears every content root, not just the docroot's (SM251), so a multi-domain
+# instance is handled in one call.
+sub action_regenerate_registries {
+    my $docroot = $DOCROOT;
+    my @roots   = _registry_roots();
+    my ( $shadowed, $cleared ) = _invalidate_registries();
+    my @shadowed = @{$shadowed};
+    my @rel      = map {
+        my $r = $_;
+        $r =~ s{^\Q$docroot\E/*}{};
+        length $r ? "/$r" : '/';
+    } @roots;
+    return {
+        ok            => 1,
+        cleared_roots => \@rel,
+        # SM442: what was actually unlinked, alongside the roots considered.
+        # cleared_roots alone could not tell four files from none.
+        cleared_files => $cleared,
+        cleared_count => scalar @{$cleared},
+        # SM433: a file sitting at the old in-docroot location WINS over the
+        # generated one, so clearing the cache changes nothing a visitor sees.
+        # Say which files, because "I regenerated and nothing changed" is
+        # exactly the report this used to produce and could not explain.
+        ( @shadowed ? ( shadowed_by_files => \@shadowed ) : () ),
+        note => (
+            @shadowed
+            ? 'The registries are cleared, BUT the file(s) in shadowed_by_files '
+                . 'sit in the document root and are served in preference to the '
+                . 'generated ones - so regenerating will not change what a '
+                . 'visitor sees until they are removed or renamed. They are not '
+                . 'deleted here: an operator may have written them deliberately.'
+            : 'The registries are cleared and rebuild on the next '
+                . 'request for one. Fetch /sitemap.xml (or the registry you care '
+                . 'about) to force it, then verify.'
+        ),
+    };
+}
+sub registry_roots { return _registry_roots() }
+
+# SM433: CLEAR WHAT THE SERVER ACTUALLY READS.
+#
+# SM293 step 3 moved the generated registries OUT of the document root and into
+# lazysite/cache/registries/<root-key>/<name>, served on request. This
+# invalidator was not moved with them: it went on deleting $root/<name>, the
+# pre-SM293 location, so `regenerate-registries` reported cleared_roots and
+# cleared nothing the server reads. The artefact then stayed stale for the full
+# four-hour TTL while the control said it had done its job - the
+# reports-success-does-nothing shape, in the one control an operator reaches
+# for when a registry looks wrong. Measured in the field: two regenerate calls,
+# both reporting success, the served sitemap unchanged.
+#
+# AND THE OLD BEHAVIOUR WAS DESTRUCTIVE. Since SM293, _serve_registry returns
+# early when $root/<name> exists, because "an operator who wrote their OWN
+# sitemap.xml as content keeps it". So the path this used to delete is now a
+# supported place for OPERATOR CONTENT - and a regenerate call would have
+# deleted a hand-written sitemap without saying so. It no longer touches it.
+#
+# A leftover engine-written copy from before SM293 still shadows the generated
+# registry, and that is now REPORTED rather than silently removed: telling an
+# operator which file is winning is better than deleting a file we cannot prove
+# we wrote.
+# SM442: returns ( \@shadowed, \@cleared ) - the second list being the cache
+# files this call ACTUALLY unlinked.
+#
+# It used to return @shadowed alone, and the caller reported `cleared_roots`
+# built from _registry_roots() - the roots CONSIDERED, never the unlinks. So a
+# call that removed four files and a call that removed none returned the same
+# thing, and "I regenerated and nothing changed" - the exact report SM433 was
+# written to explain - came back from the field against a call that may have
+# done nothing at all. Every early return below is silent to the caller for the
+# same reason: no templates directory means this returns immediately having
+# cleared nothing, and the response still listed every root.
+#
+# Reporting the unlinks makes that visible in the FIRST response instead of
+# after an afternoon of probing: zero files against seven roots is a finding.
+sub _invalidate_registries {
+    my $rdir = _lz() . "/templates/registries";
+    return ( [], [] ) unless -d $rdir;
+    opendir my $dh, $rdir or return ( [], [] );
+    my @tt = grep { /\.tt$/ } readdir $dh;
+    closedir $dh;
+
+    my $cache = _lz() . "/cache/registries";
+    my @shadowed;
+    my @cleared;
+    # SM483: derive the key the way the PROCESSOR derives it - from realpaths
+    # on BOTH sides. A symlink anywhere in a content root (or in the docroot
+    # itself) used to split the pair: the processor cached under the resolved
+    # path's key while this stripped the configured spelling, so regenerate
+    # reported cleared_count:0 while the stale registry kept serving until
+    # its TTL. Reproduced by rig against HEAD; the mechanism is recorded in
+    # the SM483 filing.
+    my $real_docroot = Cwd::realpath($DOCROOT) // $DOCROOT;
+    for my $root ( _registry_roots() ) {
+        my $real_root = Cwd::realpath($root) // $root;
+        my $key       = $real_root;
+        # Strip whichever docroot spelling prefixes the resolved root - the
+        # env's own, or its resolution - so the key matches the processor's
+        # for a symlinked docroot AND a symlinked content root alike.
+        $key =~ s{\A\Q$real_docroot\E/?}{} or $key =~ s{\A\Q$DOCROOT\E/?}{};
+        $key =~ s{[^A-Za-z0-9._-]+}{_}g;
+        $key = '_root' unless length $key;
+
+        for my $t (@tt) {
+            ( my $out = $t ) =~ s/\.tt$//;
+            my $cached = "$cache/$key/$out";
+            push @cleared, "$key/$out" if -f $cached && unlink $cached;
+
+            # Not deleted - reported. See above.
+            # SM500: NEVER an absolute filesystem path in a partner-facing
+            # report. The docroot case was trimmed site-relative; a non-docroot
+            # content root fell through as $root/$out - the full server path,
+            # over MCP, precisely on the multi-domain sites where SM483's
+            # registry conditions live and people debug them. The path is now
+            # docroot-relative for every root (the roots all live under it).
+            push @shadowed,
+                ( $root eq $DOCROOT
+                ? "/$out"
+                : do { ( my $rel = "$root/$out" ) =~ s{\A\Q$DOCROOT\E/?}{/}; $rel } )
+                if -f "$root/$out";
+        }
+    }
+    return ( \@shadowed, \@cleared );
+}
+
+# SM087: a site-wide config change (nav.conf) appears on every rendered page, so
+# the per-page cache clear isn't enough - drop every generated .html so all pages
+# re-render with the new nav on the next request.
+sub _invalidate_all_html {
+    my @stack = ($DOCROOT);
+    while (@stack) {
+        my $dir = pop @stack;
+        opendir my $dh, $dir or next;
+        for my $e ( readdir $dh ) {
+            next if $e =~ /^\./;
+            my $full = "$dir/$e";
+            if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
+            unlink $full if $e =~ /\.html$/;
+        }
+        closedir $dh;
+    }
+    # SM110: the sweep above skips lazysite/ - drop the per-alias-host cache
+    # tree wholesale too (a nav change shows on every page of every host).
+    clear_host_cache($DOCROOT);
+    return;
 }
 
 # SM134 follow-ups: the current alias-redirect map for the manager's read-only
@@ -1257,6 +1269,11 @@ sub _url_prefix_for_folder {
     }
     return length $folder ? "/$folder" : '/';
 }
+
+# --- The edit-lock store ------------------------------------------------------
+# One lock file per content path under $LOCK_DIR, shared with WebDAV (a record
+# carries its origin). SM527: the key is derived from validate_path's rel, so
+# every spelling of a path reaches the same lock.
 
 sub _read_lock_record {
     my ($lock_file) = @_;
@@ -1387,6 +1404,10 @@ sub _get_lock_info {
         active    => _lock_fresh($rec) ? 1 : 0,
     };
 }
+
+# --- Per-file ACLs ------------------------------------------------------------
+# get / set / remove, the protected-sections panel, and the SM286 private-store
+# mover that keeps gated content out of the document root.
 
 sub action_acl_get {
     my ( $rel_path, $user ) = @_;
@@ -1560,7 +1581,6 @@ sub _sync_private_store {
         return @warnings;
     }
 
-    require Lazysite::Private;
     my $gates = _acl_gates_public($rec);
 
     # SM529: content_moved MEANS the bytes changed tree. The movers treat
