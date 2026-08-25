@@ -380,6 +380,39 @@ Line ranges whose SHAPE is the security property. A cleanup may move a comment w
 - plugins/: form-handler and form-smtp stay module-free (SM425, SM136) - PL-2 dedupes the locator and must not become a `use lib`; the `next if $k =~ /^_/` loops (unit/forms/07 - PL-3 rewrites the test in the same commit); form-handler's dispatch order and the `$@` block 236-250 (SM216-2); stats `%BUILT_IN`, `$COUNTING_BASIS`, caps 500-503, SM330 `@CLASSES`, per-file byte offsets and the `final` marker; git-sync `_gate` and `_write_askpass` (lint/13, 77); the audit writer/reader pair (integration/73, unit/lib/16).
 - tools/release.sh gate contract: VERSION/NEXT_VERSION stamped before every reader; compliance to GATE-LOG order; `prove | tee` under pipefail; COV_LOG beside the stage; the debian/control awk; no remote command outside publish; the literal `--no-fetch is still accepted and ignored` (t/tools/34, 45, 47, 51, 58). lazysite-users.pl audit registry 219-299, 3169-3189, `%STORE_READONLY`, `%ACTOR_FORBIDDEN`, `_reserved_username`, `_may_confer`/`_exceeds_authority` (unit/lib/16; unit/users/19, 20, 23, 30). lazysite-check.pl `$PROBE_DIR`/`$PROBE_KEY` at 36-37 and the END block (SM285; lint/39), `ACL PROBE SKIPPED:`, the local `@CAPS` copy (lint/81), `cgi_can` arithmetic. install.pl `lazysite_dir_for`, `_private_store_for`, `audit_append`, `write_backup_sha256`, the symlink/tar-extract bodies and the `--no-same-owner --no-same-permissions` literal (lint/37, 51; t/tools/36); every sub t/tools/34-36 extract by regex keeps ending on a bare `}` line. lazysite-cli.pl `$worst`/`exit $worst`, `_discover_hestia_sites`, refuse_root's strings (t/tools/42, 28).
 
+# The 0.10.33 plan, and the freeze after it
+
+Set by the operator 2026-08-25. **0.10.33 is the last cut that adds
+features before beta.** After it lands, the only work that goes in is
+SECURITY and FIXES TO THE FEATURES IN IT, until a beta is reached - so
+anything not listed here waits, however small.
+
+## In 0.10.33
+
+| Tier | SMs |
+|---|---|
+| Security and silent failure | SM578 (confinement by the action; empty scope stops meaning unconfined), SM589 (`_script`/`_enabled` at the floor), SM577 (instance-wide backup store), SM581 (a nav-shaped file that reports success and does nothing), SM583 (two conf parsers disagreeing), SM582 (two DAV write paths nothing exercises) |
+| Capability and roles | SM576 parts 1 and 3 only - `manage_briefs`, and roles from groups with the assignable flag |
+| Mechanisms | SM573 (brief generated from the grant), SM574 (field practice shipped into the served briefings), SM580 (the sessions page names its principals), SM575 (two-principal ownership tests), SM590 (table delivery is handler-only, in writing) |
+| Already landed for it | SM584, SM585, SM586, plus the nine cleanup branches |
+
+## Held back deliberately
+
+- **SM591** (lateral housekeeping tiers) - blocked on SM587's rule; a
+  tier boundary drawn before the rule would be redrawn after it.
+- **SM579** (API connectors) - a subsystem with an SSRF surface; it
+  wants a cut of its own, not a ride on a large one.
+- **The refused cleanup rows** - the batch-3 seams needing judgement,
+  the two ladder-to-table conversions, and the cross-file folds that
+  needed a file another agent owned.
+
+## One pairing that is not optional
+
+**SM569 and SM586 ship together.** Until SM586 lands, `public: false` is
+refused, so a table receiving form submissions can only be a public one -
+anonymously readable. SM586 is already in 0.10.33, so this holds provided
+SM569 is not moved backwards.
+
 # Method
 
 - Defects first, test-first. Each defect row is its own SM; its proving test is written and seen to fail before the fix, on a `claude/<sm-slug>` branch off the integration branch. The nine `**` rows are cut before any beta publish (SM515 already is). Ordering constraints the reports set: path-core NR-6 before FD-6/PC-8; themes N-6 before TL-13; tools NR-4 before TO-9; plugins NR-1 before PL-20; mcp P1c-h before MC-8; tools A1/A2/A7 filed before TO-25.
