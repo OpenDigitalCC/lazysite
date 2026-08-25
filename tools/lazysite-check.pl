@@ -49,7 +49,7 @@ while (@ARGV) {
     elsif ( $a eq '--dependencies' )  { $opt{dependencies}  = 1 }
     elsif ( $a eq '--handover-mode' ) { $opt{handover_mode} = shift @ARGV }
     elsif ( $a eq '--help' )          { usage(); exit 0 }
-    else { print STDERR "lazysite-check: unknown option: $a\n"; exit 2 }
+    else { print STDERR "lazysite-check.pl: unknown option '$a'\n"; exit 2 }
 }
 
 # SM126 D: host-dependency query. A standalone check of the OS-level Perl
@@ -108,12 +108,12 @@ sub run_dependency_check {
     ( my $root  = $tools ) =~ s{/[^/]*$}{};
     my $deps_path = "$root/dist/config/sbom-deps.json";
     unless ( -f $deps_path ) {
-        print STDERR "lazysite-check: dependency metadata not found at $deps_path\n"
+        print STDERR "lazysite-check.pl: dependency metadata not found at $deps_path\n"
             . "  (run this from a lazysite source tree or release tarball)\n";
         exit 2;
     }
     open my $fh, '<', $deps_path
-        or do { print STDERR "lazysite-check: cannot read $deps_path: $!\n"; exit 2 };
+        or do { print STDERR "lazysite-check.pl: cannot read $deps_path: $!\n"; exit 2 };
     my $json = do { local $/; <$fh> };
     close $fh;
     my $data    = JSON::PP->new->decode($json);
@@ -160,7 +160,7 @@ sub run_dependency_check {
 
 my $DOC = $opt{docroot};
 unless ( defined $DOC && -d $DOC ) {
-    print STDERR "lazysite-check: --docroot must be an existing directory\n";
+    print STDERR "lazysite-check.pl: --docroot must be an existing directory\n";
     exit 2;
 }
 $DOC = abs_path($DOC);
@@ -200,7 +200,7 @@ sub model_path {
 my $CGI = defined $opt{cgibin} ? abs_path( $opt{cgibin} ) : abs_path("$DOC/../cgi-bin");
 
 unless ( -d $LZ ) {
-    print STDERR "lazysite-check: no engine tree for $DOC - looked inside it "
+    print STDERR "lazysite-check.pl: no engine tree for $DOC - looked inside it "
         . "and beside it. Is this a lazysite docroot?\n";
     exit 2;
 }

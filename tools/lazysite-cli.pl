@@ -151,6 +151,17 @@ sub fail {
     exit 1;
 }
 
+# A mistake in the INVOCATION, as opposed to something that went wrong while
+# working. Exit 2, the same as an unknown verb, because it is the same class of
+# mistake made at the same moment by the same person - and the same code every
+# other lazysite tool uses for it.
+sub usage_error {
+    my ($msg) = @_;
+    $msg =~ s/\n?$/\n/;
+    print {*STDERR} "lazysite: $msg";
+    exit 2;
+}
+
 # ---------- payload / identity helpers ----------
 
 # Locate the engine payload relative to $0 (no configuration, works from
@@ -207,8 +218,9 @@ sub refuse_root {
             . "site tree are exactly the breakage this CLI exists to prevent (SM139).\n"
             . "Run it as the site user instead:\n"
             . "  sudo -u SITEUSER lazysite $what ...\n"
-            . "(Only 'lazysite upgrade --all' may run as root - it drops to each\n"
-            . "site's owner per site.)" );
+            . "(The verbs that may run as root are the ones that drop to each\n"
+            . "site's owner first: 'upgrade --all', 'migrate-engine-tree --all'\n"
+            . "and 'probe'.)" );
 }
 
 sub run_or_fail {
@@ -550,7 +562,7 @@ sub cmd_provision {
         'policy=s'  => \$o{policy},
     ) or usage(2);
     refuse_root('provision');
-    fail('provision needs --docroot and --cgibin')
+    usage_error('provision needs --docroot and --cgibin')
         unless length $o{docroot} && length $o{cgibin};
     fail("--channel must be 'edge', 'beta', 'stable' or 'certified'")
         if length $o{channel} && $o{channel} !~ /^(?:edge|beta|stable|certified)$/;
@@ -620,7 +632,7 @@ sub cmd_upgrade {
     return cmd_upgrade_all( \%o ) if $o{all};
 
     refuse_root('upgrade');
-    fail('upgrade needs --docroot (or --all)') unless length $o{docroot};
+    usage_error('upgrade needs --docroot (or --all)') unless length $o{docroot};
     my $docroot = abs_path( $o{docroot} ) // $o{docroot};
     my $cgibin  = $o{cgibin};
     if ( !length $cgibin ) {
@@ -941,7 +953,7 @@ sub cmd_migrate_engine_tree {
         'min-version=s' => \$o{min_version},
     ) or usage(2);
 
-    fail('give --docroot D or --all') unless $o{all} || $o{docroot};
+    usage_error('give --docroot D or --all') unless $o{all} || $o{docroot};
     fail('--docroot and --all are mutually exclusive') if $o{all} && $o{docroot};
 
     # SM366: locate the Lazysite module tree relative to this script

@@ -159,9 +159,9 @@ while (@ARGV) {
 }
 
 unless ($DOCROOT) {
-    print STDERR "Error: --docroot is required\n\n";
+    print STDERR "lazysite-users.pl: --docroot is required\n\n";
     usage();
-    exit 1;
+    exit 2;
 }
 
 # SM293: ASK where the engine tree is. This one matters more than most - the
@@ -471,7 +471,7 @@ if ($API_MODE) {
             # created_by) tree. Used to scope the audit view for a delegate who
             # holds create_sub_users but not the full 'audit' capability.
             my $who = $req->{username} // '';
-            die "username required\n" unless length $who;
+            die "Username required\n" unless length $who;
             my $all = read_settings();
             my %child;    # parent => [ children ]
             for my $u ( keys %$all ) {
@@ -669,9 +669,9 @@ elsif ( $cmd eq 'partner-create' )            { cmd_partner_create_cli(@args) }
 elsif ( $cmd eq 'permissions' )               { cmd_permissions_cli(@args) }
 elsif ( $cmd eq 'audit-registry' )            { cmd_audit_registry() }
 else {
-    print STDERR "Unknown command: $cmd\n\n" if $cmd;
+    print STDERR "lazysite-users.pl: unknown command '$cmd'\n\n" if $cmd;
     usage();
-    exit 1;
+    exit 2;
 }
 
 # --- Commands ---
@@ -3371,7 +3371,7 @@ sub _exceeds_authority {
 
 sub cmd_group_settings_set {
     my ( $group, $key, $value, $actor ) = @_;
-    return { ok => 0, error => 'group required' } unless defined $group && length $group;
+    return { ok => 0, error => 'Group required' } unless defined $group && length $group;
     return { ok => 0, error => 'invalid group name' } unless $group =~ /^[A-Za-z0-9_-]+$/;
 
     # Free-text settings (label, description) are stored verbatim (single line).
@@ -3596,7 +3596,7 @@ sub cmd_group_set_cli {
 
 sub cmd_group_create {
     my ($group) = @_;
-    return { ok => 0, error => 'group required' } unless defined $group && length $group;
+    return { ok => 0, error => 'Group required' } unless defined $group && length $group;
     return { ok => 0, error => 'invalid group name (letters, digits, _ or -)' }
         unless $group =~ /^[A-Za-z0-9_-]+$/;
     my $gs      = read_group_settings();
@@ -3622,8 +3622,8 @@ sub cmd_group_nest {
     my $gs      = read_group_settings();
     my %members = read_groups();
     my $exists  = sub { my $g = shift; $gs->{$g} || $members{$g} };
-    return { ok => 0, error => "group '$sub' does not exist" }    unless $exists->($sub);
-    return { ok => 0, error => "group '$parent' does not exist" } unless $exists->($parent);
+    return { ok => 0, error => "Group '$sub' not found" }    unless $exists->($sub);
+    return { ok => 0, error => "Group '$parent' not found" } unless $exists->($parent);
     # SM268 H8: nesting makes every member of $parent inherit what $sub grants -
     # conferral by another name, and the closure means it reaches further than
     # the two groups named here.
@@ -3644,7 +3644,7 @@ sub cmd_group_nest {
 
 sub cmd_group_delete {
     my ($group) = @_;
-    return { ok => 0, error => 'group required' } unless defined $group && length $group;
+    return { ok => 0, error => 'Group required' } unless defined $group && length $group;
     my $gs = read_group_settings();
     if ( $gs->{$group} && $gs->{$group}{manager} ) {
         my @mgr = grep { $gs->{$_}{manager} } keys %$gs;

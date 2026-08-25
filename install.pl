@@ -144,6 +144,15 @@ USAGE
     exit( $rc // 0 );
 }
 
+# A mistake in the INVOCATION. Named after the program, and exit 2 - the code
+# every other lazysite tool uses for "you typed it wrong", where a die would
+# have exited 255 and told the operator perl had aborted.
+sub _usage_error {
+    my ($msg) = @_;
+    print {*STDERR} "install.pl: $msg\n";
+    exit 2;
+}
+
 # No args = help (matches install.sh behaviour)
 usage(0) unless @ARGV;
 
@@ -164,7 +173,10 @@ Getopt::Long::GetOptions(
     'policy=s'       => \$opt{policy},
     'restore-full=s' => \$opt{restore_full},
     'force'          => \$opt{force},
-) or usage(1);
+) or do {
+    print {*STDERR} "install.pl: unknown option (run --help for the option list)\n";
+    exit 2;
+};
 
 usage(0) if $opt{help};
 
@@ -177,12 +189,12 @@ if ( $opt{theme} ) {
 # --- mode dispatch ---
 
 if ( $opt{list_backups} ) {
-    die "--list-backups requires --docroot\n" unless $opt{docroot};
+    _usage_error('--list-backups requires --docroot') unless $opt{docroot};
     exit cmd_list_backups( $opt{docroot} );
 }
 
 if ( $opt{restore} ) {
-    die "--restore requires --docroot\n" unless $opt{docroot};
+    _usage_error('--restore requires --docroot') unless $opt{docroot};
     exit cmd_restore( \%opt );
 }
 
@@ -190,7 +202,7 @@ if ( $opt{restore} ) {
 # Exit 3 if yes (so the deploy can bail BEFORE touching the site), 0 otherwise.
 # Reads only lazysite.conf + the manifest - no file changes, no ownership needed.
 if ( $opt{channel_check} ) {
-    die "--channel-check requires --docroot\n" unless $opt{docroot};
+    _usage_error('--channel-check requires --docroot') unless $opt{docroot};
     my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
     my $state    = load_state( state_path( $opt{docroot} ) );
     # Only an upgrade (existing install at a different version) is gated.
@@ -209,7 +221,7 @@ if ( $opt{channel_check} ) {
 # your docroots (lazysite has no central site registry - the host knows the sites):
 #   for d in /home/*/web/*/public_html; do install.pl --channel stable --docroot "$d"; done
 if ( defined $opt{channel} ) {
-    die "--channel requires --docroot\n" unless $opt{docroot};
+    _usage_error('--channel requires --docroot') unless $opt{docroot};
     exit cmd_set_channel( $opt{docroot}, $opt{channel} );
 }
 
@@ -218,7 +230,7 @@ if ( defined $opt{channel} ) {
 # cron-driven fleet upgrades (`lazysite upgrade --all`); 'manual' (the default
 # when the key is absent) means only a deliberate per-site upgrade touches it.
 if ( defined $opt{policy} ) {
-    die "--policy requires --docroot\n" unless $opt{docroot};
+    _usage_error('--policy requires --docroot') unless $opt{docroot};
     exit cmd_set_policy( $opt{docroot}, $opt{policy} );
 }
 
@@ -227,13 +239,13 @@ if ( defined $opt{policy} ) {
 # final-domain migration path. A system-user operation: the tarball carries the
 # auth secrets, so this deliberately lives in the installer, not the manager UI.
 if ( defined $opt{restore_full} ) {
-    die "--restore-full requires --docroot\n" unless $opt{docroot};
+    _usage_error('--restore-full requires --docroot') unless $opt{docroot};
     exit cmd_restore_full( $opt{docroot}, $opt{restore_full}, $opt{domain} );
 }
 
 # --verify: is the INSTALLED code actually this version? (the deploy-gap detector)
 if ( $opt{verify} ) {
-    die "--verify requires --docroot and --cgibin\n"
+    _usage_error('--verify requires --docroot and --cgibin')
         unless $opt{docroot} && $opt{cgibin};
     $opt{docroot} = abs_path( $opt{docroot} ) // $opt{docroot};
     $opt{cgibin}  = abs_path( $opt{cgibin} )  // $opt{cgibin};
@@ -241,8 +253,8 @@ if ( $opt{verify} ) {
 }
 
 # Install / upgrade path.
-die "--docroot is required\n" unless $opt{docroot};
-die "--cgibin is required\n"  unless $opt{cgibin};
+_usage_error('--docroot is required') unless $opt{docroot};
+_usage_error('--cgibin is required')  unless $opt{cgibin};
 
 # Absolute paths to avoid surprises when cwd is not the install root.
 $opt{docroot} = abs_path( $opt{docroot} ) // $opt{docroot};
@@ -490,8 +502,8 @@ sub audit_channel_set {
 sub cmd_restore_full {
     my ( $docroot, $tarball, $domain ) = @_;
     $tarball = abs_path($tarball) // $tarball;
-    die "Backup not found: $tarball\n" unless -f $tarball;
-    make_path($docroot)                unless -d $docroot;
+    die "Backup '$tarball' not found\n" unless -f $tarball;
+    make_path($docroot)                 unless -d $docroot;
     $docroot = abs_path($docroot) // $docroot;
 
     info("Restoring full-system backup into $docroot");
@@ -500,7 +512,7 @@ sub cmd_restore_full {
     # setuid bits straight out of the tarball. safe_tar_extract also vets the
     # member names for traversal before writing anything.
     my $rc = safe_tar_extract( $tarball, $docroot );
-    die "Restore extraction failed (tar rc=$rc)\n" if $rc != 0;
+    die "tar extraction failed (rc=$rc)\n" if $rc != 0;
 
     my $conf = _conf_path($docroot);
     die "Restored tree has no lazysite/lazysite.conf - not a full backup?\n"
@@ -1679,7 +1691,7 @@ sub cmd_list_backups {
     }
     my @files = _backup_files($dir);
     unless (@files) {
-        print "No backups at $dir.\n";
+        print "No backups found at $dir.\n";
         return 0;
     }
     printf "%-60s  %12s  %s\n", 'Backup', 'Size', 'Modified';
@@ -1698,12 +1710,12 @@ sub cmd_restore {
     my $backup_path;
     if ( length $o->{backup} ) {
         $backup_path = abs_path( $o->{backup} ) // $o->{backup};
-        die "Backup not found: $backup_path\n" unless -f $backup_path;
+        die "Backup '$backup_path' not found\n" unless -f $backup_path;
     }
     else {
         my $dir   = lazysite_dir_for( $o->{docroot} ) . "/backups";
         my @files = _backup_files($dir);
-        die "No backups at $dir\n" unless @files;
+        die "No backups found at $dir\n" unless @files;
         $backup_path = $files[-1];    # most recent (lexicographic == chronological)
     }
 
@@ -1717,7 +1729,7 @@ sub cmd_restore {
     # benefit of staging in a temp dir first).
     my $tmp = tempdir( 'lazysite-restore-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
     my $rc  = safe_tar_extract( $backup_path, $tmp );
-    die "tar -x failed (rc=$rc)\n" if $rc != 0;
+    die "tar extraction failed (rc=$rc)\n" if $rc != 0;
 
     # The tar stripped the leading "/" from paths, so the content
     # lives at $tmp/<abs-path-without-leading-slash>.

@@ -69,7 +69,7 @@ subtest 'publish refuses a tag that was never built' => sub {
     # It cannot invent one. The local tag is the evidence that a gate ran.
     my ( $rc, $out ) = run( 'publish', '9.99.99' );
     isnt( $rc, 0, 'refused' );
-    like( $out, qr/does not exist locally/, 'because there is no such tag' );
+    like( $out, qr/not found locally/, 'because there is no such tag' );
     like( $out, qr/release\.sh build 9\.99\.99/,
         'and it says how to make one' );
 };
@@ -77,7 +77,7 @@ subtest 'publish refuses a tag that was never built' => sub {
 subtest 'publish needs a version' => sub {
     my ( $rc, $out ) = run('publish');
     isnt( $rc, 0, 'refused' );
-    like( $out, qr/publish needs a version|does not exist locally/, 'plainly' );
+    like( $out, qr/publish needs a version|not found locally/, 'plainly' );
 };
 
 subtest 'and --no-fetch is accepted and inert' => sub {

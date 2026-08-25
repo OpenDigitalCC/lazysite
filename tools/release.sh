@@ -172,7 +172,7 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         -*)
-            echo "release.sh: unknown flag: $1" >&2
+            echo "release.sh: unknown flag '$1'" >&2
             echo "release.sh: run with --help for usage." >&2
             exit 2
             ;;
@@ -180,7 +180,7 @@ while [ $# -gt 0 ]; do
             if [ -z "$VERSION" ]; then
                 VERSION="$1"
             else
-                echo "release.sh: extra argument: $1" >&2
+                echo "release.sh: extra argument '$1'" >&2
                 exit 2
             fi
             shift
@@ -202,7 +202,7 @@ if [ "$MODE" = publish ]; then
     TAG="v$VERSION"
 
     if ! git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
-        echo "release.sh: $TAG does not exist locally. Build it first:" >&2
+        echo "release.sh: $TAG not found locally. Build it first:" >&2
         echo "release.sh:   tools/release.sh build $VERSION" >&2
         exit 1
     fi
@@ -327,7 +327,7 @@ echo "release.sh: NOTE - origin not consulted; release.sh publish checks it." >&
 
 if [ -n "$NOTES_FILE" ]; then
     if [ ! -f "$NOTES_FILE" ]; then
-        echo "release.sh: notes file not found: $NOTES_FILE" >&2
+        echo "release.sh: notes file '$NOTES_FILE' not found" >&2
         exit 1
     fi
 fi
@@ -385,14 +385,14 @@ _free_kb=$(df --output=avail "$STAGE_BASE" 2>/dev/null | tail -1 | tr -d ' ')
 
 case "${_free_inodes:-}" in
     ''|*[!0-9]*)
-        echo "release: could not read free inodes for $STAGE_BASE - not checking." >&2
+        echo "release.sh: could not read free inodes for $STAGE_BASE - not checking." >&2
         _free_inodes=""
         ;;
 esac
 
 if [ -n "$_free_inodes" ] && [ "$_free_inodes" -gt 0 ] \
    && [ "$_free_inodes" -lt 1200000 ]; then
-    echo "release: $STAGE_BASE has only $_free_inodes free inodes." >&2
+    echo "release.sh: $STAGE_BASE has only $_free_inodes free inodes." >&2
     echo "  A gate run needs roughly 1.1M: Devel::Cover writes a directory per" >&2
     echo "  instrumented subprocess and this suite spawns them constantly." >&2
     echo "  Point somewhere with more: --stage-dir /srv/tmp, or LAZYSITE_STAGE_DIR." >&2
@@ -400,7 +400,7 @@ if [ -n "$_free_inodes" ] && [ "$_free_inodes" -gt 0 ] \
 fi
 case "${_free_kb:-}" in ''|*[!0-9]*) _free_kb="" ;; esac
 if [ -n "$_free_kb" ] && [ "$_free_kb" -lt 2000000 ]; then
-    echo "release: $STAGE_BASE has only $((_free_kb/1024))MB free; ~2GB wanted." >&2
+    echo "release.sh: $STAGE_BASE has only $((_free_kb/1024))MB free; ~2GB wanted." >&2
     echo "  Point somewhere larger: --stage-dir /srv/tmp, or LAZYSITE_STAGE_DIR." >&2
     exit 5
 fi
