@@ -39,7 +39,6 @@ use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
 our $DOCROOT = '';
-our @COPY_FAILED;    # SM484: what the staging copy could not read, per package_create run
 
 # SM293: this site's engine tree - beside the docroot once migrated,
 # inside it before. Asked, never computed, so both layouts work on one
@@ -77,6 +76,7 @@ sub _domain_row {
 sub _copy_base_content {
     my ($dst) = @_;
     my %skip = ( lazysite => 1 );
+    my @failed;    # SM559: returned, never shared - the caller labels them
     local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
     my $dl = Lazysite::Manager::Domains::domains_list();
     for my $r ( @{ $dl->{domains} || [] } ) {
@@ -105,7 +105,7 @@ sub _copy_base_content {
                     # and the subtree just never exists. Collected and pruned, so
                     # the package can say what it does not carry.
                     unless ( -r $p && -x $p ) {
-                        push @COPY_FAILED, substr( $p, length($src) + 1 ) . '/';
+                        push @failed, substr( $p, length($src) + 1 ) . '/';
                         $File::Find::prune = 1;
                         return;
                     }
@@ -115,18 +115,19 @@ sub _copy_base_content {
                     return if $p =~ /\.html\z/ && -f ( $p =~ s/\.html\z/.md/r );
                     make_path( dirname($target) );
                     copy( $p, $target )
-                        or push @COPY_FAILED, substr( $p, length($src) + 1 );
+                        or push @failed, substr( $p, length($src) + 1 );
                 }
             },
         },
         $src
     );
-    return;
+    return @failed;
 }
 
 sub _copy_tree {
     my ( $src, $dst ) = @_;
     $src =~ s{/+$}{};
+    my @failed;    # SM559: returned, never shared - the caller labels them
 
     # SM268 03-F12: never descend into the destination. The staging directory
     # lives under lazysite/backups/, and a domain whose content_root resolves to
@@ -158,7 +159,7 @@ sub _copy_tree {
                     # and the subtree just never exists. Collected and pruned, so
                     # the package can say what it does not carry.
                     unless ( -r $p && -x $p ) {
-                        push @COPY_FAILED, substr( $p, length($src) + 1 ) . '/';
+                        push @failed, substr( $p, length($src) + 1 ) . '/';
                         $File::Find::prune = 1;
                         return;
                     }
@@ -167,13 +168,13 @@ sub _copy_tree {
                 elsif ( -f $p ) {
                     make_path( dirname($target) );
                     copy( $p, $target )
-                        or push @COPY_FAILED, ( length $rel ? $rel : $p );
+                        or push @failed, ( length $rel ? $rel : $p );
                 }
             },
         },
         $src
     );
-    return;
+    return @failed;
 }
 
 # package_create($host, %opt) - build a portable package for one domain's site.
@@ -227,8 +228,13 @@ sub package_create {
 
     # 1. content -> content/. For the primary/default site that means the docroot
     # root with the infra + other domains excluded; for a domain, its subtree.
-    if   ($primary_base) { _copy_base_content("$stage/content") }
-    else                 { _copy_tree( $content_src, "$stage/content" ) }
+    # SM559: the walker RETURNS what it could not read. Nothing is shared
+    # between calls, so a later call can never report an earlier one's
+    # failures, and the layout's failures below are the layout's.
+    my @unreadable =
+        $primary_base
+        ? _copy_base_content("$stage/content")
+        : _copy_tree( $content_src, "$stage/content" );
 
     # 2. nav: package the OVERRIDE only. A base-inherited nav (nav_file unset or
     # pointing at the infra lazysite/nav.conf) is NOT packaged - the target's
@@ -247,10 +253,13 @@ sub package_create {
     # layout does not drag other clients' themes along.
     my $layout = $keys{layout};
     my $theme  = $keys{theme};
+    my @unreadable_layout;
     if ( length $layout && $layout =~ /^[A-Za-z0-9_-]+$/ ) {
         my $layout_src = _lz() . "/layouts/$layout";
         if ( -d $layout_src ) {
-            _copy_tree( $layout_src, "$stage/layout" );
+            push @unreadable_layout,
+                map { "lazysite/layouts/$layout/" . $_ }
+                _copy_tree( $layout_src, "$stage/layout" );
             my $themes_dir = "$stage/layout/themes";
             if ( -d $themes_dir && length $theme && $theme =~ /^[A-Za-z0-9_-]+$/ ) {
                 if ( opendir my $dh, $themes_dir ) {
@@ -361,11 +370,10 @@ sub package_create {
     # completely silent. Count it and report it - in the result to the operator
     # building the package, and in the manifest so the receiving operator learns
     # it from the package itself rather than from a gap they may not notice.
-    # SM484: what the copy could not read - drained here so both the
-    # manifest (a COUNT, never paths - it travels) and the returned result
-    # (site-relative paths, for the operator building the package) see it.
-    my @unreadable = @COPY_FAILED;
-    @COPY_FAILED = ();
+    # SM484: what the copy could not read reaches both the manifest (a
+    # COUNT, never paths - it travels) and the returned result (site-relative
+    # paths, for the operator building the package). SM559: the layout's
+    # failures are reported as the layout's, under their own tree.
     my $private_omitted =
         Lazysite::Private::count_private( $DOCROOT, $primary_base ? '' : $croot );
 
@@ -381,8 +389,9 @@ sub package_create {
         # A count, never the paths. A filename is content: "members/2026-payroll"
         # discloses the thing the gate exists to protect, and this manifest
         # travels further than the content ever would.
-        private_omitted    => $private_omitted,
-        unreadable_omitted => scalar(@unreadable),
+        private_omitted           => $private_omitted,
+        unreadable_omitted        => scalar(@unreadable),
+        layout_unreadable_omitted => scalar(@unreadable_layout),
 
         # DP-6. `data_omitted` is the number of DECLARED tables this package
         # does not carry - the same shape as private_omitted, and there for the
@@ -427,9 +436,10 @@ sub package_create {
 
     my @st = stat $out;
     log_event( 'INFO', 'site-package-create', 'site packaged',
-        host             => $host, file => $name, user => $auth_user,
-        private_omitted  => $private_omitted,
-        unreadable_count => scalar(@unreadable) );
+        host                    => $host, file => $name, user => $auth_user,
+        private_omitted         => $private_omitted,
+        unreadable_count        => scalar(@unreadable),
+        layout_unreadable_count => scalar(@unreadable_layout) );
     return {
         ok       => 1,
         name     => $name,
@@ -443,7 +453,8 @@ sub package_create {
         # package that quietly contains less of the site than its builder assumes
         # is discovered by the person applying it, in front of their client.
         private_omitted => $private_omitted,
-        ( @unreadable ? ( unreadable => \@unreadable ) : () ),
+        ( @unreadable        ? ( unreadable        => \@unreadable )        : () ),
+        ( @unreadable_layout ? ( unreadable_layout => \@unreadable_layout ) : () ),
         ( $private_omitted
             ? ( notice => "$private_omitted protected "
                     . ( $private_omitted == 1 ? 'file is' : 'files are' )
@@ -656,7 +667,11 @@ sub package_apply {
         }
     }
     make_path($target) unless -d $target;
-    _copy_tree( "$stage/content", $target ) if -d "$stage/content";
+    # SM559: what the copies could not write, labelled by tree, is reported
+    # in the result and logged - never left for a later call to find.
+    my @copy_failed;
+    push @copy_failed, map { 'content/' . $_ } _copy_tree( "$stage/content", $target )
+        if -d "$stage/content";
 
     # 1b. DATA (DP-6). Restore only what the package actually carries, and
     # NEVER overwrite a table that already has rows.
@@ -750,7 +765,7 @@ sub package_apply {
     {
         my $ldst = _lz() . "/layouts/$layout";
         if ( !-d $ldst ) {
-            _copy_tree( "$stage/layout", $ldst );
+            push @copy_failed, map { 'layout/' . $_ } _copy_tree( "$stage/layout", $ldst );
             $layout_installed = $layout;
         }
         elsif ( length $theme
@@ -759,7 +774,8 @@ sub package_apply {
             && -d "$stage/layout/themes/$theme" )
         {
             # Layout present but missing this theme - add just the theme.
-            _copy_tree( "$stage/layout/themes/$theme", "$ldst/themes/$theme" );
+            push @copy_failed, map { "layout/themes/$theme/" . $_ }
+                _copy_tree( "$stage/layout/themes/$theme", "$ldst/themes/$theme" );
             $layout_installed = "$layout/$theme";
         }
     }
@@ -793,6 +809,9 @@ sub package_apply {
     $cleanup->();
     log_event( 'INFO', 'site-package-apply', 'site package applied',
         content_root => $croot, user => $auth_user );
+    log_event( 'WARN', 'site-package-apply', 'some files could not be written',
+        content_root => $croot, user => $auth_user, count => scalar @copy_failed )
+        if @copy_failed;
 
     # Presentation keys the caller should write for the target domain - taken
     # from the manifest but with content_root/nav_file rewritten to the TARGET's
@@ -813,6 +832,7 @@ sub package_apply {
         # The caller can then tell an integrity-checked apply from one where
         # nobody had made a claim to check against.
         integrity => $verified,
+        ( @copy_failed ? ( copy_failed => \@copy_failed ) : () ),
 
         # DP-6. Both lists, always - `data_skipped` is the useful half, and a
         # caller that shows only what was restored would report a partial data

@@ -44,6 +44,71 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM559 resolved (PENDING) **the walker returns its failures.** One
+  file-scoped @COPY_FAILED was fed by every _copy_tree, so an unreadable
+  LAYOUT directory was reported as unreadable site content under a
+  layout-relative path and counted in manifest.unreadable_omitted, and
+  package_apply's copy failures - never drained - surfaced in the next
+  package_create of a long-lived process. Found by the backups structural
+  review (N4), proven by probe. Both walkers now return their failures and
+  the caller labels them: `unreadable` and its manifest count stay as
+  SM484 shipped them (content only), `unreadable_layout` carries the
+  layout's under lazysite/layouts/<layout>/ with a manifest count, and an
+  apply reports `copy_failed` by tree. t/unit/manager/110 pins all three.
+
+- SM548 resolved (PENDING) **the package upload budget is per user.**
+  action_site_backup_upload called check_upload_rate($DOCROOT) where the
+  signature is ($username, $content_length), so every user of an instance
+  shared one package-upload budget keyed on the docroot path and the byte
+  limit compared against an undefined length and never fired. Found by
+  the backups structural review (N6), proven by probe. The call now passes
+  the user and the body length, as the file upload does; t/unit/manager/109
+  drives a package over the hourly byte budget to a rate refusal.
+
+- SM547 resolved (PENDING) **site packages have retention.**
+  backup_retention (SM268 03-F11) bounded manual and prerestore snapshots
+  and the helper's comment listed site packages too, but package_create
+  never called it - so the artefact an agent produces most, one per
+  site_backup call, accumulated without limit. Found by the backups
+  structural review (N5), proven by probe. package_create now applies the
+  same retention per host (kind site-<host>), so packaging one domain
+  never expires another domain's packages on a shared instance.
+  t/unit/manager/108 pins backup_retention: 1 leaving the newest package
+  per host and 0 meaning unlimited.
+
+- SM545 resolved (PENDING) **two site packages in one second are two
+  files.** package_create named the package host + a one-second stamp and
+  wrote it with an overwriting tar; the O_EXCL claim SM268 03-F9 gave
+  manual snapshots was never carried across, so an agent looping
+  site_backup got two successes, one file, and a sidecar describing
+  whichever write won. Found by the backups structural review (N2), proven
+  by probe. The package name is now claimed through the same _claim_name
+  (a collision takes the -2 suffix) and a failure after the claim removes
+  the placeholder. t/unit/manager/106 pins two creates in one second as
+  two files with their own content and sidecars.
+
+- SM546 resolved (PENDING) **package_apply loads what it calls.**
+  SitePackage::package_apply called Backups::verify_sha256 without ever
+  loading Backups - only package_create and the snapshot branch of
+  apply_and_configure did - so a fresh process calling package_apply, or
+  apply_and_configure(snapshot => 0), died with Undefined subroutine. The
+  MCP and lazysite-site.pl were shielded only because they never pass
+  snapshot => 0. Found by the backups structural review (N3), proven by
+  probe. SitePackage now loads Backups at the top; t/unit/manager/107 uses
+  SitePackage alone and asserts both applies return a result.
+
+- SM544 resolved (PENDING) **the safety snapshot covers what the restore
+  overwrites.** Backups::_archive_scope skipped bare top-level members and
+  its deepening loop stopped at tar's own directory entry for the prefix,
+  so an archive carrying ./index.md and ./sites/edge/page.md scoped the
+  prerestore snapshot to sites/ and the restore overwrote index.md with no
+  rollback copy. Found by the backups structural review (N1), proven by
+  probe. A bare file at any level now widens the scope to its parent (the
+  root for a top-level file), and directory entries are skipped while
+  deepening, so an unscoped archive of one subtree scopes to that subtree
+  as the comment promised. t/unit/manager/105 restores a mixed archive and
+  asserts the safety tarball carries the pre-restore ./index.md.
+
 - SM568 resolved (PENDING) **nav-read and pages accept manage_content or
   manage_nav.** The SM567 twin-capability check found both under
   manage_nav on the API while read_nav and list_pages sat under
@@ -259,58 +324,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM548 resolved (PENDING) **the package upload budget is per user.**
-  action_site_backup_upload called check_upload_rate($DOCROOT) where the
-  signature is ($username, $content_length), so every user of an instance
-  shared one package-upload budget keyed on the docroot path and the byte
-  limit compared against an undefined length and never fired. Found by
-  the backups structural review (N6), proven by probe. The call now passes
-  the user and the body length, as the file upload does; t/unit/manager/109
-  drives a package over the hourly byte budget to a rate refusal.
-
-- SM547 resolved (PENDING) **site packages have retention.**
-  backup_retention (SM268 03-F11) bounded manual and prerestore snapshots
-  and the helper's comment listed site packages too, but package_create
-  never called it - so the artefact an agent produces most, one per
-  site_backup call, accumulated without limit. Found by the backups
-  structural review (N5), proven by probe. package_create now applies the
-  same retention per host (kind site-<host>), so packaging one domain
-  never expires another domain's packages on a shared instance.
-  t/unit/manager/108 pins backup_retention: 1 leaving the newest package
-  per host and 0 meaning unlimited.
-
-- SM545 resolved (PENDING) **two site packages in one second are two
-  files.** package_create named the package host + a one-second stamp and
-  wrote it with an overwriting tar; the O_EXCL claim SM268 03-F9 gave
-  manual snapshots was never carried across, so an agent looping
-  site_backup got two successes, one file, and a sidecar describing
-  whichever write won. Found by the backups structural review (N2), proven
-  by probe. The package name is now claimed through the same _claim_name
-  (a collision takes the -2 suffix) and a failure after the claim removes
-  the placeholder. t/unit/manager/106 pins two creates in one second as
-  two files with their own content and sidecars.
-
-- SM546 resolved (PENDING) **package_apply loads what it calls.**
-  SitePackage::package_apply called Backups::verify_sha256 without ever
-  loading Backups - only package_create and the snapshot branch of
-  apply_and_configure did - so a fresh process calling package_apply, or
-  apply_and_configure(snapshot => 0), died with Undefined subroutine. The
-  MCP and lazysite-site.pl were shielded only because they never pass
-  snapshot => 0. Found by the backups structural review (N3), proven by
-  probe. SitePackage now loads Backups at the top; t/unit/manager/107 uses
-  SitePackage alone and asserts both applies return a result.
-
-- SM544 resolved (PENDING) **the safety snapshot covers what the restore
-  overwrites.** Backups::_archive_scope skipped bare top-level members and
-  its deepening loop stopped at tar's own directory entry for the prefix,
-  so an archive carrying ./index.md and ./sites/edge/page.md scoped the
-  prerestore snapshot to sites/ and the restore overwrote index.md with no
-  rollback copy. Found by the backups structural review (N1), proven by
-  probe. A bare file at any level now widens the scope to its parent (the
-  root for a top-level file), and directory entries are skipped while
-  deepening, so an unscoped archive of one subtree scopes to that subtree
-  as the comment promised. t/unit/manager/105 restores a mixed archive and
-  asserts the safety tarball carries the pre-restore ./index.md.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
