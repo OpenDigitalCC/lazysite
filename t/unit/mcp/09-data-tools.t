@@ -81,8 +81,8 @@ my $OTHER = 'Bearer editor:lzs_tok';        # manage_content, no manage_data
 sub call {
     my ( $tool, $args, $auth ) = @_;
     my $r = mcp(
-        {   jsonrpc => '2.0', id => 1, method => 'tools/call',
-            params  => { name => $tool, arguments => $args || {} }
+        { jsonrpc => '2.0', id => 1, method => 'tools/call',
+            params => { name => $tool, arguments => $args || {} }
         },
         auth => $auth // $SHOP
     );
@@ -95,7 +95,8 @@ subtest 'the tools are advertised to a holder of the capability' => sub {
     my %have = map { $_->{name} => 1 } @{ $r->{result}{tools} || [] };
     ok( $have{$_}, "$_ is offered" )
         for qw(list_data_tables describe_data_table read_data_rows
-        migrate_data_table save_data_row delete_data_row);
+        migrate_data_table save_data_row delete_data_row
+        plan_data_migration read_data_table_source);
 };
 
 subtest 'and NOT to an account without it' => sub {
@@ -126,12 +127,12 @@ YAML
     ok( $decl->{ok}, 'save_data_table declares the table' )
         or diag( $decl->{error} // '' );
 
-    my $t = call( 'list_data_tables' );
+    my $t = call('list_data_tables');
     ok( $t->{ok}, 'list_data_tables answers' ) or diag( $t->{error} // '' );
     is( $t->{tables}[0]{table}, 'products', 'the declared table is there' );
 
     my $shape = call( 'describe_data_table', { table => 'products' } );
-    is( $shape->{key}, 'code', 'its key is reported' );
+    is( $shape->{key},                 'code',    'its key is reported' );
     is( $shape->{fields}{price}{type}, 'decimal', 'and its field types' );
 
     my $pending = call( 'read_data_rows', { table => 'products' } );
@@ -141,8 +142,8 @@ YAML
     ok( call( 'migrate_data_table', { table => 'products' } )->{ok}, 'migrate' );
     ok( call( 'save_data_row',
             { table => 'products',
-              row => { code => 'W1', name => 'Widget', price => '120.00' } }
-        )->{ok}, 'save a row' );
+                row => { code => 'W1', name => 'Widget', price => '120.00' } }
+    )->{ok}, 'save a row' );
 
     my $rows = call( 'read_data_rows', { table => 'products' } );
     is( scalar @{ $rows->{rows} }, 1, 'one row' );
@@ -150,6 +151,41 @@ YAML
         'and the money keeps its trailing zeros all the way through MCP' )
         or diag( 'This is the value that caught sqlite_see_if_its_a_number; '
             . 'it is here so a second surface cannot lose it separately.' );
+};
+
+# SM566: the SAFETY step before a migration, and the descriptor as text. The
+# API had both (data-migrate-plan, data-table-source) and MCP had neither, so
+# an agent could migrate a table without previewing what the migration would
+# refuse, and could not read-modify-write a descriptor as it was written.
+subtest 'SM566: an agent can preview a migration and read the descriptor as text' => sub {
+    my $src = call( 'read_data_table_source', { table => 'products' } );
+    ok( $src->{ok}, 'read_data_table_source answers' ) or diag( $src->{error} // '' );
+    like( $src->{descriptor}, qr/^key: code$/m, 'the descriptor comes back as the text that was written' );
+
+    # Change price to an integer: a TYPE change, which migrate refuses.
+    ( my $changed = $src->{descriptor} ) =~ s/type: decimal\n\s+digits: 8\n\s+places: 2/type: integer/;
+    ok( call( 'save_data_table', { table => 'products', descriptor => $changed } )->{ok},
+        'the changed descriptor is accepted' );
+
+    my $plan = call( 'plan_data_migration', { table => 'products' } );
+    ok( $plan->{ok}, 'plan_data_migration answers' ) or diag( $plan->{error} // '' );
+    ok( ( grep { $_->{field} eq 'price' } @{ $plan->{blocked} || [] } ),
+        'the plan names the blocked change (price) before anything is applied' )
+        or diag( explain $plan );
+
+    # Nothing was applied: the stored column is still the decimal one.
+    my $rows = call( 'read_data_rows', { table => 'products' } );
+    is( $rows->{rows}[0]{price}, '120.00', 'the plan changed nothing in the store' );
+
+    my $missing = call( 'plan_data_migration', { table => 'nope' } );
+    ok( !$missing->{ok}, 'a plan for an undeclared table is refused' );
+    my $denied = call( 'read_data_table_source', { table => 'products' }, $OTHER );
+    ok( !( $denied && $denied->{ok} ), 'the source read needs manage_data, as the API twin does' );
+
+    # Put the descriptor back as it was, so the subtests below see the table
+    # they declared.
+    ok( call( 'save_data_table', { table => 'products', descriptor => $src->{descriptor} } )->{ok},
+        'the original descriptor round-trips back through save_data_table' );
 };
 
 subtest 'the refusals an agent depends on survive the trip' => sub {
@@ -161,7 +197,7 @@ subtest 'the refusals an agent depends on survive the trip' => sub {
     my $unknown = call( 'save_data_row',
         { table => 'products', row => { code => 'X2', colour => 'red' } } );
     ok( !$unknown->{ok}, 'an unknown field is refused, not dropped' )
-        or diag( 'Dropping it makes a typo look like a successful write.' );
+        or diag('Dropping it makes a typo look like a successful write.');
 
     # A `row` that is not an object is refused for THAT reason, not left to
     # fail later as a missing required field. The message is the thing an
@@ -188,7 +224,7 @@ subtest 'SM469: a disabled plugin refuses over MCP too' => sub {
     print {$off} "mcp_enabled: true\n";    # no plugins: list
     close $off;
 
-    my $r = call( 'list_data_tables' );
+    my $r = call('list_data_tables');
     ok( !$r->{ok}, 'a read refuses while the plugin is disabled' );
     like( $r->{error}, qr/disabled/, 'and says so' );
 

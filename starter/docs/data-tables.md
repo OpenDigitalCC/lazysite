@@ -66,6 +66,17 @@ It is safe to re-run: a table already in line is a no-op. It applies what is
 safe and **reports what it refuses**, and the refused list is the useful half
 -- it is the account of why a column is not there yet.
 
+To see that account **before** anything is applied, ask for the plan:
+
+- MCP: `plan_data_migration`
+- Control API: `GET ?action=data-migrate-plan&table=products`
+
+It runs the same planner the migration does and changes nothing, so the
+preview and the action cannot disagree. To edit a descriptor as the text you
+wrote it -- comments, key order and spacing intact -- read it back with
+`read_data_table_source` (MCP) or `data-table-source` (Control API), change
+it, and save it again.
+
 ### 3. Put rows in, and read them out
 
 - MCP: `save_data_row`, `read_data_rows`, `delete_data_row`

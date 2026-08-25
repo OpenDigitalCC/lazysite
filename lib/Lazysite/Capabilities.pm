@@ -179,7 +179,8 @@ my %ACTION_INFO = (
                     read_data_rows migrate_data_table rebuild_data_table
                     save_data_row delete_data_row drop_data_table
                     list_data_safety_exports delete_data_safety_export
-                    read_data_safety_export restore_data_safety_export)
+                    read_data_safety_export restore_data_safety_export
+                    read_data_table_source plan_data_migration)
             ],
             # NO WEBDAV ENTRY, and this used to claim one. WebDAV allows
             # only lazysite/layouts/ - "the rest of lazysite/ is protected" -

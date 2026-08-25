@@ -214,6 +214,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM566 resolved (PENDING) **the migration safety step is on both
+  channels.** The control API had data-migrate-plan and data-table-source;
+  MCP had neither, so an agent could migrate a table without previewing
+  what the migration would refuse, and could not read-modify-write a
+  descriptor as text. plan_data_migration and read_data_table_source now
+  sit under manage_data beside their siblings; t/lint/23 pairs them and
+  t/unit/mcp/09 drives the plan against a refused type change.
+
 - SM538 resolved (PENDING) **pages under docs/ and quotes/ are part of the
   site again.** _each_page hard-skipped both names - the first site's
   folder names, carried since SM087 - so on lazysite.io thirty

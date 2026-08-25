@@ -562,6 +562,19 @@ my %TOOLS = (
             return Lazysite::Manager::Data::action_data_table( $_[0]->{table} );
         },
     },
+    read_data_table_source => {
+        description => 'The descriptor of one data table as the TEXT that was written - comments, key order and spacing intact. describe_data_table returns the parsed shape, which is right for reading; this is for a read-modify-write, where the descriptor goes back through save_data_table as the same text with one change. Read-only.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name, as list_data_tables reports it' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_table_source( $_[0]->{table} );
+        },
+    },
     read_data_rows => {
         description => 'Read rows from a data table. Ordering takes a DECLARED FIELD NAME, not an expression, and a field the table does not declare is refused with a reason rather than failing at the database. The row count is always capped, so this cannot return an unbounded listing. If the table is declared but has never been migrated, this succeeds with no rows and says pending_schema - which means run migrate_data_table, not that the table is empty. Read-only.',
         cap         => 'manage_data',
@@ -613,6 +626,19 @@ my %TOOLS = (
         run => sub {
             local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_migrate( $_[0]->{table} );
+        },
+    },
+    plan_data_migration => {
+        description => 'What migrate_data_table WOULD do, with nothing done - the safety step before a migration. Returns the additive changes it would apply and the changes it would refuse (a type change, a field tightened to required, a removal), each naming the field, and when something is blocked, the rebuild pre-flight too: which columns a rebuild would lose and which rows could not satisfy the new shape. Call this after changing a descriptor and BEFORE migrate_data_table, so a refused change is read about rather than discovered. Read-only.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Data::action_data_migrate_plan( $_[0]->{table} );
         },
     },
     rebuild_data_table => {
@@ -3026,12 +3052,14 @@ sub _rename_page {
 # entry may rely on: a read that falls to it advertises as an open-world write,
 # and a drop advertises as non-destructive.
 my %ANNOTATE = (
-    whoami                => [ 1, 0, 0 ],
-    describe_capabilities => [ 1, 0, 0 ],
-    upload_file           => [ 0, 0, 1 ],
-    list_data_tables      => [ 1, 0, 0 ],
-    describe_data_table   => [ 1, 0, 0 ],
-    read_data_rows        => [ 1, 0, 0 ],
+    whoami                 => [ 1, 0, 0 ],
+    describe_capabilities  => [ 1, 0, 0 ],
+    upload_file            => [ 0, 0, 1 ],
+    list_data_tables       => [ 1, 0, 0 ],
+    describe_data_table    => [ 1, 0, 0 ],
+    read_data_table_source => [ 1, 0, 0 ],
+    plan_data_migration    => [ 1, 0, 0 ],
+    read_data_rows         => [ 1, 0, 0 ],
     save_data_table => [ 0, 0, 1 ], # a descriptor's public flag decides what the site serves
     migrate_data_table    => [ 0, 0, 1 ],  # applies the safe changes to the live table
     rebuild_data_table    => [ 0, 1, 1 ],  # drops columns, by named confirmation

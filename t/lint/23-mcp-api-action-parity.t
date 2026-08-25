@@ -126,6 +126,11 @@ my %PAIR = (
     'data-tables'     => 'list_data_tables',
     'data-table'      => 'describe_data_table',
     'data-table-save' => 'save_data_table',
+    # SM566: the safety step and the descriptor as text. Both were API-only
+    # with reasons written when the plugin was new; an agent could migrate a
+    # table without previewing what the migration would refuse.
+    'data-table-source' => 'read_data_table_source',
+    'data-migrate-plan' => 'plan_data_migration',
 
     # SM466: the existing preview-public action, given an MCP door so the field
     # can confirm what a visitor receives without stepping outside the grant.
@@ -204,8 +209,6 @@ my %API_ONLY = (
     # to put.
     'data-export' => 'a file download for a person; an agent has read_data_rows and site_backup',
     'data-import' => 'a file upload from a person; an agent has save_data_row and can loop',
-    'data-table-source' => 'the descriptor as TEXT for a human editor; an agent gets the parsed shape from describe_data_table',
-    'data-migrate-plan' => 'a preview for a person deciding; an agent calls migrate_data_table and reads its reply',
     'audit'        => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read'  => 'undecided - no MCP twin for site configuration',
     'config-set'   => 'undecided - as config-read',
