@@ -4587,6 +4587,13 @@ sub strip_tt_directives {
     return $val;
 }
 
+# --- Sources and site vars ---
+#
+# From here to the scan section below: environment interpolation, content-path
+# resolution, the language set, the json/db/tt-var sources a page can name, site
+# vars and their memo, the request host, nav, the lazysite.conf peeks and the
+# scan identity. The file ran 2,700 lines without a heading through here.
+
 sub interpolate_env {
     my ($val) = @_;
     # Only interpolate allowlisted environment variables (S5)
@@ -5354,6 +5361,11 @@ sub _scan_scalar {
     return $v;
 }
 
+# --- Scan and registries ---
+#
+# The reserved front-matter keys, the scan: source, the registry regenerator and
+# its serving path, scan_pages, and the TT helpers they share.
+
 # SM459: the front-matter keys the ENGINE owns.
 #
 # Shared by the page scan and the page's own stash, deliberately. They used to
@@ -5378,19 +5390,22 @@ sub _front_matter_reserved {
             layout theme auth register search meta_title meta_desc ) };
 }
 
-sub resolve_scan {
-    my ($pattern) = @_;
+# The scan modifiers, parsed off the front of the pattern (PR-6). Lifted out
+# of resolve_scan verbatim; it still STRIPS what it parses, which is why it
+# takes the pattern by reference - the remaining text is the glob.
+sub _scan_parse_modifiers {
+    my ($pattern_ref) = @_;
 
     # Parse filter modifiers: "filter=FIELD:VALUE" (may repeat)
     my @filters;
-    while ( $pattern =~ s/\s+filter=(\w+):([^\s]+)// ) {
+    while ( $$pattern_ref =~ s/\s+filter=(\w+):([^\s]+)// ) {
         push @filters, { field => $1, value => $2 };
     }
 
     # Parse sort modifier: "sort=FIELD DIRECTION"
     my $sort_field = 'filename';
     my $sort_dir   = 'asc';
-    if ( $pattern =~ s/\s+sort=(\w+)(?:\s+(asc|desc))?//i ) {
+    if ( $$pattern_ref =~ s/\s+sort=(\w+)(?:\s+(asc|desc))?//i ) {
         $sort_field = lc($1);
         $sort_dir   = lc($2) if defined $2;
         # date/title/filename are the built-ins; any other identifier sorts on the
@@ -5398,20 +5413,15 @@ sub resolve_scan {
         $sort_field = 'filename' unless $sort_field =~ /^\w+$/;
     }
 
-    # Pattern must be root-relative starting with /
-    return [] unless $pattern =~ m{^/};
+    return ( \@filters, $sort_field, $sort_dir );
+}
 
-    # SM151: box the scan to the requesting domain's content root (the domain's
-    # '/'), so search on one domain never returns another's pages. Falls back to
-    # the docroot for the primary host / when no content_root is in effect.
-    my $scan_root = $REQUEST_CROOT // $DOCROOT;
-    my $excl      = _declared_content_roots();    # §7: other domains' roots
-
-    # Build filesystem glob pattern
-    my $fs_pattern = $scan_root . $pattern;
-
-    # Limit to .md files only
-    return [] unless $fs_pattern =~ /\.md$/;
+# The files a scan pattern reaches, capped and deduplicated (PR-6). Lifted out
+# of resolve_scan verbatim: same roots, same walk, same private-wins dedupe,
+# same 200-file cap in the same order, and the same _tt_dep calls on the way -
+# so the caller receives the identical list it used to build inline.
+sub _scan_collect_files {
+    my ( $pattern, $scan_root, $excl ) = @_;
 
     # SM460: SEARCH THE PRIVATE STORE TOO.
     #
@@ -5506,6 +5516,59 @@ sub resolve_scan {
     # Limit to 200 files
     @files = @files[ 0 .. 199 ] if @files > 200;
 
+    return @files;
+}
+
+# A page's date: the front matter's, else the file's mtime as YYYY-MM-DD
+# (PR-5). resolve_scan and scan_pages carried identical copies of this.
+sub _page_date {
+    my ( $meta, $path ) = @_;
+    my $date = $meta->{date} || '';
+    unless ($date) {
+        my @st = stat($path);
+        if (@st) {
+            my @t = localtime( $st[9] );
+            $date = sprintf( "%04d-%02d-%02d", $t[5] + 1900, $t[4] + 1, $t[3] );
+        }
+    }
+    return $date;
+}
+
+# A page's URL: the path with the scanned root, the .md suffix and a trailing
+# /index stripped, in that order (PR-5). The other half of the same pair -
+# resolve_scan feeds it a path already mapped back to its PUBLIC spelling
+# (SM460/SM463), scan_pages feeds it the path it walked; the strip is the same.
+sub _page_url {
+    my ( $path, $root ) = @_;
+    ( my $url = $path ) =~ s{^\Q$root\E}{};
+    $url                =~ s/\.md$//;
+    $url                =~ s{/index$}{/};
+    return $url;
+}
+
+sub resolve_scan {
+    my ($pattern) = @_;
+
+    my ( $filters, $sort_field, $sort_dir ) = _scan_parse_modifiers( \$pattern );
+    my @filters = @$filters;
+
+    # Pattern must be root-relative starting with /
+    return [] unless $pattern =~ m{^/};
+
+    # SM151: box the scan to the requesting domain's content root (the domain's
+    # '/'), so search on one domain never returns another's pages. Falls back to
+    # the docroot for the primary host / when no content_root is in effect.
+    my $scan_root = $REQUEST_CROOT // $DOCROOT;
+    my $excl      = _declared_content_roots();    # §7: other domains' roots
+
+    # Build filesystem glob pattern
+    my $fs_pattern = $scan_root . $pattern;
+
+    # Limit to .md files only
+    return [] unless $fs_pattern =~ /\.md$/;
+
+    my @files = _scan_collect_files( $pattern, $scan_root, $excl );
+
     # Read site search default once if any filter references searchable
     my $search_default;
 
@@ -5562,20 +5625,10 @@ sub resolve_scan {
         {
             $url_src = $scan_root . substr( $url_src, length($priv_scan) );
         }
-        ( my $url = $url_src ) =~ s{^\Q$scan_root\E}{};
-        $url                   =~ s/\.md$//;
-        $url                   =~ s{/index$}{/};
+        my $url = _page_url( $url_src, $scan_root );
 
         # Date from front matter or mtime
-        my $date = $meta->{date} || '';
-        unless ($date) {
-            my @st = stat($path);
-            if (@st) {
-                my @t = localtime( $st[9] );
-                $date = sprintf( "%04d-%02d-%02d",
-                    $t[5] + 1900, $t[4] + 1, $t[3] );
-            }
-        }
+        my $date = _page_date( $meta, $path );
 
         # Parse tags from front matter (YAML list, comma-separated, or single value)
         my $tags_raw = $meta->{tags} // '';
@@ -6072,20 +6125,10 @@ sub scan_pages {
                 next if _registry_hidden($path);
 
                 # Get date from front matter or file mtime
-                my $date = $meta->{date} || '';
-                unless ($date) {
-                    my @st = stat($path);
-                    if (@st) {
-                        my @t = localtime( $st[9] );
-                        $date = sprintf( "%04d-%02d-%02d",
-                            $t[5] + 1900, $t[4] + 1, $t[3] );
-                    }
-                }
+                my $date = _page_date( $meta, $path );
 
                 # Derive URL from path, relative to the scanned root (SM151)
-                ( my $url = $path ) =~ s{^\Q$root\E}{};
-                $url                =~ s/\.md$//;
-                $url                =~ s{/index$}{/};
+                my $url = _page_url( $path, $root );
 
                 push @pages, {
                     url      => $url,
@@ -6419,6 +6462,11 @@ sub render_content {
 
     return ( $processed_body, $vars );
 }
+
+# --- Layout, theme and injection ---
+#
+# Layout and theme resolution (local and remote), render_template and the
+# _inject_* family that edits the finished HTML.
 
 sub get_layout_path {
     my ( $meta, $vars ) = @_;
