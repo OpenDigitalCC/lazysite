@@ -1547,6 +1547,11 @@ sub destination_rel {
 # never fatal: the write has already happened and must still be answered.
 sub _invalidate_registries_as {
     my ($user) = @_;
+
+    # SM557: the module is require'd at runtime, so this file mentions the
+    # package variable once by design and perl warns "used only once";
+    # t/lint/04 refuses that warning, so the suppression is scoped here.
+    no warnings 'once';
     require Lazysite::Manager::Files;
     local $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
     eval { Lazysite::Manager::Files::invalidate_registries(); 1 }

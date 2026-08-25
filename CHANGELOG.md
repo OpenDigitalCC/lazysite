@@ -44,6 +44,96 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM569 resolved (PENDING) **a form can land in a data table.** A handler
+  of `type: table` delivers each accepted submission as a row in a
+  declared table - the same operator-only mapping and live-write coercion
+  as the `db` handler - AND keeps the JSONL submissions store written
+  alongside, so the Submissions page, exports and bulk delete keep
+  working. A submission the types refuse leaves no row, fails honestly to
+  the visitor, and the stored copy is marked `_row_refused`. Reading the
+  table stays governed by the table's own declaration (`public` defaults
+  closed); the JSONL copy stays under read_submissions.
+  t/integration/76 proves both outcomes through the real handler.
+
+- SM558 resolved (PENDING) **the link audit sees the root page.** A link
+  written as `/index` or `/index.html` was always reported broken: the
+  check stripped only a trailing `/index`, so `/docs/index` resolved
+  while the bare root spelling never did. The check now maps a bare
+  `index` target to the root page as canonical() maps index.md.
+  t/unit/plugins/32 audits a fixture docroot and reads exactly the one
+  genuinely broken link.
+
+- SM557 resolved (PENDING) **a post writes no used-only-once warnings.**
+  Every form POST wrote two `Name "Lazysite::...::X" used only once:
+  possible typo` lines to the error log - `local $Pkg::VAR` on packages
+  only require'd at runtime - and the compile lint checked only the exit
+  code. The seven warning sites (form-handler and six siblings) now carry
+  a scoped `no warnings 'once'`, and t/lint/04 reads the output and
+  refuses the warning across the sweep.
+
+- SM543 resolved (PENDING) **a recount uses the loaded ruleset.**
+  `--recount --apply` was dispatched before the SM391 ruleset load and
+  re-entered the export in-process, so the repair tool reclassified
+  history under the built-in rules the operator had replaced with
+  classifiers.json - and reported `changed=1` for the damage. The recount
+  dispatch now compiles the ruleset first. t/unit/plugins/31 recounts a
+  day classified under a loaded rule and reads the same version and
+  verdicts back.
+
+- SM542 resolved (PENDING) **the page refresh keeps form outcomes.** A
+  closed day first reached by the manager Stats page's refresh (`--scan`)
+  was persisted and finalised with `forms:{}` - only the export path
+  folded form-events in, and the final marker stopped every later export
+  from rewriting the file. The scan path now makes the same fold before
+  the day is persisted, so both entry points write the same durable
+  record. t/unit/plugins/30 reaches a day scan-first and reads its stored
+  and blocked outcomes from the day file.
+
+- SM541 resolved (PENDING) **a promotion reverses the device.** The event
+  ring stored no device and no search term, so a late scanner promotion
+  reaching back decremented `devices{unknown}` while the original hit had
+  gone to `devices{desktop}`, and a term the visitor had pushed over the
+  floor stayed counted. The ring now carries the device and the term's
+  hash (never the words - the ring is on disk), and the reversal undoes
+  what the hit did. t/unit/plugins/29 promotes a desktop visitor in a
+  second batch and reads zero desktop, zero human and no term.
+
+- SM540 resolved (PENDING) **a handler error is forwarded.** With
+  `forward_diagnostics: true` an ERROR from a form submission stayed on
+  STDERR: the four plugin copies of log_event (form-handler, form-smtp,
+  audit, payment-demo) predated Lazysite::Util's forward_line. Each copy
+  now hands its line to a best-effort forwarder that eval-requires Util
+  through the runtime locator - the plugins stay module-free, the one
+  forwarding implementation stays in Util, and a missing lib costs a
+  syslog copy, never a submission. t/unit/forms/12 drives three of the
+  plugins through the syslog dump seam.
+
+- SM539 resolved (PENDING) **a multi-answer survives a multipart post.** SM401
+  taught the urlencoded branch of the form parser that a repeated field
+  name is a multi-select, but the multipart branch still overwrote - so a
+  form with an upload and a checkbox group kept only the last tick. Both
+  branches now feed one accumulator. t/unit/forms/10 posts the same
+  repeated key both ways through the real handler and reads `red; blue`
+  from both stored rows.
+
+- SM524 resolved (PENDING) **SMTP auth and TLS are what the conf says.**
+  `auth: 1` and `auth: yes` used to skip SMTP authentication silently
+  (the read was `/^true$/i`), and `tls: false` was listed among the
+  checked stages because the string was truthy. Both keys now go through
+  one reader each under the SM519 discipline (1/true/yes/on and
+  0/false/no/off, plus `starttls` for tls); any other spelling is refused
+  at the config stage by the validator and before the socket opens on a
+  send. starter/docs/forms-smtp.md states the accepted spellings;
+  t/unit/forms/05 pins the stages against the mock server.
+
+- SM523 resolved (PENDING) **a visitor cannot flag themselves.** A
+  submission carrying `_quarantined=1&_spam_reason=...` used to be stored
+  with both keys, skip the notification bell and count as quarantined -
+  the visitor decided what the engine's spam gate should have. parse_post
+  now keeps only the protocol keys the renderer emits (`_form _page _hp
+  _ts _tk`) and drops every other client underscore key, so the status
+  meta on a stored record is engine-owned. t/unit/forms/11 pins it.
+
 - SM563 resolved (PENDING) **the four surfaces agree on every operation.**
   lint 14 compared cookie-vs-token, lint 86 token-vs-registry, lint 23
   API-vs-MCP; the DAV verb map was compared to nothing. NEW t/lint/87
@@ -437,95 +527,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM569 resolved (PENDING) **a form can land in a data table.** A handler
-  of `type: table` delivers each accepted submission as a row in a
-  declared table - the same operator-only mapping and live-write coercion
-  as the `db` handler - AND keeps the JSONL submissions store written
-  alongside, so the Submissions page, exports and bulk delete keep
-  working. A submission the types refuse leaves no row, fails honestly to
-  the visitor, and the stored copy is marked `_row_refused`. Reading the
-  table stays governed by the table's own declaration (`public` defaults
-  closed); the JSONL copy stays under read_submissions.
-  t/integration/76 proves both outcomes through the real handler.
-
-- SM558 resolved (PENDING) **the link audit sees the root page.** A link
-  written as `/index` or `/index.html` was always reported broken: the
-  check stripped only a trailing `/index`, so `/docs/index` resolved
-  while the bare root spelling never did. The check now maps a bare
-  `index` target to the root page as canonical() maps index.md.
-  t/unit/plugins/32 audits a fixture docroot and reads exactly the one
-  genuinely broken link.
-
-- SM557 resolved (PENDING) **a post writes no used-only-once warnings.**
-  Every form POST wrote two `Name "Lazysite::...::X" used only once:
-  possible typo` lines to the error log - `local $Pkg::VAR` on packages
-  only require'd at runtime - and the compile lint checked only the exit
-  code. The seven warning sites (form-handler and six siblings) now carry
-  a scoped `no warnings 'once'`, and t/lint/04 reads the output and
-  refuses the warning across the sweep.
-
-- SM543 resolved (PENDING) **a recount uses the loaded ruleset.**
-  `--recount --apply` was dispatched before the SM391 ruleset load and
-  re-entered the export in-process, so the repair tool reclassified
-  history under the built-in rules the operator had replaced with
-  classifiers.json - and reported `changed=1` for the damage. The recount
-  dispatch now compiles the ruleset first. t/unit/plugins/31 recounts a
-  day classified under a loaded rule and reads the same version and
-  verdicts back.
-
-- SM542 resolved (PENDING) **the page refresh keeps form outcomes.** A
-  closed day first reached by the manager Stats page's refresh (`--scan`)
-  was persisted and finalised with `forms:{}` - only the export path
-  folded form-events in, and the final marker stopped every later export
-  from rewriting the file. The scan path now makes the same fold before
-  the day is persisted, so both entry points write the same durable
-  record. t/unit/plugins/30 reaches a day scan-first and reads its stored
-  and blocked outcomes from the day file.
-
-- SM541 resolved (PENDING) **a promotion reverses the device.** The event
-  ring stored no device and no search term, so a late scanner promotion
-  reaching back decremented `devices{unknown}` while the original hit had
-  gone to `devices{desktop}`, and a term the visitor had pushed over the
-  floor stayed counted. The ring now carries the device and the term's
-  hash (never the words - the ring is on disk), and the reversal undoes
-  what the hit did. t/unit/plugins/29 promotes a desktop visitor in a
-  second batch and reads zero desktop, zero human and no term.
-
-- SM540 resolved (PENDING) **a handler error is forwarded.** With
-  `forward_diagnostics: true` an ERROR from a form submission stayed on
-  STDERR: the four plugin copies of log_event (form-handler, form-smtp,
-  audit, payment-demo) predated Lazysite::Util's forward_line. Each copy
-  now hands its line to a best-effort forwarder that eval-requires Util
-  through the runtime locator - the plugins stay module-free, the one
-  forwarding implementation stays in Util, and a missing lib costs a
-  syslog copy, never a submission. t/unit/forms/12 drives three of the
-  plugins through the syslog dump seam.
-
-- SM539 resolved (PENDING) **a multi-answer survives a multipart post.** SM401
-  taught the urlencoded branch of the form parser that a repeated field
-  name is a multi-select, but the multipart branch still overwrote - so a
-  form with an upload and a checkbox group kept only the last tick. Both
-  branches now feed one accumulator. t/unit/forms/10 posts the same
-  repeated key both ways through the real handler and reads `red; blue`
-  from both stored rows.
-
-- SM524 resolved (PENDING) **SMTP auth and TLS are what the conf says.**
-  `auth: 1` and `auth: yes` used to skip SMTP authentication silently
-  (the read was `/^true$/i`), and `tls: false` was listed among the
-  checked stages because the string was truthy. Both keys now go through
-  one reader each under the SM519 discipline (1/true/yes/on and
-  0/false/no/off, plus `starttls` for tls); any other spelling is refused
-  at the config stage by the validator and before the socket opens on a
-  send. starter/docs/forms-smtp.md states the accepted spellings;
-  t/unit/forms/05 pins the stages against the mock server.
-
-- SM523 resolved (PENDING) **a visitor cannot flag themselves.** A
-  submission carrying `_quarantined=1&_spam_reason=...` used to be stored
-  with both keys, skip the notification bell and count as quarantined -
-  the visitor decided what the engine's spam gate should have. parse_post
-  now keeps only the protocol keys the renderer emits (`_form _page _hp
-  _ts _tk`) and drops every other client underscore key, so the status
-  meta on a stored record is engine-owned. t/unit/forms/11 pins it.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
