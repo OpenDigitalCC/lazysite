@@ -10,8 +10,8 @@ register:
      imported: 2026-08-25
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=8582450226ae800398644edbc0adefaa46f95b3a780043016f613d6ad3688be1 modified=2026-08-25
-     body-sha256: a97481cfcbe3de1c4070dd31241294f817ca92cb9e4985dbc01bb73f5404d1f9
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=b8d287f5694bc85258f3223ec0365714f80084feabdec4e8be1579ffe0d7ec8a modified=2026-08-25
+     body-sha256: cab1c810ea92dea0bc35af4e23adff0aa505d0ae2e22f98861da7c912dcbf7b8
 -->
 
 ## What this is, and what it is not
@@ -747,6 +747,45 @@ start: an adult who administers, an adult who participates, and a child who
 sees their own things and not their sibling's. A fourth is common - a person
 who appears in the data but never signs in (a grandparent, a coach).
 
+## One group, and exactly what it needs
+
+A gated app usually wants **one group**, not a hierarchy. Ours is
+`stock-admin`, and working out what to put in it took longer than it should.
+
+**`manage_data`, and nothing else.** A write through the data endpoint needs
+all three of a signed-in session, `manage_data`, and membership of the table's
+`writable_by` if it names any. `writable_by` can only ever TAKE write access
+away - it cannot grant a write to an account without the capability - so it is
+not a substitute, and a group with the name and not the capability looks
+correct until somebody presses Save.
+
+Four things that are easy to get wrong:
+
+**Do not grant `ui`.** That is what injects the admin bar on site pages, and on
+an app page its Edit link opens the Markdown of a page whose body is a script -
+the most destructive action available, offered as the most prominent one. It is
+per-user with no per-page control, so the only way to keep it off an
+application is to keep the capability off the people using it.
+
+**`webdav` / `api` / `mcp` are for partner tokens.** A person signing in with a
+browser cookie does not use them, and granting them to a human group grants
+nothing and confuses the next reader.
+
+**`@group` in an ACL matches only signed-in browser users.** Token, MCP and
+WebDAV partners carry no groups, so an agent that must keep working has to be
+named in the list explicitly. `acl-set` warns about this and the warning is
+easy to skim past.
+
+**Name a group you are in on `writable_by` while you are still building.** The
+office group may not exist yet, and a descriptor naming only it locks the
+loader out of its own tables. Add the build agent's group, and put a comment in
+the descriptor saying to remove it at handover.
+
+Beyond that, do not split rights the app does not split. An earlier draft here
+had a second group for corrections because they were going to happen in the
+manager row editor. Once corrections moved onto the app's own pages, the second
+group had nothing to do.
+
 ## Forms are how people put data in
 
 A person in a browser cannot call the control API, so a form is the only way
@@ -1017,6 +1056,60 @@ the key would be in the page. Any model call belongs behind the server, with:
 Anything recurring lives **in the stack**, not in host cron - a sidecar or an
 in-process timer that ships with the app. A schedule the operator has to
 remember to install is a schedule that will be missing after the next move.
+
+## Widen the page, do not break out of it
+
+An app screen is usually wider than the prose column a site layout is built
+for. The reflex is to break the content out - `margin-left:50%` with a
+`translateX(-50%)` - and it works, for exactly the element you apply it to.
+
+**Everything around it stays behind.** The site bar, the nav and the footer
+keep the old width, so the page reads as a wide table wearing a narrow hat.
+That is worse than the narrow table you started with, and it looks like a bug
+because it is one.
+
+The shipped chrome caps the page with `body { max-width: 800px }`. **Raise that
+instead**, from the page's own stylesheet - a page can style `body` like any
+other element, and it only affects that page:
+
+```css
+body { max-width: min(1400px, calc(100vw - 2rem)); }
+```
+
+Then the bar, the nav, the content and the footer are one column again and all
+of them flow together. Pick ONE width for the whole section, or the header
+shifts as somebody moves between pages.
+
+Having done that, keep the prose narrow inside it. A table may use the full
+width; a paragraph at 1400px is unreadable:
+
+```css
+.head, .sub, .caption, label, textarea, .msg { max-width: 62rem; }
+```
+
+And size the columns rather than hoping. A column with no width of its own
+gives its space to whichever column carries the most words - a three-digit
+number will wrap onto two lines next to a sentence. `width:1%` with
+`white-space:nowrap` is the shrink-to-fit idiom: the cell gets exactly what its
+content needs. Give the prose column the slack, and keep a horizontal
+`overflow-x:auto` container around the table for the narrow-screen case.
+
+## Borrowing a theme
+
+A gated app should not look like the public site, and it does not need a theme
+of its own to manage. **Take the palette and the conventions from an existing
+theme and put them in the page**, scoped to the app's own container.
+
+Ours came from a documented intranet theme: quiet greys, a dark bar along the
+top, dense tables with small-caps headers. What made it worth borrowing was the
+description rather than the colours - *a working surface, not a shop window* -
+which decides a hundred small questions the same way.
+
+Two things carry the signal on their own. A **dark bar** across the top says
+which side of the gate you are on before anything is read, and it does it
+without a label - the "Private" chip we put in it was telling signed-in staff
+what the login had already told them. And **dense rows with quiet rules**: a
+data-entry screen is read by someone comparing it against paper, not browsing.
 
 ## Before calling an app done
 
