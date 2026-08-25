@@ -67,6 +67,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM527 resolved (PENDING) **a lock is keyed by the canonical path.** The
+  manager's lock key was the request spelling, so a lock taken as
+  content/p.md was invisible to a save of /content/p.md, ./content/p.md or
+  content//p.md, and MCP (/slug.md) and the API (path as typed) never saw
+  each other's locks. Found by the path-core review (NR-1), proven by
+  probe. Every site now derives the key from validate_path's rel through
+  one helper; acquire, release and lock-info validate first. t/unit/manager/08
+  pins the four spellings against one lock and the listing glyph.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

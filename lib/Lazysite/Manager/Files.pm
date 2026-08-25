@@ -297,8 +297,7 @@ sub action_list {
                 # Same reason `store` is a label and not a location (SM286).
                 my $gov = _governing_acl_key( $acls, $own );
                 $entry->{governed_by} = $gov if defined $gov;
-                ( my $lk = $rel ) =~ s{/}{:}g;
-                my $lrec = _read_lock_record("$LOCK_DIR/$lk.lock");
+                my $lrec = _read_lock_record( _lock_file($entry_key) );
                 if ( _lock_fresh($lrec) ) {
                     $entry->{lock} =
                         { locked_by => $lrec->{user}, origin => $lrec->{origin} };
@@ -395,9 +394,8 @@ sub action_save_binary {
     my $full    = $result->{full};
     my $existed = -f $full;
 
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lrec = _read_lock_record("$LOCK_DIR/$lock_key.lock");
+    my $lock_file = _lock_file( $result->{rel} );    # SM527: canonical key
+    my $lrec      = _read_lock_record($lock_file);
     if ( _lock_fresh($lrec)
         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) )
     {
@@ -431,7 +429,7 @@ sub action_save_binary {
         return { ok => 0, error => "Rename failed: $e" };
     }
 
-    unlink "$LOCK_DIR/$lock_key.lock" if -f "$LOCK_DIR/$lock_key.lock";
+    unlink $lock_file if -f $lock_file;
     log_event( 'INFO', $action, 'binary file saved',
         path => $rel_path, bytes => length($bytes), user => $auth_user );
 
@@ -500,9 +498,7 @@ sub action_save {
     # (The previous inline parser only understood the legacy "user epoch"
     # line format and silently ignored JSON/DAV locks - a lock-propagation
     # hole where a manager save could clobber a WebDAV-locked file.)
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
+    my $lock_file = _lock_file( $result->{rel} );    # SM527: canonical key
     my $lrec      = _read_lock_record($lock_file);
     if ( _lock_fresh($lrec)
         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
@@ -878,9 +874,7 @@ sub action_move {
     return { ok => 0, error => "Target already exists" } if -e $dst_full;
 
     # Refuse a live foreign lock on the source (mirror action_save).
-    my $lock_key = $src_rel;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
+    my $lock_file = _lock_file( $s->{rel} );         # SM527: canonical key
     my $lrec      = _read_lock_record($lock_file);
     if ( _lock_fresh($lrec)
         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
@@ -1253,13 +1247,37 @@ sub _lock_fresh {
     return $age < ( $rec->{timeout} // $LOCK_TIMEOUT ) ? 1 : 0;
 }
 
+# SM527: THE LOCK IS KEYED BY THE CANONICAL PATH.
+#
+# The key was minted from the request spelling at seven sites, so a lock taken
+# as content/p.md was invisible to a save of /content/p.md, ./content/p.md or
+# content//p.md - and MCP (which passes /slug.md) and the API (the path as
+# typed) differed by a leading colon by design, never seeing each other's
+# locks. Every site now derives the key from validate_path's rel, the one
+# spelling a file has; the three entry points that take a raw path validate
+# first and return validate_path's own refusal for a spelling it rejects.
+#
+# validate_path canonicalises the part of a path that EXISTS and re-attaches a
+# not-yet-existing tail as spelled (SM510), so a fresh content//q.md still
+# arrives here with its doubled slash. The key collapses slash runs and `.`
+# segments so that tail cannot mint a second lock either; `..` never reaches
+# here (F1 refuses it before any filesystem call).
+sub _lock_file {
+    my ($rel) = @_;
+    ( my $key = $rel ) =~ s{/+}{/}g;
+    $key               =~ s{(?:\A|/)\.(?=/|\z)}{}g;
+    $key               =~ s{\A/+|/+\z}{}g;
+    $key               =~ s{/}{:}g;
+    return "$LOCK_DIR/$key.lock";
+}
+
 sub acquire_lock {
     my ( $rel_path, $username ) = @_;
+    my $v = validate_path($rel_path);
+    return $v            unless $v->{ok};
     make_path($LOCK_DIR) unless -d $LOCK_DIR;
 
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
+    my $lock_file = _lock_file( $v->{rel} );
 
     my $rec = _read_lock_record($lock_file);
     # A fresh lock blocks if it is held via WebDAV (opaque to the
@@ -1286,9 +1304,9 @@ sub acquire_lock {
 
 sub release_lock {
     my ( $rel_path, $username ) = @_;
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
+    my $v = validate_path($rel_path);
+    return $v unless $v->{ok};
+    my $lock_file = _lock_file( $v->{rel} );
 
     # Never let the manager UI release a live WebDAV lock.
     my $rec = _read_lock_record($lock_file);
@@ -1306,9 +1324,9 @@ sub renew_lock {
 
 sub _get_lock_info {
     my ($rel_path) = @_;
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
+    my $v = validate_path($rel_path);
+    return {} unless $v->{ok};
+    my $lock_file = _lock_file( $v->{rel} );
     my $rec       = _read_lock_record($lock_file);
     return {} unless $rec;
     return {
