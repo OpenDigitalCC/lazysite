@@ -3,8 +3,8 @@ title: "SM521: anonymous tools/call is a tool-name oracle"
 subtitle: "An unauthenticated caller learns which tool names exist, one probe at a time, undoing the hidden vocabulary SM210 established."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND 2026-08-25 by the mcp structural review, PROVEN by probe tmp/mcp-probe-anomalies.t; class: security-confidentiality; recommended timing: BEFORE-BETA-PUBLISH. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. With no bearer, tools/call with a bogus name answers HTTP 200 / -32602 'Unknown tool' while a real name answers 401, because the unknown-tool check at lazysite-mcp.pl 3252 runs before verify_bearer at 3254. SM210 hid the tool vocabulary from an anonymous tools/list; this leaks it back by enumeration. The fix is to swap the two statements so authentication runs first, and to add an anonymous-probe assertion to unit/mcp/01."
+status: shipped
+status-note: "SHIPPED 0.10.32 (EDGE): tools/call now runs verify_bearer before the unknown-tool lookup, so an anonymous caller gets 401 for every name; proving test in t/unit/mcp/01 (anonymous unknown-tool call -> 401 / -32001). FOUND 2026-08-25 by the mcp structural review, PROVEN by probe tmp/mcp-probe-anomalies.t; class: security-confidentiality; recommended timing: BEFORE-BETA-PUBLISH. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. With no bearer, tools/call with a bogus name answers HTTP 200 / -32602 'Unknown tool' while a real name answers 401, because the unknown-tool check at lazysite-mcp.pl 3252 runs before verify_bearer at 3254. SM210 hid the tool vocabulary from an anonymous tools/list; this leaks it back by enumeration. The fix is to swap the two statements so authentication runs first, and to add an anonymous-probe assertion to unit/mcp/01."
 ---
 
 # The finding

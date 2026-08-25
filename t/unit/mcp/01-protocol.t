@@ -151,6 +151,13 @@ like( $raw,
 is( $r->{error}{code}, -32001, 'body is a JSON-RPC unauthorized error' );
 is( $r->{error}{data}{reason}, 'sign-in-incomplete', '401 distinguishes sign-in-incomplete (no credential reached the server)' );
 
+# SM521: an anonymous call with an UNKNOWN name answers 401 as well - the same
+# as a known one - so the tool table cannot be read back by enumeration (the
+# unknown-tool check used to run ahead of verify_bearer and answered -32602).
+( $st, $r ) = call( 'no_such_tool', {} );    # no Authorization
+is( $st, 401, 'anonymous call of an unknown tool -> 401, indistinguishable from a known one (SM521)' );
+is( $r->{error}{code}, -32001, 'anonymous unknown-tool call is unauthorized, not invalid-params (SM521)' );
+
 # SM200: an opaque OAuth bearer we do not recognise gets a DISTINCT reason
 # (token-invalid), not the generic sign-in-incomplete - so an agent can tell
 # "revoked / secret rotated" from "never signed in".

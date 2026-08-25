@@ -214,6 +214,12 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM521 resolved (PENDING) **an anonymous tools/call no longer tells known
+  tool names from unknown ones.** With no bearer, a bogus name answered
+  -32602 "Unknown tool" and a real one 401, because the lookup ran before
+  verify_bearer - the vocabulary SM210 hides from an anonymous tools/list,
+  read back one probe at a time. Authentication now runs first.
+  t/unit/mcp/01 pins the anonymous probe.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

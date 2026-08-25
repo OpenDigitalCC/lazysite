@@ -3254,10 +3254,14 @@ elsif ( $method eq 'tools/call' ) {
     my $params = $req->{params} || {};
     my $name   = $params->{name} // '';
     my $tool   = $TOOLS{$name};
-    rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
 
+    # SM521: authenticate BEFORE looking the name up. With the lookup first, an
+    # anonymous caller got -32602 for an unknown name and 401 for a known one -
+    # a tool-name oracle that handed back the vocabulary SM210 withholds from an
+    # anonymous tools/list, one probe at a time.
     my ( $user, $caps ) = verify_bearer();
-    send_401($id) unless defined $user;
+    send_401($id)                                   unless defined $user;
+    rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
 
     # Introspection tools (whoami, describe_capabilities) stay open to ANY
     # authenticated session, per the SM072/SM126 contract. Declared here so BOTH
