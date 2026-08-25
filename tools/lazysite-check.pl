@@ -378,13 +378,9 @@ sub run_checks {
     # paste away.
     {
         my %declared;
-        if ( open my $sf, '<', "$LZ/.install-state.json" ) {
-            local $/;
-            my $j = eval { JSON::PP::decode_json(<$sf>) };
-            close $sf;
-            %declared = %{ $j->{dirs} }
-                if ref $j eq 'HASH' && ref $j->{dirs} eq 'HASH';
-        }
+        my $st = _read_json("$LZ/.install-state.json");
+        %declared = %{ $st->{dirs} }
+            if ref $st eq 'HASH' && ref $st->{dirs} eq 'HASH';
 
         my $checked = 0;
         my $wrong   = 0;
@@ -684,15 +680,11 @@ sub run_checks {
     # through its domain - so it is reported and never touched by --fix.
     {
         my %scoped;
-        if ( open my $gsf, '<', "$LZ/auth/groups-settings.json" ) {
-            local $/;
-            my $gs = eval { JSON::PP::decode_json(<$gsf>) } || {};
-            close $gsf;
-            for my $g ( sort keys %$gs ) {
-                next unless ref $gs->{$g} eq 'HASH';
-                my $s = $gs->{$g}{dav_scope};
-                $scoped{$g} = $s if defined $s && length $s;
-            }
+        my $gs = _read_json("$LZ/auth/groups-settings.json") || {};
+        for my $g ( sort keys %$gs ) {
+            next unless ref $gs->{$g} eq 'HASH';
+            my $s = $gs->{$g}{dav_scope};
+            $scoped{$g} = $s if defined $s && length $s;
         }
         for my $g ( sort keys %scoped ) {
             report( 'FAIL',
@@ -741,16 +733,11 @@ sub run_checks {
         # SM138: manager groups are those whose SETTINGS entry grants manager access
         # (ui / manage_users / the manager flag); the conf manager_groups key is
         # retired (a lingering line is inert and migrated away on first use).
-        my @groups;
-        if ( open my $gsf, '<', "$LZ/auth/groups-settings.json" ) {
-            local $/;
-            my $gs = eval { JSON::PP::decode_json(<$gsf>) } || {};
-            close $gsf;
-            @groups = sort grep {
-                my $c = $gs->{$_};
-                ref $c eq 'HASH' && ( $c->{ui} || $c->{manage_users} || $c->{manager} );
-            } keys %{$gs};
-        }
+        my $gs     = _read_json("$LZ/auth/groups-settings.json") || {};
+        my @groups = sort grep {
+            my $c = $gs->{$_};
+            ref $c eq 'HASH' && ( $c->{ui} || $c->{manage_users} || $c->{manager} );
+        } keys %{$gs};
         if ( !@groups ) {
             report( 'WARN',
                 "no group grants manager access - the manager is unconfigured "
@@ -822,13 +809,7 @@ sub run_checks {
                 read_submissions create_sub_users delegate_sub_user_creation
                 manage_data);
 
-            my $gsettings = {};
-            if ( open my $gf, '<:raw', "$LZ/auth/groups-settings.json" ) {
-                local $/;
-                my $raw = <$gf>;
-                close $gf;
-                $gsettings = eval { JSON::PP::decode_json($raw) } || {};
-            }
+            my $gsettings = _read_json("$LZ/auth/groups-settings.json") || {};
 
             # SM496: ABSENT and DECLINED are different answers now. An
             # explicit 0 is a recorded human decision (the Groups page banner
@@ -1103,13 +1084,9 @@ sub run_checks {
     {
         require Digest::SHA;
         my %state;
-        if ( open my $sf, '<', "$LZ/.install-state.json" ) {
-            local $/;
-            my $j = eval { JSON::PP::decode_json(<$sf>) };
-            close $sf;
-            %state = %{ $j->{files} }
-                if ref $j eq 'HASH' && ref $j->{files} eq 'HASH';
-        }
+        my $st = _read_json("$LZ/.install-state.json");
+        %state = %{ $st->{files} }
+            if ref $st eq 'HASH' && ref $st->{files} eq 'HASH';
         my $sha_file = sub {
             my ($p) = @_;
             open my $fh, '<:raw', $p or return '';
@@ -1471,10 +1448,7 @@ sub report_group_acl_reach {
     my $f = _acls_file($d);
     return unless -f $f;
 
-    open my $fh, '<', $f or return;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    my $map = _read_json($f);
     return unless ref $map eq 'HASH';
 
     # Every @group named by any entry, in any mode.
@@ -2033,11 +2007,7 @@ sub _acl_read {
     my ($d) = @_;
     my $f = _acls_file($d);
     return {} unless -f $f;
-    open my $fh, '<', $f or return {};
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return ref $m eq 'HASH' ? $m : {};
+    return _read_json($f) || {};
 }
 
 sub _acl_write {
@@ -2140,13 +2110,30 @@ sub _acl_probe_sweep {
     return;
 }
 
+# Read a JSON file into a hash. undef when the file cannot be opened or does
+# not decode to an object - the callers each decide what that means for them,
+# which is why this does not substitute a default of its own.
+sub _read_json {
+    my ($path) = @_;
+    open my $fh, '<', $path or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $d = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return ref $d eq 'HASH' ? $d : undef;
+}
+
 # One anonymous GET. Returns (status, body). Cache directives on purpose: a
 # cached 200 from an intermediary must not be mistaken for the origin serving
 # the file, and neither must it hide a leak.
-sub _probe_get {
-    my ($url) = @_;
+sub _probe_get { return _curl( '-sS', $_[0], qr/\n(\d{3})\z/ ) }
+
+# The one curl invocation both probes make. $mode is the only difference in the
+# command line, and $tail the only difference in how the status code is peeled
+# off the end of the output.
+sub _curl {
+    my ( $mode, $url, $tail ) = @_;
     my @cmd = (
-        'curl', '-sS',                     '-k', '--max-time', '8',
+        'curl', $mode,                     '-k', '--max-time', '8',
         '-H',   'Cache-Control: no-cache', '-H', 'Pragma: no-cache',
         '-w',   "\n%{http_code}",          $url,
     );
@@ -2155,7 +2142,7 @@ sub _probe_get {
     close $ph;
     return ( '', '' ) unless defined $out;
     my $code = '';
-    if ( $out =~ s/\n(\d{3})\z// ) { $code = $1 }
+    if ( $out =~ s/$tail// ) { $code = $1 }
     return ( $code, $out );
 }
 
@@ -2354,21 +2341,7 @@ sub report_engine_sees_statics {
 # A HEAD request, returning ( status, headers ). Separate from _probe_get
 # because this compares HEADERS and has no interest in bodies - and a HEAD
 # cannot be answered from a body cache in a way that hides the difference.
-sub _probe_head {
-    my ($u) = @_;
-    my @cmd = (
-        'curl', '-sSI',                    '-k', '--max-time', '8',
-        '-H',   'Cache-Control: no-cache', '-H', 'Pragma: no-cache',
-        '-w',   "\n%{http_code}",          $u,
-    );
-    open my $ph, '-|', @cmd or return ( '', '' );
-    my $out = do { local $/; <$ph> };
-    close $ph;
-    return ( '', '' ) unless defined $out;
-    my $code = '';
-    if ( $out =~ s/\n(\d{3})\s*\z// ) { $code = $1 }
-    return ( $code, $out );
-}
+sub _probe_head { return _curl( '-sSI', $_[0], qr/\n(\d{3})\s*\z/ ) }
 
 # A static asset this site actually serves, found from the docroot rather than
 # guessed - a guessed path that 404s would be indistinguishable from a bypass.

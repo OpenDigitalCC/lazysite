@@ -50,6 +50,12 @@ subtest 'release.sh refuses a man directory with no pages' => sub {
     my ($block) = $src =~ /^(MAN_ADD=\(\)\n.*?produced no pages.*?\nfi\n(?:MAN_ADD\+=[^\n]*\n)?)/ms;
     ok( defined $block, 'the MAN_ADD block was lifted from release.sh' ) or return;
 
+    # SM516 TO-28: the refusal reports through the shared abort helper, so lift
+    # the real one rather than stubbing it - the exit status and the sentence
+    # under test are its, not ours.
+    my ($abort) = $src =~ /^(abort_build\(\) \{\n.*?\n\})\n/ms;
+    ok( defined $abort, 'and abort_build() with it' ) or return;
+
     my $run = sub {
         my ($pages) = @_;
         my $d = tempdir( CLEANUP => 1 );
@@ -61,7 +67,8 @@ subtest 'release.sh refuses a man directory with no pages' => sub {
         }
         open my $r, '>', "$d/run.sh" or die $!;
         print {$r} "STAGE=\"$d\"\nVERSION=9.9.9\nset -e\n"
-            . "stage_disposition() { :; }\n"    # SM560's abort helper; inert here
+            . "stage_disposition() { :; }\n"    # SM560's reporter; inert here
+            . "$abort\n"
             . $block
             . "echo \"REACHED: \${#MAN_ADD[@]} element(s)\"\n";
         close $r;

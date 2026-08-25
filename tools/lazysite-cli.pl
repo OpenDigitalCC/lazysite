@@ -247,6 +247,31 @@ sub _lib_arg {
     return -d $lib ? ( '-I', $lib ) : ();
 }
 
+# The installer invocation. Four callers assembled the same interpreter, the
+# same payload path and the same pair of path options; --force is the only
+# flag any of them added.
+sub _install_argv {
+    my ( $docroot, $cgibin, %o ) = @_;
+    my @cmd = ( $^X, payload_root() . '/install.pl',
+        '--docroot', $docroot, '--cgibin', $cgibin );
+    push @cmd, '--force' if $o{force};
+    return @cmd;
+}
+
+# As root, drop to the site's owner before a command touches a site tree.
+# sudo -n never prompts, so a host without the sudoers entry fails loudly
+# rather than hanging.
+sub _as_owner {
+    my ( $owner, @cmd ) = @_;
+    return ( 'sudo', '-n', '-u', $owner, '--', @cmd );
+}
+
+# Three verbs walk the registry, and each said this when it was empty.
+sub _no_sites_registered {
+    print 'lazysite: no sites registered in ' . registry_dir() . "\n";
+    return 0;
+}
+
 # SM321: address a site by the one token the operator holds - its NAME.
 #
 # `lazysite check` and `lazysite acl` were pure pass-throughs, so they never saw
@@ -533,8 +558,7 @@ sub cmd_provision {
         if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
 
     my $root = payload_root();
-    my @cmd  = ( $^X, "$root/install.pl",
-        '--docroot', $o{docroot}, '--cgibin', $o{cgibin} );
+    my @cmd  = _install_argv( $o{docroot}, $o{cgibin} );
     push @cmd, '--domain', $o{domain} if length $o{domain};
     run_or_fail(@cmd);
 
@@ -612,20 +636,14 @@ sub cmd_upgrade {
             . ') - pass --cgibin' )
         unless length $cgibin;
 
-    my @cmd = ( $^X, payload_root() . '/install.pl',
-        '--docroot', $docroot, '--cgibin', $cgibin );
-    push @cmd, '--force' if $o{force};
-    run_or_fail(@cmd);
+    run_or_fail( _install_argv( $docroot, $cgibin, force => $o{force} ) );
     return 0;
 }
 
 sub cmd_upgrade_all {
     my ($o) = @_;
     my $sites = read_registry();
-    if ( !@$sites ) {
-        print 'lazysite: no sites registered in ' . registry_dir() . "\n";
-        return 0;
-    }
+    return _no_sites_registered() if !@$sites;
     my $me      = current_user();
     my $is_root = running_as_root();
     if ( !$is_root ) {
@@ -638,7 +656,6 @@ sub cmd_upgrade_all {
             if @foreign;
     }
 
-    my $root = payload_root();
     my ( @done, @skipped, @failed );
     for my $s (@$sites) {
         my $owner = site_owner($s);
@@ -663,13 +680,9 @@ sub cmd_upgrade_all {
             push @skipped, $s->{name};
             next;
         }
-        my @cmd = ( $^X, "$root/install.pl",
-            '--docroot', $s->{docroot}, '--cgibin', $s->{cgibin} );
-        push @cmd, '--force' if $o->{force};
-        # The only place root is allowed: drop to the site's owner per
-        # site (sudo -n never prompts; a misconfigured sudo fails loudly).
-        unshift @cmd, 'sudo', '-n', '-u', $owner, '--'
-            if $is_root && $owner ne $me;
+        my @cmd = _install_argv( $s->{docroot}, $s->{cgibin}, force => $o->{force} );
+        # The only place root is allowed: drop to the site's owner per site.
+        @cmd = _as_owner( $owner, @cmd ) if $is_root && $owner ne $me;
         print "== $s->{name}: $s->{docroot} (as $owner)\n";
         my $rc = system(@cmd);
         if    ( $rc == 0 ) { push @done, $s->{name} }
@@ -830,7 +843,7 @@ sub cmd_probe {
         # through unchanged, which is what SM385 requires of a summary.
         my $owner = site_owner($s);
         my @cmd   = ( $^X, _lib_arg(), $tool, @base );
-        unshift @cmd, 'sudo', '-n', '-u', $owner, '--'
+        @cmd = _as_owner( $owner, @cmd )
             if $is_root && defined $owner && length $owner && $owner ne $me;
 
         my $shell = join ' ', map { quotemeta } @cmd;
@@ -952,10 +965,7 @@ sub cmd_migrate_engine_tree {
     my @targets;
     if ( $o{all} ) {
         my $sites = read_registry();
-        if ( !@$sites ) {
-            print 'lazysite: no sites registered in ' . registry_dir() . "\n";
-            return 0;
-        }
+        return _no_sites_registered() if !@$sites;
         @targets = @$sites;
     }
     else {
@@ -1012,11 +1022,9 @@ sub cmd_migrate_engine_tree {
         }
         if ( $is_root && $owner ne $me ) {
             my $root = payload_root();
-            my @cmd  = (
-                'sudo',      '-n',                          '-u', $owner, '--',
+            my @cmd  = _as_owner( $owner,
                 $^X,         "$root/tools/lazysite-cli.pl", 'migrate-engine-tree',
-                '--docroot', $doc, '--apply', ( $o{back} ? ('--back') : () )
-            );
+                '--docroot', $doc, '--apply', ( $o{back} ? ('--back') : () ) );
             print "== $s->{name}: $what the document root (as $owner)\n";
             my $rc = system(@cmd);
             if   ( $rc == 0 ) { push @done,   $s->{name} }
@@ -1066,10 +1074,7 @@ sub version_lt {
 
 sub cmd_sites {
     my $sites = read_registry();
-    if ( !@$sites ) {
-        print 'lazysite: no sites registered in ' . registry_dir() . "\n";
-        return 0;
-    }
+    return _no_sites_registered() if !@$sites;
     my @rows;
     for my $s (@$sites) {
         my $channel = site_conf_value( $s->{docroot}, 'update_channel' );
@@ -1133,8 +1138,7 @@ sub cmd_demo {
         fail("cannot create the demo site directories under $dir")
             unless -d $docroot && -d $cgibin;
         print "lazysite: fresh-installing a demo site at $dir\n";
-        run_or_fail( $^X, "$root/install.pl",
-            '--docroot', $docroot, '--cgibin', $cgibin );
+        run_or_fail( _install_argv( $docroot, $cgibin ) );
     }
 
     my @serve = ( $^X, "$root/tools/lazysite-server.pl",

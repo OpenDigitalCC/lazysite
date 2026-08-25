@@ -154,8 +154,14 @@ subtest 'cmd_probe drops to the site owner, and only when it must' => sub {
     my ($probe) = $sh_src =~ /\nsub cmd_probe \{(.*?)\nsub \w/s;
     ok( $probe, 'cmd_probe is present' ) or return;
 
-    like( $probe, qr/sudo/, 'it drops privileges rather than refusing' );
-    like( $probe, qr/'-n'/,
+    like( $probe, qr/_as_owner\(/, 'it drops privileges rather than refusing' );
+
+    # SM516 TO-16: the three copies of the sudo prelude are one helper now, so
+    # the constraint is asserted where it lives - and once, for every caller.
+    my ($as_owner) = $sh_src =~ /\nsub _as_owner \{(.*?)\n\}/s;
+    ok( $as_owner, '_as_owner is present' ) or return;
+    like( $as_owner, qr/'sudo'/, 'the drop is sudo' );
+    like( $as_owner, qr/'-n'/,
         'with sudo -n: never prompts, so a host without the sudoers entry '
             . 'FAILS LOUDLY instead of hanging a deploy' );
     like( $probe, qr/site_owner\(/,

@@ -33,7 +33,14 @@ ok( defined $helper, 'release.sh defines stage_disposition()' )
 my ($trap) = $src =~ /^(cleanup_stage\(\) \{[^\n]*\})\n/m;
 ok( defined $trap, 'and the SM328 cleanup trap is still there' );
 
-my @calls = $src =~ /^\s+stage_disposition$/mg;
+# SM516 TO-28 folded the identical abort blocks onto abort_build(), which is
+# now the caller of stage_disposition for all but one path. Count both spellings
+# and assert the chain, so the property survives the dedupe rather than the
+# literal.
+like( $src, qr/^abort_build\(\) \{\n(?:[^\n]*\n)*?\s+stage_disposition\n/m,
+    'abort_build() reports the stage disposition before it exits' );
+
+my @calls = $src =~ /^\s+(?:abort_build\b|stage_disposition$)/mg;
 cmp_ok( scalar @calls, '>=', 11, 'every abort path reports through the helper' )
     or diag( scalar(@calls) . ' calls found; the review counted eleven abort echoes plus two prose promises' );
 

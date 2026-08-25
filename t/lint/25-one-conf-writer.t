@@ -41,8 +41,8 @@ my %EXEMPT = (
 
 my @sources;
 File::Find::find(
-    {   no_chdir => 1,
-        wanted   => sub {
+    { no_chdir => 1,
+        wanted => sub {
             return unless /\.(?:pm|pl)\z/;
             return if $File::Find::name =~ m{/(?:t|tmp|dist|man|node_modules)/};
             push @sources, $File::Find::name;
@@ -53,7 +53,7 @@ File::Find::find(
     ( -d "$root/plugins" ? "$root/plugins" : () ),
 );
 # The CGI entry points live at the top level, not under lib/.
-push @sources, grep { -f } map {"$root/$_"} qw(
+push @sources, grep { -f } map { "$root/$_" } qw(
     lazysite-manager-api.pl lazysite-mcp.pl lazysite-dav.pl
     lazysite-processor.pl install.pl
 );
@@ -80,8 +80,8 @@ for my $file (@sources) {
         $sub //= 'file scope';
 
         # Which local names hold the conf path IN THIS SUB, plus the literal.
-        my @held = $body =~ /(\$\w+)\s*=\s*"[^"]*lazysite\/lazysite\.conf"/g;
-        my $names = join '|', map {quotemeta} @held;
+        my @held   = $body =~ /(\$\w+)\s*=\s*"[^"]*lazysite\/lazysite\.conf"/g;
+        my $names  = join '|', map { quotemeta } @held;
         my $target = $names
             ? qr/(?:\Q"\E[^"]*lazysite\/lazysite\.conf\Q"\E|$names)/
             : qr/"[^"]*lazysite\/lazysite\.conf"/;
@@ -113,9 +113,28 @@ is_deeply( \@committers, [],
     open my $fh, '<', "$root/lib/Lazysite/Manager/Common.pm" or die $!;
     my $src = do { local $/; <$fh> };
     close $fh;
-    like( $src, qr/sub _write_conf\b/, 'Common still defines the single writer' );
+    like( $src, qr/sub _write_conf\b/,        'Common still defines the single writer' );
     like( $src, qr/sub write_conf_key\b/,     'and its per-key shape' );
     like( $src, qr/sub write_conf_content\b/, 'and its whole-file shape' );
+}
+
+# install.pl is core-Perl by design (ADR 0001) and cannot reach Common's
+# writer, so it carries its own - and for a long time it carried TWO, the same
+# read / replace-or-append / temp+rename algorithm with OPPOSITE return
+# conventions (0 meant ok in one and failure in the other) and the SM215
+# owner-preserve block copied verbatim into both. The rule this file states for
+# modules holds inside the installer too: one writer.
+{
+    open my $fh, '<', "$root/install.pl" or die $!;
+    my $src = do { local $/; <$fh> };
+    close $fh;
+    like( $src, qr/sub _write_conf_key\b/, 'install.pl defines its one conf-key writer' );
+    unlike( $src, qr/sub _set_conf_key\b/,
+        'and not a second one beside it with the opposite return convention' );
+    my @temp_renames = $src =~ /^(\s+my \$tmp\s+= "\$conf\.tmp\.\$\$";)$/mg;
+    is( scalar @temp_renames, 1,
+        'the temp-then-rename conf replace is written once' )
+        or diag( 'copies: ' . scalar @temp_renames );
 }
 
 done_testing();

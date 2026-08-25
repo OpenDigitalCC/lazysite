@@ -945,6 +945,24 @@ sub _remove_conf_key {
 # enables the manager + names the group. Idempotent. Generates and prints a
 # strong password if none is given. This is the whole "getting started" step.
 #   setup-manager [PASSWORD] [--user NAME] [--group NAME]
+# The site's base URL with the CGI-only placeholders resolved.
+#
+# site_url routinely holds ${REQUEST_SCHEME}://${SERVER_NAME}, which only the
+# CGI environment can expand. $host_fallback is what stands in for the host
+# when there is no CGI env: '' for the callers that would rather emit a
+# relative path, 'YOUR-SITE' for the briefs, which are read by a human who
+# will substitute their own.
+sub _site_base_url {
+    my ($host_fallback) = @_;
+    $host_fallback = '' unless defined $host_fallback;
+    my $base = read_conf_value('site_url');
+    $base = ( length $host_fallback ? "https://$host_fallback" : '' )
+        unless defined $base;
+    $base =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
+    $base =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || $host_fallback/ge;
+    return $base;
+}
+
 sub _urlenc {
     my $s = defined $_[0] ? "$_[0]" : '';
     $s =~ s/([^A-Za-z0-9_.~-])/sprintf('%%%02X', ord $1)/ge;
@@ -957,9 +975,7 @@ sub _urlenc {
 # with the site's address.
 sub _claim_url {
     my ( $user, $claim ) = @_;
-    my $url = read_conf_value('site_url') // '';
-    $url =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
-    $url =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || ''/ge;
+    my $url = _site_base_url('');
     $url =~ s{/+$}{};
     my $base = ( $url =~ m{^\w+://[^/\s]+} ) ? $url : '';
     return "$base/claim?u=" . _urlenc($user) . '&c=' . _urlenc($claim);
@@ -1006,15 +1022,15 @@ sub _ensure_manager_group_caps {
 }
 
 sub cmd_setup_manager {
-    my @a = @_;
-    my ( $pass, $user, $group, $link );
-    while (@a) {
-        my $x = shift @a;
-        if    ( $x eq '--user' )                           { $user  = shift @a }
-        elsif ( $x eq '--group' )                          { $group = shift @a }
-        elsif ( $x eq '--link' || $x eq '--self-service' ) { $link  = 1 }
-        elsif ( !defined $pass )                           { $pass  = $x }
-    }
+    my ( $pos, %f ) = _take_flags( \@_, {
+            '--user'         => [ 'user',  'v' ],
+            '--group'        => [ 'group', 'v' ],
+            '--link'         => [ 'link',  1 ],
+            '--self-service' => [ 'link',  1 ],
+    } );
+    # Only the FIRST positional is the password; the loop this replaced dropped
+    # any that followed, and so does taking element 0.
+    my ( $pass, $user, $group, $link ) = ( $pos->[0], $f{user}, $f{group}, $f{link} );
     $user = 'manager' unless defined $user && length $user;
 
     # Honour an existing manager group: one already flagged in group settings
@@ -1087,12 +1103,9 @@ sub cmd_setup_manager {
         $generated ? 'password generated' : 'password set' );
 
     unless ($API_MODE) {
-        my $url = read_conf_value('site_url') // '';
-        # site_url often holds ${REQUEST_SCHEME}://${SERVER_NAME}, which only the CGI
-        # env resolves. Expand what we can; if no real host results (run on the CLI),
-        # show a relative path rather than the literal placeholders.
-        $url =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
-        $url =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || ''/ge;
+        # If no real host results (run on the CLI rather than through the
+        # CGI), show a relative path rather than the literal placeholders.
+        my $url = _site_base_url('');
         $url =~ s{/+$}{};
         my $manager_url = ( $url =~ m{^\w+://[^/\s]+} ) ? "$url/manager/" : "/manager/";
         print "\nManager ready.\n";
@@ -1336,15 +1349,32 @@ sub cmd_settings {
         ( @sc ? join( ', ', @sc ) : '(nothing - no domain confines this account)' );
 }
 
+# One flag parser for the CLI wrappers, which each carried the same
+# while/shift loop over @_.
+#
+# $spec maps an option to [ RESULT_KEY, 'v' ] - take the NEXT argument as its
+# value - or [ RESULT_KEY, CONSTANT ]. Options are applied in the order they
+# appear, so a later flag overrides an earlier one exactly as the hand-written
+# loops did (this is what keeps `--themes --no-themes` last-wins). Anything the
+# spec does not name stays positional, in order.
+sub _take_flags {
+    my ( $argv, $spec ) = @_;
+    my ( @pos, %opt );
+    my @a = @{$argv};
+    while (@a) {
+        my $x = shift @a;
+        my $s = $spec->{$x};
+        if ( !$s ) { push @pos, $x; next }
+        my ( $key, $how ) = @{$s};
+        $opt{$key} = ( $how eq 'v' ) ? shift @a : $how;
+    }
+    return ( \@pos, %opt );
+}
+
 # CLI wrapper: pull an optional --force flag out of the positional args.
 sub cmd_set_cli {
-    my @pos;
-    my $force = 0;
-    for my $a (@_) {
-        if ( $a eq '--force' ) { $force = 1 }
-        else                   { push @pos, $a }
-    }
-    cmd_set( $pos[0], $pos[1], $pos[2], force => $force );
+    my ( $pos, %f ) = _take_flags( \@_, { '--force' => [ 'force', 1 ] } );
+    cmd_set( $pos->[0], $pos->[1], $pos->[2], force => ( $f{force} // 0 ) );
 }
 
 sub cmd_set {
@@ -1544,17 +1574,10 @@ sub cmd_account_create {
 
 # CLI wrapper: account-create USER PASS --by PARENT [--create-subs]
 sub cmd_account_create_cli {
-    my @pos;
-    my ( $created_by, $create_subs );
-    my @a = @_;
-    while (@a) {
-        my $x = shift @a;
-        if    ( $x eq '--by' )          { $created_by = shift @a }
-        elsif ( $x eq '--create-subs' ) { $create_subs = 1 }
-        else                            { push @pos, $x }
-    }
-    cmd_account_create( $pos[0], $pos[1],
-        created_by => $created_by, create_subs => $create_subs );
+    my ( $pos, %f ) = _take_flags( \@_,
+        { '--by' => [ 'created_by', 'v' ], '--create-subs' => [ 'create_subs', 1 ] } );
+    cmd_account_create( $pos->[0], $pos->[1],
+        created_by => $f{created_by}, create_subs => $f{create_subs} );
 }
 
 # SM071 Phase 2: sub-user tree helpers (managed_by edges).
@@ -1735,62 +1758,32 @@ sub cmd_account_scope_independent {
 
 # CLI wrappers: pull --actor / --cascade / --to out of positional args.
 sub cmd_account_disable_cli {
-    my ( @pos, $actor, $cascade );
-    my @a = @_;
-    while (@a) {
-        my $x = shift @a;
-        if    ( $x eq '--actor' )   { $actor = shift @a }
-        elsif ( $x eq '--cascade' ) { $cascade = 1 }
-        else                        { push @pos, $x }
-    }
-    cmd_account_set_disabled( $pos[0], 1, actor => $actor, cascade => $cascade );
+    my ( $pos, %f ) = _take_flags( \@_,
+        { '--actor' => [ 'actor', 'v' ], '--cascade' => [ 'cascade', 1 ] } );
+    cmd_account_set_disabled( $pos->[0], 1, actor => $f{actor}, cascade => $f{cascade} );
 }
 
 sub cmd_account_enable_cli {
-    my ( @pos, $actor, $cascade );
-    my @a = @_;
-    while (@a) {
-        my $x = shift @a;
-        if    ( $x eq '--actor' )   { $actor = shift @a }
-        elsif ( $x eq '--cascade' ) { $cascade = 1 }
-        else                        { push @pos, $x }
-    }
-    cmd_account_set_disabled( $pos[0], 0, actor => $actor, cascade => $cascade );
+    my ( $pos, %f ) = _take_flags( \@_,
+        { '--actor' => [ 'actor', 'v' ], '--cascade' => [ 'cascade', 1 ] } );
+    cmd_account_set_disabled( $pos->[0], 0, actor => $f{actor}, cascade => $f{cascade} );
 }
 
 sub cmd_account_reassign_cli {
-    my ( @pos, $actor, $to );
-    my @a = @_;
-    while (@a) {
-        my $x = shift @a;
-        if    ( $x eq '--actor' ) { $actor = shift @a }
-        elsif ( $x eq '--to' )    { $to = shift @a }
-        else                      { push @pos, $x }
-    }
-    cmd_account_reassign( $pos[0], $to, actor => $actor );
+    my ( $pos, %f ) = _take_flags( \@_,
+        { '--actor' => [ 'actor', 'v' ], '--to' => [ 'to', 'v' ] } );
+    cmd_account_reassign( $pos->[0], $f{to}, actor => $f{actor} );
 }
 
 sub cmd_account_promote_cli {
-    my ( @pos, $actor );
-    my @a = @_;
-    while (@a) {
-        my $x = shift @a;
-        if ( $x eq '--actor' ) { $actor = shift @a }
-        else                   { push @pos, $x }
-    }
-    cmd_account_promote( $pos[0], actor => $actor );
+    my ( $pos, %f ) = _take_flags( \@_, { '--actor' => [ 'actor', 'v' ] } );
+    cmd_account_promote( $pos->[0], actor => $f{actor} );
 }
 
 sub cmd_account_scope_independent_cli {
-    my ( @pos, $actor );
-    my @a = @_;
-    while (@a) {
-        my $x = shift @a;
-        if ( $x eq '--actor' ) { $actor = shift @a }
-        else                   { push @pos, $x }
-    }
-    my $on = parse_onoff( defined $pos[1] ? $pos[1] : 'on' );
-    cmd_account_scope_independent( $pos[0], $on, actor => $actor );
+    my ( $pos, %f ) = _take_flags( \@_, { '--actor' => [ 'actor', 'v' ] } );
+    my $on = parse_onoff( defined $pos->[1] ? $pos->[1] : 'on' );
+    cmd_account_scope_independent( $pos->[0], $on, actor => $f{actor} );
 }
 
 # Drop any access-token expiry for a user (the credential is now a
@@ -2069,25 +2062,17 @@ sub cmd_claim_redeem {
 # CLI wrappers: pull --reset out of the positionals; map the 3rd
 # positional of redeem to the password option.
 sub cmd_claim_create_cli {
-    my @pos; my $revoke = 0;
-    for (@_) { if ( $_ eq '--reset' ) { $revoke = 1 } else { push @pos, $_ } }
-    my $r = cmd_claim_create( $pos[0], revoke => $revoke );
+    my ( $pos, %f ) = _take_flags( \@_, { '--reset' => [ 'revoke', 1 ] } );
+    my $r = cmd_claim_create( $pos->[0], revoke => ( $f{revoke} // 0 ) );
     if ( ref $r eq 'HASH' && $r->{claim} ) {
         print "Self-service link (single use; send this to the user):\n  "
-            . _claim_url( $pos[0], $r->{claim} ) . "\n";
+            . _claim_url( $pos->[0], $r->{claim} ) . "\n";
     }
 }
 
 sub cmd_claim_redeem_cli {
     my ( $user, $claim, $pw ) = @_;
     cmd_claim_redeem( $user, $claim, password => $pw );
-}
-
-sub _uri_escape {
-    my ($s) = @_;
-    $s = defined $s ? "$s" : '';
-    $s =~ s/([^A-Za-z0-9._~-])/sprintf('%%%02X', ord $1)/ge;
-    return $s;
 }
 
 # SM072 batch 4: enrol TOTP. Generates a secret + 8 single-use recovery
@@ -2118,8 +2103,8 @@ sub cmd_mfa_enroll {
 
     my $issuer = read_conf_value('site_name') || 'lazysite';
     $issuer =~ s/[^A-Za-z0-9 ._-]//g;
-    my $uri = 'otpauth://totp/' . _uri_escape("$issuer:$user")
-        . "?secret=$secret&issuer=" . _uri_escape($issuer)
+    my $uri = 'otpauth://totp/' . _urlenc("$issuer:$user")
+        . "?secret=$secret&issuer=" . _urlenc($issuer)
         . '&algorithm=SHA1&digits=6&period=30';
 
     log_event( 'INFO', $user, 'mfa enrolled' );
@@ -2224,11 +2209,7 @@ sub read_conf_value {
 # the control-API surface as forthcoming.
 sub _onboarding_brief {
     my ( $name, $key, $s ) = @_;
-    my $base = read_conf_value('site_url') // 'https://YOUR-SITE';
-    # Resolve ${REQUEST_SCHEME}/${SERVER_NAME} - set in the CGI env when the
-    # brief is generated via the manager API; sensible fallbacks otherwise.
-    $base =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
-    $base =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || 'YOUR-SITE'/ge;
+    my $base = _brief_base();
     my @caps;
     push @caps, 'publish content over WebDAV (`/dav`)' if $s->{webdav};
     push @caps, 'manage themes'                        if $s->{manage_themes};
@@ -2661,12 +2642,7 @@ sub cmd_partner_caps {
     return { ok => 1, username => $user, settings => $eff };
 }
 
-sub _brief_base {
-    my $base = read_conf_value('site_url') // 'https://YOUR-SITE';
-    $base =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
-    $base =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || 'YOUR-SITE'/ge;
-    return $base;
-}
+sub _brief_base { return _site_base_url('YOUR-SITE') }
 
 # SM076: connector setup for a conversational assistant (Claude.ai / Desktop).
 # The robust path for a chat agent: mint a token that goes in the connector's
@@ -2851,21 +2827,16 @@ sub cmd_partner_create {
 }
 
 sub cmd_partner_create_cli {
-    my @a = @_;
-    my ( @pos, %opt );
-    $opt{themes} = 1;    # partner default
-    while (@a) {
-        my $x = shift @a;
-        if    ( $x eq '--by' )          { $opt{created_by}  = shift @a }
-        elsif ( $x eq '--themes' )      { $opt{themes}      = 1 }
-        elsif ( $x eq '--no-themes' )   { $opt{themes}      = 0 }
-        elsif ( $x eq '--layouts' )     { $opt{layouts}     = 1 }
-        elsif ( $x eq '--config' )      { $opt{config}      = 1 }
-        elsif ( $x eq '--scope' )       { $opt{scope}       = shift @a }
-        elsif ( $x eq '--create-subs' ) { $opt{create_subs} = 1 }
-        else                            { push @pos, $x }
-    }
-    cmd_partner_create( $pos[0], %opt );
+    my ( $pos, %f ) = _take_flags( \@_, {
+            '--by'          => [ 'created_by',  'v' ],
+            '--themes'      => [ 'themes',      1 ],
+            '--no-themes'   => [ 'themes',      0 ],
+            '--layouts'     => [ 'layouts',     1 ],
+            '--config'      => [ 'config',      1 ],
+            '--scope'       => [ 'scope',       'v' ],
+            '--create-subs' => [ 'create_subs', 1 ],
+    } );
+    cmd_partner_create( $pos->[0], themes => 1, %f );    # themes: partner default
 }
 
 sub parse_onoff {

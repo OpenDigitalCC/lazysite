@@ -359,6 +359,18 @@ stage_disposition() {
     fi
 }
 
+# Every gate failure said the same three things in the same order: what failed,
+# what became of the staging directory, and that the build is over. One sentence
+# per argument, all with the release.sh prefix.
+abort_build() {
+    local _line
+    for _line in "$@"; do
+        echo "release.sh: $_line" >&2
+    done
+    stage_disposition
+    exit 1
+}
+
 # Refuse EARLY if the staging filesystem cannot hold a gate run. Inodes as well
 # as bytes: bytes were never what ran out, and checking only those would repeat
 # the failure this guards against.
@@ -450,9 +462,7 @@ printf '%s\n' "$STAGE_NEXT" > "$STAGE/NEXT_VERSION"
 # --- precondition: sbom-deps.json exists at target ---
 
 if [ ! -f "$STAGE/dist/config/sbom-deps.json" ]; then
-    echo "release.sh: dist/config/sbom-deps.json missing at $TARGET_SHA" >&2
-    stage_disposition
-    exit 1
+    abort_build "dist/config/sbom-deps.json missing at $TARGET_SHA"
 fi
 
 # --- gate tooling must EXIST on a release host ---
@@ -461,9 +471,7 @@ fi
 # skip a quality gate (2026-07-10 review, D2). Refuse loudly instead.
 for tool in perlcritic perltidy shellcheck; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "release.sh: gate tool '$tool' is not installed on this host; not releasing." >&2
-        stage_disposition
-        exit 1
+        abort_build "gate tool '$tool' is not installed on this host; not releasing."
     fi
 done
 
@@ -483,9 +491,7 @@ done
 # a certified release; stable ships supported software.
 echo "==> lazysite-compliance.pl --check (channel: $CHANNEL)"
 if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; then
-    echo "release.sh: compliance records are not current for this cut; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "compliance records are not current for this cut; not releasing."
 fi
 
 # --- run tests ---
@@ -521,19 +527,15 @@ fi
 GATE_OUT="$STAGE/.gate-output.txt"
 echo "==> Running full test suite"
 if ! ( cd "$STAGE" && set -o pipefail && prove -lr t/ 2>&1 | tee "$GATE_OUT" ); then
-    echo "release.sh: test suite failed; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "test suite failed; not releasing."
 fi
 
 # "Files=455, Tests=8266, ..." - prove's own summary, read rather than recomputed.
 GATE_FILES=$(sed -n 's/^Files=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
 GATE_TESTS=$(sed -n 's/^Files=[0-9]*, Tests=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
 if [ -z "$GATE_FILES" ] || [ -z "$GATE_TESTS" ]; then
-    echo "release.sh: could not read the gate summary from prove output." >&2
-    echo "release.sh: refusing to record a release as validated without it." >&2
-    stage_disposition
-    exit 1
+    abort_build "could not read the gate summary from prove output." \
+        "refusing to record a release as validated without it."
 fi
 echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
 
@@ -543,9 +545,7 @@ echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
 
 echo "==> bench.pl --check"
 if ! perl "$STAGE/tools/bench.pl" --check; then
-    echo "release.sh: benchmark regression; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "benchmark regression; not releasing."
 fi
 
 # --- coverage gate (eight-dimension review D3) ---
@@ -633,9 +633,7 @@ if ! perl "$STAGE/tools/build-manifest.pl" \
         --commit      "$TARGET_SHA" \
         --gate-files  "$GATE_FILES" \
         --gate-tests  "$GATE_TESTS" ; then
-    echo "release.sh: manifest build failed; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "manifest build failed; not releasing."
 fi
 
 # --- SBOM strictness gate ---
@@ -647,18 +645,14 @@ if ! perl "$STAGE/tools/manifest-to-sbom.pl" --strict \
         --out      "$STAGE/sbom.json" \
         --version  "$VERSION" \
         --staged   "$STAGE" ; then
-    echo "release.sh: SBOM strictness check failed; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "SBOM strictness check failed; not releasing."
 fi
 
 # --- man pages (generated artefact; the tarball must ship them - review D7) ---
 
 echo "==> Generating man pages"
 if ! perl "$STAGE/tools/gen-manpages.pl" "$STAGE/man/man1"; then
-    echo "release.sh: man-page generation failed; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "man-page generation failed; not releasing."
 fi
 MAN_ADD=()
 for m in "$STAGE"/man/man1/*.1; do
@@ -671,9 +665,7 @@ done
 # before this test, so the array was never empty and a generator that
 # produced nothing shipped a package with no manual pages.
 if [ "${#MAN_ADD[@]}" -eq 0 ]; then
-    echo "release.sh: gen-manpages.pl produced no pages; not releasing." >&2
-    stage_disposition
-    exit 1
+    abort_build "gen-manpages.pl produced no pages; not releasing."
 fi
 MAN_ADD+=("--prefix=lazysite-$VERSION/")
 

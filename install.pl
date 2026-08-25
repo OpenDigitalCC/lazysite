@@ -278,7 +278,7 @@ exit cmd_install( \%opt );
 # and recognised.
 sub read_update_channel {
     my ($docroot) = @_;
-    my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
+    my $conf = _conf_path($docroot);
     open my $fh, '<', $conf
         or return ( $CHANNEL_DEFAULT, "cannot read $conf" );
     while ( my $l = <$fh> ) {
@@ -348,27 +348,39 @@ sub audit_append {
     return;
 }
 
-# Record an upgrade that was skipped by the channel policy (origin = install).
-sub audit_channel_skip {
-    my ( $docroot, $from, $to, $rel_channel, $site_channel ) = @_;
-    audit_append( $docroot,
-        'upgrade-skipped',
-        "$from -> $to (release channel: $rel_channel; site channel: "
-            . ( $site_channel // 'stable' )
-            . ")" );
-    return;
-}
-
 # Replace one "key: value" line in the site's lazysite.conf (append when the key
 # is absent). Atomic via temp + rename. Shared by --channel and --policy.
-sub set_conf_line {
-    my ( $docroot, $key, $value ) = @_;
-    my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
-    unless ( -f $conf ) {
-        warn "No lazysite.conf at $conf - is this a lazysite docroot?\n";
-        return 1;
-    }
-    open my $in, '<', $conf or do { warn "Cannot read $conf: $!\n"; return 1 };
+# Where a site keeps its lazysite.conf. Asked through lazysite_dir_for, never
+# assembled by hand, because SM293 moved the engine tree on migrated sites.
+sub _conf_path {
+    my ($docroot) = @_;
+    return lazysite_dir_for($docroot) . '/lazysite.conf';
+}
+
+# Every pre-upgrade backup in a site's backup directory, oldest first.
+sub _backup_files {
+    my ($dir) = @_;
+    my @files = sort glob("$dir/lazysite-backup-*.tar.gz");
+    return @files;
+}
+
+# How the install state records a file's digest.
+sub _sha256_tag {
+    my ($path) = @_;
+    return 'sha256:' . sha256_of($path);
+}
+
+# THE conf-key writer for this file. Returns ( ok, reason ): 1 and undef on
+# success, 0 and a sentence on failure, so a caller that wants to warn has the
+# words and a caller that wants silence can drop them.
+#
+# The installer is core-Perl by design (ADR 0001) and cannot reach
+# Lazysite::Manager::Common's writer, so it carries its own - one of them.
+sub _write_conf_key {
+    my ( $conf, $key, $value ) = @_;
+    return ( 0, "No lazysite.conf at $conf - is this a lazysite docroot?" )
+        unless -f $conf;
+    open my $in, '<', $conf or return ( 0, "Cannot read $conf: $!" );
     my @lines = <$in>;
     close $in;
 
@@ -393,7 +405,7 @@ sub set_conf_line {
     # anything left).
     my @orig_stat = stat $conf;
     my $tmp       = "$conf.tmp.$$";
-    open my $out, '>', $tmp or do { warn "Cannot write $tmp: $!\n"; return 1 };
+    open my $out, '>', $tmp or return ( 0, "Cannot write $tmp: $!" );
     print {$out} @lines;
     close $out;
     if (@orig_stat) {
@@ -404,11 +416,22 @@ sub set_conf_line {
         chown( ( $> == 0 ? $orig_stat[4] : -1 ), $orig_stat[5], $tmp );
     }
     unless ( rename $tmp, $conf ) {
-        warn "Cannot replace $conf: $!\n";
+        my $why = "Cannot replace $conf: $!";
         unlink $tmp;
-        return 1;
+        return ( 0, $why );
     }
-    return 0;
+    return ( 1, undef );
+}
+
+# The maintenance-op face of the writer: takes a DOCROOT, warns the reason, and
+# answers in exit-status terms (0 = ok) because --channel and --policy return
+# what it gives them straight out of the process.
+sub set_conf_line {
+    my ( $docroot, $key, $value ) = @_;
+    my ( $ok, $why ) = _write_conf_key( _conf_path($docroot), $key, $value );
+    return 0 if $ok;
+    warn "$why\n";
+    return 1;
 }
 
 # --channel: set update_channel in the site's lazysite.conf (replace the line if
@@ -479,13 +502,13 @@ sub cmd_restore_full {
     my $rc = safe_tar_extract( $tarball, $docroot );
     die "Restore extraction failed (tar rc=$rc)\n" if $rc != 0;
 
-    my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
+    my $conf = _conf_path($docroot);
     die "Restored tree has no lazysite/lazysite.conf - not a full backup?\n"
         unless -f $conf;
 
     if ( defined $domain && length $domain ) {
-        _set_conf_key( $conf, 'domain', $domain )
-            or warn "Could not set domain in $conf\n";
+        my ($set_ok) = _write_conf_key( $conf, 'domain', $domain );
+        warn "Could not set domain in $conf\n" unless $set_ok;
         info("Set site domain to: $domain");
     }
 
@@ -498,34 +521,6 @@ sub cmd_restore_full {
     return 0;
 }
 
-# Set (replace or append) one "key: value" line in a lazysite.conf. Atomic.
-sub _set_conf_key {
-    my ( $conf, $key, $value ) = @_;
-    return 0 unless -f $conf;
-    open my $in, '<', $conf or return 0;
-    my @lines = <$in>;
-    close $in;
-    my $found = 0;
-    for my $l (@lines) {
-        if ( $l =~ /^\s*\Q$key\E\s*:/ ) { $l = "$key: $value\n"; $found = 1; last }
-    }
-    push @lines, "$key: $value\n" unless $found;
-    # Preserve mode/group across the replace (same rationale as set_conf_line).
-    my @orig_stat = stat $conf;
-    my $tmp       = "$conf.tmp.$$";
-    open my $out, '>', $tmp or return 0;
-    print {$out} @lines;
-    close $out;
-    if (@orig_stat) {
-        chmod $orig_stat[2] & 07777, $tmp;
-        # SM215: as root (a sudo-driven update), preserve the file's OWNER too -
-        # not just the group - so an upgrade never leaves a root-owned conf the web
-        # user cannot rewrite. Non-root: group only (owner chown would just fail).
-        chown( ( $> == 0 ? $orig_stat[4] : -1 ), $orig_stat[5], $tmp );
-    }
-    return rename( $tmp, $conf ) ? 1 : do { unlink $tmp; 0 };
-}
-
 # Record a full-system restore (origin = install).
 sub audit_full_restore {
     my ( $docroot, $tarball, $domain ) = @_;
@@ -536,14 +531,26 @@ sub audit_full_restore {
     return;
 }
 
-# Record an out-of-channel upgrade that --force pushed through (origin = install).
-sub audit_channel_forced {
-    my ( $docroot, $from, $to, $rel_channel, $site_channel ) = @_;
-    audit_append( $docroot,
-        'upgrade-forced',
+# What the channel gate needs to decide: the site's rung, the release's rung,
+# and whether the first refuses the second. Reports an unrecognised conf value
+# on the way past (SM356), which is why it is one call and not three.
+sub channel_verdict {
+    my ( $docroot, $manifest ) = @_;
+    my ( $site,    $problem )  = read_update_channel($docroot);
+    my $rel = $manifest->{channel} || 'edge';
+    info("NOTE: $problem") if defined $problem;
+    return ( $site, $rel, channel_refuses( $site, $rel ) );
+}
+
+# The channel gate's two outcomes, which wrote the same sentence: an upgrade the
+# site's channel refused ('upgrade-skipped') and one --force pushed through
+# anyway ('upgrade-forced', which adds the override clause).
+sub audit_channel_outcome {
+    my ( $docroot, $act, $from, $to, $rel_channel, $site_channel, $extra ) = @_;
+    audit_append( $docroot, $act,
         "$from -> $to (release channel: $rel_channel; site channel: "
             . ( $site_channel // 'stable' )
-            . "; --force override)" );
+            . ( $extra        // '' ) . ")" );
     return;
 }
 
@@ -593,19 +600,17 @@ sub cmd_install {
    # skip is a clean no-op (exit 3, not an error) and is recorded in the
    # site's audit log.
     if ( $mode eq 'upgrade' && !$o->{force} ) {
-        my ( $site_channel, $problem ) = read_update_channel( $o->{docroot} );
-        my $release_channel = $manifest->{channel} || 'edge';
-
         # SM356: a value nobody recognised used to become the most permissive
         # setting in silence. It now becomes the most restrictive one and SAYS
-        # SO - a typo corrected to something safe is still a setting that does
-        # not do what the operator wrote.
-        info("NOTE: $problem") if defined $problem;
-        if ( channel_refuses( $site_channel, $release_channel ) ) {
+        # SO (channel_verdict reports it) - a typo corrected to something safe
+        # is still a setting that does not do what the operator wrote.
+        my ( $site_channel, $release_channel, $refuses )
+            = channel_verdict( $o->{docroot}, $manifest );
+        if ($refuses) {
             info( "Upgrade SKIPPED: this site is on the '$site_channel' update channel and "
                     . "$manifest->{version} is an '$release_channel' build. No changes made. "
                     . "Use --force to install it anyway." );
-            audit_channel_skip( $o->{docroot},
+            audit_channel_outcome( $o->{docroot}, 'upgrade-skipped',
                 $state->{version}, $manifest->{version}, $release_channel,
                 $site_channel );
             return 3;
@@ -615,14 +620,13 @@ sub cmd_install {
         # --force: install regardless of the site's update channel (a deliberate
         # operator override for an out-of-channel build). Recorded in the audit log;
         # the normal upgrade event is still logged when the install completes.
-        my $rel = $manifest->{channel} || 'edge';
-        my ( $site, $problem ) = read_update_channel( $o->{docroot} );
-        info("NOTE: $problem") if defined $problem;
-        if ( channel_refuses( $site, $rel ) ) {
+        my ( $site, $rel, $refuses ) = channel_verdict( $o->{docroot}, $manifest );
+        if ($refuses) {
             info( "--force: installing '$rel' build $manifest->{version} over the "
                     . "site's '$site' channel policy (operator override)." );
-            audit_channel_forced( $o->{docroot},
-                $state->{version}, $manifest->{version}, $rel, $site );
+            audit_channel_outcome( $o->{docroot}, 'upgrade-forced',
+                $state->{version}, $manifest->{version}, $rel, $site,
+                '; --force override' );
         }
     }
 
@@ -821,7 +825,7 @@ sub compute_plan {
         }
 
         my $stored  = $stored_files->{$dest} // '';
-        my $on_disk = -f $dest ? 'sha256:' . sha256_of($dest) : '';
+        my $on_disk = -f $dest ? _sha256_tag($dest) : '';
 
         if ( $on_disk eq $stored ) {
             # unedited
@@ -870,7 +874,7 @@ sub compute_plan {
             }
 
             my $stored  = $stored_files->{$dest};
-            my $on_disk = 'sha256:' . sha256_of($dest);
+            my $on_disk = _sha256_tag($dest);
             if ( $on_disk eq $stored ) {
                 push @plan, { action => 'remove', dest => $dest };
             }
@@ -977,7 +981,7 @@ sub execute_plan {
                     defined $step->{sha256} ? "sha256:$step->{sha256}" : '';
                 next;
             }
-            $state_files{ $step->{dest} } = 'sha256:' . sha256_of( $step->{dest} );
+            $state_files{ $step->{dest} } = _sha256_tag( $step->{dest} );
             $a eq 'install' ? $stats{installed}++ : $stats{overwrote}++;
         }
         elsif ( $a eq 'preserve' ) {
@@ -985,7 +989,7 @@ sub execute_plan {
             # version), so an edited file stays "edited vs shipped" and keeps
             # being preserved on future upgrades instead of being clobbered.
             $state_files{ $step->{dest} } =
-                defined $step->{sha256} ? "sha256:$step->{sha256}" : 'sha256:' . sha256_of( $step->{dest} );
+                defined $step->{sha256} ? "sha256:$step->{sha256}" : _sha256_tag( $step->{dest} );
             push @{ $stats{preserved} }, $step->{dest};
         }
         elsif ( $a eq 'remove' ) {
@@ -1341,7 +1345,7 @@ sub post_install_steps {
     # If --domain, write a minimal conf with templated site_name /
     # site_url. Otherwise, install the .example as the live conf.
     if ( $mode eq 'fresh' ) {
-        my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
+        my $conf = _conf_path($docroot);
         if ( !-f $conf ) {
             if ( length $o->{domain} ) {
                 write_text(
@@ -1447,7 +1451,7 @@ sub align_ownership {
     my $gid = ( getgrnam 'www-data' )[2];
     $gid = ( stat $docroot )[5] unless defined $gid;
 
-    my @paths = ( lazysite_dir_for($docroot) . "/lazysite.conf" );
+    my @paths = ( _conf_path($docroot) );
     my @stack = ( lazysite_dir_for($docroot) );
     while ( my $dir = pop @stack ) {
         next unless -d $dir;
@@ -1673,7 +1677,7 @@ sub cmd_list_backups {
         print "No backups directory at $dir.\n";
         return 0;
     }
-    my @files = sort glob("$dir/lazysite-backup-*.tar.gz");
+    my @files = _backup_files($dir);
     unless (@files) {
         print "No backups at $dir.\n";
         return 0;
@@ -1698,7 +1702,7 @@ sub cmd_restore {
     }
     else {
         my $dir   = lazysite_dir_for( $o->{docroot} ) . "/backups";
-        my @files = sort glob("$dir/lazysite-backup-*.tar.gz");
+        my @files = _backup_files($dir);
         die "No backups at $dir\n" unless @files;
         $backup_path = $files[-1];    # most recent (lexicographic == chronological)
     }
@@ -1775,7 +1779,7 @@ sub cmd_restore {
 sub read_retention {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($docroot) = @_;
-    my $conf      = lazysite_dir_for($docroot) . "/lazysite.conf";
+    my $conf      = _conf_path($docroot);
     my $default   = 3;
     return $default unless -f $conf;
     open my $fh, '<', $conf or return $default;
@@ -1798,7 +1802,7 @@ sub read_retention {
 sub apply_retention {
     my ( $dir, $retention ) = @_;
     return if $retention == 0;
-    my @backups = sort glob("$dir/lazysite-backup-*.tar.gz");
+    my @backups = _backup_files($dir);
     # Sort by mtime ascending (oldest first) in case lexical and
     # chronological diverge (shouldn't, but defensive).
     @backups = sort { ( stat $a )[9] <=> ( stat $b )[9] } @backups;
