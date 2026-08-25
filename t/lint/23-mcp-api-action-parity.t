@@ -295,4 +295,40 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
     }
 };
 
+# --- 4. the destructive twins agree ------------------------------------------
+# SM572: the control API declares its destructive actions in %DESTRUCTIVE (by
+# action name, beside %MUTATING) and MCP declares destructive hints in
+# %ANNOTATE (by tool name, beside readOnly and openWorld hints the API has no
+# use for). Two spellings of one fact; the twin map above is what keeps them
+# equal. A destructive API action whose MCP twin says otherwise - or the
+# reverse - fails here with both names.
+{
+    my ($destr_block) = $api_src =~ /my %DESTRUCTIVE = map \{ \$_ => 1 \} qw\((.*?)\)/s;
+    ok( defined $destr_block, 'the control API declares %DESTRUCTIVE' );
+    my %api_destr = map { $_ => 1 } split ' ', ( $destr_block // '' );
+    cmp_ok( scalar keys %api_destr, '>=', 10, '%DESTRUCTIVE parsed non-trivially' );
+    my ($mut_block) = $api_src =~ /my %MUTATING = map \{ \$_ => 1 \} qw\((.*?)\)/s;
+    my %api_mut     = map       { $_ => 1 } split ' ', ( $mut_block // '' );
+    my @not_mut     = sort grep { !$api_mut{$_} } keys %api_destr;
+    is( "@not_mut", '', 'every destructive action is a mutating one' );
+
+    my ($ann_block) = $mcp_src =~ /my %ANNOTATE = \((.*?)\n\);/s;
+    ok( defined $ann_block, 'the MCP %ANNOTATE table was found' );
+    my %mcp_destr;
+    while ( ( $ann_block // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[\s*[01]\s*,\s*([01])\s*,/mg ) {
+        $mcp_destr{$1} = $2;
+    }
+    cmp_ok( scalar keys %mcp_destr, '>=', 30, '%ANNOTATE parsed non-trivially' );
+
+    my @twin_disagree;
+    for my $a ( sort keys %PAIR ) {
+        my $t   = $PAIR{$a};
+        my $api = $api_destr{$a} ? 1 : 0;
+        my $mcp = $mcp_destr{$t} // 0;   # an unannotated tool defaults to not destructive
+        push @twin_disagree, "$a=$api / $t=$mcp" if $api != $mcp;
+    }
+    is( "@twin_disagree", '', 'API %DESTRUCTIVE and MCP %ANNOTATE agree on every twin' )
+        or diag( join "\n", @twin_disagree );
+}
+
 done_testing();

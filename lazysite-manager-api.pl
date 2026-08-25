@@ -549,6 +549,19 @@ my %MUTATING = map { $_ => 1 } qw(
     site-export-primary
 );
 
+# SM572: the drop/delete/rebuild family - a mutating action whose effect is
+# not undone by another call. actions-list and describe-capabilities publish
+# it as `destructive: true` beside `mutating`, which is read from %MUTATING
+# above, never restated. MCP spells the same fact by tool name in its
+# %ANNOTATE (with the readOnly/openWorld hints the API has no use for);
+# t/lint/23 keeps the two tables equal through its twin map.
+my %DESTRUCTIVE = map { $_ => 1 } qw(
+    delete data-row-delete data-table-drop data-rebuild data-safety-export-delete
+    brief-delete backup-delete theme-delete layout-delete artifact-backups-delete
+    handler-delete form-submission-delete form-submissions-delete-bulk
+    site-backup-delete
+);
+
 if ( $MUTATING{$action} && $method ne 'POST' ) {
     respond( { ok => 0, error => "This action must be sent as POST." } );
     exit 0;
@@ -3128,6 +3141,9 @@ sub action_describe_capabilities {
     } keys %$allg;
     my $map = describe( caps => $s, account => $user, groups => \@groups,
         docroot => $DOCROOT );    # SM225: include the documentation index
+        # SM572: per action, whether it mutates and whether it is destructive -
+        # every registered action, whoever asks, because this is the map.
+    $map->{actions} = { map { $_ => _action_effects($_) } keys %Lazysite::ControlApi::Actions::ACTION };
     $map->{ok} = 1;
     return $map;
 }
@@ -3152,9 +3168,22 @@ sub action_actions_list {
         ok      => 1,
         account => $user,
         channel => ( $token_auth ? 'token' : 'cookie' ),
-        actions => Lazysite::ControlApi::Actions::actions_for(
-            $s, cookie => ( $token_auth ? 0 : 1 )
-        ),
+        actions => [
+            map { my %row = ( %$_, %{ _action_effects( $_->{action} ) } ); \%row }
+                @{ Lazysite::ControlApi::Actions::actions_for( $s, cookie => ( $token_auth ? 0 : 1 ) ) }
+        ],
+    };
+}
+
+# SM572: what an action DOES, from the tables the gates already enforce.
+# `mutating` is %MUTATING (the POST/CSRF gate) and `destructive` is the
+# drop/delete/rebuild family, so a caller can skip writers by declaration
+# rather than by memory.
+sub _action_effects {
+    my ($name) = @_;
+    return {
+        mutating => ( $MUTATING{$name} ? JSON::PP::true() : JSON::PP::false() ),
+        ( $DESTRUCTIVE{$name} ? ( destructive => JSON::PP::true() ) : () ),
     };
 }
 

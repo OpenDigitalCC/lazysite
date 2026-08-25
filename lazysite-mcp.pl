@@ -3119,11 +3119,17 @@ my %ANNOTATE = (
     list_layout_catalogue => [ 1, 0, 0 ],
     install_layout        => [ 0, 0, 1 ],
     delete_layout         => [ 0, 1, 1 ],
-    invalidate_cache      => [ 0, 0, 0 ],
-    list_versions         => [ 1, 0, 0 ],
-    list_content_history  => [ 1, 0, 0 ],
-    view_version          => [ 1, 0, 0 ],
-    restore_version       => [ 0, 0, 1 ],
+    # SM572: the four twins of the API's %DESTRUCTIVE that carried no hint
+    # and so defaulted to "not destructive"; t/lint/23 keeps the pair equal.
+    delete_theme         => [ 0, 1, 1 ],
+    drop_data_table      => [ 0, 1, 1 ],
+    rebuild_data_table   => [ 0, 1, 1 ],
+    delete_data_row      => [ 0, 1, 1 ],
+    invalidate_cache     => [ 0, 0, 0 ],
+    list_versions        => [ 1, 0, 0 ],
+    list_content_history => [ 1, 0, 0 ],
+    view_version         => [ 1, 0, 0 ],
+    restore_version      => [ 0, 0, 1 ],
 );
 
 # SM525: whoami's tool list is tools/list's answer for the same session - one

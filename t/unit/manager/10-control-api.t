@@ -230,6 +230,55 @@ ok( @{ $dcap->{tasks} || [] } >= 3,              'map carries task recipes' );
 ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     'holds carries the full @CAP_KEYS incl. delegate_sub_user_creation (drift fix)' );
 
+# --- SM572: the engine describes its own side effects ---------------------
+# actions-list and describe-capabilities say, per action, whether it MUTATES
+# (read from %MUTATING, the CSRF/POST gate, never restated) and whether it is
+# DESTRUCTIVE (the drop/delete/rebuild family). Both directions are pinned
+# against the gate table parsed from the source, so the description and the
+# gate cannot disagree.
+{
+    open my $sfh, '<', $mapi or die $!;
+    my $src = do { local $/; <$sfh> };
+    close $sfh;
+    my ($mut_block) = $src =~ /my %MUTATING = map \{ \$_ => 1 \} qw\((.*?)\)/s;
+    my %mutating = map { $_ => 1 } split ' ', ( $mut_block // '' );
+    cmp_ok( scalar keys %mutating, '>=', 30, 'SM572: %MUTATING parsed from the source' );
+    my $family = qr/(?:^|-)(?:delete|drop|rebuild)(?:-|\z)/;
+
+    my $fx = $dcap->{actions};
+    is( ref $fx, 'HASH', 'SM572: describe-capabilities carries an actions block' );
+    my @every = sort keys %{ $fx || {} };
+    cmp_ok( scalar @every, '>=', 90, 'SM572: ...covering the whole action set' );
+    my @marked = grep { $fx->{$_}{mutating} } @every;
+    my @wrong  = grep { !$mutating{$_} } @marked;
+    is( "@wrong", '', 'SM572: every mutating:true action is in %MUTATING' );
+    my @missed = grep { !$fx->{$_}{mutating} } grep { $fx->{$_} } sort keys %mutating;
+    is( "@missed", '', 'SM572: every %MUTATING member is marked mutating' );
+    my @unlisted = grep { !$fx->{$_} } sort keys %mutating;
+    is( "@unlisted", '', 'SM572: every %MUTATING member appears in the map' );
+    my @fam = grep { /$family/ } @marked;
+    cmp_ok( scalar @fam, '>=', 10, 'SM572: the drop/delete/rebuild family is present' );
+    my @undeclared = grep { !$fx->{$_}{destructive} } @fam;
+    is( "@undeclared", '', 'SM572: the drop/delete/rebuild family is destructive' );
+    my @destr_reads = grep { $fx->{$_}{destructive} && !$fx->{$_}{mutating} } @every;
+    is( "@destr_reads", '', 'SM572: destructive implies mutating' );
+    ok( !$fx->{'read'}{mutating} && !$fx->{'read'}{destructive},
+        'SM572: a read is neither' );
+
+    my $al = mapi( $d, QUERY_STRING => 'action=actions-list',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    ok( $al->{ok} && ref $al->{actions} eq 'ARRAY', 'SM572: actions-list answers' );
+    my @rows  = @{ $al->{actions} || [] };
+    my @nokey = map { $_->{action} } grep { !exists $_->{mutating} } @rows;
+    is( "@nokey", '', 'SM572: every actions-list row carries mutating' );
+    my @disagree = map { $_->{action} }
+        grep { ( $_->{mutating} ? 1 : 0 ) != ( $mutating{ $_->{action} } ? 1 : 0 ) } @rows;
+    is( "@disagree", '', 'SM572: actions-list agrees with %MUTATING in both directions' );
+    my ($td) = grep { $_->{action} eq 'theme-delete' } @rows;
+    ok( $td && $td->{mutating} && $td->{destructive},
+        'SM572: theme-delete is listed as mutating and destructive' );
+}
+
 # --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is
 # refused on the api channel - but introspection stays open (SM126/SM072). -----
 uapi( $d, { action => 'add', username => 'mgr', password => 'x' } );

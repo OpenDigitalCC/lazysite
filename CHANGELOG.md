@@ -393,6 +393,18 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM572 resolved (PENDING) **the engine describes its own side effects.**
+  A systematic caller of the control API could not ask whether an
+  action writes, so a read-shaped sweep rebuilt a live table and cleared
+  five roots. actions-list rows and a describe-capabilities `actions`
+  block now carry `mutating` (read from %MUTATING, the POST/CSRF gate,
+  never restated) and `destructive` for the drop/delete/rebuild family.
+  MCP's %ANNOTATE remains the tool-name spelling of the same fact and
+  t/lint/23 keeps the two equal through its twin map - which found four
+  MCP tools (delete_theme, drop_data_table, rebuild_data_table,
+  delete_data_row) with no destructive hint; they carry it now.
+  t/unit/manager/10 proves both directions on both surfaces.
+
 - SM565 resolved (PENDING) **whoami tells a stranger only its own shape.**
   At the capability floor, whoami disclosed every manager group name,
   every plugin with its configuration schema and the full theme
