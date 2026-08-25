@@ -25,12 +25,12 @@ use POSIX                      qw(strftime);
 use Cwd                        qw(realpath);
 use File::Path                 qw(make_path remove_tree);
 use File::Copy                 qw(copy);
-use File::Basename             qw(dirname basename);
+use File::Basename             qw(dirname);
 use File::Find                 ();
-use JSON::PP                   qw(encode_json decode_json);
+use JSON::PP                   qw(decode_json);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
-use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
+use Lazysite::Manager::Common  qw(_write_conf_key);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
 use Lazysite::Private          ();    # SM286: what a package cannot carry
 use Lazysite::Manager::Backups qw(_claim_name _apply_retention); # SM546: loaded where it is called; SM545: the O_EXCL claim
@@ -313,7 +313,7 @@ sub package_create {
             my $export = Lazysite::Data::Export::export_table( $d, $r->{rows} );
             my $path   = "$stage/data/$t.json";
             if ( open my $jf, '>:utf8', $path ) {
-                my $ok = print {$jf} JSON::PP->new->canonical->pretty->encode($export);
+                my $ok = print {$jf} Lazysite::Data::Export::to_json($export);
                 $ok = 0 unless close $jf;
                 if ($ok) {
                     push @data_carried,
@@ -350,6 +350,7 @@ sub package_create {
     # once and keeps its value across calls - so the require and the listing are
     # unconditional and plain.
     require Lazysite::Data::Tables;
+    require Lazysite::Data::Export;    # BP-4: the manifest uses its serialiser too
     my %carried      = map { $_->{table} => 1 } @data_carried;
     my @declared     = @{ Lazysite::Data::Tables::list_tables($DOCROOT) || [] };
     my $data_omitted = scalar grep { !$carried{$_} } @declared;
@@ -401,7 +402,7 @@ sub package_create {
         data_omitted => $data_omitted,
     };
     if ( open my $mf, '>:utf8', "$stage/site.json" ) {
-        print {$mf} JSON::PP->new->canonical->pretty->encode($manifest);
+        print {$mf} Lazysite::Data::Export::to_json($manifest);
         close $mf;
     }
     else {

@@ -28,6 +28,9 @@ use Lazysite::Data::Tables
     insert_row update_row delete_row descriptor_dir rebuild_table export_all_rows
     import_rows drop_table);
 use Lazysite::Data::Descriptor qw(load_descriptor);
+use Lazysite::Data::Connect    ();
+use File::Path                 ();
+use JSON::PP                   ();
 
 our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
@@ -39,9 +42,6 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
-
-use Lazysite::Data::Connect ();
-use JSON::PP                ();
 
 # SM469: OFF MEANS OFF, on this path too.
 #
@@ -78,6 +78,104 @@ sub _need_table {
 # Reports a table whose descriptor is BROKEN rather than omitting it. An
 # author who has just mis-typed a descriptor is the most likely reader of this
 # list, and a silently shorter list is the least useful thing it could do.
+sub action_data_tables {
+    if ( my $off = _gate() ) { return $off }
+    my @out;
+    # WHETHER IT IS PUBLISHED, AND WHETHER IT EXISTS YET, both travel with the
+    # listing (DM-1). An operator looking at a list of tables has exactly two
+    # questions about each one - can anybody see it, and is it real yet - and
+    # answering them per-table would mean a request per row.
+    #
+    # Both are DERIVED rather than remembered: `public` off the descriptor,
+    # existence off the database, per D2. The database is the state.
+    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
+    for my $name ( @{ list_tables($DOCROOT) } ) {
+        my $d = load_table( $DOCROOT, $name );
+        unless ( $d->{ok} ) {
+            push @out, { table => $name, ok => 0, error => $d->{error} };
+            next;
+        }
+
+        my $pending = 1;
+        if ($dbh) {
+            require Lazysite::Data::Schema;
+            my $obs = eval {
+                Lazysite::Data::Schema::observed_schema( $dbh, $name );
+            };
+            $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
+        }
+
+        push @out,
+            { table => $name,
+            title => $d->{title},
+            public => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
+            ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
+            ok => 1,
+            };
+    }
+    return { ok => 1, tables => \@out };
+}
+
+# One table's declared shape, as the manager and an agent both need it: the
+# fields, their types, and what is required.
+sub action_data_table {
+    if ( my $off = _gate() ) { return $off }
+    my ($table) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+    # SM489 (minor): the SAME two facts the listing carries. data-tables said
+    # public and pending_schema per table and data-table said neither, so the
+    # reply for a published and an unpublished table was identical - and
+    # data-table is what somebody inspecting ONE table reaches for when asking
+    # why a page is empty. Derived the same way, per D2.
+    my $pending = 1;
+    if ( my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT) ) {
+        require Lazysite::Data::Schema;
+        my $obs = eval { Lazysite::Data::Schema::observed_schema( $dbh, $table ) };
+        $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
+    }
+    return {
+        # SM468: the shape's own history - who changed it, when, and what
+        # happened - read from the store table that travels with the data.
+        history =>
+            Lazysite::Data::Tables::schema_history( $DOCROOT, $table ),
+        ok         => 1,
+        table      => $d->{table},
+        title      => $d->{title},
+        key        => $d->{key},
+        auto_key   => $d->{auto_key},
+        fields     => $d->{fields},
+        indexes    => $d->{indexes},
+        timestamps => $d->{timestamps},
+        public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
+        ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
+    };
+}
+
+# DM-5: the descriptor's SOURCE, for an editor. data-table returns the parsed
+# shape, which is right for an agent and wrong for a person editing a file -
+# their comments, their key order and their spacing are part of what they
+# wrote, and a round trip through the parser would throw all three away.
+sub action_data_table_source {
+    if ( my $off = _gate() ) { return $off }
+    my ($table) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    return { ok => 0, error => "'$table' must be lower-case letters, digits "
+            . 'and underscores, starting with a letter', field => 'table' }
+        unless $table =~ /\A[a-z][a-z0-9_]*\z/;
+    my $dir = descriptor_dir($DOCROOT);
+    my ($file) = grep { -f $_ } ( "$dir/$table.yaml", "$dir/$table.yml" );
+    return { ok => 0, error => "no table '$table' is declared",
+        kind => 'no_such_table' }
+        unless $file;
+    open my $fh, '<:utf8', $file or return { ok => 0,
+        error => "table '$table': the descriptor cannot be read" };
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    return { ok => 1, table => $table, descriptor => $text };
+}
+
 # SM470: WRITE A TABLE DESCRIPTOR. Without this there is no way to create one.
 #
 # The descriptor lives at lazysite/db/tables/<name>.yaml, and `lazysite` is a
@@ -129,7 +227,6 @@ sub action_data_table_save {
 
     my $dir = descriptor_dir($DOCROOT);
     unless ( -d $dir ) {
-        require File::Path;
         eval { File::Path::make_path($dir); 1 }
             or return { ok => 0,
             error => "could not create $dir - check that lazysite/ is "
@@ -186,104 +283,6 @@ sub action_data_table_save {
         fields => $d->{fields}, migrate_required => $needed };
 }
 
-sub action_data_tables {
-    if ( my $off = _gate() ) { return $off }
-    my @out;
-    # WHETHER IT IS PUBLISHED, AND WHETHER IT EXISTS YET, both travel with the
-    # listing (DM-1). An operator looking at a list of tables has exactly two
-    # questions about each one - can anybody see it, and is it real yet - and
-    # answering them per-table would mean a request per row.
-    #
-    # Both are DERIVED rather than remembered: `public` off the descriptor,
-    # existence off the database, per D2. The database is the state.
-    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
-    for my $name ( @{ list_tables($DOCROOT) } ) {
-        my $d = load_table( $DOCROOT, $name );
-        unless ( $d->{ok} ) {
-            push @out, { table => $name, ok => 0, error => $d->{error} };
-            next;
-        }
-
-        my $pending = 1;
-        if ($dbh) {
-            require Lazysite::Data::Schema;
-            my $obs = eval {
-                Lazysite::Data::Schema::observed_schema( $dbh, $name );
-            };
-            $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
-        }
-
-        push @out,
-            { table => $name,
-            title => $d->{title},
-            public => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
-            ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
-            ok => 1,
-            };
-    }
-    return { ok => 1, tables => \@out };
-}
-
-# One table's declared shape, as the manager and an agent both need it: the
-# fields, their types, and what is required.
-# DM-5: the descriptor's SOURCE, for an editor. data-table returns the parsed
-# shape, which is right for an agent and wrong for a person editing a file -
-# their comments, their key order and their spacing are part of what they
-# wrote, and a round trip through the parser would throw all three away.
-sub action_data_table_source {
-    if ( my $off = _gate() ) { return $off }
-    my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    return { ok => 0, error => "'$table' must be lower-case letters, digits "
-            . 'and underscores, starting with a letter', field => 'table' }
-        unless $table =~ /\A[a-z][a-z0-9_]*\z/;
-    my $dir = descriptor_dir($DOCROOT);
-    my ($file) = grep { -f $_ } ( "$dir/$table.yaml", "$dir/$table.yml" );
-    return { ok => 0, error => "no table '$table' is declared",
-        kind => 'no_such_table' }
-        unless $file;
-    open my $fh, '<:utf8', $file or return { ok => 0,
-        error => "table '$table': the descriptor cannot be read" };
-    my $text = do { local $/; <$fh> };
-    close $fh;
-    return { ok => 1, table => $table, descriptor => $text };
-}
-
-sub action_data_table {
-    if ( my $off = _gate() ) { return $off }
-    my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    my $d = load_table( $DOCROOT, $table );
-    return $d unless $d->{ok};
-    # SM489 (minor): the SAME two facts the listing carries. data-tables said
-    # public and pending_schema per table and data-table said neither, so the
-    # reply for a published and an unpublished table was identical - and
-    # data-table is what somebody inspecting ONE table reaches for when asking
-    # why a page is empty. Derived the same way, per D2.
-    my $pending = 1;
-    if ( my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT) ) {
-        require Lazysite::Data::Schema;
-        my $obs = eval { Lazysite::Data::Schema::observed_schema( $dbh, $table ) };
-        $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
-    }
-    return {
-        # SM468: the shape's own history - who changed it, when, and what
-        # happened - read from the store table that travels with the data.
-        history =>
-            Lazysite::Data::Tables::schema_history( $DOCROOT, $table ),
-        ok         => 1,
-        table      => $d->{table},
-        title      => $d->{title},
-        key        => $d->{key},
-        auto_key   => $d->{auto_key},
-        fields     => $d->{fields},
-        indexes    => $d->{indexes},
-        timestamps => $d->{timestamps},
-        public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
-        ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
-    };
-}
-
 sub action_data_rows {
     if ( my $off = _gate() ) { return $off }
     my ( $table, %opt ) = @_;
@@ -294,11 +293,112 @@ sub action_data_rows {
     return read_rows( $DOCROOT, $table, as => 'operator', %opt );
 }
 
+# DM-5: what a migration WOULD do, with nothing done. The same plan_migration
+# apply_schema runs, so the preview and the action cannot disagree - and the
+# UI can show "this will add a column and refuse a type change" before an
+# operator commits to either.
+sub action_data_migrate_plan {
+    if ( my $off = _gate() ) { return $off }
+    my ($table) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+
+    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
+    return { ok => 1, table => $table, create => 1, additive => [],
+        blocked => [], note => 'no store yet - the migration creates it' }
+        unless $dbh;
+
+    require Lazysite::Data::Schema;
+    my $plan = Lazysite::Data::Schema::plan_migration( $d, $dbh );
+    return $plan unless $plan->{ok};
+
+    # A plan that has blocked steps is a rebuild in waiting. Ask the rebuild
+    # pre-flight too, so the operator sees SM487's data checks - "2 rows have
+    # no when" - at the moment they are deciding, not after confirming.
+    my $rebuild;
+    if ( @{ $plan->{blocked} || [] } ) {
+        $rebuild = eval { Lazysite::Data::Schema::plan_rebuild( $d, $dbh ) };
+    }
+    return {
+        ok       => 1,
+        table    => $table,
+        create   => ( @{ $plan->{create}                     || [] } ? 1 : 0 ),
+        additive => [ map { $_->{why} } @{ $plan->{additive} || [] } ],
+        blocked  => $plan->{blocked} || [],
+        ( $rebuild && $rebuild->{ok}
+            ? ( rebuild => { lost => $rebuild->{lost} || [],
+                    data_blocked => $rebuild->{blocked} || [] } )
+            : () ),
+    };
+}
+
 # Bring the store into line with the descriptor, as far as is safe.
 #
 # Returns `blocked` as well as `applied`, and the caller must show both: the
 # blocked list is the operator's account of why their column is not there yet,
 # and dropping it would leave them believing the migration succeeded.
+sub action_data_migrate {
+    if ( my $off = _gate() ) { return $off }
+    my ($table) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    my $r = apply_schema( $DOCROOT, $table, actor => $auth_user );
+    log_event( 'INFO', $table, 'data schema applied',
+        applied => scalar @{ $r->{applied} || [] },
+        blocked => scalar @{ $r->{blocked} || [] } )
+        if $r->{ok};
+    return $r;
+}
+
+# DP-5: perform a change apply_schema refuses, once it is confirmed by name.
+#
+# A SEPARATE ACTION rather than a flag on data-migrate, deliberately. Migrating
+# is a routine act an agent performs after editing a descriptor; rewriting a
+# table is not, and giving them one name would mean the routine call carried
+# the dangerous capability every time it was made.
+sub action_data_rebuild {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $confirm_lost ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    my $r = rebuild_table( $DOCROOT, $table, actor => $auth_user,
+        confirm_lost => ( ref $confirm_lost eq 'ARRAY' ? $confirm_lost : [] ) );
+    log_event( 'INFO', $table, 'data table rebuilt',
+        lost => join( ',', @{ $r->{lost} || [] } ) )
+        if $r->{ok};
+    return $r;
+}
+
+# One entry point for insert AND update, because the caller knows which it
+# means by whether it has a key - and a surface that has to choose between two
+# action names for "save this row" will eventually choose wrong.
+sub action_data_row_save {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $key, $values ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    return { ok => 0, error => 'row values required' }
+        unless ref $values eq 'HASH';
+
+    my $r
+        = ( defined $key && length $key )
+        ? update_row( $DOCROOT, $table, $key, $values )
+        : insert_row( $DOCROOT, $table, $values );
+    log_event( 'INFO', $table,
+        ( defined $key && length $key ) ? 'data row updated' : 'data row inserted' )
+        if $r->{ok};
+    return $r;
+}
+
+sub action_data_row_delete {
+    if ( my $off = _gate() ) { return $off }
+    my ( $table, $key ) = @_;
+    if ( my $bad = _need_table($table) ) { return $bad }
+    return { ok => 0, error => 'row key required' }
+        unless defined $key && length $key;
+    my $r = delete_row( $DOCROOT, $table, $key );
+    log_event( 'INFO', $table, 'data row deleted' ) if $r->{ok};
+    return $r;
+}
+
 # DM-2: the table as a file.
 #
 # TWO FORMATS, FOR TWO DIFFERENT JOBS, and the difference is worth stating
@@ -357,79 +457,6 @@ sub action_data_export {
         filename => "$table.$ext", ( $note ? ( note => $note ) : () ) };
 }
 
-# DM-5: what a migration WOULD do, with nothing done. The same plan_migration
-# apply_schema runs, so the preview and the action cannot disagree - and the
-# UI can show "this will add a column and refuse a type change" before an
-# operator commits to either.
-sub action_data_migrate_plan {
-    if ( my $off = _gate() ) { return $off }
-    my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    my $d = load_table( $DOCROOT, $table );
-    return $d unless $d->{ok};
-
-    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
-    return { ok => 1, table => $table, create => 1, additive => [],
-        blocked => [], note => 'no store yet - the migration creates it' }
-        unless $dbh;
-
-    require Lazysite::Data::Schema;
-    my $plan = Lazysite::Data::Schema::plan_migration( $d, $dbh );
-    return $plan unless $plan->{ok};
-
-    # A plan that has blocked steps is a rebuild in waiting. Ask the rebuild
-    # pre-flight too, so the operator sees SM487's data checks - "2 rows have
-    # no when" - at the moment they are deciding, not after confirming.
-    my $rebuild;
-    if ( @{ $plan->{blocked} || [] } ) {
-        $rebuild = eval { Lazysite::Data::Schema::plan_rebuild( $d, $dbh ) };
-    }
-    return {
-        ok       => 1,
-        table    => $table,
-        create   => ( @{ $plan->{create}                     || [] } ? 1 : 0 ),
-        additive => [ map { $_->{why} } @{ $plan->{additive} || [] } ],
-        blocked  => $plan->{blocked} || [],
-        ( $rebuild && $rebuild->{ok}
-            ? ( rebuild => { lost => $rebuild->{lost} || [],
-                    data_blocked => $rebuild->{blocked} || [] } )
-            : () ),
-    };
-}
-
-sub action_data_migrate {
-    if ( my $off = _gate() ) { return $off }
-    my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    my $r = apply_schema( $DOCROOT, $table, actor => $auth_user );
-    log_event( 'INFO', $table, 'data schema applied',
-        applied => scalar @{ $r->{applied} || [] },
-        blocked => scalar @{ $r->{blocked} || [] } )
-        if $r->{ok};
-    return $r;
-}
-
-# One entry point for insert AND update, because the caller knows which it
-# means by whether it has a key - and a surface that has to choose between two
-# action names for "save this row" will eventually choose wrong.
-# DP-5: perform a change apply_schema refuses, once it is confirmed by name.
-#
-# A SEPARATE ACTION rather than a flag on data-migrate, deliberately. Migrating
-# is a routine act an agent performs after editing a descriptor; rewriting a
-# table is not, and giving them one name would mean the routine call carried
-# the dangerous capability every time it was made.
-sub action_data_rebuild {
-    if ( my $off = _gate() ) { return $off }
-    my ( $table, $confirm_lost ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    my $r = rebuild_table( $DOCROOT, $table, actor => $auth_user,
-        confirm_lost => ( ref $confirm_lost eq 'ARRAY' ? $confirm_lost : [] ) );
-    log_event( 'INFO', $table, 'data table rebuilt',
-        lost => join( ',', @{ $r->{lost} || [] } ) )
-        if $r->{ok};
-    return $r;
-}
-
 # DM-4: a CSV import, staged. `apply` false plans and writes nothing; true
 # commits in one transaction. Both parse the same file the same way, so what
 # the operator was shown is what is applied - or refused again, if the store
@@ -481,34 +508,6 @@ sub action_data_table_drop {
         rows   => ( $r->{rows_dropped}  // 0 ),
         export => ( $r->{safety_export} // '' ) )
         if $r->{ok};
-    return $r;
-}
-
-sub action_data_row_save {
-    if ( my $off = _gate() ) { return $off }
-    my ( $table, $key, $values ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    return { ok => 0, error => 'row values required' }
-        unless ref $values eq 'HASH';
-
-    my $r
-        = ( defined $key && length $key )
-        ? update_row( $DOCROOT, $table, $key, $values )
-        : insert_row( $DOCROOT, $table, $values );
-    log_event( 'INFO', $table,
-        ( defined $key && length $key ) ? 'data row updated' : 'data row inserted' )
-        if $r->{ok};
-    return $r;
-}
-
-sub action_data_row_delete {
-    if ( my $off = _gate() ) { return $off }
-    my ( $table, $key ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    return { ok => 0, error => 'row key required' }
-        unless defined $key && length $key;
-    my $r = delete_row( $DOCROOT, $table, $key );
-    log_event( 'INFO', $table, 'data row deleted' ) if $r->{ok};
     return $r;
 }
 

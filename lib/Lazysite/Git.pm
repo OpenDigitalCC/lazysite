@@ -416,18 +416,20 @@ sub file_log {
 # (sorted by path), summary => { files, revisions } }. Dates are commit epochs
 # (first = oldest in the lineage, latest = newest); last_author is the author of
 # the most recent revision. Disabled / no repo = empty, never an error.
+# The empty answer - disabled, no repo, or a read that came back with nothing.
+# Minted fresh on every call: the caller owns what it is handed.
+sub _empty_summary { return { files => [], summary => { files => 0, revisions => 0 } } }
+
 sub files_summary {
     my ($docroot) = @_;
-    return { files => [], summary => { files => 0, revisions => 0 } }
-        unless enabled($docroot);
+    return _empty_summary() unless enabled($docroot);
 
     # The tracked content set AT HEAD (what the history covers) - ls-tree of the
     # committed tree, recursive, NUL-delimited so unusual bytes stay intact.
     # (git ls-files lists the index/worktree; the committed tree is the right set
     # for a history overview, and it is exactly what info/exclude has kept clean.)
     my ( $ok, $out ) = run_git( $docroot, 'ls-tree', '-r', '--name-only', '-z', 'HEAD' );
-    return { files => [], summary => { files => 0, revisions => 0 } }
-        unless $ok && defined $out;
+    return _empty_summary() unless $ok && defined $out;
 
     # %open: path name being read => the HEAD path its commits are credited to.
     # Every HEAD path starts open under its own name; an add commit closes it
@@ -440,7 +442,7 @@ sub files_summary {
         next unless defined $norm;
         $open{$norm} = $norm;
     }
-    return { files => [], summary => { files => 0, revisions => 0 } } unless %open;
+    return _empty_summary() unless %open;
 
     # Each record: \x01 sha \0 epoch \0 author \0 trailer(s) [\n] \0 [\n]
     # then status \0 path \0 pairs for every path the commit changed.
@@ -449,8 +451,7 @@ sub files_summary {
         '--format=%x01%H%x00%at%x00%an%x00%(trailers:key=Lazysite-Renamed-From,valueonly)',
         'HEAD'
     );
-    return { files => [], summary => { files => 0, revisions => 0 } }
-        unless $lok && defined $lout;
+    return _empty_summary() unless $lok && defined $lout;
 
     my $cap = 200;
 RECORD: for my $rec ( split /\x01/, $lout ) {
@@ -543,7 +544,7 @@ sub file_diff {
 sub path_at {
     my ( $docroot, $path, $sha ) = @_;
     return undef unless enabled($docroot);
-    return undef unless defined $sha && $sha =~ /\A[0-9a-f]{7,40}\z/;
+    return undef unless _valid_sha($sha);
     my $want = lc $sha;
     for my $e ( @{ file_log( $docroot, $path, 200 ) } ) {
         return $e->{path} if index( $e->{sha}, $want ) == 0;

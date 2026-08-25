@@ -72,15 +72,14 @@ sub write_sha256 {
         return '';
     }
     my $tmp = "$side.tmp.$$";
-    unless ( sysopen my $fh, $tmp, O_WRONLY | O_CREAT | O_EXCL, oct '640' ) {
+    sysopen my $fh, $tmp, O_WRONLY | O_CREAT | O_EXCL, oct '640'
+        or do {
         log_event( 'ERROR', 'sha256', 'cannot write digest sidecar',
             path => $tmp, error => "$!" );
         return '';
-    }
-    else {
-        print {$fh} "$sha  $base\n";    # sha256sum -c format
-        close $fh;
-    }
+        };
+    print {$fh} "$sha  $base\n";    # sha256sum -c format
+    close $fh;
     unless ( rename $tmp, $side ) {
         log_event( 'ERROR', 'sha256', 'cannot install digest sidecar',
             path => $side, error => "$!" );

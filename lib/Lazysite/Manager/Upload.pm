@@ -7,7 +7,7 @@ package Lazysite::Manager::Upload;
 
 use strict;
 use warnings;
-use Fcntl          qw(:flock O_RDWR O_CREAT);
+use Fcntl          qw(O_RDWR O_CREAT);
 use POSIX          qw(strftime);
 use File::Basename qw(basename);
 use File::Path     qw(make_path);
@@ -27,8 +27,6 @@ our @EXPORT_OK = qw(
 our $DOCROOT;
 our $LAZYSITE_DIR;
 our $auth_user = '';
-
-# === moved from lazysite-manager-api.pl (SM079a) ===
 
 our %CONTENT_TYPE_MAP = (
     md    => 'text/plain; charset=utf-8',
@@ -290,28 +288,26 @@ sub action_file_upload {
         }
 
         my $tmp = "$full_target.tmp.$$";
-        unless ( open my $fh, '>', $tmp ) {
+        open my $fh, '>', $tmp or do {
             push @errors, { name => $fname,
                 error => "Cannot write: $!" };
             next;
+        };
+        binmode $fh;
+        unless ( print {$fh} $file->{data} ) {
+            my $err = "$!";
+            close $fh;
+            unlink $tmp;
+            push @errors, { name => $fname,
+                error => "Write failed: $err" };
+            next;
         }
-        else {
-            binmode $fh;
-            unless ( print {$fh} $file->{data} ) {
-                my $err = "$!";
-                close $fh;
-                unlink $tmp;
-                push @errors, { name => $fname,
-                    error => "Write failed: $err" };
-                next;
-            }
-            unless ( close $fh ) {
-                my $err = "$!";
-                unlink $tmp;
-                push @errors, { name => $fname,
-                    error => "Close failed: $err" };
-                next;
-            }
+        unless ( close $fh ) {
+            my $err = "$!";
+            unlink $tmp;
+            push @errors, { name => $fname,
+                error => "Close failed: $err" };
+            next;
         }
 
         unless ( rename $tmp, $full_target ) {
