@@ -2247,10 +2247,14 @@ sub _onboarding_brief {
 
 ## Managing the navigation
 
-The navigation is not a WebDAV file: do not PUT `/dav/lazysite/nav.conf` (everything
-under `lazysite/` is internal and returns 403), and do not use an MCP connector for
-this account. Manage it through the **control API** with your token (HTTP Basic auth,
-username `$name`, password the token). It is gated by `manage_nav`, which you have if
+Prefer the **control API** over WebDAV for this. A PUT to
+`/dav/lazysite/nav.conf` is accepted if you hold `manage_nav` - the file is a
+deliberate carve-out from the otherwise-internal `lazysite/` tree - but it
+replaces the whole file with whatever you send, with no validation and no
+report of what changed. The API reads and writes the same navigation with the
+parsing, the cache invalidation and the reply the manager itself uses. Do not
+use an MCP connector for this account. Manage it through the control API with
+your token (HTTP Basic auth, username `$name`, password the token). It is gated by `manage_nav`, which you have if
 you can edit content - you do not need a new pairing key or any extra grant.
 
     Read the current nav:
