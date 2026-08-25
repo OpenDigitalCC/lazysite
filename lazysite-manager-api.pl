@@ -432,7 +432,9 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 
     read( STDIN, $body, $len ) if $len > 0;
 }
-my $JSON_BODY;    # SM516 MA-2: the memo behind _json_body()
+my $JSON_BODY;      # SM516 MA-2: the memo behind _json_body()
+my %USER_CAPS;      # SM516 MO-1: the memo behind _user_caps()
+my $IS_OPERATOR;    # SM516 MO-3: the memo behind _operator()
 
 # --- M-1: CSRF gate on write actions --------------------------------
 # The gate is keyed on HTTP method, not action name. Every write action
@@ -656,7 +658,7 @@ if ( !$token_auth ) {
     # construction, rather than relying on their target param arriving in the
     # POST body.
 
-    if ( !_is_operator() ) {
+    if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
         # Capability gate (H1): the escalation-sensitive actions need their cap.
@@ -3172,10 +3174,32 @@ sub _manager_groups_from_settings {
 # the cookie-side authorization gate (the token path uses %token_caps). Every
 # cookie-side capability question is one read of this hash - SM141's session and
 # key gate, the notifications bell, the audit scope and action_users' own gate.
+# SM516 MO-3: _is_operator() re-reads the group settings store on every call,
+# and three gates ask it. Its inputs cannot change between them within one
+# request: the cookie gate runs ahead of dispatch, and action_users' two calls
+# both run before it writes anything through the users tool.
+sub _operator {
+    return $IS_OPERATOR //= ( _is_operator() ? 1 : 0 );
+}
+
 sub _user_caps {
     my ($user) = @_;
     return {} unless defined $user && length $user;
-    return ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+
+    # SM516 MO-1: MEMOISED PER USER, PER REQUEST. Every call forks the users
+    # tool and reads the account store, and an ordinary cookie request asks
+    # twice - the gate ahead of dispatch, then the action's own gate - while
+    # whoami asks three times. Nothing writes the account store before a read
+    # of it in the same request: action_users' own gate runs before its write,
+    # and every other reader is a gate that runs before dispatch. So a second
+    # ask inside one request cannot return a different answer.
+    #
+    # Callers only READ the hash. Handing back the same reference each time is
+    # what makes this a memo rather than a copy, and carveout_refusal - the one
+    # place it is passed on - reads it too.
+    return $USER_CAPS{$user}
+        //= ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings}
+        || {};
 }
 
 # SM072 audit trail: append one line per state-changing request to a
@@ -3445,7 +3469,7 @@ sub action_users {
             # ONLY by omission from %DELEGABLE - a delegate promoting its own
             # child out from under itself would defeat confinement. The tool
             # refuses them for any present actor too (defence in depth).
-            if ( $auth_user ne 'local' && !_is_operator() && !_user_caps($auth_user)->{manage_users} ) {
+            if ( $auth_user ne 'local' && !_operator() && !_user_caps($auth_user)->{manage_users} ) {
                 my %DELEGABLE = map { $_ => 1 } qw(
                     account-create account-disable account-enable account-reassign
                     rename claim-create claim-cancel passwd
@@ -3504,7 +3528,7 @@ sub action_users {
 
             if ( $auth_user ne 'local'
                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename|passwd)$/x ) {
-                $parsed->{actor} = $auth_user unless _is_operator();
+                $parsed->{actor} = $auth_user unless _operator();
                 $parsed->{created_by} //= $auth_user if $act eq 'account-create';
                 $request_body = encode_json($parsed);
             }
