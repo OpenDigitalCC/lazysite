@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM586 resolved (PENDING) **YAML's own `false` is false.** SM519 refused
+  `public: false` - the one spelling that makes a table private - because
+  YAML::PP returns a bare `false` as a defined, ZERO-LENGTH string, which
+  matched neither the true nor the false set; `'false'`, `0` and `true` all
+  passed. Found on a live site in the first ten minutes of the 0.10.32
+  retest. The empty string is now false, and t/unit/data/01 drives the YAML
+  text rather than a hash so the parser's representation is what is pinned.
+
 - SM584 resolved (PENDING) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status
   label printed empty, perl warned, and - the part that mattered - the

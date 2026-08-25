@@ -252,4 +252,31 @@ YAML
     }
 };
 
+subtest 'SM586: the YAML parser\'s own false is false' => sub {
+    # SM519 normalised the boolean SPELLINGS and was tested with hashes, so
+    # nothing exercised what YAML::PP actually hands back for a bare `false`:
+    # a DEFINED, ZERO-LENGTH string, which matched neither the true nor the
+    # false set and was refused. The one value meaning "private" was the one
+    # that failed, on a live site, for a whole release. So this subtest drives
+    # the YAML TEXT rather than a hash - if the parser's representation ever
+    # changes again, this assertion is what notices.
+SKIP: {
+        skip 'YAML::PP not available', 8 unless eval { require YAML::PP; 1 };
+        my $yaml = sub {
+            my ($v) = @_;
+            return YAML::PP->new->load_string(
+                "title: T\nkey: slug\npublic: $v\nfields:\n  slug:\n    type: text\n");
+        };
+        for my $case ( [ 'false', 0 ], [ 'true', 1 ], [ "'false'", 0 ],
+            [ '0', 0 ], [ 'no', 0 ], [ 'off', 0 ] )
+        {
+            my ( $spelling, $want ) = @{$case};
+            my $d = load_descriptor( 'zzpub', $yaml->($spelling) );
+            ok( $d->{ok}, "public: $spelling loads" )
+                or diag( $d->{error} // 'no error given' );
+            is( $d->{public}, $want, "public: $spelling means " . ( $want ? 'public' : 'private' ) );
+        }
+    }
+};
+
 done_testing();

@@ -91,8 +91,14 @@ sub _bad_ident {
 # with the message this file already promised.
 #
 # Returns ( value, undef ) or ( undef, 'must be true or false' ).
-my %TRUE  = map { $_ => 1 } qw(1 true yes on);
-my %FALSE = map { $_ => 1 } qw(0 false no off);
+my %TRUE = map { $_ => 1 } qw(1 true yes on);
+
+# SM586: the EMPTY STRING is false, because that is what YAML::PP hands back
+# for a bare `false` - a defined, zero-length scalar. SM519 tested definedness
+# and then membership, so the one spelling meaning "not public" matched
+# neither set and was refused while `'false'`, `0` and `true` all passed. The
+# key that says a table is private is the key that must never be fussy.
+my %FALSE = map { $_ => 1 } ( qw(0 false no off), '' );
 
 sub _bool {
     my ($v) = @_;
