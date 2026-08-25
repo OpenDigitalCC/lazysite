@@ -1024,6 +1024,12 @@ sub _resolve_ips {
 # is refused unless every RESOLVED address is public, so the guard holds for the
 # rebinding case too (it keys on the resolved IPs, not the name). Returns 1 for a
 # routable public address, 0 for anything internal/reserved/malformed.
+#
+# SM526: this is also the filter instance_public_ips applies to this install's
+# OWN addresses. A second classifier for that purpose drifted (8 of 15 probe
+# inputs disagreed) and offered a mapped loopback or a CGNAT address as "this
+# server". One question, one answer: an address the guard would refuse to
+# connect to is never an address of this server either.
 sub _ip_is_public {
     my ($ip) = @_;
     return 0 unless defined $ip && length $ip;
@@ -1142,27 +1148,6 @@ sub _marker_fetch {
     return { ok => 1, instance => ( $inst // '' ), detail => 'marker answered' };
 }
 
-# True for a routable public address - excludes RFC1918 / loopback / link-local
-# (v4) and loopback / link-local / unique-local (v6). Used so a private
-# SERVER_ADDR (the norm behind a proxy) is never taken for the public address.
-sub _is_public_ip {
-    my ($ip) = @_;
-    return 0 unless defined $ip && length $ip;
-    if ( $ip =~ /:/ ) {    # IPv6
-        my $l = lc $ip;
-        return 0 if $l eq '::1';                   # loopback
-        return 0 if $l =~ /^fe80:/;                # link-local
-        return 0 if $l =~ /^f[cd][0-9a-f]{2}:/;    # unique-local (fc00::/7)
-        return 1;
-    }
-    my @o = $ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or return 0;
-    return 0 if $o[0] == 0 || $o[0] == 10 || $o[0] == 127;
-    return 0 if $o[0] == 172 && $o[1] >= 16 && $o[1] <= 31;
-    return 0 if $o[0] == 192 && $o[1] == 168;
-    return 0 if $o[0] == 169 && $o[1] == 254;    # link-local
-    return 1;
-}
-
 # The PUBLIC address(es) an operator would point a domain at to reach THIS
 # install - for the "points to this server" check. Behind a proxy/NAT the
 # private SERVER_ADDR is wrong, so discover the public address in order:
@@ -1179,18 +1164,18 @@ sub instance_public_ips {
         ? $o{canonical_ip}
         : ( $base->{canonical_ip} // '' );
     if ( length $cfg ) {
-        my @ips = grep { _is_public_ip($_) } map { s/^\s+|\s+$//gr } split /,/, $cfg;
+        my @ips = grep { _ip_is_public($_) } map { s/^\s+|\s+$//gr } split /,/, $cfg;
         return @ips if @ips;
     }
 
     my $site_url = $base->{site_url} // '';
     if ( $site_url =~ m{^https?://([^/:]+)}i ) {
-        my @ips = grep { _is_public_ip($_) } _resolve_ips( lc $1 );
+        my @ips = grep { _ip_is_public($_) } _resolve_ips( lc $1 );
         return @ips if @ips;
     }
 
     return ( $o{fallback_ip} )
-        if length( $o{fallback_ip} // '' ) && _is_public_ip( $o{fallback_ip} );
+        if length( $o{fallback_ip} // '' ) && _ip_is_public( $o{fallback_ip} );
 
     return ();
 }

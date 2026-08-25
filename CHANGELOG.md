@@ -109,6 +109,18 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM526 resolved (PENDING) **one answer to is-this-address-public.**
+  Manager/Domains.pm carried two address classifiers: the SSRF guard
+  domain_check applies to every resolved address, and a second filter
+  instance_public_ips used to decide which addresses are "this server".
+  They disagreed on 8 of 15 inputs - CGNAT, multicast, 240/4, a malformed
+  octet, `::`, fe90::/10 and the IPv4-mapped loopback and RFC1918 forms
+  were all public to the second - so a mapped loopback or a proxy's CGNAT
+  address could be offered to the points-to-this-server check as an
+  address of this install. Found by the themes structural review (N-1),
+  proven by probe. The second classifier is deleted and the self-address
+  filter is the guard. t/unit/manager/99 drives the eight inputs through
+  instance_public_ips and pins that one sub remains.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
