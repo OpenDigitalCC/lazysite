@@ -341,10 +341,11 @@ my %STATIC_CT = (
 
 {
     # F7 (D007): single-pass front-matter peek, memoised per
-    # request. Callers in main() previously opened the .md file up
-    # to five times (peek_auth, peek_payment, peek_query_params,
-    # peek_ttl, peek_content_type); now the first peek reads the
-    # file, the rest hit this cache. Cache key is (path, mtime) so
+    # request. Before it, every caller opened the .md file for
+    # itself - peek_auth, peek_payment, peek_query_params, peek_ttl
+    # and peek_content_type, plus the tt_deps and nocache reads in
+    # the cache path, seven sites today; now the first peek reads
+    # the file, the rest hit this cache. Cache key is (path, mtime) so
     # an mtime change between peeks (shouldn't happen within one
     # request, but be safe) invalidates.
     my %_peek_cache;
@@ -538,7 +539,6 @@ sub _groups_grant_cap {
     return 0 unless @groups;
     my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return 0 unless -f $f;
-    require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
     local $/;
     my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
@@ -797,7 +797,6 @@ sub _acl_allows_read {
             log_event( 'ERROR', $rel, 'ACL store unreadable - refusing (fail closed)' );
             return 0;
         }
-        require JSON::PP;
         $map = eval { JSON::PP::decode_json($raw) };
         unless ( ref $map eq 'HASH' ) {
             $ACL_MAP_CACHE = 0;
@@ -875,7 +874,6 @@ sub _acl_is_draft {
     return 0 unless defined $real;
     my $rel = _content_rel($real);
     return 0 unless defined $rel;
-    require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
     my $map = eval {
         local $/;
@@ -906,7 +904,6 @@ sub _acl_governed {
         $map = $ACL_MAP_CACHE;
     }
     else {
-        require JSON::PP;
         open my $fh, '<:raw', $f or return 1;
         $map = eval {
             local $/;
@@ -1005,7 +1002,6 @@ sub _acl_refused {
 sub _site_grants_manager {
     my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return 0 unless -f $f;
-    require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
     local $/;
     my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
@@ -1031,7 +1027,6 @@ sub _site_grants_manager {
 sub _group_settings {
     my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return {} unless -f $f;
-    require JSON::PP;
     open my $fh, '<:raw', $f or return {};
     local $/;
     my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
@@ -4822,16 +4817,16 @@ sub resolve_db {
 
     # Modules, lazily - AND THE MODULE TREE HAS TO BE FOUND FIRST.
     #
-    # This required the module without locating it. The processor is
-    # module-free by design, so it carries NO global @INC bootstrap: every
-    # other lazy-loading site here (_chrome, fetch_url) finds the tree itself
-    # before requiring, and this one did not.
+    # The bootstrap below is not decoration. This code once required the module
+    # without locating it: the processor is module-free by design, so it carries
+    # NO global @INC bootstrap, and every lazy-loading site here (_chrome,
+    # fetch_url, this one) has to find the tree for itself before requiring.
     #
-    # It passed every test because `prove -l` puts lib/ on @INC. On a real
-    # install nothing does, so the require failed, the eval caught it, and the
-    # page rendered ZERO ROWS - silently, to a visitor. The field found it by
-    # proving the source resolved at all: scan: gave 26, an unrecognised prefix
-    # fell through to the literal, and db: gave nothing.
+    # That bug passed every test, because `prove -l` puts lib/ on @INC. On a
+    # real install nothing does, so the require failed, the eval caught it, and
+    # the page rendered ZERO ROWS - silently, to a visitor. The field found it
+    # by proving the source resolved at all: scan: gave 26, an unrecognised
+    # prefix fell through to the literal, and db: gave nothing.
     my $ok = eval {
         unless ( $INC{'Lazysite/Data/Tables.pm'} ) {
             require Cwd;
@@ -5015,10 +5010,12 @@ sub resolve_tt_vars {
 }
 
 {
-    # P-2: per-process memoization of resolve_site_vars(). This function is
-    # called up to 6 times per request (main(), render_content,
-    # update_registries, etc). Under CGI, one process = one request, so
-    # the cache is request-scoped automatically.
+    # P-2: per-process memoization of resolve_site_vars(). The file now calls it
+    # from twenty-odd sites - main() alone reaches it five times, and
+    # render_content, update_registries, scan_pages and the layout and chrome
+    # helpers each ask again - so a single request would otherwise re-read and
+    # re-parse the conf many times over. Under CGI, one process = one request,
+    # so the cache is request-scoped automatically.
     #
     # *** FastCGI / D016 note ***
     # Under a persistent-process model the cache MUST be reset at the start of
@@ -5222,18 +5219,13 @@ sub parse_nav {
     return \@nav;
 }
 
+# search_default as a boolean. peek_conf_key below reads the same file with the
+# same first-match rule and the same `^key\s*:\s*(\S+)` regex, so this is that
+# reader plus the false test: a missing file, an unreadable file and a missing
+# key all peek as '', and '' is not /^false$/i, so every one of them still
+# answers 1 exactly as the hand-rolled loop did.
 sub peek_search_default {
-    local $_;    # SM420: while(<>) assigns the GLOBAL $_
-    return 1 unless -f $CONF_FILE;
-    open( my $fh, '<:utf8', $CONF_FILE ) or return 1;
-    while (<$fh>) {
-        if (/^search_default\s*:\s*(\S+)/) {
-            close $fh;
-            return $1 =~ /^false$/i ? 0 : 1;
-        }
-    }
-    close $fh;
-    return 1;
+    return peek_conf_key('search_default') =~ /^false$/i ? 0 : 1;
 }
 
 # SM268 H13: a scan must not publish what the requester may not read.
@@ -5504,7 +5496,10 @@ sub resolve_scan {
     my $search_default;
 
     my @pages;
-    for my $path ( sort @files ) {
+    # @files is already sorted (the private-wins dedupe above sorts it) and the
+    # only thing between here and there is the 200-file cap, which takes a
+    # prefix - so a second sort would return the same list in the same order.
+    for my $path (@files) {
         # Realpath check - confined to the scan root (the domain's content root,
         # or the docroot), so a symlinked file cannot escape the domain (SM151).
         my $real = realpath($path);
@@ -6749,6 +6744,29 @@ sub resolve_layout_vars {
     return ( $layout, $layout_key );
 }
 
+# The built-in fallback layout, rendered into $$out_ref. Written out twice
+# inside render_template, verbatim - once for "no layout resolved" and once for
+# "the resolved layout failed to render" - so it is one helper now. Returns 1 on
+# success; on either failure it logs the same event the inline copies logged and
+# returns 0, and the caller returns the unwrapped body exactly as before.
+sub _render_fallback_layout {
+    my ( $vars, $out_ref ) = @_;
+
+    my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
+        or do {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance' );
+        return 0;
+        };
+
+    $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, $out_ref )
+        or do {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error() );
+        return 0;
+        };
+
+    return 1;
+}
+
 sub render_template {
     my ( $meta, $html_body, $query ) = @_;
     $query //= {};
@@ -6775,17 +6793,8 @@ sub render_template {
     if ( !defined $layout ) {
         # No layout found - use built-in fallback directly
         log_event( "WARN", $ENV{REDIRECT_URL} // "-", "layout not found, using fallback" );
-        my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
-            or do {
-            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance' );
-            return $processed_body;
-            };
-
-        $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
-            or do {
-            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error() );
-            return $processed_body;
-            };
+        _render_fallback_layout( $vars, \$output )
+            or return $processed_body;
 
         # Head injection must be layout-independent (SM112 generator meta,
         # SM151 per-host canonical): the real-layout path does it at output
@@ -6842,17 +6851,8 @@ sub render_template {
         $output = '';
 
         # Try built-in fallback layout
-        my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
-            or do {
-            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance' );
-            return $processed_body;
-            };
-
-        $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
-            or do {
-            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error() );
-            return $processed_body;
-            };
+        _render_fallback_layout( $vars, \$output )
+            or return $processed_body;
 
         # The manager is operator-facing and auth-gated: surface the
         # failure loudly instead of silently degrading the admin UI to
