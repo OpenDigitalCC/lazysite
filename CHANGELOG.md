@@ -44,6 +44,49 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM536 resolved (PENDING) **a nav write reaches every cached page.**
+  lazysite/nav.conf written over WebDAV left every cached page on the old
+  navigation: the manager's save sweeps the generated .html files
+  (SM087), a DAV PUT's per-page invalidation is a no-op for a non-.md
+  path, and the processor judged a cached render fresh on the .md and
+  lazysite.conf mtimes alone - never on the nav file it baked in. A
+  per-domain nav-<site>.conf (SM443) missed through every writer. Found
+  by the front-door review (NR-3), proven by probe. Fixed in the
+  processor, where it covers every writer at once: the nav file a
+  request resolves to is one definition shared by resolve_site_vars and
+  try_serve_cache, and a render older than it is stale. NEW
+  t/integration/75 pins the rendered nav after a DAV PUT of nav.conf,
+  after a DAV PUT of a per-domain nav file (the primary untouched), and
+  after the manager's save.
+
+- SM535 resolved (PENDING) **a collection delete cleans up.** A WebDAV
+  DELETE of a folder removed every page under it but keyed its alias and
+  registry housekeeping on the request path ending in .md, which a
+  directory never does: the sitemap kept listing the removed pages and
+  an alias kept answering with one - a 301 to a 404. The single-file
+  DELETE was right, and the manager refuses a non-empty directory, so
+  this surface was the only one that could get it wrong. Found by the
+  front-door review (NR-2), proven by probe. do_delete now lists the
+  pages an entry covers before the removal (Aliases::md_rels, the walker
+  reindex_move already used) and deindexes each, drops its per-host
+  render copies and invalidates the registries afterwards. NEW
+  t/unit/dav/23 pins the alias undef, the cache gone and the sitemap
+  clean after a collection DELETE.
+
+- SM534 resolved (PENDING) **a DAV move reaches the registries.** A WebDAV
+  MOVE or COPY never invalidated the generated registries (SM483 reached
+  PUT and DELETE only), so a page renamed over DAV stayed in the sitemap
+  at a URL that now 404s and off it at its new one until the TTL; a copy
+  was absent. The manager's action_move and action_copy clear the cache
+  on the same fixture. Found by the front-door review (NR-1), proven by
+  probe. The require + local DOCROOT + eval pair do_put and do_delete
+  each typed is now one helper, and do_copy_move calls it after the
+  alias reindex. Two subtests in t/integration/74 pin the cache gone and
+  the sitemap listing the new URL, not the old. Seen in passing and left
+  for its own filing: a copy is born with an owner-only ACL entry and the
+  processor treats ANY entry as governed, so a copied page is absent from
+  every registry through the manager too.
+
 - SM556 resolved (PENDING) **a symlinked docroot is one docroot.** Every
   manager module confines a target against the docroot the dispatcher
   hands it, assuming that docroot is canonical; neither dispatcher made
@@ -171,33 +214,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM535 resolved (PENDING) **a collection delete cleans up.** A WebDAV
-  DELETE of a folder removed every page under it but keyed its alias and
-  registry housekeeping on the request path ending in .md, which a
-  directory never does: the sitemap kept listing the removed pages and
-  an alias kept answering with one - a 301 to a 404. The single-file
-  DELETE was right, and the manager refuses a non-empty directory, so
-  this surface was the only one that could get it wrong. Found by the
-  front-door review (NR-2), proven by probe. do_delete now lists the
-  pages an entry covers before the removal (Aliases::md_rels, the walker
-  reindex_move already used) and deindexes each, drops its per-host
-  render copies and invalidates the registries afterwards. NEW
-  t/unit/dav/23 pins the alias undef, the cache gone and the sitemap
-  clean after a collection DELETE.
-
-- SM534 resolved (PENDING) **a DAV move reaches the registries.** A WebDAV
-  MOVE or COPY never invalidated the generated registries (SM483 reached
-  PUT and DELETE only), so a page renamed over DAV stayed in the sitemap
-  at a URL that now 404s and off it at its new one until the TTL; a copy
-  was absent. The manager's action_move and action_copy clear the cache
-  on the same fixture. Found by the front-door review (NR-1), proven by
-  probe. The require + local DOCROOT + eval pair do_put and do_delete
-  each typed is now one helper, and do_copy_move calls it after the
-  alias reindex. Two subtests in t/integration/74 pin the cache gone and
-  the sitemap listing the new URL, not the old. Seen in passing and left
-  for its own filing: a copy is born with an owner-only ACL entry and the
-  processor treats ANY entry as governed, so a copied page is absent from
-  every registry through the manager too.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

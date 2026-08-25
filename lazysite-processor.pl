@@ -1991,6 +1991,17 @@ sub try_serve_cache {
     # mtimes, not on a process's memory.
     my $conf_mtime = ( stat $CONF_FILE )[9] // 0;
 
+    # SM536: and on the nav file. Navigation is baked into every render, and
+    # nothing above sees a nav write: the manager's sweep drops the .html
+    # files but a DAV PUT does not (its per-page invalidation is a no-op for
+    # a non-.md path), and a per-domain nav-<site>.conf (SM443) reached no
+    # sweep at all. Keyed on the file's mtime, like the conf, so every writer
+    # is covered at once - DAV, manager, a shell - and the check guards the
+    # file THIS host's render actually used (resolve_site_vars is memoised per
+    # host, so this is a lookup, not a second parse).
+    my $nav_mtime = ( stat _nav_file_for( { resolve_site_vars() } ) )[9] // 0;
+    $conf_mtime = $nav_mtime if $nav_mtime > $conf_mtime;
+
     # SM311: a page may also depend on files it READS - `tt_page_var` json: and
     # scan: sources. Those are neither the .md nor the conf, so editing one used
     # to leave the cache "fresh" and serve the previous render indefinitely.
@@ -5106,10 +5117,7 @@ sub resolve_tt_vars {
         # cache slot), so a page served from cache keeps the correct value.
         $vars{domain} = _request_host();
 
-        my $nav_file = $vars{nav_file}
-            ? "$DOCROOT/" . $vars{nav_file}
-            : "$LAZYSITE_DIR/nav.conf";
-        $vars{nav} = parse_nav($nav_file);
+        $vars{nav} = parse_nav( _nav_file_for( \%vars ) );
 
         %_site_vars_cache  = %vars;
         $_site_vars_loaded = 1;
@@ -5154,6 +5162,17 @@ sub _request_host {
         unless $host =~ /\A [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )?
                          (?: \. [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )? )* \z/x;
     return $host;
+}
+
+# The nav file a request renders with: the alias host's nav_file override,
+# the site's, or lazysite/nav.conf. One definition, because try_serve_cache
+# (SM536) has to stat the SAME file resolve_site_vars parses - two spellings
+# of "which nav file" is how a cache check comes to guard the wrong one.
+sub _nav_file_for {
+    my ($vars) = @_;
+    return $vars->{nav_file}
+        ? "$DOCROOT/" . $vars->{nav_file}
+        : "$LAZYSITE_DIR/nav.conf";
 }
 
 sub parse_nav {
