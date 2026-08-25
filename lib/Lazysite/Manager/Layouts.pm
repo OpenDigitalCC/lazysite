@@ -394,9 +394,15 @@ sub action_layouts_install {
     };
 }
 
+# Removes only a working directory THIS module minted. Two prefixes: the
+# catalogue actions work in /tmp/lazysite-layouts-<pid>; the manifest install
+# in /tmp/lazysite-layout-install-<pid>. SM533: the guard named only the first,
+# so every install handed it a path it did not recognise and the downloaded
+# packages stayed in /tmp - a leak per install, reported as success.
 sub _cleanup_tmp_layouts {
     my ($dir) = @_;
-    system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-layouts-\d+$};
+    system( "rm", "-rf", $dir )
+        if $dir =~ m{^/tmp/lazysite-(?:layouts|layout-install)-\d+$};
 }
 
 sub action_layouts_release_contents {

@@ -109,6 +109,17 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM533 resolved (PENDING) **a layout install cleans up after itself.**
+  Manager/Layouts.pm's one temporary-directory cleaner only removed
+  /tmp/lazysite-layouts-<pid>, the catalogue actions' directory; the
+  manifest install works in /tmp/lazysite-layout-install-<pid> and handed
+  that to the same cleaner on every exit, which matched nothing. Every
+  install_layout call over the API or MCP left its downloaded packages in
+  /tmp and reported success as though it had tidied. Found by the themes
+  structural review (N-6), proven by probe. The guard now names both
+  prefixes the module mints. t/unit/manager/104 drives a mocked manifest
+  install to its end and asserts the working directory is gone.
+
 - SM526 resolved (PENDING) **one answer to is-this-address-public.**
   Manager/Domains.pm carried two address classifiers: the SSRF guard
   domain_check applies to every resolved address, and a second filter
