@@ -10,9 +10,20 @@ search: false
 <div class="mg-card-header"><span class="mg-card-title">Active sessions</span></div>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 0.5rem">
-Everyone signed in right now (sessions expire 24&nbsp;hours after sign-in).
-<strong>Sign out</strong> ends one session; <strong>Sign out everywhere</strong>
-ends all of a user's sessions. The user can sign straight back in.
+Everyone signed in <strong>through a browser</strong> right now (sessions
+expire 24&nbsp;hours after sign-in). <strong>Sign out</strong> ends one
+session; <strong>Sign out everywhere</strong> ends all of a user's sessions.
+The user can sign straight back in.
+<br>
+<!-- SM580: an agent acting through the API, MCP or WebDAV is absent from this
+     list BY CONSTRUCTION - only the cookie login path writes the session
+     registry - so its absence is not evidence that nothing is acting. On an
+     instance whose partners are agents, most acting principals are the ones
+     this card cannot show, and the operator who read an audit line and came
+     looking here had no way to know that. -->
+An agent or tool acting on the API, MCP or WebDAV does <strong>not</strong>
+appear here &mdash; it holds a key, not a browser session. See
+<strong>Active keys</strong> below.
 </p>
 <div id="session-list"><div class="mg-empty" style="padding:0.75rem;">Loading...</div></div>
 </div>
@@ -207,9 +218,16 @@ function renderKeys(d) {
       if (k.used_at) status += ' <span class="mg-muted" style="font-size:0.85em">last used '
         + escHtml(new Date(k.used_at * 1000).toLocaleDateString()) + '</span>';
     } else {
+      // SM580: WHEN it was last used, not merely that it has been. "in use" is
+      // a historical fact and the operator's question is "who is acting now" -
+      // they arrive here from an audit line wanting to attach it to a
+      // principal, and a key that answers "yes, at some point" cannot be
+      // attached to anything.
       status = k.in_use
         ? '<span class="mg-tag mg-tag-on">in use</span>'
         : '<span class="mg-tag mg-tag-auto">not used yet</span>';
+      if (k.in_use && k.used_at) status += ' <span class="mg-muted" style="font-size:0.85em">last used '
+        + escHtml(new Date(k.used_at * 1000).toLocaleString()) + '</span>';
       if (k.token_expires_at) status += ' <span class="mg-tag mg-tag-auto">expires '
         + escHtml(new Date(k.token_expires_at * 1000).toLocaleDateString()) + '</span>';
     }

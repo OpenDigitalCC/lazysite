@@ -44,6 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM580 resolved (PENDING) **the sessions page says who it cannot show.** The
+  session registry is written only by the cookie login path, so an agent
+  acting over the API, MCP or WebDAV is absent from *Active sessions* by
+  construction - and the card said "everyone signed in right now", so its
+  absence read as evidence. It now says it lists browser sign-ins and points
+  at *Active keys*. That card said a key was "in use" - true at some point in
+  the past - and showed a time only for expired tokens; a live key now shows
+  when it was last used, which is what attaches an audit line to a principal.
+
 - SM578 resolved (PENDING) **a package is confined by the action, not by
   whether a scope happens to be set.** `_package_scope_refusal` returned early
   whenever the caller had no `dav_scopes`, reading that as unconfined - true
