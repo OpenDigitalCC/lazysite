@@ -170,4 +170,43 @@ SKIP: {
     }
 }
 
+# --- the migration is hand-typed, so the value is checked ------------------
+# Reported from the field: `domain: nonexistent-host-zzz.invalid` saved with
+# ok:true. The migration asks for nine hostnames typed by a person, and a table
+# bound to a domain that does not exist is reachable by no confined grant while
+# looking exactly like a table that is fine.
+{
+    require Lazysite::Manager::Data;
+    my $good = "title: t\ndomain: alpha.test\nkey: slug\nfields:\n  slug:\n    type: text\n";
+    my $bad = "title: t\ndomain: nonexistent-host-zzz.invalid\nkey: slug\n"
+        . "fields:\n  slug:\n    type: text\n";
+
+    my $r = Lazysite::Manager::Data::action_data_table_save( 'probe_ok', $good );
+    ok( $r->{ok}, 'a descriptor naming a configured domain saves' )
+        or diag( $r->{error} );
+
+    my $bad_r = Lazysite::Manager::Data::action_data_table_save( 'probe_bad', $bad );
+    ok( !$bad_r->{ok}, 'a descriptor naming a domain the instance does not serve is refused' );
+    like( $bad_r->{error}, qr/not a domain this instance serves/,
+        'and says so rather than storing it' );
+    like( $bad_r->{error}, qr/alpha\.test/,
+        'and names the configured hosts - the failure is a typo, so the answer '
+            . 'to it is the correct spelling' );
+    ok( !-e "$d/lazysite/db/tables/probe_bad.yaml",
+        'nothing was written' );
+}
+
+# --- and the binding is visible without reading nine descriptors -----------
+{
+    my $listing = Lazysite::Manager::Data::action_data_tables();
+    my ($alpha) = grep { $_->{table} eq 'alpha_orders' } @{ $listing->{tables} };
+    is( $alpha->{domain}, 'alpha.test', 'the listing shows which domain a table is bound to' );
+    my ($legacy) = grep { $_->{table} eq 'legacy_stock' } @{ $listing->{tables} };
+    ok( !exists $legacy->{domain},
+        'and says nothing where there is no binding, rather than inventing one' );
+
+    my $one = Lazysite::Manager::Data::action_data_table('alpha_orders');
+    is( $one->{domain}, 'alpha.test', 'one table answers the same' );
+}
+
 done_testing();

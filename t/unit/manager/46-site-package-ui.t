@@ -19,7 +19,7 @@ use File::Path  qw(make_path);
 use File::Temp  qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper   qw(repo_root grant_caps);
 use MIME::Base64 qw(encode_base64);
 
 my $root   = repo_root();
@@ -68,8 +68,8 @@ sub csrf { hmac_sha256_hex( "csrf:$_[0]:" . int( time() / 3600 ), $secret ) }
 sub post {
     my ( $d, $user, $groups, $qs, $obj ) = @_;
     return mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => $qs,
-        HTTP_X_REMOTE_USER => $user, HTTP_X_REMOTE_GROUPS => $groups,
-        HTTP_X_CSRF_TOKEN => csrf($user), body => encode_json( $obj // {} ) );
+        HTTP_X_REMOTE_USER => $user,       HTTP_X_REMOTE_GROUPS => $groups,
+        HTTP_X_CSRF_TOKEN  => csrf($user), body => encode_json( $obj // {} ) );
 }
 sub get {
     my ( $d, $user, $groups, $qs ) = @_;
@@ -83,10 +83,10 @@ make_path( "$d/lazysite/auth", "$d/lazysite/logs", "$d/lazysite/backups",
     "$d/lazysite/layouts/base/themes/blue", "$d/sites/clienta" );
 spit( "$d/lazysite/lazysite.conf",
     "site_name: Agency\ncontrol_api_enabled: true\n" );
-spit( "$d/lazysite/auth/.secret",  $secret );
+spit( "$d/lazysite/auth/.secret",                        $secret );
 spit( "$d/lazysite/layouts/base/layout.tt",              '[% content %]' );
 spit( "$d/lazysite/layouts/base/themes/blue/theme.json", '{"name":"blue"}' );
-spit( "$d/sites/clienta/index.md", "# Client A\n" );
+spit( "$d/sites/clienta/index.md",                       "# Client A\n" );
 
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_domains' );
@@ -154,7 +154,7 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
     # Traversal is refused too.
     my $trav = post( $d, 'op', 'role-op', 'action=site-backup-delete',
         { name => 'lazysite-site-../../auth/.secret' } );
-    ok( !$trav->{ok}, 'delete refuses a traversal name' );
+    ok( !$trav->{ok},                  'delete refuses a traversal name' );
     ok( -f "$d/lazysite/auth/.secret", 'the auth secret is untouched' );
 }
 
@@ -200,7 +200,7 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
         QUERY_STRING       => 'action=site-backup-delete',
         HTTP_AUTHORIZATION => $auth,
         body               => encode_json( { name => $pkg } ) );
-    ok( !$del->{ok}, 'nor DELETE it - SM577, the irreversible half' );
+    ok( !$del->{ok},                   'nor DELETE it - SM577, the irreversible half' );
     ok( -f "$d/lazysite/backups/$pkg", 'and the package is still there' );
 
     # SM578's second half: the listing carried no filter at all, so a name and
@@ -210,6 +210,24 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
     my @names = map { $_->{name} // '' } @{ $ls->{backups} || [] };
     ok( !( grep { $_ eq $pkg } @names ),
         'and the package is not named in the listing either' );
+
+    # ALL FOUR VERBS, not the two that happened to share a helper. The first
+    # cut confined download and delete and left create and inspect carrying
+    # their own inline copy of the old test - measured in the field as a
+    # scopeless grant building a package for an unrelated domain and reading
+    # any manifest in full.
+    my $ins = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => "action=site-backup-inspect&name=$pkg",
+        HTTP_AUTHORIZATION => $auth );
+    ok( !$ins->{ok},       'nor INSPECT it - the manifest is the disclosure' );
+    ok( !$ins->{manifest}, 'and no manifest came back' );
+
+    my $cre = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=site-backup-create',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { host => 'shop.clienta.com' } ) );
+    ok( !$cre->{ok},
+        'nor BUILD one for a host it has no relationship with' );
 
     # THE OPERATOR IS UNAFFECTED - the exemption is the channel, and this is
     # what says the fix did not simply break the feature for everyone.

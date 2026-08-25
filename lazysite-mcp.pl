@@ -405,13 +405,20 @@ sub _domain_row {
     return $row;
 }
 
-# True when the caller carries a scope union AND the target content root sits
-# outside it. An unscoped caller (no dav_scopes) and an empty content root are
-# both "not outside", exactly as the inline tests read.
+# True when the caller may NOT reach content rooted at $croot.
+#
+# SM578: an unscoped caller used to be "not outside" - the same reading the
+# control API carried, and wrong for the same reason. There, a cookie session
+# is the operator and is exempt; HERE THERE IS NO COOKIE SESSION. Every MCP
+# caller is a token or OAuth partner, so an empty dav_scopes means nobody set
+# one, never "this is the operator". The operator's ruling was explicit that an
+# empty scope stops meaning unconfined for a token OR MCP partner, so an
+# unscoped MCP grant reaches no domain's content rather than every domain's.
 sub _croot_outside_scope {
     my ( $caps, $croot ) = @_;
     my $scopes = $caps->{dav_scopes};
-    return 0 unless ref $scopes eq 'ARRAY' && @$scopes && length $croot;
+    return 1 unless ref $scopes eq 'ARRAY' && @$scopes;
+    return 1 unless length $croot;
     return Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) ? 1 : 0;
 }
 

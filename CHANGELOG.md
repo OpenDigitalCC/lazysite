@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM578 follow-up (PENDING) **all four package verbs ask one rule.** The first
+  cut confined `site-backup-download` and `site-backup-delete`, which share a
+  refusal helper, and left `site-backup-create` and `site-backup-inspect`
+  carrying their own inline copy of the old test - so a scopeless token grant
+  could not download a package but could build one for an unrelated domain on
+  the same instance and read any manifest in full. The duplication was the
+  defect; the four ask one function now. The MCP twin goes with them, and
+  there an unscoped grant reaches nothing by construction: MCP has no cookie
+  session, so there is no operator to exempt.
+
 - SM593 follow-up (PENDING) **the unscoped-table check asks whether anybody
   is confined.** It keyed on the DOMAIN COUNT, so the first 0.10.33 deploy
   reported nine tables needing a human on an instance whose domains all

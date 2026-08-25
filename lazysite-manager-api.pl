@@ -2016,6 +2016,28 @@ sub _conf_text {
 # root lies within their dav_scope union, so one client's manager cannot read
 # another's package metadata on a shared instance. Returns the refusal, or
 # undef when the caller may proceed. Unconfined operators always may.
+# SM578 (completed after the field pass): ONE rule, applied to a content root.
+#
+# The first cut of this confined site-backup-download and site-backup-delete,
+# because both route through _package_scope_refusal below - and left
+# site-backup-create and site-backup-inspect untouched, because each carried
+# its own inline copy of the old test. The result contradicted its own filing:
+# a scopeless token grant could not download a package but could BUILD one for
+# any host on the instance and read any manifest in full. The four verbs now
+# ask one function, so they cannot disagree again - which is the actual defect,
+# not the two missing checks.
+#
+# Returns true when the caller may NOT reach content rooted at $croot.
+sub _root_outside_grant {
+    my ($croot) = @_;
+    return 0 unless $token_auth;        # a cookie session is the operator
+    return 1 unless @REQUEST_SCOPES;    # a token naming no scope reaches nothing
+    return 1 unless length $croot;
+    return Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot )
+        ? 1
+        : 0;
+}
+
 sub _package_scope_refusal {
     my ($pkg) = @_;
 
@@ -2034,16 +2056,11 @@ sub _package_scope_refusal {
     # package at all rather than all of them. The operator ACCEPTED that
     # behaviour change knowing existing partners must be re-scoped.
     return undef unless $token_auth;
-
-    my $denied = { ok => 0, kind => 'forbidden',
-        error => 'You do not have access to this package.' };
-    return $denied unless @REQUEST_SCOPES;
-
     my $info  = package_inspect($pkg);
     my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
-    return $denied
-        if !length $croot
-        || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
+    return { ok => 0, kind => 'forbidden',
+        error => 'You do not have access to this package.' }
+        if _root_outside_grant($croot);
     return undef;
 }
 
@@ -2423,10 +2440,10 @@ sub action_site_backup_create {
     return { ok => 0, kind => 'not-found', error => "Not a configured domain: $host" }
         unless $row;
     my $croot = $row->{content_root} // '';
-    if ( @REQUEST_SCOPES
-        && length $croot
-        && Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot ) )
-    {
+    # SM578: was `if (@REQUEST_SCOPES && ...)`, so a token grant naming no scope
+    # built a package for ANY host on the instance - measured in the field
+    # against an unrelated domain.
+    if ( _root_outside_grant($croot) ) {
         return { ok => 0, kind => 'forbidden',
             error => "You do not have access to the content of $host." };
     }
@@ -2470,6 +2487,12 @@ sub action_site_backup_inspect {
     my $pkg = _site_package_path($name)
         or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+
+    # SM578: inspect had no scope test at all, so the manifest of a package the
+    # caller may not download read back in full - source host, content root,
+    # file counts. The manifest IS the disclosure.
+    my $refusal = _package_scope_refusal($pkg);
+    return $refusal if $refusal;
 
     # SM266: with a target host, the caller wants the DRY RUN as well - what an
     # apply would add versus overwrite there. The target's content root is

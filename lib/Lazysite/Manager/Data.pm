@@ -195,6 +195,10 @@ sub action_data_tables {
         push @out,
             { table => $name,
             title => $d->{title},
+            # SM593 follow-up: part-way through the migration, "which of my
+            # tables are bound, and to what" was answerable only by fetching
+            # every descriptor's source one at a time.
+            ( length( $d->{domain} // '' ) ? ( domain => $d->{domain} ) : () ),
             public => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
             ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
             ok => 1,
@@ -231,7 +235,8 @@ sub action_data_table {
         indexes    => $d->{indexes},
         timestamps => $d->{timestamps},
         public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
-        ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
+        ( length( $d->{domain} // '' ) ? ( domain         => $d->{domain} )   : () ),
+        ( $pending                     ? ( pending_schema => JSON::PP::true ) : () ),
     };
 }
 
@@ -300,6 +305,33 @@ sub action_data_table_save {
     # refused at read time would be the worst of both.
     my $d = load_descriptor( $table, $raw );
     return $d unless $d->{ok};
+
+    # SM593 follow-up: A DOMAIN IS CHECKED AGAINST THE ONES THIS INSTANCE
+    # SERVES, at save time.
+    #
+    # The migration asks an operator to hand-write `domain:` onto every table
+    # that names none - a hostname typed by a person, once per descriptor. The
+    # parser validates the SHAPE of that string and nothing checked the value,
+    # so `shop.exmaple.com` stored with ok:true and produced a table bound to a
+    # domain that does not exist: reachable by no confined grant, and
+    # indistinguishable from a table that is fine. `domain-add` already checks
+    # what it is given; a descriptor naming a domain deserves the same.
+    #
+    # The refusal NAMES the configured hosts, because the whole failure is a
+    # typo and the answer to a typo is the correct spelling.
+    if ( length( $d->{domain} // '' ) ) {
+        require Lazysite::Manager::Domains;
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        my $dl    = eval { Lazysite::Manager::Domains::domains_list() } || {};
+        my @hosts = grep { length }
+            map { lc( $_->{host} // '' ) } @{ $dl->{domains} || [] };
+        unless ( grep { $_ eq lc( $d->{domain} ) } @hosts ) {
+            return { ok => 0, kind => 'descriptor', field => 'domain',
+                error => "domain '$d->{domain}' is not a domain this instance "
+                    . 'serves'
+                    . ( @hosts ? ' - configured: ' . join( ', ', sort @hosts ) : '' ) };
+        }
+    }
 
     my $dir = descriptor_dir($DOCROOT);
     unless ( -d $dir ) {
