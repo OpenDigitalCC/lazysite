@@ -83,4 +83,53 @@ subtest 'a root entry reads back, updates and removes like any other' => sub {
     ok( !exists stored()->{'/'}, 'and the whole site is public again' );
 };
 
+# --- SM529: content_moved is true only when content moved -------------------
+# The site-wide reply carried content_moved:1 and the "moved out of the
+# document root" note while its own warning said a site-wide rule moves no
+# files; a write-only rule said reads_unrestricted:1 beside the same note.
+subtest 'the site-wide reply does not claim content moved' => sub {
+    action_acl_remove( '/', 'alice' );
+    my $r = action_acl_set( '/', 'alice', ['alice'], undef, undef, undef );
+    ok( $r->{ok}, 'the site-wide rule is accepted' ) or diag( $r->{error} // '' );
+    is( $r->{content_moved}, 0, 'and content_moved is 0 - nothing moved' );
+    ok( !exists $r->{content_moved_note}, 'with no moved note beside it' );
+    ok( ( grep { /does not move any files/ } @{ $r->{warnings} || [] } ),
+        'the warning that it moves no files is still there' );
+    action_acl_remove( '/', 'alice' );
+};
+
+subtest 'a write-only rule does not claim content moved either' => sub {
+    make_path("$d/content");
+    open my $fh, '>', "$d/content/pub.md" or die $!;
+    print {$fh} "body\n";
+    close $fh;
+    my $r = action_acl_set( 'content/pub.md', 'alice', undef, ['alice'], undef, undef );
+    ok( $r->{ok}, 'the write-only rule is accepted' ) or diag( $r->{error} // '' );
+    is( $r->{reads_unrestricted}, 1, 'it says reads are unrestricted' );
+    is( $r->{content_moved},      0, 'and does not say the content moved' );
+    ok( !exists $r->{content_moved_note}, 'no moved note' );
+    ok( -f "$d/content/pub.md",           'the file is still public' );
+};
+
+subtest 'a real move says so, and in which direction' => sub {
+    my $r = action_acl_set( 'content/pub.md', 'alice', ['alice'], undef, undef, undef );
+    ok( $r->{ok}, 'gating the page is accepted' ) or diag( $r->{error} // '' );
+    is( $r->{content_moved}, 1, 'content_moved is 1 - the page left the docroot' );
+    like( $r->{content_moved_note} // '', qr/out of the document root/,
+        'and the note says it moved OUT' );
+
+    my $again = action_acl_set( 'content/pub.md', 'alice', [ 'alice', 'bob' ], undef, undef, undef );
+    ok( $again->{ok}, 're-applying a rule on content already in the store' );
+    is( $again->{content_moved}, 0, 'moves nothing, and says so' );
+
+    my $back = action_acl_set( 'content/pub.md', 'alice', undef, ['alice'], undef, undef );
+    ok( $back->{ok}, 'ungating the page is accepted' ) or diag( $back->{error} // '' );
+    is( $back->{content_moved}, 1, 'content_moved is 1 - the page came back' );
+    like( $back->{content_moved_note} // '', qr/back into the document root/,
+        'and the note says it moved back IN' );
+    unlike( $back->{content_moved_note} // '', qr/open_file_cache/,
+        'the front-end cache caveat is for content LEAVING, so it is not here' );
+    ok( -f "$d/content/pub.md", 'the file is public again' );
+};
+
 done_testing();

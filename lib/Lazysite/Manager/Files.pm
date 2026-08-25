@@ -1463,6 +1463,11 @@ sub _acl_gates_public {
 # them wrong.
 our $CONTENT_MOVED;
 
+# SM529: which way the content went, 'out' (of the document root, into the
+# store) or 'in' (back), set beside the flag so the caller's note can say the
+# right thing. undef when the helper had nothing to move.
+our $CONTENT_MOVED_DIRECTION;
+
 sub _sync_private_store {
     my ( $rel, $rec ) = @_;
     my @warnings;
@@ -1482,15 +1487,40 @@ sub _sync_private_store {
             . 'is protected; the site root cannot, because it IS the document '
             . 'root. If a front end serves this site directly, protect '
             . 'individual folders as well.';
+
+        # SM529: and the flag agrees with the warning. It arrives set to 1 for
+        # the mover to clear on failure (SM313); returning before the mover
+        # ran left it at 1, so the site-wide reply carried content_moved:1
+        # and the moved note beside the sentence saying nothing moves.
+        $CONTENT_MOVED           = 0;
+        $CONTENT_MOVED_DIRECTION = undef;
         return @warnings;
     }
 
     # Sections are stored with a trailing slash; the mover takes a path.
     ( my $path = $rel ) =~ s{/+\z}{};
-    return @warnings unless length $path;
+    if ( !length $path ) {
+        $CONTENT_MOVED           = 0;
+        $CONTENT_MOVED_DIRECTION = undef;
+        return @warnings;
+    }
 
     require Lazysite::Private;
     my $gates = _acl_gates_public($rec);
+
+    # SM529: content_moved MEANS the bytes changed tree. The movers treat
+    # "nothing on the source side" as success - a write-only rule on a public
+    # page asks for a move-out of a store that holds nothing, and a rule
+    # re-applied to content already in the store asks for a move-in of a
+    # docroot path that is empty - so the reply said content_moved:1 with
+    # the "moved out of the document root" note beside reads_unrestricted:1
+    # (SM479), the field contradicted by the sentence next to it. Look at the
+    # source side BEFORE the move; only a present source can have moved.
+    $CONTENT_MOVED_DIRECTION = $gates ? 'out' : 'in';
+    my $priv_src = Lazysite::Private::private_path( $DOCROOT, $path );
+    my $source_present =
+        $gates ? ( -e "$DOCROOT/$path" ) : ( defined $priv_src && -e $priv_src );
+    $CONTENT_MOVED = 0 unless $source_present;
 
     my ( $ok, $err ) =
         $gates
@@ -1752,8 +1782,14 @@ sub action_acl_set {
     # asserts a successful move carries none, correctly. This is a caveat on a
     # success, so it gets its own field rather than borrowing the one that means
     # something failed.
+    # SM529: worded by direction. The cached-descriptor caveat is about a
+    # front end that can still see a file that LEFT the docroot; content that
+    # came back is simply served again.
     my $moved_note =
-        'content moved out of the document root. A front end that served one of '
+        ( $CONTENT_MOVED_DIRECTION // 'out' ) eq 'in'
+        ? 'content moved back into the document root and is served from there '
+        . 'again; nothing needs changing on the front end.'
+        : 'content moved out of the document root. A front end that served one of '
         . 'these files in the preceding minute may keep answering from a cached '
         . 'descriptor until it expires - 60 seconds on a default nginx '
         . '(open_file_cache_valid). The engine serves nothing from the old path '
