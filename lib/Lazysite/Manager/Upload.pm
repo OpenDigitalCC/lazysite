@@ -375,6 +375,42 @@ sub is_editable_text {
     return $TEXT_EXTENSIONS{ lc $ext } ? 1 : 0;
 }
 
+# The attachment response: the header stack and the sysread/syswrite loop
+# that were written out three times in this engine - twice here and once in
+# Backups' backup-download - byte for byte the same. (A fourth copy lives in
+# lazysite-manager-api.pl and folds in with that file.)
+#
+# binmode STDOUT BEFORE local $|, and both before anything is printed:
+# syswrite bypasses Perl's stdio buffer, so without autoflush the print-ed
+# headers land in stdout AFTER the body bytes. The filename loses the bytes
+# that would break out of the header field, as each copy did for itself.
+#
+# Returns 1 once the body is written, 0 if the file could not be opened -
+# which is after the headers have gone, so what a caller says about that is
+# its own business and stays with the caller.
+sub stream_attachment {
+    my ( $path, $ctype, $filename, $size ) = @_;
+    ( my $safe = $filename ) =~ s/[\r\n"\\]//g;
+
+    binmode STDOUT;
+    local $| = 1;
+    print "Status: 200 OK\r\n";
+    print "Content-Type: $ctype\r\n";
+    print "Content-Length: $size\r\n";
+    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
+    print "Cache-Control: no-store, private\r\n";
+    print "\r\n";
+
+    open my $fh, '<', $path or return 0;
+    binmode $fh;
+    my $buf;
+    while ( my $n = sysread( $fh, $buf, 65536 ) ) {
+        syswrite STDOUT, $buf, $n;
+    }
+    close $fh;
+    return 1;
+}
+
 sub action_file_download {
     my ($rel_path) = @_;
 
@@ -423,30 +459,12 @@ sub action_file_download {
     my $ctype    = detect_content_type($full);
     my $size     = ( stat $full )[7] // 0;
 
-    ( my $safe_name = $basename ) =~ s/[\r\n"\\]//g;
-
     log_event( 'DEBUG', 'file-download', 'file downloaded',
         path => $result->{rel}, size => $size,
         user => $auth_user );
 
-    # syswrite below bypasses Perl's stdio buffer; without autoflush
-    # the print-ed headers land in stdout AFTER the body bytes.
-    binmode STDOUT;
-    local $| = 1;
-    print "Status: 200 OK\r\n";
-    print "Content-Type: $ctype\r\n";
-    print "Content-Length: $size\r\n";
-    print "Content-Disposition: attachment; filename=\"$safe_name\"\r\n";
-    print "Cache-Control: no-store, private\r\n";
-    print "\r\n";
-
-    open my $fh, '<', $full or return;
-    binmode $fh;
-    my $buf;
-    while ( my $n = sysread( $fh, $buf, 65536 ) ) {
-        syswrite STDOUT, $buf, $n;
-    }
-    close $fh;
+    stream_attachment( $full, $ctype, $basename, $size );
+    return;
 }
 
 sub collect_zip_paths {
@@ -564,22 +582,8 @@ sub action_file_zip_download {
         count => $added, size => $zip_size,
         user  => $auth_user );
 
-    binmode STDOUT;
-    local $| = 1;    # flush headers before the syswrite loop
-    print "Status: 200 OK\r\n";
-    print "Content-Type: application/zip\r\n";
-    print "Content-Length: $zip_size\r\n";
-    print "Content-Disposition: attachment; filename=\"$fname\"\r\n";
-    print "Cache-Control: no-store, private\r\n";
-    print "\r\n";
-
-    open my $fh, '<', $tmp_path or return;
-    binmode $fh;
-    my $buf;
-    while ( my $n = sysread( $fh, $buf, 65536 ) ) {
-        syswrite STDOUT, $buf, $n;
-    }
-    close $fh;
+    stream_attachment( $tmp_path, 'application/zip', $fname, $zip_size );
+    return;
 }
 
 1;

@@ -16,6 +16,10 @@ use Fcntl             qw(O_WRONLY O_CREAT O_EXCL);
 use Errno             ();
 use Lazysite::Util    qw(log_event);
 use Exporter          qw(import);
+
+# BP-6: the attachment stream shared with the file downloads. Upload does not
+# load this module back, so naming it here costs no cycle.
+use Lazysite::Manager::Upload ();
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete
     write_sha256 read_sha256 verify_sha256
@@ -862,22 +866,11 @@ sub action_backup_download {
     return { ok => 0, error => 'Backup not found' } unless -f $full;
 
     my $size = ( stat $full )[7] // 0;
-    ( my $safe = $name ) =~ s/[\r\n"\\]//g;
     log_event( 'INFO', 'backup-download', 'backup downloaded', file => $name, user => $auth_user );
 
-    binmode STDOUT;
-    local $| = 1;
-    print "Status: 200 OK\r\n";
-    print "Content-Type: application/gzip\r\n";
-    print "Content-Length: $size\r\n";
-    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
-    print "Cache-Control: no-store, private\r\n";
-    print "\r\n";
-    open my $fh, '<', $full or return { ok => 0, error => 'Cannot read backup' };
-    binmode $fh;
-    my $buf;
-    while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }
-    close $fh;
+    return { ok => 0, error => 'Cannot read backup' }
+        unless Lazysite::Manager::Upload::stream_attachment( $full,
+        'application/gzip', $name, $size );
     return { ok => 1, streamed => 1 };
 }
 
