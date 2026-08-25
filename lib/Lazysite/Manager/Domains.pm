@@ -395,6 +395,26 @@ sub _rendered_presentation {
     return ( \%out );
 }
 
+# SM520: the identity strip is the mechanism of BOTH previews. Anything that
+# could tell the processor who is asking has to go, or the preview shows the
+# operator their own view and reports it as the public's - which is the defect
+# preview_public existed to remove, and which domain_preview then had in its
+# own hand-written strip list (HTTP_X_REMOTE_* and LAZYSITE_AUTH_* only; the
+# session cookie and Authorization header rode along, and a gated section
+# previewed as visible under the domain check). One list, one place, so the
+# twins cannot drift again. Callers `local %ENV` first; this edits the copy.
+sub _anonymous_env {
+    delete @ENV{
+        grep {
+            m{ \A (?: HTTP_X_REMOTE_ | LAZYSITE_AUTH_
+                | HTTP_COOKIE | HTTP_AUTHORIZATION ) }x
+        } keys %ENV
+    };
+    delete $ENV{HTTP_COOKIE};
+    delete $ENV{HTTP_AUTHORIZATION};
+    return;
+}
+
 sub preview_public {
     my ($rel) = @_;
     $rel = '/'     unless defined $rel && length $rel;
@@ -404,19 +424,7 @@ sub preview_public {
         if $rel =~ m{ \0 }x || $rel =~ m{ (?:^|/) \.\. (?:/|$) }x;
 
     local %ENV = %ENV;
-
-    # The identity strip is the mechanism. Anything that could tell the
-    # processor who is asking has to go, or the preview shows the operator
-    # their own view and reports it as the public's - which is the defect this
-    # exists to remove, wearing the costume of the fix.
-    delete @ENV{
-        grep {
-            m{ \A (?: HTTP_X_REMOTE_ | LAZYSITE_AUTH_
-                | HTTP_COOKIE | HTTP_AUTHORIZATION ) }x
-        } keys %ENV
-    };
-    delete $ENV{HTTP_COOKIE};
-    delete $ENV{HTTP_AUTHORIZATION};
+    _anonymous_env();
 
     $ENV{DOCUMENT_ROOT}    = $DOCROOT;
     $ENV{REDIRECT_URL}     = $rel;
@@ -525,7 +533,7 @@ sub domain_preview {
         unless known_domain_host($host);
 
     local %ENV = %ENV;
-    delete @ENV{ grep { /^(?:HTTP_X_REMOTE_|LAZYSITE_AUTH_)/ } keys %ENV };
+    _anonymous_env();
     $ENV{DOCUMENT_ROOT}    = $DOCROOT;
     $ENV{HTTP_HOST}        = $host;
     $ENV{REDIRECT_URL}     = '/';

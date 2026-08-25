@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM520 resolved (PENDING) **a domain preview is anonymous.** domain_preview
+  shelled the processor with the operator's HTTP_COOKIE and
+  HTTP_AUTHORIZATION still set (only HTTP_X_REMOTE_* and LAZYSITE_AUTH_*
+  were stripped), so the domain check rendered as the operator and showed a
+  gated section as visible. preview_public already stripped the full set;
+  both now call one _anonymous_env() so the lists cannot drift. Found by
+  the structural review (N-3); t/unit/manager/101 drives both previews
+  through a stub processor and asserts neither the session nor the gated
+  body reaches the answer.
+
 - SM519 resolved (PENDING) **no means no.** YAML 1.2, which YAML::PP
   implements, spells `no`, `off`, `yes` and `on` as strings, and the
   descriptor loader tested them with Perl truth: `public: no` published the
