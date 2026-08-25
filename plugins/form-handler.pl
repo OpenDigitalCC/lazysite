@@ -172,6 +172,9 @@ eval {
                 if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
             }
         }
+        # SM557: the package is require'd at runtime, so this file mentions the
+        # variable once by design - t/lint/04 refuses the 'used only once' warning.
+        no warnings 'once';
         require Lazysite::Auth::Session;
         local $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
         my ($session) = Lazysite::Auth::Session::verify_session_cookie();
@@ -515,6 +518,7 @@ sub dispatch_db {
     # a form quietly writing to a table an operator has switched off would be
     # the plugin still running after being turned off.
     {
+        no warnings 'once';    # SM557
         local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
         unless (
             Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl') )

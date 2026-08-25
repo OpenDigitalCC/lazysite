@@ -84,6 +84,9 @@ sub main {
         { ok => 0, error => 'this endpoint takes GET to read and POST to write' } )
         unless $method eq 'GET' || $method eq 'POST';
 
+    # SM557: the package is require'd at runtime, so this file mentions the
+    # variable once by design - t/lint/04 refuses the 'used only once' warning.
+    no warnings 'once';
     require Lazysite::Manager::Plugins;
     local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
     return reply( 403,
@@ -109,6 +112,7 @@ sub main {
     return reply( 400, { ok => 0, error => 'table required' } )
         unless length $table || ( $q{csrf} // '' ) eq '1';
 
+    no warnings 'once';    # SM557
     # THE IDENTITY, verified here rather than taken from a header.
     require Lazysite::Auth::Session;
     local $Lazysite::Auth::Session::LAZYSITE_DIR = "$docroot/lazysite";
@@ -176,6 +180,7 @@ sub main {
                     . '?csrf=1 and retry' } )
             unless Lazysite::Auth::Session::verify_csrf_token( $sent, $user );
 
+        no warnings 'once';    # SM557
         require Lazysite::Manager::Data;
         local $Lazysite::Manager::Data::DOCROOT = $docroot;
 

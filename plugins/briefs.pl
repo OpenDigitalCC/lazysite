@@ -68,6 +68,9 @@ sub run {
     }
     my $docroot = $opt{docroot} // $ENV{DOCUMENT_ROOT} // '';
     my $act     = $opt{action}  // ( $opt{status} ? 'status' : '' );
+    # SM557: the package is require'd at runtime, so this file mentions the
+    # variable once by design - t/lint/04 refuses the 'used only once' warning.
+    no warnings 'once';
     require Lazysite::Manager::Briefs;
     local $Lazysite::Manager::Briefs::DOCROOT = $docroot;
     if ( $act eq 'status' ) {

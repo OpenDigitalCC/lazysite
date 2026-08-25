@@ -437,6 +437,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM557 resolved (PENDING) **a post writes no used-only-once warnings.**
+  Every form POST wrote two `Name "Lazysite::...::X" used only once:
+  possible typo` lines to the error log - `local $Pkg::VAR` on packages
+  only require'd at runtime - and the compile lint checked only the exit
+  code. The seven warning sites (form-handler and six siblings) now carry
+  a scoped `no warnings 'once'`, and t/lint/04 reads the output and
+  refuses the warning across the sweep.
+
 - SM543 resolved (PENDING) **a recount uses the loaded ruleset.**
   `--recount --apply` was dispatched before the SM391 ruleset load and
   re-entered the export in-process, so the repair tool reclassified

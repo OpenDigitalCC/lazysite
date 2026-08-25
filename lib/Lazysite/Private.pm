@@ -189,6 +189,9 @@ sub count_private {
     my ( $docroot, $rel ) = @_;
     my $base = private_path( $docroot, $rel );
     return 0 unless defined $base && -d $base;
+    # SM557: the package is require'd at runtime, so this file mentions the
+    # variable once by design - t/lint/04 refuses the 'used only once' warning.
+    no warnings 'once';
     require File::Find;
     my $n = 0;
     File::Find::find(

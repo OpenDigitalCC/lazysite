@@ -783,6 +783,9 @@ sub brief_write_refusal {
     # refusal, the write proceeds, exactly as before SM504.
     my $droot = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
     return undef unless length $droot;
+    # SM557: the package is require'd at runtime, so this file mentions the
+    # variable once by design - t/lint/04 refuses the 'used only once' warning.
+    no warnings 'once';
     local $Lazysite::Manager::Plugins::DOCROOT = $droot;
     return undef
         unless eval { Lazysite::Manager::Plugins::plugin_enabled('plugins/briefs.pl') };

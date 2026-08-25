@@ -19,6 +19,11 @@ for my $s (@scripts) {
     my $rc  = $? >> 8;
     ( my $rel = $s ) =~ s{^\Q$root\E/}{};
     is( $rc, 0, "perl -c: $rel" ) or diag($out);
+    # SM557: a clean exit is not a clean compile. `local $Pkg::VAR` on a
+    # package only require'd at runtime warned "used only once: possible typo"
+    # on every run of the script (twice per form POST), and the exit code
+    # never said so. A deliberate single mention carries `no warnings 'once'`.
+    unlike( $out, qr/used only once/, "no used-only-once warning: $rel" );
 }
 
 done_testing();

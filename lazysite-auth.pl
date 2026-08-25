@@ -389,6 +389,9 @@ sub handle_logout {
         # the cookie-verify path above). A legacy cookie carries no sid, so it
         # cannot be revoked individually - it still ages out at COOKIE_MAX.
         if ( length $sid ) {
+            # SM557: the package is require'd at runtime, so this file mentions the
+            # variable once by design - t/lint/04 refuses the 'used only once' warning.
+            no warnings 'once';
             require Lazysite::Manager::Sessions;
             local $Lazysite::Manager::Sessions::LAZYSITE_DIR = $LAZYSITE_DIR;
             local $Lazysite::Manager::Sessions::auth_user    = $user;

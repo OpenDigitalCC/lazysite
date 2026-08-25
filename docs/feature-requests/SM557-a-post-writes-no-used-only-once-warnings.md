@@ -3,8 +3,8 @@ title: "SM557: a post writes no used-only-once warnings"
 subtitle: "Every form POST writes two possible-typo warnings to the error log, and the compile lint checks only the exit code."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND 2026-08-25 by the plugins structural review, PROVEN by probe tmp/plugins-probe-forms-forwarding.sh; class: operability; recommended timing: later. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. Every POST through form-handler.pl writes two lines of the form Name Lazysite::...::X used only once: possible typo to the error log, because local $Pkg::VAR is applied to packages that are only required later; t/lint/04 checks the exit code of perl -c only, so the warning passes the gate. The probe's stderr lines 1-2 carry the two warnings. The fix quietens the localisation and has the lint read the output."
+status: shipped
+status-note: "SHIPPED 0.10.32 (EDGE): every `local $Pkg::VAR` on a runtime-require'd package now carries a scoped `no warnings 'once'` (the idiom git-sync, content-history and Domains.pm already used) - form-handler's two sites plus the same class in lazysite-auth, lazysite-data, briefs, Private.pm, Common.pm and SitePackage.pm - and t/lint/04 now reads the perl -c output and refuses any `used only once` warning across the whole sweep, so a form POST writes no typo noise to the error log and the class cannot return. FOUND 2026-08-25 by the plugins structural review, PROVEN by probe tmp/plugins-probe-forms-forwarding.sh; class: operability; recommended timing: later. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. Every POST through form-handler.pl writes two lines of the form Name Lazysite::...::X used only once: possible typo to the error log, because local $Pkg::VAR is applied to packages that are only required later; t/lint/04 checks the exit code of perl -c only, so the warning passes the gate. The probe's stderr lines 1-2 carry the two warnings. The fix quietens the localisation and has the lint read the output."
 ---
 
 # The finding
