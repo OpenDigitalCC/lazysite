@@ -44,29 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM522 resolved (PENDING) **the front-matter reserved list is populated at
-  request time.** `our %FRONT_MATTER_RESERVED` sat below the dispatch, so
-  under CGI and FastCGI it was empty when a request was served: a page's
-  `auth:` and `layout:` reached the stash as page_auth / page_layout and
-  scan records carried auth, layout, register and search as custom keys
-  (the SM293 shape with `our`, which t/lint/39 only looked for as `my`).
-  Found by the processor structural review, proven by probe. The list is
-  now the sub `_front_matter_reserved()`, read by the scan and the stash;
-  t/lint/39 now catches a file-scoped `our` below the main body, and
-  t/unit/processor/60 renders a page that sets both keys and asserts
-  neither reaches the stash.
+- SM555 resolved (PENDING) **listing the engine tree logs once.** Opening
+  /lazysite in the file browser wrote one "blocked lazysite tree" WARN per
+  hidden entry - six per open, reading as a traversal attempt in a log
+  review. Found by the path-core review (NR-5), proven by probe. The
+  listing sweep now runs the two blocklist tests quietly and writes one
+  INFO line per listing with the count; a direct touch of a blocked path
+  still warns. t/unit/manager/99 counts the log lines for one listing.
 
-- SM571 resolved (PENDING) **the history summary walks the history once.**
-  `git-history-summary` / `list_content_history` always 504'd on edge: the
-  summary ran the per-file lineage walk (several git processes, following
-  renames) for EVERY tracked path, O(files x history), and `limit` changed
-  nothing because the action has never taken one. It now reads the history
-  in ONE `git log --name-status` pass, newest first, keeping the SM175
-  rules by construction - an incarnation ends at its add commit, a recorded
-  move continues into the source path's older commits, 200 revisions per
-  path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
-  x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
-  the site agent's capability sweep, 2026-08-25.
 - SM530 resolved (PENDING) **a mkdir into an unwritable parent returns a
   refusal.** `make_path ... or return` never reached its `or` - File::Path
   croaks - so a mkdir, save, binary save, move or copy into an unwritable
@@ -100,6 +85,30 @@ Naming the commit: AFTER it lands, never before
   probe. Every site now derives the key from validate_path's rel through
   one helper; acquire, release and lock-info validate first. t/unit/manager/08
   pins the four spellings against one lock and the listing glyph.
+
+- SM522 resolved (PENDING) **the front-matter reserved list is populated at
+  request time.** `our %FRONT_MATTER_RESERVED` sat below the dispatch, so
+  under CGI and FastCGI it was empty when a request was served: a page's
+  `auth:` and `layout:` reached the stash as page_auth / page_layout and
+  scan records carried auth, layout, register and search as custom keys
+  (the SM293 shape with `our`, which t/lint/39 only looked for as `my`).
+  Found by the processor structural review, proven by probe. The list is
+  now the sub `_front_matter_reserved()`, read by the scan and the stash;
+  t/lint/39 now catches a file-scoped `our` below the main body, and
+  t/unit/processor/60 renders a page that sets both keys and asserts
+  neither reaches the stash.
+
+- SM571 resolved (PENDING) **the history summary walks the history once.**
+  `git-history-summary` / `list_content_history` always 504'd on edge: the
+  summary ran the per-file lineage walk (several git processes, following
+  renames) for EVERY tracked path, O(files x history), and `limit` changed
+  nothing because the action has never taken one. It now reads the history
+  in ONE `git log --name-status` pass, newest first, keeping the SM175
+  rules by construction - an incarnation ends at its add commit, a recorded
+  move continues into the source path's older commits, 200 revisions per
+  path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
+  x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
+  the site agent's capability sweep, 2026-08-25.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

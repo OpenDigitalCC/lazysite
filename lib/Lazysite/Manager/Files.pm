@@ -199,15 +199,35 @@ sub action_list {
     return { ok => 0, error => "Cannot read directory" }
         unless %child || -d $real;
 
+    my $hidden = 0;    # SM555: entries the blocklist sweep kept out of view
     for my $name ( sort keys %child ) {
         my $full = $child{$name};
         my $rel  = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
         # SM268 04-F5: and per entry, so a listable directory cannot advertise a
         # blocklisted file inside it.
         ( my $entry_key = $rel ) =~ s{^/}{};
-        next
-            if ( is_blocked_path($entry_key) || is_blocked_config($entry_key) )
-            && !Lazysite::Manager::Common::path_leads_to_carveout($entry_key);
+
+        # SM555: THE SWEEP IS QUIET; IT REPORTS ONCE BELOW.
+        #
+        # is_blocked_path warns on every hit, which is right when a caller
+        # addresses a blocked path - that is an attempt, and the WARN is the
+        # signal a log review relies on. Asked once per entry here, it wrote
+        # six "blocked lazysite tree" lines every time the file browser opened
+        # /lazysite, the folder that holds layouts and nav.conf: the filter
+        # doing its job, dressed as a traversal attempt, burying the warning
+        # that would matter. The log level is the logger's own knob, raised
+        # for exactly these two calls, so the blocklist and its decision are
+        # untouched (SM516: is_blocked_path is not to be reshaped).
+        my $blocked = do {
+            local $ENV{LAZYSITE_LOG_LEVEL} = 'ERROR';
+            is_blocked_path($entry_key) || is_blocked_config($entry_key);
+        };
+        if ( $blocked
+            && !Lazysite::Manager::Common::path_leads_to_carveout($entry_key) )
+        {
+            $hidden++;
+            next;
+        }
         my @st     = stat($full);
         my $is_dir = -d $full ? 1 : 0;
         my $entry  = {
@@ -306,6 +326,9 @@ sub action_list {
         }
         push @entries, $entry;
     }
+    log_event( 'INFO', $action, 'listing hid blocked entries',
+        path => $dir_path, hidden => $hidden, user => $auth_user )
+        if $hidden;
 
     return { ok => 1, path => $dir_path, entries => \@entries };
 }
