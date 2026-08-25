@@ -3,11 +3,10 @@
 # Sets X-Remote-* headers from signed cookie, then execs the processor
 use strict;
 use warnings;
-use Digest::SHA    qw(sha256_hex hmac_sha256_hex);
+use Digest::SHA    qw(hmac_sha256_hex);
 use Fcntl          qw(:flock O_RDWR O_WRONLY O_APPEND O_CREAT);
 use File::Path     qw(make_path);
 use File::Basename qw(dirname);
-use POSIX          qw(strftime);
 use IPC::Open2     qw(open2);
 
 BEGIN {
@@ -21,7 +20,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util          qw(log_event const_eq);
+use Lazysite::Util          qw(log_event);
 use Lazysite::Auth::Session qw(
     verify_session_cookie account_disabled load_user_groups
     SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
@@ -352,11 +351,6 @@ sub handle_login {
     print "Location: $next\r\n\r\n";
     return;
 }
-
-# The user of a VALID session cookie, or '' if there is no valid session. auth.pl
-# handles ?action=logout directly (not behind the wrapper), so HTTP_X_REMOTE_USER
-# is not set here - validate the cookie ourselves.
-sub _session_user { return ( _session_identity() )[0] }
 
 # Verify the session cookie and return ( $user, $sid ) - $sid is '' for a
 # legacy (pre-SM141) user:ts:groups cookie. Returns ( '', '' ) on any failure.
@@ -897,12 +891,6 @@ sub ui_enabled {
     return $s->{ui} ? 1 : 0;
 }
 
-# SM071 Phase 2: a disabled account fails authentication everywhere.
-# Read-only consumer of user-settings.json (written by
-# tools/lazysite-users.pl). Fails open (not disabled) on a missing or
-# corrupt file, matching ui_enabled, so a damaged file cannot lock the
-# operator out.
-
 # SM071 Phase 2: a credential with an access-token expiry in the past is
 # treated as invalid. Read-only consumer; fails open (not expired) on a
 # missing/corrupt file, matching the other settings consumers here.
@@ -1017,16 +1005,6 @@ sub _session_register {
     return 1;
 }
 
-# SM141: is this (user, ts, sid) revoked? FAST PATH: no revoked.json = a
-# single -f stat and nothing is revoked (the bad-url-blocker precedent);
-# a present file is one tiny JSON read. Reject when the sid is in the
-# revoked set, or the cookie was issued before the user's not_before (which
-# also kills legacy pre-sid cookies - they carry ts). Unreadable/corrupt
-# file = treat as EMPTY but WARN loudly (the spec's fail-open-with-alarm
-# decision: a corrupt file must not lock everyone out; lazysite-check
-# probes the file so the alarm is actionable).
-
-
 sub load_auth_secret {
     my $path = "$AUTH_DIR/.secret";
     make_path($AUTH_DIR) unless -d $AUTH_DIR;
@@ -1052,16 +1030,6 @@ sub load_auth_secret {
     close $fh;
     return $s;
 }
-
-# M-6: CSPRNG helper - fail closed, never fall back to rand().
-
-# M-5: constant-time byte comparison (length-preserving).
-
-# H-2: salted iterated SHA-256 password hashing. Format:
-#   sha256iter:SALT(32 hex):ITERATIONS:HASH(64 hex)
-# Legacy format (64-hex-char unsalted SHA-256) still accepted; login
-# handler rehashes legacy hashes on success.
-
 
 # Rewrite one user's hash in the users file, preserving other lines.
 sub update_user_hash {
@@ -1186,17 +1154,6 @@ sub parse_post {
     return %form;
 }
 
-sub read_cookie {
-    my ($name) = @_;
-    my $cookies = $ENV{HTTP_COOKIE} // '';
-    for my $pair ( split /;\s*/, $cookies ) {
-        my ( $k, $v ) = split /=/, $pair, 2;
-        $k =~ s/^\s+|\s+$//g if defined $k;
-        return $v            if defined $k && $k eq $name;
-    }
-    return '';
-}
-
 sub sanitise_next {
     my ($next) = @_;
     return '/' unless defined $next && length $next;
@@ -1284,13 +1241,3 @@ sub uri_encode_simple {
     $str =~ s/([^a-zA-Z0-9_.~:-])/sprintf('%%%02X', ord($1))/ge;
     return $str;
 }
-
-sub uri_decode_simple {
-    my ($str) = @_;
-    $str =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-    return $str;
-}
-
-# --- Logging ---
-
-

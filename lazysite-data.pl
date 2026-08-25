@@ -152,6 +152,11 @@ sub main {
             if defined $groups && length $groups;
     }
 
+    # Split once, from the value the block above just set - the writable_by
+    # narrowing and the read binding both asked the environment the same
+    # question and got the same answer.
+    my @groups = split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+
     # A token for this session, so a page's JavaScript can write. Minted only
     # for a verified account: an anonymous caller has nothing to protect and
     # gets nothing to replay.
@@ -162,6 +167,8 @@ sub main {
             { ok => 1,
                 token => Lazysite::Auth::Session::generate_csrf_token($user) } );
     }
+
+    require Lazysite::Data::Tables;
 
     # --- writes ------------------------------------------------------------
     if ( $method eq 'POST' ) {
@@ -210,15 +217,13 @@ sub main {
         #
         # An EMPTY list means "no extra narrowing", which is what every
         # existing descriptor has.
-        require Lazysite::Data::Tables;
         my $desc = Lazysite::Data::Tables::load_table( $docroot, $table );
         my $wb
             = ( $desc->{ok} && ref $desc->{writable_by} eq 'ARRAY' )
             ? $desc->{writable_by}
             : [];
         if ( @{$wb} ) {
-            my %in = map { $_ => 1 }
-                split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+            my %in = map { $_ => 1 } @groups;
             unless ( grep { $in{$_} } @{$wb} ) {
                 return reply( 403,
                     { ok => 0, kind => 'forbidden',
@@ -245,9 +250,6 @@ sub main {
             $req->{key}, $req->{row} );
         return reply( $r->{ok} ? 200 : 400, $r );
     }
-
-
-    require Lazysite::Data::Tables;
 
     # THE SAME PARSER THE PAGE BINDING USES, and it has to be. This built its
     # own %opt and handed it to read_rows, so the two doors into one table
@@ -284,10 +286,7 @@ sub main {
     my $r = Lazysite::Data::Tables::resolve_binding(
         $docroot, $binding,
         { user => $user,
-            groups => [
-                grep { length }
-                    split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' )
-            ],
+            groups => [ grep { length } @groups ],
         }
     );
     unless ( $r->{ok} ) {

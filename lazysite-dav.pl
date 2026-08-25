@@ -1,11 +1,14 @@
 #!/usr/bin/perl
 # lazysite-dav.pl - WebDAV (class 1 + 2) publishing endpoint for
-# lazysite. Self-contained CGI per the project's no-shared-modules
-# policy: helpers shared in spirit with lazysite-auth.pl and
-# lazysite-manager-api.pl (log_event, const_eq, verify_password,
-# settings reader, blocked-path checks, cache invalidation, lock
-# store) are duplicated here by convention - see
-# docs/architecture/code-quality.md.
+# lazysite.
+#
+# The helpers this file once duplicated by convention - log_event,
+# verify_password, the settings reader, the blocked-path check, the ACL
+# decision, cache and registry invalidation - are imported from the
+# shared lib/Lazysite tree below, which is where
+# docs/architecture/code-quality.md now puts them. What is still written
+# out here is the lock-record pair and the @DANGEROUS_EXT copy that
+# t/lint/17 pins equal to Lazysite::Manager::Common.
 #
 # Reached directly under /dav (its own ScriptAlias), NOT through
 # lazysite-auth.pl: it performs its own HTTP Basic authentication and
@@ -16,10 +19,10 @@
 use strict;
 use warnings;
 use MIME::Base64   qw(decode_base64);
-use Digest::SHA    qw(sha256_hex);
+use Digest::SHA    ();
 use Cwd            qw(realpath);
 use File::Path     qw(make_path remove_tree);
-use File::Basename qw(dirname basename);
+use File::Basename ();
 use File::Copy     qw(copy);
 use Fcntl          qw(:flock O_RDWR O_CREAT);
 use POSIX          qw(strftime);
@@ -35,7 +38,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util             qw(log_event const_eq);
+use Lazysite::Util             qw(log_event);
 use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Acl        qw(_acl_allows);
@@ -73,7 +76,9 @@ my $OWNER_MAX      = 1024;    # bytes of client owner XML retained
 
 my $PUT_CHUNK = 65536;
 
-# SM019 download Content-Type table (duplicated from the manager API).
+# SM019 download Content-Type table. The canonical copy is
+# %Lazysite::Manager::Upload::CONTENT_TYPE_MAP; this one is kept so the
+# GET path loads no manager module.
 my %CONTENT_TYPE_MAP = (
     md    => 'text/plain; charset=utf-8',
     txt   => 'text/plain; charset=utf-8',
@@ -708,11 +713,10 @@ sub _sync_acl_store {
     my @warnings;
     ( my $path = $rel ) =~ s{\A/+}{};
     $path =~ s{/+\z}{};
-    return @warnings unless length $path;
 
     # A site-wide rule cannot be expressed as a move - the docroot cannot
     # become its own sibling - so it stays enforced by the engine (SM287).
-    return @warnings if $path eq '';
+    return @warnings unless length $path;
 
     my $gates = 0;
     if ( ref $rec eq 'HASH' ) {
@@ -1443,7 +1447,6 @@ sub authorise_layout {
 # applies identically over WebDAV.
 sub manage_themes_for  { return caps_for( $_[0] )->{manage_themes}  ? 1 : 0 }
 sub manage_layouts_for { return caps_for( $_[0] )->{manage_layouts} ? 1 : 0 }
-sub manage_config_for  { return caps_for( $_[0] )->{manage_config}  ? 1 : 0 }
 sub manage_content_for { return caps_for( $_[0] )->{manage_content} ? 1 : 0 }
 sub manage_nav_for     { return caps_for( $_[0] )->{manage_nav}     ? 1 : 0 }
 sub manage_forms_for   { return caps_for( $_[0] )->{manage_forms}   ? 1 : 0 }
@@ -1598,10 +1601,6 @@ sub load_users {
     close $fh;
     return \%users;
 }
-
-# H-2 verify (duplicated): both salted-iterated and legacy formats.
-
-
 
 sub webdav_enabled_for {
     return caps_for( $_[0] )->{webdav} ? 1 : 0;
@@ -1953,9 +1952,3 @@ sub send_response {
     }
     return $code;    # so main() can audit write outcomes
 }
-
-# ---------------------------------------------------------------------
-# Logging (duplicated)
-# ---------------------------------------------------------------------
-
-
