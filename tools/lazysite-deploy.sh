@@ -4,6 +4,23 @@
 # Hestia host as it appears. Detects the latest lazysite-X.Y.Z.tar.gz, and
 # on any strictly-higher version, scp/extract/run the Hestia updater.
 #
+# Usage: lazysite-deploy.sh [--baseline X.Y.Z] [--help]
+#
+#   --baseline X.Y.Z  treat X.Y.Z as the last version already deployed, instead
+#                     of taking the baseline from whatever is in dist at start.
+#
+# WHY --baseline EXISTS. The watcher's baseline is normally the highest version
+# already in dist when it starts, which is right while it keeps running: it
+# deploys each bump as it appears. But a release that lands while the watcher is
+# DOWN is in dist by the time it comes back, so it becomes the baseline and is
+# never deployed - the release is silently absorbed. The workaround was to
+# rename the tarball so the watcher could not see it, then rename it back.
+#
+#   lazysite-deploy.sh --baseline 0.10.31   # 0.10.32 in dist WILL be deployed
+#
+# Give the version you have actually deployed. Anything strictly higher then
+# deploys as usual, including something already sitting in dist.
+#
 set -euo pipefail
 
 # No defaults that name anyone's infrastructure: this ships in the repository,
@@ -11,12 +28,6 @@ set -euo pipefail
 # rather than about lazysite. Both are required.
 HOST=${LAZYSITE_HOST:-}
 DIST=${LAZYSITE_DIST:-}
-if [ -z "$HOST" ] || [ -z "$DIST" ]; then
-    printf 'Set LAZYSITE_HOST and LAZYSITE_DIST.\n' >&2
-    printf '  LAZYSITE_HOST  the Hestia host to deploy to\n' >&2
-    printf '  LAZYSITE_DIST  the dist/ directory to watch\n' >&2
-    exit 2
-fi
 POLL=${LAZYSITE_POLL:-4}
 
 # True if $1 exists and sits on a fuse (sshfs) filesystem that is responding.
@@ -137,13 +148,35 @@ deploy() {
 
 # Watch $DIST and deploy every new version bump as it appears.
 watch_and_deploy() {
-    local current next rc tick=0 mount_lost=0
+    local given=${1:-} current next rc tick=0 mount_lost=0
+    # Required to DEPLOY, not to ask for help - so this sits here rather than at
+    # the top of the file, where it would make --help fail for anyone who has
+    # not configured the watcher yet.
+    if [ -z "$HOST" ] || [ -z "$DIST" ]; then
+        printf 'Set LAZYSITE_HOST and LAZYSITE_DIST.\n' >&2
+        printf '  LAZYSITE_HOST  the Hestia host to deploy to\n' >&2
+        printf '  LAZYSITE_DIST  the dist/ directory to watch\n' >&2
+        exit 2
+    fi
     if ! mount_ok "$DIST"; then
         printf 'Error: %s is not on a mounted sshfs filesystem\n' "$DIST" >&2
         exit 1
     fi
-    current=$(latest_version "$DIST" || true)
-    printf 'Watching %s (baseline: %s)\n' "$DIST" "${current:-none}" >&2
+    if [ -n "$given" ]; then
+        # An EXPLICIT baseline. Say where it came from, because the difference
+        # matters: a detected baseline means "deploy the next bump", a given one
+        # means "deploy anything above this, including what is already here".
+        current=$given
+        printf 'Watching %s (baseline: %s, given)\n' "$DIST" "$current" >&2
+        next=$(latest_version "$DIST" || true)
+        if [ -n "$next" ] && version_gt "$next" "$current"; then
+            printf '%s is already in dist and is newer - it will deploy now\n' \
+                "$next" >&2
+        fi
+    else
+        current=$(latest_version "$DIST" || true)
+        printf 'Watching %s (baseline: %s, detected)\n' "$DIST" "${current:-none}" >&2
+    fi
     while true; do
         # A LOST MOUNT IS A PAUSE, NOT AN END. This used to exit, so a transient
         # sshfs drop - which a long deploy is very good at producing, since the
@@ -204,6 +237,58 @@ watch_and_deploy() {
     done
 }
 
+# Printed from the header comment itself, delimited by markers rather than line
+# numbers, so editing anything above it cannot silently truncate the help.
+usage() {
+    sed -n '/^# Usage:/,/^set -euo pipefail$/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
+}
+
+# Validated to the SAME shape latest_version accepts, so a baseline can always
+# be compared with what is in dist. A typo would otherwise sort unpredictably
+# against real versions and either deploy nothing or deploy everything. Checked
+# where the value is READ, not after the loop, so an explicitly empty
+# --baseline '' is an error rather than a silent fall back to detection.
+check_baseline() {
+    case ${1-} in
+        ''|*[!0-9.]*|.*|*.)
+            printf 'lazysite-deploy: --baseline must be a plain version like 0.10.31 (got: %s)\n' \
+                "${1-}" >&2
+            exit 2
+            ;;
+    esac
+}
+
+# Parsing lives in a FUNCTION, not inline in the dispatch block, so a test can
+# drive the real parser instead of a copy of it that can drift from it.
+parse_args() {
+    BASELINE=
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --baseline)
+                [ $# -ge 2 ] || { printf 'lazysite-deploy: --baseline needs a version, e.g. --baseline 0.10.31\n' >&2; exit 2; }
+                check_baseline "$2"
+                BASELINE=$2
+                shift 2
+                ;;
+            --baseline=*)
+                check_baseline "${1#*=}"
+                BASELINE=${1#*=}
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                printf 'lazysite-deploy: unknown option %s\n' "$1" >&2
+                usage >&2
+                exit 2
+                ;;
+        esac
+    done
+}
+
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    watch_and_deploy
+    parse_args "$@"
+    watch_and_deploy "$BASELINE"
 fi

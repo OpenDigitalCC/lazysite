@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM595 resolved (PENDING) **the watcher can be told what it last deployed.**
+  `tools/lazysite-deploy.sh` took its baseline from whatever was already in
+  `dist` at startup, so a release that landed while the watcher was DOWN
+  became the baseline and could never deploy - the workaround was renaming
+  the tarball. `--baseline X.Y.Z` states what was actually deployed, and the
+  startup line now says whether the baseline was `given` or `detected`. Two
+  defects found while building it are fixed with it: the missing-environment
+  check ran before argument parsing, so `--help` failed for anyone who had
+  not configured the watcher, and `usage()` printed a fixed line range that
+  would silently truncate as the header grew. Proven by
+  `t/tools/42-the-watcher-can-be-told-what-it-last-deployed.t`, whose control
+  is the same tree with no `--baseline`, deploying nothing.
+
 - SM574 resolved (PENDING) **the field practice ships with every site.** The
   site agent's two best-practice files - what building and breaking real
   sites and apps on the engine taught - lived outside the tree and were read
