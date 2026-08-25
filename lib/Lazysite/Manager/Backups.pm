@@ -296,6 +296,25 @@ sub action_backup_delete {
     return { ok => 1, name => $name };
 }
 
+# The archive's member list. LIST FORM, NO SHELL - the doctrine the tar call
+# in action_backup_create states and these two reads did not follow: a qx()
+# with \Q quoting here and a backtick in the restore, each hand-building a
+# shell command line out of a path. fork/exec has no shell to quote for, and
+# the stderr redirect happens in the CHILD only (SM381), as _gzip_ok's does.
+sub _archive_members {
+    my ($path) = @_;
+    my $pid    = open my $fh, '-|';
+    return () unless defined $pid;
+    unless ($pid) {
+        open STDERR, '>', '/dev/null' or exit 127;
+        exec( 'tar', '-tzf', $path ) or exit 127;
+    }
+    my @members = <$fh>;
+    close $fh;
+    chomp @members;
+    return @members;
+}
+
 # Filesystem paths are never exposed (standing rule), and tar's stderr is full
 # of them. Absolute paths under the docroot or the private store become the
 # site-relative form a caller can act on; anything else absolute is replaced
@@ -306,10 +325,10 @@ sub action_backup_delete {
 # ignored (no content archive carries them and the restore excludes them).
 sub _archive_scope {
     my ($archive) = @_;
-    my @members   = split /\n/, qx(tar -tzf \Q$archive\E 2>/dev/null);
+    my @members = _archive_members($archive);
     my $common;
-    for my $m (@members) {
-        $m =~ s{\A\./}{};
+    for my $raw (@members) {
+        ( my $m = $raw ) =~ s{\A\./}{};
         next unless length $m;
         next if $m eq 'lazysite' || $m =~ m{\Alazysite/};
         my ($top) = $m =~ m{\A([^/]+)/};
@@ -644,6 +663,29 @@ sub action_backup_create {
         scope  => ( $kind eq q{full} ? q{full} : q{content} ) };
 }
 
+# SM378: the safety snapshot a destructive operation takes first, and the
+# refusal when it cannot be taken - written twice before this, here and in
+# SitePackage's apply, differing only in the verb.
+#
+# CARRY THE CAUSE. A bare 'safety snapshot failed' discards tar's reason and
+# turns a diagnosable fault into a wall; measured in the field, where
+# site_apply refused while site_backup on the same host succeeded in both
+# directions minutes later and nothing in the refusal told the two apart.
+#
+# Returns ( $snapshot, undef ) or ( undef, $refusal ). %extra joins the
+# refusal, for a surface that names the kind of failure it reports.
+sub safety_snapshot_or_refuse {
+    my ( $verb, $root, %extra ) = @_;
+    my $safety = action_backup_create( 'prerestore',
+        ( defined $root && length $root ? ( root => $root ) : () ) );
+    return ( $safety, undef ) if $safety->{ok};
+    my $why = $safety->{reason} || $safety->{error} || 'no reason given';
+    return ( undef,
+        { ok => 0, %extra,
+            error => "Refusing to $verb: safety snapshot failed - $why",
+            ( $safety->{detail} ? ( detail => $safety->{detail} ) : () ) } );
+}
+
 # SM084 (the open half, eight-dimension review D5): restore a snapshot. OVERLAY
 # semantics, matching install.pl --restore: the tarball's files are written
 # back over the docroot; files created since the snapshot are left in place.
@@ -675,17 +717,9 @@ sub action_backup_restore {
     # touch, so a partner who could back up could not roll back. An archive
     # with no single common directory (a primary-site backup) keeps the full
     # snapshot - for that target it IS the blast radius.
-    my $scope  = _archive_scope($full);
-    my $safety = action_backup_create( 'prerestore',
-        ( defined $scope && length $scope ? ( root => $scope ) : () ) );
-    unless ( $safety->{ok} ) {
-        # SM378: the same discard as the apply path, in the operation where
-        # being unable to roll back matters most.
-        my $why = $safety->{reason} || $safety->{error} || 'no reason given';
-        return { ok => 0,
-            error => "Refusing to restore: safety snapshot failed - $why",
-            ( $safety->{detail} ? ( detail => $safety->{detail} ) : () ) };
-    }
+    my $scope = _archive_scope($full);
+    my ( $safety, $refuse ) = safety_snapshot_or_refuse( 'restore', $scope );
+    return $refuse if $refuse;
 
     # SEC-2026-07 (M-TAR): --no-same-permissions (with the existing
     # --no-same-owner) so a hostile or ancient tarball cannot restore setuid/
@@ -770,8 +804,8 @@ sub action_backup_restore {
         my $priv = Lazysite::Private::private_root($DOCROOT);
         my $leaf = defined $priv ? basename($priv) : undef;
         if ( defined $leaf && length $leaf ) {
-            my $listing = `tar tzf \Q$full\E 2>/dev/null`;
-            if ( defined $listing && $listing =~ m{^\Q$leaf\E/}m ) {
+            my @members = _archive_members($full);
+            if ( grep { index( $_, "$leaf/" ) == 0 } @members ) {
                 my $prc = system(
                     'tar',             'xzf', $full, '-C', dirname($priv),
                     '--no-same-owner', '--no-same-permissions',

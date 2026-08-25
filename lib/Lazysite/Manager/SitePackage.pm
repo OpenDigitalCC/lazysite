@@ -55,79 +55,57 @@ my @KEYS = qw(content_root site_url site_name theme layout nav_file search_defau
 
 sub _backups_dir { return _lz() . "/backups" }
 
+# The configured domains, as domains_list reports them.
+sub _domain_rows {
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    return Lazysite::Manager::Domains::domains_list()->{domains} || [];
+}
+
 # Resolve a host to its domains_list row (the primary answers to '(default)').
 sub _domain_row {
     my ($host) = @_;
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my $dl = Lazysite::Manager::Domains::domains_list();
-    for my $r ( @{ $dl->{domains} || [] } ) {
+    for my $r ( @{ _domain_rows() } ) {
         return $r if lc( $r->{host} // '' ) eq lc( $host // '' );
         return $r if $r->{is_primary} && ( $host eq '(default)' || $host eq '' );
     }
     return undef;
 }
 
-# Recursive copy of regular files + dirs only (skips symlinks/specials, so a
-# content tree cannot smuggle a link out). Core Perl, no external cp.
-# SM185: copy the DEFAULT site's content (the docroot root) into $dst, excluding
-# lazysite/ (infra + secrets), every registered ADDITIONAL domain's content root
-# (those belong to other sites), and the generated .html render caches that sit
-# beside a .md source. Used only for the primary/default-site package.
-sub _copy_base_content {
-    my ($dst) = @_;
+# SM185: what the DEFAULT site's content is NOT - the lazysite/ infra (and its
+# secrets), and every registered ADDITIONAL domain's content root, which
+# belongs to another site. Docroot-relative names, for the walker's skip set.
+sub _base_content_skip {
+    my ($rows) = @_;
     my %skip = ( lazysite => 1 );
-    my @failed;    # SM559: returned, never shared - the caller labels them
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my $dl = Lazysite::Manager::Domains::domains_list();
-    for my $r ( @{ $dl->{domains} || [] } ) {
+    for my $r ( @{ $rows || [] } ) {
         next if $r->{is_primary};
         ( my $cr = $r->{content_root} // '' ) =~ s{^/+|/+$}{}g;
         $skip{$cr} = 1 if length $cr;
     }
-    my $src = $DOCROOT;
-    File::Find::find(
-        { no_chdir => 1,
-            wanted => sub {
-                my $p   = $File::Find::name;
-                my $rel = ( $p eq $src ) ? '' : substr( $p, length($src) + 1 );
-                if ( length $rel ) {
-                    for my $ex ( keys %skip ) {
-                        next unless $rel eq $ex || index( $rel, "$ex/" ) == 0;
-                        $File::Find::prune = 1 if -d $p;
-                        return;
-                    }
-                }
-                my $target = length $rel ? "$dst/$rel" : $dst;
-                if    ( -l $p ) { return }
-                elsif ( -d $p ) {
-                    # SM484: an unreadable DIRECTORY is where the silent omission
-                    # happened - File::Find cannot descend, so no copy() ever fails
-                    # and the subtree just never exists. Collected and pruned, so
-                    # the package can say what it does not carry.
-                    unless ( -r $p && -x $p ) {
-                        push @failed, substr( $p, length($src) + 1 ) . '/';
-                        $File::Find::prune = 1;
-                        return;
-                    }
-                    make_path($target);
-                }
-                elsif ( -f $p ) {
-                    return if $p =~ /\.html\z/ && -f ( $p =~ s/\.html\z/.md/r );
-                    make_path( dirname($target) );
-                    copy( $p, $target )
-                        or push @failed, substr( $p, length($src) + 1 );
-                }
-            },
-        },
-        $src
-    );
-    return @failed;
+    return \%skip;
 }
 
+# Recursive copy of regular files + dirs only (skips symlinks/specials, so a
+# content tree cannot smuggle a link out). Core Perl, no external cp.
+#
+# ONE WALKER. The default-site copy was a second walker with the same body -
+# the SM484 unreadable-directory block, the -l skip and the make_path/copy
+# tail were verbatim in both - differing only in what it pruned and in
+# dropping a render cache. Two copies of a rule about what a package may
+# carry is one copy too many.
+#
+# %opt:
+#   skip              - docroot-relative names to prune (the default site's
+#                       copy excludes lazysite/ and the other domains' roots)
+#   drop_render_cache - skip a generated .html sitting beside its .md source
+#
+# SM559: the failures are RETURNED, never shared - the caller labels them
+# with the tree they came from.
 sub _copy_tree {
-    my ( $src, $dst ) = @_;
+    my ( $src, $dst, %opt ) = @_;
     $src =~ s{/+$}{};
-    my @failed;    # SM559: returned, never shared - the caller labels them
+    my %skip = %{ $opt{skip} || {} };
+    my @failed;
 
     # SM268 03-F12: never descend into the destination. The staging directory
     # lives under lazysite/backups/, and a domain whose content_root resolves to
@@ -139,7 +117,8 @@ sub _copy_tree {
     #
     # The reachable route is closed upstream by refusing such a content_root;
     # this is the second line, and it is the one that holds whatever a future
-    # caller passes.
+    # caller passes. For the default site's copy the skip set has already
+    # pruned lazysite/, so it never fires there.
     ( my $dst_pfx = $dst ) =~ s{/+$}{};
 
     File::Find::find(
@@ -150,8 +129,15 @@ sub _copy_tree {
                     $File::Find::prune = 1;
                     return;
                 }
-                my $rel    = ( $p eq $src ) ? '' : substr( $p, length($src) + 1 );
-                my $target = length $rel    ? "$dst/$rel" : $dst;
+                my $rel = ( $p eq $src ) ? '' : substr( $p, length($src) + 1 );
+                if ( length $rel ) {
+                    for my $ex ( keys %skip ) {
+                        next unless $rel eq $ex || index( $rel, "$ex/" ) == 0;
+                        $File::Find::prune = 1 if -d $p;
+                        return;
+                    }
+                }
+                my $target = length $rel ? "$dst/$rel" : $dst;
                 if    ( -l $p ) { return }    # never follow/copy links
                 elsif ( -d $p ) {
                     # SM484: an unreadable DIRECTORY is where the silent omission
@@ -166,6 +152,10 @@ sub _copy_tree {
                     make_path($target);
                 }
                 elsif ( -f $p ) {
+                    return
+                        if $opt{drop_render_cache}
+                        && $p =~ /\.html\z/
+                        && -f ( $p =~ s/\.html\z/.md/r );
                     make_path( dirname($target) );
                     copy( $p, $target )
                         or push @failed, ( length $rel ? $rel : $p );
@@ -231,9 +221,10 @@ sub package_create {
     # SM559: the walker RETURNS what it could not read. Nothing is shared
     # between calls, so a later call can never report an earlier one's
     # failures, and the layout's failures below are the layout's.
-    my @unreadable =
-        $primary_base
-        ? _copy_base_content("$stage/content")
+    my @unreadable
+        = $primary_base
+        ? _copy_tree( $DOCROOT, "$stage/content",
+        skip => _base_content_skip( _domain_rows() ), drop_render_cache => 1 )
         : _copy_tree( $content_src, "$stage/content" );
 
     # 2. nav: package the OVERRIDE only. A base-inherited nav (nav_file unset or
@@ -895,20 +886,10 @@ sub apply_and_configure {
         # writes only under $croot, so $croot is what the snapshot carries.
         # An empty $croot (the primary/base site) keeps the full content
         # snapshot, which for that target IS the blast radius.
-        my $safety = Lazysite::Manager::Backups::action_backup_create(
-            'prerestore', ( length $croot ? ( root => $croot ) : () ) );
-
-        # SM378: CARRY THE CAUSE. This discarded $safety->{error} and returned a
-        # bare 'safety snapshot failed', which turns a diagnosable fault into a
-        # wall - measured in the field, where site_apply refused while
-        # site_backup on the same host succeeded in both directions minutes
-        # later and nothing in the refusal could tell the two apart.
-        unless ( $safety->{ok} ) {
-            my $why = $safety->{reason} || $safety->{error} || 'no reason given';
-            return { ok => 0, kind => 'snapshot-failed',
-                error => "Refusing to apply: safety snapshot failed - $why",
-                ( $safety->{detail} ? ( detail => $safety->{detail} ) : () ) };
-        }
+        my ( $safety, $refuse )
+            = Lazysite::Manager::Backups::safety_snapshot_or_refuse( 'apply',
+            $croot, kind => 'snapshot-failed' );
+        return $refuse if $refuse;
         $safety_name = $safety->{name} // '';
     }
 

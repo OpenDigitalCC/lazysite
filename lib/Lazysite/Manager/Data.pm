@@ -73,6 +73,33 @@ sub _need_table {
     return undef;
 }
 
+# Every action over a named table asks the same two questions in the same
+# order - is the plugin on, and was a table named - and answers with the same
+# two refusals. Written out twelve times before this; one name now.
+sub _table_action {
+    my ($table) = @_;
+    return _gate() // _need_table($table);
+}
+
+# SM470: the table NAME is a filename under a reserved root, so it is
+# validated here rather than trusted. The refusal, or undef.
+sub _valid_table_name {
+    my ($table) = @_;
+    return undef if $table =~ /\A[a-z][a-z0-9_]*\z/;
+    return { ok => 0, error => "'$table' must be lower-case letters, digits "
+            . 'and underscores, starting with a letter', field => 'table' };
+}
+
+# Is the stored table behind its descriptor? Derived, per D2 - the database
+# IS the state - and derived the same way wherever the question is asked.
+sub _schema_pending {
+    my ( $dbh, $table ) = @_;
+    return 1 unless $dbh;
+    require Lazysite::Data::Schema;
+    my $obs = eval { Lazysite::Data::Schema::observed_schema( $dbh, $table ) };
+    return ( $obs && $obs->{exists} ) ? 0 : 1;
+}
+
 # The tables this site declares, with the title each descriptor carries.
 #
 # Reports a table whose descriptor is BROKEN rather than omitting it. An
@@ -96,14 +123,7 @@ sub action_data_tables {
             next;
         }
 
-        my $pending = 1;
-        if ($dbh) {
-            require Lazysite::Data::Schema;
-            my $obs = eval {
-                Lazysite::Data::Schema::observed_schema( $dbh, $name );
-            };
-            $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
-        }
+        my $pending = _schema_pending( $dbh, $name );
 
         push @out,
             { table => $name,
@@ -119,9 +139,8 @@ sub action_data_tables {
 # One table's declared shape, as the manager and an agent both need it: the
 # fields, their types, and what is required.
 sub action_data_table {
-    if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     my $d = load_table( $DOCROOT, $table );
     return $d unless $d->{ok};
     # SM489 (minor): the SAME two facts the listing carries. data-tables said
@@ -129,12 +148,8 @@ sub action_data_table {
     # reply for a published and an unpublished table was identical - and
     # data-table is what somebody inspecting ONE table reaches for when asking
     # why a page is empty. Derived the same way, per D2.
-    my $pending = 1;
-    if ( my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT) ) {
-        require Lazysite::Data::Schema;
-        my $obs = eval { Lazysite::Data::Schema::observed_schema( $dbh, $table ) };
-        $pending = ( $obs && $obs->{exists} ) ? 0 : 1;
-    }
+    my $pending =
+        _schema_pending( Lazysite::Data::Connect::read_handle($DOCROOT), $table );
     return {
         # SM468: the shape's own history - who changed it, when, and what
         # happened - read from the store table that travels with the data.
@@ -158,12 +173,9 @@ sub action_data_table {
 # their comments, their key order and their spacing are part of what they
 # wrote, and a round trip through the parser would throw all three away.
 sub action_data_table_source {
-    if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
-    return { ok => 0, error => "'$table' must be lower-case letters, digits "
-            . 'and underscores, starting with a letter', field => 'table' }
-        unless $table =~ /\A[a-z][a-z0-9_]*\z/;
+    if ( my $bad = _table_action($table) )     { return $bad }
+    if ( my $bad = _valid_table_name($table) ) { return $bad }
     my $dir = descriptor_dir($DOCROOT);
     my ($file) = grep { -f $_ } ( "$dir/$table.yaml", "$dir/$table.yml" );
     return { ok => 0, error => "no table '$table' is declared",
@@ -197,14 +209,11 @@ sub action_data_table_source {
 # error surfaces as "the table does not work".
 sub action_data_table_save {
     my ( $table, $yaml ) = @_;
-    if ( my $bad = _gate() )             { return $bad }
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
 
     # The NAME is the filename, so it is validated here rather than trusted -
     # this is the one place a caller chooses a path under a reserved root.
-    return { ok => 0, error => "'$table' must be lower-case letters, digits "
-            . 'and underscores, starting with a letter', field => 'table' }
-        unless $table =~ /\A[a-z][a-z0-9_]*\z/;
+    if ( my $bad = _valid_table_name($table) ) { return $bad }
     return { ok => 0, error => 'descriptor text required' }
         unless defined $yaml && length $yaml;
 
@@ -284,9 +293,8 @@ sub action_data_table_save {
 }
 
 sub action_data_rows {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, %opt ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     # `as => 'operator'`: every action in this module has already passed the
     # manage_data gate in _gate, so the SM476 read check would be asking a
     # question that is already answered.
@@ -298,9 +306,8 @@ sub action_data_rows {
 # UI can show "this will add a column and refuse a type change" before an
 # operator commits to either.
 sub action_data_migrate_plan {
-    if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     my $d = load_table( $DOCROOT, $table );
     return $d unless $d->{ok};
 
@@ -339,9 +346,8 @@ sub action_data_migrate_plan {
 # blocked list is the operator's account of why their column is not there yet,
 # and dropping it would leave them believing the migration succeeded.
 sub action_data_migrate {
-    if ( my $off = _gate() ) { return $off }
     my ($table) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     my $r = apply_schema( $DOCROOT, $table, actor => $auth_user );
     log_event( 'INFO', $table, 'data schema applied',
         applied => scalar @{ $r->{applied} || [] },
@@ -357,9 +363,8 @@ sub action_data_migrate {
 # table is not, and giving them one name would mean the routine call carried
 # the dangerous capability every time it was made.
 sub action_data_rebuild {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, $confirm_lost ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     my $r = rebuild_table( $DOCROOT, $table, actor => $auth_user,
         confirm_lost => ( ref $confirm_lost eq 'ARRAY' ? $confirm_lost : [] ) );
     log_event( 'INFO', $table, 'data table rebuilt',
@@ -372,9 +377,8 @@ sub action_data_rebuild {
 # means by whether it has a key - and a surface that has to choose between two
 # action names for "save this row" will eventually choose wrong.
 sub action_data_row_save {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, $key, $values ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     return { ok => 0, error => 'row values required' }
         unless ref $values eq 'HASH';
 
@@ -389,9 +393,8 @@ sub action_data_row_save {
 }
 
 sub action_data_row_delete {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, $key ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
     return { ok => 0, error => 'row key required' }
         unless defined $key && length $key;
     my $r = delete_row( $DOCROOT, $table, $key );
@@ -413,9 +416,8 @@ sub action_data_row_delete {
 # STREAMED AS AN ATTACHMENT rather than returned as JSON-in-JSON: a download an
 # operator has to copy out of a response body is not a download.
 sub action_data_export {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, $format ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
 
     my $d = load_table( $DOCROOT, $table );
     return $d unless $d->{ok};
@@ -462,9 +464,8 @@ sub action_data_export {
 # the operator was shown is what is applied - or refused again, if the store
 # moved in between.
 sub action_data_import {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, $body, $content_type, $apply ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
 
     # The CSV is the multipart part named `file`, as site-backup-upload takes
     # its tarball. Parsed HERE, after the gate: a disabled plugin must not
@@ -499,9 +500,8 @@ sub action_data_import {
 # SM480: remove a table entirely. Destructive by definition, so `confirm` must
 # name it - the same shape a destructive migration uses.
 sub action_data_table_drop {
-    if ( my $off = _gate() ) { return $off }
     my ( $table, $confirm ) = @_;
-    if ( my $bad = _need_table($table) ) { return $bad }
+    if ( my $bad = _table_action($table) ) { return $bad }
 
     my $r = drop_table( $DOCROOT, $table, actor => $auth_user, confirm => $confirm );
     log_event( 'INFO', $table, 'data table dropped',
@@ -517,6 +517,25 @@ sub action_data_table_drop {
 # trip. The name is validated to the EXACT shape the engine mints, so no
 # path separator can reach the unlink.
 my $EXPORT_NAME = qr/\A([a-z][a-z0-9_]*)-(dropped-)?(\d{8}T\d{6}Z)\.json\z/;
+
+# The name, checked and taken apart: ( $entry, undef ) or ( undef, $refusal ).
+# The parts are NAMED here rather than read from $1..$3 at the point of use,
+# where a -f test and an unlink sit between the match and the read.
+sub _export_path {
+    my ($file) = @_;
+    return ( undef, { ok => 0, error => 'file required - the export name as '
+                . 'data-safety-exports reports it' } )
+        unless defined $file && length $file;
+    return ( undef,
+        { ok => 0, error => "'$file' is not a safety export name", kind => 'name' } )
+        unless $file =~ $EXPORT_NAME;
+    my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
+    my $abs = "$DOCROOT/lazysite/db/rebuilds/$file";
+    return ( undef, { ok => 0, error => 'no such safety export', kind => 'not-found' } )
+        unless -f $abs;
+    return ( { abs => $abs, table => $table, dropped => $dropped, stamp => $stamp },
+        undef );
+}
 
 sub action_data_safety_exports {
     if ( my $off = _gate() ) { return $off }
@@ -558,17 +577,12 @@ sub action_data_safety_exports {
 sub action_data_safety_export_delete {
     my ($file) = @_;
     if ( my $off = _gate() ) { return $off }
-    return { ok => 0, error => 'file required - the export name as '
-            . 'data-safety-exports reports it' }
-        unless defined $file && length $file;
-    return { ok => 0, error => "'$file' is not a safety export name", kind => 'name' }
-        unless $file =~ $EXPORT_NAME;
-    my $abs = "$DOCROOT/lazysite/db/rebuilds/$file";
-    return { ok => 0, error => 'no such safety export', kind => 'not-found' }
-        unless -f $abs;
-    unlink $abs
+    my ( $e, $bad ) = _export_path($file);
+    return $bad if $bad;
+    unlink $e->{abs}
         or return { ok => 0, error => "could not remove the export: $!" };
-    log_event( 'INFO', $1, 'safety export removed', file => $file, actor => $auth_user );
+    log_event( 'INFO', $e->{table}, 'safety export removed', file => $file,
+        actor => $auth_user );
     return { ok => 1, file => $file, deleted => 1 };
 }
 
@@ -588,20 +602,13 @@ sub _read_export_file {
 sub action_data_safety_export_read {
     my ($file) = @_;
     if ( my $off = _gate() ) { return $off }
-    return { ok => 0, error => 'file required - the export name as '
-            . 'data-safety-exports reports it' }
-        unless defined $file && length $file;
-    return { ok => 0, error => "'$file' is not a safety export name", kind => 'name' }
-        unless $file =~ $EXPORT_NAME;
-    my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
-    my $abs = "$DOCROOT/lazysite/db/rebuilds/$file";
-    return { ok => 0, error => 'no such safety export', kind => 'not-found' }
-        unless -f $abs;
-    my $data = _read_export_file($abs)
+    my ( $e, $bad ) = _export_path($file);
+    return $bad if $bad;
+    my $data = _read_export_file( $e->{abs} )
         or return { ok => 0, error => 'the export is not a readable lazysite data export' };
-    return { ok => 1, file => $file, table => $table,
-        kind      => ( $dropped ? 'dropped' : 'rebuild' ),
-        stamp     => $stamp,
+    return { ok => 1, file => $file, table => $e->{table},
+        kind      => ( $e->{dropped} ? 'dropped' : 'rebuild' ),
+        stamp     => $e->{stamp},
         key       => $data->{key},
         fields    => $data->{fields},
         rows      => $data->{rows} || [],
