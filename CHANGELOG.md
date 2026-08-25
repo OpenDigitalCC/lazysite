@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM519 resolved (PENDING) **no means no.** YAML 1.2, which YAML::PP
+  implements, spells `no`, `off`, `yes` and `on` as strings, and the
+  descriptor loader tested them with Perl truth: `public: no` published the
+  table to anonymous visitors, `required: no` refused writes and `unique:
+  off` built a unique index. One `_bool` normaliser now serves every flag
+  (public, timestamps, required, unique): 1/0, true/false, yes/no, on/off
+  case-insensitively and JSON::PP booleans; anything else is refused at
+  load with `<key> must be true or false`. Found by the data/auth
+  structural review; proven by probe; t/unit/data/01 asserts every
+  spelling.
+
 - SM570 resolved (PENDING) **a channel is not an authority.** acl-get,
   acl-set and acl-remove answered a token holding only api, manage_themes
   and webdav: the gate was `webdav || manage_content` and the registry

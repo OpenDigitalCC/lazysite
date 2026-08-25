@@ -349,6 +349,11 @@ fields:
     type: text
 ```
 
+`public` (like `timestamps`, `required` and `unique`) accepts `true`/`false`,
+`yes`/`no`, `on`/`off` or `1`/`0` in any case; any other word is refused when
+the descriptor loads, so a flag never silently reads as the opposite of what
+you wrote.
+
 **The default is `false`**, and a table is a store rather than a published
 artefact -- a file is under the docroot because you put it there to be served,
 and a table is not. Until you publish it, an anonymous visitor sees nothing:

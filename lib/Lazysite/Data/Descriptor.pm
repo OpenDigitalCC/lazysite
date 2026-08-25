@@ -76,6 +76,38 @@ sub _bad_ident {
     return undef;
 }
 
+# SM519: NO MEANS NO. YAML::PP implements YAML 1.2, where `no`, `No`, `off`,
+# `yes` and `on` are plain STRINGS - only `true`/`false` are booleans - and a
+# flag tested with Perl truth reads `public: no` as public. That exposed rows
+# to anonymous visitors, refused writes under `required: no`, and built an
+# index under `unique: off`. So every boolean the descriptor reads comes
+# through here, and the answer is 1, 0, or a refusal - never a guess.
+#
+# yes/no/on/off are honoured rather than refused: they are the natural
+# spelling of the thing, and refusing them would be the surprising
+# alternative. Case does not matter. A JSON::PP boolean (a descriptor that
+# arrived through the API rather than a YAML file) is a boolean. Absent is
+# false, because every flag here defaults closed. Anything else is refused
+# with the message this file already promised.
+#
+# Returns ( value, undef ) or ( undef, 'must be true or false' ).
+my %TRUE  = map { $_ => 1 } qw(1 true yes on);
+my %FALSE = map { $_ => 1 } qw(0 false no off);
+
+sub _bool {
+    my ($v) = @_;
+    return ( 0, undef ) unless defined $v;
+    if ( ref $v ) {
+        return ( ( $v ? 1 : 0 ), undef ) if ref $v eq 'JSON::PP::Boolean';
+        return ( undef,          'must be true or false' );
+    }
+    my $word = lc $v;
+    $word =~ s/\A\s+|\s+\z//g;
+    return ( 1,     undef ) if $TRUE{$word};
+    return ( 0,     undef ) if $FALSE{$word};
+    return ( undef, 'must be true or false' );
+}
+
 # --- field-level descriptor checks -----------------------------------------
 #
 # Each returns an error string, or undef. Split per type so a new type adds
@@ -98,8 +130,15 @@ sub _check_field {
     # unique" while keying on something else, and worked around it by keying
     # on the slug, which changes what a row IS in order to express a
     # constraint about one of its values.
-    if ( exists $spec->{unique} && ref $spec->{unique} ) {
-        return "field '$name': unique must be true or false";
+    #
+    # Both flags are written back normalised: Schema, Value and SQLite read
+    # `$spec->{required}` directly, and they must see the same answer this
+    # file gave.
+    for my $k (qw(unique required)) {
+        next unless exists $spec->{$k};
+        my ( $val, $why ) = _bool( $spec->{$k} );
+        return "field '$name': $k $why" if $why;
+        $spec->{$k} = $val;
     }
 
     # F-4: WIDGET IS ONLY MEANINGFUL ON TEXT, and until now saying otherwise
@@ -258,10 +297,15 @@ sub load_descriptor {
     # only ever shipped to edge, is born disabled, and the only tables in
     # existence were three test tables. A closed default costs nothing today
     # and cannot be chosen at all once this reaches stable.
-    return _err( 'descriptor',
-        "table '$name': public must be true or false", rule => 'public' )
-        if exists $raw->{public} && ref $raw->{public};
-    my $public = $raw->{public} ? 1 : 0;
+    my ( $public, $public_why ) = _bool( $raw->{public} );
+    return _err( 'descriptor', "table '$name': public $public_why",
+        rule => 'public' )
+        if $public_why;
+
+    my ( $timestamps, $ts_why ) = _bool( $raw->{timestamps} );
+    return _err( 'descriptor', "table '$name': timestamps $ts_why",
+        rule => 'timestamps' )
+        if $ts_why;
 
     # F-1: THE ORDER THE SITE MEANS. A gallery is an ordered list - somebody
     # chose the sequence - and without this a bare `db:gallery` returns rows in
@@ -283,7 +327,7 @@ sub load_descriptor {
             field => $do_field, rule => 'order' )
             unless $fields->{$do_field}
             || $do_field eq $key
-            || ( $raw->{timestamps}
+            || ( $timestamps
             && $do_field =~ /\A(?:created_at|updated_at)\z/ );
     }
 
@@ -311,7 +355,7 @@ sub load_descriptor {
             ? ( default_order => $do_field, default_order_dir => $do_dir )
             : () ),
         unique     => [ sort grep { $fields->{$_}{unique} } keys %{$fields} ],
-        timestamps => ( $raw->{timestamps} ? 1 : 0 ),
+        timestamps => $timestamps,
     };
 }
 

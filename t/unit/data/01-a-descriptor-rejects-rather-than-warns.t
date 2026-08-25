@@ -40,14 +40,14 @@ subtest 'a well-formed descriptor loads' => sub {
     my $d = load( 'tasks', {
             title  => 'Tasks',
             fields => {
-                title    => { type => 'text', required => 1, max => 200 },
-                notes    => { type => 'text', max => 4000, widget => 'textarea' },
-                done     => { type => 'boolean', default => 0 },
+                title    => { type => 'text',    required => 1,    max    => 200 },
+                notes    => { type => 'text',    max      => 4000, widget => 'textarea' },
+                done     => { type => 'boolean', default  => 0 },
                 due      => { type => 'date' },
                 priority => { type => 'enum', values => [qw(low normal high)],
                     default => 'normal' },
                 cost => { type => 'decimal', digits => 10, places => 2 },
-                rank => { type => 'integer', min => 0, max => 9 },
+                rank => { type => 'integer', min    => 0,  max    => 9 },
             },
             indexes     => [ ['done'], [ 'priority', 'due' ] ],
             writable_by => ['members'],
@@ -86,7 +86,7 @@ subtest 'TYPES: unknown is refused, never defaulted' => sub {
         or diag( 'A permissive default is how an unknown type becomes a '
             . 'silent text column, and the corruption arrives later.' );
     like( $d->{error}, qr/unknown type/, 'says so' );
-    like( $d->{error}, qr/text/, 'and lists what IS accepted' );
+    like( $d->{error}, qr/text/,         'and lists what IS accepted' );
 
     my $n = load( 'tasks', { fields => { x => {} } } );
     ok( !$n->{ok}, 'a field with no type at all is refused' );
@@ -101,7 +101,7 @@ subtest 'ENUM: a closed list must actually be closed' => sub {
         'duplicate values are refused' );
 
     my $d = load( 't', { fields => { s => { type => 'enum',
-                values => [qw(a b)], default => 'c' } } } );
+                    values => [qw(a b)], default => 'c' } } } );
     ok( !$d->{ok}, 'a default outside the list is refused' )
         or diag( 'A default that is not a member writes an invalid row on '
             . 'the first insert that omits the field.' );
@@ -169,11 +169,87 @@ subtest 'indexes and writable_by name real things' => sub {
 };
 
 subtest 'shape faults are refused before anything else looks at them' => sub {
-    ok( !load( 't', 'not a mapping' )->{ok}, 'a non-mapping descriptor' );
-    ok( !load( 't', {} )->{ok},              'no fields at all' );
+    ok( !load( 't', 'not a mapping' )->{ok},  'a non-mapping descriptor' );
+    ok( !load( 't', {} )->{ok},               'no fields at all' );
     ok( !load( 't', { fields => {} } )->{ok}, 'an empty fields mapping' );
     ok( !load( 't', { fields => { x => 'text' } } )->{ok},
         'a field whose spec is a bare string, not a mapping' );
+};
+
+subtest 'SM519: no means no - every boolean spelling means what it says' => sub {
+    # YAML::PP implements YAML 1.2, where `no`, `off`, `yes` and `on` are plain
+    # STRINGS. A loader testing Perl truth reads `public: no` as public, which
+    # exposes the rows to anonymous visitors. So every spelling is normalised
+    # and anything else is refused rather than guessed at.
+    for my $v ( 'no', 'No', 'NO', 'off', 'false', 'FALSE', 0, '0' ) {
+        my $d = load( 't', { fields => good_fields(), public => $v } );
+        ok( $d->{ok}, "public: $v loads" ) or diag explain $d;
+        is( $d->{public}, 0, "public: $v means NOT public" );
+    }
+    for my $v ( 'yes', 'on', 'true', 'True', 1, '1' ) {
+        my $d = load( 't', { fields => good_fields(), public => $v } );
+        ok( $d->{ok}, "public: $v loads" ) or diag explain $d;
+        is( $d->{public}, 1, "public: $v means public" );
+    }
+    is( load( 't', { fields => good_fields() } )->{public},
+        0, 'absent means not public' );
+
+    my $bad = load( 't', { fields => good_fields(), public => 'perhaps' } );
+    ok( !$bad->{ok}, 'public: perhaps is REFUSED' );
+    is( $bad->{error}, "table 't': public must be true or false",
+        '...with the promised message' );
+    is( $bad->{rule}, 'public', '...and the rule names the key' );
+
+    for my $v ( 'no', 'off', 'False' ) {
+        my $d = load( 't', { fields => good_fields(), timestamps => $v } );
+        is( $d->{timestamps}, 0, "timestamps: $v means no timestamps" );
+    }
+    $bad = load( 't', { fields => good_fields(), timestamps => 'perhaps' } );
+    is( $bad->{error}, "table 't': timestamps must be true or false",
+        'timestamps: perhaps is refused with the promised message' );
+
+    for my $v ( 'no', 'off', 'False' ) {
+        my $d = load( 't',
+            { fields => { code => { type => 'text', unique => $v, required => $v } } } );
+        ok( $d->{ok}, "unique/required: $v loads" ) or diag explain $d;
+        is_deeply( $d->{unique}, [], "unique: $v means NOT unique" );
+        is( $d->{fields}{code}{required}, 0,
+            "required: $v is written back as 0 for every downstream reader" );
+    }
+    my $d = load( 't',
+        { fields => { code => { type => 'text', unique => 'yes', required => 'on' } } } );
+    is_deeply( $d->{unique}, ['code'], 'unique: yes means unique' );
+    is( $d->{fields}{code}{required}, 1, 'required: on is written back as 1' );
+
+    for my $k (qw(unique required)) {
+        $bad = load( 't', { fields => { code => { type => 'text', $k => 'perhaps' } } } );
+        ok( !$bad->{ok}, "$k: perhaps is REFUSED" );
+        is( $bad->{error}, "table 't': field 'code': $k must be true or false",
+            '...with the promised message' );
+        is( $bad->{field}, 'code', '...naming the field' );
+    }
+
+SKIP: {
+        skip 'YAML::PP not installed', 4 unless eval { require YAML::PP; 1 };
+        # The real path: text, through the real parser, exactly as the probe
+        # that found this did.
+        my $raw = YAML::PP->new->load_string(<<'YAML');
+fields:
+  name:
+    type: text
+    required: no
+  code:
+    type: text
+    unique: off
+public: no
+timestamps: No
+YAML
+        my $t = load( 'probe', $raw );
+        ok( $t->{ok}, 'the probe descriptor loads' ) or diag explain $t;
+        is( $t->{public},     0, 'public: no means not public' );
+        is( $t->{timestamps}, 0, 'timestamps: No means no timestamps' );
+        is_deeply( $t->{unique}, [], 'unique: off means not unique' );
+    }
 };
 
 done_testing();
