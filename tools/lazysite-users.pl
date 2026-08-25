@@ -1793,11 +1793,6 @@ sub cmd_account_scope_independent_cli {
     cmd_account_scope_independent( $pos[0], $on, actor => $actor );
 }
 
-# SM071 Phase 2: token lifecycle (model A).
-#
-# Verify a plaintext secret against a stored sha256iter hash (the format
-# hash_token / hash_password write). Constant-time on the digest.
-
 # Drop any access-token expiry for a user (the credential is now a
 # password or a permanent operator credential, neither of which expires).
 sub clear_token_expiry {
@@ -2420,10 +2415,6 @@ All publishing and management docs live on this site - fetch them over HTTP:
 BRIEF
 }
 
-# SM071 Phase 3: verify a presented credential (used by the control-API
-# front-path in lazysite-manager-api.pl). Verifies the secret against the
-# stored hash, rejects disabled accounts and expired access tokens, and
-# returns the effective settings (capabilities) for the caller to gate on.
 # SM076: has this user's credential authenticated (via the connector) since it
 # was last issued? Drives the connector-setup "connected" detection.
 sub cmd_credential_status {
@@ -2561,6 +2552,10 @@ sub cmd_key_revoke {
     return { ok => 1, user => $user, oauth_grants_dropped => $oauth_dropped };
 }
 
+# SM071 Phase 3: verify a presented credential (used by the control-API
+# front-path in lazysite-manager-api.pl). Verifies the secret against the
+# stored hash, rejects disabled accounts and expired access tokens, and
+# returns the effective settings (capabilities) for the caller to gate on.
 sub cmd_verify_credential {
     my ( $user, $secret, $touch ) = @_;
     return { ok => 0 } unless defined $user && length $user && defined $secret;
@@ -2593,13 +2588,6 @@ sub cmd_verify_credential {
     return { ok => 1, username => $user, settings => $eff, first_use => $first_use };
 }
 
-# SM071 Phase 2: one-step partner provisioning. Creates a sub-user with a
-# locked password (a partner authenticates with a token, not a password),
-# applies the partner capability defaults (webdav + manage_themes, plus
-# any requested extras), mints a pairing key, and returns the onboarding
-# brief.
-# SM071: mint a fresh pairing key + onboarding brief for an existing user
-# (the manager Users-page "download onboarding" affordance).
 # SM076 OAuth: a single-use, short-lived connect code proves authorization to
 # act as a partner. The operator issues it; it is consumed at the OAuth consent
 # screen. Issuing it also resets the connector "used" detection.
@@ -2808,6 +2796,11 @@ sub _grant_account_caps {
     return;
 }
 
+# SM071 Phase 2: one-step partner provisioning. Creates a sub-user with a
+# locked password (a partner authenticates with a token, not a password),
+# applies the partner capability defaults (webdav + manage_themes, plus
+# any requested extras), mints a pairing key, and returns the onboarding
+# brief.
 sub cmd_partner_create {
     my ( $name, %opt ) = @_;
     die "Partner name required\n" unless defined $name && length $name;
@@ -2883,27 +2876,15 @@ sub parse_onoff {
     die "Value must be 'on' or 'off'\n";
 }
 
-# Normalise a dav_scope value. Returns undef to mean "clear / unset"
-# (empty string or '/'), a normalised site-absolute path otherwise.
-sub normalise_scope {
-    my ($v) = @_;
-    $v //= '';
-    $v =~ s/^\s+|\s+$//g;
-    return undef if $v eq '' || $v eq '/';
-    $v = "/$v" unless $v =~ m{^/};
-    $v =~ s{/+}{/}g;
-    $v =~ s{/$}{};
-    die "Invalid scope path\n"
-        if $v =~ m{(?:^|/)\.\.(?:/|$)} || $v =~ /[\0<>"']/;
-    return $v;
-}
-
 # Would setting ui:off on $user leave no manager-capable account that
 # can still log in interactively? $all is the in-progress settings
 # hashref (pre-write).
 sub is_last_manager_ui {
     my ( $user, $all ) = @_;
-    my @mgroups = read_manager_groups();
+    # SM095: manager status comes from groups flagged manager in
+    # group-settings, unioned with the legacy lazysite.conf manager_groups
+    # (the seed/fallback).
+    my @mgroups = manager_groups_effective();
     my %users   = read_users();
     my %groups  = read_groups();
 
@@ -2933,12 +2914,6 @@ sub is_last_manager_ui {
         return 0 if $ui;    # someone else still covers it
     }
     return 1;               # $user is the last one
-}
-
-sub read_manager_groups {
-    # SM095: manager status now comes from groups flagged manager in group-settings,
-    # unioned with the legacy lazysite.conf manager_groups (the seed/fallback).
-    return manager_groups_effective();
 }
 
 # --- File I/O ---
@@ -3060,12 +3035,6 @@ sub _migrate_conf_manager_groups {
     write_group_settings($gs) if $changed;
     _remove_conf_key('manager_groups');
     return;
-}
-
-sub _has_settings_entry {
-    my ($group) = @_;
-    my $gs = Lazysite::Auth::Settings::read_group_settings();
-    return ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} } ? 1 : 0;
 }
 
 # Seed-if-absent, then read via the shared module - the SINGLE source of truth
@@ -3339,8 +3308,6 @@ sub _may_confer {
     # tool saw an operator, and the self-escalation this was written to stop
     # still worked. The unit test passed because it supplied the actor the
     # manager did not.
-    require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
     return 1 unless Lazysite::Auth::Settings::site_grants_manager();
 
     my $caps = eval { caps_for($actor) } || {};
@@ -3760,24 +3727,6 @@ sub write_groups {
         or do { unlink $tmp; die "Cannot replace $GROUPS_FILE: $!\n" };
 }
 
-# Returns an exclusive lock handle held until it goes out of scope (the
-# caller's function returns) or the process exits. Serialises single-use
-# redemption (claim / pairing key / recovery code / TOTP step) across the
-# concurrent CGI subprocesses that each run this tool, so the same secret
-# cannot be consumed twice (the read-verify-delete-write TOCTOU). Fail-open
-# (undef) if the lock can't be taken - rare (AUTH_DIR unwritable), and
-# consistent with the rate-limiter philosophy.
-
-# SM070: per-user access-mechanism settings, JSON object keyed by
-# username. Single writer (this tool), write-temp-then-rename.
-# Unparseable content yields defaults (empty) plus a WARN, so a
-# corrupt file cannot wedge user management.
-
-
-# --- Logging ---
-
-
-
 sub usage {
     print <<'USAGE';
 lazysite-users.pl - user management for lazysite built-in auth
@@ -3789,6 +3738,7 @@ Commands:
   add USERNAME PASSWORD       Add a new user
   passwd USERNAME NEWPASSWORD Change a user's password
   remove USERNAME             Remove a user (and from all groups)
+  rename OLDNAME NEWNAME      Rename a user, carrying groups and settings over
   list                        List all users
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
@@ -3796,12 +3746,18 @@ Commands:
   group-reach [GROUP]         What a group's members can actually CALL on each
                               surface (ui, webdav, api, mcp), derived from the
                               live capability tables through the nesting closure
+  group-nest CHILD PARENT     Nest CHILD inside PARENT, so PARENT's members
+                              inherit CHILD's capabilities through the closure
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
                               manage_forms, manage_themes, manage_layouts,
-                              manage_config, manage_users, analytics, audit,
-                              notifications, create_sub_users,
-                              delegate_sub_user_creation
+                              manage_domains, manage_config, manage_users,
+                              analytics, audit, notifications, feedback,
+                              read_submissions, manage_data, create_sub_users,
+                              delegate_sub_user_creation. Also takes the
+                              non-capability keys grantable (a comma list of
+                              capabilities this group's members may confer),
+                              label and description.
   permissions USERNAME        Print the channel x capability grid for a user
                               (resolved from groups; debug user access issues)
   audit-registry              Dump the CLI audit classification as JSON (used
@@ -3811,8 +3767,12 @@ Commands:
                               password. Idempotent. [--user NAME] [--group NAME]
   settings USERNAME           Show a user's access-mechanism settings
   set USERNAME KEY VALUE      Set an account-shaped field: ui (on/off),
-                              comment, email, expires_at. (dav_scope/home_domain
-                              are GROUP settings now - see group-set.)
+                              comment, email, expires_at, token_ttl (30d / 24h /
+                              90m or bare seconds; empty clears to the default).
+                              dav_scope/home_domain were retired in 0.7.26 -
+                              confine a user by registering the DOMAIN with its
+                              own content root and naming the user's group in
+                              its allowed_groups.
                               Capabilities are group-only - use group-set.
                               (set ui off honours a last-manager guard;
                               pass --force to override)
@@ -3820,7 +3780,15 @@ Commands:
   pairing-key USERNAME        Mint a single-use, short-lived pairing key (shown once)
   token-exchange USER KEY     Exchange a pairing key for a fresh access token
   token-rotate USERNAME       Rotate the access token and reset its expiry
-  partner-create NAME --by PARENT [--layouts] [--config] [--scope /p] [--no-themes] [--create-subs]
+  brief USERNAME              Print the agent onboarding brief for a partner
+                              (mints a fresh single-use pairing key each call)
+  claim-create USERNAME       Mint a single-use setup/reset claim link (24h)
+  claim-redeem USER TOKEN NEWPASSWORD
+                              Redeem a claim and set the account's password
+  mfa-enroll USERNAME         Begin TOTP enrolment (prints the otpauth:// URI
+                              and the recovery codes, once)
+  mfa-disable USERNAME        Remove TOTP enrolment and any recovery codes
+  partner-create NAME --by PARENT [--layouts] [--config] [--no-themes] [--create-subs]
                               Provision an automated partner: sub-user with
                               partner capability defaults (webdav +
                               manage_themes), a pairing key, and a printed
@@ -3887,15 +3855,19 @@ cover.
 
 =item Accounts
 
-C<add>, C<passwd>, C<remove>, C<list>, C<settings>, C<set> - create and manage
-accounts and the account-shaped settings (C<ui> interactive-login, C<comment>,
-C<email>, C<expires_at>). The domain binding (C<dav_scope>, C<home_domain>) is a
-GROUP setting (SM155) - see C<group-set>.
+C<add>, C<passwd>, C<remove>, C<rename>, C<list>, C<settings>, C<set> - create
+and manage accounts and the account-shaped settings (C<ui> interactive-login,
+C<comment>, C<email>, C<expires_at>, C<token_ttl>). The old account bindings
+C<dav_scope> and C<home_domain> were retired in 0.7.26 and confine nobody: a
+user is confined by registering the DOMAIN with its own content root and naming
+the user's group in its C<allowed_groups>.
 
 =item Groups and capabilities
 
-C<group-add>, C<group-remove>, C<groups>, C<permissions> - membership and the
-resolved channel x capability grid for a user.
+C<group-add>, C<group-nest>, C<group-remove>, C<groups>, C<group-set>,
+C<group-reach>, C<permissions> - membership, nesting, per-group capabilities,
+what a group's members can actually call on each surface, and the resolved
+channel x capability grid for a user.
 
 =item Bootstrap
 
@@ -3904,10 +3876,13 @@ F<lazysite.conf> and set (or generate) a password. Idempotent.
 
 =item Credentials and partners
 
-C<token>, C<pairing-key>, C<token-exchange>, C<token-rotate>,
+C<token>, C<pairing-key>, C<token-exchange>, C<token-rotate>, C<brief>,
+C<claim-create>, C<claim-redeem>, C<mfa-enroll>, C<mfa-disable>,
 C<partner-create>, C<account-create>, C<account-disable>, C<account-enable>,
-C<account-reassign> - issue and rotate credentials, provision an automated
-partner with an onboarding brief, and manage sub-account trees.
+C<account-reassign>, C<account-promote>, C<account-scope-independent> - issue
+and rotate credentials, hand an account its own setup/reset claim, enrol or
+remove TOTP, provision an automated partner with an onboarding brief, and manage
+sub-account trees.
 
 =back
 

@@ -6,15 +6,17 @@
 # state in {DOCROOT}/lazysite/.install-state.json, and makes
 # upgrade decisions per file based on the classification bucket:
 #
+#
 #   code: always overwritten on upgrade
-#   seed: overwritten only if on-disk SHA matches the state file
-#         (i.e. the operator has not edited it)
+#   anything else (seed and friends): overwritten only if the
+#         on-disk SHA matches the state file - i.e. the operator
+#         has not edited it. Only `code` is tested by name.
 #
 # Runtime directories come from the manifest's runtime_paths
 # array. Some install steps are not manifest-expressible and stay
-# imperative (cgi-bin symlinks for plugin endpoints, manager CSS
-# duplicate, auth users/groups seed, nav.conf seed,
-# lazysite.conf conditional write, SGID on lazysite/).
+# imperative (cgi-bin symlinks for plugin endpoints, auth
+# users/groups seed, nav.conf seed, lazysite.conf conditional
+# write, SGID on lazysite/).
 #
 # Restore via --restore extracts a backup tarball produced on a
 # prior upgrade.
@@ -97,10 +99,11 @@ Optional:
   --channel edge|beta|stable|certified
                       Set the site's update channel (update_channel in
                       lazysite.conf) and exit - no install. The ladder is
-                      edge < beta < stable: a site accepts builds at its own
-                      maturity or above (beta takes beta+stable; stable takes
-                      stable only; edge takes everything). Loop over your
-                      docroots to set a whole fleet.
+                      edge < beta < stable < certified: a site accepts builds
+                      at its own maturity or above (beta takes beta and up;
+                      stable takes stable and up; edge takes everything). An
+                      unrecognised value is treated as 'stable' and reported.
+                      Loop over your docroots to set a whole fleet.
   --policy auto|manual
                       Set the site's update policy (update_policy in
                       lazysite.conf) and exit - no install. 'auto' lets
@@ -118,6 +121,13 @@ Maintenance modes:
   --restore           Restore the most recent backup
   --restore --backup PATH
                       Restore a specific backup tarball
+  --verify            Is the code INSTALLED at --docroot/--cgibin actually this
+                      payload's version? Reports the gap and exits non-zero if
+                      it is not. Needs --docroot and --cgibin; changes nothing.
+  --channel-check     Would this upgrade be SKIPPED by the site's update
+                      channel? Exit 3 if yes, 0 otherwise - so a deploy can
+                      bail BEFORE touching the site. Needs --docroot; reads
+                      lazysite.conf and the manifest only.
 
 Example:
   install.pl --docroot /var/www/html --cgibin /usr/lib/cgi-bin
@@ -244,12 +254,8 @@ exit cmd_install( \%opt );
 # ---------- install / upgrade command ----------
 # =========================================================
 
-# SM117: record the install / upgrade in the audit trail. Written directly (the
-# installer does not load the lib) in the same pipe format Lazysite::Audit uses;
-# origin "install", user "system", target the version (or "from -> to").
-# The site's update channel preference, read from lazysite.conf. 'stable' =
-# only stable releases; 'beta' = beta or stable; anything else (default) =
-# 'all' (accepts every build - the pre-ladder behaviour).
+# The site's update channel preference, read from lazysite.conf.
+#
 # SM356: THE DEFAULT FAILED OPEN, IN THREE DIFFERENT WAYS.
 #
 # This returned 'all' - accept every build, edge included - when the conf could
@@ -1175,10 +1181,11 @@ sub safe_tar_extract {
         #
         # A LEADING SLASH is not a finding here: create_backup deliberately
         # writes absolute member names (--absolute-names) and the restore relies
-        # on tar stripping the leading `/` to land them under a staging dir.
-        # --no-absolute-names below is what makes that stripping guaranteed
-        # rather than default behaviour. Rejecting absolute members would refuse
-        # every backup this installer has ever produced.
+        # on tar stripping the leading `/` to land them under a staging dir,
+        # which is tar's default whenever -P/--absolute-names is absent - and
+        # the extract below deliberately does not pass it.
+        # Rejecting absolute members would refuse every backup this installer
+        # has ever produced.
         die "Refusing to restore: archive member escapes the destination: $m\n"
             if $m =~ m{(?:\A|/)\.\.(?:/|\z)};
     }
@@ -2165,17 +2172,34 @@ Upgrade even when the site's C<update_channel> would skip this release (for
 example a C<stable> site taking an C<edge> build). A deliberate operator override,
 recorded in the site's audit log as C<upgrade-forced>.
 
-=item B<--channel> C<edge>|C<stable>
+=item B<--channel> C<edge>|C<beta>|C<stable>|C<certified>
 
 Set the site's update channel (the C<update_channel:> key in C<lazysite.conf>) and
-exit - a standalone maintenance operation, no install. Use it to pin a deployment
-to C<stable> (customer rollout) or move it back to C<edge>, without hand-editing
-the conf. Recorded in the audit log as C<channel-set>. lazysite has no central
+exit - a standalone maintenance operation, no install. The ladder is
+C<edge> E<lt> C<beta> E<lt> C<stable> E<lt> C<certified>, and a site accepts
+builds at its own rung or above. Use it to pin a deployment to C<stable>
+(customer rollout) or move it back to C<edge>, without hand-editing
+the conf. An unrecognised value in the conf is treated as C<stable> - the most
+restrictive rung - and reported (SM356). Recorded in the audit log as C<channel-set>. lazysite has no central
 registry of sites, so to set a whole fleet, loop this over your docroots:
 
     for d in /home/*/web/*/public_html; do
         install.pl --channel stable --docroot "$d"
     done
+
+=item B<--verify>
+
+Is the code B<installed> at C<--docroot>/C<--cgibin> actually this payload's
+version? The deploy-gap detector: it compares what is on disk against the
+release manifest and reports the difference, exiting non-zero when they
+disagree. Needs both C<--docroot> and C<--cgibin>; changes nothing.
+
+=item B<--channel-check>
+
+Would an upgrade of this site be skipped by its C<update_channel>? Exits 3 if
+it would, 0 otherwise, so a deploy can bail before touching the site. Needs
+C<--docroot>; reads C<lazysite.conf> and the release manifest only - no file
+changes and no ownership requirement.
 
 =item B<--policy> C<auto>|C<manual>
 

@@ -39,12 +39,15 @@
 #                   build whose compliance records have been WALKED -
 #                   the signed declaration, restore rehearsal and pentest
 #                   posture gates block THIS cut, not a stable one.
-#   --no-fetch      skip the two ORIGIN tag checks (fetch --tags, and the
-#                   ls-remote test that vVERSION is not already upstream).
-#                   For a build host with no remote credentials: the
-#                   whole GATE still runs, and the LOCAL tag check still
-#                   runs - only the upstream collision test is deferred
-#                   to whoever pushes. It is an explicit flag and never
+#   --no-fetch      declares that this host has no remote. Its original
+#                   job - skipping the two ORIGIN tag checks - became the
+#                   only behaviour at SM303, so that part is inert and the
+#                   flag is still accepted rather than removed. What it
+#                   STILL does: it downgrades the "commit is on no branch"
+#                   refusal to a warning (a host without a remote may
+#                   legitimately have an incomplete branch set), and it
+#                   makes the closing summary say the tag is local and
+#                   unpushed. It is an explicit flag and never
 #                   an automatic fallback, because a precondition that
 #                   silently downgrades itself when it cannot run is the
 #                   defect class this project keeps removing.
@@ -87,7 +90,8 @@ VERSION=""
 NOTES_FILE=""
 COMMIT_REF="origin/main"
 CHANNEL="edge"          # ladder: edge (default) < beta < stable < certified
-NO_FETCH=0              # legacy: accepted and inert since SM303
+NO_FETCH=0              # inert for the origin checks since SM303; still
+                        # gates the no-branch refusal and the closing summary
 
 # SM303: TWO OPERATIONS THAT SHARE ONLY A VERSION NUMBER.
 #

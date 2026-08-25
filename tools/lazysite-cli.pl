@@ -9,10 +9,11 @@
 # the same front door.
 #
 # The one load-bearing principle (SM139): no root writes into site trees.
-# provision and single-site upgrade REFUSE to run as root; only
-# `upgrade --all` may run as root, because it drops to each site's owner
-# (sudo -u) per site. Ownership is correct by construction - no chown-after
-# pass, no lazysite-check --fix as a routine step.
+# provision and single-site upgrade REFUSE to run as root. The verbs that may
+# run as root are the ones that DROP to each site's owner (sudo -u) before
+# touching a site tree: `upgrade --all`, `migrate-engine-tree --all` and
+# `probe`. Ownership is correct by construction - no chown-after pass, no
+# lazysite-check --fix as a routine step.
 #
 # Site registry: provision records each site as one INI-ish file at
 # /etc/lazysite/sites.d/<domain> (docroot=, cgibin=, owner=, channel=) so
@@ -43,7 +44,7 @@ elsif ( $verb eq 'provision' )                            { exit cmd_provision()
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' ) {
-    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    my $targets = extract_site_targets( \@ARGV );
     $targets
         ? run_tool_per_site( 'tools/lazysite-check.pl', $targets, \@ARGV )
         : run_tool( 'tools/lazysite-check.pl', @ARGV );
@@ -52,7 +53,7 @@ elsif ( $verb eq 'repair' ) { cmd_repair() }
 elsif ( $verb eq 'probe' )  { cmd_probe() }
 elsif ( $verb eq 'users' )  { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
 elsif ( $verb eq 'acl' ) {
-    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    my $targets = extract_site_targets( \@ARGV );
     $targets
         ? run_tool_per_site( 'tools/lazysite-acl.pl', $targets, \@ARGV )
         : run_tool( 'tools/lazysite-acl.pl', @ARGV );
@@ -104,6 +105,12 @@ Verbs:
                          the registry holds each site's docroot and cgibin, so
                          name the site rather than reconstructing its paths.
   users [args...]        Auth user management (lazysite-users.pl).
+  repair --docroot D | --domain NAME | --all [--dry-run]
+        Run the doctor, apply its safe fixes, then CHECK AGAIN and
+        report the state AFTER the repair, per site.
+  probe --docroot D | --domain NAME | --all
+        Ask each site's live front door whether a protected path is
+        actually refused. As root, drops to the site's owner.
   migrate-engine-tree --docroot D | --all [--apply] [--min-version V]
         Move a site's lazysite/ tree OUT of the document root, to
         <docroot>-lazysite. Reports what it would do unless --apply is
@@ -310,7 +317,7 @@ sub extract_site_targets {
         else                                { push @rest, $a }
     }
     @$argv = @rest;
-    return ( undef, undef ) unless $all || defined $name;
+    return undef unless $all || defined $name;
 
     fail('--all and --domain are mutually exclusive') if $all && defined $name;
 
@@ -321,14 +328,14 @@ sub extract_site_targets {
                 . ", and no Hestia site list available - give --docroot instead" );
     }
 
-    if ($all) { return ( $sites, 'all' ) }
+    return $sites if $all;
 
     my ($hit) = grep { $_->{name} eq $name } @$sites;
     unless ($hit) {
         fail( "no registered site named '$name'. Known: "
                 . join( ', ', map { $_->{name} } @$sites ) );
     }
-    return ( [$hit], $name );
+    return [$hit];
 }
 
 # Run a per-site tool once per target, and report per site.
@@ -712,15 +719,14 @@ sub cmd_upgrade_all {
 # one on Hestia cannot run them for a single site without running the whole
 # rollout. Neither operation is Hestia-specific.
 #
-# Now that the CLI addresses sites (--domain / --all, with the Hestia fallback of
-# SM333), they belong here and the rollout script calls them.
+# Now that the CLI addresses sites (--domain / --all, with the Hestia fallback
+# described at extract_site_targets), they belong here and the rollout script
+# calls them.
 
 # What each site's public URL is. The registry and the Hestia lister both key a
-# site by its domain, so the name IS the host - and where it is not, --url
-# overrides rather than guessing.
+# site by its domain, so the name IS the host.
 sub _site_url {
     my ($s) = @_;
-    return $s->{url} if length( $s->{url} // '' );
     return "https://$s->{name}/";
 }
 
@@ -734,7 +740,7 @@ sub cmd_repair {
     # Addressing first: --domain and --all are consumed here, so the verb's own
     # option parser never sees them. The other order makes GetOptions reject the
     # addressing it was given.
-    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    my $targets = extract_site_targets( \@ARGV );
     $targets ||= _targets_or_fail();
 
     my %o;
@@ -792,7 +798,7 @@ sub cmd_repair {
 # to "not confirmed" - the safe direction, and one that needs no maintenance as
 # the probe grows.
 sub cmd_probe {
-    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    my $targets = extract_site_targets( \@ARGV );
     $targets ||= _targets_or_fail();
 
     my $tool = payload_root() . '/tools/lazysite-check.pl';
@@ -925,18 +931,20 @@ sub cmd_migrate_engine_tree {
     fail('give --docroot D or --all') unless $o{all} || $o{docroot};
     fail('--docroot and --all are mutually exclusive') if $o{all} && $o{docroot};
 
-    BEGIN {
-        # SM366: locate the Lazysite module tree relative to this script
-        # (run-in-place, tarball and Hestia installs), falling back to the system
-        # @INC (package installs). The same bootstrap lazysite-users.pl has always
-        # carried; without it this tool cannot start anywhere the modules are not
-        # already on @INC, which is every install that is not a package.
-        require Cwd;
-        require File::Basename;
-        my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-        for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-            if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-        }
+    # SM366: locate the Lazysite module tree relative to this script
+    # (run-in-place, tarball and Hestia installs), falling back to the system
+    # @INC (package installs). The same bootstrap lazysite-users.pl has always
+    # carried; without it this tool cannot start anywhere the modules are not
+    # already on @INC, which is every install that is not a package.
+    #
+    # This is the ONLY verb that loads a Lazysite module, and it loads it at
+    # runtime one statement below - so the locator runs here, beside the load it
+    # exists for, rather than in a BEGIN that fired on `lazysite version`.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 
     require Lazysite::Paths;
@@ -981,9 +989,9 @@ sub cmd_migrate_engine_tree {
 
         my $what = $o{back} ? 'move back into' : 'move out of';
         if ( !$o{apply} ) {
-            my ( $would, $note ) = $o{back}
-                ? ( 1, 'would move back into the document root' )
-                : ( 1, 'would move out of the document root' );
+            my $note = $o{back}
+                ? 'would move back into the document root'
+                : 'would move out of the document root';
             my $state =
                 Lazysite::Paths::stray_lazysite($doc) ? 'IN BOTH PLACES - refuses'
                 : -d Lazysite::Paths::external_lazysite_dir($doc) ? 'already outside'
@@ -1177,6 +1185,10 @@ lazysite - host-side management CLI for lazysite sites
   lazysite sites
   lazysite check [args...]
   lazysite users [args...]
+  lazysite acl [args...]
+  lazysite repair --docroot D | --domain NAME | --all [--dry-run]
+  lazysite probe --docroot D | --domain NAME | --all
+  lazysite migrate-engine-tree --docroot D | --all [--apply] [--back] [--min-version V]
   lazysite dev [args...]
   lazysite demo [--port N] [--dir PATH]
   lazysite version
@@ -1195,8 +1207,9 @@ The load-bearing principle (SM139): B<no root writes into site trees>.
 C<provision> and single-site C<upgrade> refuse to run as root and tell you
 to re-run as the site user; files are then created with the correct
 ownership from the start, and no chown-after repair pass is needed. The
-single exception is C<upgrade --all>, which may run as root because it
-drops to each site's owner (C<sudo -u>) per site.
+exceptions are the verbs that drop to each site's owner (C<sudo -u>) before
+touching a site tree: C<upgrade --all>, C<migrate-engine-tree --all> and
+C<probe>.
 
 =head1 VERBS
 
@@ -1261,6 +1274,35 @@ e.g. C<lazysite check --docroot D --fix> or C<lazysite check --dependencies>.
 
 Pass-through to C<tools/lazysite-users.pl> (built-in auth user management),
 e.g. C<lazysite users --docroot D list>, C<lazysite acl --docroot D list>.
+
+=item B<acl> [args...]
+
+Pass-through to C<tools/lazysite-acl.pl> (per-path access: who may read or
+write a file, a folder, or the whole site). Takes C<--domain NAME> or
+C<--all> in place of C<--docroot>, resolved from the registry. Same rules
+and same store as the manager, the control API and MCP.
+
+=item B<repair> --docroot D | --domain NAME | --all [--dry-run]
+
+Run the doctor, apply the fixes it can apply, then run it B<again> and
+report the state after the repair - "the site is clean afterwards", not
+"we ran --fix". C<--dry-run> reports what would be repaired and changes
+nothing.
+
+=item B<probe> --docroot D | --domain NAME | --all
+
+Ask each site's live front door whether a protected path is actually
+refused, rather than whether the configuration says it should be. Run as
+root it drops to the site's owner.
+
+=item B<migrate-engine-tree> --docroot D | --all [--apply] [--back] [--min-version V]
+
+Move a site's F<lazysite/> tree out of the document root to
+F<E<lt>docrootE<gt>-lazysite> (SM293). Reports what it would do unless
+C<--apply> is given; C<--back> reverses the move. C<--all> walks the
+registry and, as root, drops to each site's owner. C<--min-version V>
+skips sites below that version, so a fleet can be migrated as the release
+rolls through its channels.
 
 =item B<dev> [args...]
 

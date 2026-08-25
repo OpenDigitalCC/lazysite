@@ -22,6 +22,7 @@ use strict;
 use warnings;
 use Cwd        qw(abs_path);
 use File::Find ();
+use JSON::PP   ();             # core; every call site is fully qualified
 
 my %opt = ( docroot => undef, cgibin => undef, owner => undef,
     group        => undef, fix => 0, check_dav => undef, check_acl => undef,
@@ -102,7 +103,6 @@ USAGE
 # (always exits 0); the doc docs/reference/host-dependencies.md is generated from
 # the same source by tools/gen-host-deps.pl.
 sub run_dependency_check {
-    require JSON::PP;
     my $self = abs_path($0);
     ( my $tools = $self )  =~ s{/[^/]*$}{};
     ( my $root  = $tools ) =~ s{/[^/]*$}{};
@@ -377,7 +377,6 @@ sub run_checks {
     # than a default. The suggested command is printed so the repair is one
     # paste away.
     {
-        require JSON::PP;
         my %declared;
         if ( open my $sf, '<', "$LZ/.install-state.json" ) {
             local $/;
@@ -686,7 +685,6 @@ sub run_checks {
     {
         my %scoped;
         if ( open my $gsf, '<', "$LZ/auth/groups-settings.json" ) {
-            require JSON::PP;
             local $/;
             my $gs = eval { JSON::PP::decode_json(<$gsf>) } || {};
             close $gsf;
@@ -745,7 +743,6 @@ sub run_checks {
         # retired (a lingering line is inert and migrated away on first use).
         my @groups;
         if ( open my $gsf, '<', "$LZ/auth/groups-settings.json" ) {
-            require JSON::PP;
             local $/;
             my $gs = eval { JSON::PP::decode_json(<$gsf>) } || {};
             close $gsf;
@@ -1104,7 +1101,6 @@ sub run_checks {
     # versus operator-authored - the "is this likely ours?" test behind the upgrade-
     # safety work. Informational (always OK); never a FAIL.
     {
-        require JSON::PP;
         require Digest::SHA;
         my %state;
         if ( open my $sf, '<', "$LZ/.install-state.json" ) {
@@ -1478,7 +1474,6 @@ sub report_group_acl_reach {
     open my $fh, '<', $f or return;
     my $raw = do { local $/; <$fh> };
     close $fh;
-    require JSON::PP;
     my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
     return unless ref $map eq 'HASH';
 
@@ -1858,7 +1853,6 @@ sub report_private_store_usable {
     if ( open my $afh, '<:raw', "$LZ/auth/acls.json" ) {
         my $raw = do { local $/; <$afh> };
         close $afh;
-        require JSON::PP;
         my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
         if ( ref $map eq 'HASH' ) {
             for my $k ( keys %$map ) {
@@ -1986,7 +1980,6 @@ sub report_stray_public {
     return unless defined $root && -d $root;
 
     my @stray;
-    require File::Find;
     File::Find::find(
         { no_chdir => 1,
             wanted => sub {
@@ -2043,15 +2036,13 @@ sub _acl_read {
     open my $fh, '<', $f or return {};
     my $raw = do { local $/; <$fh> };
     close $fh;
-    require JSON::PP;
     my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
     return ref $m eq 'HASH' ? $m : {};
 }
 
 sub _acl_write {
     my ( $d, $map ) = @_;
-    my $f = _acls_file($d);
-    require JSON::PP;
+    my $f   = _acls_file($d);
     my $tmp = "$f.probe.$$";
     open my $fh, '>', $tmp or return 0;
     print {$fh} JSON::PP->new->canonical->pretty->encode($map);
