@@ -7,6 +7,24 @@ status: shipped
 status-note: "FILED 2026-08-24 from the operator's Task 5 browser walk on deployed 0.10.28 - the walk the register had carried as NOT WALKED since DM-7. ALL TEN STEPS PASS: rows add fine, CSV downloads into LibreOffice, CSV edit-and-import round-trips, JSON download works, and the SM487 migrate pre-flight refuses correctly with its reasons (the operator asked for and received a fuller explanation of the analysis - apply never loses data, rebuild is the explicit destructive path with a safety export first; worth folding into the panel text, see U-6). FIVE FINDINGS FROM USE, refs for quoting: U-1 rows are NOT paginated - the fetch carries no limit/offset at all, so a 5,000-row table renders 5,000 rows into one panel (the ROW_CAP=500 in Query.pm governs page bindings, not this listing); U-2 add/edit row should be a MODAL rather than an inline panel; U-3 label conventions drift - the descriptor panel closes with 'Close', the row editor with 'Cancel', the import with 'Cancel', for structurally identical dismiss actions; sweep the manager's widgets against one convention (Cancel = discard changes, Close = nothing to discard) and state it in the manager style notes; U-4 the descriptor is edited as raw YAML - it should be a structured form like the row editor, with a YAML tab retained for the full shape; U-5 there is NO 'add table' control - declaring happens over MCP/API only, so the one manager page about tables cannot create one; U-6 the migrate panel's explanation should carry the apply-vs-rebuild contract in its own words (apply refuses to lose data; rebuild makes the descriptor true, losses included, safety export first). SIZES: U-1 S-M, U-2+U-3 M together (the modal work is where the label sweep naturally happens), U-4 M, U-5 S-M (a declare form is a schema editor - overlap with U-4), U-6 S. SHIPPED 0.10.30: U-1 (data-rows always carried a silent 200-row server cap; the reply now returns the total and the panel pages honestly - rows X-Y of N, Prev/Next), U-5 (Declare a table: name prompt + starter descriptor through the same data-table-save/validate/plan path as editing), U-6 (the apply-vs-rebuild contract stated in the plan panel itself). THEN 0.10.31: U-2 (row editor modal), U-3 (Cancel/Close convention stated in the manager UI guide and swept), U-4 in full: the fields modal opens on a FORM built from the parsed descriptor (title, key, published, timestamps, indexes, one row per field with type/required/unique/default and the type's options), with the stored YAML as a tab - saving from the form regenerates the text (comments dropped, and the tab says so), saving from the tab sends it as typed; the same loader validates both. ALL SIX ITEMS SHIPPED. SHIPPED 0.10.30 (87dafc9) as a PARTIAL: U-1, U-5, U-6; the number stays the home of U-2/U-3/U-4, still queued."
 ---
 
+# Second field result: the first app built on a database
+
+**Operator, 2026-08-25, on deployed 0.10.32:** the first app created with a
+database "worked really well".
+
+That is the first end-to-end field use of the typed data core (SM447) by
+an app rather than by the manager UI, and it is the walk the manager's own
+Task 5 could not stand in for: Task 5 exercised the OPERATOR'S path (add rows,
+download CSV, round trip), this exercises the CONSUMING path.
+
+What it evidences, kept narrow deliberately: an app can be built on a data
+table and behave as intended, on the shipped edge build. It carries no step
+list and no reproduction, so it is a POSITIVE FIELD SIGNAL, not a walked
+check - it neither closes a manual-check row nor substitutes for the tier A
+walks the beta path still requires. Recorded here rather than in the beta
+gate for that reason.
+
+
 # The walk
 
 Task 5 (MANUAL-CHECKS-WALKTHROUGH), walked by the operator on deployed
