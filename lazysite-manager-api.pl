@@ -262,8 +262,7 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
             # A token request must not also carry a session cookie, so the
             # CSRF exemption can never be used to ride a browser session.
             if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
-                respond( { ok => 0, error => 'Do not combine cookie and token auth' } );
-                exit 0;
+                _bail( { ok => 0, error => 'Do not combine cookie and token auth' } );
             }
             # Service killswitch (0.9.0): the control-API token surface is OFF
             # unless the operator enables it in lazysite.conf
@@ -273,17 +272,15 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
             # reaches the same endpoint and is unaffected (it is gated by
             # `manager:`). Default off; opt in from the Services page.
             unless ( Lazysite::Util::service_enabled( $DOCROOT, 'control_api_enabled' ) ) {
-                respond( { ok => 0, code => 'service_disabled',
+                _bail( { ok => 0, code => 'service_disabled',
                         error => 'The control API (token access) is not '
                             . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
-                exit 0;
             }
             my $v = users_api( { action => 'verify-credential',
                     username => $u, secret => $secret } );
             unless ( $v && $v->{ok} ) {
                 sleep 1;    # brute-force delay (per-IP limiter lands in P3.6)
-                respond( { ok => 0, error => 'Invalid credentials' } );
-                exit 0;
+                _bail( { ok => 0, error => 'Invalid credentials' } );
             }
             $auth_user  = $u;
             $token_auth = 1;
@@ -317,7 +314,7 @@ unless ($token_auth) {
     # function - it is the accurate answer. `local` remains the CLI's identity
     # and is unaffected; it never arrives over HTTP.
     unless ( length $auth_user ) {
-        respond(
+        _bail(
             { ok => 0,
                 error => $site_secured
                 ? 'Authentication required'
@@ -326,7 +323,6 @@ unless ($token_auth) {
                     . 'setup-manager'
             }
         );
-        exit 0;
     }
 }
 
@@ -404,13 +400,12 @@ sub _confine_scope {
         next if $p =~ m{^/?lazysite/};
         next
             unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
-        audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
-            'fail', $origin, 'denied: outside dav_scope' );
         my $names = join ', ',
             map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;
-        respond( { ok => 0, kind => 'forbidden',
-                error => "Path '$p' is outside your assigned scope ($names)." } );
-        exit 0;
+        _refuse(
+            { ok => 0, kind => 'forbidden',
+                error => "Path '$p' is outside your assigned scope ($names)." },
+            $origin, 'denied: outside dav_scope', $p );
     }
 }
 
@@ -427,20 +422,19 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         if ( $len > $max ) {
             log_event( 'WARN', 'file-upload', 'upload too large',
                 size => $len, max => $max, user => $auth_user );
-            respond( { ok => 0,
+            _bail( { ok => 0,
                     error => "Upload exceeds limit of "
                         . int( $max / 1024 / 1024 ) . " MB" } );
-            exit 0;
         }
         my $rate = check_upload_rate( $auth_user, $len );
         unless ( $rate->{ok} ) {
-            respond( { ok => 0, error => $rate->{error} } );
-            exit 0;
+            _bail( { ok => 0, error => $rate->{error} } );
         }
     }
 
     read( STDIN, $body, $len ) if $len > 0;
 }
+my $JSON_BODY;    # SM516 MA-2: the memo behind _json_body()
 
 # --- M-1: CSRF gate on write actions --------------------------------
 # The gate is keyed on HTTP method, not action name. Every write action
@@ -461,7 +455,7 @@ if ( $method eq 'POST' && !$token_auth ) {
     my $token  = $ENV{HTTP_X_CSRF_TOKEN} // '';
     my $source = $token ? 'header' : '';
     if ( !$token && $body ) {
-        my $parsed = eval { decode_json($body) };
+        my $parsed = _json_body();
         if ( ref $parsed eq 'HASH' ) {
             $token  = $parsed->{csrf_token} // '';
             $source = 'body' if $token;
@@ -486,8 +480,7 @@ if ( $method eq 'POST' && !$token_auth ) {
         result => $valid ? 'ok' : 'fail' );
 
     unless ($valid) {
-        respond( { ok => 0, error => 'Invalid or missing CSRF token' } );
-        exit 0;
+        _bail( { ok => 0, error => 'Invalid or missing CSRF token' } );
     }
 }
 
@@ -559,8 +552,7 @@ my %DESTRUCTIVE = map { $_ => 1 } qw(
 );
 
 if ( $MUTATING{$action} && $method ne 'POST' ) {
-    respond( { ok => 0, error => "This action must be sent as POST." } );
-    exit 0;
+    _bail( { ok => 0, error => "This action must be sent as POST." } );
 }
 
 if ( !$token_auth ) {
@@ -674,13 +666,12 @@ if ( !$token_auth ) {
             my $ok = 0;
             $ok ||= $caps->{$_} for split /\|/, $req_cap;
             unless ($ok) {
-                audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
-                    'fail', 'ui', 'denied: capability' );
                 ( my $names = $req_cap ) =~ s/\|/ or /g;
-                respond( { ok => 0, kind => 'forbidden',
+                _refuse(
+                    { ok => 0, kind => 'forbidden',
                         error => "This action requires the '$names' permission. An "
-                            . "administrator can grant it on the Groups page." } );
-                exit 0;
+                            . "administrator can grant it on the Groups page." },
+                    'ui', 'denied: capability' );
             }
         }
 
@@ -718,13 +709,12 @@ if ($token_auth) {
     # manager/operator status neither adds nor removes access here. Introspection is
     # exempt (see above). Audited when it fires.
     if ( $token_caps{manager_ui} && $token_caps{ui} && !$introspection{$action} ) {
-        audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
-            'fail', 'api', 'denied: interactive manager account on the api channel' );
-        respond( { ok => 0, error => "This account can use the interactive manager UI, "
+        _refuse(
+            { ok => 0, error => "This account can use the interactive manager UI, "
                     . "which is interactive-only: it cannot be driven over the API or MCP. "
                     . "Use a dedicated agent account (api/mcp capabilities, interactive login "
-                    . "disabled) instead." } );
-        exit 0;
+                    . "disabled) instead." },
+            'api', 'denied: interactive manager account on the api channel' );
     }
 
     # SM126: strict channel gate. A token client operates on the `api` channel and
@@ -736,12 +726,11 @@ if ($token_auth) {
     # capless agent must still be able to ask "what am I / what may I do" and learn
     # it lacks the channel, per the SM072 introspection contract.
     unless ( $token_caps{api} || $introspection{$action} ) {
-        audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
-            'fail', 'api', 'denied: api channel capability' );
-        respond( { ok => 0, error => "The 'api' capability is required to use the "
+        _refuse(
+            { ok => 0, error => "The 'api' capability is required to use the "
                     . "control API. Ask the operator to grant the api capability to your "
-                    . "account's group." } );
-        exit 0;
+                    . "account's group." },
+            'api', 'denied: api channel capability' );
     }
 
     # SM262: this whole branch runs ONLY for token auth, so reaching it is what
@@ -956,12 +945,11 @@ if ($token_auth) {
     }
     unless ( $check->( \%token_caps ) ) {
         # Audit the denied attempt (was invisible before).
-        audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
-            'fail', 'api', 'denied: capability' );
-        respond( { ok => 0, error => "Insufficient capability for $action. Call "
+        _refuse(
+            { ok => 0, error => "Insufficient capability for $action. Call "
                     . "describe-capabilities to see what your account holds and what each "
-                    . "capability unlocks." } );
-        exit 0;
+                    . "capability unlocks." },
+            'api', 'denied: capability' );
     }
 
     # SEC-2026-07 (M2) / SM155: enforce the group-derived scope union on the
@@ -1044,10 +1032,8 @@ if ($token_auth) {
             next unless defined $p && length $p;
             my $refusal = Lazysite::Manager::Common::carveout_refusal( $p, $fs_mode, $caps );
             next unless $refusal;
-            audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
-                'fail', ( $token_auth ? 'api' : 'ui' ), 'denied: carve-out capability' );
-            respond( { ok => 0, error => $refusal } );
-            exit 0;
+            _refuse( { ok => 0, error => $refusal },
+                ( $token_auth ? 'api' : 'ui' ), 'denied: carve-out capability', $p );
         }
     }
 }
@@ -1058,13 +1044,13 @@ my $result;
 if    ( $action eq 'list' ) { $result = action_list($path) }
 elsif ( $action eq 'read' ) { $result = action_read( $path, $auth_user ) }
 elsif ( $action eq 'save' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_save( $path, $auth_user, $req->{content}, $req->{mtime} );
 }
 elsif ( $action eq 'delete' )  { $result = action_delete( $path, $auth_user ) }
 elsif ( $action eq 'acl-get' ) { $result = action_acl_get( $path, $auth_user ) }
 elsif ( $action eq 'acl-set' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
 
     # SM306: acl-set will not take the whole site private because an argument
     # was left out.
@@ -1213,7 +1199,7 @@ elsif ( $action eq 'regenerate-registries' ) {
 elsif ( $action eq 'config-read' )  { $result = action_config_read() }
 elsif ( $action eq 'domains-list' ) { $result = action_domains_list() }
 elsif ( $action eq 'domain-add' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = domain_add(
         $req->{host},
         content_root   => $req->{content_root},
@@ -1229,11 +1215,11 @@ elsif ( $action eq 'domain-add' ) {
     );
 }
 elsif ( $action eq 'domain-set' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = domain_set( $req->{host}, $req->{key}, $req->{value} );
 }
 elsif ( $action eq 'domain-remove' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
 }
 elsif ( $action eq 'domain-preview' ) {
@@ -1273,7 +1259,7 @@ elsif ( $action eq 'brief-append' ) {
         require Lazysite::Manager::Briefs;
         $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
         $Lazysite::Manager::Briefs::auth_user = $auth_user;
-        my $req = eval { decode_json($body) } // {};
+        my $req = _json_body();
         $result = Lazysite::Manager::Briefs::action_brief_append( $path, $req->{entry} );
     }
 }
@@ -1325,8 +1311,8 @@ elsif ( $action eq 'data-safety-export-read' ) {
     }
 }
 elsif ( $action eq 'data-safety-export-restore' ) {
-    my $req  = eval { decode_json($body) } // {};
-    my $file = $req->{file}                // $params{file};
+    my $req  = _json_body();
+    my $file = $req->{file} // $params{file};
     if ( !( defined $file && length $file ) ) {
         $result = { ok => 0,
             error => 'data-safety-export-restore needs an explicit file - '
@@ -1341,8 +1327,8 @@ elsif ( $action eq 'data-safety-export-delete' ) {
 
     # SM512: as brief-delete - the delete names its file explicitly (the
     # t/lint/52 shape for a paired action whose MCP twin requires it).
-    my $req  = eval { decode_json($body) } // {};
-    my $file = $req->{file}                // $params{file};
+    my $req  = _json_body();
+    my $file = $req->{file} // $params{file};
     if ( !( defined $file && length $file ) ) {
         $result = { ok => 0,
             error => 'data-safety-export-delete needs an explicit file - '
@@ -1357,7 +1343,7 @@ elsif ( $action eq 'data-table-drop' ) {
     # CONFIRMATION from the body. Both destructive actions should be called the
     # same way, and SM479 is what happens when two neighbouring arguments take
     # different routes and one is silently ignored.
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = Lazysite::Manager::Data::action_data_table_drop(
         $req->{table} // $params{table},
         $req->{confirm} );
@@ -1420,13 +1406,13 @@ elsif ( $action eq 'data-table-save' ) {
     # file on disk is YAML and a human may edit it, so text is what
     # round-trips: comments and ordering survive, and what the author wrote is
     # what is stored.
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = Lazysite::Manager::Data::action_data_table_save(
         $req->{table} // $params{table},
         $req->{descriptor} );
 }
 elsif ( $action eq 'data-rebuild' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = Lazysite::Manager::Data::action_data_rebuild(
         $req->{table} // $params{table},
         $req->{confirm_lost} );
@@ -1446,7 +1432,7 @@ elsif ( $action eq 'data-row-save' ) {
     # descriptor may declare a field called `table` or `key` - flattening would
     # make the site's own data collide with the action's own parameters, and
     # the collision would be silent.
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     my $row = $req->{row};
     $result
         = ref $row eq 'HASH'
@@ -1456,7 +1442,7 @@ elsif ( $action eq 'data-row-save' ) {
         : { ok => 0, error => 'row must be a JSON object' };
 }
 elsif ( $action eq 'data-row-delete' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = Lazysite::Manager::Data::action_data_row_delete(
         $req->{table} // $params{table},
         $req->{key}   // $params{key} );
@@ -1465,7 +1451,7 @@ elsif ( $action eq 'lang-status' ) {
     $result = action_lang_status( $params{group} );
 }
 elsif ( $action eq 'site-backup-create' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     # DP-6: `data_tables` is a LIST the operator names, not a boolean. The
     # data store is instance-wide, so "this domain's data" does not exist and a
     # flag would sweep another domain's tables into an artefact that travels
@@ -1477,28 +1463,28 @@ elsif ( $action eq 'site-backup-upload' ) {
     $result = action_site_backup_upload($body);
 }
 elsif ( $action eq 'site-backup-apply' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_site_backup_apply($req);
 }
 elsif ( $action eq 'site-export-primary' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_site_export_primary( $req->{data_tables} );
 }
 elsif ( $action eq 'site-backup-inspect' ) {
     $result = action_site_backup_inspect( $params{name}, $params{host} );
 }
 elsif ( $action eq 'site-backup-delete' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_site_backup_delete( $req->{name} // $params{name} );
 }
 elsif ( $action eq 'site-backup-download' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     my $r   = action_site_backup_download( $req->{name} // $params{name} );
     exit 0 if $r->{streamed}; # the tarball was streamed; a pre-stream error falls through
     $result = $r;
 }
 elsif ( $action eq 'config-set' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_config_set(
         ( defined $req->{key}   ? $req->{key}   : $params{key} ),
         ( defined $req->{value} ? $req->{value} : $params{value} ) );
@@ -1541,7 +1527,7 @@ elsif ( $action eq 'theme-delete' ) {
 elsif ( $action eq 'layout-delete' )           { $result = action_layout_delete($path) }
 elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }
 elsif ( $action eq 'theme-rename' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_theme_rename( $path, $req->{new_name} );
 }
 elsif ( $action eq 'theme-upload' ) { $result = action_theme_upload( $body, $params{filename} ) }
@@ -1556,7 +1542,7 @@ elsif ( $action eq 'layouts-available' ) { $result = action_layouts_available() 
 elsif ( $action eq 'themes-for-layout' ) { $result = action_themes_for_layout( $params{layout} ) }
 elsif ( $action eq 'layouts-repo-get' ) { $result = action_layouts_repo_get() }
 elsif ( $action eq 'layouts-repo-set' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_layouts_repo_set( $req->{value} );
 }
 elsif ( $action eq 'users' )              { $result = action_users( $body, \%params ) }
@@ -1582,11 +1568,11 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
         $result = _users_tool_call( { action => 'keys-list' } );
     }
     elsif ( $action eq 'key-revoke' ) {
-        my $req = eval { decode_json($body) } // {};
+        my $req = _json_body();
         $result = _users_tool_call( { action => 'key-revoke', username => $req->{username} } );
     }
     else {
-        my $req = eval { decode_json($body) } // {};
+        my $req = _json_body();
         $result = $action eq 'session-revoke'
             ? action_session_revoke( $req->{sid} )
             : action_user_revoke( $req->{username} );
@@ -1594,23 +1580,23 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
 }
 elsif ( $action eq 'plugin-list' ) { $result = action_plugin_list() }
 elsif ( $action eq 'plugin-enable' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_plugin_enable( $req->{script} );
 }
 elsif ( $action eq 'plugin-disable' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_plugin_disable( $req->{script} );
 }
 elsif ( $action eq 'plugin-read' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_plugin_read( $params{plugin}, $req->{script} );
 }
 elsif ( $action eq 'plugin-save' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {} );
 }
 elsif ( $action eq 'plugin-action' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id},
         $req->{params} );
 }
@@ -1630,7 +1616,7 @@ elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
     }
 }
 elsif ( $action eq 'nav-save' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     # SM443: host from EITHER place. nav-read takes it in the query and
     # nav-save took it only in the body, so a caller passing it the way the
     # read requires had it silently dropped on the write - and the write then
@@ -1690,11 +1676,11 @@ elsif ( $action eq 'audit' ) {
 elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
 elsif ( $action eq 'channel-services' ) { $result = action_channel_services() }
 elsif ( $action eq 'handler-save' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_handler_save($req);
 }
 elsif ( $action eq 'handler-delete' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_handler_delete( $req->{id} );
 }
 elsif ( $action eq 'form-targets-read' ) {
@@ -1707,19 +1693,19 @@ elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + typ
     $result = action_form_list();
 }
 elsif ( $action eq 'form-submission-delete' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_form_submission_delete( $req->{file} // $params{file}, $req->{id} );
 }
 elsif ( $action eq 'form-submission-confirm' ) {    # SM216: un-quarantine a row
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_form_submission_confirm( $req->{file} // $params{file}, $req->{id} );
 }
 elsif ( $action eq 'form-submissions-delete-bulk' ) {    # SM187: delete several rows
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_form_submissions_delete_bulk( $req->{file} // $params{file}, $req->{ids} );
 }
 elsif ( $action eq 'form-targets-save' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_form_targets_save( $params{form}, $req->{targets} // [] );
 }
 elsif ( $action eq 'file-upload' ) {
@@ -1739,7 +1725,7 @@ elsif ( $action eq 'backup-create' ) {
 }
 elsif ( $action eq 'backup-restore' ) { $result = action_backup_restore( $params{name} ) }
 elsif ( $action eq 'backup-delete' ) {
-    my $req = eval { decode_json($body) } // {};
+    my $req = _json_body();
     $result = action_backup_delete( $req->{name} // $params{name} );
 }
 elsif ( $action eq 'backup-download' ) {
@@ -1803,7 +1789,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         # SM512: a safety-export action's object is the FILE.
         my $t = $params{table} // $params{file};
         unless ( defined $t && length $t ) {
-            my $b = eval { decode_json($body) };
+            my $b = _json_body();
             $t = ( ref $b eq 'HASH' ) ? $b->{table} : undef;
         }
         $aud_target = $t if defined $t && length $t;
@@ -1812,7 +1798,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # action=users carries its sub-action in the POST body; audit only the
     # material ones (add / remove / settings-set / token / ...), not the reads.
     if ( $action eq 'users' ) {
-        my $b     = eval { decode_json($body) };
+        my $b     = _json_body();
         my $sub   = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
         my %uskip = map { $_ => 1 } qw(
             list users-detail users-page groups group-settings-get permissions-grid capability-holders settings-get credential-status partner-caps
@@ -1834,7 +1820,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # SM141/SM145: the revokes carry their target in the POST body - name it
     # (a sid prefix / the username) instead of the meaningless '/' path.
     if ( $action eq 'session-revoke' || $action eq 'user-revoke' || $action eq 'key-revoke' ) {
-        my $b = eval { decode_json($body) };
+        my $b = _json_body();
         if ( $action eq 'session-revoke' ) {
             my $sid = ( ref $b eq 'HASH' ? $b->{sid} : undef ) // '';
             $sid =~ s/[^0-9a-f]//g;
@@ -1910,6 +1896,43 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 }
 
 respond($result);
+
+# --- Request-pipeline helpers ------------------------------------------------
+
+# SM516 MA-2 / MO-2: ONE decode of the request body per request.
+#
+# Forty-odd dispatch branches and the audit block each wrote
+# `eval { decode_json($body) } // {}`, so an ordinary POST decoded its own body
+# up to five times before it was answered. $body is read once, above, and never
+# reassigned, so the answer cannot change between calls.
+#
+# The shape is preserved rather than improved: a body that is empty, or is not
+# JSON, still yields {} - which is exactly what `// {}` handed every caller -
+# and a body that decodes to a non-hash is still handed on as it was.
+sub _json_body {
+    return $JSON_BODY //= ( eval { decode_json($body) } // {} );
+}
+
+# SM516 MA-3: a gate refusal is three statements in one order - record it,
+# answer it, end the request - repeated at six gates in the pipeline above.
+# One helper, so the order cannot drift and an added gate cannot forget the
+# exit and fall through into the dispatch it was meant to refuse. $target
+# defaults to the request path, which is what five of the six record.
+sub _refuse {
+    my ( $resp, $origin, $reason, $target ) = @_;
+    audit_log( $auth_user, $action, ( defined $target ? $target : ( $path // '' ) ),
+        $ENV{REMOTE_ADDR} // '', 'fail', $origin, $reason );
+    respond($resp);
+    exit 0;
+}
+
+# The same ending without an audit line: the pre-auth and parse-time refusals,
+# which have no established identity, action or path to record yet.
+sub _bail {
+    my ($resp) = @_;
+    respond($resp);
+    exit 0;
+}
 
 # SM465: render an acl-set for the audit trail.
 #
