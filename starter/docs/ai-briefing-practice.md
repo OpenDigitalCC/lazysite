@@ -10,8 +10,8 @@ register:
      imported: 2026-08-25
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2467a0bc2e0b02ac3ba097823cfc802af85f8c21dc3f458bd6d5b8db8061e4fd modified=2026-08-24
-     body-sha256: c06b33be884d8c8c988d4296d92b9565d7cd53e07acc29263f4794f643d939a6
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=8582450226ae800398644edbc0adefaa46f95b3a780043016f613d6ad3688be1 modified=2026-08-25
+     body-sha256: a97481cfcbe3de1c4070dd31241294f817ca92cb9e4985dbc01bb73f5404d1f9
 -->
 
 ## What this is, and what it is not
@@ -512,6 +512,26 @@ If yes, it is an app and it needs a store. If no, it is a page. Most prototypes
 answer no without meaning to, because the browser makes it so easy not to
 notice - see *State that only exists in one browser*, below.
 
+## Probe the action before you design around the capability
+
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
+
+`describe-capabilities` lists actions its own server will refuse. A capability
+reads `true`, the action appears in the `actions` map, and the call answers
+*"served only to the manager UI over a cookie session"*. The map answers **has
+this account been granted X**, never **can this surface reach X**.
+
+Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
+`plugin-list` / `plugin-enable`, `users`, `principals`, `keys-list`,
+`protected-sections`, `preview`, `cache-invalidate`. `auth_default` is refused
+by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
+blocked path.
+
+**Make one call of the action the design depends on, before the design depends
+on it.** A throwaway probe costs a round trip. Finding out at the first write
+costs the design - twice now that has been a form-based plan that had to become
+something else after the tables were already built.
+
 ## Where state can live, in order of preference
 
 **A data table** (`lazysite/db/tables/<name>.yaml` + rows)
@@ -610,6 +630,26 @@ Three properties worth knowing:
 - **Filter in the template, not in the query**, when the count matters. Building
   the filtered list first keeps `loop.size` honest.
 
+### Page bindings filter. The data endpoint does not.
+
+The two read paths do not have the same grammar, and the difference is silent.
+
+| Read path | Filtering |
+| --- | --- |
+| `db:t(col=v,order=x,limit=n)` in front matter | conditions AND-combine; `.count(col=v)` and `.field(col,key=x)` too |
+| `/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - anything else is IGNORED, and the reply looks exactly like a filtered one |
+
+`data-rows&table=t&chunk=AAA` returns every row including the ones where
+`chunk` is not `AAA`. **Never read an unfiltered result as a filtered one.**
+
+So a script that needs a subset reads the whole table and indexes it in memory,
+paging at the 500-row ceiling until a page comes back short. At a couple of
+thousand rows that is a few requests once per session and it is fine. What you
+cannot do is have front matter follow the script: `tt_page_var` has TT markers
+stripped, so a binding can never take a query parameter. A page that must show
+whichever row the script just picked is a script-driven page, and deciding that
+early saves building it twice.
+
 ## Changing rows over the API
 
 *Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
@@ -628,6 +668,16 @@ against 0.10.29.
 `data-import` wants multipart, not a body
 : The CSV must arrive as a multipart part named `file`. Posting the CSV as a
   raw request body fails validation, whatever the content type says.
+
+`data-import` writes nothing without `apply=1`
+: Without it you get a PLAN - `applied: 0`, `inserts: 25`, `ok: true` - in a
+  reply otherwise identical to a successful load. A load can look like it
+  worked and have done nothing. Read `applied`, not `ok`.
+
+`data-table-save` takes the descriptor in a key called `descriptor`
+: Not `text`, `yaml`, `content`, `body` or `definition` - each refused with the
+  same "descriptor text required". `data-table-source` returns it under
+  `descriptor` too, **not** `source`.
 
 `data-table-drop` confirms by NAME
 : `confirm` takes the table's own name, not `1` and not `true`. Deliberate -
@@ -722,6 +772,51 @@ are not the same surface and they do not want the same shape: a guided form is
 right for entering a hundred things with their context in front of you, and
 wrong for fixing one of them. A row editor is the reverse.
 
+### When an app may skip the forms system entirely
+
+**A custom data app may write to its tables directly from its own page script,
+through `/cgi-bin/lazysite-data.pl`.** Operator's ruling, 2026-08-25, on the
+jpm-stock corrections build. It is an exception to "forms are native and
+hand-written form markup is not acceptable", and it is narrow.
+
+The endpoint takes `GET ?table=t` to read, `GET ?csrf=1` for a token, and
+`POST ?table=t` with `X-CSRF-Token` carrying `{"row":{...}}` to insert,
+`{"key":"...","row":{...}}` to update, `{"key":"...","delete":1}` to remove.
+A write needs all three of a signed-in **session** (a partner token is not
+one - the endpoint answers `not signed in`), the `manage_data` capability, and
+membership of `writable_by` if the descriptor names any. It applies the same
+type checks as any other write.
+
+Take the exception when **all** of these hold:
+
+- The interaction is **not a submission**. Claiming an item, resuming one,
+  amending an answer and releasing a lock are updates and deletes of an
+  existing row. A form only ever inserts and cannot express any of them.
+- The page must **read state to decide what to show** - which item this person
+  holds, what they answered last. A form cannot read.
+- Everyone using it is **signed in and named**. The protections a form
+  provides - rate limits, spam assessment, quarantine, a handler vetting an
+  untrusted submission - all defend against anonymous visitors. Against four
+  known colleagues they defend against nothing.
+
+Stay with a native form when any of them fails, and **always** when the writer
+could be a member of the public. A contact form, a booking, a sign-up: those
+are submissions from strangers and the forms system exists for exactly them.
+
+Two things the exception costs, both of which want handling rather than
+accepting:
+
+- **No JSONL submission store**, so no append-only record. Add a log table the
+  script appends to on every write. It records what the page did and nothing
+  else, so a correction made in the manager UI or over the API leaves a trail
+  that looks complete and is not - which means the app's own correction path
+  has to be the one people use.
+- **No `create_form` to generate the markup**, so the control is yours to
+  build and yours to keep accessible.
+
+Say in the app's own docs that it took this exception and why. The next
+session will otherwise read the hand-built control as a rule being broken.
+
 **Watch for a design that only exists because the old store could not be
 edited.** Append-only files force "write again, latest wins" and it looks like a
 requirement long after it has stopped being one. Given a table, the correction
@@ -809,6 +904,100 @@ Capture is where prototypes are strongest and production is weakest, because
 capture is the part that needs a person's context. Be careful promising
 automatic structuring of free text; specify what happens when it gets it wrong.
 
+## Handing out work to several people at once
+
+The moment more than one person works a shared list, the app has to answer:
+who has this item, and how does nobody else get given it?
+
+**The unique key on a table is an atomic test-and-set, and it is the whole
+answer.** Claiming an item is INSERTING its row. A second insert carrying the
+same key is refused on the unique constraint, so two people claiming at the
+same instant produce one success and one refusal.
+
+```
+claim(item):
+  insert {key: item.id, allocated_to: me, allocated_at: now}
+  refused? somebody beat me to it - reload, take the next, retry (bounded)
+```
+
+There is no window between checking and taking, **because there is no check**.
+The obvious alternative is the broken one:
+
+> read the table, pick a free item, write it back
+
+Two people who read before either writes both see it free, and both take it.
+That code passes every test you will run alone.
+
+Three things the design needs beyond the lock:
+
+**One row, not two.** Keep the claim and the result in the SAME row, keyed on
+the item. Its existence is the allocation and its answer field is the outcome:
+no row means free, a row with no answer means somebody is on it, a row with an
+answer means done. A separate allocation table needs the two kept in step, and
+they will not be.
+
+**Claims must expire.** Somebody will close the tab, or go home mid-item.
+Without an expiry that item is allocated forever and no one can reach it. Pick
+a span longer than a working session and shorter than a day, decide it from
+the timestamp at read time, and take an expired claim by deleting the stale row
+and inserting fresh - so the unique key keeps doing the locking.
+
+**Give a person their own item back.** On arrival, look for a row allocated to
+this person with no answer, and resume it before handing out anything new.
+Otherwise someone who reloads collects a second item and strands the first.
+
+**Let anyone release.** Own claims release without ceremony; someone else's
+should ask first and name them. Colleagues sharing a queue need to free an item
+when a person is off sick, and they should not be able to do it by mis-clicking.
+
+## A stop action must actually stop
+
+Both mine did the opposite, and it is an easy shape to write by accident: a
+handler that finishes its job and then calls the same "what next" routine
+everything else calls. So *put this back* released the item and immediately
+claimed another one - the single action that means "I am leaving" handed the
+person more work.
+
+**Name the buttons for what they do to the SESSION, not to the record.** *Save
+and take the next*, *Save and stop*, *Put back and stop*. Then make each one
+end where its name says.
+
+And where an action navigates away, **await the audit write before leaving**.
+Fire-and-forget is right for a log everywhere else - a failing trail should
+never block someone's work - but a request in flight when the page unloads is
+cancelled, so the one action you most want a record of is the one that leaves
+none.
+
+## Exact totals need integer arithmetic
+
+Any app where entered numbers must add up to a stated figure - allocations,
+splits, invoice lines, stock quantities - must not compare them as floats.
+`0.1 + 0.2` is not `0.3`, and a screen whose entire purpose is making a total
+match will refuse a total that is visibly correct.
+
+**Multiply into the smallest unit and compare integers.** Tenths for a quantity
+to one place, pence for money. Convert once at the edge, compare in the middle,
+format on the way out.
+
+Say which way the total is wrong, too. *40.0 still to allocate* and *over by
+2.5* are actionable; *does not match* means counting on your fingers.
+
+## Start from the record, not from a blank form
+
+When an app exists to CORRECT existing data, pre-fill what the system already
+believes and let the person change it. The common case is that the record is
+right - the exercise is finding where it is not - so confirming should cost a
+glance and only a disagreement should cost typing.
+
+Two conditions. Say on the page where the pre-filled value came from, or it
+reads as a suggestion the app invented rather than the thing under review. And
+fill only when there is no answer yet, so re-opening something already answered
+shows what was saved and never quietly overwrites it.
+
+The cost is that Save is valid the moment the page loads, so a distracted
+person can confirm without reading. That is a real trade and worth naming to
+whoever asked for the app rather than deciding it quietly.
+
 ## Where the intelligence runs
 
 A prototype may call a model directly from the browser. A deployed app cannot:
@@ -837,6 +1026,11 @@ remember to install is a schedule that will be missing after the next move.
 - Delete a row referenced elsewhere: what happens to the thing pointing at it?
 - Clear browser storage: does the app still know everything it should?
 - Restore from backup: is the data really in the store, or only in a page?
+- **Two people, one item, at the same moment**: does one of them get refused?
+  No single tester reproduces this, so say plainly that it is untested if
+  nobody has tried it in pairs.
+- Every action that ends a session: does it end where its name says?
+- A total that must match: does 0.1 + 0.2 pass?
 
 ## Reading a client's prototype
 
@@ -865,7 +1059,7 @@ Imported on **2026-08-25** by `tools/import-field-practice.pl`, for engine **0.1
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md` | sites and content | 2026-08-25 |
-| `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-24 |
+| `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-25 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; an operator can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
