@@ -174,6 +174,25 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM575 resolved (PENDING) **ownership is two stores, and three that are
+  shared on purpose.** The SM570 two-principal walk measured ownership store
+  by store on a live site and found two answers - ACLs and themes refuse a
+  non-owner; content, briefs and data tables do not - and nothing in the suite
+  held either answer, so any of them could have reversed silently in either
+  direction. Five two-principal tests now pin the current behaviour AS A
+  DECISION, each carrying the reasoning in its file header: `t/unit/manager/112`
+  (a non-owner is refused acl-get, acl-set and acl-remove, at the path and the
+  site-root branch), `t/unit/mcp/22` (delete_theme over the real MCP channel
+  refuses a theme another account created, and one with no `created_by` at
+  all), `t/unit/manager/113` (a second principal MAY overwrite and delete
+  another's page, and a per-file ACL is the opt-in that makes a page owned),
+  `t/unit/manager/114` (a second principal MAY read, append to and delete
+  another's brief; attribution is per entry), `t/unit/data/26` (a second
+  principal MAY read, write, drop and clear the safety export of another's
+  table; the schema history names who acted). The line is what the artefact is
+  - a piece of one shared site, against a statement about authority or a
+  singular authored thing - not which store happened to get a check. No source
+  changed.
 
 - SM584 resolved (PENDING) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status
