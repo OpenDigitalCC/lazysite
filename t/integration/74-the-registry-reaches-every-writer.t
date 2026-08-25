@@ -16,7 +16,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_processor setup_test_site setup_dav_site);
+use TestHelper qw(repo_root run_processor run_dav setup_test_site setup_dav_site);
 
 my $root = repo_root();
 
@@ -111,6 +111,69 @@ subtest 'A DAV WRITE INVALIDATES: the published page reaches the sitemap' => sub
     my $warm = run_processor( $docroot, '/sitemap.xml' );
     like( $warm, qr{URL: .*davpage},
         'the DAV-published page reaches the sitemap NOW, not at the TTL' );
+};
+
+# SM534: the front-door review found do_copy_move had no registry call at
+# all - SM483 reached PUT and DELETE only - so a page renamed over WebDAV
+# was advertised at a URL that now 404s and invisible at its new one until
+# the TTL. The manager's action_move and action_copy clear the cache; the
+# DAV verbs must give the same answer. The registry-cache glob is the
+# processor's own cache location, so the assertion is on the artefact a
+# visitor's sitemap request reads, not on a log line.
+sub dav_registry_site {
+    my $site    = TestHelper::setup_dav_site();
+    my $docroot = $site->{docroot};
+    make_path("$docroot/lazysite/templates/registries");
+    open my $tf, '>', "$docroot/lazysite/templates/registries/sitemap.xml.tt" or die $!;
+    print {$tf} "[%- FOREACH p IN pages -%]\nURL: [% p.url %]\n[% END -%]\n";
+    close $tf;
+    my $page = "---\ntitle: P\nregister:\n  - sitemap.xml\n---\nx\n";
+    my $put  = run_dav( $docroot, 'PUT', '/content/a.md',
+        body => $page, HTTP_AUTHORIZATION => $site->{auth} );
+    is( $put->{code}, 201, 'the page is published over DAV' );
+    like( run_processor( $docroot, '/sitemap.xml' ), qr{URL: .*content/a\b},
+        'and registers in the sitemap' );
+    return $site;
+}
+sub registry_cached {
+    my ($docroot) = @_;
+    my @f = glob("$docroot/lazysite/cache/registries/*/sitemap.xml");
+    return scalar @f;
+}
+
+subtest 'SM534: a DAV MOVE reaches the registries' => sub {
+    my $site    = dav_registry_site();
+    my $docroot = $site->{docroot};
+    ok( registry_cached($docroot), 'the registry is cached before the MOVE' ) or return;
+    my $r = run_dav( $docroot, 'MOVE', '/content/a.md',
+        HTTP_DESTINATION   => 'http://host/dav/content/b.md',
+        HTTP_AUTHORIZATION => $site->{auth} );
+    is( $r->{code}, 201, 'MOVE answers 201' ) or diag $r->{body};
+    ok( !registry_cached($docroot), 'the MOVE clears the registry cache, as action_move does' )
+        or diag('the registry cache survived the MOVE');
+    my $after = run_processor( $docroot, '/sitemap.xml' );
+    unlike( $after, qr{URL: .*content/a\b}, 'the sitemap no longer lists the OLD url' );
+    like( $after, qr{URL: .*content/b\b}, 'the sitemap lists the NEW url' );
+};
+
+subtest 'SM534: a DAV COPY reaches the registries' => sub {
+    my $site    = dav_registry_site();
+    my $docroot = $site->{docroot};
+    ok( registry_cached($docroot), 'the registry is cached before the COPY' ) or return;
+    my $r = run_dav( $docroot, 'COPY', '/content/a.md',
+        HTTP_DESTINATION   => 'http://host/dav/content/c.md',
+        HTTP_AUTHORIZATION => $site->{auth} );
+    is( $r->{code}, 201, 'COPY answers 201' ) or diag $r->{body};
+    ok( !registry_cached($docroot), 'the COPY clears the registry cache, as action_copy does' )
+        or diag('the registry cache survived the COPY');
+    # Deliberately NOT asserted: that the copy is then listed. A copy is born
+    # with an owner-only ACL entry (the action_copy rule, on both surfaces)
+    # and _acl_governed hides ANY entry from the registries - so the
+    # manager's own copy is absent from the sitemap too, on this same
+    # fixture. That is a separate finding about what "governed" means, not
+    # about invalidation, and this test does not pretend to own it.
+    like( run_processor( $docroot, '/sitemap.xml' ), qr{URL: .*content/a\b},
+        'the re-rendered sitemap still lists the source' );
 };
 
 done_testing();

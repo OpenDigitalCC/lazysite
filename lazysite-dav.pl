@@ -551,10 +551,7 @@ sub do_put {
     # a page published this way stayed out of the sitemap until the TTL. Same
     # trigger as the alias map below - .md content changed.
     if ( $a{rel} =~ /\.md\z/ ) {
-        require Lazysite::Manager::Files;
-        local $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
-        eval { Lazysite::Manager::Files::invalidate_registries(); 1 }
-            or log_event( 'WARN', $a{user}, 'registry invalidation failed', error => "$@" );
+        _invalidate_registries_as( $a{user} );
     }
     # SM134: keep the alias-redirect map current for content pages.
     if ( $a{rel} =~ /\.md\z/ ) {
@@ -648,10 +645,7 @@ sub do_delete {
         require Lazysite::Aliases;
         Lazysite::Aliases::deindex_page( $DOCROOT, $key );
         # SM483: a deleted page must leave the registries too.
-        require Lazysite::Manager::Files;
-        local $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
-        eval { Lazysite::Manager::Files::invalidate_registries(); 1 }
-            or log_event( 'WARN', $a{user}, 'registry invalidation failed', error => "$@" );
+        _invalidate_registries_as( $a{user} );
     }
 
     # SM212 (site-agent report): drop the ACL entry with the file.
@@ -837,6 +831,11 @@ sub do_copy_move {
         if ($move) { Lazysite::Aliases::reindex_move( $DOCROOT, $a{rel}, $drel ) }
         else       { Lazysite::Aliases::reindex_copy( $DOCROOT, $drel ) }
     }
+    # SM534: the registries too. SM483 reached PUT and DELETE only, so a page
+    # renamed here stayed in the sitemap at its old URL (a 404) and off it at
+    # the new one until the TTL; a copy was absent. Same helper, same answer
+    # as the manager's action_move / action_copy.
+    _invalidate_registries_as( $a{user} );
     # SM085: a batched MOVE/COPY (a whole collection included) is ONE commit.
     # SM175: a MOVE records the rename (Lazysite-Renamed-From) so content history
     # follows it; a COPY is a fresh file and starts its own thread (no trailer).
@@ -1527,6 +1526,19 @@ sub destination_rel {
 # ---------------------------------------------------------------------
 # Cache invalidation (mirrors action_save / action_delete)
 # ---------------------------------------------------------------------
+
+# SM534: the manager's own registry invalidation, run for this surface. The
+# manager modules are loaded lazily here and never see their $DOCROOT set, so
+# the package var is localised for the call (SM483 shape). Failure is logged,
+# never fatal: the write has already happened and must still be answered.
+sub _invalidate_registries_as {
+    my ($user) = @_;
+    require Lazysite::Manager::Files;
+    local $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
+    eval { Lazysite::Manager::Files::invalidate_registries(); 1 }
+        or log_event( 'WARN', $user, 'registry invalidation failed', error => "$@" );
+    return;
+}
 
 sub invalidate_cache {
     my ($abs) = @_;

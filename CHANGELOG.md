@@ -171,6 +171,19 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM534 resolved (PENDING) **a DAV move reaches the registries.** A WebDAV
+  MOVE or COPY never invalidated the generated registries (SM483 reached
+  PUT and DELETE only), so a page renamed over DAV stayed in the sitemap
+  at a URL that now 404s and off it at its new one until the TTL; a copy
+  was absent. The manager's action_move and action_copy clear the cache
+  on the same fixture. Found by the front-door review (NR-1), proven by
+  probe. The require + local DOCROOT + eval pair do_put and do_delete
+  each typed is now one helper, and do_copy_move calls it after the
+  alias reindex. Two subtests in t/integration/74 pin the cache gone and
+  the sitemap listing the new URL, not the old. Seen in passing and left
+  for its own filing: a copy is born with an owner-only ACL entry and the
+  processor treats ANY entry as governed, so a copied page is absent from
+  every registry through the manager too.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
