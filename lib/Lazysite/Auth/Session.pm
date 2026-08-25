@@ -126,16 +126,29 @@ sub _uri_decode {
     return $str;
 }
 
-sub account_disabled {
-    my ($username) = @_;
-    my $path = _auth_dir() . '/user-settings.json';
-    return 0 unless -f $path;
-    open my $fh, '<:raw', $path or return 0;
+# DA-22: the open-slurp-decode-is-it-a-hash read, once for this file's two
+# JSON stores. ADR 0001: RAW OCTETS - decode_json expects UTF-8 bytes, and
+# reading through a :utf8 layer first hands it a character string that dies on
+# any non-ASCII content.
+#
+# Returns the hashref or undef. Undef covers absent, unreadable, unparseable
+# and not-an-object alike; each caller keeps its own default and its own log
+# line, because those differ and are what an operator reads.
+sub _read_json_hash {
+    my ($path) = @_;
+    return undef unless -f $path;
+    open my $fh, '<:raw', $path or return undef;
     my $raw = do { local $/; <$fh> };
     close $fh;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return 0 unless ref $data eq 'HASH';
-    my $s = $data->{$username};
+    my $data = eval { JSON::PP::decode_json( $raw // '' ) };
+    return ref $data eq 'HASH' ? $data : undef;
+}
+
+sub account_disabled {
+    my ($username) = @_;
+    my $path       = _auth_dir() . '/user-settings.json';
+    my $data       = _read_json_hash($path) or return 0;
+    my $s          = $data->{$username};
     return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
 }
 
@@ -144,13 +157,8 @@ sub session_revoked {
     my $path = _auth_dir() . '/revoked.json';
     return 0 unless -f $path;
 
-    my $data;
-    if ( open my $fh, '<:raw', $path ) {
-        my $raw = do { local $/; <$fh> };
-        close $fh;
-        $data = eval { JSON::PP::decode_json( $raw // '' ) };
-    }
-    unless ( ref $data eq 'HASH' ) {
+    my $data = _read_json_hash($path);
+    unless ($data) {
         log_event( 'WARN', $user,
             'revoked.json unreadable or corrupt - treating as empty (NO session is revoked); '
                 . 'run lazysite-check and repair or remove the file' );

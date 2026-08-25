@@ -234,18 +234,34 @@ sub groups_grant_cap {
 # (the content roots of the domains a user's groups may manage), intersected up
 # the created_by chain so a sub-user can never out-reach its creator.
 
-sub write_group_settings {
-    my ($ref) = @_;
-    my $file  = _group_settings_file();
-    my $tmp   = "$file.tmp.$$";
-    open my $fh, '>:utf8', $tmp or return 0;
+# DA-23: write-temp, lock, rename - once for this file's two JSON stores.
+# Both take secure_write_perms at 0660 (SM289: root must not own an auth
+# store; SM428: group-writable, because the CLI and the www-data CGI both
+# write here), so the shared helper is not picking between two permission
+# rules - there is one. Acl's and OAuth's writers stay where they are: they
+# use a different output layer, no lock, and OAuth a bare chmod, and folding
+# those needs the SM289 question ruled first.
+#
+# Returns ( 1, '' ) or ( 0, 'open' | 'rename' ). The STAGE is returned rather
+# than one boolean because write_settings dies with a different sentence for
+# each, and an operator reads that sentence.
+sub _write_json_atomic {
+    my ( $file, $ref ) = @_;
+    my $json = JSON::PP->new->canonical->pretty->encode($ref);
+    my $tmp  = "$file.tmp.$$";
+    open my $fh, '>:utf8', $tmp or return ( 0, 'open' );
     flock( $fh, LOCK_EX );
-    print {$fh} JSON::PP->new->canonical->pretty->encode($ref);
+    print {$fh} $json;
     flock( $fh, LOCK_UN );
     close $fh;
     secure_write_perms( $tmp, 0660 );
-    rename $tmp, $file or return 0;
-    return 1;
+    return rename( $tmp, $file ) ? ( 1, '' ) : ( 0, 'rename' );
+}
+
+sub write_group_settings {
+    my ($ref) = @_;
+    my ($ok)  = _write_json_atomic( _group_settings_file(), $ref );
+    return $ok;
 }
 
 # Union of capability bools across every group $user belongs to.
@@ -359,17 +375,12 @@ sub caps_for {
 # www-data CGI both manage it.
 sub write_settings {
     my ($data) = @_;
-    my $file   = _settings_file();
-    my $json   = JSON::PP->new->canonical->pretty->encode($data);
-    my $tmp    = "$file.tmp.$$";
-    open my $fh, '>:utf8', $tmp or die "Cannot write $file: $!\n";
-    flock( $fh, LOCK_EX );
-    print {$fh} $json;
-    flock( $fh, LOCK_UN );
-    close $fh;
-    secure_write_perms( $tmp, 0660 );
-    rename $tmp, $file
-        or die "Cannot rename settings file into place: $!\n";
+    my $file = _settings_file();
+    my ( $ok, $stage ) = _write_json_atomic( $file, $data );
+    unless ($ok) {
+        die "Cannot write $file: $!\n" if $stage eq 'open';
+        die "Cannot rename settings file into place: $!\n";
+    }
 
     # SM334: this process must not answer from a cache it has just superseded.
     # The (mtime,size) key handles another process's write; this handles our own,

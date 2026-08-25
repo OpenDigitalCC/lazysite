@@ -14,10 +14,14 @@ use Lazysite::Util ();    # SM289: secure_write_perms - root must not own this s
 use Exporter 'import';
 use Lazysite::Paths ();
 
+# DA-19: loaded once at the top rather than `require`d in four subs.
+# Settings depends only on Lazysite::Util, so there is no cycle back here.
+use Lazysite::Auth::Settings ();
+
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user may_read_any_rule);
 
-our $DOCROOT;             # set by the script
+our $DOCROOT;    # set by the script
 
 # SM293: this site's engine tree - beside the docroot once migrated,
 # inside it before. Asked, never computed, so both layouts work on one
@@ -70,12 +74,17 @@ sub groups_for_user {
     my ($user) = @_;
     return () unless defined $user    && length $user;
     return () unless defined $DOCROOT && length $DOCROOT;
-    require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
     return Lazysite::Auth::Settings::effective_groups($user);
 }
 
 sub _acls_path { _lz() . "/auth/acls.json" }
+
+# The directory Settings reads its stores from, for this module's request
+# context. Four subs localise $Lazysite::Auth::Settings::AUTH_DIR to it so a
+# caller that sets only Acl::DOCROOT needs to know nothing else; `local`
+# belongs to the caller's scope, so this supplies the value, not the binding.
+sub _settings_dir { return _lz() . "/auth" }
 
 sub load_acls {
     my $path = _acls_path();
@@ -297,10 +306,9 @@ sub _acl_allows {
     # the processor's copy uses (t/lint/31 pins the pair) and the same ones
     # check_auth applies to `groups:` front matter. Three different answers to
     # "is this user in that group" on one request was the defect.
-    require Lazysite::Auth::Settings;
     my %grp = map { lc($_) => 1 }
         do {
-        local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
+        local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
         Lazysite::Auth::Settings::group_closure(@user_groups);
         };
     for my $entry (@$list) {
@@ -326,8 +334,7 @@ sub _acl_allows {
 sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
-    require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
     return Lazysite::Auth::Settings::groups_grant_cap( $cap, @groups );
 }
 
@@ -335,8 +342,7 @@ sub _is_operator {
     return 0 if $token_auth;
     return 1 if ( $auth_user // '' ) eq 'local';
 
-    require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
 
     # SM095/SM138: unrestricted account management is the manage_users
     # capability, granted through a group. The legacy lazysite.conf

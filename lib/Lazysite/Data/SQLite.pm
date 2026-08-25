@@ -399,35 +399,22 @@ sub delete_sql {
 # surfaces clamp to it.
 sub MAX_ROWS { return 500 }
 
-sub count_sql {
-    my ( $d, %opt ) = @_;
-    die 'count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
-    my $table  = _ident( $d->{table} );
+# THE WHERE CLAUSE, ONCE (DA-7). count_sql and select_sql built the same
+# clause from the same filter under the same rules, and SM502 U-1's comment
+# only PROMISED that ("same WHERE rules as select_sql"). One helper makes it
+# structural. $caller keeps each one's own die prefix, which the tests read.
+#
+# Shares the WHERE, not the ceiling: the LIMIT, the MAX_ROWS clamp and the
+# order of count-before-limit are select_sql's own and stay where they are
+# (SM502, SM511).
+#
+# Returns ( '' or ' WHERE ...', \@binds ).
+sub _where {
+    my ( $d, $filter, $caller ) = @_;
     my $fields = $d->{fields};
     my ( @where, @binds );
-    my $filter = $opt{where} || {};
-    for my $f ( sort keys %{$filter} ) {
-        die "count_sql: '$f' is not a field of '$d->{table}'"
-            unless exists $fields->{$f} || $f eq $d->{key};
-        if ( defined $filter->{$f} ) { push @where, _ident($f) . ' = ?'; push @binds, $filter->{$f} }
-        else                         { push @where, _ident($f) . ' IS NULL' }
-    }
-    my $sql = "SELECT COUNT(*) FROM $table";
-    $sql .= ' WHERE ' . join( ' AND ', @where ) if @where;
-    return ( $sql, \@binds );
-}
-
-sub select_sql {
-    my ( $d, %opt ) = @_;
-    die 'select_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
-    my $table  = _ident( $d->{table} );
-    my $fields = $d->{fields};
-
-    my @where;
-    my @binds;
-    my $filter = $opt{where} || {};
-    for my $f ( sort keys %{$filter} ) {
-        die "select_sql: '$f' is not a field of '$d->{table}'"
+    for my $f ( sort keys %{ $filter || {} } ) {
+        die "$caller: '$f' is not a field of '$d->{table}'"
             unless exists $fields->{$f} || $f eq $d->{key};
         if ( defined $filter->{$f} ) {
             push @where, _ident($f) . ' = ?';
@@ -440,9 +427,25 @@ sub select_sql {
             push @where, _ident($f) . ' IS NULL';
         }
     }
+    return ( @where ? ' WHERE ' . join( ' AND ', @where ) : '', \@binds );
+}
 
-    my $sql = "SELECT * FROM $table";
-    $sql .= ' WHERE ' . join( ' AND ', @where ) if @where;
+sub count_sql {
+    my ( $d, %opt ) = @_;
+    die 'count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my ( $where, $binds ) = _where( $d, $opt{where}, 'count_sql' );
+    return ( 'SELECT COUNT(*) FROM ' . _ident( $d->{table} ) . $where, $binds );
+}
+
+sub select_sql {
+    my ( $d, %opt ) = @_;
+    die 'select_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    my $table  = _ident( $d->{table} );
+    my $fields = $d->{fields};
+
+    my ( $where, $bref ) = _where( $d, $opt{where}, 'select_sql' );
+    my @binds = @{$bref};
+    my $sql   = "SELECT * FROM $table" . $where;
 
     if ( defined $opt{order_by} && length $opt{order_by} ) {
         my $ob = $opt{order_by};

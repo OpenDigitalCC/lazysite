@@ -263,15 +263,81 @@ sub schema_history {
     return $rows;
 }
 
+# THE SAFETY EXPORT BOTH DESTRUCTIVE VERBS WRITE FIRST (DA-2). drop_table and
+# rebuild_table had this block written out twice - make_path, the stamp, the
+# encode, the open/print/close and the unlink-on-failure - differing only in
+# the name infix and in the clause naming what did not happen. Those two are
+# arguments now; nothing else was ever allowed to differ.
+#
+# The stamp is _now_iso with the punctuation removed, which is what both
+# copies were spelling out by hand.
+#
+# Returns { ok => 1, path => <absolute>, rel => <site-relative> } or an _err
+# the caller returns unchanged. SM480: the REL form is the one a caller may
+# report - the absolute path names the hosting account and the server layout.
+sub _safety_export {
+    my ( $docroot, $name, $d, $rows, %opt ) = @_;
+    my $infix = $opt{infix} // '';
+    my $tail  = $opt{tail}  // '';
+
+    # The create-failure clause is its own option because the two verbs did
+    # not agree: drop_table named what did not happen, rebuild_table did not.
+    # Folding them onto one $tail would have CHANGED a message.
+    my $create_tail = exists $opt{create_tail} ? $opt{create_tail} : $tail;
+
+    require Lazysite::Data::Export;
+    my $dir = "$docroot/lazysite/db/rebuilds";
+    unless ( -d $dir ) {
+        require File::Path;
+        eval { File::Path::make_path($dir); 1 }
+            or return _err( "table '$name': could not create $dir for the "
+                . "safety export$create_tail", table => $name );
+    }
+
+    my $stamp = _now_iso();
+    $stamp =~ s/[-:]//g;
+    my $file   = "$name$infix-$stamp.json";
+    my $safety = "$dir/$file";
+    my $export = Lazysite::Data::Export::export_table( $d, $rows );
+    if ( open my $fh, '>:utf8', $safety ) {
+        my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
+        $ok = 0 unless close $fh;
+        unless ($ok) {
+            unlink $safety;
+            return _err( "table '$name': the safety export could not be "
+                    . "written$tail", table => $name );
+        }
+    }
+    else {
+        return _err( "table '$name': the safety export could not be opened$tail",
+            table => $name );
+    }
+
+    return { ok => 1, path => $safety, rel => "lazysite/db/rebuilds/$file" };
+}
+
+# THE WRITE HANDLE, OR THE REFUSAL THAT NAMES THE TABLE (DA-3). Five verbs
+# opened the store and wrote out the same refusal; the message is one string
+# in one place now. Returns ( $dbh, undef ) or ( undef, $err ) - the caller
+# returns $err unchanged, so every surface keeps the wording it had.
+sub _writer {
+    my ( $docroot, $name ) = @_;
+    my $dbh = write_handle($docroot);
+    return ( $dbh, undef ) if $dbh;
+    return (
+        undef,
+        _err( "table '$name': the data store cannot be opened for writing",
+            table => $name )
+    );
+}
+
 sub apply_schema {
     my ( $docroot, $name, %opt ) = @_;
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
 
-    my $dbh = write_handle($docroot);
-    return _err( "table '$name': the data store cannot be opened for writing",
-        table => $name )
-        unless $dbh;
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return $nowrite if $nowrite;
 
     my $plan = plan_migration( $d, $dbh );
     return $plan unless $plan->{ok};
@@ -302,12 +368,8 @@ sub _write_prep {
     return ( $d, undef, undef ) unless $d->{ok};
     my $c = coerce_row( $d, $input, %opt );
     return ( $c, undef, undef ) unless $c->{ok};
-    my $dbh = write_handle($docroot);
-    return (
-        _err( "table '$name': the data store cannot be opened for writing",
-            table => $name ),
-        undef, undef
-    ) unless $dbh;
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return ( $nowrite, undef, undef ) if $nowrite;
     return ( undef, $d, $dbh, $c->{values} );
 }
 
@@ -348,10 +410,8 @@ sub delete_row {
     my ( $docroot, $name, $key_value ) = @_;
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
-    my $dbh = write_handle($docroot);
-    return _err( "table '$name': the data store cannot be opened for writing",
-        table => $name )
-        unless $dbh;
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return $nowrite if $nowrite;
     my ( $sql, $binds ) = eval { delete_sql( $d, $key_value ) };
     return _err( "table '$name': $@", table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };
@@ -599,10 +659,8 @@ sub import_rows {
     return $plan unless $apply;
 
     # COMMIT, ALL OR NOTHING.
-    my $dbh = write_handle($docroot);
-    return _err( "table '$name': the data store cannot be opened for writing",
-        table => $name )
-        unless $dbh;
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return $nowrite if $nowrite;
     my $ok = eval {
         $dbh->begin_work;
         for my $u (@updates) {
@@ -672,32 +730,9 @@ sub drop_table {
     my $rows = export_all_rows( $docroot, $name );
     return $rows unless $rows->{ok};
 
-    require Lazysite::Data::Export;
-    my $dir = "$docroot/lazysite/db/rebuilds";
-    unless ( -d $dir ) {
-        require File::Path;
-        eval { File::Path::make_path($dir); 1 }
-            or return _err( "table '$name': could not create $dir for the "
-                . 'safety export, so nothing was dropped', table => $name );
-    }
-    my @t     = gmtime;
-    my $stamp = sprintf '%04d%02d%02dT%02d%02d%02dZ',
-        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
-    my $safety = "$dir/$name-dropped-$stamp.json";
-    my $export = Lazysite::Data::Export::export_table( $d, $rows->{rows} );
-    if ( open my $fh, '>:utf8', $safety ) {
-        my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
-        $ok = 0 unless close $fh;
-        unless ($ok) {
-            unlink $safety;
-            return _err( "table '$name': the safety export could not be "
-                    . 'written, so nothing was dropped', table => $name );
-        }
-    }
-    else {
-        return _err( "table '$name': the safety export could not be opened, "
-                . 'so nothing was dropped', table => $name );
-    }
+    my $safe = _safety_export( $docroot, $name, $d, $rows->{rows},
+        infix => '-dropped', tail => ', so nothing was dropped' );
+    return $safe unless $safe->{ok};
 
     my $dbh = write_handle($docroot);
     if ($dbh) {
@@ -727,11 +762,11 @@ sub drop_table {
 
     _record_history( $dbh, $opt{actor}, $name, 'drop',
         { rows_dropped => scalar @{ $rows->{rows} || [] },
-            safety_export => "lazysite/db/rebuilds/$name-dropped-$stamp.json" } );
+            safety_export => $safe->{rel} } );
     return { ok => 1, table => $name, dropped => 1,
         rows_dropped  => scalar @{ $rows->{rows} || [] },
         descriptors   => $removed,
-        safety_export => "lazysite/db/rebuilds/$name-dropped-$stamp.json" };
+        safety_export => $safe->{rel} };
 }
 
 # EVERY row, for an export. Not read_rows, which is capped.
@@ -798,10 +833,8 @@ sub rebuild_table {
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
 
-    my $dbh = write_handle($docroot);
-    return _err( "table '$name': the data store cannot be opened for writing",
-        table => $name )
-        unless $dbh;
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return $nowrite if $nowrite;
 
     # SM489: A REBUILD WITH NOTHING TO DO DOES NOTHING - the way data-migrate
     # already does. The field agent pointed data-rebuild at a live table with
@@ -871,19 +904,6 @@ sub rebuild_table {
     # THE EXPORT, before anything is dropped.
     my $rows = export_all_rows( $docroot, $name );
     return $rows unless $rows->{ok};
-    require Lazysite::Data::Export;
-    my $dir = "$docroot/lazysite/db/rebuilds";
-    unless ( -d $dir ) {
-        require File::Path;
-        eval { File::Path::make_path($dir); 1 }
-            or return _err( "table '$name': could not create $dir for the "
-                . 'safety export', table => $name );
-    }
-    my @t     = gmtime;
-    my $stamp = sprintf '%04d%02d%02dT%02d%02d%02dZ',
-        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
-    my $safety = "$dir/$name-$stamp.json";
-
     # SM480: REPORTED AS A SITE-RELATIVE PATH, not the absolute one. The field
     # agent found this handing back /home/<account>/web/<domain>/... - the
     # hosting account name, the layout of the server's filesystem, and the fact
@@ -891,22 +911,11 @@ sub rebuild_table {
     # class as the manager edit link, and an operator has no use for the
     # absolute form: they reach the file through Files, which is rooted at the
     # site.
-    my $safety_rel = "lazysite/db/rebuilds/$name-$stamp.json";
-    my $export     = Lazysite::Data::Export::export_table( $d, $rows->{rows} );
-    if ( open my $fh, '>:utf8', $safety ) {
-        my $ok = print {$fh} JSON::PP->new->canonical->pretty->encode($export);
-        $ok = 0 unless close $fh;
-        unless ($ok) {
-            unlink $safety;
-            return _err( "table '$name': the safety export could not be "
-                    . 'written, so the rebuild was not attempted',
-                table => $name );
-        }
-    }
-    else {
-        return _err( "table '$name': the safety export could not be opened, "
-                . 'so the rebuild was not attempted', table => $name );
-    }
+    my $safe = _safety_export( $docroot, $name, $d, $rows->{rows},
+        tail => ', so the rebuild was not attempted', create_tail => '' );
+    return $safe unless $safe->{ok};
+    my $safety     = $safe->{path};
+    my $safety_rel = $safe->{rel};
 
     # IN A TRANSACTION. The steps drop a table and rename another into its
     # place; half of that is a site with no table at all.
