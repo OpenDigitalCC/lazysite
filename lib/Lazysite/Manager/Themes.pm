@@ -36,6 +36,7 @@ our @EXPORT_OK = qw(
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
     _snapshot_artifact _prune_backups _mirror_theme_assets _mirror_warning
+    _read_json_file
 );
 
 our $DOCROOT;
@@ -173,17 +174,28 @@ sub action_themes_list_all {
     };
 }
 
+# TL-2: the one open-slurp-decode this module and Manager::Layouts share.
+# Returns exactly what decode_json returned - so a caller may test the result
+# as it always has - or undef when the file could not be opened. The three
+# readers that tell "could not open" apart from "did not parse" keep their own
+# open: _validate_theme_dir quotes the parse error back to the operator,
+# action_artifact_validate reports 'unreadable' and 'invalid' as separate
+# findings, and _install_theme_from_dir refuses an upload differently for each.
+sub _read_json_file {
+    my ($path) = @_;
+    open my $fh, '<:utf8', $path or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return eval { decode_json($raw) };
+}
+
 # SM204: read a layout.json under a given layout and return its decoded hash
 # (or {} if absent/unparseable). Used by the token-vocabulary tool to read
 # default_theme and the optional (SM203) declared `tokens` block.
 sub _read_layout_json {
     my ($layout) = @_;
     return {} unless defined $layout && $layout =~ /^[A-Za-z0-9_-]+$/;
-    open my $jf, '<:utf8', "$LAZYSITE_DIR/layouts/$layout/layout.json"
-        or return {};
-    my $raw = do { local $/; <$jf> };
-    close $jf;
-    my $meta = eval { decode_json($raw) };
+    my $meta = _read_json_file("$LAZYSITE_DIR/layouts/$layout/layout.json");
     return ( ref $meta eq 'HASH' ) ? $meta : {};
 }
 
@@ -196,11 +208,8 @@ sub _read_theme_json {
         && $layout =~ /^[A-Za-z0-9_-]+$/
         && defined $theme
         && $theme =~ /^[A-Za-z0-9_-]+$/;
-    my $path = "$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json";
-    open my $jf, '<:utf8', $path or return undef;
-    my $raw = do { local $/; <$jf> };
-    close $jf;
-    my $meta = eval { decode_json($raw) };
+    my $meta
+        = _read_json_file("$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json");
     return ( ref $meta eq 'HASH' ) ? $meta : undef;
 }
 
@@ -1277,10 +1286,7 @@ sub _theme_declares_layout {
     my ( $layout, $theme ) = @_;
     my $tj = "$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json";
     return 0 unless -f $tj;
-    open my $fh, '<:utf8', $tj or return 0;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $data = eval { decode_json($raw) };
+    my $data = _read_json_file($tj);
     return 0 unless ref $data eq 'HASH' && ref $data->{layouts} eq 'ARRAY';
     return ( grep { $_ eq $layout } @{ $data->{layouts} } ) ? 1 : 0;
 }

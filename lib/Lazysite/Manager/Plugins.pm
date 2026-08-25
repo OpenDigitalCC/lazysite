@@ -1043,6 +1043,23 @@ sub action_form_submissions {
 # _id (raw-line hash) that action_form_submissions returns. Rewrites the .jsonl
 # without the matched line, atomically (temp + rename). manage_forms-gated +
 # audited by the dispatch wrapper. Returns { ok, deleted } or { ok=>0, error }.
+# TL-20: the one atomic replacement the three submission editors share. Write
+# the surviving lines to a sibling temp file and rename it over the store, so a
+# concurrent reader sees the whole old file or the whole new one and never a
+# half-written store. On a failure the temp file is removed, leaving the store
+# as it was. Returns undef on success, or the caller's own error hash.
+sub _rewrite_store {
+    my ( $abs, $keep ) = @_;
+    my $tmp = "$abs.tmp.$$";
+    open my $out, '>:utf8', $tmp
+        or return { ok => 0, error => 'Cannot write submissions' };
+    print {$out} @$keep;
+    close $out;
+    rename $tmp, $abs
+        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    return undef;
+}
+
 sub action_form_submission_delete {
     my ( $file, $id ) = @_;
     my ( $abs, $rel, $err ) = _submissions_path($file);
@@ -1064,12 +1081,7 @@ sub action_form_submission_delete {
     close $fh;
     return { ok => 0, error => 'Row not found' } unless $deleted;
 
-    my $tmp = "$abs.tmp.$$";
-    open my $out, '>:utf8', $tmp or return { ok => 0, error => 'Cannot write submissions' };
-    print {$out} @keep;
-    close $out;
-    rename $tmp, $abs
-        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    if ( my $e = _rewrite_store( $abs, \@keep ) ) { return $e }
     return { ok => 1, file => $rel, deleted => 1 };
 }
 
@@ -1103,12 +1115,7 @@ sub action_form_submission_confirm {
     close $fh;
     return { ok => 0, error => 'Row not found' } unless $confirmed;
 
-    my $tmp = "$abs.tmp.$$";
-    open my $w, '>:utf8', $tmp or return { ok => 0, error => 'Cannot write submissions' };
-    print {$w} @out;
-    close $w;
-    rename $tmp, $abs
-        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    if ( my $e = _rewrite_store( $abs, \@out ) ) { return $e }
     return { ok => 1, file => $rel, confirmed => 1 };
 }
 
@@ -1141,12 +1148,7 @@ sub action_form_submissions_delete_bulk {
     close $fh;
     return { ok => 0, error => 'No matching rows' } unless $deleted;
 
-    my $tmp = "$abs.tmp.$$";
-    open my $out, '>:utf8', $tmp or return { ok => 0, error => 'Cannot write submissions' };
-    print {$out} @keep;
-    close $out;
-    rename $tmp, $abs
-        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    if ( my $e = _rewrite_store( $abs, \@keep ) ) { return $e }
     return { ok => 1, file => $rel, deleted => $deleted };
 }
 

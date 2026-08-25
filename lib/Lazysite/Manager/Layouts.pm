@@ -18,7 +18,8 @@ use Lazysite::Manager::Common  qw(_write_conf_key);
 use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan)
 use Lazysite::Paths            ();
 use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
-    _snapshot_artifact _prune_backups _mirror_theme_assets action_layout_activate);
+    _snapshot_artifact _prune_backups _mirror_theme_assets action_layout_activate
+    _read_json_file);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -103,10 +104,21 @@ sub action_layouts_releases {
     return { ok => 1, repo => $repo, releases => \@releases };
 }
 
-sub action_layouts_install {
-    my ($request_body) = @_;
-    my $req            = eval { decode_json( $request_body // '{}' ) } // {};
-    my $tag            = $req->{tag}                                   // '';
+# TL-9: fetch a release zipball, extract it under a fresh working directory and
+# hand back the layouts/ tree GitHub nests inside its OWNER-REPO-SHA wrapper.
+#
+# action_layouts_install and action_layouts_release_contents each carried this
+# whole sequence - validate the tag, read the repo, probe Archive::Zip, GET the
+# zipball, write it, read it, check every entry, extract, strip the wrapper,
+# find layouts/ - in the same order, and differed only in the words two of the
+# refusals use. Those travel in: `absolute` and `slip` open the zip-entry
+# refusal (the install has always named the two cases separately; the preview
+# calls both unsafe) and `no_layouts` is the whole shape complaint.
+#
+# EVERY refusal removes the working directory before it returns, exactly as
+# both callers did. A caller that gets ok:1 owns tmp_dir and cleans it up.
+sub _fetch_release_zip {
+    my ( $tag, %msg ) = @_;
 
     # Tags can hold versioned names like v1.2.0 or release-2026-04-01
     # (and optionally refs/tags-style slashes). Reject any ".." sequence
@@ -134,12 +146,13 @@ sub action_layouts_install {
 
     my $tmp_dir = "/tmp/lazysite-layouts-$$";
     make_path($tmp_dir);
+    my $fail = sub {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0, error => $_[0] };
+    };
 
     my $zip_path = "$tmp_dir/release.zip";
-    open my $zfh, '>:raw', $zip_path or do {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot write zipball' };
-    };
+    open my $zfh, '>:raw', $zip_path or return $fail->('Cannot write zipball');
     print $zfh $res->content;
     close $zfh;
 
@@ -147,61 +160,61 @@ sub action_layouts_install {
     make_path($extract_dir);
 
     my $zip = Archive::Zip->new();
-    unless ( $zip->read($zip_path) == Archive::Zip::AZ_OK() ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot read zipball' };
-    }
+    return $fail->('Cannot read zipball')
+        unless $zip->read($zip_path) == Archive::Zip::AZ_OK();
 
+    # Validate every entry before extracting any.
     for my $member ( $zip->members ) {
         my $name = $member->fileName;
-        if ( $name =~ m{\A/} ) {
-            _cleanup_tmp_layouts($tmp_dir);
-            return { ok => 0, error => "Zip entry has absolute path: $name" };
-        }
-        if ( $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
-            _cleanup_tmp_layouts($tmp_dir);
-            return { ok => 0, error => "Zip slip detected in: $name" };
-        }
+        return $fail->( $msg{absolute} . $name ) if $name =~ m{\A/};
+        return $fail->( $msg{slip} . $name )
+            if $name =~ m{(?:^|/)\.\.(?:/|$)};
     }
 
-    unless ( $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK() ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Extraction failed' };
-    }
+    return $fail->('Extraction failed')
+        unless $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK();
 
     # GitHub zipballs nest everything under a single top-level wrapper
     # dir named OWNER-REPO-SHA. Strip it so the theme subdirs sit at
     # the top of our walk.
     my @top;
-    opendir my $dh, $extract_dir or do {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot read extracted dir' };
-    };
+    opendir my $dh, $extract_dir or return $fail->('Cannot read extracted dir');
     for my $e ( readdir $dh ) {
         next if $e =~ /^\./;
         push @top, $e if -d "$extract_dir/$e";
     }
     closedir $dh;
 
-    unless ( @top == 1 ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0,
-            error => 'Unexpected zipball layout (expected single wrapper dir)' };
-    }
+    return $fail->('Unexpected zipball layout (expected single wrapper dir)')
+        unless @top == 1;
     my $wrapper = "$extract_dir/$top[0]";
 
     # SM046: LL v0.3.0+ release shape. Themes live nested at
     # $wrapper/layouts/LAYOUT/themes/THEME/, with theme.json at each
     # theme root. Pre-LL-v0.3.0 flat shape (theme.json in a top-level
-    # subdir) is rejected — that shape pre-dates D013 and would fail
+    # subdir) is rejected - that shape pre-dates D013 and would fail
     # _install_theme_from_dir's layouts[] check anyway.
     my $layouts_dir = "$wrapper/layouts";
-    unless ( -d $layouts_dir ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0,
-            error => 'Release does not contain a layouts/ directory '
-                . '(repo must follow D013 nested shape: layouts/LAYOUT/themes/THEME/)' };
-    }
+    return $fail->( $msg{no_layouts} ) unless -d $layouts_dir;
+
+    return { ok => 1, repo => $repo, tmp_dir => $tmp_dir,
+        wrapper => $wrapper, layouts_dir => $layouts_dir };
+}
+
+sub action_layouts_install {
+    my ($request_body) = @_;
+    my $req            = eval { decode_json( $request_body // '{}' ) } // {};
+    my $tag            = $req->{tag}                                   // '';
+
+    my $z = _fetch_release_zip(
+        $tag,
+        absolute   => 'Zip entry has absolute path: ',
+        slip       => 'Zip slip detected in: ',
+        no_layouts => 'Release does not contain a layouts/ directory '
+            . '(repo must follow D013 nested shape: layouts/LAYOUT/themes/THEME/)',
+    );
+    return $z unless $z->{ok};
+    my ( $repo, $tmp_dir, $layouts_dir ) = @{$z}{qw(repo tmp_dir layouts_dir)};
 
     my @results;
     my @layout_results;    # SM060: per-layout install outcomes
@@ -285,19 +298,15 @@ sub action_layouts_install {
             # — that validates every declared layout exists on
             # this install.
             my $mismatch;
-            if ( open my $jf, '<:utf8', "$theme_path/theme.json" ) {
-                my $raw = do { local $/; <$jf> };
-                close $jf;
-                my $meta = eval { decode_json($raw) };
-                if ( ref $meta eq 'HASH' && ref $meta->{layouts} eq 'ARRAY' ) {
-                    unless ( grep { $_ eq $layout_name } @{ $meta->{layouts} } ) {
-                        $mismatch = sprintf(
-                            "Theme %s under %s declares layouts: [%s], "
-                                . "mismatching source path",
-                            $theme_name, $source_rel,
-                            join( ', ', @{ $meta->{layouts} } )
-                        );
-                    }
+            my $meta = _read_json_file("$theme_path/theme.json");
+            if ( ref $meta eq 'HASH' && ref $meta->{layouts} eq 'ARRAY' ) {
+                unless ( grep { $_ eq $layout_name } @{ $meta->{layouts} } ) {
+                    $mismatch = sprintf(
+                        "Theme %s under %s declares layouts: [%s], "
+                            . "mismatching source path",
+                        $theme_name, $source_rel,
+                        join( ', ', @{ $meta->{layouts} } )
+                    );
                 }
             }
             if ($mismatch) {
@@ -415,84 +424,15 @@ sub action_layouts_release_contents {
     my ($tag) = @_;
     $tag //= '';
 
-    return { ok => 0, error => 'Invalid tag' }
-        unless length $tag
-        && $tag =~ m{^[A-Za-z0-9._/-]+$}
-        && $tag !~ m{\.\.};
-
-    my $repo = _layouts_repo();
-    return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
-        unless _valid_repo($repo);
-
-    return { ok => 0,
-        error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
-        unless _have_azip();
-
-    require LWP::UserAgent;
-    my $ua  = LWP::UserAgent->new( timeout => 30, agent => 'lazysite/1.0' );
-    my $url = "https://api.github.com/repos/$repo/zipball/$tag";
-    my $res = $ua->get($url);
-    return { ok => 0, error => 'Failed to fetch zipball: ' . $res->status_line }
-        unless $res->is_success;
-
-    my $tmp_dir = "/tmp/lazysite-layouts-$$";
-    make_path($tmp_dir);
-
-    my $zip_path = "$tmp_dir/release.zip";
-    open my $zfh, '>:raw', $zip_path or do {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot write zipball' };
-    };
-    print $zfh $res->content;
-    close $zfh;
-
-    my $extract_dir = "$tmp_dir/extracted";
-    make_path($extract_dir);
-
-    my $zip = Archive::Zip->new();
-    unless ( $zip->read($zip_path) == Archive::Zip::AZ_OK() ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot read zipball' };
-    }
-
-    for my $member ( $zip->members ) {
-        my $name = $member->fileName;
-        if ( $name =~ m{\A/} || $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
-            _cleanup_tmp_layouts($tmp_dir);
-            return { ok => 0, error => "Unsafe zip entry: $name" };
-        }
-    }
-
-    unless ( $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK() ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Extraction failed' };
-    }
-
-    # Strip the GitHub wrapper dir (OWNER-REPO-SHA/).
-    my @top;
-    opendir my $dh, $extract_dir or do {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot read extracted dir' };
-    };
-    for my $e ( readdir $dh ) {
-        next if $e =~ /^\./;
-        push @top, $e if -d "$extract_dir/$e";
-    }
-    closedir $dh;
-    unless ( @top == 1 ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0,
-            error => 'Unexpected zipball layout (expected single wrapper dir)' };
-    }
-    my $wrapper = "$extract_dir/$top[0]";
-
-    my $layouts_dir = "$wrapper/layouts";
-    unless ( -d $layouts_dir ) {
-        _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0,
-            error => 'Release does not contain a layouts/ directory '
-                . '(repo must follow D013 nested shape)' };
-    }
+    my $z = _fetch_release_zip(
+        $tag,
+        absolute   => 'Unsafe zip entry: ',
+        slip       => 'Unsafe zip entry: ',
+        no_layouts => 'Release does not contain a layouts/ directory '
+            . '(repo must follow D013 nested shape)',
+    );
+    return $z unless $z->{ok};
+    my ( $repo, $tmp_dir, $layouts_dir ) = @{$z}{qw(repo tmp_dir layouts_dir)};
 
     # Walk layouts/LAYOUT/themes/THEME/theme.json. Any parse errors
     # or missing manifests produce an entry with ok => 0 rather than
@@ -511,15 +451,10 @@ sub action_layouts_release_contents {
                 my $theme_path = "$themes_path/$theme_name";
                 next unless -d $theme_path;
 
-                my $tj          = "$theme_path/theme.json";
                 my $description = '';
-                if ( -f $tj && open my $jf, '<:utf8', $tj ) {
-                    my $raw = do { local $/; <$jf> };
-                    close $jf;
-                    my $meta = eval { decode_json($raw) };
-                    if ( ref $meta eq 'HASH' && defined $meta->{description} ) {
-                        $description = $meta->{description};
-                    }
+                my $meta        = _read_json_file("$theme_path/theme.json");
+                if ( ref $meta eq 'HASH' && defined $meta->{description} ) {
+                    $description = $meta->{description};
                 }
                 push @themes, {
                     layout      => $layout_name,
@@ -593,10 +528,7 @@ sub action_themes_for_layout {
             # A theme whose layouts[] doesn't include $layout got there
             # via some non-manager install path and shouldn't surface
             # as a valid choice.
-            open my $jf, '<:utf8', $tj or next;
-            my $raw = do { local $/; <$jf> };
-            close $jf;
-            my $meta = eval { decode_json($raw) };
+            my $meta = _read_json_file($tj);
             next unless ref $meta eq 'HASH'
                 && ref $meta->{layouts} eq 'ARRAY'
                 && grep { $_ eq $layout } @{ $meta->{layouts} };
