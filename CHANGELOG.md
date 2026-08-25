@@ -324,6 +324,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM552 resolved (PENDING) **the coverage verdict is reachable under set -e.**
+  A non-zero coverage.sh exited release.sh on the line that ran it, before
+  `COV_STATUS` was read, so neither "below the declared floor" nor "FAILED
+  WITHOUT reaching the floor comparison" nor the COV_LOG location ever
+  printed. The status is now captured on the same line
+  (`|| COV_STATUS=$?`). t/tools/58 lifts the real block from release.sh and
+  runs it under `set -e`, so a harness can no longer pass a script that dies.
+
 - SM551 resolved (PENDING) **group ACL reach reports on a migrated site.**
   lazysite-check.pl's `report_group_acl_reach` and `_acls_file` built
   `$docroot/lazysite/auth/acls.json` by hand, so on an SM293 migrated site

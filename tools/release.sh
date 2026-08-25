@@ -578,8 +578,12 @@ COV_LOG="${STAGE}-coverage-check.txt"
 # the run reported "the suite did not pass" and then deleted the evidence.
 # Alongside COV_LOG, which is already outside the stage for the same reason.
 export LAZYSITE_COVER_SUITE_LOG="${STAGE}-coverage-suite.txt"
-bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1
-COV_STATUS=$?
+# SM552: CAPTURED ON THE SAME LINE. Under `set -e` a bare `cmd` followed by
+# `STATUS=$?` never reaches the second statement when cmd fails - the script
+# died here and the whole verdict block below was unreachable. Not `if !`
+# (58 forbids it: that form asserted a cause nobody had measured).
+COV_STATUS=0
+bash "$STAGE/tools/coverage.sh" --check > "$COV_LOG" 2>&1 || COV_STATUS=$?
 cat "$COV_LOG"
 if [ "$COV_STATUS" -ne 0 ]; then
     if grep -q 'COVERAGE BELOW FLOOR' "$COV_LOG"; then

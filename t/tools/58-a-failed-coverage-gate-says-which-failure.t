@@ -43,6 +43,11 @@ like( $src, qr/WITHOUT reaching/,
 unlike( $src, qr/if\s*!\s*bash\s+"\$STAGE\/tools\/coverage\.sh"\s+--check/,
     'the bare `if ! coverage.sh` that asserted an unmeasured cause is gone' );
 
+# SM552: under `set -e` a bare `cmd; STATUS=$?` never reaches the second
+# statement when cmd fails. The status is captured on the same line.
+like( $src, qr/COV_STATUS=0\n[^\n]*coverage\.sh" --check[^\n]*\|\| COV_STATUS=\$\?/,
+    'the exit status is captured on the command line, so set -e cannot skip the verdict' );
+
 unlike( $src, qr/coverage\.sh"?\s+--check[^\n]*\|\s*tee/,
     'and the output is NOT captured through tee, whose status hides the child' );
 
@@ -73,20 +78,22 @@ sub verdict {
     close $c;
     chmod 0755, "$d/tools/coverage.sh";
 
+    # SM552: the block is LIFTED from release.sh, not re-typed, and it runs
+    # under the same `set -e` release.sh runs under. The first version of this
+    # harness re-typed the block without `set -e`, and passed a script whose
+    # verdict lines were unreachable: a non-zero coverage.sh exited release.sh
+    # on the line that ran it, before COV_STATUS was read.
+    my ($block) = $src =~ /(^[^\n]*bash "\$STAGE\/tools\/coverage\.sh" --check.*?\n    exit 1\nfi\n)/ms;
+    die 'the coverage block was not found in release.sh' unless defined $block;
+
     open my $r, '>', "$d/run.sh" or die $!;
     print {$r} <<"RUN";
+set -e
 STAGE="$d"
 COV_LOG="\$STAGE/coverage-check.txt"
-bash "\$STAGE/tools/coverage.sh" --check > "\$COV_LOG" 2>&1
-COV_STATUS=\$?
-if [ "\$COV_STATUS" -ne 0 ]; then
-    if grep -q 'COVERAGE BELOW FLOOR' "\$COV_LOG"; then
-        echo "VERDICT: below-floor"
-    else
-        echo "VERDICT: did-not-finish (exit \$COV_STATUS)"
-    fi
-    exit 1
-fi
+# SM560's abort helper, when the block calls it; inert here.
+stage_disposition() { echo "release.sh: staging dir: \$STAGE" >&2; }
+$block
 echo "VERDICT: ok"
 RUN
     close $r;
@@ -95,17 +102,17 @@ RUN
 }
 
 like( verdict( "echo '  f.pl stmt 10% bran 5% BELOW'\necho 'COVERAGE BELOW FLOOR' >&2", 1 ),
-    qr/VERDICT: below-floor/,
+    qr/coverage below the declared floor/,
     'a real floor breach is reported as a floor breach' );
 
 like( verdict( "echo 'Running the suite under Devel::Cover, 4-way'", 137 ),
-    qr/VERDICT: did-not-finish \(exit 137\)/,
+    qr/FAILED \(exit 137\) WITHOUT reaching/,
     'a run KILLED before the comparison is NOT reported as a floor breach' )
     or diag( '137 is SIGKILL - an OOM-killed worker, the leading candidate '
         . 'for what actually happened to the 0.10.20 build.' );
 
 like( verdict( "echo 'Devel::Cover not installed' >&2", 2 ),
-    qr/VERDICT: did-not-finish \(exit 2\)/,
+    qr/FAILED \(exit 2\) WITHOUT reaching/,
     'and neither is a run that could not start' );
 
 like( verdict( "echo 'coverage: all measured production CGIs at or above'", 0 ),

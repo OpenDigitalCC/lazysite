@@ -3,8 +3,8 @@ title: "SM552: the coverage verdict block is dead under set -e"
 subtitle: "A failing coverage.sh exits release.sh before COV_STATUS is read, so the release never says which coverage failure it hit or where the log is."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND 2026-08-25 by the tools structural review, PROVEN by probe tmp/probe-release-excerpts/result.txt part 1; class: operability; recommended timing: 0.10.33. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. tools/release.sh runs under set -e (line 60), so a non-zero coverage.sh exits the script before the verdict block at 572-600 reads COV_STATUS: neither the 'below the floor' line nor the 'FAILED WITHOUT reaching the floor comparison' line ever prints, and the COV_LOG location is never shown. The probe lifts lines 60 and 572-600 with a stub coverage.sh exiting 137 and the script exits 137 with no diagnosis. t/tools/58 passes today only because its harness (64-96) omits set -e."
+status: shipped
+status-note: "SHIPPED 0.10.32 (EDGE): release.sh captures the coverage status on the command line (COV_STATUS=0; bash ... || COV_STATUS=$?) so the SM444 verdict block is reachable under set -e; proving test t/tools/58 now lifts the real block from release.sh and runs it under set -e, and failed on the exit-137 and exit-2 stand-ins before the fix. FOUND 2026-08-25 by the tools structural review, PROVEN by probe tmp/probe-release-excerpts/result.txt part 1; class: operability; recommended timing: 0.10.33. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. tools/release.sh runs under set -e (line 60), so a non-zero coverage.sh exits the script before the verdict block at 572-600 reads COV_STATUS: neither the 'below the floor' line nor the 'FAILED WITHOUT reaching the floor comparison' line ever prints, and the COV_LOG location is never shown. The probe lifts lines 60 and 572-600 with a stub coverage.sh exiting 137 and the script exits 137 with no diagnosis. t/tools/58 passes today only because its harness (64-96) omits set -e."
 ---
 
 # The finding
