@@ -194,6 +194,17 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM574 resolved (PENDING) **the field practice ships with every site.** The
+  site agent's two best-practice files - what building and breaking real
+  sites and apps on the engine taught - lived outside the tree and were read
+  by one agent. `tools/import-field-practice.pl` pulls them in and writes
+  `starter/docs/ai-briefing-practice.md`, which `describe_capabilities`
+  indexes under `docs.briefings` like any other `ai-briefing-*` page. The
+  page states whose notes these are, that the reference docs win on
+  conflict, and which engine version it was generated for; version-dated
+  sections keep their before/after columns for the sites still on an older
+  engine, and the field scars are marked version-independent. t/lint/88
+  fails the build if the served copy stops matching its import sources.
 
 - SM584 resolved (PENDING) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status

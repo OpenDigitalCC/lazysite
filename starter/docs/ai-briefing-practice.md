@@ -1,0 +1,868 @@
+---
+title: AI briefing - field practice
+subtitle: One agent's field notes from building and breaking real sites and apps on this engine - a companion to the reference briefings, not a specification.
+register:
+  - sitemap.xml
+---
+<!-- lazysite:field-practice-import
+     generator: tools/import-field-practice.pl
+     engine-version: 0.10.33
+     imported: 2026-08-25
+     agent: the lazysite site agent (Claude Code)
+     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b8ffa790cbef5875e60b905376649c09d985fbb4882690adc6b64f5cb964276b modified=2026-08-25
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2467a0bc2e0b02ac3ba097823cfc802af85f8c21dc3f458bd6d5b8db8061e4fd modified=2026-08-24
+     body-sha256: 71272e27a186be0e3b6c8bd7ca7850c6111759ef3cfb433f5a6de0aa0cfaa4a1
+-->
+
+## What this is, and what it is not
+
+These are **one agent's field notes** from building and breaking real sites and apps on this engine. They are a **companion to the engine's reference briefings, not a specification**: nothing here defines behaviour, and nothing here was written by the engine.
+
+**Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
+
+This copy was **generated for engine 0.10.33**. The last section, *Where this came from*, names the sources, the agent and the dates.
+
+## How the sections are marked
+
+Some of what the field learns is true of one engine version and false of the next, and some of it is true whatever engine a site runs. They are worth different amounts to you, so they are marked:
+
+| Marking | What it means |
+| --- | --- |
+| **Version-dated** | Behaviour that **differs by engine version**, kept as before/after columns. Not resolved down to "current behaviour": a half-migrated estate is the normal state, and the agent on an older site is the one who needs the left-hand column. Check the engine a site runs before acting on one of these. |
+| **Version-independent** | A field scar. It cost somebody real time, it does not depend on a version, and it is the most useful part of this page. |
+| unmarked | General practice - judgement and habit rather than mechanism. |
+
+The engine version a **running** site reports is not necessarily this one. The briefing set is served from the site's own docroot, so a site installed from an older release serves an older copy of this page.
+
+## Part one: sites and content
+
+*Pages, layout, theme, HTML and styling.*
+
+## The toolkit, and what each part is for
+
+The engine gives more than Markdown. Reach for these before writing HTML.
+
+### Front matter, with source prefixes
+
+`tt_page_var` values may be literals, or carry a source prefix:
+
+- `json:` - decode a local JSON file into a structure you can loop over
+- `scan:` - a list of pages matching a glob
+- `url:` - fetch a remote value
+- `${ENV}` - an allowlisted environment value
+
+This is documented in `docs/frontmatter.md` and is easy to miss. **`json:` is
+the single most useful feature for content-heavy or repeating pages** and it
+removes the temptation to generate pages offline.
+
+```yaml
+tt_page_var:
+  gallery: json:/data/paintings.json
+```
+
+### Template Toolkit in the page body
+
+Front-matter variables are available in the body, and TT directives are
+evaluated there before Markdown runs. `loop` carries everything a list needs:
+
+- `loop.count` / `loop.size` - a human-facing counter
+- `loop.index` - zero-based, for "first N" decisions
+- `loop.first` / `loop.last` - booleans
+- `loop.prev` / `loop.next` - the neighbouring items
+
+Wrap-around navigation without storing neighbours in the data:
+
+```
+[% FOREACH w IN works %]
+[%- prev = loop.first ? works.last.id : loop.prev.id -%]
+[%- next = loop.last  ? works.first.id : loop.next.id -%]
+...
+[% END %]
+```
+
+### Components
+
+A `::: name key="value"` fence renders through `components/name.tt`, where:
+
+- the inner Markdown becomes `content`
+- the attributes become `attrs`
+- direct-child `::: slot` fences become `slots.<slot>`
+- it is **nesting-aware**; components nest inside components
+
+Components live at `lazysite/layouts/<layout>/components/*.tt`. Components under
+`lazysite/templates/components/` are available to **any** layout, and a layout's
+own component of the same name wins.
+
+Front matter can also carry `sections:` as structured data, which a layout
+iterates and dispatches to the same components.
+
+### Themes carry the look, layouts carry the structure
+
+Colours, type and spacing belong in `theme.json` as tokens, emitted as CSS
+custom properties. A component or layout should reference tokens, never literal
+colours. This is what makes a restyle a one-file change.
+
+### Other things worth remembering
+
+- `aliases:` - every retired URL gets one on its successor at conversion
+- `register:` - what appears in `sitemap.xml` / `llms.txt`
+- `.url` files - a page that is a redirect
+- Native forms - `create_form` or a `:::form` bound to a vetted handler, never
+  hand-written form HTML or a third-party service
+
+## Briefs: stop writing sidecars from 0.10.29
+
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
+
+**SM245 retires the `.brief` sidecar.** The record survives, in an engine-owned
+store at `lazysite/briefs/<content-path>`, owned by a contract plugin that ships
+**disabled** - the operator enables it per site and runs its Migrate action,
+which imports every existing sidecar idempotently and never removes one it could
+not import.
+
+| Was | Is, from 0.10.29 |
+| --- | --- |
+| write `<file>.brief` over WebDAV | `append_brief` (MCP) / `brief-append` (API), under `manage_content` |
+| read the sidecar | `read_brief` / `brief-read` |
+| you stamped the date and your name | the store stamps the date and your **verified** identity |
+| append-only by convention | append-only, unchanged |
+
+`append_brief` takes `{path, entry}`.
+
+**A brief is not only for a page.** The store keys on a path and does not check
+that the target is a file, or that it exists. Verified on 0.10.29: a folder
+(`/docs`), an asset (`/favicon.ico`), a layout, a theme stylesheet, the nav, a
+form submission store and **the site root** (`/`) are all accepted keys. So the
+place to record why a whole section exists is a brief on the folder, and the
+place to record what a site is for is a brief on `/`.
+
+Two things it will not key: anything under `lazysite/db/` (blocked), and a data
+table ROW (no path exists to name one). Whether to extend to those is an open
+decision with the operator, not settled practice.
+
+**The trap:** writing a `.brief` over WebDAV still *works mechanically* after the
+change. It just writes an inert file - nothing lists it, nothing carries it, and
+nothing imports it after the one-shot migration. There is no error to tell you.
+So the rule is not "prefer the tool", it is **stop authoring sidecars** on any
+site running 0.10.29 with the plugin enabled.
+
+The denies are unchanged: a stray `.brief` still 404s and never indexes, so
+nothing leaks during the transition.
+
+**Until 0.10.30, `move_file` does not carry a brief, and deleting a file
+leaves one behind.** The store is path-keyed, so a moved
+file's entry stays under its OLD path until a reconcile - recorded as the
+accepted interim, and a deleted page's brief becomes debris that nothing can
+list or remove. **Do not read an empty brief after a move as data loss**; read
+the old path.
+
+**Fixed in 0.10.30, and verified on edge:** the entry follows the file on move
+and goes on delete - over WebDAV as well as through the tools - a copy starts
+unbriefed, and `list_briefs` / `delete_brief` make strays visible and clearable.
+`list_briefs` returns path, size, mtime and an `orphan` flag; `read_page` reports
+`has_brief` from the store. **Check which of these a site has before assuming
+either behaviour**, the same way you check whether the plugin answers at all.
+
+Two things worth knowing about the store once you can list it:
+
+- **`list_briefs` is how you find out what a site actually has.** On edge it
+  turned up five briefs nobody had mentioned, two of them 22-23KB, migrated
+  intact from sidecars. Until the listing existed there was no way to know.
+- **An orphan is a brief whose file is gone.** `delete_brief` is permanent and
+  the store has no undo, so read one before removing it - a 6KB brief is
+  somebody's thinking, and the page being gone does not mean the reasoning was
+  worthless.
+
+**Nothing is deleted, and migration is per site, whenever that site is next
+revisited.** There is no estate-wide sweep and no deadline: a site can sit on
+sidecars indefinitely and must keep working. So **a half-migrated estate is the
+normal state for a long time**, and arriving at a site you cannot assume either
+condition.
+
+**Check before you write a brief.** The plugin is off until an operator enables
+it, and the tools do not answer until they do:
+
+- tools answer -> use `append_brief` / `brief-append`
+- tools do not answer -> that site is still on sidecars; write the file, and
+  the operator's Migrate will import it when they get to it
+
+Filed 2026-08-24 (operator's instruction): a `.brief` write **should be refused**
+once the plugin is enabled, rather than silently landing an inert file. Until
+that ships, the check above is the only thing standing between you and a record
+nobody reads.
+
+## Choosing the right tool
+
+- **Prose, headings, links** - Markdown. Nothing else.
+- **A repeating structure on one page** (cards, a gallery, a listing, a price
+  table) - a JSON data file plus a `FOREACH`. Not copy-pasted blocks, and not an
+  offline generator.
+- **A repeating structure across many pages** (hero, stats band, CTA) - a
+  component, invoked by a `:::` fence or `sections:`.
+- **Chrome shared by every page** (header, nav, footer) - the layout.
+- **A distinctive look** - theme tokens.
+- **A list of existing pages** (index, archive, related) - `scan:`.
+- **One genuinely self-contained interactive artifact** - the only case for
+  `api: true` / `raw: true`, and it needs its own `content_type`.
+
+## Graphics-heavy sites
+
+A visual site is not a different kind of site. Measured across this estate, raw
+HTML in Markdown tracks one thing only: whether the site has components.
+
+- Sites with a component set: 0.1% - 0.5% raw HTML
+- Sites without: 5% - 20%, and one at 87%
+
+`community.dhcf.eu` writes a three-number stats panel as 24 lines of hand HTML
+with an inline `style` hack. `dito.tech` renders the same shape from a 9-line
+component fed by a list. Same engine, same week.
+
+### Receiving a design
+
+Designs often arrive as a zip of monolithic HTML from a design tool or another
+Claude. **Do not publish it as-is**, and do not paste it into a Markdown body -
+the engine refuses `raw: true` pages with an HTML content type, but nothing
+stops a monolith pasted into an ordinary page, so the guard will not save you.
+
+Decompose in this order:
+
+1. **Find the repeats.** Any block appearing three or more times with the same
+   class signature is a component. Do this before anything else; it determines
+   the shape of everything after.
+2. **Pull the copy out** into Markdown and the structured bits into a JSON data
+   file. Ask: could the client edit this text without seeing a tag?
+3. **Collect the visual decisions** - every colour, size and spacing value - and
+   put them in `theme.json` as tokens. No literal colours survive this step.
+4. **Rebuild the page** as prose plus component fences.
+5. **Check the round trip.** The next design iteration should touch tokens and
+   components only. If a redesign would force re-entering content, the
+   decomposition is not finished.
+
+### Photograph-led galleries
+
+- Two image sizes: a thumbnail for the grid, a larger one for the lightbox.
+  Grid images **eager** (they are the page); lightbox images **lazy**. A browser
+  fetches `<img src>` even inside `display: none`, so the naive arrangement
+  downloads every full-size image on first paint.
+- Strip EXIF. Check for GPS rather than assuming there is none.
+- Uniform grid cells with the picture *contained*, not cropped, when the set
+  mixes portrait and landscape. Ragged rows read as accidental.
+- Lightbox controls belong to the **viewport**, not the image box. An image box
+  sized per aspect ratio moves its controls between works and puts them on the
+  artwork.
+- Size the lightbox picture by height and let the frame `width: fit-content`
+  shrink-wrap it. Then no dimensions are needed in the data at all.
+
+## Anti-patterns
+
+**Never label one statement as honest, or as precisely stated.** "The honest
+position", "one honest qualification", "stated precisely" - each implies
+everything else on the page is dishonest or imprecise. The label undermines the
+whole to decorate a line. State the fact and let it stand; a qualification is
+just a sentence next to the claim it qualifies. (Keep `precisely` where it means
+*accurately* - "restrict the ports precisely" carries information.)
+
+- **An offline generator that produces a page.** If a `.md` is machine-written
+  from a manifest, the manifest belongs in the docroot and the page belongs in
+  a `FOREACH`. I built one of these before finding `json:`; it was pure cost.
+- **`raw: true` on a content page.** It skips layout and theme, so the page must
+  carry its own chrome and CSS. This is how monoliths are made.
+- **Inline `style=` attributes.** Always a missing token or a missing component.
+- **Literal colours in a component or layout.** They defeat restyling.
+- **Derived data in a hand-edited file.** Image dimensions, counts, neighbours.
+  Compute them at render time or in the build that produces the asset.
+
+## A `db:` binding has a row ceiling, and it changed in 0.10.30
+
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
+
+A binding with no explicit limit does not return every row. This bites only
+once a table passes 200 rows - which is exactly when a site has become worth
+something - so check which engine a site runs before trusting a list.
+
+| Binding | 0.10.29 and earlier | From 0.10.30 |
+| --- | --- | --- |
+| `db:works`, 250-row table | **200 rows, silently** | 500-row ceiling; a capped render logs a WARN |
+| `.count` on that page | **200** - counted after the limit, so it agreed with the short list | the **true** count, 250 |
+| `db:works limit=501` | **nothing at all**, no error | clamps to the ceiling and **serves rows**, warning on the result |
+| Showing the real total | no way to | `[% items_total %]` beside `[% items.size %]` |
+
+**On 0.10.29 the page and its own count agreed with each other and were both
+wrong**, with no signal anywhere - not on the page, not in the source, not in a
+log. That is the version to be careful on.
+
+The 0.10.30 column is **verified on edge**: a 250-row table renders 200 with
+`items_total` reporting 250 and `.count` reporting 250, and `limit=501` serves
+rows rather than nothing. Note the default is still 200 when no limit is given -
+500 is the ceiling you may ask for, not the default you get.
+
+From 0.10.30 the ceiling is one number, 500, stated once; an over-cap request
+clamps rather than emptying; and every list binding gets a companion
+`<var>_total` carrying the true count. The sanctioned spelling for an honest
+list is:
+
+```
+showing [% items.size %] of [% items_total %]
+```
+
+So:
+
+- **On 0.10.29, name a limit whenever a table might grow past 200**, keep it at
+  or below 500, and never ask for more than 500 - it renders an empty page, not
+  a truncated one.
+- **From 0.10.30, say the total** rather than hoping the list is complete.
+  `_total` costs nothing where you ignore it.
+- Either way, a table that must show more than 500 rows on one page cannot be
+  done with a single binding. Page it with `offset`, or reconsider the page.
+- When a list looks short, check the row count before hunting for a filter bug.
+
+## Creating a page in a folder that does not exist yet
+
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
+
+Verified on 0.10.30, and the channel decides:
+
+| Channel | Deep path with missing parents |
+| --- | --- |
+| MCP `write_file` / `create_page` | **creates the parents** and the page |
+| Manager save | creates the parents |
+| WebDAV `PUT` | **refused** - "Parent collection missing - MKCOL the parent(s) first" |
+
+The WebDAV refusal is correct behaviour, not a gap: RFC 4918 9.7.1 requires it,
+and every WebDAV client in the world expects it. So `MKCOL` each level first
+when you are working over DAV, or use the MCP tools, which do it for you.
+
+A brief may be appended to a path at any depth whether or not anything exists
+there yet, on any channel - that is what makes brief-first authoring possible.
+
+## WebDAV writes that leave something stale
+
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
+
+Proven defects as at 0.10.32, fix planned but NOT yet shipped. They share one
+shape: **the manager path cleans up and the DAV path does not**, so the same
+logical edit has two different outcomes depending on how you made it.
+
+| What you do over DAV | What is left stale |
+| --- | --- |
+| `MOVE` or `COPY` a page | Registries are never invalidated - **the sitemap keeps advertising the old URL**. The manager's own move clears it |
+| `DELETE` a collection | A **301 alias survives, pointing at a page that no longer exists** |
+| Write `nav.conf` | Cached pages keep rendering the **old nav** until something else invalidates them |
+
+Until these land, after any of the three: **regenerate the registries and
+invalidate the cache explicitly**, or make the edit through the manager or MCP
+instead, which do it for you. And check the sitemap after a move rather than
+assuming - an old URL left advertised is the kind of thing a visitor finds
+before you do.
+
+This is the same lesson as the parent-directory one, in the other direction:
+WebDAV is a file protocol and does exactly what a file protocol should. The
+engine's bookkeeping hangs off the tools that know about pages.
+
+## Things that look equivalent and are not
+
+*Version-independent - a field scar. It held before engine 0.10.33 and holds after it, on any site you connect to.*
+
+Each of these cost real time; none is obvious from reading.
+
+- **`height: min(72vh, 100%)` is not `height: 72vh`.** Against an auto-height
+  parent the `100%` term has nothing to resolve against and the bound is lost -
+  the image renders full size and overflows.
+- **`width: fit-content` on a ratio-computed box is not the same as sizing by
+  height.** Shrink-to-fit uses the *intrinsic* width, i.e. the width the image
+  would have had without the height cap.
+- **An `aliases:` 301 drops the query string.** If a legacy URL carries data in
+  its query, an alias resolves the URL and discards the payload.
+- **An unknown file extension is not served.** Static files come from a known
+  extension list, so a hand-written `.shtml` redirect stub can never run.
+- **The active layout is read-only over WebDAV.** To edit it, activate another
+  layout first; a page pinning `layout:` in its front matter is unaffected, so
+  the live page need not change while you do.
+- **A `::: name` fence with no matching component fails silently** as a plain
+  div. A typo looks like a styling bug.
+- **`<meta name="generator">` reports the build that rendered *that page***, not
+  the running version. To learn the running build, publish a page that has never
+  existed and read its stamp.
+- **The body becomes HTML first; TT runs second, over the rendered HTML.**
+  Corrected 2026-08-24 from the processor, having first inferred it wrongly the
+  other way round. Two consequences that look unrelated and are the same fact:
+  - **Markdown image syntax cannot carry a template expression.**
+    `![[% p.title %]](/img/[% p.file %])` renders a stray `!` and a link. The
+    image regex runs while `[%...%]` is still literal, cannot match across it,
+    and falls back to link syntax. True in the alt AND in the URL, fence or no
+    fence. Use `<img src="/img/[% p.file %]" alt="[% p.title %]">` whenever any
+    part of an image comes from a variable - HTML passes through the Markdown
+    pass untouched and TT then fills the attributes.
+  - **A `:::` fence inside a `[% FOREACH %]` does work, but not for the reason
+    it appears to.** The fence has already become ONE `<div>`; the loop then
+    multiplies that rendered div. So the loop cannot choose a fence's NAME
+    (`::: [% p.kind %]` is literal text, never a component) or emit one
+    conditionally - by the time TT runs, the fence is gone. **Put the
+    `[% IF %]` around the fence's CONTENT instead, or emit the raw HTML.**
+- **A data table is closed until it is published.** Without `public: true` in its
+  descriptor, the control API reads its rows and a page renders none. The two
+  symptoms together look exactly like a permissions fault or an unwritable
+  store, and nothing in the empty result says "not published".
+- **One wrong spelling of a working route looks identical to a missing
+  capability.** `acl-set` takes its path from the query and its lists from the
+  body; sending both in the body is refused for the path, which reads as "this
+  surface cannot do it". It can. Before concluding a capability is absent, try
+  the documented shape, not just a shape.
+
+## Verify like this
+
+*Version-independent - a field scar. It held before engine 0.10.33 and holds after it, on any site you connect to.*
+
+- After every publish, fetch the page and confirm the thing you changed.
+- Prefer a probe that cannot lie: to test a loop, render it; to test a version,
+  force a fresh render; to test a font, compare against a known-good control.
+- **Headless Chromium ignores `loading="lazy"`** and will fetch everything -
+  proved with a three-image probe. Do not use it to measure loading behaviour.
+- When a measurement surprises you, test the harness before believing the
+  result. A control line costs a minute and has twice stopped me filing a
+  defect that did not exist.
+- **A loop that reports success after processing n-1 items is the worst kind
+  of failure.** `while read -r f` silently drops a final line that has no
+  trailing newline, so a delete loop cleared five of six and reported done.
+  Guard it - `while read -r f || [ -n "$f" ]` - and **count before and after**,
+  because the count is what catches it, not the loop's own output.
+- **A pass under your own grant is not evidence that a gate exists.** SM515:
+  `delete_brief` shipped in 0.10.30 and 0.10.31 with no capability declared, so
+  ANY authenticated partner could call it - a themes-only grant included. My
+  tests passed both cuts and could not have seen it, because I held
+  `manage_content` and so was never refused. **Testing that a thing works says
+  nothing about who else it works for.** When you report a pass, say what
+  capability you held while proving it; a real gate check needs a *weaker*
+  credential than the one the feature is for, and if you have only one grant,
+  say the gate is unverified rather than implying it is not.
+- **An absent gate is not a reached target. Verify the CONSEQUENCE, not just
+  the mechanism.** I proved three ACL actions had no capability check - true,
+  and it stayed true. I then wrote that a grant "can rewrite who may read and
+  write any path on the site", which I had not tested: the two paths I read
+  were both owned by my own account. A second principal later showed ownership
+  refuses every cross-owner attempt, so the consequence I asserted was false
+  while the mechanism I proved was real. A build was stopped on the difference.
+  **A missing check does not tell you what lies behind it** - there may be a
+  second layer, and here there was.
+- **A severity claim is a testable claim: test it, or mark it untested IN THE
+  CLAIM.** Words like *any*, *all* and *every* need a case that could have
+  failed - one you do not own, one you did not create. Where the case does not
+  exist yet, write "untested: no second principal on this site" rather than
+  asserting and amending later. Amending is honest; not needing to amend is
+  better, and the reader acts on the first version.
+- **Say whether you are reporting an observation or a cause.** A probe showed
+  `git-history-summary` ignored `limit=1`, and I reported "the slow part happens
+  before the limit is applied". The real cause was that the action never reads a
+  limit at all - one `git log` per tracked file. Both explanations predict the
+  same observation, which is why mine survived; they are different bugs with
+  different fixes. A probe can establish THAT something behaves a certain way.
+  It cannot establish WHY. Offer the mechanism as a guess and label it one.
+- **Two people hitting the same wall is not two pieces of evidence** if they
+  used the same method. A colleague reported a test dying at compile "identical
+  on untouched main, pre-existing"; run properly it passed. Shared method means
+  correlated error, not independent confirmation - so reproduce a claim by a
+  DIFFERENT route, or say it is unconfirmed.
+- **Test the RESTRICTIVE value, not just the permissive one.** `public: false`
+  on a data table was rejected on 0.10.32 while `public: true` worked - and no
+  test caught it, because every fixture in the suite declared `true` or omitted
+  the key. A test that only exercises the permissive setting passes straight
+  through a bug in the restrictive one, and the restrictive one is usually the
+  safe default: private, denied, disabled, off. Those are the values worth a
+  case of their own.
+- **There is no engine log you can read.** `log_event` writes to STDERR, which
+  the web server collects into its own error log - there is no file under
+  `lazysite/logs/` to grep, and no control-API action exposes it to a token
+  client. So any behaviour whose only evidence is a log line is **not verifiable
+  from an agent's position**: say so rather than reporting it as passed, and let
+  it be pinned by a test that captures the processor's stderr instead.
+- **A permission is not verified by the call that sets it.** `acl-set` returned
+  `ok:true`, showed an owner, and said "content moved out of the document root"
+  while the page stayed fully public. The check is an **unauthenticated fetch
+  afterwards** - and nothing less. I recorded that ACL as working once on the
+  strength of the API's own report, and it was not.
+- **Never put a destructive action in a sweep.** Enumerating every action of a
+  family to check their replies is a good technique; including `rebuild` and
+  `drop` in that list, pointed at live data, is not. I did it, and only luck -
+  the operation happened to be lossless - kept it from destroying the table the
+  regression page depends on. Sweep the read actions; exercise the writers
+  deliberately, one at a time, against something disposable.
+- **A check that only answers when invoked does not help someone who did not
+  think to invoke it.** A validator with a perfect message is still silent to
+  the person who reached for the wrong tool. When building one, ask what the
+  failure looks like to somebody who never runs it.
+- Keep a **regression page** on a test site for anything you had to diagnose the
+  hard way. `/data-test` on edge renders a published and an unpublished data
+  table side by side in one request; it has already caught one behaviour change
+  and costs nothing to leave up.
+
+## Part two: apps and data
+
+*Workflow, where state lives, how data is stored and read back, and who is allowed to see it.*
+
+## The question that separates a site from an app
+
+> If two people open this on two devices, do they see the same thing, and does
+> what one of them does show up for the other?
+
+If yes, it is an app and it needs a store. If no, it is a page. Most prototypes
+answer no without meaning to, because the browser makes it so easy not to
+notice - see *State that only exists in one browser*, below.
+
+## Where state can live, in order of preference
+
+**A data table** (`lazysite/db/tables/<name>.yaml` + rows)
+: The default for anything a person enters and expects to find again. Declared
+  by a descriptor, applied with a migration, read on a page with
+  `tt_page_var: items: db:<table>`. Survives devices, browsers and reinstalls,
+  and can be read by more than one person.
+
+**A JSON data file in the docroot** (`json:/data/thing.json`)
+: For content the *author* edits and visitors only read - a gallery, a price
+  list, a set of questions. No write path, no per-user state. Cheap, editable
+  in a text editor, and versioned with the site.
+
+**Front matter on the page**
+: For one page's own settings. Not for data.
+
+**The browser** (`localStorage`)
+: Only for genuinely local preferences - which tab was open, a draft not yet
+  submitted. Never for the thing the app is *for*.
+
+## State that only exists in one browser
+
+The most common defect in a prototype, and it is invisible while one person
+tests it on one machine.
+
+`localStorage` keeps data in **that browser, on that device, for that origin**.
+Clearing site data loses it. A second device never had it. Two family members
+each get their own private copy of what looks like a shared record, and neither
+can tell.
+
+When you meet a prototype that persists to `localStorage`, the requirement is
+almost never "keep using localStorage". It is: *this was always meant to be
+shared, and the prototype could not express that.* Say so explicitly rather
+than porting the mechanism.
+
+## Declaring a table
+
+Types are `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `enum`.
+A `decimal` must declare `digits` and `places`; an `enum` must declare `values`.
+`key:` names the field that identifies a row - leave it out and the store
+assigns an `id`.
+
+```yaml
+title: Homework
+key: id
+public: true          # ONLY needed if ANONYMOUS visitors must see rows
+fields:
+  child:   { type: enum, values: [sasha, daniel], required: true }
+  subject: { type: text, required: true, max: 40 }
+  task:    { type: text, max: 300 }
+  due:     { type: date }
+  done:    { type: boolean, default: false }
+```
+
+Then `data-migrate`. Declaring is not creating; the migration is a separate,
+deliberate step, and re-running it is safe.
+
+### Things the descriptor cannot yet say
+
+Know these before designing a schema, because each one becomes hand-work:
+
+- **No ordering.** There is no sequence type. An ordered list needs a
+  `position` integer you maintain yourself, and inserting in the middle means
+  rewriting the ones below.
+- **No file or asset reference.** An image is a `text` filename. Nothing checks
+  it exists, nothing notices a rename.
+- **No list type.** Tags and aliases become a delimited string with a
+  convention nothing validates.
+- **No relations.** A foreign key is a `text` field and an understanding.
+- **Long text and short text are the same type**, so nothing tells a future
+  editor to use a textarea.
+- **Uniqueness only via `key`.**
+
+## Reading it back
+
+```
+tt_page_var:
+  items: db:homework sort=due asc limit=50
+```
+
+Then loop in the body. `loop.count`, `loop.size`, `loop.first`, `loop.last`,
+`loop.prev` and `loop.next` give counters and wrap-around navigation without
+storing any of it in the data.
+
+Three properties worth knowing:
+
+- **A `db:` page is never cached.** It renders per request. That is correct for
+  data that changes, and it is a cost to keep in mind on a heavy page.
+- **An unpublished table renders nothing to an ANONYMOUS visitor, silently** -
+  not the rows, not the fact that it exists - while the API and the manager
+  still read it, so the data looks fine and the page looks broken. It renders
+  normally for a signed-in user. If a public page shows zero rows, `public:` is
+  the first thing to check; if a *gated* page does, it is the read list or the
+  page gate, and publishing the table is the wrong fix. See *Two separate
+  controls guard a table*, below.
+- **Filter in the template, not in the query**, when the count matters. Building
+  the filtered list first keeps `loop.size` honest.
+
+## Changing rows over the API
+
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.10.33.*
+
+Reading is `db:` in the page. Writing is the control API, and four of its
+conventions cost a round trip each the first time you meet them. Verified
+against 0.10.29.
+
+`data-row-save` is BOTH insert and update, and `key` is what decides which
+: To ADD a row, omit `key` entirely and carry the key field inside `row`.
+  To EDIT one, pass `key` and leave the key field OUT of `row`. Passing `key`
+  AND the key field together is refused as `key_immutable` - it reads as an
+  attempt to rename a row, which is the one thing a save will not do. Moving a
+  row to a new key is a delete and an add.
+
+`data-import` wants multipart, not a body
+: The CSV must arrive as a multipart part named `file`. Posting the CSV as a
+  raw request body fails validation, whatever the content type says.
+
+`data-table-drop` confirms by NAME
+: `confirm` takes the table's own name, not `1` and not `true`. Deliberate -
+  it makes a drop impossible to fire by copying another call's confirm flag.
+
+A drop leaves a safety export you may not be able to delete
+: Dropping writes every row to `lazysite/db/rebuilds/<table>-dropped-<ts>.json`
+  first. That is good - a drop is recoverable. But `lazysite/db/` is denied over
+  WebDAV by design, so an agent holding `manage_data` can legitimately drop a
+  table and then cannot clean up the file its own drop created. Plan for an
+  operator to remove it, and say so when you hand over.
+
+Two properties of these that are easy to misread:
+
+- **Where the table name rides differs per action.** `data-migrate` and
+  `data-import` read it from the query only. `data-row-save`, `data-row-delete`,
+  `data-rebuild`, `data-table-save` and `data-table-drop` accept it in the query
+  OR the body, query winning. If a call is being ignored, check you put the
+  table where that action looks.
+- **The refusals teach.** Each of the above names the rule it enforced and, in
+  the drop's case, quotes the exact confirm string back. Read the error before
+  assuming a missing capability - three times now I have chased a "missing"
+  capability that was one wrong spelling of a parameter.
+
+## Identity, and who may see what
+
+An app usually has to answer "who is this?" before it can answer anything else.
+
+- `auth: required` on a page, `auth_groups:` to name who
+- ACLs gate a whole section: `acl-set` with the **path in the query and the
+  lists in the body**. Gated content moves to a private store
+- An owner with **no read list leaves reading open** - that governs writes only
+- **Verify a permission with an unauthenticated fetch**, never with the API's
+  own success reply
+
+### Two separate controls guard a table, and this is the shape a gated app wants
+
+Confirmed with the engine side 2026-08-24, and it is not obvious from the flag's
+name:
+
+- **`public:` answers one question only - may an ANONYMOUS visitor see these
+  rows?** Default no.
+- **The ACL read list on `lazysite/db/tables/<name>`** answers which named
+  accounts or groups may.
+
+So **an unpublished table renders normally for a signed-in user.** Authenticated-
+only rendering is the *default state* of a table, not something to arrange. The
+render path carries the real visitor, never an operator, so a page shows the
+same rows to whoever is looking.
+
+For an app whose data should never be public:
+
+1. Leave `public:` off - anonymous readers get nothing, not even the table's
+   existence.
+2. Put a read list on `lazysite/db/tables/<name>` naming the users or group.
+3. Gate the pages too.
+
+ACL lookup is **longest-prefix**, so one rule on `lazysite/db/tables` governs
+every table at once if a site-wide default is what you want.
+
+**Do not reach for `public: true` to make a gated page work.** If rows are not
+appearing for a signed-in user, the read list or the page gate is the cause, and
+publishing the table would fix the symptom by removing the protection.
+
+For a family app, expect at least three roles and design for them from the
+start: an adult who administers, an adult who participates, and a child who
+sees their own things and not their sibling's. A fourth is common - a person
+who appears in the data but never signs in (a grandparent, a coach).
+
+## Forms are how people put data in
+
+A person in a browser cannot call the control API, so a form is the only way
+they write anything. Three properties decide the design.
+
+**There is a `db` form handler** - *"Store in a data table"*. It takes a table
+and a **required** `form field=column` mapping. Values are checked against the
+declared types, so a submission that does not fit is **refused and the visitor
+told**, rather than thanked and stored wrong. Fields nobody maps are **dropped**,
+so a form gaining a field cannot start writing a column on its own.
+
+**A form can dispatch to several handlers at once** - a file record and a table
+row from one submission, if both are wanted.
+
+**Forms only ever INSERT.** The db target inserts and has no update branch, so a
+submission carrying an existing key is refused on the unique key rather than
+superseding the row. A form is a **capture** surface, never an edit surface.
+Corrections travel by the manager row editor, a CSV round trip, or an API row
+update; `save_data_row` **with** a key updates in place.
+
+**So design the capture surface and the correction surface separately.** They
+are not the same surface and they do not want the same shape: a guided form is
+right for entering a hundred things with their context in front of you, and
+wrong for fixing one of them. A row editor is the reverse.
+
+**Watch for a design that only exists because the old store could not be
+edited.** Append-only files force "write again, latest wins" and it looks like a
+requirement long after it has stopped being one. Given a table, the correction
+is an update, the superseding rule disappears from both ends, and so does the
+risk of a partial re-submission blanking what it did not re-state. Ask what a
+rule is protecting against before porting it.
+
+**Creating or editing a handler is an operator action.** `lazysite/forms/handlers.conf`
+is denied to every partner grant, so a build plan that needs a new handler has an
+operator step in it. Say so up front rather than discovering it at kick-off.
+
+### One submission is one row
+
+The trap. A form maps **fields to columns**, so one submission becomes one
+**record**. That is right when one form means one thing - a contact message, one
+answer, one booking.
+
+It breaks when a page collects many things at once. A form with forty-five
+question fields cannot become forty-five rows; it becomes one row forty-five
+columns wide, and that table changes shape every time the questions change,
+which means it is a spreadsheet rather than a table.
+
+When capture and storage disagree on shape, the honest options are:
+
+- **one form per record** - clean, but check the page can carry more than one
+  form, and that the record's identity can travel with it (there is **no hidden
+  or fixed field type**, so a constant cannot simply be attached)
+- **capture to the file handler and load into the table** as a separate step -
+  keeps the append-only record as an audit trail and rests on nothing exotic
+- never a column per question
+
+### Two limits worth designing around
+
+**Submissions must arrive between 3 seconds and 2 hours after the page
+rendered** - an HMAC timestamp token, and unlike the rate limit it is not
+configurable per form. Any long data-entry page, or one left open over a lunch
+break, will cross it and the person loses what they typed. Design for **partial
+submission**, keep pages short, and put "submit as you go" in the on-page
+guidance rather than in a briefing nobody re-reads.
+
+**Rate limiting is five submissions per IP per hour** by default, which is right
+for a public contact form and wrong for a team working through data-entry pages
+from one office address. From SM425 a submission whose **session cookie
+verifies** bypasses the anonymous limit, so a signed-in team needs no tuning -
+check the deployed build before reaching for `rate_limit: off`, which remains
+the mechanism for forms that are open but protected another way.
+
+## Importing from a feed
+
+When rows arrive from another system on a cycle:
+
+- **Upsert by a stable business key**, never by position.
+- **Do not delete rows that stopped appearing.** Mark them resolved or archived.
+  A deleted parent orphans whatever referenced it and destroys the record of
+  what was once asked.
+- **Keep one copy of the truth.** Once a feed file is loaded, it should not also
+  sit in the docroot where a page could read it - two sources disagree
+  eventually, and the one nobody is watching wins.
+- Carry the source system's ordering in a `position` column, because tables have
+  no order of their own, and do not re-sort it if that ordering is somebody
+  else's decision.
+
+## Identifiers must not be positional
+
+If a checkbox is keyed `child:hw0` - child plus the *index* of the item in a
+list - then deleting or reordering the list silently transfers the tick to a
+different task. The same applies to any state stored beside a list rather than
+in it.
+
+**Give every row a stable key and store state against it.** Where a prototype
+uses positional ids, that is a defect to fix in the port, not a pattern to
+carry over.
+
+## Workflow: the shape most family and team apps take
+
+Nearly all of them are the same four movements. Naming them early makes the
+schema obvious:
+
+1. **Capture** - something arrives: typed, dictated, photographed, imported.
+2. **Structure** - it becomes rows: a task with a date, a mark with a subject.
+3. **Act** - somebody ticks, assigns, reorders, completes.
+4. **Reflect** - a view that shows what happened and what is next.
+
+Capture is where prototypes are strongest and production is weakest, because
+capture is the part that needs a person's context. Be careful promising
+automatic structuring of free text; specify what happens when it gets it wrong.
+
+## Where the intelligence runs
+
+A prototype may call a model directly from the browser. A deployed app cannot:
+the key would be in the page. Any model call belongs behind the server, with:
+
+- a defined **input** (what text or image is sent) and **output** (a schema you
+  validate, not prose you parse)
+- an explicit answer to **what happens when it returns nothing useful**
+- a **person in the loop** for anything that becomes a record - suggestions
+  should be offered and accepted, never written straight in
+- a note in the specification about **what leaves the building**, because
+  family and pupil data going to a third party is a decision the client makes,
+  not a detail
+
+## Scheduling
+
+Anything recurring lives **in the stack**, not in host cron - a sidecar or an
+in-process timer that ships with the app. A schedule the operator has to
+remember to install is a schedule that will be missing after the next move.
+
+## Before calling an app done
+
+- Two devices, two people, one record: does an edit by one appear for the other?
+- Sign out: is anything visible that should not be?
+- A child's login: can they reach a sibling's data by editing the URL?
+- Delete a row referenced elsewhere: what happens to the thing pointing at it?
+- Clear browser storage: does the app still know everything it should?
+- Restore from backup: is the data really in the store, or only in a page?
+
+## Reading a client's prototype
+
+A prototype is a **requirement expressed in the only language available**, not
+a design to copy. Extract, in this order:
+
+1. **The data** - every list, constant and record in the source. This is the
+   schema, whether or not it is declared.
+2. **The computations** - averages, roll-ups, groupings. These are business
+   rules and they are usually written down nowhere else.
+3. **The vocabulary** - the client's own words for things. Keep them exactly;
+   they are the domain language and renaming them loses meaning.
+4. **The interactions** - what is clickable, what persists, what is only
+   visual.
+5. **What is defined but never shown.** Dead constants are almost always an
+   intention that ran out of time, and they belong in the requirements as a
+   question rather than being silently dropped or silently built.
+
+Then state plainly what the prototype could not express: sharing, permissions,
+history, backup, what happens when two people edit at once.
+
+## Where this came from
+
+Imported on **2026-08-25** by `tools/import-field-practice.pl`, for engine **0.10.33**. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+
+| Source | Covers | Last changed |
+| --- | --- | --- |
+| `/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md` | sites and content | 2026-08-25 |
+| `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-24 |
+
+Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; an operator can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
+
+If you have found something durable that is missing - a mechanism worth reaching for, a trap worth naming, a measurement worth keeping - send it to the operator for the source files rather than adding it to the site.
