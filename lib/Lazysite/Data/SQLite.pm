@@ -76,9 +76,10 @@ sub _raw_ident {
 
 sub _ident {
     my ($n) = @_;
-    die "refusing to build SQL with an unvalidated identifier: '"
-        . ( defined $n ? $n : '(undef)' ) . "'"
-        unless defined $n && $n =~ /\A[a-z][a-z0-9_]*\z/;
+
+    # DA-6: ONE validation, in _raw_ident. Both subs used to carry the same
+    # die with a comment on this one explaining that the duplication was
+    # deliberate; calling through makes the single rule structural.
 
     # QUOTED, and the module header's original claim was wrong about this.
     #
@@ -105,9 +106,19 @@ sub _ident {
     # quotes are ANSI SQL and work in SQLite and Postgres; a MySQL adapter
     # would use backticks, in ITS OWN _ident, which is the point.
     #
-    # The validation above still does the security work: it runs FIRST, so a
-    # name containing a quote cannot reach the quoting.
-    return qq{"$n"};
+    # _raw_ident's validation still does the security work: it runs FIRST,
+    # so a name containing a quote cannot reach the quoting.
+    return '"' . _raw_ident($n) . '"';
+}
+
+# THE GUARD FIFTEEN BUILDERS SHARE (DA-8). Every statement builder refused an
+# unloaded descriptor with the same sentence, written out fifteen times.
+# $what names the caller, so the refusal still says which builder was asked -
+# which is the only part that ever differed.
+sub _loaded {
+    my ( $d, $what ) = @_;
+    die "$what needs a loaded descriptor" unless ref $d eq 'HASH' && $d->{ok};
+    return 1;
 }
 
 # The column type for a field descriptor, as SQLite should hold it.
@@ -133,7 +144,7 @@ sub column_type {
 # keeps values out of generated SQL text entirely, which is the invariant above.
 sub create_table_sql {
     my ($d) = @_;
-    die 'create_table_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'create_table_sql' );
 
     my $table = _ident( $d->{table} );
     my @cols;
@@ -173,7 +184,7 @@ sub create_table_sql {
 # from anywhere, so it cannot carry anything that was not already validated.
 sub index_sql {
     my ($d) = @_;
-    die 'index_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'index_sql' );
     my $table = _ident( $d->{table} );
     my @out;
     for my $ix ( @{ $d->{indexes} || [] } ) {
@@ -204,8 +215,7 @@ sub index_sql {
 # not decide what the SQL for it looks like.
 sub unique_index_sql {
     my ($d) = @_;
-    die 'unique_index_sql needs a loaded descriptor'
-        unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'unique_index_sql' );
     my $table = _ident( $d->{table} );
     return map {
         'CREATE UNIQUE INDEX IF NOT EXISTS '
@@ -226,7 +236,7 @@ sub unique_index_sql {
 # pre-flight say "2 rows have no `when`" instead.
 sub null_count_sql {
     my ( $d, $field ) = @_;
-    die 'null_count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'null_count_sql' );
     my $col = _ident($field);
     return "SELECT COUNT(*) FROM " . _ident( $d->{table} ) . " WHERE $col IS NULL";
 }
@@ -236,14 +246,14 @@ sub null_count_sql {
 # question, so the values come out and are coerced one by one.
 sub column_values_sql {
     my ( $d, $field ) = @_;
-    die 'column_values_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'column_values_sql' );
     my $col = _ident($field);
     return "SELECT DISTINCT $col FROM " . _ident( $d->{table} ) . " WHERE $col IS NOT NULL";
 }
 
 sub key_list_sql {
     my ($d) = @_;
-    die 'key_list_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'key_list_sql' );
     return 'SELECT ' . _ident( $d->{key} ) . ' FROM ' . _ident( $d->{table} );
 }
 
@@ -252,8 +262,7 @@ sub key_list_sql {
 # (D11), and `DROP TABLE` is as much a dialect as `CREATE` is.
 sub drop_table_sql {
     my ($d) = @_;
-    die 'drop_table_sql needs a loaded descriptor'
-        unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'drop_table_sql' );
     return 'DROP TABLE IF EXISTS ' . _ident( $d->{table} );
 }
 
@@ -272,8 +281,7 @@ sub unique_index_name {
 # operator hunting for a conflict that can never happen.
 sub duplicate_value_sql {
     my ( $d, $field ) = @_;
-    die 'duplicate_value_sql needs a loaded descriptor'
-        unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'duplicate_value_sql' );
     my $col = _ident($field);
     return
         "SELECT $col FROM "
@@ -321,8 +329,8 @@ sub _cols_and_binds {
 # a bind.
 sub insert_sql {
     my ( $d, $values ) = @_;
-    die 'insert_sql needs a loaded descriptor' unless ref $d eq 'HASH'      && $d->{ok};
-    die 'insert_sql needs values'              unless ref $values eq 'HASH' && %{$values};
+    _loaded( $d, 'insert_sql' );
+    die 'insert_sql needs values' unless ref $values eq 'HASH' && %{$values};
 
     my ( $cols, $binds ) = _cols_and_binds($values);
     my $table = _ident( $d->{table} );
@@ -340,8 +348,8 @@ sub insert_sql {
 # emit one.
 sub update_sql {
     my ( $d, $key_value, $values ) = @_;
-    die 'update_sql needs a loaded descriptor' unless ref $d eq 'HASH'      && $d->{ok};
-    die 'update_sql needs values'              unless ref $values eq 'HASH' && %{$values};
+    _loaded( $d, 'update_sql' );
+    die 'update_sql needs values' unless ref $values eq 'HASH' && %{$values};
     die 'update_sql needs a key value'
         unless defined $key_value && length $key_value;
 
@@ -371,7 +379,7 @@ sub update_sql {
 # unbounded form exists.
 sub delete_sql {
     my ( $d, $key_value ) = @_;
-    die 'delete_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'delete_sql' );
     die 'delete_sql needs a key value'
         unless defined $key_value && length $key_value;
     my $table = _ident( $d->{table} );
@@ -432,14 +440,14 @@ sub _where {
 
 sub count_sql {
     my ( $d, %opt ) = @_;
-    die 'count_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'count_sql' );
     my ( $where, $binds ) = _where( $d, $opt{where}, 'count_sql' );
     return ( 'SELECT COUNT(*) FROM ' . _ident( $d->{table} ) . $where, $binds );
 }
 
 sub select_sql {
     my ( $d, %opt ) = @_;
-    die 'select_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'select_sql' );
     my $table  = _ident( $d->{table} );
     my $fields = $d->{fields};
 
@@ -542,7 +550,7 @@ sub table_has_rows {
 # answer from the other direction.
 sub add_column_sql {
     my ( $d, $field ) = @_;
-    die 'add_column_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
+    _loaded( $d, 'add_column_sql' );
     my $spec = $d->{fields}{$field} or die "add_column_sql: no field '$field'";
     return 'ALTER TABLE ' . _ident( $d->{table} ) . ' ADD COLUMN '
         . _ident($field) . ' ' . column_type($spec);
@@ -554,8 +562,8 @@ sub add_column_sql {
 # migration that fails badly the one time it is interrupted.
 sub backfill_sql {
     my ( $d, $field, $value ) = @_;
-    die 'backfill_sql needs a loaded descriptor' unless ref $d eq 'HASH' && $d->{ok};
-    die "backfill_sql: no field '$field'"        unless exists $d->{fields}{$field};
+    _loaded( $d, 'backfill_sql' );
+    die "backfill_sql: no field '$field'" unless exists $d->{fields}{$field};
     return ( 'UPDATE ' . _ident( $d->{table} ) . ' SET ' . _ident($field)
             . ' = ? WHERE ' . _ident($field) . ' IS NULL',
         [$value] );

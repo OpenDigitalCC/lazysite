@@ -77,6 +77,17 @@ sub _index_name {
 # can apply what is safe now and decide about the rest. Returning all-or-
 # nothing would make one awkward column freeze every other change, and the
 # usual response to that is to edit the store by hand.
+# THE DUPLICATE PROBE BOTH PLANNERS RUN (DA-14): the first value that appears
+# in more than one row, or undef. eval'd because the column may not exist yet -
+# the probe is asked BEFORE the migration that would create it.
+sub _first_duplicate {
+    my ( $dbh, $d, $f ) = @_;
+    return eval {
+        my $row = $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) );
+        $row ? $row->[0] : undef;
+    };
+}
+
 sub plan_migration {
     my ( $d, $dbh ) = @_;
     return { ok => 0, error => 'a loaded descriptor is required' }
@@ -205,11 +216,7 @@ sub plan_migration {
         next if $observed->{indexes}{$name};
 
         if ($has_rows) {
-            my $dup = eval {
-                my $row
-                    = $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) );
-                $row ? $row->[0] : undef;
-            };
+            my $dup = _first_duplicate( $dbh, $d, $f );
             if ( defined $dup ) {
                 push @blocked,
                     { field => $f,
@@ -330,10 +337,7 @@ sub plan_rebuild {
         }
 
         if ( grep { $_ eq $f } @{ $d->{unique} || [] } ) {
-            my $dup = eval {
-                my $r = $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) );
-                $r ? $r->[0] : undef;
-            };
+            my $dup = _first_duplicate( $dbh, $d, $f );
             push @blocked, { field => $f, rule => 'unique',
                 why => "'$f' cannot be made unique: the value '$dup' is in "
                     . 'more than one row already' }

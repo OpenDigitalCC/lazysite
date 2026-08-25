@@ -216,7 +216,131 @@ sub _check_field {
     return undef;
 }
 
+# --- whole-descriptor checks ------------------------------------------------
+#
+# DA-17: load_descriptor was one 135-line ladder of four unrelated checks, and
+# a reader had to hold all of them to follow any one. Each is its own sub now.
+#
+# WHY THESE RETURN A FORMED ERROR rather than a message the way _check_field
+# does: a field-level refusal always carries `rule => 'type'`, so its caller
+# can add that one key for all of them. These four carry `field` and `rule`
+# keys that DIFFER per branch - 'key', 'index', 'order', 'writable_by', and
+# `field` present or absent - and those keys are read by the surfaces that
+# report the refusal. A bare message would lose them.
+#
+# Each returns ( <the value it validated>, undef ) or ( undef, $err ).
+
+# The key: 'id' means an auto integer the plugin owns and no field may
+# shadow. Anything else must name a declared field.
+sub _check_key {
+    my ( $name, $raw, $fields ) = @_;
+    my $key = defined $raw->{key} ? $raw->{key} : 'id';
+    if ( my $why = _bad_ident($key) ) {
+        return ( undef,
+            _err( 'descriptor', "table '$name': key: $why", rule => 'key' ) );
+    }
+    if ( $key eq 'id' ) {
+        return ( undef,
+            _err( 'descriptor',
+                "table '$name': 'id' is the automatic key and cannot also be a field",
+                field => 'id', rule => 'key' ) )
+            if $fields->{id};
+    }
+    else {
+        return ( undef,
+            _err( 'descriptor',
+                "table '$name': key '$key' is not one of its fields",
+                field => $key, rule => 'key' ) )
+            unless $fields->{$key};
+
+        # A natural key carries required+unique by implication, and saying so
+        # here means the DDL generator does not have to infer it.
+        return ( undef,
+            _err( 'descriptor', "table '$name': key '$key' must be type text",
+                field => $key, rule => 'key' ) )
+            unless ( $fields->{$key}{type} // '' ) eq 'text';
+    }
+    return ( $key, undef );
+}
+
+# Indexes name declared fields, in order.
+sub _check_indexes {
+    my ( $name, $raw, $fields, $key ) = @_;
+    my $indexes = $raw->{indexes} // [];
+    return ( undef,
+        _err( 'descriptor', "table '$name': indexes must be a list" ) )
+        unless ref $indexes eq 'ARRAY';
+    for my $ix ( @{$indexes} ) {
+        return ( undef,
+            _err( 'descriptor',
+                "table '$name': each index must be a list of field names",
+                rule => 'index' ) )
+            unless ref $ix eq 'ARRAY' && @{$ix};
+        for my $f ( @{$ix} ) {
+            next if $fields->{$f};
+            next if $key ne 'id' && $f eq $key;
+            return ( undef,
+                _err( 'descriptor',
+                    "table '$name': index names '$f', which is not a field",
+                    field => $f, rule => 'index' ) );
+        }
+    }
+    return ( $indexes, undef );
+}
+
+# F-1: THE ORDER THE SITE MEANS. A gallery is an ordered list - somebody
+# chose the sequence - and without this a bare `db:gallery` returns rows in
+# whatever order the store hands back, which is insertion order until it is
+# not. Saying it once in the descriptor beats repeating `order=` in every
+# binding and getting it wrong in one of them.
+#
+# `-field` is descending, the same spelling the query grammar uses.
+#
+# Returns ( $field, $dir, undef ) - $field undef when none was declared.
+sub _check_default_order {
+    my ( $name, $raw, $fields, $key, $timestamps ) = @_;
+    my $dord = $raw->{default_order};
+    my ( $do_field, $do_dir ) = ( undef, 'asc' );
+    return ( $do_field, $do_dir, undef ) unless defined $dord && length $dord;
+
+    return ( undef, undef,
+        _err( 'descriptor', "table '$name': default_order must be a "
+                . 'field name, optionally prefixed with -', rule => 'order' ) )
+        if ref $dord;
+    ( $do_field = $dord ) =~ s/\A-// and $do_dir = 'desc';
+    return ( undef, undef,
+        _err( 'descriptor',
+            "table '$name': default_order names '$do_field', which is not one "
+                . 'of its fields',
+            field => $do_field, rule => 'order' ) )
+        unless $fields->{$do_field}
+        || $do_field eq $key
+        || ( $timestamps && $do_field =~ /\A(?:created_at|updated_at)\z/ );
+    return ( $do_field, $do_dir, undef );
+}
+
+sub _check_writable_by {
+    my ( $name, $raw ) = @_;
+    my $wb = $raw->{writable_by} // [];
+    return ( undef,
+        _err( 'descriptor', "table '$name': writable_by must be a list" ) )
+        unless ref $wb eq 'ARRAY';
+    for my $g ( @{$wb} ) {
+        return ( undef,
+            _err( 'descriptor',
+                "table '$name': writable_by group names must be plain names",
+                rule => 'writable_by' ) )
+            unless defined $g && !ref $g && $g =~ /\A[A-Za-z0-9_-]+\z/;
+    }
+    return ( $wb, undef );
+}
+
 # --- whole-descriptor load --------------------------------------------------
+#
+# The orchestrator. The ORDER the checks run in is part of the contract - a
+# descriptor with two faults is told about the first one, and which one that
+# is has to stay the same - so it is: fields, key, indexes, public,
+# timestamps, default_order, writable_by.
 
 sub load_descriptor {
     my ( $name, $raw ) = @_;
@@ -248,48 +372,11 @@ sub load_descriptor {
         }
     }
 
-    # The key: 'id' means an auto integer the plugin owns and no field may
-    # shadow. Anything else must name a declared field.
-    my $key = defined $raw->{key} ? $raw->{key} : 'id';
-    if ( my $why = _bad_ident($key) ) {
-        return _err( 'descriptor', "table '$name': key: $why", rule => 'key' );
-    }
-    if ( $key eq 'id' ) {
-        return _err( 'descriptor',
-            "table '$name': 'id' is the automatic key and cannot also be a field",
-            field => 'id', rule => 'key' )
-            if $fields->{id};
-    }
-    else {
-        return _err( 'descriptor',
-            "table '$name': key '$key' is not one of its fields",
-            field => $key, rule => 'key' )
-            unless $fields->{$key};
-        # A natural key carries required+unique by implication, and saying so
-        # here means the DDL generator does not have to infer it.
-        return _err( 'descriptor',
-            "table '$name': key '$key' must be type text",
-            field => $key, rule => 'key' )
-            unless ( $fields->{$key}{type} // '' ) eq 'text';
-    }
+    my ( $key, $key_err ) = _check_key( $name, $raw, $fields );
+    return $key_err if $key_err;
 
-    # Indexes name declared fields, in order.
-    my $indexes = $raw->{indexes} // [];
-    return _err( 'descriptor', "table '$name': indexes must be a list" )
-        unless ref $indexes eq 'ARRAY';
-    for my $ix ( @{$indexes} ) {
-        return _err( 'descriptor',
-            "table '$name': each index must be a list of field names",
-            rule => 'index' )
-            unless ref $ix eq 'ARRAY' && @{$ix};
-        for my $f ( @{$ix} ) {
-            next if $fields->{$f};
-            next if $key ne 'id' && $f eq $key;
-            return _err( 'descriptor',
-                "table '$name': index names '$f', which is not a field",
-                field => $f, rule => 'index' );
-        }
-    }
+    my ( $indexes, $index_err ) = _check_indexes( $name, $raw, $fields, $key );
+    return $index_err if $index_err;
 
     # SM476: `public` is the publication flag, and it DEFAULTS TO FALSE.
     #
@@ -307,39 +394,12 @@ sub load_descriptor {
         rule => 'timestamps' )
         if $ts_why;
 
-    # F-1: THE ORDER THE SITE MEANS. A gallery is an ordered list - somebody
-    # chose the sequence - and without this a bare `db:gallery` returns rows in
-    # whatever order the store hands back, which is insertion order until it is
-    # not. Saying it once in the descriptor beats repeating `order=` in every
-    # binding and getting it wrong in one of them.
-    #
-    # `-field` is descending, the same spelling the query grammar uses.
-    my $dord = $raw->{default_order};
-    my ( $do_field, $do_dir ) = ( undef, 'asc' );
-    if ( defined $dord && length $dord ) {
-        return _err( 'descriptor', "table '$name': default_order must be a "
-                . 'field name, optionally prefixed with -', rule => 'order' )
-            if ref $dord;
-        ( $do_field = $dord ) =~ s/\A-// and $do_dir = 'desc';
-        return _err( 'descriptor',
-            "table '$name': default_order names '$do_field', which is not one "
-                . 'of its fields',
-            field => $do_field, rule => 'order' )
-            unless $fields->{$do_field}
-            || $do_field eq $key
-            || ( $timestamps
-            && $do_field =~ /\A(?:created_at|updated_at)\z/ );
-    }
+    my ( $do_field, $do_dir, $order_err )
+        = _check_default_order( $name, $raw, $fields, $key, $timestamps );
+    return $order_err if $order_err;
 
-    my $wb = $raw->{writable_by} // [];
-    return _err( 'descriptor', "table '$name': writable_by must be a list" )
-        unless ref $wb eq 'ARRAY';
-    for my $g ( @{$wb} ) {
-        return _err( 'descriptor',
-            "table '$name': writable_by group names must be plain names",
-            rule => 'writable_by' )
-            unless defined $g && !ref $g && $g =~ /\A[A-Za-z0-9_-]+\z/;
-    }
+    my ( $wb, $wb_err ) = _check_writable_by( $name, $raw );
+    return $wb_err if $wb_err;
 
     return {
         ok          => 1,

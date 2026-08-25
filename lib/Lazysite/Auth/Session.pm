@@ -42,12 +42,12 @@ sub SESSION_COOKIE_MAX  { return 86400 }             # 24 hours
 our $LAZYSITE_DIR;    # "$DOCROOT/lazysite", set by the script
 
 sub _csrf_secret {
-    my $path = "$LAZYSITE_DIR/auth/.secret";
-    if ( -f $path && open my $fh, '<', $path ) {
-        chomp( my $s = <$fh> );
-        close $fh;
-        return $s if length $s;
-    }
+
+    # DA-25: the first branch WAS _auth_secret_read, written out again. The
+    # copy also chomped an undef read from an empty file; the shared reader
+    # defaults it to '', which is the same answer without the warning.
+    my $auth = _auth_secret_read();
+    return $auth if length $auth;
     # Dedicated manager secret (only used if the auth secret is missing).
     my $mpath = "$LAZYSITE_DIR/manager/.csrf-secret";
     if ( -f $mpath && open my $mfh, '<', $mpath ) {

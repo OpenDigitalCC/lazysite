@@ -8,7 +8,7 @@ package Lazysite::Auth::Credential;
 
 use strict;
 use warnings;
-use Digest::SHA qw(sha256_hex);
+use Digest::SHA    qw(sha256_hex);
 use Lazysite::Util qw(const_eq);
 use Exporter 'import';
 
@@ -31,13 +31,22 @@ sub generate_random_hex {
     return unpack( 'H*', $raw );
 }
 
+# DA-27: THE SALTED ITERATION, ONCE. Four subs wrote out the same loop.
+# hash_token's single round is this loop with $iters = 1, which is what its
+# comment already said it was.
+sub _iterate {
+    my ( $salt, $plain, $iters ) = @_;
+    my $h = $plain;
+    $h = sha256_hex( $salt . $h ) for 1 .. $iters;
+    return $h;
+}
+
 # Salted, iterated password hash (100k iterations).
 sub hash_password {
     my ($password) = @_;
-    my $salt  = generate_random_hex(16);    # 32 hex chars = 16 bytes
-    my $iters = 100_000;
-    my $hash  = $password;
-    $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
+    my $salt       = generate_random_hex(16);                # 32 hex chars = 16 bytes
+    my $iters      = 100_000;
+    my $hash       = _iterate( $salt, $password, $iters );
     return "sha256iter:$salt:$iters:$hash";
 }
 
@@ -49,8 +58,7 @@ sub verify_password {
     if ( $stored =~ /\Asha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})\z/ ) {
         my ( $salt, $iters, $expected ) = ( $1, $2, $3 );
         return 0 if $iters < 1 || $iters > 1_000_000;    # sanity cap
-        my $hash = $password;
-        $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
+        my $hash = _iterate( $salt, $password, $iters );
         return const_eq( $hash, $expected );
     }
     elsif ( $stored =~ /\A[0-9a-f]{64}\z/ ) {
@@ -64,8 +72,8 @@ sub verify_password {
 # so one round suffices; this just avoids storing it in the clear).
 sub hash_token {
     my ($token) = @_;
-    my $salt = generate_random_hex(16);
-    my $hash = sha256_hex( $salt . $token );
+    my $salt    = generate_random_hex(16);
+    my $hash    = _iterate( $salt, $token, 1 );
     return "sha256iter:$salt:1:$hash";
 }
 
@@ -76,13 +84,11 @@ sub verify_secret {
     return 0 unless defined $plain && defined $stored;
     return 0 unless $stored =~ /\Asha256iter:([0-9a-f]+):(\d+):([0-9a-f]{64})\z/;
     my ( $salt, $iters, $want ) = ( $1, $2, $3 );
-    my $h = $plain;
-    $h = sha256_hex( $salt . $h ) for 1 .. $iters;
-    return 0 unless length $h == length $want;
-    my $diff = 0;
-    $diff |= ord( substr $h, $_, 1 ) ^ ord( substr $want, $_, 1 )
-        for 0 .. length($h) - 1;
-    return $diff == 0;
+    my $h = _iterate( $salt, $plain, $iters );
+
+    # DA-27: const_eq, which is imported, IS this comparison - same length
+    # check first, same xor-accumulate, same 1/'' answer.
+    return const_eq( $h, $want );
 }
 
 # Mint a new access token (lzs_ + 32 random bytes).
