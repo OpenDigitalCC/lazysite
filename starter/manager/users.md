@@ -467,6 +467,12 @@ function accountSettingsHtml(row) {
   var mcp      = !!s.mcp;
   var api      = !!s.api;
   var disabled = !!s.disabled;
+  // SM596: is this an account you would CONNECT an assistant as? The sheet
+  // title already calls an account human or AI by `ui` alone, so that is the
+  // distinction used here rather than a second, disagreeing one. A remote
+  // channel also counts: an account holding api or mcp needs a token whatever
+  // else it is, and the WebDAV block below points at this panel to get one.
+  var connectable = (!ui || mcp || api);
   var scopes   = Array.isArray(s.dav_scopes) ? s.dav_scopes : [];   // SM155: group-derived
   var scope    = scopes.length === 1 ? scopes[0] : '';
   var comment  = s.comment || '';
@@ -533,9 +539,15 @@ function accountSettingsHtml(row) {
       '<button class="mg-btn mg-btn-sm" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
-      '<span class="mg-muted">authenticate with an <strong>access token</strong> &mdash; generate one under <em>Connect an AI assistant</em> below' +
-      (ui ? '; WebDAV also accepts this account&rsquo;s password, but a token is simpler'
-          : ' (an AI account has no password)') + '</span></div>';
+      '<span class="mg-muted">' +
+      (connectable
+        ? 'authenticate with an <strong>access token</strong> &mdash; generate one under <em>Connect an AI assistant</em> below' +
+          (ui ? '; WebDAV also accepts this account&rsquo;s password, but a token is simpler'
+              : ' (an AI account has no password)')
+        // SM596: with the connect panel hidden there is nothing below to point
+        // at, and a human account can authenticate with its own password.
+        : 'authenticate with this account&rsquo;s password') +
+      '</span></div>';
     // SM155: scope is a GROUP setting now (the domain binding). Show the
     // effective scope(s) read-only and point to Groups to change it.
     var scopeTxt = scopes.length ? scopes.join(', ') : 'whole site (minus denied paths)';
@@ -571,7 +583,14 @@ function accountSettingsHtml(row) {
   // Groups page uses - so the audit entry reads identically. Packaging must not
   // turn "give this agent write access" into an implied side effect of a
   // drop-down.
-  if (true) {
+  // SM596: NOT shown for a human account. SM455 opened this to every account so
+  // an operator could pick a client BEFORE the account held a channel - group
+  // membership grants the channel, and it is set on another page, so requiring
+  // it here meant setting an AI up looked like it had failed until a reload.
+  // `!ui` keeps that fix whole: an AI account shows the picker with no channel
+  // yet, which is the case SM455 was about. What it stops is the panel
+  // appearing on an account this same sheet titles "human".
+  if (connectable) {
     var needHint = (mcp || api) ? ''
       : '<p class="mg-muted" style="margin:0 0 0.4rem">This account has no remote channel yet. Choosing a client below will offer to grant the group that provides one &mdash; it will say which, and ask first.</p>';
     var conn = needHint +

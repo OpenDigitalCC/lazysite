@@ -44,18 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM595 resolved (PENDING) **the watcher can be told what it last deployed.**
-  `tools/lazysite-deploy.sh` took its baseline from whatever was already in
-  `dist` at startup, so a release that landed while the watcher was DOWN
-  became the baseline and could never deploy - the workaround was renaming
-  the tarball. `--baseline X.Y.Z` states what was actually deployed, and the
-  startup line now says whether the baseline was `given` or `detected`. Two
-  defects found while building it are fixed with it: the missing-environment
-  check ran before argument parsing, so `--help` failed for anyone who had
-  not configured the watcher, and `usage()` printed a fixed line range that
-  would silently truncate as the header grew. Proven by
-  `t/tools/42-the-watcher-can-be-told-what-it-last-deployed.t`, whose control
-  is the same tree with no `--baseline`, deploying nothing.
+- SM596 resolved (PENDING) **the AI connector is offered to AI accounts.**
+  The account sheet titles each account human or AI, then offered *Connect an
+  AI assistant* to both - the guard was a literal `if (true)`. It now follows
+  the page's own marker (`!ui`), plus any account holding `api` or `mcp`,
+  which needs a token whatever else it is. SM455's reason for opening it to
+  everyone is kept whole: an AI account with no channel yet still gets the
+  picker, because `ui` is false on it from creation and never depended on the
+  group membership that grants the channel. Where the panel is hidden the
+  WebDAV block no longer points at it. `t/unit/users/35` runs the page's
+  JavaScript rather than grepping it.
+
 - SM589 resolved (PENDING) **the floor is not told how the site is installed.**
   SM565 withheld the plugin config schemas; what was still returned described
   the INSTALLATION to a caller holding nothing - `_script` and `config_file`
@@ -72,6 +71,19 @@ Naming the commit: AFTER it lands, never before
   operator should vet. The code already refused them; nothing said so, so an
   agent could only discover it by being refused. The tool description and
   `/docs/forms` now say it and why, and `t/unit/mcp/17` pins both spellings.
+
+- SM595 resolved (PENDING) **the watcher can be told what it last deployed.**
+  `tools/lazysite-deploy.sh` took its baseline from whatever was already in
+  `dist` at startup, so a release that landed while the watcher was DOWN
+  became the baseline and could never deploy - the workaround was renaming
+  the tarball. `--baseline X.Y.Z` states what was actually deployed, and the
+  startup line now says whether the baseline was `given` or `detected`. Two
+  defects found while building it are fixed with it: the missing-environment
+  check ran before argument parsing, so `--help` failed for anyone who had
+  not configured the watcher, and `usage()` printed a fixed line range that
+  would silently truncate as the header grew. Proven by
+  `t/tools/42-the-watcher-can-be-told-what-it-last-deployed.t`, whose control
+  is the same tree with no `--baseline`, deploying nothing.
 
 - SM574 resolved (PENDING) **the field practice ships with every site.** The
   site agent's two best-practice files - what building and breaking real
