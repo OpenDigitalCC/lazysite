@@ -35,3 +35,4 @@ travel inside the artefact, in `release-manifest.json` under `validated`.
 | 0.10.29 | edge | `8b3feb747ce5abdc646c13d3ca09a44d9fae9749` | 574 | 9507 | 2026-08-24 12:06 |
 | 0.10.30 | edge | `d5b03ad0ca46ddf536479e1014ede6f477e60e8b` | 580 | 9576 | 2026-08-24 19:03 |
 | 0.10.31 | edge | `509f4e026cc5f4725c3532ff4a1f40af783207a1` | 581 | 9604 | 2026-08-24 21:02 |
+| 0.10.32 | edge | `f57b6cd2833eb2612f8568a091b0c0bbbe2333e8` | 614 | 10300 | 2026-08-25 12:01 |
