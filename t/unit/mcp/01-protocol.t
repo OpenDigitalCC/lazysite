@@ -261,6 +261,24 @@ ok( ( grep { $_->{path} eq '/content/about.md' && $_->{title} eq 'About Us' }
             @{ $r->{result}{structuredContent}{pages} || [] } ),
     'list_pages includes the page with its title' );
 
+# SM538: a page under docs/ (or quotes/) is a page. _each_page hard-skipped
+# both names - the first site's folder names, carried since SM087 - so the
+# documentation pages were absent from list_pages, audit_site and
+# rename_page's link updates. Engine territory (lazysite/) stays hidden.
+make_path("$d/docs");
+open my $dg, '>', "$d/docs/guide.md" or die $!;
+print $dg "---\ntitle: The Guide\n---\nRead me.\n";
+close $dg;
+open my $stray, '>', "$d/lazysite/stray.md" or die $!;
+print $stray "---\ntitle: Not a page\n---\n";
+close $stray;
+( $st, $r ) = call( 'list_pages', {}, $bearer_lim );
+ok( ( grep { $_->{path} eq '/docs/guide.md' && $_->{title} eq 'The Guide' }
+            @{ $r->{result}{structuredContent}{pages} || [] } ),
+    'list_pages names a page under docs/ (SM538)' );
+ok( !( grep { $_->{path} =~ m{^/lazysite/} } @{ $r->{result}{structuredContent}{pages} || [] } ),
+    'list_pages still hides the engine tree (SM538)' );
+
 # --- page verbs: create_page / rename_page (update_links) / delete_page ---
 ( $st, $r ) = call( 'create_page', { slug => 'newpage', title => 'New Page', body => "Hello.\n", register => ['sitemap'] }, $bearer_lim );
 ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'create_page succeeds' );

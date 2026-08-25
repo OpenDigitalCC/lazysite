@@ -1832,7 +1832,13 @@ sub _read_page {
         public_url => _public_url($rel), modified => $r->{mtime} };
 }
 
-# Walk top-level + content/ .md pages (skip infra/manager/generated partials).
+# Walk every .md page under the docroot, skipping only ENGINE territory: the
+# reserved roots Manager::Common knows (lazysite/), the generated asset tree
+# and the manager UI. SM538: this used to skip img, quotes and docs as well -
+# the first site's folder names, carried since SM087 - so every documentation
+# page under docs/ was invisible to list_pages, audit_site and rename_page.
+my %ENGINE_DIRS = map { $_ => 1 } qw(lazysite-assets manager);
+
 sub _each_page {
     my ($cb)  = @_;
     my @stack = ($DOCROOT);
@@ -1844,8 +1850,10 @@ sub _each_page {
             next if $e =~ /^\./;
             my $full = "$dir/$e";
             if ( -d $full ) {
+                ( my $drel = $full ) =~ s{^\Q$DOCROOT\E/+}{};
                 push @stack, $full
-                    unless $e =~ /^(lazysite|lazysite-assets|manager|img|quotes|docs)$/;
+                    unless $ENGINE_DIRS{$drel}
+                    || Lazysite::Manager::Common::path_is_reserved($drel);
                 next;
             }
             next unless -f $full && $e =~ /\.md$/ && $e !~ /\.md\.brief$/;

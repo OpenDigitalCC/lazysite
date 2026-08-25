@@ -214,6 +214,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM538 resolved (PENDING) **pages under docs/ and quotes/ are part of the
+  site again.** _each_page hard-skipped both names - the first site's
+  folder names, carried since SM087 - so on lazysite.io thirty
+  documentation pages were absent from list_pages, unaudited by audit_site
+  and untouched by rename_page update_links. The walk now asks
+  Manager::Common::path_is_reserved what is engine territory and skips
+  nothing else. t/unit/mcp/01 pins a page under docs/.
+
 - SM537 resolved (PENDING) **every MCP tool carries its own annotation.**
   22 of 69 tools fell to the default [0,0,1], so reads such as
   list_domains, read_data_rows and read_form_submissions advertised as
