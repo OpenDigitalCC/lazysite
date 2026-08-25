@@ -1817,7 +1817,24 @@ elsif ( $action eq 'file-download' ) {
     action_file_download($path);
     exit 0;
 }
-elsif ( $action eq 'backup-list' ) { $result = action_backup_list() }
+elsif ( $action eq 'backup-list' ) {
+    $result = action_backup_list();
+    # SM578: the listing carried no scope filter at all, so a caller who may not
+    # DOWNLOAD another domain's package could still read its name and size - and
+    # a package name carries the host it was made for. Filtered through the same
+    # refusal the download and delete verbs use, so the three cannot disagree
+    # about who reaches what. Only `site` entries are per-domain; a full or
+    # content backup is instance-wide and is governed by manage_config.
+    if ( ref $result eq 'HASH' && ref $result->{backups} eq 'ARRAY' ) {
+        my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . '/backups';
+        $result->{backups} = [
+            grep {
+                ( $_->{scope} // '' ) ne 'site'
+                    || !_package_scope_refusal("$dir/$_->{name}")
+            } @{ $result->{backups} }
+        ];
+    }
+}
 elsif ( $action eq 'backup-create' ) {
     # scope=full = a full-system snapshot (config + auth + content) for DR and
     # cross-domain migration; otherwise a content-only snapshot. These are
@@ -2001,10 +2018,30 @@ sub _conf_text {
 # undef when the caller may proceed. Unconfined operators always may.
 sub _package_scope_refusal {
     my ($pkg) = @_;
-    return undef unless @REQUEST_SCOPES;
+
+    # SM578: THE EXEMPTION IS THE CHANNEL, NOT THE ABSENCE OF A SCOPE.
+    #
+    # This used to return early whenever the caller had no dav_scopes, on the
+    # reading that no scope means unconfined. That is true of a COOKIE session -
+    # the operator, at their own manager - and false of a token or MCP grant,
+    # where it simply means nobody set one. A partner holding manage_domains and
+    # no dav_scope therefore reached every domain's package on the instance, and
+    # a package is a whole site: pages, assets, theme, layout, configuration.
+    #
+    # So the confinement is a property of THIS ACTION now. A cookie session is
+    # exempt because it is the operator; every token grant must name a scope the
+    # package's content root falls inside, and one that names none reaches no
+    # package at all rather than all of them. The operator ACCEPTED that
+    # behaviour change knowing existing partners must be re-scoped.
+    return undef unless $token_auth;
+
+    my $denied = { ok => 0, kind => 'forbidden',
+        error => 'You do not have access to this package.' };
+    return $denied unless @REQUEST_SCOPES;
+
     my $info  = package_inspect($pkg);
     my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
-    return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
+    return $denied
         if !length $croot
         || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
     return undef;

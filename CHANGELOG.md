@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM578 resolved (PENDING) **a package is confined by the action, not by
+  whether a scope happens to be set.** `_package_scope_refusal` returned early
+  whenever the caller had no `dav_scopes`, reading that as unconfined - true
+  of a cookie session, which is the operator, and false of a token grant where
+  it only means nobody set one. A partner holding `manage_domains` and no
+  scope therefore reached every domain's package on the instance, and a
+  package is a whole site. The cookie session is now the explicit exemption; a
+  token grant naming no scope reaches no package. The listing is filtered
+  through the same refusal the download and delete verbs use, so a name and
+  size are no longer readable by a caller who cannot open the file.
+
+- SM577 resolved (PENDING) **deleting a package is scoped by the grant.** The
+  same refusal governs `site-backup-delete`, so a token partner can no longer
+  remove an archive belonging to another domain on the instance - the
+  irreversible half of SM578, and the sharpest case. An operator on a cookie
+  session still reaches every domain's archives, which is SM151's design and
+  the person who owns the instance.
+
 - SM593 resolved (PENDING) **a data table can belong to a domain.**
   `manage_data` is an instance capability and a table's ACL path carries no
   domain component, so on an instance hosting unrelated parties one client's

@@ -20,6 +20,7 @@ use File::Temp  qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root grant_caps);
+use MIME::Base64 qw(encode_base64);
 
 my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
@@ -80,7 +81,8 @@ sub get {
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/logs", "$d/lazysite/backups",
     "$d/lazysite/layouts/base/themes/blue", "$d/sites/clienta" );
-spit( "$d/lazysite/lazysite.conf", "site_name: Agency\n" );
+spit( "$d/lazysite/lazysite.conf",
+    "site_name: Agency\ncontrol_api_enabled: true\n" );
 spit( "$d/lazysite/auth/.secret",  $secret );
 spit( "$d/lazysite/layouts/base/layout.tt",              '[% content %]' );
 spit( "$d/lazysite/layouts/base/themes/blue/theme.json", '{"name":"blue"}' );
@@ -167,6 +169,52 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
         { name => $pkg, host => 'client.example', clean => 1 } );
     ok( $ap->{ok}, 'site-backup-apply applies the package to the target' ) or diag encode_json($ap);
     ok( -f "$d/sites/dest/index.md", 'content landed in the target content root' );
+}
+
+# --- SM578/SM577: confinement is a property of the ACTION ------------------
+# The scope check used to be skipped entirely when the caller had no
+# dav_scopes, on the reading that no scope means unconfined. That is true of a
+# COOKIE session - the operator, above - and false of a TOKEN grant, where it
+# means nobody set one. A partner holding manage_domains and no scope therefore
+# reached every domain's package on the instance, and a package is a whole
+# site.
+#
+# THE WEAKER GRANT IS THE EVIDENCE. Everything above this point authenticates
+# with the trusted header, which is the exempt path, so it could not have shown
+# the gap either way.
+{
+    uapi( $d, { action => 'add', username => 'partner', password => 'partner-pw-0123456789' } );
+    grant_caps( $d, 'partner', 'manage_domains', 'api' );
+    my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
+    ok( length( $tok // '' ), 'a manage_domains token partner exists, with no dav_scope' );
+
+    my $auth = 'Basic ' . encode_base64( "partner:$tok", '' );
+
+    my $dl = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => "action=site-backup-download&name=$pkg",
+        HTTP_AUTHORIZATION => $auth );
+    ok( !$dl->{ok}, 'a scopeless token partner cannot DOWNLOAD another domain\'s package' );
+    is( $dl->{kind}, 'forbidden', 'and is told it is forbidden, not that it is missing' );
+
+    my $del = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=site-backup-delete',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { name => $pkg } ) );
+    ok( !$del->{ok}, 'nor DELETE it - SM577, the irreversible half' );
+    ok( -f "$d/lazysite/backups/$pkg", 'and the package is still there' );
+
+    # SM578's second half: the listing carried no filter at all, so a name and
+    # size were readable by a caller who could not open the file.
+    my $ls = mapi( $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=backup-list',
+        HTTP_AUTHORIZATION => $auth );
+    my @names = map { $_->{name} // '' } @{ $ls->{backups} || [] };
+    ok( !( grep { $_ eq $pkg } @names ),
+        'and the package is not named in the listing either' );
+
+    # THE OPERATOR IS UNAFFECTED - the exemption is the channel, and this is
+    # what says the fix did not simply break the feature for everyone.
+    my $op = get( $d, 'op', 'role-op', "action=site-backup-inspect&name=$pkg" );
+    ok( $op->{ok}, 'the operator, on a cookie session, still reaches the package' );
 }
 
 # --- delete (housekeeping) --------------------------------------------------
