@@ -392,14 +392,17 @@ anything not listed here waits, however small.
 | Tier | SMs |
 |---|---|
 | Security and silent failure | SM578 (confinement by the action; empty scope stops meaning unconfined), SM589 (`_script`/`_enabled` at the floor), SM577 (instance-wide backup store), SM581 (a nav-shaped file that reports success and does nothing), SM583 (two conf parsers disagreeing), SM582 (two DAV write paths nothing exercises) |
-| Capability and roles | SM576 parts 1 and 3 only - `manage_briefs`, and roles from groups with the assignable flag |
+| Capability and roles | SM576 parts 1 and 3 - `manage_briefs`, and roles from groups with the assignable flag; **SM587** (the copy-test rule stated once, plus the second axis: a flag meaning *this changes who can see things*); **SM591** (housekeeping as its own grant, in two tiers assigned by the copy test) |
 | Mechanisms | SM573 (brief generated from the grant), SM574 (field practice shipped into the served briefings), SM580 (the sessions page names its principals), SM575 (two-principal ownership tests), SM590 (table delivery is handler-only, in writing) |
 | Already landed for it | SM584, SM585, SM586, plus the nine cleanup branches |
 
 ## Held back deliberately
 
-- **SM591** (lateral housekeeping tiers) - blocked on SM587's rule; a
-  tier boundary drawn before the rule would be redrawn after it.
+*(SM591 was listed here while SM587 was undecided. The operator ruled on
+2026-08-25 - Option A plus a second axis - so the tiers are derivable and
+SM591 joins the cut. SM577 travels with it as the sharpest irreversible
+case.)*
+
 - **SM579** (API connectors) - a subsystem with an SSRF surface; it
   wants a cut of its own, not a ride on a large one.
 - **The refused cleanup rows** - the batch-3 seams needing judgement,
