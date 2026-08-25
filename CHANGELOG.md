@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM593 resolved (PENDING) **a data table can belong to a domain.**
+  `manage_data` is an instance capability and a table's ACL path carries no
+  domain component, so on an instance hosting unrelated parties one client's
+  grant reached every other client's tables - and `may_read` returns true for
+  a `manage_data` caller, so the ACL was bypassed, not merely the listing. A
+  descriptor may now carry `domain: <host>`; a caller confined by its
+  `dav_scopes` reaches that domain's tables and is not told the others exist,
+  the refusal being word-for-word the one a missing table gets. **A table
+  naming no domain behaves exactly as before**, so an instance carrying live
+  tables loses nothing on upgrade - `lazysite-check` names the ones still to
+  scope on a multi-domain instance.
+
 - SM596 resolved (PENDING) **the AI connector is offered to AI accounts.**
   The account sheet titles each account human or AI, then offered *Connect an
   AI assistant* to both - the guard was a literal `if (true)`. It now follows
@@ -71,17 +83,6 @@ Naming the commit: AFTER it lands, never before
   operator should vet. The code already refused them; nothing said so, so an
   agent could only discover it by being refused. The tool description and
   `/docs/forms` now say it and why, and `t/unit/mcp/17` pins both spellings.
-- SM593 resolved (PENDING) **a data table can belong to a domain.**
-  `manage_data` is an instance capability and a table's ACL path carries no
-  domain component, so on an instance hosting unrelated parties one client's
-  grant reached every other client's tables - and `may_read` returns true for
-  a `manage_data` caller, so the ACL was bypassed, not merely the listing. A
-  descriptor may now carry `domain: <host>`; a caller confined by its
-  `dav_scopes` reaches that domain's tables and is not told the others exist,
-  the refusal being word-for-word the one a missing table gets. **A table
-  naming no domain behaves exactly as before**, so an instance carrying live
-  tables loses nothing on upgrade - `lazysite-check` names the ones still to
-  scope on a multi-domain instance.
 
 - SM595 resolved (PENDING) **the watcher can be told what it last deployed.**
   `tools/lazysite-deploy.sh` took its baseline from whatever was already in
