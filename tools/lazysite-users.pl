@@ -2288,15 +2288,44 @@ sub _onboarding_brief {
     # Machine-readable capability tokens - the snake_case names whoami returns.
     # nav editing is gated by manage_nav (SM105), which inherits manage_content
     # (which inherits webdav); forms by manage_forms, likewise.
-    my @mcaps;
-    push @mcaps, 'webdav'         if $s->{webdav};
-    push @mcaps, 'manage_content' if $eff_content;
-    push @mcaps, 'manage_nav'     if $can_nav;
-    push @mcaps, 'manage_forms' if ( defined $s->{manage_forms} ? $s->{manage_forms} : $eff_content );
-    push @mcaps, 'manage_themes'  if $s->{manage_themes};
-    push @mcaps, 'manage_layouts' if $s->{manage_layouts};
-    push @mcaps, 'manage_config'  if $s->{manage_config};
+    # SM573: DERIVED FROM @CAP_KEYS, NEVER TYPED.
+    #
+    # This was a hand-written list of seven pushes, and the account it
+    # described could hold seventeen capabilities - so a brief UNDERSTATED a
+    # grant, handing out authority nobody wrote down, while the operator
+    # believed the seven they read. A brief is how a grant is COMMUNICATED and
+    # nothing checked it against the grant.
+    #
+    # Deriving it from the same key list whoami answers from means the two
+    # cannot disagree, and a capability added in a later release appears here
+    # without anybody remembering to add it - which is the failure this was.
+    #
+    # `ui`, `api` and `mcp` are CHANNELS rather than authority (SM086) and are
+    # described elsewhere in this brief, by name, where the partner is told how
+    # to connect. The three inherited grants keep their resolution because
+    # effective_settings leaves them undefined when they are inherited rather
+    # than set.
+    my %held = map { $_ => 1 } grep { $s->{$_} } @CAP_KEYS;
+    $held{manage_content} = 1 if $eff_content;
+    $held{manage_nav}     = 1 if $can_nav;
+    $held{manage_forms}   = 1
+        if ( defined $s->{manage_forms} ? $s->{manage_forms} : $eff_content );
+    delete @held{qw(ui api mcp)};
+    my @mcaps = sort keys %held;
     my $mcaps_yaml = join "\n", map { "  - $_" } @mcaps;
+
+    # And the prose list must not be shorter than the truth. Anything held that
+    # has no sentence above gets named plainly rather than omitted: an
+    # unexplained capability in the list is a question the partner can ask, and
+    # a missing one is authority they never learn they have.
+    {
+        my %described = map { $_ => 1 }
+            qw(webdav manage_content manage_nav manage_forms manage_themes
+            manage_layouts manage_config);
+        push @caps, "hold the `$_` capability"
+            for grep { !$described{$_} } @mcaps;
+        $caps = join "\n", map { "- $_" } @caps;
+    }
 
     # Nav-management section (control API), shown when the partner can edit nav.
     my $nav_section = $can_nav ? <<"NAV" : '';

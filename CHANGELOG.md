@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM573 resolved (PENDING) **a brief states the grant it was issued for.** The
+  onboarding brief's capability block was a hand-written list of seven, so an
+  account holding seventeen capabilities was described as holding seven - a
+  brief that understates hands out authority nobody wrote down, while the
+  operator believes the list they read. It is derived from `@CAP_KEYS` now,
+  the same list `whoami` answers from, and the prose half names anything held
+  that has no curated sentence rather than omitting it. The proposed check for
+  a brief that diverges from its grant is satisfied by construction instead: a
+  brief is generated on demand and never stored, so nothing typed survives to
+  drift, and the divergence it would report can no longer arise.
+
 - SM580 resolved (PENDING) **the sessions page says who it cannot show.** The
   session registry is written only by the cookie login path, so an agent
   acting over the API, MCP or WebDAV is absent from *Active sessions* by
