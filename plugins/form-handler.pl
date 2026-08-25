@@ -924,7 +924,7 @@ sub parse_post {
                 };
             }
             else {
-                $form{$name} = sanitise_header( $body, 10000 );
+                _field_add( \%form, $name, sanitise_header( $body, 10000 ) );
             }
         }
     }
@@ -937,22 +937,7 @@ sub parse_post {
             $v //= '';
             $v =~ s/\+/ /g;
             $v =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-            $v = sanitise_header( $v, 10000 );
-
-            # SM401: a REPEATED key accumulates rather than overwriting.
-            #
-            # One name submitted several times is how HTML has always expressed a
-            # multi-select, and this assignment kept only the last one - so a
-            # checkbox group silently lost every tick but the final one. Silently,
-            # because the submission still arrived and still looked well-formed.
-            # Nothing shipped depended on the old behaviour: a field submitted
-            # once is unaffected, and a field submitted twice was losing data.
-            if ( exists $form{$k} && length $form{$k} ) {
-                $form{$k} .= "; $v" if length $v;
-            }
-            else {
-                $form{$k} = $v;
-            }
+            _field_add( \%form, $k, sanitise_header( $v, 10000 ) );
         }
     }
     # SM523: the engine's status meta is ENGINE-OWNED. Every key that reaches a
@@ -969,6 +954,25 @@ sub parse_post {
     $form{_files} = \@files if @files;
     _fold_quantities( \%form );
     return %form;
+}
+
+# SM401: a REPEATED key accumulates rather than overwriting.
+#
+# One name submitted several times is how HTML has always expressed a
+# multi-select, and a plain assignment kept only the last one - so a checkbox
+# group silently lost every tick but the final one. Silently, because the
+# submission still arrived and still looked well-formed. SM539: the multipart
+# branch kept that assignment after the urlencoded one had learnt better, so
+# a form with an upload lost its ticks; both branches now come through here.
+sub _field_add {
+    my ( $form, $k, $v ) = @_;
+    if ( exists $form->{$k} && length $form->{$k} ) {
+        $form->{$k} .= "; $v" if length $v;
+    }
+    else {
+        $form->{$k} = $v;
+    }
+    return;
 }
 
 # SM401: fold `field~qty~OPTION` inputs back into their field.

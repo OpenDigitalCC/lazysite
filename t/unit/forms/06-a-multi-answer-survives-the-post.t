@@ -78,10 +78,16 @@ for my $bad ( '', '0', 'abc', '-3', '3.5' ) {
 # --- the repeated key, in the parser itself ----------------------------
 # Asserted against the source, because parse_post reads STDIN and the shape
 # being pinned is the accumulate-rather-than-overwrite branch.
-like( $src, qr/\$form\{\$k\} \.= "; \$v"/,
+like( $src, qr/\$form->\{\$k\} \.= "; \$v"/,
     'a repeated key accumulates rather than overwriting' );
 unlike( $src, qr/\$form\{\$k\} = sanitise_header/,
     'the overwriting assignment is gone' );
+# SM539: BOTH branches of the parser feed the one accumulator - the multipart
+# branch used to keep its own overwriting assignment.
+unlike( $src, qr/\$form\{\$name\} = sanitise_header/,
+    'the multipart branch no longer overwrites either' );
+is( scalar( () = $src =~ /_field_add\( \\%form,/g ), 2,
+    'both parser branches add fields through the shared helper' );
 
 # --- the rate limit ----------------------------------------------------
 like( $src, qr/sub check_rate_limit \{\s*my \( \$ip, \$limit \) = \@_;/,

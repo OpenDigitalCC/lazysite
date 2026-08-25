@@ -437,6 +437,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM539 resolved (PENDING) **a multi-answer survives a multipart post.** SM401
+  taught the urlencoded branch of the form parser that a repeated field
+  name is a multi-select, but the multipart branch still overwrote - so a
+  form with an upload and a checkbox group kept only the last tick. Both
+  branches now feed one accumulator. t/unit/forms/10 posts the same
+  repeated key both ways through the real handler and reads `red; blue`
+  from both stored rows.
+
 - SM524 resolved (PENDING) **SMTP auth and TLS are what the conf says.**
   `auth: 1` and `auth: yes` used to skip SMTP authentication silently
   (the read was `/^true$/i`), and `tls: false` was listed among the
