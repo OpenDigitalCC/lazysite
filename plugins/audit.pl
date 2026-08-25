@@ -68,6 +68,8 @@ while ( @ARGV ) {
 
 $DOCROOT = abs_path( $DOCROOT || '.' );
 die "Docroot not found: $DOCROOT\n" unless -d $DOCROOT;
+# SM540: the forwarding conf peek looks under DOCUMENT_ROOT; --docroot is it.
+$ENV{DOCUMENT_ROOT} //= $DOCROOT;
 
 # Always exclude these from orphan report
 $exclude{'404'} = 1;
@@ -514,6 +516,7 @@ sub log_event {
             . ( $pairs ? ",$pairs" : '' )
             . '}';
         print STDERR "$json\n";
+        _forward_diag( $level, $json );
     }
     else {
         my $extras = join ' ',
@@ -521,7 +524,33 @@ sub log_event {
         my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
         $line   .= " $extras" if $extras;
         print STDERR "$line\n";
+        _forward_diag( $level, $line );
     }
+}
+
+# SM540: a best-effort copy of the line to syslog through Lazysite::Util's
+# forward_line, so `forward_diagnostics: true` covers this plugin's
+# diagnostics as the docs promise. The module tree is located at runtime (the
+# SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
+# the require is eval-guarded, the SM425 posture: a missing lib costs the
+# operator a syslog copy, never a submission - STDERR has the line either way.
+sub _forward_diag {
+    my ( $level, $line ) = @_;
+    my %prio = ( DEBUG => 'debug', INFO => 'info', WARN => 'warning', ERROR => 'err' );
+    eval {
+        unless ( $INC{'Lazysite/Util.pm'} ) {
+            require Cwd;
+            require File::Basename;
+            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+            }
+            require Lazysite::Util;
+        }
+        Lazysite::Util::forward_line( 'diag', $prio{$level} // 'info', $line );
+        1;
+    };
+    return;
 }
 
 sub _json_str {

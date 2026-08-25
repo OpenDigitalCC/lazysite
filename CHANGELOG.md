@@ -437,6 +437,16 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM540 resolved (PENDING) **a handler error is forwarded.** With
+  `forward_diagnostics: true` an ERROR from a form submission stayed on
+  STDERR: the four plugin copies of log_event (form-handler, form-smtp,
+  audit, payment-demo) predated Lazysite::Util's forward_line. Each copy
+  now hands its line to a best-effort forwarder that eval-requires Util
+  through the runtime locator - the plugins stay module-free, the one
+  forwarding implementation stays in Util, and a missing lib costs a
+  syslog copy, never a submission. t/unit/forms/12 drives three of the
+  plugins through the syslog dump seam.
+
 - SM539 resolved (PENDING) **a multi-answer survives a multipart post.** SM401
   taught the urlencoded branch of the form parser that a repeated field
   name is a multi-select, but the multipart branch still overwrote - so a
