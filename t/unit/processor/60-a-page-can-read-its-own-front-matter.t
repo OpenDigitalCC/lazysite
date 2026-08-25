@@ -37,10 +37,16 @@ my $src = do {
 };
 
 subtest 'the reserved list is declared ONCE and shared' => sub {
-    my $decls = () = $src =~ /^our %FRONT_MATTER_RESERVED = map/mg;
-    is( $decls, 1, 'one declaration' );
-    my $uses = () = $src =~ /FRONT_MATTER_RESERVED/g;
-    cmp_ok( $uses, '>=', 3, 'used by the scan and by the stash' )
+    # SM522: a SUB, not a file-scoped hash. `our %FRONT_MATTER_RESERVED = ...`
+    # sat below the dispatch and was EMPTY when a CGI request was served, so
+    # the reserved keys leaked into the stash and the scan - t/lint/39 pins
+    # the shape; this pins that the one list is the sub.
+    my $decls = () = $src =~ /^sub _front_matter_reserved \{/mg;
+    is( $decls, 1, 'one declaration, as a sub (SM522)' );
+    unlike( $src, qr/^our %FRONT_MATTER_RESERVED/m,
+        'no file-scoped copy below the dispatch to be empty at request time' );
+    my $uses = () = $src =~ /_front_matter_reserved\(\)/g;
+    cmp_ok( $uses, '>=', 2, 'used by the scan and by the stash' )
         or diag( 'Two copies of the reserved list would let the scan and the '
             . 'page disagree about what is custom - the very asymmetry this '
             . 'change removes, one level up.' );
@@ -73,8 +79,10 @@ subtest 'a reserved key is not duplicated as page_<key>' => sub {
     # the map produce a second one would be harmless today and a divergence
     # waiting to happen.
     my ($stash) = $src =~ /(page_title\s*=> _esc_html.*?keys %\{\$meta\})/s;
-    like( $stash, qr/!\$FRONT_MATTER_RESERVED\{\$_\}/,
+    like( $stash, qr/!\$reserved->\{\$_\}/,
         'reserved keys are skipped by the map' );
+    like( $src, qr/my \$reserved = _front_matter_reserved\(\);\n\s*my \$vars\s+=\s*\{/,
+        'read from the sub just before the stash is built' );
 };
 
 # --- BEHAVIOUR, not source text -------------------------------------------
@@ -119,15 +127,26 @@ subtest 'RENDERED: a control key stays out' => sub {
     my $d = tempdir( CLEANUP => 1 );
     setup_test_site($d);
     open my $lt, '>', "$d/lazysite/layouts/test/layout.tt" or die $!;
-    print {$lt} '<html><body>L=[% page_layout %] T=[% page_tt_x %]</body></html>';
+    print {$lt} '<html><body>L=[% page_layout %] A=[% page_auth %] '
+        . 'T=[% page_tt_x %] C=[% page_custom_thing %]|</body></html>';
     close $lt;
+
+    # SM522: the page SETS reserved keys. The earlier version of this test
+    # never did, which is why an empty reserved list passed it: with nothing
+    # reserved in the front matter there was nothing to leak.
     open my $pg, '>', "$d/c.md" or die $!;
-    print {$pg} "---\ntitle: C\ntt_x: leaked\n---\n\nbody\n";
+    print {$pg} "---\ntitle: C\nlayout: test\nauth: none\ntt_x: leaked\n"
+        . "custom_thing: hello\n---\n\nbody\n";
     close $pg;
     my $out = run_processor( $d, '/c' );
     unlike( $out, qr/T=leaked/, 'tt_ keys are not re-exposed as page_tt_*' );
     unlike( $out, qr/L=test/,
-        'and a reserved key is not duplicated as page_<key>' );
+        'a reserved key the page sets is not duplicated as page_<key>' )
+        or diag( 'The reserved list was empty at request time: it was a '
+            . 'file-scoped hash initialised below the dispatch (SM522).' );
+    unlike( $out, qr/A=none/, 'the page\'s auth setting does not reach the stash' );
+    like( $out, qr/L= A= T= C=hello\|/,
+        'rendered: reserved and control keys empty, the custom key present' );
 };
 
 done_testing();

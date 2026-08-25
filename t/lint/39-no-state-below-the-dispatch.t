@@ -119,13 +119,15 @@ for my $rel (@SCRIPTS) {
         next;
     }
 
-    # Everything the subs can read: file-scoped `my` with an INITIALISER.
+    # Everything the subs can read: file-scoped `my` or `our` with an INITIALISER.
     # Without an initialiser there is nothing to be too late for.
     my @late;
     for my $i ( $last_run + 1 .. $#lines ) {
         my $l = $lines[$i];
-        next unless $l =~ /^my \s+ ([\$\@\%])(\w+) \s* =/x;
-        my ( $sigil, $name ) = ( $1, $2 );
+        # SM522: `our` is the same trap - %FRONT_MATTER_RESERVED shipped empty
+        # at request time with `our` while this test only looked for `my`.
+        next unless $l =~ /^(my|our) \s+ ([\$\@\%])(\w+) \s* =/x;
+        my ( $decl, $sigil, $name ) = ( $1, $2, $3 );
 
         # Read by a sub? That is the combination that bites: state nothing reads
         # during a request is merely dead, not wrong.
@@ -147,7 +149,7 @@ for my $rel (@SCRIPTS) {
         # dispatch has returned (lazysite-check's report formatting, say).
         next if $l =~ /##\s*no-dispatch-order/;
 
-        push @late, sprintf( '%s:%d: my %s%s', $rel, $i + 1, $sigil, $name );
+        push @late, sprintf( '%s:%d: %s %s%s', $rel, $i + 1, $decl, $sigil, $name );
     }
 
     is_deeply( \@late, [],

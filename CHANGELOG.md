@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM522 resolved (PENDING) **the front-matter reserved list is populated at
+  request time.** `our %FRONT_MATTER_RESERVED` sat below the dispatch, so
+  under CGI and FastCGI it was empty when a request was served: a page's
+  `auth:` and `layout:` reached the stash as page_auth / page_layout and
+  scan records carried auth, layout, register and search as custom keys
+  (the SM293 shape with `our`, which t/lint/39 only looked for as `my`).
+  Found by the processor structural review, proven by probe. The list is
+  now the sub `_front_matter_reserved()`, read by the scan and the stash;
+  t/lint/39 now catches a file-scoped `our` below the main body, and
+  t/unit/processor/60 renders a page that sets both keys and asserts
+  neither reaches the stash.
+
 - SM571 resolved (PENDING) **the history summary walks the history once.**
   `git-history-summary` / `list_content_history` always 504'd on edge: the
   summary ran the per-file lineage walk (several git processes, following

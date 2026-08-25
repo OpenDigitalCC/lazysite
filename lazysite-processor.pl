@@ -5340,9 +5340,18 @@ sub _scan_scalar {
 #
 # One list, one place. Two copies of a reserved list is the same defect one
 # level up, and this programme has met it twice already (SM435, SM457).
-our %FRONT_MATTER_RESERVED = map { $_ => 1 } qw(
-    url title subtitle date tags excerpt searchable path
-    layout theme auth register search meta_title meta_desc );
+#
+# SM522: a SUB, not a file-scoped hash. `our %FRONT_MATTER_RESERVED = ...`
+# sat here, below the dispatch, and was still EMPTY when a CGI or FastCGI
+# request was served - the SM293 shape with `our` in place of `my` - so a
+# page's `auth:` and `layout:` reached the stash as page_auth / page_layout
+# and the scan carried them as custom keys. A sub is initialised at call
+# time and cannot be too early (t/lint/39).
+sub _front_matter_reserved {
+    return { map { $_ => 1 } qw(
+            url title subtitle date tags excerpt searchable path
+            layout theme auth register search meta_title meta_desc ) };
+}
 
 sub resolve_scan {
     my ($pattern) = @_;
@@ -5583,7 +5592,7 @@ sub resolve_scan {
         # [% p.demo %], [% p.order %] - instead of smuggling data through tags.
         # Computed fields below take precedence; control/internal keys are excluded;
         # surrounding quotes and TT markers are stripped from scalar values.
-        my %reserved = %FRONT_MATTER_RESERVED;
+        my %reserved = %{ _front_matter_reserved() };
         my %custom;
         for my $k ( keys %$meta ) {
             next if $reserved{$k} || $k =~ /^(?:tt_|_)/;
@@ -6202,7 +6211,8 @@ sub render_content {
         ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
     );
 
-    my $vars = {
+    my $reserved = _front_matter_reserved();
+    my $vars     = {
         %site_vars,
         %page_vars,
         %AUTH_CONTEXT,
@@ -6238,7 +6248,7 @@ sub render_content {
         # scan already serves the cases that want structure.
         ( map { ( "page_$_" => _esc_html( $meta->{$_} ) ) }
             grep {
-                !$FRONT_MATTER_RESERVED{$_}
+                !$reserved->{$_}
                     && !/^(?:tt_|_)/
                     && defined $meta->{$_}
                     && !ref $meta->{$_}
