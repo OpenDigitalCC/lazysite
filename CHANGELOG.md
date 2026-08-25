@@ -324,6 +324,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM551 resolved (PENDING) **group ACL reach reports on a migrated site.**
+  lazysite-check.pl's `report_group_acl_reach` and `_acls_file` built
+  `$docroot/lazysite/auth/acls.json` by hand, so on an SM293 migrated site
+  the @group section was silent and the ACL probe's sweep looked at a store
+  that was never there. Both now resolve through `Lazysite::Paths::lazysite_dir`
+  as `run_checks` does. t/tools/38-migrate-engine-tree.t gains the assertion:
+  an @agents rule written by the real ACL writer on the migrated site is
+  reported as "@agents is granted by".
+
 - SM550 resolved (PENDING) **the theme-mirror check runs.**
   `report_theme_assets_mirrored` in lazysite-check.pl called
   `conf_value('layout')` with one argument to a `($file, $key)` function, so

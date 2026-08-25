@@ -1460,7 +1460,10 @@ sub conf_value {
 # upgrade rather than after.
 sub report_group_acl_reach {
     my $d = $opt{docroot};
-    my $f = "$d/lazysite/auth/acls.json";
+    # SM551: through the engine-tree resolver, never "$d/lazysite/..." by hand -
+    # on a migrated site (SM293) that path does not exist and this section
+    # reported nothing while rules were in force.
+    my $f = _acls_file($d);
     return unless -f $f;
 
     open my $fh, '<', $f or return;
@@ -2017,7 +2020,9 @@ END { _acl_probe_cleanup() if defined $PROBE_DIR || defined $PROBE_KEY }
 
 sub _acl_probe_marker { join '', map { sprintf '%02x', int rand 256 } 1 .. 16 }
 
-sub _acls_file { my ($d) = @_; return "$d/lazysite/auth/acls.json" }
+# SM551: the engine tree may sit beside the docroot (SM293); resolve it the
+# way run_checks does rather than assuming it is inside.
+sub _acls_file { my ($d) = @_; return Lazysite::Paths::lazysite_dir($d) . '/auth/acls.json' }
 
 # Read the ACL store as raw text -> hash. Deliberately not via
 # Lazysite::Auth::Acl: this tool is core-Perl only and runs where the library

@@ -179,6 +179,19 @@ subtest 'the health check still verifies a migrated site' => sub {
     like( $out, qr/held outside the document root/,
         'the check recognises the migrated layout' );
 
+    # SM551: the @group reach section resolved acls.json under the DOCROOT by
+    # hand, so on a migrated site it found nothing and said nothing - an
+    # operator read silence as "no group rule" while rules were in force.
+    # The rule is written by the real ACL writer, never a hand-made file.
+    make_path("$d/private");
+    system( $^X, "-I$root/lib", "$root/tools/lazysite-acl.pl", 'set', '/private',
+        '--read', '@agents', '--docroot', $d, '--actor', 'local' );
+    my $reach = `$^X \Q$root/tools/lazysite-check.pl\E --docroot \Q$d\E --cgibin \Q$cgi\E --group \Q$gname\E 2>&1`;
+    like( $reach, qr/\@agents is granted by/,
+        'an @group rule on the MIGRATED site is reported - the ACL store '
+            . 'resolves through the engine-tree path, not the docroot' )
+        or diag("no reach lines in:\n$reach");
+
     # Now break a mode INSIDE the moved tree and confirm it is still noticed.
     my $auth = external_lazysite_dir($d) . '/auth';
 SKIP: {
