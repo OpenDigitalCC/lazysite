@@ -31,7 +31,7 @@ use Fcntl          qw(:flock SEEK_SET);
 use Lazysite::Util qw(log_event);
 use Exporter 'import';
 our @EXPORT_OK = qw(index_page deindex_page lookup canonical_url_for alias_map_path
-    list_aliases reindex_move reindex_copy);
+    list_aliases reindex_move reindex_copy md_rels);
 
 # SM440: WHERE a domain's alias map lives.
 #
@@ -247,6 +247,12 @@ sub deindex_page {
 
 # The .md files a path covers, docroot-relative: the path itself if it is a .md
 # file, every .md beneath it if a directory, nothing otherwise.
+#
+# SM535: public as md_rels, because a DAV collection DELETE has to know the
+# pages it is about to remove - the same question reindex_move asks - and a
+# second walker on that surface is how the two would drift.
+sub md_rels { return _md_rels(@_) }
+
 sub _md_rels {
     my ( $docroot, $rel ) = @_;
     $rel =~ s{^/+}{};

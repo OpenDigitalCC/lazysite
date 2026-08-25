@@ -614,6 +614,18 @@ sub do_delete {
         return send_status( $code, body => "Locked\n" );
     }
 
+    # SM535: the pages this entry covers, listed BEFORE the removal - the
+    # path itself, or every page beneath a collection. The housekeeping below
+    # used to key on the request path ending in .md, which a directory never
+    # does, so a collection DELETE removed the pages and left the alias map
+    # and the registries promising them: a 301 to a 404.
+    ( my $key = $a{rel} ) =~ s{\A/+}{};
+    require Lazysite::Aliases;
+    # A .md path is its own list whether or not the public spelling exists
+    # (a gated page lives in the private store, SM286); a collection is
+    # walked.
+    my @pages = $key =~ /\.md\z/ ? ($key) : Lazysite::Aliases::md_rels( $DOCROOT, $key );
+
     my $ok;
     if ( -d $r->{abs} ) {
         remove_tree( $r->{abs}, { safe => 1, error => \my $err } );
@@ -640,13 +652,15 @@ sub do_delete {
     # goes into the alias store as a key. Wrong key, and a path where paths must
     # never appear. WebDAV already keys every other decision on $a{rel}, so
     # there was never a reason to derive it.
-    ( my $key = $a{rel} ) =~ s{\A/+}{};
-    if ( $a{rel} =~ /\.md\z/ ) {
-        require Lazysite::Aliases;
-        Lazysite::Aliases::deindex_page( $DOCROOT, $key );
-        # SM483: a deleted page must leave the registries too.
-        _invalidate_registries_as( $a{user} );
+    #
+    # SM535: per page the entry covered, so a collection gives the same answer
+    # a single page always did.
+    for my $page (@pages) {
+        Lazysite::Aliases::deindex_page( $DOCROOT, $page );
+        invalidate_cache("$DOCROOT/$page");
     }
+    # SM483: a deleted page must leave the registries too.
+    _invalidate_registries_as( $a{user} ) if @pages;
 
     # SM212 (site-agent report): drop the ACL entry with the file.
     #
