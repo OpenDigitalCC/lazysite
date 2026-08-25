@@ -105,20 +105,10 @@ $Lazysite::Manager::Files::LOCK_TIMEOUT = $LOCK_TIMEOUT;
 my $PREVIEW_COOKIE = 'lzs_preview';
 my $PREVIEW_TTL    = 3600;            # 1 hour
 
-# SM019: download Content-Type table. Unknown extensions fall back to
-# application/octet-stream so the browser treats the body as raw bytes.
-
-# SM019: extensions treated as editable text by the manager editor.
-# Paths whose extension is not listed here are treated as binary and
-# the editor shows a download panel instead of CodeMirror. Dotfiles
-# like .htaccess match the regex with "htaccess" as the extension,
-# which is not in this list, so they are treated as binary. That is
-# intentional - a browser textarea is the wrong tool for .htaccess.
-
 # SM019: unit-test hook. When set, `do "lazysite-manager-api.pl"` from a
 # test returns after the lexicals are initialised but before the auth
 # check, request parsing, and dispatch, so tests can exercise helper
-# subs directly (parse_multipart_body, detect_content_type, etc.)
+# subs directly (parse_multipart_body, etc.)
 # without spawning a subprocess. Has no effect in normal CGI use.
 return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 
@@ -1149,11 +1139,6 @@ elsif ( $action eq 'acl-set' ) {
         # changes is the thing an audit of a permission is usually asked about,
         # and once the second write lands the first value exists nowhere: a
         # rule is not versioned the way content is.
-        # SM465: capture the rule BEFORE the change, so the audit entry can
-        # say what it became AND what it stopped being. The interval between
-        # two changes is what an audit of a permission is usually asked about,
-        # and once the second write lands the first value exists nowhere: a
-        # rule is not versioned the way content is.
         my $before = action_acl_get( $path, $auth_user );
         $ACL_AUDIT_BEFORE
             = ( ref $before eq 'HASH' && $before->{ok} ) ? $before->{acl} : undef;
@@ -1399,16 +1384,16 @@ elsif ( $action eq 'data-export' ) {
     $result = Lazysite::Manager::Data::action_data_export( $params{table},
         $params{format} );
     if ( $result->{ok} && defined $result->{streamed_body} ) {
-        my $body = $result->{streamed_body};
+        my $bytes = $result->{streamed_body};
         ( my $safe = $result->{filename} // 'table.json' ) =~ s/[\r\n";\\]//g;
         binmode STDOUT, ':raw';
         print "Status: 200 OK\r\n";
         print "Content-Type: $result->{content_type}\r\n";
-        print 'Content-Length: ' . length($body) . "\r\n";
+        print 'Content-Length: ' . length($bytes) . "\r\n";
         print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
         print "Cache-Control: no-store, private\r\n";
         print "\r\n";
-        print $body;
+        print $bytes;
         exit 0;
     }
 }
@@ -1585,7 +1570,7 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
     # token clients cannot reach these at all (not in the %need set above).
     # (A denied revoke is still audited: the generic POST audit block below
     # records the fail with kind 'forbidden'; the -list actions are GET reads.)
-    if ( !$token_auth && !_user_manage_users($auth_user) ) {
+    if ( !$token_auth && !_user_caps($auth_user)->{manage_users} ) {
         $result = { ok => 0, kind => 'forbidden',
             error => "Managing sessions and keys requires the 'Users & groups' permission. "
                 . "An administrator can grant it on the Groups page." };
@@ -1635,7 +1620,7 @@ elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
     # Operator notifications require the 'notifications' capability (granted via
     # a group; seeded on user-managers). Same cookie-side gate pattern as audit;
     # the bell UI hides itself when this returns forbidden.
-    if ( !$token_auth && !_user_cap_notifications($auth_user) ) {
+    if ( !$token_auth && !_user_caps($auth_user)->{notifications} ) {
         $result = { ok => 0, kind => 'forbidden',
             error => "Notifications require the 'Notifications' permission. An "
                 . "administrator can grant it on the Groups page." };
@@ -1964,14 +1949,6 @@ sub _acl_audit_detail {
     return "$from -> $to";
 }
 
-# --- M-1: CSRF helpers ---
-
-# Shared secret for CSRF token HMAC. Reuses the auth secret if present,
-# otherwise creates a dedicated manager secret under lazysite/auth/.
-
-
-
-
 # --- SM071 Phase 1: theme/layout preview minting ---
 #
 # preview-grant mints the signed lzs_preview cookie the processor
@@ -2115,99 +2092,33 @@ sub _users_tool_path {
     return undef;
 }
 
-# Run a request against tools/lazysite-users.pl --api and return the
-# decoded response (used by the token front-path's verify-credential).
-sub users_api {
-    my ($payload) = @_;
+# One request against tools/lazysite-users.pl --api, decoded. The three
+# failure sentences are PASSED IN rather than unified: both callers surface
+# their own wording to the client, so folding them would change what a caller
+# reads on a failure - a behaviour change, not a tidy-up. $cannot_run is a
+# sprintf template so the caller that reports $@ still can.
+sub _users_tool_run {
+    my ( $payload, $unavailable, $cannot_run, $invalid ) = @_;
     my $script = _users_tool_path();
-    return { ok => 0, error => 'user management unavailable' } unless $script;
+    return { ok => 0, error => $unavailable } unless $script;
     my ( $out, $in );
     my $pid = eval { open2( $out, $in, $^X, $script, '--api', '--docroot', $DOCROOT ) };
-    return { ok => 0, error => 'cannot run user management' } unless $pid;
+    return { ok => 0, error => sprintf( $cannot_run, $@ ) } unless $pid;
     print $in encode_json($payload);
     close $in;
     my $resp = do { local $/; <$out> };
     close $out;
     waitpid $pid, 0;
-    return eval { decode_json( $resp // '{}' ) } // { ok => 0, error => 'invalid response' };
+    return eval { decode_json( $resp // '{}' ) } // { ok => 0, error => $invalid };
 }
 
-# Resolve a theme/layout artifact directory from request params.
-
-# Content-hash manifest of a theme/layout: { relpath => {sha256,size} }.
-
-# Content manifest of a directory: { relpath => { sha256, size } }.
-
-
-# Dry-run validation of a theme/layout (the activate gate, P3.4 reuses it).
-# Theme: theme.json present with a non-empty layouts[]. Layout: layout.tt
-# present (the TT-compile check is added in P3.5).
-
-# --- Response ---
-
-
-# --- Path validation ---
-
-
-
-# SM020: every manager write path that previously did
-# open/print/close had the same ENOSPC/EIO/quota blind spot.
-# Centralised here so a future site gets the checked pattern by
-# default. unlink-on-failure is deliberate: a half-written
-# handlers.conf or nav.conf breaks every subsequent form
-# submission or page render, which is worse than no file at all
-# - the operator can restore from backup or re-save from the UI.
-# Returns ($ok, $error_string). $! is captured into a lexical
-# before close because close itself resets $!.
-
-# --- Lock management ---
-
-# SM070: lock records are shared with lazysite-dav.pl. On-disk format
-# is a JSON object {user,at,origin,token,timeout,owner}; a legacy
-# single-line "user epoch" file (pre-SM070 manager locks) is read as
-# an origin=manager record. This lets the manager editor and WebDAV
-# clients see each other's locks through one store.
-
-
-
-
-
-
-# --- File actions ---
-
-
-# SM074: per-file ACLs. Ownership + read/write allowlists live in one
-# central store, lazysite/auth/acls.json (keyed by the content-relative
-# path), not in per-file sidecars - so the content tree stays uncluttered.
-# Operators (manager group, or 'local' when unsecured) administer
-# everything; otherwise access follows the owner + allowlists. The store is
-# read by the dav for enforcement and written here via the acl-* actions.
-
-
-
-
-# Normalise a list value (arrayref or comma/space string) to an arrayref,
-# or undef if not provided.
-
-
-
-# Returns an error hashref if $user may not access $rel in $mode
-# ('read'|'write'), else undef. Operators always pass.
-
-# --- SM074 ACL management actions (manager + control API) ----------------
-
-
-
-
-
-
-# SM019b: dedicated mkdir so "Add Folder" creates a genuinely empty
-# directory. The previous files.md trick of writing /<name>/.gitkeep
-# through action_save materialised the directory but left a hidden
-# file inside, which conflicts with the new "empty dirs are
-# deletable" rule - a freshly-created folder would not have a
-# checkbox. Keeping this as a distinct action (rather than piggybacking
-# on action_save with an empty body) also makes the log line clearer.
+# Run a request against tools/lazysite-users.pl --api and return the
+# decoded response (used by the token front-path's verify-credential).
+sub users_api {
+    my ($payload) = @_;
+    return _users_tool_run( $payload, 'user management unavailable',
+        'cannot run user management', 'invalid response' );
+}
 
 # Resolve the real content processor to shell for a server-side render.
 #
@@ -2522,9 +2433,8 @@ sub action_site_backup_apply {
     my $host = lc( $req->{host} // '' );
     $host = '' if $host eq '(default)';
 
-    return { ok => 0, kind => 'invalid', error => 'A package name is required' }
-        unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
-    my $pkg = "$LAZYSITE_DIR/backups/$name";
+    my $pkg = _site_package_path($name)
+        or return { ok => 0, kind => 'invalid', error => 'A package name is required' };
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
     # Resolve the TARGET content root.
@@ -2606,8 +2516,7 @@ sub action_site_backup_apply {
         "apply site package $name" . ( length $host ? " to $host" : '' ) );
 
     # Drop caches so the applied site renders fresh.
-    require Lazysite::Util;
-    Lazysite::Util::clear_host_cache($DOCROOT) if Lazysite::Util->can('clear_host_cache');
+    Lazysite::Util::clear_host_cache($DOCROOT);
 
     # Audited by the generic dispatch wrapper (target = the host, via
     # _audit_implicit_target's site-backup- branch).
@@ -2622,112 +2531,6 @@ sub action_site_backup_apply {
     };
 }
 
-# --- Cache actions ---
-
-
-
-# --- Theme actions ---
-
-# D013: read both the active layout: and theme: values from
-# lazysite.conf. Used by every theme action to locate the nested
-# themes directory under the active layout.
-
-
-# SM068: list every installed theme across all layouts, not only
-# the active one. The Installed Themes panel on /manager/themes
-# uses this to show themes grouped by layout — themes for the
-# active layout are activatable; themes for other layouts are
-# shown for visibility but with no Activate button.
-#
-# Shape matches action_theme_list where possible but adds a
-# `layout` field per entry (action_theme_list implies it from the
-# top-level active layout).
-
-# SM071 Phase 3: activate-with-backup. Validates the candidate, optionally
-# enforces an optimistic-concurrency base manifest (409 on drift), takes an
-# artifact-level lock for the transition, snapshots the outgoing live theme
-# (for back-out) with retention, then flips the pointer and drops the cache.
-
-# Rewrite the theme: pointer in conf and invalidate the page cache.
-
-
-# Theme validity gate: theme.json present + valid JSON + layouts[] declares
-# the active layout. { valid => 0/1, errors => [...] }.
-
-# Snapshot an artifact dir as <name>-backup-<UTCstamp> alongside it, for
-# back-out (the snapshot is itself a selectable theme).
-
-# Keep the newest backup_retention snapshots of $name; remove older ones.
-# Names embed a UTC stamp, so a lexical sort is chronological.
-
-
-# SM071 Phase 3 (P3.5): activate a layout. Reuses the activate-with-backup
-# machinery, adds the layout-specific rules: layout.tt must compile, and
-# the resulting (layout, theme) pair must be compatible - either the
-# current theme declares the new layout, or a compatible theme is named.
-
-# Rewrite the layout: pointer (and theme: when a theme is given), then
-# invalidate the page cache.
-
-# Layout validity gate: layout.tt present and parses as Template Toolkit.
-# The compile check is best-effort - if Template::Parser is unavailable
-# we fall back to the presence check rather than blocking.
-
-# Does the theme declare compatibility with the layout (theme.json layouts[])?
-
-
-
-
-# D013: install a theme from an already-extracted directory. Themes
-# declare compatible layouts via theme.json's layouts[] array; we
-# install a copy under each declared layout at
-# {DOCROOT}/lazysite/layouts/LAYOUT/themes/THEME/ and duplicate
-# assets at {DOCROOT}/lazysite-assets/LAYOUT/THEME/. DP-C: missing
-# layouts[] is a strict reject.
-
-
-# SM060: install a layout from $layout_source (the extracted
-# zipball's $wrapper/layouts/LAYOUT/ directory). Called by
-# action_layouts_install before each LAYOUT's theme walk, so
-# _install_theme_from_dir's target-site check
-# (layouts/LAYOUT/layout.tt must exist) passes for themes shipping
-# in the same release as their target layout.
-#
-# Collision policy: skip-if-identical, refuse-if-different. Byte
-# comparison across every file the release would write. Any content
-# difference is an operator edit we won't clobber.
-#
-# Return actions:
-#   'installed'         - new install, files copied
-#   'already_installed' - on-disk files byte-match the release
-# Or ok=0 with error:
-#   - 'missing layout.tt in release'
-#   - 'already installed and differs; refusing to overwrite (LIST)'
-
-
-# --- SM037 + D013: layouts-releases browser + release installer ---
-# The external repo is lazysite-layouts; the config key and function
-# names rename accordingly. The action remains a theme-browser (SM037
-# scope) — it walks release zipballs for theme.json-bearing subdirs
-# and invokes _install_theme_from_dir on each.
-
-
-
-
-# SM068: write-or-replace a single key in lazysite.conf. Same
-# replace-or-append pattern as action_plugin_save and
-# action_layouts_repo_set, kept as a small helper so the
-# auto-set-on-install path isn't a third copy. Empty value is
-# rejected (callers should skip rather than write an empty key).
-
-
-# SM072 §13 / control API: set an allowlisted site-config key in
-# lazysite.conf. The allowlist is deliberately narrow - benign display /
-# behaviour keys only, NEVER privilege-relevant keys (manager_groups,
-# plugins, auth_default) or ones with dedicated actions (layout/theme via
-# theme-activate/layout-activate). Gated on manage_config by %need.
-# (Defined inside the sub: the dispatch runs above this point in the file,
-# so a file-level `my` initialised here would still be empty at call time.)
 # SM122: a manage_config token may read a safe subset of the site config to
 # self-diagnose (active layout/theme, whether WebDAV is on) instead of inferring
 # from HTTP codes. No secrets - just the operator-visible site settings.
@@ -3018,6 +2821,13 @@ sub action_lang_status {
     return { ok => 1, %$status };
 }
 
+# SM072 §13 / control API: set an allowlisted site-config key in
+# lazysite.conf. The allowlist is deliberately narrow - benign display /
+# behaviour keys only, NEVER privilege-relevant keys (manager_groups,
+# plugins, auth_default) or ones with dedicated actions (layout/theme via
+# theme-activate/layout-activate). Gated on manage_config by %need.
+# (Defined inside the sub: the dispatch runs above this point in the file,
+# so a file-level `my` initialised here would still be empty at call time.)
 sub action_config_set {
     my ( $key, $value ) = @_;
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
@@ -3090,34 +2900,6 @@ sub action_config_set {
     return { ok => 1, key => $key, value => $value };
 }
 
-# SM056: fetch a single release zipball and walk
-# layouts/LAYOUT/themes/THEME/theme.json, returning a flat array of
-# {layout, name, description} entries. Lazy: UI calls this per
-# release on an explicit "show contents" click, NOT for every
-# release in the listing. Does NOT install anything.
-#
-# Shares fetch + extract shape with action_layouts_install but
-# stops before the install step and doesn't enforce source-path
-# consistency — contents-preview is operator-informational, not
-# contract-enforcing.
-
-# --- SM044: dropdown population + layouts_repo read/write ---
-#
-# layouts-available / themes-for-layout feed the config-page
-# dropdowns for the active layout and active theme. layouts-repo-get /
-# layouts-repo-set surface the layouts_repo lazysite.conf key on the
-# /manager/themes page, so operators don't have to hand-edit the conf
-# just to point the release browser at a different repo.
-#
-# Scans are filesystem directory reads; not cached. N is small (<10
-# for typical installs).
-
-
-
-
-
-# --- User management proxy ---
-
 # SM072: capabilities the site provides, collected from the `provides`
 # field of ENABLED plugins (e.g. form-smtp provides 'email-send'). Lets
 # other code detect whether the site can, say, send email.
@@ -3185,6 +2967,10 @@ sub action_actions_list {
 # `mutating` is %MUTATING (the POST/CSRF gate) and `destructive` is the
 # drop/delete/rebuild family, so a caller can skip writers by declaration
 # rather than by memory.
+# JSON booleans for the whoami payload and the language block beneath it -
+# one spelling, so the two emitters cannot drift.
+sub _json_bool { return $_[0] ? JSON::PP::true() : JSON::PP::false() }
+
 sub _action_effects {
     my ($name) = @_;
     return {
@@ -3203,7 +2989,6 @@ sub action_whoami {
     } keys %$allg;
 
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
-    my $bool = sub { $_[0] ? JSON::PP::true() : JSON::PP::false() };
 
     return {
         ok      => 1,
@@ -3223,8 +3008,8 @@ sub action_whoami {
         capabilities => {
             map {
                 $_ => ( $_ eq 'ui'
-                    ? $bool->( !( exists $s->{ui} && !$s->{ui} ) )
-                    : $bool->( $s->{$_} ) )
+                    ? _json_bool( !( exists $s->{ui} && !$s->{ui} ) )
+                    : _json_bool( $s->{$_} ) )
             } capability_keys()
         },
         # SM491: per held capability, which channels of THIS grant reach it
@@ -3292,7 +3077,6 @@ sub _language_context {
     my @members = Lazysite::Lang::set_members( $conf, $group );
     return undef unless @members;
 
-    my $bool = sub { $_[0] ? JSON::PP::true() : JSON::PP::false() };
     my $home = $s->{home_domain} // '';
     my ($me) = grep { $_->{host} eq $home } @members;
     ($me) = grep { $_->{source} } @members unless $me;
@@ -3306,7 +3090,7 @@ sub _language_context {
                     { host => $_->{host},
                         lang         => $_->{lang},
                         content_root => $_->{content_root},
-                        source       => $bool->( $_->{source} ),
+                        source       => _json_bool( $_->{source} ),
                     }
                 } @members
             ],
@@ -3320,7 +3104,6 @@ sub _language_context {
 # at the top. action_audit (the reader, below) stays here - it is a manager
 # action.
 
-# SM: the audit trail is its own capability now, separate from visitor analytics.
 # SM138: the groups that confer manager access, read from group settings.
 sub _manager_groups_from_settings {
     my $gs  = Lazysite::Auth::Settings::read_group_settings();
@@ -3331,37 +3114,14 @@ sub _manager_groups_from_settings {
     return @mgr;
 }
 
-sub _user_audit {
-    my ($user) = @_;
-    return 0 unless defined $user && length $user;
-    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
-    return $s->{audit} ? 1 : 0;
-}
-
 # SEC-2026-07 (H1): the acting cookie user's full effective capability hash, for
-# the cookie-side authorization gate (the token path uses %token_caps). Same
-# resolution as the single-cap helpers above.
+# the cookie-side authorization gate (the token path uses %token_caps). Every
+# cookie-side capability question is one read of this hash - SM141's session and
+# key gate, the notifications bell, the audit scope and action_users' own gate.
 sub _user_caps {
     my ($user) = @_;
     return {} unless defined $user && length $user;
     return ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
-}
-
-# SM141: the manage_users capability (session listing + revocation). Same
-# resolution as _user_audit.
-sub _user_manage_users {
-    my ($user) = @_;
-    return 0 unless defined $user && length $user;
-    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
-    return $s->{manage_users} ? 1 : 0;
-}
-
-# The notifications capability (the manager bell). Same resolution as _user_audit.
-sub _user_cap_notifications {
-    my ($user) = @_;
-    return 0 unless defined $user && length $user;
-    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
-    return $s->{notifications} ? 1 : 0;
 }
 
 sub _audit_parse_line {
@@ -3577,17 +3337,8 @@ sub action_principals {
 # GET-guard and actor-injection which are specific to the account CRUD path.
 sub _users_tool_call {
     my ($payload) = @_;
-    my $script = _users_tool_path()
-        or return { ok => 0, error => "User management not available" };
-    my ( $out, $in );
-    my $pid = eval { open2( $out, $in, $^X, $script, '--api', '--docroot', $DOCROOT ) };
-    return { ok => 0, error => "Cannot run user management: $@" } unless $pid;
-    print $in encode_json($payload);
-    close $in;
-    my $o = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
-    return eval { decode_json( $o // '{}' ) } // { ok => 0, error => "Invalid response" };
+    return _users_tool_run( $payload, "User management not available",
+        "Cannot run user management: %s", "Invalid response" );
 }
 
 sub action_users {
@@ -3643,7 +3394,7 @@ sub action_users {
             # ONLY by omission from %DELEGABLE - a delegate promoting its own
             # child out from under itself would defeat confinement. The tool
             # refuses them for any present actor too (defence in depth).
-            if ( $auth_user ne 'local' && !_is_operator() && !_user_manage_users($auth_user) ) {
+            if ( $auth_user ne 'local' && !_is_operator() && !_user_caps($auth_user)->{manage_users} ) {
                 my %DELEGABLE = map { $_ => 1 } qw(
                     account-create account-disable account-enable account-reassign
                     rename claim-create claim-cancel passwd
@@ -3789,91 +3540,3 @@ sub action_rotate_auth_secret {
         message => 'All sessions invalidated. You will need to sign in again.',
     };
 }
-
-# --- Helpers ---
-
-# --- Plugin actions ---
-
-
-# --- Nav actions ---
-
-# Resolve which nav file to edit. SM159: domain-aware - a $host selects that
-# domain's nav_file OVERRIDE (alias.<host>.nav_file) when it has one; otherwise
-# (no host, the primary/default host, or a domain with no override) the BASE
-# nav_file applies. Returns ( absolute-path, rel-path, inherited, base-rel ) so a
-# caller can tell an override apart from the shared base nav. The nav editor
-# never writes the config pointer - giving a domain its own nav is a nav_file
-# override set on the Domains page (manage_config).
-
-
-
-
-
-
-
-
-
-
-
-# --- Handler actions ---
-
-
-
-
-
-
-
-
-
-# --- SM019: upload / download / zip-download ---
-
-# Read the manager_upload_* / manager_blocked_* keys from
-# lazysite.conf. All are optional; invalid values fall back to
-# the hard-coded defaults and are logged at WARN. Called once
-# per request via upload_limits().
-#
-# SM019c renamed manager_upload_blocked_paths to
-# manager_blocked_paths because the list now gates download,
-# save, and delete as well as upload. The old key is still
-# accepted with a one-time INFO log so operators have a chance
-# to update their conf on the next restart.
-
-
-# Reset hook used by tests that rewrite the conf between calls. Not
-# referenced from production code paths; CGI processes are one-shot.
-
-# Second gate on top of is_blocked_path. is_blocked_path enforces a
-# hard-coded list plus the .pl rule; this one reads the configurable
-# blocked_paths and (for uploads only) blocked_extensions lists.
-#
-# SM019c widened the caller set: the path list now gates save,
-# delete, download, zip-download, and upload. The extension list
-# is still upload-only (no reason to block a user from downloading
-# a .pl they already created through other means). The
-# $check_extensions flag controls that.
-
-# SM019c: kept as a thin compat shim so callers (and tests)
-# written against the SM019 name still work. New call sites
-# should use is_blocked_config directly.
-
-# Per-user hourly budget on upload count and total bytes. Mirrors the
-# .login-rate.db pattern in lazysite-auth.pl: fail-open on DB failure,
-# reserve budget up-front from CONTENT_LENGTH, age out stale buckets
-# opportunistically. Returns { ok => 1 } or { ok => 0, error => ... }.
-
-
-
-
-
-
-
-# The query-string parser at the top of the script collapses repeated
-# keys (last-write-wins). Re-parse from QUERY_STRING directly to pick
-# up every paths=... value from the zip-download request.
-
-
-# --- Helpers ---
-
-
-# --- Logging ---
-
