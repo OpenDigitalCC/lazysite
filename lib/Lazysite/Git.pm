@@ -386,21 +386,36 @@ sub file_log {
 }
 
 # SM199: the file-list / table-of-contents over the history. Enumerates the
-# content paths currently under version control (git ls-files at HEAD - the
+# content paths currently under version control (git ls-tree at HEAD - the
 # tracked set is exactly the versioned content, since info/exclude keeps
 # secrets, caches and generated *.html out), then aggregates each path's
-# lineage-aware timeline (file_log, SM175 semantics) into per-file statistics.
-# Because it reuses file_log, a rename's pre-rename revisions are counted under
-# the CURRENT path and a delete-then-recreate at a reused path starts clean -
-# no leak across the boundary, the same guarantee the per-file view gives.
+# lineage-aware timeline (SM175 semantics) into per-file statistics.
+#
+# SM571: ONE walk over the history, not one file_log per path. The per-path
+# version ran up to four git processes per tracked file - O(files x history) -
+# and on edge that was a 504 at the gateway every time. The walk reads
+# `git log --name-status` newest-first, once, and reproduces file_log's
+# lineage rules as it goes:
+#   - a path's current incarnation ends at the commit that ADDED it, so a
+#     delete-then-recreate at a reused path starts clean (no leak);
+#   - a recorded move (Lazysite-Renamed-From trailer on that add commit)
+#     continues into the source path's OLDER commits, so a rename keeps its
+#     pre-rename revisions under the current path;
+#   - each path is bounded at the same 200 revisions the per-file view caps
+#     at, and a bound reached mid-lineage does not follow the rename (as
+#     file_log's limit does not).
+# The one departure from file_log: an incarnation with NO add commit anywhere
+# in the history (a file present in the root commit of a repo adopted without
+# the usual init commit) counts every commit touching the path, exactly as the
+# per-file view does, but the walk does not consult a trailer for it - there
+# is no add commit to carry one. Rename detection is switched OFF for the
+# walk (--no-renames): the trailer is the recorded move, git's similarity
+# guess is not.
 #
 # Returns { files => [ { path, revisions, first, latest, last_author }, ... ]
 # (sorted by path), summary => { files, revisions } }. Dates are commit epochs
 # (first = oldest in the lineage, latest = newest); last_author is the author of
-# the most recent revision. Disabled / no repo = empty, never an error. Each
-# path's history is bounded by the file_log limit (200), so a pathological
-# thousand-revision file counts up to that bound - the same cap the per-file
-# view honours.
+# the most recent revision. Disabled / no repo = empty, never an error.
 sub files_summary {
     my ($docroot) = @_;
     return { files => [], summary => { files => 0, revisions => 0 } }
@@ -414,30 +429,86 @@ sub files_summary {
     return { files => [], summary => { files => 0, revisions => 0 } }
         unless $ok && defined $out;
 
-    my @files;
-    my $total_rev = 0;
+    # %open: path name being read => the HEAD path its commits are credited to.
+    # Every HEAD path starts open under its own name; an add commit closes it
+    # and, if that commit is a recorded move, opens the source name for it.
+    my %open;
+    my %stat;    # HEAD path => { revisions, first, latest, last_author }
     for my $rel ( split /\0/, $out ) {
         next unless length $rel;
         my $norm = _norm_rel($rel);
         next unless defined $norm;
-        my $log = file_log( $docroot, $norm, 200 );
-        next unless @{$log};    # a path with no readable lineage is skipped
-        my $revisions = scalar @{$log};
+        $open{$norm} = $norm;
+    }
+    return { files => [], summary => { files => 0, revisions => 0 } } unless %open;
 
-        # file_log is newest-first: [0] is the latest revision, [-1] the oldest
-        # in this incarnation's lineage.
-        my $latest = $log->[0];
-        my $first  = $log->[-1];
+    # Each record: \x01 sha \0 epoch \0 author \0 trailer(s) [\n] \0 [\n]
+    # then status \0 path \0 pairs for every path the commit changed.
+    my ( $lok, $lout ) = run_git(
+        $docroot, 'log', '-z', '--no-renames', '--name-status',
+        '--format=%x01%H%x00%at%x00%an%x00%(trailers:key=Lazysite-Renamed-From,valueonly)',
+        'HEAD'
+    );
+    return { files => [], summary => { files => 0, revisions => 0 } }
+        unless $lok && defined $lout;
+
+    my $cap = 200;
+RECORD: for my $rec ( split /\x01/, $lout ) {
+        next unless length $rec;
+        my ( $sha, $at, $an, $trailer, @rest ) = split /\0/, $rec, -1;
+        next unless defined $sha && $sha =~ /\A[0-9a-f]{40}\z/;
+        my $epoch  = ( $at // 0 ) + 0;
+        my $author = $an // '';
+        my $from   = defined $trailer ? $trailer : '';
+        $from =~ s/\A\s+//;
+        $from =~ s/\s+\z//;
+        $from = _norm_rel($from);
+
+        # Opens are applied AFTER the commit's own entries: the move commit
+        # deletes the source name in the same diff, and that D is not one of
+        # the source's revisions.
+        my %opens;
+        while (@rest) {
+            my $status = shift @rest;
+            my $path   = shift @rest;
+            next unless defined $status && defined $path && length $path;
+            $status =~ s/\A\n//;
+            next unless $status =~ /\A[A-Z]/;
+            my $target = $open{$path};
+            next unless defined $target;
+            my $st = $stat{$target} //= { revisions => 0, first => $epoch, latest => $epoch,
+                last_author => $author };
+            if ( $st->{revisions} < $cap ) {
+                $st->{revisions}++;
+                $st->{first} = $epoch;
+            }
+            next unless $status =~ /\AA/;
+
+            # This incarnation begins here. Follow ONLY a recorded rename, and
+            # only when the bound has not been reached - a capped lineage stops.
+            delete $open{$path};
+            next if $st->{revisions} >= $cap;
+            next unless defined $from && !exists $open{$from} && !exists $opens{$from};
+            $opens{$from} = $target;
+        }
+        $open{$_} = $opens{$_} for keys %opens;
+        last RECORD unless %open;
+    }
+
+    my @files;
+    my $total_rev = 0;
+    for my $norm ( sort keys %stat ) {
+        my $st = $stat{$norm};
+        next unless $st->{revisions};    # a path with no readable lineage is skipped
         push @files, {
             path        => $norm,
-            revisions   => $revisions,
-            first       => $first->{epoch},
-            latest      => $latest->{epoch},
-            last_author => $latest->{author},
+            revisions   => $st->{revisions},
+            first       => $st->{first},
+            latest      => $st->{latest},
+            last_author => $st->{last_author},
         };
-        $total_rev += $revisions;
+        $total_rev += $st->{revisions};
     }
-    @files = sort { $a->{path} cmp $b->{path} } @files;
     return {
         files   => \@files,
         summary => { files => scalar @files, revisions => $total_rev },

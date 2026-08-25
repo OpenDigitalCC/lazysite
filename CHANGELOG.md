@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM571 resolved (PENDING) **the history summary walks the history once.**
+  `git-history-summary` / `list_content_history` always 504'd on edge: the
+  summary ran the per-file lineage walk (several git processes, following
+  renames) for EVERY tracked path, O(files x history), and `limit` changed
+  nothing because the action has never taken one. It now reads the history
+  in ONE `git log --name-status` pass, newest first, keeping the SM175
+  rules by construction - an incarnation ends at its add commit, a recorded
+  move continues into the source path's older commits, 200 revisions per
+  path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
+  x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
+  the site agent's capability sweep, 2026-08-25.
+
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
   an account's REACH is capped by its creator's reach (SM194), on every

@@ -51,7 +51,7 @@ Lazysite::Git::commit_paths( $d, 'dave', 'create content/about.md', 'content/abo
 my ( $rows, $summary ) = by_path();
 
 # per-file revision counts
-is( $rows->{'index.md'}{revisions}, 3, 'index.md counts its three revisions' );
+is( $rows->{'index.md'}{revisions},         3, 'index.md counts its three revisions' );
 is( $rows->{'content/about.md'}{revisions}, 1, 'about.md counts its single revision' );
 
 # first / latest dates: first <= latest, and index has three distinct commits
@@ -110,6 +110,59 @@ is( $rows->{'content/note.md'}{revisions}, 1,
     'recreated path counts ONLY its own revision (no leak of the deleted file)' );
 is( $rows->{'content/note.md'}{last_author}, 'eve',
     'recreated path last author is the recreator, not the deleted file author' );
+
+# --- SM571: the summary walks the history ONCE ------------------------------
+# On edge the summary 504'd: files_summary ran file_log (several git
+# invocations, following renames) per tracked path, O(files x history). A
+# 40-file site with three commits each is small - and it still took 124 git
+# processes. The summary must come from a bounded number of invocations (the
+# HEAD listing plus one history walk) whatever the file count, with the same
+# per-file counts the per-file walk gave.
+subtest 'the summary is produced in a bounded number of git invocations' => sub {
+    my $big = site();
+    ok( Lazysite::Git::init( $big, 'installer' )->{ok}, 'big fixture initialised' );
+    make_path("$big/content/bulk");
+    my @authors = qw(alice bob carol);
+    for my $i ( 1 .. 40 ) {
+        my $rel = sprintf( 'content/bulk/page-%02d.md', $i );
+        for my $rev ( 1 .. 3 ) {
+            spit( "$big/$rel", "page $i rev $rev\n" );
+            Lazysite::Git::commit_paths( $big, $authors[ $rev - 1 ], "edit $rel", $rel );
+        }
+    }
+
+    my $calls = 0;
+    my $orig  = \&Lazysite::Git::run_git;
+    my $s;
+    {
+        no warnings 'redefine';
+        local *Lazysite::Git::run_git = sub { $calls++; goto &{$orig} };
+        $s = Lazysite::Git::files_summary($big);
+    }
+    diag("files_summary took $calls git invocation(s) for 40 files x 3 commits");
+    cmp_ok( $calls, '<=', 3, 'at most three git invocations, whatever the file count' );
+
+    my %by   = map  { $_->{path} => $_ } @{ $s->{files} };
+    my @bulk = grep { m{^content/bulk/} } map { $_->{path} } @{ $s->{files} };
+    is( scalar @bulk, 40, 'all forty files are listed' );
+    is_deeply( [ map { $_->{path} } @{ $s->{files} } ],
+        [ sort map { $_->{path} } @{ $s->{files} } ], 'rows are sorted by path' );
+    my $bad = 0;
+    for my $rel (@bulk) {
+        my $row = $by{$rel};
+        $bad++ unless $row->{revisions} == 3;
+        $bad++ unless $row->{last_author} eq 'carol';
+        $bad++ unless $row->{first} > 0 && $row->{first} <= $row->{latest};
+        $bad++
+            unless join( ',', sort keys %{$row} ) eq 'first,last_author,latest,path,revisions';
+    }
+    is( $bad, 0, 'every bulk row: 3 revisions, last author carol, first<=latest, exact keys' );
+    my $sum = 0;
+    $sum += $_->{revisions} for @{ $s->{files} };
+    is( $s->{summary}{revisions}, $sum, 'summary revisions equal the sum of the rows' );
+    is( $s->{summary}{files}, scalar @{ $s->{files} }, 'summary files equal the row count' );
+    cmp_ok( $s->{summary}{revisions}, '>=', 120, 'the 120 bulk revisions are all counted' );
+};
 
 # --- disabled / no repo = empty, never an error ------------------------------
 my $off = tempdir( CLEANUP => 1 );
