@@ -555,11 +555,17 @@ my %MUTATING = map { $_ => 1 } qw(
 # above, never restated. MCP spells the same fact by tool name in its
 # %ANNOTATE (with the readOnly/openWorld hints the API has no use for);
 # t/lint/23 keeps the two tables equal through its twin map.
+# SM572 follow-through: site-backup-apply REPLACES the live content tree with
+# the package's - MCP has always annotated its twin (site_apply) as
+# destructive, and the two tables disagreed until the twin check compared them.
+# NOTE: no comments inside the qw() below - the lint parses it as words.
 my %DESTRUCTIVE = map { $_ => 1 } qw(
     delete data-row-delete data-table-drop data-rebuild data-safety-export-delete
     brief-delete backup-delete theme-delete layout-delete artifact-backups-delete
     handler-delete form-submission-delete form-submissions-delete-bulk
     site-backup-delete
+
+    site-backup-apply
 );
 
 if ( $MUTATING{$action} && $method ne 'POST' ) {
