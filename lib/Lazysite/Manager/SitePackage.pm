@@ -33,6 +33,7 @@ use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
 use Lazysite::Private          ();    # SM286: what a package cannot carry
+use Lazysite::Manager::Backups (); # SM546: verify_sha256/write_sha256 - loaded where it is called
 use Lazysite::Paths            ();
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
@@ -397,7 +398,6 @@ sub package_create {
     # by whatever channel is to hand - and applying it overwrites a site. Write
     # the digest beside it so the receiving operator can verify it arrived
     # intact, with sha256sum -c and no lazysite tooling at all.
-    require Lazysite::Manager::Backups;
     my $sha = Lazysite::Manager::Backups::write_sha256($out);
 
     my @st = stat $out;
@@ -839,7 +839,6 @@ sub apply_and_configure {
     # roll back is believing you can.
     my $safety_name = '';
     if ( !exists $opt{snapshot} || $opt{snapshot} ) {
-        require Lazysite::Manager::Backups;
         local $Lazysite::Manager::Backups::DOCROOT      = $DOCROOT;
         local $Lazysite::Manager::Backups::LAZYSITE_DIR = _lz();
         # SM412: SCOPE THE SNAPSHOT TO THE BLAST RADIUS. This used to snapshot

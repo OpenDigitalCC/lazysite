@@ -259,6 +259,16 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM546 resolved (PENDING) **package_apply loads what it calls.**
+  SitePackage::package_apply called Backups::verify_sha256 without ever
+  loading Backups - only package_create and the snapshot branch of
+  apply_and_configure did - so a fresh process calling package_apply, or
+  apply_and_configure(snapshot => 0), died with Undefined subroutine. The
+  MCP and lazysite-site.pl were shielded only because they never pass
+  snapshot => 0. Found by the backups structural review (N3), proven by
+  probe. SitePackage now loads Backups at the top; t/unit/manager/107 uses
+  SitePackage alone and asserts both applies return a result.
+
 - SM544 resolved (PENDING) **the safety snapshot covers what the restore
   overwrites.** Backups::_archive_scope skipped bare top-level members and
   its deepening loop stopped at tar's own directory entry for the prefix,
