@@ -3197,6 +3197,32 @@ sub process_url {
 # "authentication required" text). Loaded lazily - these paths are rare relative
 # to cache-hit traffic - and keyed off the host language, with an English
 # fallback. Args are HTML-escaped by chrome_string. See Lazysite::I18n.
+# The lazy-load bootstrap, once (PR-1). The processor is module-free by design
+# (ADR 0001) and carries NO global @INC bootstrap, so every site that requires a
+# Lazysite module on a cold path has to locate the module tree for itself first -
+# resolve_db's comment records what happened the one time a site forgot.
+#
+# This is the three verbatim copies (_chrome, fetch_url, resolve_db) as one sub.
+# It searches for the tree only when the module is not already loaded, exactly as
+# the copies did; the require then runs unconditionally, which is what resolve_db
+# already did and what the other two amounted to - a require of a loaded file is
+# the same %INC lookup their `unless` performed.
+sub _lazy_lib {
+    my ($module) = @_;
+    ( my $file = $module ) =~ s{::}{/}g;
+    $file .= '.pm';
+    unless ( $INC{$file} ) {
+        require Cwd;
+        require File::Basename;
+        my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+        for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+            if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+        }
+    }
+    require $file;
+    return 1;
+}
+
 # The host's language, sanitised to a bare code (safe for an <html lang> attr and
 # for naming an i18n file); 'en' when unset. See _chrome.
 sub _chrome_lang {
@@ -3208,29 +3234,13 @@ sub _chrome_lang {
 
 sub _chrome {
     my ( $key, @args ) = @_;
-    unless ( $INC{'Lazysite/I18n.pm'} ) {
-        require Cwd;
-        require File::Basename;
-        my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-        for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-            if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-        }
-        require Lazysite::I18n;
-    }
+    _lazy_lib('Lazysite::I18n');
     return Lazysite::I18n::chrome_string( $DOCROOT, _chrome_lang(), $key, @args );
 }
 
 sub fetch_url {
     my ($url) = @_;
-    unless ( $INC{'Lazysite/Fetch.pm'} ) {
-        require Cwd;
-        require File::Basename;
-        my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-        for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-            if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-        }
-        require Lazysite::Fetch;
-    }
+    _lazy_lib('Lazysite::Fetch');
     return Lazysite::Fetch::fetch_url($url);
 }
 
@@ -3681,6 +3691,21 @@ sub _form_attr {
     return $v;
 }
 
+# The two-entity attribute escape: & and ", nothing else (PR-11). Three sites in
+# _render_form wrote this pair out inline - placeholder, accept, pattern - and
+# every one of them lands in an attribute value, never in element text.
+#
+# This is deliberately NOT _form_attr above: that one also escapes < and >, so
+# reaching for it here would change the bytes of any value carrying an angle
+# bracket. Same reason _esc_html stays separate - it escapes the apostrophe too.
+sub _esc_attr {
+    my ($v) = @_;
+    $v = '' unless defined $v;
+    $v =~ s/&/&amp;/g;
+    $v =~ s/"/&quot;/g;
+    return $v;
+}
+
 sub convert_fenced_form {
     my ( $text, $meta ) = @_;
     $meta //= {};
@@ -3797,8 +3822,7 @@ sub _render_form {
         }
         my $ph_attr = '';
         if ( defined $rules{placeholder} ) {
-            ( my $ph = $rules{placeholder} ) =~ s/&/&amp;/g;
-            $ph =~ s/"/&quot;/g;
+            my $ph = _esc_attr( $rules{placeholder} );
             $ph_attr = qq( placeholder="$ph");
         }
 
@@ -3811,8 +3835,7 @@ sub _render_form {
         if ( $rules{file} ) {
             my $acc = '';
             if ( defined $rules{accept} ) {
-                ( my $a = $rules{accept} ) =~ s/&/&amp;/g;
-                $a =~ s/"/&quot;/g;
+                my $a = _esc_attr( $rules{accept} );
                 $acc = qq( accept="$a");
             }
             my $mult = $rules{multiple} ? ' multiple' : '';
@@ -3888,8 +3911,7 @@ sub _render_form {
             my $pat = $rules{pattern};
             $pat = '[\\d\\s()+.-]{6,20}' if !defined $pat && $type eq 'tel';
             if ( defined $pat ) {
-                $pat =~ s/&/&amp;/g;
-                $pat =~ s/"/&quot;/g;
+                $pat = _esc_attr($pat);
                 $attrs .= qq( pattern="$pat");
             }
             $field_html = qq(    <input type="$type" name="$name" id="$name")
@@ -4817,9 +4839,9 @@ sub resolve_db {
 
     # Modules, lazily - AND THE MODULE TREE HAS TO BE FOUND FIRST.
     #
-    # The bootstrap below is not decoration. This code once required the module
-    # without locating it: the processor is module-free by design, so it carries
-    # NO global @INC bootstrap, and every lazy-loading site here (_chrome,
+    # _lazy_lib is not decoration. This code once required the module without
+    # locating it: the processor is module-free by design, so it carries NO
+    # global @INC bootstrap, and every lazy-loading site here (_chrome,
     # fetch_url, this one) has to find the tree for itself before requiring.
     #
     # That bug passed every test, because `prove -l` puts lib/ on @INC. On a
@@ -4828,15 +4850,7 @@ sub resolve_db {
     # by proving the source resolved at all: scan: gave 26, an unrecognised
     # prefix fell through to the literal, and db: gave nothing.
     my $ok = eval {
-        unless ( $INC{'Lazysite/Data/Tables.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
-        }
-        require Lazysite::Data::Tables;
+        _lazy_lib('Lazysite::Data::Tables');
         1;
     };
     unless ($ok) {
@@ -5696,6 +5710,22 @@ sub resolve_scan {
     return \@sorted;
 }
 
+# A registry output is stale when it is missing, or older than $REGISTRY_TTL
+# (PR-12). update_registries wrote the same test out twice - once as "does
+# anything here need regenerating", once as the per-template skip, spelled as
+# its negation. Same stat, same comparison, same order.
+#
+# The two further copies on the serve path (_serve_registry and the re-check
+# under the lock in _regenerate_registries_once) are LEFT INLINE deliberately:
+# t/unit/plugins/16 and t/unit/processor/46 lift those two subs out of this file
+# by regex and run them standalone against stubs, so a call to a helper defined
+# elsewhere in the file would be an undefined subroutine in their harnesses.
+sub _registry_stale {
+    my ($path) = @_;
+    return 1 if !-f $path;
+    return ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL ? 1 : 0;
+}
+
 {
     # P-3: cache "do we have any registry templates?" at process level.
     # Most sites don't use registries; this avoids an opendir on every
@@ -5745,9 +5775,7 @@ sub resolve_scan {
         for my $tmpl (@templates) {
             ( my $output_name = $tmpl ) =~ s/\.tt$//;
             my $output_path = _registry_cache_path( $root, $output_name );
-            if ( !-f $output_path
-                || ( time() - ( stat($output_path) )[9] ) >= $REGISTRY_TTL )
-            {
+            if ( _registry_stale($output_path) ) {
                 $needs_update = 1;
                 last;
             }
@@ -5777,8 +5805,7 @@ sub resolve_scan {
             my $tmpl_path   = "$REGISTRY_DIR/$tmpl";
 
             # Check this specific registry needs updating
-            next if -f $output_path
-                && ( time() - ( stat($output_path) )[9] ) < $REGISTRY_TTL;
+            next unless _registry_stale($output_path);
 
             # Filter pages registered for this registry
             my $registry_name = $output_name;
