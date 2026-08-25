@@ -3013,11 +3013,37 @@ sub _rename_page {
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
+# SM537: EVERY tool is named here - t/lint/85 refuses one that is not. The
+# default in tool_list is a safety net for the dispatcher, never a value an
+# entry may rely on: a read that falls to it advertises as an open-world write,
+# and a drop advertises as non-destructive.
 my %ANNOTATE = (
-    whoami       => [ 1, 0, 0 ],
-    read_brief   => [ 1, 0, 0 ],
-    append_brief => [ 0, 0, 0 ],    # writes the engine store, changes nothing live
-    list_briefs  => [ 1, 0, 0 ],
+    whoami                => [ 1, 0, 0 ],
+    describe_capabilities => [ 1, 0, 0 ],
+    upload_file           => [ 0, 0, 1 ],
+    list_data_tables      => [ 1, 0, 0 ],
+    describe_data_table   => [ 1, 0, 0 ],
+    read_data_rows        => [ 1, 0, 0 ],
+    save_data_table => [ 0, 0, 1 ], # a descriptor's public flag decides what the site serves
+    migrate_data_table    => [ 0, 0, 1 ],  # applies the safe changes to the live table
+    rebuild_data_table    => [ 0, 1, 1 ],  # drops columns, by named confirmation
+    drop_data_table       => [ 0, 1, 1 ],
+    save_data_row         => [ 0, 0, 1 ],
+    delete_data_row       => [ 0, 1, 1 ],
+    list_domains          => [ 1, 0, 0 ],
+    domain_set            => [ 0, 0, 1 ],
+    preview_public_page   => [ 1, 0, 0 ],
+    preview_domain        => [ 1, 0, 0 ],
+    site_backup           => [ 0, 0, 0 ],  # writes an archive; changes nothing live
+    site_apply            => [ 0, 1, 1 ],  # overwrites the live content tree
+    delete_theme          => [ 0, 1, 1 ],
+    read_form_submissions => [ 1, 0, 0 ],
+    create_form           => [ 0, 0, 1 ],
+    analyse_visitors      => [ 1, 0, 0 ],
+    regenerate_registries => [ 0, 0, 1 ],
+    read_brief            => [ 1, 0, 0 ],
+    append_brief          => [ 0, 0, 0 ],  # writes the engine store, changes nothing live
+    list_briefs           => [ 1, 0, 0 ],
     list_data_safety_exports   => [ 1, 0, 0 ],
     delete_data_safety_export  => [ 0, 1, 0 ],   # destroys the only copy of dropped rows
     read_data_safety_export    => [ 1, 0, 0 ],

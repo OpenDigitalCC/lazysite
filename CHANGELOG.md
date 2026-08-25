@@ -214,6 +214,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM537 resolved (PENDING) **every MCP tool carries its own annotation.**
+  22 of 69 tools fell to the default [0,0,1], so reads such as
+  list_domains, read_data_rows and read_form_submissions advertised as
+  open-world writes and drop_data_table, delete_data_row, site_apply and
+  delete_theme as non-destructive - and clients drive per-call approval
+  from these hints. Each now has an explicit entry; t/lint/85 refuses a
+  tool that falls to the default.
+
 - SM525 resolved (PENDING) **whoami names only the tools the session may
   call.** whoami.tools echoed every tool in the table to any authenticated
   caller while tools/list filtered by capability (SM196) - two answers to

@@ -37,4 +37,22 @@ is_deeply( \@no_schema, [], 'every tool declares an inputSchema' )
 is_deeply( \@wrong_key, [], 'no tool uses the key `schema` - it is silently ignored' )
     or diag("wrong key: @wrong_key");
 
+# SM537: every tool carries its OWN annotation. %ANNOTATE named 47 of 69
+# tools and the rest fell to the default [0,0,1] - reads advertised as
+# open-world writes, drops and deletes as non-destructive - and clients drive
+# per-call approval from those hints. The default stays as a safety net for
+# the dispatcher, but no table entry may rely on it.
+{
+    my ($ann) = $src =~ /^my \%ANNOTATE = \((.*?)^\);/ms;
+    ok( $ann, 'the %ANNOTATE map was found' );
+    my %annotated = map { $_ => 1 } ( $ann // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[/mg;
+    cmp_ok( scalar keys %annotated, '>=', 60, 'the annotation map was parsed' );
+    my @default = grep { !$annotated{$_} } sort keys %body;
+    is_deeply( \@default, [], 'every tool has an explicit annotation (none falls to the default)' )
+        or diag("on the default [0,0,1]: @default");
+    my @stale = grep { !$body{$_} } sort keys %annotated;
+    is_deeply( \@stale, [], 'every annotation names a tool that exists' )
+        or diag("annotated but not in the table: @stale");
+}
+
 done_testing();

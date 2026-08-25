@@ -142,6 +142,7 @@ ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' )
     # Annotation + output-schema shape (authed list; SM210 keeps these tools out
     # of the anonymous surface).
     ok( $fn{delete_file}{annotations}{destructiveHint}, 'delete_file is annotated destructive' );
+    ok( $fn{delete_theme}{annotations}{destructiveHint}, 'delete_theme is annotated destructive (SM537)' );
     ok( $fn{write_file}{outputSchema}, 'tools carry an output schema (ChatGPT validates results)' );
 }
 
