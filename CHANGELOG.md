@@ -44,17 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM593 follow-up (PENDING) **the unscoped-table check asks whether anybody
+  is confined.** It keyed on the DOMAIN COUNT, so the first 0.10.33 deploy
+  reported nine tables needing a human on an instance whose domains all
+  belong to one person - a finding about nothing, repeated on every deploy,
+  which is how a real one gets scrolled past. Confinement comes from a domain
+  naming a group in `allowed_groups` (SM165) and every scope derives from
+  that, so where no domain names one the check now says the namespace is the
+  operator's own and stays quiet. Where one does, the finding stands.
+
 ## 0.10.33 - EDGE: a grant decides what a partner reaches, and every surface says so (2026-08-25)
 
 - SM599 resolved (79f1cbd4) **the tidy gate can fail again.**
-  `tools/tidy-check.pl` tested for a `.git` DIRECTORY, and a linked
-  worktree's `.git` is a FILE - so in every gate this project runs, which are
-  all run in worktrees, it exited SKIP with status 0 and `t/lint/06` passed
-  without examining a line. The rule was enforced only in the release build's
-  staging clone, which is where 0.10.33 first refused. Both forms are
-  accepted now, as git itself does, and a skip in a tree where the tool
-  *could* have run is a failure rather than a pass - a gate that cannot fail
-  is the reason nobody looked.
+
 
 - SM573 resolved (24914e59) **a brief states the grant it was issued for.** The
   onboarding brief's capability block was a hand-written list of seven, so an

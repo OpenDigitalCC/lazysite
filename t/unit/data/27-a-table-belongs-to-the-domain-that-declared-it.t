@@ -19,9 +19,9 @@ use Cwd        ();
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper ();
-use Lazysite::Manager::Data qw(action_data_tables action_data_table);
-use Lazysite::Manager::Common ();
+use TestHelper                 ();
+use Lazysite::Manager::Data    qw(action_data_tables action_data_table);
+use Lazysite::Manager::Common  ();
 use Lazysite::Manager::Domains ();
 
 BEGIN {
@@ -130,13 +130,29 @@ for my $scope ( 'sites/alpha', 'sites/beta' ) {
 # operator sees before they have a partner to be confined from.
 {
     my $check = TestHelper::repo_root() . '/tools/lazysite-check.pl';
-    SKIP: {
-        skip 'no check tool', 3 unless -f $check;
+SKIP: {
+        skip 'no check tool', 6 unless -f $check;
+        # SEVERAL DOMAINS IS NOT SEVERAL PARTIES. Confinement comes from a
+        # domain naming a group in allowed_groups (SM165), and every scope is
+        # derived from that - so where no domain names one, nobody is confined
+        # and an unscoped table is the operator's own. The fixture above has
+        # two domains and no allowed_groups, which is exactly that case.
+        my $quiet = TestHelper::run_cmd( $^X, $check, '--docroot', $d );
+        unlike( $quiet, qr/name no domain on a/,
+            'a multi-domain instance that confines nobody is not warned at all' );
+        like( $quiet, qr/no domain confines a group/,
+            'it is told the namespace is its own instead' );
+
+        # Add the confinement and the same tree becomes a finding - which is
+        # also where the migration list has to be right.
+        open my $ac, '>>', "$d/lazysite/lazysite.conf" or die $!;
+        print {$ac} "alias.alpha.test.allowed_groups: client-a\n";
+        close $ac;
         my $out = TestHelper::run_cmd( $^X, $check, '--docroot', $d );
         like( $out, qr/legacy_stock/,
-            'the check names the table that has no domain' );
+            'once a domain confines a group, the unscoped table IS a finding' );
         unlike( $out, qr/data table.*\balpha_orders\b/,
-            'and does not name the ones that have one' );
+            'and the ones that name a domain are not listed' );
 
         # On a single-domain instance the key would be noise: the exposure
         # needs a second party before it is an exposure.

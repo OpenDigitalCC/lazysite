@@ -1463,6 +1463,25 @@ sub report_unscoped_data_tables {
     my @hosts   = grep { length } map { s/^\s+|\s+$//gr } split /,/, $aliases;
     return unless @hosts;    # one domain: nothing to be confined from
 
+    # IS ANYBODY ACTUALLY CONFINED? Several domains is not several PARTIES.
+    # SM165 confines an account by naming its group in a domain's
+    # allowed_groups, and resolve_user_scopes derives every scope from exactly
+    # that - so with no domain declaring allowed_groups, no caller holds a
+    # scope, none is confined, and an unscoped table is reachable by the
+    # operator alone. Warning there is a finding about nothing, repeated on
+    # every deploy of an instance whose domains are all one person's - and a
+    # finding that is always present and never actionable is how a real one
+    # gets scrolled past.
+    my $confined = 0;
+    if ( open my $ch, '<', $conf ) {
+        while ( my $l = <$ch> ) {
+            next unless $l =~ /^alias\..+\.allowed_groups\s*:\s*\S/;
+            $confined = 1;
+            last;
+        }
+        close $ch;
+    }
+
     opendir( my $dh, $dir ) or return;
     my @files = sort grep { /\.ya?ml\z/ } readdir $dh;
     closedir $dh;
@@ -1480,6 +1499,17 @@ sub report_unscoped_data_tables {
         else                              { push @unscoped, $name }
     }
     return unless @unscoped;
+
+    unless ($confined) {
+        report( 'OK',
+            sprintf(
+                '%d data table%s %s no domain, and no domain confines a group'
+                    . ' - so nothing but the operator reaches them',
+                scalar @unscoped,
+                ( @unscoped == 1 ? ''      : 's' ),
+                ( @unscoped == 1 ? 'names' : 'name' ) ) );
+        return;
+    }
 
     report( 'WARN',
         sprintf( '%d data table%s %s no domain on a %d-domain instance: %s',
