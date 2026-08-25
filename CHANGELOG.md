@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM582 resolved (PENDING) **the two WebDAV write paths nobody was
+  watching, and the defect behind one.** Breaking either changed no test
+  result. PUT's streaming size ceiling was unreachable under the suite -
+  every test declared a CONTENT_LENGTH, so the pre-read gate answered 413
+  first - and t/unit/dav/24 now drives the chunked case, with NO declared
+  length, pinning the refusal to the byte counter (an undeclared body
+  under the ceiling is written whole; one over it is 413 with no file and
+  no .tmp residue). A removal made to fail was reached only by
+  t/integration/41, which skips as root, so nothing observed
+  _remove_entry's failure return on the CI image; t/unit/dav/25 fails both
+  branches against an unwritable parent. **And the collection branch was
+  wrong.** A MOVE of a collection out of an unwritable directory answered
+  507 having emptied the source: remove_tree removes the children and only
+  then cannot unlink the directory from its parent, after which the
+  rollback removed the complete destination copy. The client was told
+  nothing happened while the content was destroyed. _move_bytes now
+  restores the source from that copy before rolling it back.
+
 - SM591 resolved (PENDING) **housekeeping is a grant of its own, in two
   tiers.** Granting somebody the ability to USE a module granted them the
   ability to DESTROY inside it: measured on edge, a principal holding

@@ -866,12 +866,26 @@ sub _move_bytes {
     # until this did.
     $ok = _remove_entry($src);
 
-    # Roll the copy back, so a failed MOVE leaves no entry the
+    # SM582: a removal can fail HALFWAY, and the collection case always
+    # does - remove_tree empties the directory and only then fails to
+    # unlink it from its unwritable parent. So the source came back as a
+    # bare directory while the answer said the move had not happened, and
+    # the rollback below then took the complete copy with it: the client
+    # told nothing happened, and the content gone. Restore the source from
+    # the copy FIRST, because at this instant the copy is the only whole
+    # thing on disk. A file needs nothing restored - unlink either removes
+    # the entry or leaves it intact - and re-copying it is a no-op over
+    # identical bytes.
+    #
+    # Then roll the copy back, so a failed MOVE leaves no entry the
     # caller never asked to create. Reporting the failure while
     # leaving the copy in place would be the same defect one step
     # further on: the client is told nothing happened, and a second
     # file exists.
-    _remove_entry($dst) unless $ok;
+    unless ($ok) {
+        copy_tree( $dst, $src );
+        _remove_entry($dst);
+    }
     return $ok;
 }
 
