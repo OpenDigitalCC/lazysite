@@ -48,10 +48,14 @@ our @CAP_KEYS = qw(
     manage_themes manage_layouts manage_domains manage_config
     manage_users analytics audit notifications feedback read_submissions
     create_sub_users delegate_sub_user_creation
-    manage_data);
+    manage_data manage_briefs);
 
 # SM447 / ADR 0009: `manage_data` is DECLARED BY THE DATA PLUGIN and mirrored
-# here, which is a different thing from being a core capability.
+# here, which is a different thing from being a core capability. SM576 part 1
+# adds `manage_briefs` on exactly that pattern - declared by plugins/briefs.pl,
+# mirrored here, discovered by t/lint/76 - so briefs stop riding manage_content
+# and the right to write another principal's authoring record is grantable on
+# its own (SM575 measured what happens when it is not).
 #
 # The list must be static. caps_for() is consulted on every request through
 # every channel, and discovering capabilities by running each plugin's

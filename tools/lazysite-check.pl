@@ -807,7 +807,7 @@ sub run_checks {
                 manage_themes manage_layouts manage_domains manage_config
                 manage_users analytics audit notifications feedback
                 read_submissions create_sub_users delegate_sub_user_creation
-                manage_data);
+                manage_data manage_briefs);
 
             my $gsettings = _read_json("$LZ/auth/groups-settings.json") || {};
 

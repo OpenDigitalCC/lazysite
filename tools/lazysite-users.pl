@@ -1286,7 +1286,13 @@ sub effective_settings {
         # @CAP_KEYS, because the two must move together - SEC-2026-07 (F3) is
         # what happens when they do not, and t/unit/users/21 is what makes
         # sure they do.
-        manage_data   => $caps->{manage_data}   ? JSON::PP::true() : JSON::PP::false(),
+        manage_data => $caps->{manage_data} ? JSON::PP::true() : JSON::PP::false(),
+        # SM576 part 1: the briefs plugin's capability, added here in the same
+        # commit as @CAP_KEYS for the reason directly above - a capability that
+        # reaches caps_for but not this map is a grant that resolves and then
+        # does nothing on every surface that reads effective_settings, which is
+        # what SEC-2026-07 (F3) was.
+        manage_briefs => $caps->{manage_briefs} ? JSON::PP::true() : JSON::PP::false(),
         manage_config => $caps->{manage_config} ? JSON::PP::true() : JSON::PP::false(),
         # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
         # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained

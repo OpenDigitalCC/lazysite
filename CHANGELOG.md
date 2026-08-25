@@ -51,6 +51,23 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM576 part 1 resolved (PENDING) **`manage_briefs` - briefs stop riding
+  `manage_content`.** SM575 measured one partner agent reading, appending
+  to and permanently deleting another agent's authoring brief while
+  holding nothing but `manage_content`. The right to write a brief is now
+  a grant of its own, declared by `plugins/briefs.pl` and mirrored in
+  `@CAP_KEYS` exactly as `manage_data` is (ADR 0009), with `t/lint/76`
+  discovering the declaration and failing if the two disagree. THE
+  MIGRATION is the smaller, reversible one: `manage_content` keeps brief
+  READS on both channels, so nothing an existing grant does today stops
+  working, and `manage_briefs` is required to append, migrate or delete.
+  Nothing is silently widened either - the capability arrives undecided,
+  so the Groups page offers it as a Grant/Dismiss decision (SM496) and
+  `lazysite-check` names it until one is recorded. MCP gained one
+  optional `cap_also` key so a tool can accept a second capability, which
+  the control API's predicate gates could already say.
+  t/unit/manager/113 proves the split over the real CGI.
+
 - SM587 resolved (PENDING) **destructive is about the data; exposure is a
   second axis.** `destructive` now has one written test - does a copy
   survive the call? - and a second flag, `changes_access`, answers the

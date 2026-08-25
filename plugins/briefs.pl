@@ -28,12 +28,24 @@ sub describe {
             . 'a content file, held in an engine-owned store instead of a '
             . '.brief sidecar in the content tree. Read and append over the '
             . 'control API (brief-read / brief-append) and MCP (read_brief / '
-            . 'append_brief), gated by manage_content.',
+            . 'append_brief). SM576: WRITING one needs manage_briefs, which '
+            . 'this plugin declares; READING one is admitted by manage_briefs '
+            . 'or manage_content, so a site that has always granted '
+            . 'manage_content keeps the reads it had.',
         # SM469/ADR 0009: a contract plugin executes only while enabled, and
         # is born disabled - except that install/upgrade enables it for any
         # site that already has sidecars to migrate (SM245's back-compat
         # rule; a site that never used briefs loses nothing it used).
-        contract      => 1,
+        contract => 1,
+
+        # ADR 0009 / SM576 part 1: what this plugin OWNS, declared here and
+        # nowhere else. `manage_briefs` is mirrored statically in @CAP_KEYS
+        # because caps_for() runs on every request through every channel and
+        # cannot afford a subprocess per plugin to discover it; t/lint/76 does
+        # the discovering instead and fails if the two disagree. The plugin
+        # stays the owner - a capability here that no plugin claims, or that
+        # two claim, is what that lint refuses.
+        owns          => { capabilities => ['manage_briefs'] },
         config_file   => 'lazysite/briefs.conf',
         config_schema => [
             { key => 'store_dir',

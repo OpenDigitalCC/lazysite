@@ -638,11 +638,15 @@ if ( !$token_auth ) {
         'data-safety-export-delete'  => 'manage_data',
         'data-safety-export-read'    => 'manage_data',
         'data-safety-export-restore' => 'manage_data',
-        'brief-read'                 => 'manage_content',    # SM245: the brief store
-        'brief-append'               => 'manage_content',
-        'briefs-migrate'             => 'manage_content',
-        'briefs-list'                => 'manage_content',
-        'brief-delete'               => 'manage_content',
+        # SM245: the brief store. SM576 part 1 splits it: WRITING a brief needs
+        # manage_briefs (the plugin-declared capability), READING one is
+        # admitted by either, so an existing manage_content grant keeps the
+        # reads it has always had and loses only the write.
+        'brief-read'         => 'manage_content|manage_briefs',
+        'brief-append'       => 'manage_briefs',
+        'briefs-migrate'     => 'manage_briefs',
+        'briefs-list'        => 'manage_content|manage_briefs',
+        'brief-delete'       => 'manage_briefs',
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
@@ -819,18 +823,20 @@ if ($token_auth) {
         'data-safety-export-delete'  => sub { $_[0]->{manage_data} },
         'data-safety-export-read'    => sub { $_[0]->{manage_data} },
         'data-safety-export-restore' => sub { $_[0]->{manage_data} },
-        'brief-read'                 => sub { $_[0]->{manage_content} },
-        'brief-append'               => sub { $_[0]->{manage_content} },
-        'briefs-migrate'             => sub { $_[0]->{manage_content} },
-        'briefs-list'                => sub { $_[0]->{manage_content} },
-        'brief-delete'               => sub { $_[0]->{manage_content} },
-        'data-row-delete'            => sub { $_[0]->{manage_data} },
-        'domains-list'   => sub { $_[0]->{manage_domains} },    # read-only domains view
-        'domain-add'     => sub { $_[0]->{manage_domains} },
-        'domain-set'     => sub { $_[0]->{manage_domains} },
-        'domain-remove'  => sub { $_[0]->{manage_domains} },
-        'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
-        'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
+        # SM576 part 1: see %COOKIE_CAP above - the write half moves to
+        # manage_briefs, the read half accepts either.
+        'brief-read'      => sub { $_[0]->{manage_content} || $_[0]->{manage_briefs} },
+        'brief-append'    => sub { $_[0]->{manage_briefs} },
+        'briefs-migrate'  => sub { $_[0]->{manage_briefs} },
+        'briefs-list'     => sub { $_[0]->{manage_content} || $_[0]->{manage_briefs} },
+        'brief-delete'    => sub { $_[0]->{manage_briefs} },
+        'data-row-delete' => sub { $_[0]->{manage_data} },
+        'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
+        'domain-add'      => sub { $_[0]->{manage_domains} },
+        'domain-set'      => sub { $_[0]->{manage_domains} },
+        'domain-remove'   => sub { $_[0]->{manage_domains} },
+        'domain-preview'  => sub { $_[0]->{manage_domains} },   # SM155: pre-DNS render
+        'domain-check'    => sub { $_[0]->{manage_domains} },   # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
             # SM301: the twin of MCP's regenerate_registries. Same capability, and
             # now the same availability - the account that holds manage_content can

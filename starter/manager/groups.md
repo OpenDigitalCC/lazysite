@@ -49,6 +49,7 @@ var ACTIONS = [
   ['manage_themes', 'Themes'],
   ['manage_layouts', 'Layouts'],
   ['manage_data', 'Data tables'],
+  ['manage_briefs', 'Authoring briefs (write)'],
   ['manage_domains', 'Domains & site packages'],
   ['manage_config', 'Site config (+ plugins)'],
   ['manage_users', 'Users & groups'],

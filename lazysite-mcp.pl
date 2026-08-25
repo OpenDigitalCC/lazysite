@@ -676,7 +676,8 @@ my %TOOLS = (
     },
     read_brief => {
         description => 'Read the authoring brief for a content path - the "why" record SM073 invented, held out of band in the engine-owned brief store since SM245 (no .brief sidecar exists any more; migrated sites moved theirs into the store). Answers exists:false with an empty brief for a path nobody has briefed.',
-        cap         => 'manage_content',
+        cap         => 'manage_briefs',
+        cap_also    => 'manage_content',
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'The content path the brief is about' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -688,7 +689,7 @@ my %TOOLS = (
     },
     append_brief => {
         description => 'Append one entry to a content path\'s authoring brief (append-only, like the sidecar it replaced): what changed and why, in your words. The store stamps the date and your identity. Use this when you make a substantive change to a page you maintain.',
-        cap         => 'manage_content',
+        cap         => 'manage_briefs',
         inputSchema => { type => 'object',
             properties => {
                 path => { type => 'string', description => 'The content path the brief is about' },
@@ -703,7 +704,8 @@ my %TOOLS = (
     },
     list_briefs => {
         description => 'List every brief in the store: path, size, mtime, and whether it is an ORPHAN (no content answers its key - the brief was written for a path that never existed, or its page predates the engine carrying briefs through renames and deletes). The discovery half of the lifecycle: read_brief needs a path you already know; this answers WHICH paths have one.',
-        cap => 'manage_content',
+        cap      => 'manage_briefs',
+        cap_also => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
             _briefs( $_[1] );
@@ -712,7 +714,7 @@ my %TOOLS = (
     },
     delete_brief => {
         description => 'Delete one brief store entry by its content path (as list_briefs reports it). The cleanup half of the lifecycle: an orphan surfaced by list_briefs is removed with this. Deleting a live page\'s brief discards its record of intent - prefer appending a correction with append_brief. Audited as brief-delete.',
-        cap         => 'manage_content',
+        cap         => 'manage_briefs',
         inputSchema => {
             type     => 'object',
             required => ['path'],
@@ -3324,6 +3326,10 @@ sub _tool_callable {
     return 0 if $caps->{manager_ui} && $caps->{ui}; # interactive manager account: mcp-refused
     return 1 unless defined $tool->{cap};           # channel-only tool
     return 1 if $caps->{ $tool->{cap} };
+    # SM576 part 1: the second capability a tool accepts, if it declares one.
+    # Discovery must agree with tools/call or a grant is offered a tool it will
+    # be refused, or refused one it may call - SM210's lesson either way round.
+    return 1 if defined $tool->{cap_also} && $caps->{ $tool->{cap_also} };
     return 1
         if $tool->{path_aware} && ( $caps->{manage_themes} || $caps->{manage_layouts} );
     return 0;
@@ -3555,6 +3561,19 @@ elsif ( $method eq 'tools/call' ) {
     if ( defined $tool->{cap} ) {
         $need   = $tool->{cap};
         $cap_ok = $caps->{ $tool->{cap} } ? 1 : 0;
+
+        # SM576 part 1: `cap_also` - a SECOND capability the same tool accepts.
+        # The control API has always been able to say this (its %need entries
+        # are predicates, so `manage_content || manage_briefs` is one line);
+        # MCP's table could only name one, which would have forced the brief
+        # READS onto manage_briefs alone and broken every site that has only
+        # ever granted manage_content. One optional key, read here and in
+        # _tool_callable so discovery and enforcement agree, rather than a
+        # second tool entry saying the same thing.
+        if ( !$cap_ok && defined $tool->{cap_also} && $caps->{ $tool->{cap_also} } ) {
+            $cap_ok = 1;
+        }
+        $need .= " or $tool->{cap_also}" if defined $tool->{cap_also};
         if ( $tool->{path_aware} ) {
             my $a = $params->{arguments} || {};
             my $p = $a->{path} // $a->{to} // $a->{from} // '';

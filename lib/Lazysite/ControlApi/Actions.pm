@@ -58,11 +58,15 @@ our %ACTION = (
     'acl-remove' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
     'acl-set' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
     'actions-list' => { caps => [], params => [] },
-    'brief-read' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
-    'brief-append' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'entry', in => 'body' } ] },
-    'briefs-migrate' => { caps => ['manage_content'], params => [] },
-    'briefs-list'    => { caps => ['manage_content'], params => [] },
-    'brief-delete' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
+    # SM576 part 1: the brief store's own capability. A read takes EITHER
+    # (the three-state note above: any ONE of the listed caps is enough), so a
+    # long-standing manage_content grant keeps reading; a write takes
+    # manage_briefs alone.
+    'brief-read' => { caps => [ 'manage_content', 'manage_briefs' ], params => [ { name => 'path', in => 'query' } ] },
+    'brief-append' => { caps => ['manage_briefs'], params => [ { name => 'path', in => 'query' }, { name => 'entry', in => 'body' } ] },
+    'briefs-migrate' => { caps => ['manage_briefs'],                     params => [] },
+    'briefs-list'    => { caps => [ 'manage_content', 'manage_briefs' ], params => [] },
+    'brief-delete' => { caps => ['manage_briefs'], params => [ { name => 'path', in => 'query' } ] },
     'aliases-list' => { caps => ['manage_content'], params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { caps => ['analytics'], params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' } ] },
     'artifact-backups-delete' => { caps => [ 'manage_layouts', 'manage_themes' ], params => [ { name => 'path', in => 'query' } ] },

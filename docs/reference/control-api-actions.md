@@ -58,11 +58,11 @@ tone: medium
 `backup-restore` | cookie only | name (query)
 `bad-url-blocks` | manage_config |  
 `bad-url-unblock` | manage_config | ip (query)
-`brief-append` | manage_content | path (query), entry (body)
-`brief-delete` | manage_content | path (query)
-`brief-read` | manage_content | path (query)
-`briefs-list` | manage_content |  
-`briefs-migrate` | manage_content |  
+`brief-append` | manage_briefs | path (query), entry (body)
+`brief-delete` | manage_briefs | path (query)
+`brief-read` | manage_content / manage_briefs | path (query)
+`briefs-list` | manage_content / manage_briefs |  
+`briefs-migrate` | manage_briefs |  
 `cache-invalidate` | cookie only | path (query), host (query)
 `cache-list` | cookie only |  
 `channel-services` | cookie only |  

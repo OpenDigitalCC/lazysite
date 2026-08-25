@@ -69,15 +69,14 @@ my %ACTION_INFO = (
                     git-show git-restore lang-status site-export-primary
                     regenerate-registries preview-public
                     acl-get acl-set acl-remove
-                    brief-read brief-append briefs-migrate
-                    briefs-list brief-delete
+                    brief-read briefs-list
                     nav-read pages) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
                     validate_page invalidate_cache regenerate_registries read_nav audit_site create_form
-                    get_permissions set_permissions read_brief append_brief
-                    list_briefs delete_brief
+                    get_permissions set_permissions read_brief
+                    list_briefs
                     list_versions list_content_history view_version restore_version preview_public_page)
             ],
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
@@ -195,6 +194,27 @@ my %ACTION_INFO = (
             # exactly, and t/lint/68 exists for it on this plane. Descriptors
             # are written through data-table-save / save_data_table, which
             # validate before storing.
+        },
+    },
+    # SM576 part 1: DECLARED BY plugins/briefs.pl and mirrored in @CAP_KEYS,
+    # the manage_data pattern (ADR 0009), so that writing another principal's
+    # authoring record is a grant of its own rather than a side effect of being
+    # allowed to edit pages - which is what SM575 measured happening.
+    #
+    # THE READS ARE LISTED TWICE ON PURPOSE. brief-read / briefs-list appear
+    # here AND under manage_content, because the gate admits either: the
+    # migration keeps brief reads with a long-standing manage_content grant and
+    # moves only the writes. A capability's unlocks list states what holding it
+    # gives you, not what it exclusively gives you (manage_nav's nav-read and
+    # manage_forms' form-submissions are listed twice for the same reason).
+    manage_briefs => {
+        title => 'Write authoring briefs - the "why" record kept beside a content file. '
+            . 'Reading a brief is also admitted by manage_content; creating, appending to '
+            . 'and DELETING one needs this. Declared by the briefs plugin, so it is '
+            . 'grantable only where that plugin is installed.',
+        unlocks => {
+            api => [qw(brief-read brief-append briefs-migrate briefs-list brief-delete)],
+            mcp => [qw(read_brief append_brief list_briefs delete_brief)],
         },
     },
     manage_config => {

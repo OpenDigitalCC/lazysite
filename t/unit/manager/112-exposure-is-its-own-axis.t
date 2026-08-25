@@ -45,9 +45,13 @@ sub uapi {
 sub mapi {
     my ( $d, %o ) = @_;
     local %ENV = %ENV;
-    $ENV{DOCUMENT_ROOT}  = $d;
-    $ENV{REQUEST_METHOD} = 'GET';
-    $ENV{CONTENT_LENGTH} = 0;
+    $ENV{DOCUMENT_ROOT} = $d;
+
+    # Pin the user-management tool this CGI shells to - _tool_path() resolves a
+    # cgi-bin SIBLING first, which can be a stale copy outside the checkout.
+    $ENV{LAZYSITE_USERS_TOOL} = $utool;
+    $ENV{REQUEST_METHOD}      = 'GET';
+    $ENV{CONTENT_LENGTH}      = 0;
     delete $ENV{HTTP_X_REMOTE_USER};
     for ( keys %o ) { $ENV{$_} = $o{$_} if defined $o{$_} }
     my ( $w, $r );
