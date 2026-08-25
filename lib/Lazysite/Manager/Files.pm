@@ -406,7 +406,8 @@ sub action_save_binary {
     if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
 
     my $dir = dirname($full);
-    make_path($dir) unless -d $dir;
+    my ( $mok, $merr ) = _mkpath_checked($dir);
+    return { ok => 0, error => "$merr (parent folder)" } unless $mok;
 
     my $tmp = "$full.$$.tmp";
     open my $fh, '>', $tmp or return { ok => 0, error => "Cannot write file: $!" };
@@ -516,7 +517,8 @@ sub action_save {
 
     # Create parent directories
     my $dir = dirname($full);
-    make_path($dir) unless -d $dir;
+    my ( $mok, $merr ) = _mkpath_checked($dir);
+    return { ok => 0, error => "$merr (parent folder)" } unless $mok;
 
     my ( $wok, $werr ) = write_file_checked( $full, $content );
     return { ok => 0, error => $werr } unless $wok;
@@ -831,6 +833,28 @@ sub action_delete {
     return { ok => 1, path => $rel_path };
 }
 
+# SM530: make_path that RETURNS rather than dies - the Private::_mkpath shape.
+#
+# File::Path::make_path CROAKS on failure, so `make_path($full) or return`
+# never reached its `or`, and the bare `make_path($dir) unless -d $dir` before
+# each write died the same way: the CGI ended with "mkdir ...: Permission
+# denied", the caller saw a tool error, and no audit line was written - the
+# SM296 lesson, repeated on the manager's own directories. Returns (1) when the
+# directory exists afterwards, else (0, message) for a refusal hash.
+sub _mkpath_checked {
+    my ($dir) = @_;
+    return (1) if -d $dir;
+    my $err;
+    make_path( $dir, { error => \$err } );
+    return (1) if -d $dir;
+    my $why = '';
+    if ( ref $err eq 'ARRAY' && @$err ) {
+        my ( $path, $msg ) = %{ $err->[0] };
+        $why = $msg // '';
+    }
+    return ( 0, 'Cannot create directory' . ( length $why ? ": $why" : '' ) );
+}
+
 sub action_mkdir {
     my ($rel_path) = @_;
 
@@ -845,8 +869,8 @@ sub action_mkdir {
     my $full = $result->{full};
     return { ok => 0, error => "Path already exists" } if -e $full;
 
-    make_path($full)
-        or return { ok => 0, error => "Cannot create directory: $!" };
+    my ( $mok, $merr ) = _mkpath_checked($full);
+    return { ok => 0, error => $merr } unless $mok;
 
     log_event( 'INFO', $action, 'directory created',
         path => $rel_path, user => $auth_user );
@@ -888,7 +912,8 @@ sub action_move {
     if ( my $deny = _acl_denied( $s->{rel}, 'write', $username ) ) { return $deny }
 
     my $dst_dir = dirname($dst_full);
-    make_path($dst_dir) unless -d $dst_dir;
+    my ( $mok, $merr ) = _mkpath_checked($dst_dir);
+    return { ok => 0, error => "$merr (target folder)" } unless $mok;
 
     # SM518: A FOLDER THAT SPANS BOTH TREES MOVES IN BOTH TREES.
     #
@@ -1036,7 +1061,8 @@ sub action_copy {
     if ( my $deny = _acl_denied( $s->{rel}, 'read', $username ) ) { return $deny }
 
     my $dst_dir = dirname($dst_full);
-    make_path($dst_dir) unless -d $dst_dir;
+    my ( $mok, $merr ) = _mkpath_checked($dst_dir);
+    return { ok => 0, error => "$merr (target folder)" } unless $mok;
     copy( $src_full, $dst_full )
         or return { ok => 0, error => "Copy failed: $!" };
 

@@ -67,6 +67,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM530 resolved (PENDING) **a mkdir into an unwritable parent returns a
+  refusal.** `make_path ... or return` never reached its `or` - File::Path
+  croaks - so a mkdir, save, binary save, move or copy into an unwritable
+  parent killed the CGI with no refusal and no audit line. Found by the
+  path-core review (NR-4), proven by probe. One checked helper (the
+  Private::_mkpath shape) and the five sites return a refusal hash.
+  t/unit/manager/98 drives all five into a read-only parent.
+
 - SM529 resolved (PENDING) **the reply says content moved only when it
   did.** action_acl_set('/') and any write-only rule returned
   content_moved:1 with the "moved out of the document root" note while
