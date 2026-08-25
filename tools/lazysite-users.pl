@@ -256,6 +256,7 @@ our %CLI_NO_DIRECT_AUDIT = (
     # read-only commands
     cmd_list               => 'read-only',
     cmd_groups             => 'read-only',
+    cmd_group_reach        => 'read-only',
     cmd_settings           => 'read-only',
     cmd_permissions_grid   => 'read-only',
     cmd_capability_holders => 'read-only',
@@ -645,6 +646,7 @@ elsif ( $cmd eq 'group-nest' )                { cmd_group_nest(@args) }
 elsif ( $cmd eq 'group-remove' )              { cmd_group_remove(@args) }
 elsif ( $cmd eq 'group-set' )                 { cmd_group_set_cli(@args) }
 elsif ( $cmd eq 'groups' )                    { cmd_groups() }
+elsif ( $cmd eq 'group-reach' )               { cmd_group_reach(@args) }
 elsif ( $cmd eq 'setup-manager' )             { cmd_setup_manager(@args) }
 elsif ( $cmd eq 'settings' )                  { cmd_settings(@args) }
 elsif ( $cmd eq 'set' )                       { cmd_set_cli(@args) }
@@ -1127,6 +1129,71 @@ sub cmd_groups {
     else {
         print "No groups.\n";
     }
+}
+
+# SM564: a group is judged by its REACH, not its record. For each group (or
+# the one named), the EFFECTIVE callable set on the four surfaces, derived from
+# the capability tables the dispatchers enforce - through the nesting closure,
+# so a capability conferred by a parent group is shown exactly as it is
+# enforced (the SM268 02-6 lesson: direct membership under-reports precisely
+# the grants hardest to audit). Read-only; it never sets anything.
+sub cmd_group_reach {
+    my ($only)  = @_;
+    my $gs      = read_group_settings();
+    my %members = read_groups();
+    # A group can exist in the membership file with no settings entry at all
+    # (the starter's `members`): it holds nothing, and the report says so
+    # rather than omitting it - silence would read as "not a group".
+    my %named = map { $_ => 1 } ( keys %$gs, keys %members );
+    die "Group '$only' not found\n"
+        if defined $only && length $only && !$named{$only};
+    my @groups = defined $only && length $only ? ($only) : sort keys %named;
+    if ( !@groups ) { print "No groups.\n"; return }
+
+    require Lazysite::Capabilities;
+    my @channels   = qw(ui webdav api mcp);
+    my %is_channel = map { $_ => 1 } @channels;
+
+    for my $g (@groups) {
+        my ( %caps, %via );
+        for my $p ( sort( Lazysite::Auth::Settings::group_closure($g) ) ) {
+            my $cfg = $gs->{$p} or next;
+            for my $k (@CAP_KEYS) {
+                next unless $cfg->{$k};
+                $caps{$k} = 1;
+                push @{ $via{$k} }, $p if $p ne $g;
+            }
+        }
+        my $reach = Lazysite::Capabilities::reach_for( \%caps );
+        my @doors = grep { $caps{$_} } @channels;
+        my @held  = grep { $caps{$_} && !$is_channel{$_} } @CAP_KEYS;
+
+        my $label = ( $gs->{$g} || {} )->{label} // '';
+        printf "== %s%s\n", $g, ( length $label ? " ($label)" : '' );
+        printf "   holds: %s\n",
+            @held
+            ? join( ', ',
+            map { $_ . ( $via{$_} ? ' (via ' . join( '/', @{ $via{$_} } ) . ')' : '' ) } @held )
+            : '(no action capability)';
+        printf "   doors: %s\n",
+            @doors ? join( ', ', @doors ) : '(none - nothing is callable on any surface)';
+        for my $ch (@channels) {
+            my $r = $reach->{$ch};
+            if ( $r->{held} ) {
+                printf "   %-7s open    %d callable%s\n", $ch,
+                    scalar @{ $r->{callable} },
+                    ( @{ $r->{callable} } ? ': ' . join( ', ', @{ $r->{callable} } ) : '' );
+            }
+            else {
+                printf "   %-7s closed  0 callable%s\n", $ch,
+                    ( @{ $r->{unlocked} }
+                    ? sprintf( ' (%d unlocked by the capabilities held, unreachable without the %s channel)',
+                        scalar @{ $r->{unlocked} }, $ch )
+                    : '' );
+            }
+        }
+    }
+    return;
 }
 
 # --- SM070: access-mechanism settings and credential generation ---
@@ -3726,6 +3793,9 @@ Commands:
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
+  group-reach [GROUP]         What a group's members can actually CALL on each
+                              surface (ui, webdav, api, mcp), derived from the
+                              live capability tables through the nesting closure
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
                               manage_forms, manage_themes, manage_layouts,

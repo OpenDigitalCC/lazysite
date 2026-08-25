@@ -16,7 +16,7 @@ use warnings;
 use JSON::PP                 ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys reachability channel_keys action_keys channel_service action_channel_surface);
+our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -482,6 +482,40 @@ sub reachability {
         # manager-page capability and reachability is not the question.
         next unless @via || @shut;
         $out{$cap} = { via => \@via, ( @shut ? ( requires => \@shut ) : () ) };
+    }
+    return \%out;
+}
+
+# SM564: a group is judged by its REACH, not its record. Given a capability
+# set as the resolver returns it ({ cap => 0|1 }), the effective callable set
+# per channel, derived from the same `unlocks` tables describe() publishes:
+#
+#   { api => { held => 0|1, unlocked => [...], callable => [...] }, ... }
+#
+# `unlocked` is what the ACTION capabilities held would expose on that
+# channel; `callable` is that list when the channel itself is held, and empty
+# when it is not. Two rules fall out of the tables rather than being declared
+# here: a channel flag alone unlocks nothing (SM570 - a door is not an
+# authority), and an action capability without its door reaches nothing.
+# SM570 is also why this exists: an account's declared capabilities and what
+# it can actually call were found to be different things.
+sub reach_for {
+    my ($caps) = @_;
+    $caps ||= {};
+    my %out;
+    for my $ch (@CHANNELS) {
+        my ( %seen, @unlocked );
+        for my $cap ( action_keys() ) {
+            next unless $caps->{$cap};
+            my $u = ( $ACTION_INFO{$cap} || {} )->{unlocks} || {};
+            push @unlocked, grep { !$seen{$_}++ } @{ $u->{$ch} || [] };
+        }
+        my $held = $caps->{$ch} ? 1 : 0;
+        $out{$ch} = {
+            held     => $held,
+            unlocked => \@unlocked,
+            callable => [ $held ? @unlocked : () ],
+        };
     }
     return \%out;
 }

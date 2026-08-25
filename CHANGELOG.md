@@ -44,6 +44,75 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM564 resolved (PENDING) **a group is judged by its reach, not its record.**
+  NEW `Lazysite::Capabilities::reach_for(\%caps)`: the effective callable
+  set per channel ({held, unlocked, callable}) from the same `unlocks`
+  tables describe() publishes - a door alone unlocks nothing, an action
+  without its door reaches nothing. NEW `group-reach [GROUP]` in
+  lazysite-users.pl (read-only) reports it per group through the nesting
+  closure. NEW t/unit/users/33-a-group-is-judged-by-its-reach.t. The
+  starter's seeded groups were reviewed with it; the findings are a section
+  in the SM564 filing (agent-ai/mcp-ai drifted - SM431 handed them the ACL
+  verbs; `members` has no reach at all).
+
+- SM562 resolved (PENDING) **a refusal is a refusal, a finding is a finding.**
+  `lazysite check --all` labelled every non-zero child exit "with findings",
+  so a site the check could not examine (no engine tree) was reported as a
+  site finding. Exit 2 now lands in a "could not check" bucket of its own,
+  named beside "findings on:"; the worst-status exit contract is untouched.
+  NEW t/tools/63-a-refusal-is-not-a-finding.t.
+
+- SM561 resolved (PENDING) **the produced-no-pages refusal can fire.**
+  release.sh appended the trailing `--prefix` to `MAN_ADD` before testing
+  it for emptiness, so a manpage generator that produced nothing passed the
+  gate and shipped a package with no manual pages. The test now comes
+  first. t/tools/27-manpages.t lifts the block and runs it against an empty
+  man directory, expecting the refusal and exit 1.
+
+- SM560 resolved (PENDING) **an abort says what became of the stage,
+  truthfully.** release.sh printed "staging dir retained: PATH" on eleven
+  abort paths while the SM328 EXIT trap removed it unless `--keep-stage` was
+  given. The trap stays; every abort now reports through one
+  `stage_disposition` helper that says "retained" only under `--keep-stage`
+  and otherwise "removed (re-run with --keep-stage to inspect)". The header
+  and the SM444 comment agree. NEW
+  t/tools/61-an-abort-keeps-what-it-says-it-kept.t: the printed path
+  exists, or the line says it was removed and how to keep it.
+
+- SM552 resolved (PENDING) **the coverage verdict is reachable under set -e.**
+  A non-zero coverage.sh exited release.sh on the line that ran it, before
+  `COV_STATUS` was read, so neither "below the declared floor" nor "FAILED
+  WITHOUT reaching the floor comparison" nor the COV_LOG location ever
+  printed. The status is now captured on the same line
+  (`|| COV_STATUS=$?`). t/tools/58 lifts the real block from release.sh and
+  runs it under `set -e`, so a harness can no longer pass a script that dies.
+
+- SM551 resolved (PENDING) **group ACL reach reports on a migrated site.**
+  lazysite-check.pl's `report_group_acl_reach` and `_acls_file` built
+  `$docroot/lazysite/auth/acls.json` by hand, so on an SM293 migrated site
+  the @group section was silent and the ACL probe's sweep looked at a store
+  that was never there. Both now resolve through `Lazysite::Paths::lazysite_dir`
+  as `run_checks` does. t/tools/38-migrate-engine-tree.t gains the assertion:
+  an @agents rule written by the real ACL writer on the migrated site is
+  reported as "@agents is granted by".
+
+- SM550 resolved (PENDING) **the theme-mirror check runs.**
+  `report_theme_assets_mirrored` in lazysite-check.pl called
+  `conf_value('layout')` with one argument to a `($file, $key)` function, so
+  SM315's standing check opened a file named `layout` and returned before
+  looking - it had never run. It now reads the conf file. NEW
+  t/tools/62-check-reports-an-unmirrored-theme.t: a theme with its CSS beside
+  theme.json and no mirror produces the "no mirrored assets" line naming the
+  misplaced file.
+
+- SM549 resolved (PENDING) **actor local is one actor in the users tool.**
+  `_authorise_manage` refused `actor: local` for account-disable,
+  account-enable and account-reassign while passwd, rename, claim and
+  account-create exempted it. SM268 C1 settled that `local` is the operator
+  sentinel, so the gate now reads it as the five inline blocks do. NEW
+  t/unit/users/32-local-is-one-actor.t: every actor-taking verb gives the
+  same verdict with actor local as with no actor.
+
 - SM559 resolved (PENDING) **the walker returns its failures.** One
   file-scoped @COPY_FAILED was fed by every _copy_tree, so an unreadable
   LAYOUT directory was reported as unreadable site content under a
@@ -324,63 +393,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM562 resolved (PENDING) **a refusal is a refusal, a finding is a finding.**
-  `lazysite check --all` labelled every non-zero child exit "with findings",
-  so a site the check could not examine (no engine tree) was reported as a
-  site finding. Exit 2 now lands in a "could not check" bucket of its own,
-  named beside "findings on:"; the worst-status exit contract is untouched.
-  NEW t/tools/63-a-refusal-is-not-a-finding.t.
-
-- SM561 resolved (PENDING) **the produced-no-pages refusal can fire.**
-  release.sh appended the trailing `--prefix` to `MAN_ADD` before testing
-  it for emptiness, so a manpage generator that produced nothing passed the
-  gate and shipped a package with no manual pages. The test now comes
-  first. t/tools/27-manpages.t lifts the block and runs it against an empty
-  man directory, expecting the refusal and exit 1.
-
-- SM560 resolved (PENDING) **an abort says what became of the stage,
-  truthfully.** release.sh printed "staging dir retained: PATH" on eleven
-  abort paths while the SM328 EXIT trap removed it unless `--keep-stage` was
-  given. The trap stays; every abort now reports through one
-  `stage_disposition` helper that says "retained" only under `--keep-stage`
-  and otherwise "removed (re-run with --keep-stage to inspect)". The header
-  and the SM444 comment agree. NEW
-  t/tools/61-an-abort-keeps-what-it-says-it-kept.t: the printed path
-  exists, or the line says it was removed and how to keep it.
-
-- SM552 resolved (PENDING) **the coverage verdict is reachable under set -e.**
-  A non-zero coverage.sh exited release.sh on the line that ran it, before
-  `COV_STATUS` was read, so neither "below the declared floor" nor "FAILED
-  WITHOUT reaching the floor comparison" nor the COV_LOG location ever
-  printed. The status is now captured on the same line
-  (`|| COV_STATUS=$?`). t/tools/58 lifts the real block from release.sh and
-  runs it under `set -e`, so a harness can no longer pass a script that dies.
-
-- SM551 resolved (PENDING) **group ACL reach reports on a migrated site.**
-  lazysite-check.pl's `report_group_acl_reach` and `_acls_file` built
-  `$docroot/lazysite/auth/acls.json` by hand, so on an SM293 migrated site
-  the @group section was silent and the ACL probe's sweep looked at a store
-  that was never there. Both now resolve through `Lazysite::Paths::lazysite_dir`
-  as `run_checks` does. t/tools/38-migrate-engine-tree.t gains the assertion:
-  an @agents rule written by the real ACL writer on the migrated site is
-  reported as "@agents is granted by".
-
-- SM550 resolved (PENDING) **the theme-mirror check runs.**
-  `report_theme_assets_mirrored` in lazysite-check.pl called
-  `conf_value('layout')` with one argument to a `($file, $key)` function, so
-  SM315's standing check opened a file named `layout` and returned before
-  looking - it had never run. It now reads the conf file. NEW
-  t/tools/62-check-reports-an-unmirrored-theme.t: a theme with its CSS beside
-  theme.json and no mirror produces the "no mirrored assets" line naming the
-  misplaced file.
-
-- SM549 resolved (PENDING) **actor local is one actor in the users tool.**
-  `_authorise_manage` refused `actor: local` for account-disable,
-  account-enable and account-reassign while passwd, rename, claim and
-  account-create exempted it. SM268 C1 settled that `local` is the operator
-  sentinel, so the gate now reads it as the five inline blocks do. NEW
-  t/unit/users/32-local-is-one-actor.t: every actor-taking verb gives the
-  same verdict with actor local as with no actor.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
