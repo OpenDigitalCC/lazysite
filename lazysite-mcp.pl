@@ -222,38 +222,56 @@ sub send_401 {
 
 # --- token auth (reuses the control-API credential verification) ----------
 
-sub _users_tool {
-    for my $c ( $ENV{LAZYSITE_USERS_TOOL},
-        dirname( Cwd::abs_path(__FILE__) ) . "/tools/lazysite-users.pl",
-        dirname( Cwd::abs_path(__FILE__) ) . "/../tools/lazysite-users.pl",
-        "$DOCROOT/../tools/lazysite-users.pl" ) {
+# MC-4: the three sibling-tool probes were the same loop written three times.
+# Only the CANDIDATE LIST differs - an optional environment override, the script
+# beside this one, the same one level up, and the one under the docroot's parent
+# - so that is what each caller passes.
+sub _sibling_tool {
+    for my $c (@_) {
         return $c if defined $c && -f $c;
     }
     return undef;
+}
+
+# Run a sibling tool and hand back what it printed. Returns ( $ran, $output ):
+# $ran is false ONLY when the tool could not be STARTED, which each caller
+# reports in its own words - a tool that ran and printed nothing is a different
+# failure from one that never ran, and merging the two would lose that.
+sub _run_json_tool {
+    my ( $argv, $stdin ) = @_;
+    my ( $out, $in );
+    my $pid = eval { open2( $out, $in, $^X, @$argv ) } or return ( 0, undef );
+    print {$in} $stdin if defined $stdin;
+    close $in;
+    my $resp = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return ( 1, $resp );
+}
+
+sub _users_tool {
+    my $bin = dirname( Cwd::abs_path(__FILE__) );
+    return _sibling_tool( $ENV{LAZYSITE_USERS_TOOL},
+        "$bin/tools/lazysite-users.pl",
+        "$bin/../tools/lazysite-users.pl",
+        "$DOCROOT/../tools/lazysite-users.pl" );
 }
 
 sub _users_api {
     my ($payload) = @_;
     my $tool = _users_tool() or return undef;
-    my ( $out, $in );
-    my $pid = eval { open2( $out, $in, $^X, $tool, '--api', '--docroot', $DOCROOT ) }
-        or return undef;
-    print $in encode_json($payload);
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my ( $ran, $resp ) = _run_json_tool(
+        [ $tool, '--api', '--docroot', $DOCROOT ], encode_json($payload) );
+    return undef unless $ran;
     return eval { decode_json( $resp // '{}' ) };
 }
 
 sub _stats_tool {
-    for my $c ( $ENV{LAZYSITE_STATS_TOOL},
-        dirname( Cwd::abs_path(__FILE__) ) . "/plugins/stats.pl",
-        dirname( Cwd::abs_path(__FILE__) ) . "/../plugins/stats.pl",
-        "$DOCROOT/../plugins/stats.pl" ) {
-        return $c if defined $c && -f $c;
-    }
-    return undef;
+    my $bin = dirname( Cwd::abs_path(__FILE__) );
+    return _sibling_tool( $ENV{LAZYSITE_STATS_TOOL},
+        "$bin/plugins/stats.pl",
+        "$bin/../plugins/stats.pl",
+        "$DOCROOT/../plugins/stats.pl" );
 }
 
 # Run the visitor-stats AI export (cached, incremental). Returns the SANITISED
@@ -281,15 +299,9 @@ sub _stats_export {
         @sel = ( '--trails', $opt->{trails} );
     }
 
-    my ( $out, $in );
-    my $pid = eval {
-        open2( $out, $in, $^X, $tool, '--export',
-            '--docroot', $DOCROOT, '--window', $window, @sel );
-    } or return { ok => 0, error => 'could not run the stats plugin' };
-    close $in;
-    my $resp = do { local $/; <$out> };
-    close $out;
-    waitpid $pid, 0;
+    my ( $ran, $resp ) = _run_json_tool(
+        [ $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel ] );
+    return { ok => 0, error => 'could not run the stats plugin' } unless $ran;
     return eval { decode_json( $resp // '{}' ) }
         || { ok => 0, error => 'stats export produced no JSON' };
 }
@@ -352,6 +364,7 @@ sub setup_context {
     $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
     $Lazysite::Manager::Plugins::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::Data::DOCROOT          = $DOCROOT;
     $Lazysite::Manager::Data::auth_user        = $user;    # SM468: schema-history actor
     $Lazysite::Manager::Common::action         = 'mcp';
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -365,6 +378,19 @@ sub setup_context {
         # was allowed over WebDAV and refused here. Being an operator is still
         # refused above - that is a capability question, and this is not.
     @Lazysite::Auth::Acl::user_groups = Lazysite::Auth::Acl::groups_for_user($user);
+    return;
+}
+
+# MC-2: the four brief tools each required the module and then set the same two
+# globals, two of them setting before requiring. The store is the same store for
+# all four, so the context is established once, here, in the order that reads
+# correctly: load the module, then tell it who is asking and where the site is.
+sub _briefs {
+    my ($user) = @_;
+    require Lazysite::Manager::Briefs;
+    no warnings 'once';    # the package is required at run time, not compiled in
+    $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+    $Lazysite::Manager::Briefs::auth_user = $user;
     return;
 }
 
@@ -565,7 +591,6 @@ my %TOOLS = (
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_tables();
         },
     },
@@ -578,7 +603,6 @@ my %TOOLS = (
             },
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_table( $_[0]->{table} );
         },
     },
@@ -591,7 +615,6 @@ my %TOOLS = (
             },
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_table_source( $_[0]->{table} );
         },
     },
@@ -609,7 +632,6 @@ my %TOOLS = (
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_rows(
                 $a->{table},
                 order_by => $a->{order_by},
@@ -630,7 +652,6 @@ my %TOOLS = (
             required => [ 'table', 'descriptor' ], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_table_save( $a->{table},
                 $a->{descriptor} );
         },
@@ -644,7 +665,6 @@ my %TOOLS = (
             },
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_migrate( $_[0]->{table} );
         },
     },
@@ -657,7 +677,6 @@ my %TOOLS = (
             },
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_migrate_plan( $_[0]->{table} );
         },
     },
@@ -673,7 +692,6 @@ my %TOOLS = (
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_rebuild( $a->{table},
                 $a->{confirm_lost} );
         },
@@ -686,9 +704,7 @@ my %TOOLS = (
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            require Lazysite::Manager::Briefs;
-            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-            local $Lazysite::Manager::Briefs::auth_user = $_[1];
+            _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_brief_read( $a->{path} );
         },
     },
@@ -703,9 +719,7 @@ my %TOOLS = (
             required => [ 'path', 'entry' ], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            require Lazysite::Manager::Briefs;
-            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-            local $Lazysite::Manager::Briefs::auth_user = $_[1];
+            _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_brief_append( $a->{path}, $a->{entry} );
         },
     },
@@ -714,9 +728,7 @@ my %TOOLS = (
         cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-            local $Lazysite::Manager::Briefs::auth_user = $_[1];
-            require Lazysite::Manager::Briefs;
+            _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_briefs_list();
         },
     },
@@ -730,9 +742,7 @@ my %TOOLS = (
             additionalProperties => JSON::PP::false,
         },
         run => sub {
-            local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-            local $Lazysite::Manager::Briefs::auth_user = $_[1];
-            require Lazysite::Manager::Briefs;
+            _briefs( $_[1] );
             return Lazysite::Manager::Briefs::action_brief_delete( $_[0]->{path} );
         },
     },
@@ -748,7 +758,6 @@ my %TOOLS = (
             required => ['table'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_table_drop( $a->{table},
                 $a->{confirm} );
         },
@@ -758,7 +767,6 @@ my %TOOLS = (
         cap => 'manage_data',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_safety_exports();
         },
     },
@@ -769,8 +777,6 @@ my %TOOLS = (
             properties => { file => { type => 'string', description => 'The export file name, exactly as listed' } },
             required => ['file'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT   = $DOCROOT;
-            local $Lazysite::Manager::Data::auth_user = $_[1];
             return Lazysite::Manager::Data::action_data_safety_export_delete( $_[0]->{file} );
         },
     },
@@ -781,7 +787,6 @@ my %TOOLS = (
             properties => { file => { type => 'string', description => 'The export file name, exactly as listed' } },
             required => ['file'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_safety_export_read( $_[0]->{file} );
         },
     },
@@ -795,8 +800,6 @@ my %TOOLS = (
             },
             required => ['file'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Data::DOCROOT   = $DOCROOT;
-            local $Lazysite::Manager::Data::auth_user = $_[1];
             return Lazysite::Manager::Data::action_data_safety_export_restore( $_[0]->{file},
                 $_[0]->{apply} ? 1 : 0 );
         },
@@ -813,7 +816,6 @@ my %TOOLS = (
             required => [ 'table', 'row' ], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return { ok => 0, error => 'row must be an object' }
                 unless ref $a->{row} eq 'HASH';
             return Lazysite::Manager::Data::action_data_row_save( $a->{table},
@@ -831,7 +833,6 @@ my %TOOLS = (
             required => [ 'table', 'key' ], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
-            local $Lazysite::Manager::Data::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Data::action_data_row_delete( $a->{table},
                 $a->{key} );
         },
@@ -842,7 +843,6 @@ my %TOOLS = (
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Domains::domains_list();
         },
     },
@@ -894,7 +894,6 @@ my %TOOLS = (
             },
             additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Domains::preview_public( $_[0]->{path} );
         },
     },
@@ -905,7 +904,6 @@ my %TOOLS = (
             properties => { host => { type => 'string', description => 'The configured domain to render' } },
             required => ['host'], additionalProperties => JSON::PP::false },
         run => sub {
-            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
             return Lazysite::Manager::Domains::domain_preview( $_[0]->{host} );
         },
     },
@@ -1789,12 +1787,37 @@ sub _page_status {
 }
 
 # --- SM087: authenticated in-channel preview (server-side render) ----------
+# MC-12 / MCO-3: lazysite.conf was opened three times in a request that audits a
+# site - twice by the audit itself and once for the language note. It is not
+# written during a request, so one read serves them all and the answer cannot
+# change between them.
+#
+# Two layers, deliberately. The two scanners read DECODED text; set_members()
+# parses the bytes the language-set writer wrote. Folding those into a single
+# read would change what a non-ASCII value means to one of them, which is a
+# behaviour change wearing a cleanup's clothes.
+{
+    my %CONF_TEXT;
+
+    sub _read_conf_text {
+        my ($layer) = @_;
+        $layer = ':utf8' unless defined $layer;
+        return $CONF_TEXT{$layer} if exists $CONF_TEXT{$layer};
+        my $text = '';
+        if ( open my $fh, "<$layer", "$LAZYSITE_DIR/lazysite.conf" ) {
+            local $/;
+            $text = <$fh>;
+            close $fh;
+        }
+        $CONF_TEXT{$layer} = defined $text ? $text : '';
+        return $CONF_TEXT{$layer};
+    }
+}
+
 sub _processor_tool {
     my $bin = dirname( Cwd::abs_path(__FILE__) );
-    for my $c ( "$bin/lazysite-processor.pl", "$DOCROOT/../cgi-bin/lazysite-processor.pl" ) {
-        return $c if -f $c;
-    }
-    return undef;
+    return _sibling_tool( "$bin/lazysite-processor.pl",
+        "$DOCROOT/../cgi-bin/lazysite-processor.pl" );
 }
 
 sub _preview_page {
@@ -2265,7 +2288,6 @@ sub _validate_page {
 # and cannot touch the site-wide layout:/theme: keys.
 sub _domain_presentation_set {
     my ( $host, $key, $value ) = @_;
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
     my $r = Lazysite::Manager::Domains::domain_set( $host, $key, $value );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     return { %$r, scope => "domain:$host" };
@@ -2570,11 +2592,8 @@ sub _audit_site {
     # nothing, and is what tells an operator their configuration and their
     # content disagree. Detect before enforce.
     my $auth_default = '';
-    if ( open my $cfh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
-        while ( my $l = <$cfh> ) {
-            if ( $l =~ /^auth_default\s*:\s*(\S+)/ ) { $auth_default = lc $1; last }
-        }
-        close $cfh;
+    for my $l ( split /\n/, _read_conf_text() ) {
+        if ( $l =~ /^auth_default\s*:\s*(\S+)/ ) { $auth_default = lc $1; last }
     }
     my $site_protected = ( $auth_default eq 'required' || $auth_default eq 'optional' ) ? 1 : 0;
 
@@ -2632,14 +2651,11 @@ sub _audit_site {
         my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
         if ( ref $map eq 'HASH' ) {
             my @croots;
-            if ( open my $cfh2, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
-                while ( my $l = <$cfh2> ) {
-                    next unless $l =~ /^alias\.\S+\.content_root\s*:\s*(\S+)/;
-                    my $c = $1;
-                    $c =~ s{^/+|/+$}{}g;
-                    push @croots, $c if length $c;
-                }
-                close $cfh2;
+            for my $l ( split /\n/, _read_conf_text() ) {
+                next unless $l =~ /^alias\.\S+\.content_root\s*:\s*(\S+)/;
+                my $c = $1;
+                $c =~ s{^/+|/+$}{}g;
+                push @croots, $c if length $c;
             }
             for my $k ( sort keys %$map ) {
                 ( my $rel = $k ) =~ s{^/+|/+$}{}g;
@@ -3262,12 +3278,7 @@ if ( !defined $id ) {
 # convention (hand-built switchers, translated keys/paths). Empty string when
 # there is no set, so a monolingual instance's instructions are unchanged.
 sub _mcp_language_note {
-    my $conf = '';
-    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
-        local $/;
-        $conf = <$fh>;
-        close $fh;
-    }
+    my $conf  = _read_conf_text(':raw');
     my $group = ( $conf =~ /^lang_group\h*:\h*(\S+)\h*$/m ) ? $1 : '';
     return '' unless length $group;
     my @members = set_members( $conf, $group );
