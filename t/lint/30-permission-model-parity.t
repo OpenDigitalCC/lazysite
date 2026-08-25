@@ -280,8 +280,14 @@ subtest 'install_dirs reaches the tool that verifies it' => sub {
         local $/;
         <$fh>;
     };
-    like( $chk, qr/\$j->\{dirs\}/,
+    # SM516 tools tidy: this pinned the VARIABLE NAME ($j), so renaming it to
+    # something clearer broke a lint whose subject is whether check.pl reads
+    # the recorded dirs at all. Pin the fact - a {dirs} read out of the parsed
+    # install state - and let the variable be called whatever reads best.
+    like( $chk, qr/->\{dirs\}/,
         'lazysite-check.pl reads the recorded modes' );
+    like( $chk, qr/install-state|install_state|\bstate\b.*json|json.*\bstate\b/i,
+        'and reads them out of the install state it was given' );
 };
 
 done_testing();
