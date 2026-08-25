@@ -52,7 +52,12 @@ Naming the commit: AFTER it lands, never before
   the same instance and read any manifest in full. The duplication was the
   defect; the four ask one function now. The MCP twin goes with them, and
   there an unscoped grant reaches nothing by construction: MCP has no cookie
-  session, so there is no operator to exempt.
+  session, so there is no operator to exempt. **Every MCP grant naming no
+  `dav_scope` therefore loses `site_backup` and `site_apply`** until it is
+  scoped - the re-scoping already accepted for token partners, arriving on one
+  more surface. The MCP tests had encoded an unscoped caller packaging a
+  domain as their happy path, which is the clearest statement of what was
+  wrong.
 
 - SM593 follow-up (PENDING) **the unscoped-table check asks whether anybody
   is confined.** It keyed on the DOMAIN COUNT, so the first 0.10.33 deploy

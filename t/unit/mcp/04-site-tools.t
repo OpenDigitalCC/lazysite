@@ -6,10 +6,10 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP    qw(encode_json decode_json);
-use IPC::Open2  qw(open2);
-use File::Temp  qw(tempdir);
-use File::Path  qw(make_path);
+use JSON::PP   qw(encode_json decode_json);
+use IPC::Open2 qw(open2);
+use File::Temp qw(tempdir);
+use File::Path qw(make_path);
 use FindBin;
 
 my $root = "$FindBin::Bin/../../..";
@@ -29,8 +29,15 @@ open my $ix, '>', "$d/sites/clienta/index.md" or die $!; print {$ix} "# A\n"; cl
 open my $lt, '>', "$d/lazysite/layouts/base/layout.tt" or die $!; print {$lt} '[% content %]'; close $lt;
 open my $th, '>', "$d/lazysite/layouts/base/themes/blue/theme.json" or die $!; print {$th} '{}'; close $th;
 
-# Stub users-tool. Everyone gets mcp + manage_domains; a /scoped/ username is
-# additionally confined to content/other (so shop.clienta.com is out of scope).
+# Stub users-tool. Everyone gets mcp + manage_domains. A /scoped/ username is
+# confined to content/other (so shop.clienta.com is out of scope); an /inscope/
+# username is confined to the client's own root and may therefore act on it.
+#
+# SM578: THE UNSCOPED CALLER IS NO LONGER THE HAPPY PATH. MCP has no cookie
+# session, so every caller here is a token or OAuth partner and an empty
+# dav_scopes means nobody set one - never "this is the operator". An unscoped
+# grant used to package ANY domain on the instance, which was measured in the
+# field against a domain it had no relationship with.
 my $stub = "$d/users-stub.pl";
 open my $sf, '>', $stub or die $!;
 print $sf <<'STUB';
@@ -40,7 +47,8 @@ my $in = do { local $/; <STDIN> };
 my $r  = eval { decode_json($in) } || {};
 my $u  = $r->{username} // '';
 my %caps = ( mcp => 1, manage_content => 1, manage_domains => 1 );
-$caps{dav_scopes} = ['content/other'] if $u =~ /scoped/;
+$caps{dav_scopes} = ['content/other']  if $u =~ /scoped/;
+$caps{dav_scopes} = ['sites/clienta']  if $u =~ /inscope/;
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
@@ -64,17 +72,30 @@ sub mcp {
     return ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
 }
 sub call { mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
-    params => { name => $_[0], arguments => $_[1] || {} } }, auth => $_[2] ) }
+            params => { name => $_[0], arguments => $_[1] || {} } }, auth => $_[2] ) }
 sub sc { my $r = shift; $r && $r->{result} ? $r->{result}{structuredContent} : undef }
 
-my $ok     = 'Bearer agent:lzs_tok';          # manage_domains, unconfined
-my $scoped = 'Bearer scopedagent:lzs_tok';    # manage_domains, confined to content/other
+my $ok     = 'Bearer agent:lzs_tok';           # manage_domains, unconfined
+my $scoped = 'Bearer scopedagent:lzs_tok';     # manage_domains, confined to content/other
+my $mine   = 'Bearer inscopeagent:lzs_tok';    # manage_domains, confined to sites/clienta
 
 # --- site_backup: happy path packages the domain ----------------------------
 {
-    my $r = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $ok ) );
-    ok( $r && $r->{ok}, 'site_backup packages a configured domain' ) or diag encode_json($r);
+    my $r = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $mine ) );
+    ok( $r && $r->{ok}, 'site_backup packages a domain the grant is scoped to' )
+        or diag encode_json($r);
     like( $r->{name}, qr/^lazysite-site-shop\.clienta\.com-/, 'package named for the host' );
+}
+
+# --- SM578: an unscoped grant reaches no domain -----------------------------
+# The whole of the old happy path. A partner holding manage_domains and no
+# scope built a package - a whole site - for any host on the instance.
+{
+    my $un = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $ok ) );
+    ok( !$un->{ok},
+        'a grant naming NO scope cannot package a domain - MCP has no operator '
+            . 'to exempt' );
+    like( $un->{error} // '', qr/scope|access/i, 'and says why' );
 }
 
 # --- site_backup: refusals --------------------------------------------------
@@ -106,15 +127,17 @@ my $scoped = 'Bearer scopedagent:lzs_tok';    # manage_domains, confined to cont
     ok( !$missing->{ok} && $missing->{error} =~ /not found/i, 'site_apply reports a missing package' );
 
     my $oos = sc( call( 'site_apply',
-        { name => 'lazysite-site-ghost-20260101T000000Z.tar.gz', host => 'shop.clienta.com' }, $scoped ) );
+            { name => 'lazysite-site-ghost-20260101T000000Z.tar.gz', host => 'shop.clienta.com' }, $scoped ) );
     ok( !$oos->{ok}, 'site_apply refuses a target outside the agent scope' );
 }
 
 # --- round-trip: create then apply to the same domain (clean) ---------------
 {
-    my $made = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $ok ) );
+    # SM578: the round trip runs under the grant that is scoped to the domain,
+    # which is the only grant that may now do either half of it.
+    my $made = sc( call( 'site_backup', { host => 'shop.clienta.com' }, $mine ) );
     my $ap   = sc( call( 'site_apply',
-        { name => $made->{name}, host => 'shop.clienta.com', clean => JSON::PP::true() }, $ok ) );
+            { name => $made->{name}, host => 'shop.clienta.com', clean => JSON::PP::true() }, $mine ) );
     ok( $ap && $ap->{ok}, 'site_apply applies a package to a configured domain' ) or diag encode_json($ap);
     is( $ap->{applied_to}, 'shop.clienta.com', 'apply reports the target host' );
 }

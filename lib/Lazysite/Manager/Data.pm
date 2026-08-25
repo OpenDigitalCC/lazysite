@@ -321,6 +321,10 @@ sub action_data_table_save {
     # typo and the answer to a typo is the correct spelling.
     if ( length( $d->{domain} // '' ) ) {
         require Lazysite::Manager::Domains;
+        # `used only once` otherwise: this file sets that package's docroot and
+        # never reads it, which is exactly the shape the warning exists to
+        # catch and exactly what is intended here.
+        no warnings 'once';    ## no critic (ProhibitNoWarnings)
         local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
         my $dl    = eval { Lazysite::Manager::Domains::domains_list() } || {};
         my @hosts = grep { length }
