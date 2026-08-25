@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM569 resolved (PENDING) **a form can land in a data table.** A handler
+## 0.10.32 - EDGE: the review answered - every defect filed, fixed and tested (2026-08-25)
+
+- SM569 resolved (80a1e539) **a form can land in a data table.** A handler
   of `type: table` delivers each accepted submission as a row in a
   declared table - the same operator-only mapping and live-write coercion
   as the `db` handler - AND keeps the JSONL submissions store written
@@ -55,7 +57,7 @@ Naming the commit: AFTER it lands, never before
   closed); the JSONL copy stays under read_submissions.
   t/integration/76 proves both outcomes through the real handler.
 
-- SM558 resolved (PENDING) **the link audit sees the root page.** A link
+- SM558 resolved (18a327bf) **the link audit sees the root page.** A link
   written as `/index` or `/index.html` was always reported broken: the
   check stripped only a trailing `/index`, so `/docs/index` resolved
   while the bare root spelling never did. The check now maps a bare
@@ -63,7 +65,7 @@ Naming the commit: AFTER it lands, never before
   t/unit/plugins/32 audits a fixture docroot and reads exactly the one
   genuinely broken link.
 
-- SM557 resolved (PENDING) **a post writes no used-only-once warnings.**
+- SM557 resolved (5f73292d, 2c1bf086) **a post writes no used-only-once warnings.**
   Every form POST wrote two `Name "Lazysite::...::X" used only once:
   possible typo` lines to the error log - `local $Pkg::VAR` on packages
   only require'd at runtime - and the compile lint checked only the exit
@@ -71,7 +73,7 @@ Naming the commit: AFTER it lands, never before
   a scoped `no warnings 'once'`, and t/lint/04 reads the output and
   refuses the warning across the sweep.
 
-- SM543 resolved (PENDING) **a recount uses the loaded ruleset.**
+- SM543 resolved (5a6b79af) **a recount uses the loaded ruleset.**
   `--recount --apply` was dispatched before the SM391 ruleset load and
   re-entered the export in-process, so the repair tool reclassified
   history under the built-in rules the operator had replaced with
@@ -80,7 +82,7 @@ Naming the commit: AFTER it lands, never before
   day classified under a loaded rule and reads the same version and
   verdicts back.
 
-- SM542 resolved (PENDING) **the page refresh keeps form outcomes.** A
+- SM542 resolved (af4d5096, b8ac508e) **the page refresh keeps form outcomes.** A
   closed day first reached by the manager Stats page's refresh (`--scan`)
   was persisted and finalised with `forms:{}` - only the export path
   folded form-events in, and the final marker stopped every later export
@@ -89,7 +91,7 @@ Naming the commit: AFTER it lands, never before
   record. t/unit/plugins/30 reaches a day scan-first and reads its stored
   and blocked outcomes from the day file.
 
-- SM541 resolved (PENDING) **a promotion reverses the device.** The event
+- SM541 resolved (bbfe62fb) **a promotion reverses the device.** The event
   ring stored no device and no search term, so a late scanner promotion
   reaching back decremented `devices{unknown}` while the original hit had
   gone to `devices{desktop}`, and a term the visitor had pushed over the
@@ -98,7 +100,7 @@ Naming the commit: AFTER it lands, never before
   what the hit did. t/unit/plugins/29 promotes a desktop visitor in a
   second batch and reads zero desktop, zero human and no term.
 
-- SM540 resolved (PENDING) **a handler error is forwarded.** With
+- SM540 resolved (346fb63e) **a handler error is forwarded.** With
   `forward_diagnostics: true` an ERROR from a form submission stayed on
   STDERR: the four plugin copies of log_event (form-handler, form-smtp,
   audit, payment-demo) predated Lazysite::Util's forward_line. Each copy
@@ -108,7 +110,7 @@ Naming the commit: AFTER it lands, never before
   syslog copy, never a submission. t/unit/forms/12 drives three of the
   plugins through the syslog dump seam.
 
-- SM539 resolved (PENDING) **a multi-answer survives a multipart post.** SM401
+- SM539 resolved (b1182386) **a multi-answer survives a multipart post.** SM401
   taught the urlencoded branch of the form parser that a repeated field
   name is a multi-select, but the multipart branch still overwrote - so a
   form with an upload and a checkbox group kept only the last tick. Both
@@ -116,7 +118,7 @@ Naming the commit: AFTER it lands, never before
   repeated key both ways through the real handler and reads `red; blue`
   from both stored rows.
 
-- SM524 resolved (PENDING) **SMTP auth and TLS are what the conf says.**
+- SM524 resolved (a6e0a379) **SMTP auth and TLS are what the conf says.**
   `auth: 1` and `auth: yes` used to skip SMTP authentication silently
   (the read was `/^true$/i`), and `tls: false` was listed among the
   checked stages because the string was truthy. Both keys now go through
@@ -126,7 +128,7 @@ Naming the commit: AFTER it lands, never before
   send. starter/docs/forms-smtp.md states the accepted spellings;
   t/unit/forms/05 pins the stages against the mock server.
 
-- SM523 resolved (PENDING) **a visitor cannot flag themselves.** A
+- SM523 resolved (cbf9619e) **a visitor cannot flag themselves.** A
   submission carrying `_quarantined=1&_spam_reason=...` used to be stored
   with both keys, skip the notification bell and count as quarantined -
   the visitor decided what the engine's spam gate should have. parse_post
@@ -134,7 +136,7 @@ Naming the commit: AFTER it lands, never before
   _ts _tk`) and drops every other client underscore key, so the status
   meta on a stored record is engine-owned. t/unit/forms/11 pins it.
 
-- SM563 resolved (PENDING) **the four surfaces agree on every operation.**
+- SM563 resolved (878a8212) **the four surfaces agree on every operation.**
   lint 14 compared cookie-vs-token, lint 86 token-vs-registry, lint 23
   API-vs-MCP; the DAV verb map was compared to nothing. NEW t/lint/87
   reads, per logical operation, the capability set from all four tables
@@ -143,7 +145,7 @@ Naming the commit: AFTER it lands, never before
   absences are exempted with their reasons, and a channel capability in
   any column fails on sight - the SM570 shape, structurally refused.
 
-- SM572 resolved (PENDING) **the engine describes its own side effects.**
+- SM572 resolved (9653f8fd, 67a832c1, 8ae7b501) **the engine describes its own side effects.**
   A systematic caller of the control API could not ask whether an
   action writes, so a read-shaped sweep rebuilt a live table and cleared
   five roots. actions-list rows and a describe-capabilities `actions`
@@ -155,7 +157,7 @@ Naming the commit: AFTER it lands, never before
   delete_data_row) with no destructive hint; they carry it now.
   t/unit/manager/10 proves both directions on both surfaces.
 
-- SM565 resolved (PENDING) **whoami tells a stranger only its own shape.**
+- SM565 resolved (af48e5a6) **whoami tells a stranger only its own shape.**
   At the capability floor, whoami disclosed every manager group name,
   every plugin with its configuration schema and the full theme
   inventory. Each is now returned only to a caller holding a capability
@@ -164,21 +166,21 @@ Naming the commit: AFTER it lands, never before
   caller's own capabilities, reachability and scope denies are
   unchanged. t/unit/manager/10 pins the floor and each governing grant.
 
-- SM554 resolved (PENDING) **a posted read is not audited.** POST
+- SM554 resolved (96795bdc) **a posted read is not audited.** POST
   action=notices and POST action=layouts-manifest each wrote an ok audit
   row with target "/" - the only live read-shaped actions missing from
   the audit skip list. Both are now skipped, so the trail records
   changes, never looks. NEW t/unit/manager/98 pins it with a real write
   as the control.
 
-- SM553 resolved (PENDING) **the alias spelling keeps the audit target.**
+- SM553 resolved (8ee90440) **the alias spelling keeps the audit target.**
   theme-activate&theme=sky and layout-activate&layout=grid (the SM261
   alias spellings) audited target "/" because the alias resolution lived
   only in the dispatch branch. _audit_implicit_target now names the
   theme or layout whichever spelling was used. t/unit/manager/56 runs
   the dispatcher for both spellings and pins the audit target.
 
-- SM564 resolved (PENDING) **a group is judged by its reach, not its record.**
+- SM564 resolved (e540cb81) **a group is judged by its reach, not its record.**
   NEW `Lazysite::Capabilities::reach_for(\%caps)`: the effective callable
   set per channel ({held, unlocked, callable}) from the same `unlocks`
   tables describe() publishes - a door alone unlocks nothing, an action
@@ -189,21 +191,21 @@ Naming the commit: AFTER it lands, never before
   in the SM564 filing (agent-ai/mcp-ai drifted - SM431 handed them the ACL
   verbs; `members` has no reach at all).
 
-- SM562 resolved (PENDING) **a refusal is a refusal, a finding is a finding.**
+- SM562 resolved (87e20f2d) **a refusal is a refusal, a finding is a finding.**
   `lazysite check --all` labelled every non-zero child exit "with findings",
   so a site the check could not examine (no engine tree) was reported as a
   site finding. Exit 2 now lands in a "could not check" bucket of its own,
   named beside "findings on:"; the worst-status exit contract is untouched.
   NEW t/tools/63-a-refusal-is-not-a-finding.t.
 
-- SM561 resolved (PENDING) **the produced-no-pages refusal can fire.**
+- SM561 resolved (af4ddf1e) **the produced-no-pages refusal can fire.**
   release.sh appended the trailing `--prefix` to `MAN_ADD` before testing
   it for emptiness, so a manpage generator that produced nothing passed the
   gate and shipped a package with no manual pages. The test now comes
   first. t/tools/27-manpages.t lifts the block and runs it against an empty
   man directory, expecting the refusal and exit 1.
 
-- SM560 resolved (PENDING) **an abort says what became of the stage,
+- SM560 resolved (4b033136) **an abort says what became of the stage,
   truthfully.** release.sh printed "staging dir retained: PATH" on eleven
   abort paths while the SM328 EXIT trap removed it unless `--keep-stage` was
   given. The trap stays; every abort now reports through one
@@ -213,7 +215,7 @@ Naming the commit: AFTER it lands, never before
   t/tools/61-an-abort-keeps-what-it-says-it-kept.t: the printed path
   exists, or the line says it was removed and how to keep it.
 
-- SM552 resolved (PENDING) **the coverage verdict is reachable under set -e.**
+- SM552 resolved (05250c0e) **the coverage verdict is reachable under set -e.**
   A non-zero coverage.sh exited release.sh on the line that ran it, before
   `COV_STATUS` was read, so neither "below the declared floor" nor "FAILED
   WITHOUT reaching the floor comparison" nor the COV_LOG location ever
@@ -221,7 +223,7 @@ Naming the commit: AFTER it lands, never before
   (`|| COV_STATUS=$?`). t/tools/58 lifts the real block from release.sh and
   runs it under `set -e`, so a harness can no longer pass a script that dies.
 
-- SM551 resolved (PENDING) **group ACL reach reports on a migrated site.**
+- SM551 resolved (4cbab3f0) **group ACL reach reports on a migrated site.**
   lazysite-check.pl's `report_group_acl_reach` and `_acls_file` built
   `$docroot/lazysite/auth/acls.json` by hand, so on an SM293 migrated site
   the @group section was silent and the ACL probe's sweep looked at a store
@@ -230,7 +232,7 @@ Naming the commit: AFTER it lands, never before
   an @agents rule written by the real ACL writer on the migrated site is
   reported as "@agents is granted by".
 
-- SM550 resolved (PENDING) **the theme-mirror check runs.**
+- SM550 resolved (40bb3f38) **the theme-mirror check runs.**
   `report_theme_assets_mirrored` in lazysite-check.pl called
   `conf_value('layout')` with one argument to a `($file, $key)` function, so
   SM315's standing check opened a file named `layout` and returned before
@@ -239,7 +241,7 @@ Naming the commit: AFTER it lands, never before
   theme.json and no mirror produces the "no mirrored assets" line naming the
   misplaced file.
 
-- SM549 resolved (PENDING) **actor local is one actor in the users tool.**
+- SM549 resolved (74102cdd) **actor local is one actor in the users tool.**
   `_authorise_manage` refused `actor: local` for account-disable,
   account-enable and account-reassign while passwd, rename, claim and
   account-create exempted it. SM268 C1 settled that `local` is the operator
@@ -247,7 +249,7 @@ Naming the commit: AFTER it lands, never before
   t/unit/users/32-local-is-one-actor.t: every actor-taking verb gives the
   same verdict with actor local as with no actor.
 
-- SM559 resolved (PENDING) **the walker returns its failures.** One
+- SM559 resolved (1d6ce61b) **the walker returns its failures.** One
   file-scoped @COPY_FAILED was fed by every _copy_tree, so an unreadable
   LAYOUT directory was reported as unreadable site content under a
   layout-relative path and counted in manifest.unreadable_omitted, and
@@ -259,7 +261,7 @@ Naming the commit: AFTER it lands, never before
   layout's under lazysite/layouts/<layout>/ with a manifest count, and an
   apply reports `copy_failed` by tree. t/unit/manager/110 pins all three.
 
-- SM548 resolved (PENDING) **the package upload budget is per user.**
+- SM548 resolved (b5485f1b) **the package upload budget is per user.**
   action_site_backup_upload called check_upload_rate($DOCROOT) where the
   signature is ($username, $content_length), so every user of an instance
   shared one package-upload budget keyed on the docroot path and the byte
@@ -268,7 +270,7 @@ Naming the commit: AFTER it lands, never before
   the user and the body length, as the file upload does; t/unit/manager/109
   drives a package over the hourly byte budget to a rate refusal.
 
-- SM547 resolved (PENDING) **site packages have retention.**
+- SM547 resolved (665976d6) **site packages have retention.**
   backup_retention (SM268 03-F11) bounded manual and prerestore snapshots
   and the helper's comment listed site packages too, but package_create
   never called it - so the artefact an agent produces most, one per
@@ -279,7 +281,7 @@ Naming the commit: AFTER it lands, never before
   t/unit/manager/108 pins backup_retention: 1 leaving the newest package
   per host and 0 meaning unlimited.
 
-- SM545 resolved (PENDING) **two site packages in one second are two
+- SM545 resolved (38a16b6a) **two site packages in one second are two
   files.** package_create named the package host + a one-second stamp and
   wrote it with an overwriting tar; the O_EXCL claim SM268 03-F9 gave
   manual snapshots was never carried across, so an agent looping
@@ -290,7 +292,7 @@ Naming the commit: AFTER it lands, never before
   the placeholder. t/unit/manager/106 pins two creates in one second as
   two files with their own content and sidecars.
 
-- SM546 resolved (PENDING) **package_apply loads what it calls.**
+- SM546 resolved (d24abde5) **package_apply loads what it calls.**
   SitePackage::package_apply called Backups::verify_sha256 without ever
   loading Backups - only package_create and the snapshot branch of
   apply_and_configure did - so a fresh process calling package_apply, or
@@ -300,7 +302,7 @@ Naming the commit: AFTER it lands, never before
   probe. SitePackage now loads Backups at the top; t/unit/manager/107 uses
   SitePackage alone and asserts both applies return a result.
 
-- SM544 resolved (PENDING) **the safety snapshot covers what the restore
+- SM544 resolved (4bf4ae0f) **the safety snapshot covers what the restore
   overwrites.** Backups::_archive_scope skipped bare top-level members and
   its deepening loop stopped at tar's own directory entry for the prefix,
   so an archive carrying ./index.md and ./sites/edge/page.md scoped the
@@ -312,7 +314,7 @@ Naming the commit: AFTER it lands, never before
   as the comment promised. t/unit/manager/105 restores a mixed archive and
   asserts the safety tarball carries the pre-restore ./index.md.
 
-- SM568 resolved (PENDING) **nav-read and pages accept manage_content or
+- SM568 resolved (987d2ff8) **nav-read and pages accept manage_content or
   manage_nav.** The SM567 twin-capability check found both under
   manage_nav on the API while read_nav and list_pages sat under
   manage_content over MCP - a content partner could read the navigation
@@ -320,7 +322,7 @@ Naming the commit: AFTER it lands, never before
   reads a nav editor needs too, so the API accepts either; the twins leave
   t/lint/23 %TWIN_DIFFERS and its set rule passes.
 
-- SM566 resolved (PENDING) **the migration safety step is on both
+- SM566 resolved (4acfa7bb) **the migration safety step is on both
   channels.** The control API had data-migrate-plan and data-table-source;
   MCP had neither, so an agent could migrate a table without previewing
   what the migration would refuse, and could not read-modify-write a
@@ -328,7 +330,7 @@ Naming the commit: AFTER it lands, never before
   sit under manage_data beside their siblings; t/lint/23 pairs them and
   t/unit/mcp/09 drives the plan against a refused type change.
 
-- SM538 resolved (PENDING) **pages under docs/ and quotes/ are part of the
+- SM538 resolved (eb660f60) **pages under docs/ and quotes/ are part of the
   site again.** _each_page hard-skipped both names - the first site's
   folder names, carried since SM087 - so on lazysite.io thirty
   documentation pages were absent from list_pages, unaudited by audit_site
@@ -336,7 +338,7 @@ Naming the commit: AFTER it lands, never before
   Manager::Common::path_is_reserved what is engine territory and skips
   nothing else. t/unit/mcp/01 pins a page under docs/.
 
-- SM537 resolved (PENDING) **every MCP tool carries its own annotation.**
+- SM537 resolved (1f59d2bc) **every MCP tool carries its own annotation.**
   22 of 69 tools fell to the default [0,0,1], so reads such as
   list_domains, read_data_rows and read_form_submissions advertised as
   open-world writes and drop_data_table, delete_data_row, site_apply and
@@ -344,20 +346,20 @@ Naming the commit: AFTER it lands, never before
   from these hints. Each now has an explicit entry; t/lint/85 refuses a
   tool that falls to the default.
 
-- SM525 resolved (PENDING) **whoami names only the tools the session may
+- SM525 resolved (ce7e5b37) **whoami names only the tools the session may
   call.** whoami.tools echoed every tool in the table to any authenticated
   caller while tools/list filtered by capability (SM196) - two answers to
   "what can I call". whoami now reads the same filtered list. t/unit/mcp/01
   pins a content-only session: whoami.tools equals tools/list.
 
-- SM521 resolved (PENDING) **an anonymous tools/call no longer tells known
+- SM521 resolved (11c156c2) **an anonymous tools/call no longer tells known
   tool names from unknown ones.** With no bearer, a bogus name answered
   -32602 "Unknown tool" and a real one 401, because the lookup ran before
   verify_bearer - the vocabulary SM210 hides from an anonymous tools/list,
   read back one probe at a time. Authentication now runs first.
   t/unit/mcp/01 pins the anonymous probe.
 
-- SM536 resolved (PENDING) **a nav write reaches every cached page.**
+- SM536 resolved (0880fc0c) **a nav write reaches every cached page.**
   lazysite/nav.conf written over WebDAV left every cached page on the old
   navigation: the manager's save sweeps the generated .html files
   (SM087), a DAV PUT's per-page invalidation is a no-op for a non-.md
@@ -372,7 +374,7 @@ Naming the commit: AFTER it lands, never before
   after a DAV PUT of a per-domain nav file (the primary untouched), and
   after the manager's save.
 
-- SM535 resolved (PENDING) **a collection delete cleans up.** A WebDAV
+- SM535 resolved (a704a55a) **a collection delete cleans up.** A WebDAV
   DELETE of a folder removed every page under it but keyed its alias and
   registry housekeeping on the request path ending in .md, which a
   directory never does: the sitemap kept listing the removed pages and
@@ -386,7 +388,7 @@ Naming the commit: AFTER it lands, never before
   t/unit/dav/23 pins the alias undef, the cache gone and the sitemap
   clean after a collection DELETE.
 
-- SM534 resolved (PENDING) **a DAV move reaches the registries.** A WebDAV
+- SM534 resolved (6c6b1587) **a DAV move reaches the registries.** A WebDAV
   MOVE or COPY never invalidated the generated registries (SM483 reached
   PUT and DELETE only), so a page renamed over DAV stayed in the sitemap
   at a URL that now 404s and off it at its new one until the TTL; a copy
@@ -400,7 +402,7 @@ Naming the commit: AFTER it lands, never before
   processor treats ANY entry as governed, so a copied page is absent from
   every registry through the manager too.
 
-- SM556 resolved (PENDING) **a symlinked docroot is one docroot.** Every
+- SM556 resolved (30caff53) **a symlinked docroot is one docroot.** Every
   manager module confines a target against the docroot the dispatcher
   hands it, assuming that docroot is canonical; neither dispatcher made
   it so. Under a symlinked DOCUMENT_ROOT theme delete, cache invalidate
@@ -414,7 +416,7 @@ Naming the commit: AFTER it lands, never before
   moves out from under the front end. t/unit/manager/103
   drives the control API and the MCP under a symlinked docroot.
 
-- SM532 resolved (PENDING) **renaming the active theme keeps the site
+- SM532 resolved (cfd51d02) **renaming the active theme keeps the site
   styled.** action_theme_delete refuses the active theme and any theme a
   configured domain resolves to; action_theme_rename checked neither,
   answered ok:1 and left lazysite.conf naming a theme directory that no
@@ -426,7 +428,7 @@ Naming the commit: AFTER it lands, never before
   failure. t/unit/manager/102 pins both refusals, the untouched site and
   that a free theme still renames with its mirror.
 
-- SM531 resolved (PENDING) **a url page is a cache source.** The processor
+- SM531 resolved (3a331c3a) **a url page is a cache source.** The processor
   renders <page>.url as it renders <page>.md, but Manager/Themes.pm held
   four opinions about the .html beside a .url: the activation sweep dropped
   it, invalidate('*') kept it, the cache listing said has_source: 0, and
@@ -438,7 +440,7 @@ Naming the commit: AFTER it lands, never before
   (SM133). t/unit/manager/100 drives a .md, a .url and an orphan .html
   through all four walks and pins the single definition.
 
-- SM533 resolved (PENDING) **a layout install cleans up after itself.**
+- SM533 resolved (2054e3ad) **a layout install cleans up after itself.**
   Manager/Layouts.pm's one temporary-directory cleaner only removed
   /tmp/lazysite-layouts-<pid>, the catalogue actions' directory; the
   manifest install works in /tmp/lazysite-layout-install-<pid> and handed
@@ -449,7 +451,7 @@ Naming the commit: AFTER it lands, never before
   prefixes the module mints. t/unit/manager/104 drives a mocked manifest
   install to its end and asserts the working directory is gone.
 
-- SM526 resolved (PENDING) **one answer to is-this-address-public.**
+- SM526 resolved (34bdf9fb) **one answer to is-this-address-public.**
   Manager/Domains.pm carried two address classifiers: the SSRF guard
   domain_check applies to every resolved address, and a second filter
   instance_public_ips used to decide which addresses are "this server".
@@ -462,7 +464,7 @@ Naming the commit: AFTER it lands, never before
   filter is the guard. t/unit/manager/99 drives the eight inputs through
   instance_public_ips and pins that one sub remains.
 
-- SM555 resolved (PENDING) **listing the engine tree logs once.** Opening
+- SM555 resolved (f4b86b7c) **listing the engine tree logs once.** Opening
   /lazysite in the file browser wrote one "blocked lazysite tree" WARN per
   hidden entry - six per open, reading as a traversal attempt in a log
   review. Found by the path-core review (NR-5), proven by probe. The
@@ -470,7 +472,7 @@ Naming the commit: AFTER it lands, never before
   INFO line per listing with the count; a direct touch of a blocked path
   still warns. t/unit/manager/99 counts the log lines for one listing.
 
-- SM530 resolved (PENDING) **a mkdir into an unwritable parent returns a
+- SM530 resolved (9ae705a8) **a mkdir into an unwritable parent returns a
   refusal.** `make_path ... or return` never reached its `or` - File::Path
   croaks - so a mkdir, save, binary save, move or copy into an unwritable
   parent killed the CGI with no refusal and no audit line. Found by the
@@ -478,7 +480,7 @@ Naming the commit: AFTER it lands, never before
   Private::_mkpath shape) and the five sites return a refusal hash.
   t/unit/manager/98 drives all five into a read-only parent.
 
-- SM529 resolved (PENDING) **the reply says content moved only when it
+- SM529 resolved (692a1e42, f7b3616e) **the reply says content moved only when it
   did.** action_acl_set('/') and any write-only rule returned
   content_moved:1 with the "moved out of the document root" note while
   moving nothing - beside the warning saying a site-wide rule moves no
@@ -487,7 +489,7 @@ Naming the commit: AFTER it lands, never before
   site-wide branch and when the source side holds nothing, and the note
   is worded by direction. t/unit/manager/67 pins all three shapes.
 
-- SM528 resolved (PENDING) **an alias on a gated page targets its public
+- SM528 resolved (89ab6b6a) **an alias on a gated page targets its public
   URL.** A page saved with `aliases:` into a gated section indexed its
   alias against the private-store path (/old-x -> /-lazysite-private/...),
   a promise leading nowhere that delete, deriving the same path, could
@@ -495,7 +497,7 @@ Naming the commit: AFTER it lands, never before
   Save and delete now key the alias map by validate_path's rel.
   t/unit/manager/71 pins the public target and the de-index.
 
-- SM527 resolved (PENDING) **a lock is keyed by the canonical path.** The
+- SM527 resolved (d71dd2d3) **a lock is keyed by the canonical path.** The
   manager's lock key was the request spelling, so a lock taken as
   content/p.md was invisible to a save of /content/p.md, ./content/p.md or
   content//p.md, and MCP (/slug.md) and the API (path as typed) never saw
@@ -504,7 +506,7 @@ Naming the commit: AFTER it lands, never before
   one helper; acquire, release and lock-info validate first. t/unit/manager/08
   pins the four spellings against one lock and the listing glyph.
 
-- SM522 resolved (PENDING) **the front-matter reserved list is populated at
+- SM522 resolved (a97a1ab0) **the front-matter reserved list is populated at
   request time.** `our %FRONT_MATTER_RESERVED` sat below the dispatch, so
   under CGI and FastCGI it was empty when a request was served: a page's
   `auth:` and `layout:` reached the stash as page_auth / page_layout and
@@ -516,7 +518,7 @@ Naming the commit: AFTER it lands, never before
   t/unit/processor/60 renders a page that sets both keys and asserts
   neither reaches the stash.
 
-- SM571 resolved (PENDING) **the history summary walks the history once.**
+- SM571 resolved (e484ffd9) **the history summary walks the history once.**
   `git-history-summary` / `list_content_history` always 504'd on edge: the
   summary ran the per-file lineage walk (several git processes, following
   renames) for EVERY tracked path, O(files x history), and `limit` changed
@@ -528,14 +530,14 @@ Naming the commit: AFTER it lands, never before
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
 
-- SM567 resolved (PENDING) **the scope-ceiling control is named for what it
+- SM567 resolved (74c1ce36) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
   an account's REACH is capped by its creator's reach (SM194), on every
   channel; it is relabelled "Scope ceiling" / "None - its own domain grants
   alone decide its reach". t/lint/23 now pins that API/MCP twins sit under
   the same capability. SM570 and SM515 filings carry the floor-row proofs.
 
-- SM518 resolved (PENDING) **the rules move with the folder.** A directory
+- SM518 resolved (ff9a62e5) **the rules move with the folder.** A directory
   move through the manager (and so MCP move_file) re-keyed only the exact
   source ACL key, so every per-file rule beneath a renamed folder stayed
   at the old path: gated content silently public after a rename, ok:1,
@@ -546,7 +548,7 @@ Naming the commit: AFTER it lands, never before
   its store half dragged into the public destination. t/unit/manager/66
   pins the rule at the new key, a visitor refused, and no public copy.
 
-- SM517 resolved (PENDING) **downloads honour the carve-out.** SM268 H4
+- SM517 resolved (b5c18151) **downloads honour the carve-out.** SM268 H4
   gates nav.conf (manage_nav) and the submission store (read_submissions)
   on every file verb in %file_surface; file-download and file-zip-download
   were never in it, and the zip parses `paths=` itself so no gate saw its
@@ -558,7 +560,7 @@ Naming the commit: AFTER it lands, never before
   capability. t/unit/manager/62 drives both verbs; t/lint/14 asserts every
   path-bearing action is in %file_surface.
 
-- SM520 resolved (PENDING) **a domain preview is anonymous.** domain_preview
+- SM520 resolved (503ecf58) **a domain preview is anonymous.** domain_preview
   shelled the processor with the operator's HTTP_COOKIE and
   HTTP_AUTHORIZATION still set (only HTTP_X_REMOTE_* and LAZYSITE_AUTH_*
   were stripped), so the domain check rendered as the operator and showed a
@@ -568,7 +570,7 @@ Naming the commit: AFTER it lands, never before
   through a stub processor and asserts neither the session nor the gated
   body reaches the answer.
 
-- SM519 resolved (PENDING) **no means no.** YAML 1.2, which YAML::PP
+- SM519 resolved (50f2567d) **no means no.** YAML 1.2, which YAML::PP
   implements, spells `no`, `off`, `yes` and `on` as strings, and the
   descriptor loader tested them with Perl truth: `public: no` published the
   table to anonymous visitors, `required: no` refused writes and `unique:
@@ -579,21 +581,21 @@ Naming the commit: AFTER it lands, never before
   structural review; proven by probe; t/unit/data/01 asserts every
   spelling.
 
-- SM570 resolved (PENDING) **a channel is not an authority.** acl-get,
+- SM570 resolved (ad250b17) **a channel is not an authority.** acl-get,
   acl-set and acl-remove answered a token holding only api, manage_themes
   and webdav: the gate was `webdav || manage_content` and the registry
   agreed. A webdav-only grant cannot write content, so it must not govern
   it - the three gate on manage_content alone, and t/lint/86 forbids any
   channel capability (webdav, api, mcp, ui) from every token gate.
 
-- SM515 resolved (PENDING) **every MCP tool declares its gate.** list_briefs
+- SM515 resolved (6aa354f1) **every MCP tool declares its gate.** list_briefs
   and delete_brief (SM508) shipped with no cap and the key `schema` instead
   of `inputSchema`; a cap-less tool is channel-only to the dispatcher, so
   any authenticated partner could delete a brief and no argument
   validation ran. Both gated on manage_content now, and t/lint/85 asserts
   every tool declares both keys.
 
-- SM514 resolved (PENDING) **a safety export can be read, judged from the
+- SM514 resolved (6a491156) **a safety export can be read, judged from the
   listing, and offered back.** SM512 shipped list and delete; an export
   could only be listed and destroyed. The listing now carries row count
   and a key sample; data-safety-export-read / read_data_safety_export
