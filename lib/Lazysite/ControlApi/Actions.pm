@@ -159,11 +159,11 @@ our %ACTION = (
     'migrate-to-local' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'mkdir' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'move' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
-    'nav-read' => { caps => ['manage_nav'], params => [ { name => 'host', in => 'query' } ] },
+    'nav-read' => { caps => [ 'manage_content', 'manage_nav' ], params => [ { name => 'host', in => 'query' } ] }, # SM568
     'nav-save' => { caps => ['manage_nav'], params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
     'notices'      => { caps => ['notifications'], params => [] },
     'notices-seen' => { caps => undef,             params => [] },
-    'pages'        => { caps => ['manage_nav'],    params => [] },
+    'pages' => { caps => [ 'manage_content', 'manage_nav' ], params => [] },    # SM568
     'plugin-action' => { caps => undef, params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
     'plugin-disable' => { caps => undef, params => [ { name => 'script', in => 'body' } ] },
     'plugin-enable' => { caps => undef, params => [ { name => 'script', in => 'body' } ] },

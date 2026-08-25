@@ -44,6 +44,51 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM568 resolved (PENDING) **nav-read and pages accept manage_content or
+  manage_nav.** The SM567 twin-capability check found both under
+  manage_nav on the API while read_nav and list_pages sat under
+  manage_content over MCP - a content partner could read the navigation
+  on one channel and be refused on the other. Decided: they are content
+  reads a nav editor needs too, so the API accepts either; the twins leave
+  t/lint/23 %TWIN_DIFFERS and its set rule passes.
+
+- SM566 resolved (PENDING) **the migration safety step is on both
+  channels.** The control API had data-migrate-plan and data-table-source;
+  MCP had neither, so an agent could migrate a table without previewing
+  what the migration would refuse, and could not read-modify-write a
+  descriptor as text. plan_data_migration and read_data_table_source now
+  sit under manage_data beside their siblings; t/lint/23 pairs them and
+  t/unit/mcp/09 drives the plan against a refused type change.
+
+- SM538 resolved (PENDING) **pages under docs/ and quotes/ are part of the
+  site again.** _each_page hard-skipped both names - the first site's
+  folder names, carried since SM087 - so on lazysite.io thirty
+  documentation pages were absent from list_pages, unaudited by audit_site
+  and untouched by rename_page update_links. The walk now asks
+  Manager::Common::path_is_reserved what is engine territory and skips
+  nothing else. t/unit/mcp/01 pins a page under docs/.
+
+- SM537 resolved (PENDING) **every MCP tool carries its own annotation.**
+  22 of 69 tools fell to the default [0,0,1], so reads such as
+  list_domains, read_data_rows and read_form_submissions advertised as
+  open-world writes and drop_data_table, delete_data_row, site_apply and
+  delete_theme as non-destructive - and clients drive per-call approval
+  from these hints. Each now has an explicit entry; t/lint/85 refuses a
+  tool that falls to the default.
+
+- SM525 resolved (PENDING) **whoami names only the tools the session may
+  call.** whoami.tools echoed every tool in the table to any authenticated
+  caller while tools/list filtered by capability (SM196) - two answers to
+  "what can I call". whoami now reads the same filtered list. t/unit/mcp/01
+  pins a content-only session: whoami.tools equals tools/list.
+
+- SM521 resolved (PENDING) **an anonymous tools/call no longer tells known
+  tool names from unknown ones.** With no bearer, a bogus name answered
+  -32602 "Unknown tool" and a real one 401, because the lookup ran before
+  verify_bearer - the vocabulary SM210 hides from an anonymous tools/list,
+  read back one probe at a time. Authentication now runs first.
+  t/unit/mcp/01 pins the anonymous probe.
+
 - SM536 resolved (PENDING) **a nav write reaches every cached page.**
   lazysite/nav.conf written over WebDAV left every cached page on the old
   navigation: the manager's save sweeps the generated .html files
@@ -214,42 +259,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM566 resolved (PENDING) **the migration safety step is on both
-  channels.** The control API had data-migrate-plan and data-table-source;
-  MCP had neither, so an agent could migrate a table without previewing
-  what the migration would refuse, and could not read-modify-write a
-  descriptor as text. plan_data_migration and read_data_table_source now
-  sit under manage_data beside their siblings; t/lint/23 pairs them and
-  t/unit/mcp/09 drives the plan against a refused type change.
-
-- SM538 resolved (PENDING) **pages under docs/ and quotes/ are part of the
-  site again.** _each_page hard-skipped both names - the first site's
-  folder names, carried since SM087 - so on lazysite.io thirty
-  documentation pages were absent from list_pages, unaudited by audit_site
-  and untouched by rename_page update_links. The walk now asks
-  Manager::Common::path_is_reserved what is engine territory and skips
-  nothing else. t/unit/mcp/01 pins a page under docs/.
-
-- SM537 resolved (PENDING) **every MCP tool carries its own annotation.**
-  22 of 69 tools fell to the default [0,0,1], so reads such as
-  list_domains, read_data_rows and read_form_submissions advertised as
-  open-world writes and drop_data_table, delete_data_row, site_apply and
-  delete_theme as non-destructive - and clients drive per-call approval
-  from these hints. Each now has an explicit entry; t/lint/85 refuses a
-  tool that falls to the default.
-
-- SM525 resolved (PENDING) **whoami names only the tools the session may
-  call.** whoami.tools echoed every tool in the table to any authenticated
-  caller while tools/list filtered by capability (SM196) - two answers to
-  "what can I call". whoami now reads the same filtered list. t/unit/mcp/01
-  pins a content-only session: whoami.tools equals tools/list.
-
-- SM521 resolved (PENDING) **an anonymous tools/call no longer tells known
-  tool names from unknown ones.** With no bearer, a bogus name answered
-  -32602 "Unknown tool" and a real one 401, because the lookup ran before
-  verify_bearer - the vocabulary SM210 hides from an anonymous tools/list,
-  read back one probe at a time. Authentication now runs first.
-  t/unit/mcp/01 pins the anonymous probe.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

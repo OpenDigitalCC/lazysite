@@ -132,11 +132,11 @@ tone: medium
 `migrate-to-local` | cookie only | path (query)
 `mkdir` | cookie only | path (query)
 `move` | cookie only | path (query), to (query)
-`nav-read` | manage_nav | host (query)
+`nav-read` | manage_content / manage_nav | host (query)
 `nav-save` | manage_nav | items (body), host (query_or_body)
 `notices` | notifications |  
 `notices-seen` | cookie only |  
-`pages` | manage_nav |  
+`pages` | manage_content / manage_nav |  
 `plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)
 `plugin-disable` | cookie only | script (body)
 `plugin-enable` | cookie only | script (body)

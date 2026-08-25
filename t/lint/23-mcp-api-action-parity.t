@@ -70,14 +70,10 @@ for my $c ( action_keys() ) {
 # SM567: twins that sit under DIFFERENT capabilities on the two channels,
 # each with the reason - the same discipline as %API_ONLY. A twin listed
 # here is a recorded decision or a filed question, never an oversight.
-my %TWIN_DIFFERS = (
-    # SM568: reading the navigation and the page list needs manage_nav on the
-    # API and manage_content over MCP - reads are weaker on one channel, and
-    # nobody decided that. Filed; the lint records the question until it is
-    # answered, so the class stays guarded for every other twin.
-    'nav-read' => 'SM568: manage_nav (API) vs manage_content (MCP) - undecided, filed',
-    'pages'    => 'SM568: manage_nav (API) vs manage_content (MCP) - undecided, filed',
-);
+# SM568 was the first entry (nav-read and pages: manage_nav on the API,
+# manage_content over MCP) and was decided - the API accepts either - so the
+# map is empty until the next twin that differs on purpose.
+my %TWIN_DIFFERS = ();
 for my $a ( sort @api_live ) {
     next if $INTROSPECTION{$a};
     ok( $api_cap{$a}, "control-API action '$a' is declared under a capability" )
@@ -291,6 +287,7 @@ for my $t ( sort keys %MCP_ONLY ) {
 }
 
 subtest 'SM567: the recorded twin differences are still twins, and still differ' => sub {
+    pass('no twin differences are recorded') unless keys %TWIN_DIFFERS;
     for my $a ( sort keys %TWIN_DIFFERS ) {
         ok( $PAIR{$a}, "'$a' is a recorded pair" );
         my @mcp_only = grep { !$api_caps{$a}{$_} } sort keys %{ $mcp_caps{ $PAIR{$a} } || {} };

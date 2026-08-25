@@ -819,9 +819,11 @@ if ($token_auth) {
         'form-list' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} }, # SM214: read-only, PII-free
         'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
         'bad-url-unblock' => sub { $_[0]->{manage_config} },
-        'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
-            # SM123: a theme/layout manager may list what is installed (was previously
-            # unavailable to token clients, so they activated each in turn to discover).
+        # SM097: page-URL list for the nav editor. SM568: a content read too,
+        # so manage_content admits it - as it does the MCP twin list_pages.
+        'pages' => sub { $_[0]->{manage_content} || $_[0]->{manage_nav} },
+        # SM123: a theme/layout manager may list what is installed (was previously
+        # unavailable to token clients, so they activated each in turn to discover).
         'theme-list'        => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'themes-for-layout' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'themes-list-all'   => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
@@ -842,7 +844,9 @@ if ($token_auth) {
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
-        'nav-read' => sub { $_[0]->{manage_nav} },
+        # SM568: reading the navigation is a content read as much as a nav
+        # editor's; manage_content admits it, as it does the MCP twin read_nav.
+        'nav-read' => sub { $_[0]->{manage_content} || $_[0]->{manage_nav} },
         'nav-save' => sub { $_[0]->{manage_nav} },
         # SM134 follow-ups: the alias-redirect map is content-derived - a content
         # partner may list it (read-only; aliases are front-matter-authored).

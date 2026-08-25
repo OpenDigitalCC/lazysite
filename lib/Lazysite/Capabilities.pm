@@ -69,7 +69,8 @@ my %ACTION_INFO = (
                     regenerate-registries preview-public
                     acl-get acl-set acl-remove
                     brief-read brief-append briefs-migrate
-                    briefs-list brief-delete) ],
+                    briefs-list brief-delete
+                    nav-read pages) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
@@ -82,7 +83,11 @@ my %ACTION_INFO = (
         },
     },
     manage_nav => {
-        title   => 'Edit site navigation.',
+        title => 'Edit site navigation.',
+        # SM568: nav-read and pages are reads a content author needs as much
+        # as a nav editor, so manage_content admits them too (the MCP twins
+        # read_nav and list_pages sit under manage_content). Listed under
+        # both, as form-submissions is under manage_forms and read_submissions.
         unlocks => {
             api    => [qw(nav-read nav-save pages)],
             mcp    => [qw(set_nav)],
