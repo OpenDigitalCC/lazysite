@@ -259,6 +259,17 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM545 resolved (PENDING) **two site packages in one second are two
+  files.** package_create named the package host + a one-second stamp and
+  wrote it with an overwriting tar; the O_EXCL claim SM268 03-F9 gave
+  manual snapshots was never carried across, so an agent looping
+  site_backup got two successes, one file, and a sidecar describing
+  whichever write won. Found by the backups structural review (N2), proven
+  by probe. The package name is now claimed through the same _claim_name
+  (a collision takes the -2 suffix) and a failure after the claim removes
+  the placeholder. t/unit/manager/106 pins two creates in one second as
+  two files with their own content and sidecars.
+
 - SM546 resolved (PENDING) **package_apply loads what it calls.**
   SitePackage::package_apply called Backups::verify_sha256 without ever
   loading Backups - only package_create and the snapshot branch of

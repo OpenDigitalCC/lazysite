@@ -33,7 +33,7 @@ use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
 use Lazysite::Private          ();    # SM286: what a package cannot carry
-use Lazysite::Manager::Backups (); # SM546: verify_sha256/write_sha256 - loaded where it is called
+use Lazysite::Manager::Backups qw(_claim_name); # SM546: loaded where it is called; SM545: the O_EXCL claim
 use Lazysite::Paths            ();
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
@@ -204,14 +204,26 @@ sub package_create {
 
     my $ts       = strftime( '%Y%m%dT%H%M%SZ', gmtime );
     my $safehost = $row->{is_primary} ? 'default' : ( lc($host) =~ s/[^a-z0-9.-]/_/gr );
-    my $name     = "lazysite-site-$safehost-$ts.tar.gz";
     my $dir      = _backups_dir();
     make_path($dir) unless -d $dir;
-    my $stage = "$dir/.stage-$safehost-$ts-$$";
+
+    # SM545: the name is CLAIMED, exactly as a manual snapshot's is (SM268
+    # 03-F9). It was host + a one-second stamp written by an overwriting tar,
+    # so two creates in the same second - an agent looping site_backup - were
+    # two successes and one file, the first silently replaced. The claim takes
+    # the -2 suffix on a collision; tar then writes through the placeholder.
+    my ( $out, $name ) = _claim_name( $dir, "site-$safehost" );
+    return { ok => 0, error => 'Packaging failed: could not claim a package name' }
+        unless defined $name;
+    ( my $stage = "$dir/.stage-$name-$$" ) =~ s/\.tar\.gz-(\d+)\z/-$1/;
     remove_tree($stage) if -e $stage;
     make_path($stage);
 
     my $cleanup = sub { remove_tree($stage) if -d $stage };
+
+    # A failure after the claim must take the placeholder with it, or a create
+    # that reported failure leaves an empty package in the listing.
+    my $abandon = sub { $cleanup->(); unlink $out };
 
     # 1. content -> content/. For the primary/default site that means the docroot
     # root with the infra + other domains excluded; for a domain, its subtree.
@@ -312,7 +324,7 @@ sub package_create {
         # asked for three tables and silently got two would hand over a package
         # they believe is complete.
         if (@data_failed) {
-            $cleanup->();
+            $abandon->();
             return { ok => 0, kind => 'data',
                 error => 'could not export: '
                     . join( ', ',
@@ -384,15 +396,17 @@ sub package_create {
         close $mf;
     }
     else {
-        $cleanup->();
+        $abandon->();
         return { ok => 0, error => 'Could not write the package manifest' };
     }
 
     # 5. archive the staged tree, then drop the stage
-    my $out = "$dir/$name";
-    my $rc  = system( 'tar', 'czf', $out, '-C', $stage, '.' );
+    my $rc = system( 'tar', 'czf', $out, '-C', $stage, '.' );
     $cleanup->();
-    return { ok => 0, error => 'Packaging failed (tar)' } if $rc != 0 || !-f $out;
+    unless ( $rc == 0 && -f $out ) {
+        unlink $out;
+        return { ok => 0, error => 'Packaging failed (tar)' };
+    }
 
     # SM183: a site package is the artefact that TRAVELS - between organisations,
     # by whatever channel is to hand - and applying it overwrites a site. Write
