@@ -54,9 +54,9 @@ use warnings;
 # EXTRACTED FROM THE CHAIN. Regenerate rather than edit: any change belongs in
 # lazysite-manager-api.pl, and t/lint/58 will fail until this matches it.
 our %ACTION = (
-    'acl-get' => { caps => [ 'manage_content', 'webdav' ], params => [ { name => 'path', in => 'query' } ] },
-    'acl-remove' => { caps => [ 'manage_content', 'webdav' ], params => [ { name => 'path', in => 'query' } ] },
-    'acl-set' => { caps => [ 'manage_content', 'webdav' ], params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
+    'acl-get' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
+    'acl-remove' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
+    'acl-set' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query_or_body' }, { name => 'read', in => 'body' }, { name => 'write', in => 'body' }, { name => 'owner', in => 'body' }, { name => 'draft', in => 'body' } ] },
     'actions-list' => { caps => [], params => [] },
     'brief-read' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
     'brief-append' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'entry', in => 'body' } ] },

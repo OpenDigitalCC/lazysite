@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM570 resolved (PENDING) **a channel is not an authority.** acl-get,
+  acl-set and acl-remove answered a token holding only api, manage_themes
+  and webdav: the gate was `webdav || manage_content` and the registry
+  agreed. A webdav-only grant cannot write content, so it must not govern
+  it - the three gate on manage_content alone, and t/lint/86 forbids any
+  channel capability (webdav, api, mcp, ui) from every token gate.
+
 - SM515 resolved (PENDING) **every MCP tool declares its gate.** list_briefs
   and delete_brief (SM508) shipped with no cap and the key `schema` instead
   of `inputSchema`; a cap-less tool is channel-only to the dispatcher, so

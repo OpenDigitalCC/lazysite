@@ -8,9 +8,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
-use JSON::PP qw(encode_json decode_json);
+use File::Temp   qw(tempdir);
+use File::Path   qw(make_path);
+use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
 use IPC::Open2;
 use IPC::Open3;
@@ -61,26 +61,29 @@ open my $af, '>', "$d/lazysite/auth/acls.json" or die $!;
 print $af '{"content/x.md":{"owner":"alice","write":["alice"]}}'; close $af;
 
 uapi( $d, { action => 'add', username => 'bob', password => 'x' } );
-grant_caps( $d, 'bob', 'webdav', 'api' );   # SM126: token client holds the api channel cap
+grant_caps( $d, 'bob', 'webdav', 'api' );  # SM126: token client holds the api channel cap
 my $btok = uapi( $d, { action => 'token', username => 'bob' } )->{token};
 ok( $btok && $btok =~ /^lzs_/, 'bob has a webdav token' );
 
 # F1 - token client is not an operator even on an unsecured site.
 my $set = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=acl-set&path=/content/x.md',
+    QUERY_STRING       => 'action=acl-set&path=/content/x.md',
     HTTP_AUTHORIZATION => basic( 'bob', $btok ), body => encode_json( { write => ['bob'] } ) );
 ok( !$set->{ok}, 'F1: token client cannot rewrite an ACL it does not own' );
 my $get = mapi( $d, REQUEST_METHOD => 'GET',
-    QUERY_STRING => 'action=acl-get&path=/content/x.md',
+    QUERY_STRING       => 'action=acl-get&path=/content/x.md',
     HTTP_AUTHORIZATION => basic( 'bob', $btok ) );
 ok( !$get->{ok}, 'F1: token client cannot read an ACL it does not own' );
 
 # F3 - acl-set on a blocked path is refused before any owner logic.
 my $bset = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=acl-set&path=/lazysite/forms/smtp.conf',
+    QUERY_STRING       => 'action=acl-set&path=/lazysite/forms/smtp.conf',
     HTTP_AUTHORIZATION => basic( 'bob', $btok ), body => encode_json( { write => ['bob'] } ) );
-ok( !$bset->{ok} && ( $bset->{error} // '' ) =~ /block/i,
-    'F3: acl-set on forms/smtp.conf is blocked' );
+# SM570: bob holds webdav only, so the capability gate now refuses him one
+# step earlier than the blocklist; either refusal keeps the SMTP secret's
+# rule unwritten, which is what F3 exists to pin.
+ok( !$bset->{ok} && ( $bset->{error} // '' ) =~ /block|capability/i,
+    'F3: acl-set on forms/smtp.conf is refused (capability, else blocklist)' );
 
 # F3 - a cookie operator's read of forms/smtp.conf is refused (no secret read).
 # SM268 H9: `local` supplied as a client header is STRIPPED as untrusted, and

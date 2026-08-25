@@ -8,8 +8,8 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Temp   qw(tempdir);
+use File::Path   qw(make_path);
 use JSON::PP     qw(decode_json encode_json);
 use MIME::Base64 qw(encode_base64);
 use FindBin;
@@ -61,11 +61,11 @@ sub api {
         # Bearer shape belongs to the MCP. Cross-wiring the two doors'
         # conventions cost this rig a round of 'Authentication required'.
         HTTP_AUTHORIZATION => 'Basic ' . encode_base64( 'tester:lzs_tok', '' ),
-        REQUEST_METHOD      => 'POST',
-        QUERY_STRING        => $qs,
-        CONTENT_TYPE        => 'application/json',
-        CONTENT_LENGTH      => length $body,
-        REMOTE_ADDR         => '127.0.0.1',
+        REQUEST_METHOD     => 'POST',
+        QUERY_STRING       => $qs,
+        CONTENT_TYPE       => 'application/json',
+        CONTENT_LENGTH     => length $body,
+        REMOTE_ADDR        => '127.0.0.1',
     );
     my $out = qx($^X \Q$root/lazysite-manager-api.pl\E < \Q$bf\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;
@@ -85,15 +85,16 @@ subtest 'MANAGE_CONTENT ALONE REACHES THE PERMISSIONS DOOR NOW' => sub {
     is( $get->{acl}{owner}, 'tester', 'the rule the token just wrote, visible to it' );
 };
 
-subtest 'webdav alone still works - SM074 unrevoked' => sub {
+subtest 'webdav alone is REFUSED - SM570 closed the SM074 door' => sub {
     my $stub = stub_with( api => 1, webdav => 1 );
-    my $get = api( $stub, 'action=acl-get&path=/content/note.md', {} );
-    ok( $get->{ok}, 'the publishing partner keeps its door' ) or diag explain $get;
+    my $get  = api( $stub, 'action=acl-get&path=/content/note.md', {} );
+    ok( !$get->{ok} && ( $get->{error} // '' ) =~ /capability/i,
+        'a webdav-only grant cannot write content, so it cannot govern it (SM570)' ) or diag explain $get;
 };
 
 subtest 'neither capability is still a refusal' => sub {
     my $stub = stub_with( api => 1, manage_nav => 1 );
-    my $get = api( $stub, 'action=acl-get&path=/content/note.md', {} );
+    my $get  = api( $stub, 'action=acl-get&path=/content/note.md', {} );
     ok( !$get->{ok}, 'refused' );
     like( $get->{error} // '', qr/Insufficient capability|describe-capabilities/i,
         'with the standing refusal shape, which points at describe-capabilities' )

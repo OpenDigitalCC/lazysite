@@ -361,4 +361,29 @@ my $av = mapi( $d, QUERY_STRING => 'action=analyse_visitors',
 ok( $av->{ok}, 'analyse_visitors works for a client with analytics' ) or diag explain $av;
 ok( exists $av->{traffic_classes}, 'returns the sanitised stats export shape' );
 
+# --- SM570: a channel is not an authority ---------------------------------
+# The site agent, holding a themes-only grant that also carried webdav for
+# theme uploads, read, set and removed content rules. The gate was
+# `webdav || manage_content`. A webdav-only grant cannot PUT content, so it
+# must not govern content either. A FRESH account: partner has accumulated
+# manage_content above, which is exactly the blind spot SM570 is about.
+uapi( $d, { action => 'add', username => 'themer', password => 'x' } );
+grant_caps( $d, 'themer', 'manage_themes', 'api', 'webdav' );
+my $ttok = uapi( $d, { action => 'token', username => 'themer' } )->{token};
+ok( $ttok, 'SM570: minted a themes+webdav token' );
+for my $a (qw(acl-get acl-remove)) {
+    my $r = mapi( $d,
+        REQUEST_METHOD     => ( $a eq 'acl-get' ? 'GET' : 'POST' ),
+        QUERY_STRING       => "action=$a&path=/index.md",
+        HTTP_AUTHORIZATION => basic( 'themer', $ttok ) );
+    ok( !$r->{ok} && ( $r->{error} // '' ) =~ /capability/i,
+        "SM570: $a refuses a manage_themes+webdav token" )
+        or diag explain $r;
+}
+grant_caps( $d, 'themer', 'manage_content' );
+my $now = mapi( $d, QUERY_STRING => 'action=acl-get&path=/index.md',
+    HTTP_AUTHORIZATION => basic( 'themer', $ttok ) );
+ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
+    or diag explain $now;
+
 done_testing();

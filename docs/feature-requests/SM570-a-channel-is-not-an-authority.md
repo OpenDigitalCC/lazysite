@@ -1,0 +1,30 @@
+---
+title: "SM570: a channel is not an authority - the ACL actions need manage_content"
+subtitle: "acl-get, acl-set and acl-remove answered a token holding api, manage_themes and webdav. The gate was webdav OR manage_content, the registry agreed, and no lint compared either with what a channel capability means."
+brand: plain
+standard-margins: true
+status: shipped
+status-note: "FOUND BY THE SITE AGENT 2026-08-25 within ten minutes of the operator issuing a themes-only grant on edge (inbox filing): whoami showed api, manage_themes, webdav; acl-get returned real rules for paths the account owned; acl-set/acl-remove completed a full cycle against a nonexistent path; every other gated action in a 22-action sweep refused correctly, DAV refused content writes, MCP was closed. ROOT CAUSE: %need gated all three as `webdav || manage_content` - SM074's era, when a WebDAV publishing partner managed the rules on its own files - and ControlApi::Actions declared the same pair, so the registry-agreement view was clean. But `webdav` is a CHANNEL enablement (which door a grant may use), never an authority: a webdav-only grant cannot PUT content over DAV, yet it could read, set and remove the rules that govern content. Ownership checks inside the actions held (SM464 read split, owner-only writes), so the exposure on edge was bounded to rules the account owned - which is still readership mapping and un-gating directories the grant never expressed. SHIPPED 0.10.32 (the beta build, before publish): the three gate on manage_content alone in %need and the registry; t/lint/86 forbids any channel capability (webdav, api, mcp, ui) in a token gate, requires every gated action in the registry, and requires the two to agree; t/unit/manager/10 pins the refusal for a manage_themes+webdav token and the success once manage_content is granted. SEVERITY, CORRECTED BY THE AGENT'S OWN AMENDMENT: ownership held throughout - t/unit/manager/18 F1 pins that a webdav token can neither read nor rewrite a rule it does not own - so the proven exposure is (a) reading and removing rules the account itself owns and (b) CLAIMING any rule-less path (acl-set on it makes the caller owner and can restrict its readers - gating public content is the integrity edge). A two-principal walk (Task 6's shape) stays the confirming test on a real site. REACHABLE SET: every grant holding webdav AND api - most publishing partners - since SM074, not themes grants specifically; whether that is a disclosure question for client sites is the operator's call. THE METHOD FINDING outranks the bug: every field pass since 0.10.28 was made holding manage_content, so a gate satisfiable by a weaker grant was invisible by construction - a weaker credential makes the question askable. The agent's sweep is to be repeated per grant shape (manage_content-only, manage_layouts-only) when the operator issues them."
+---
+
+# The escalation
+
+A themes-only grant carries `webdav` so it can upload theme files. The
+ACL actions accepted `webdav` as sufficient. So a partner that cannot
+write a single content page could read the rules on content it owned,
+name itself in a read list, or remove the rule that gated a directory.
+
+# The rule, now structural
+
+A channel capability says which door a grant may use; it never says what
+the grant may do through it. `t/lint/86` forbids `webdav`, `api`, `mcp`
+and `ui` from every token gate, and keeps the gate and the registry in
+agreement so `describe-capabilities` tells the truth the dispatcher
+enforces.
+
+# What it changes for WebDAV partners
+
+SM074 let a WebDAV publishing partner manage the rules on its own files
+with `webdav` alone. Such a partner already needs `manage_content` to
+write content at all, so the practical change is nil for a real
+publishing grant - and decisive for a grant that only ever meant themes.
