@@ -161,6 +161,14 @@ subtest 'it is idempotent' => sub {
     ok( -e private_path( $d, 'members/secret.md' ),
         'and the content is still in the store' );
     ok( !-e "$d/members/secret.md", 'and still not in the docroot' );
+    # SM529 follow-through: the second pass must say so rather than report
+    # work it did not do. SM529 stopped claiming content_moved on a no-op,
+    # and the sweep counted that as NOT MOVED - exiting 1 on a correct site.
+    like( $second->{out}, qr/already in place/,
+        'and names the content as already in place, not as unmoved' );
+    unlike( $second->{out}, qr/NOT MOVED/,
+        'a correct site is never reported as unmoved' );
+
 };
 
 done_testing();

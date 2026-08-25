@@ -428,7 +428,9 @@ sub cmd_reapply {
         return 0;
     }
 
-    my ( @done, @failed, @unmoved );
+    # SM529 follow-through: @already is content that needed no move, which is
+    # success - it must not be counted with content that COULD NOT be moved.
+    my ( @done, @failed, @unmoved, @already );
     for my $s (@sections) {
         my $path = $s->{site_wide} ? '/' : $s->{prefix};
 
@@ -468,10 +470,22 @@ sub cmd_reapply {
             # `content_moved` is a structural flag from action_acl_set rather
             # than a match on the warning text, so improving the wording cannot
             # quietly turn this back into a lie.
-            if ( defined $r->{content_moved} && !$r->{content_moved} ) {
+            # SM529 follow-through: key on the FAILURE flag, not on
+            # content_moved => 0 - which since SM529 also means "nothing
+            # needed moving" (already in the store, write-only, site-wide).
+            # Counting those as unmoved made a second sweep of a correct site
+            # report work it had not done and exit 1.
+            if ( $r->{content_move_failed} ) {
                 push @unmoved, { path => $path, warnings => \@w };
                 unless ( $opt{json} ) {
                     print "NOT MOVED: $path\n";
+                    print "  $_\n" for @w;
+                }
+            }
+            elsif ( defined $r->{content_moved} && !$r->{content_moved} ) {
+                push @already, { path => $path, warnings => \@w };
+                unless ( $opt{json} ) {
+                    print "already in place: $path\n";
                     print "  $_\n" for @w;
                 }
             }
@@ -491,8 +505,9 @@ sub cmd_reapply {
     }
 
     unless ( $opt{json} ) {
-        printf "\n%d re-applied, %d moved nothing, %d failed.\n",
-            scalar @done, scalar @unmoved, scalar @failed;
+        printf "\n%d re-applied, %d already in place, %d could not be moved, "
+            . "%d failed.\n",
+            scalar @done, scalar @already, scalar @unmoved, scalar @failed;
 
         # SM313: name the cause ONCE, not per folder. A per-folder warning on a
         # fleet sweep reads as advisory noise and scrolls past; the operator
@@ -521,6 +536,7 @@ WHY
         { ok => ( ( @failed || @unmoved ) ? 0 : 1 ),
             reapplied => \@done,
             unmoved   => \@unmoved,
+            already   => \@already,
             failed    => \@failed,
             count     => scalar @done,
         }

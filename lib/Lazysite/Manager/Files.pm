@@ -1517,6 +1517,12 @@ our $CONTENT_MOVED;
 # right thing. undef when the helper had nothing to move.
 our $CONTENT_MOVED_DIRECTION;
 
+# SM529 follow-through: content_moved => 0 carries TWO meanings - "nothing
+# needed moving" (SM529: a site-wide rule, a write-only rule, content already
+# where the rule puts it) and "the move FAILED" (SM313). The sweep must act on
+# the second and not the first, so the failure carries its own flag.
+our $CONTENT_MOVE_FAILED;
+
 sub _sync_private_store {
     my ( $rel, $rec ) = @_;
     my @warnings;
@@ -1609,7 +1615,8 @@ sub _sync_private_store {
         # sweep that moved nothing reported "N re-applied, 0 failed" and exited
         # 0, which is this project's recurring defect wearing the uniform of the
         # tool built to repair it.
-        $CONTENT_MOVED = 0;
+        $CONTENT_MOVED       = 0;
+        $CONTENT_MOVE_FAILED = 1;    # SM529 follow-through: this 0 is a failure
         my $what = $gates ? 'out of' : 'back into';
         push @warnings,
             "the permission was saved, but the content could not be moved "
@@ -1724,7 +1731,8 @@ sub action_acl_set {
     # state is "rule recorded, content not yet moved", which the engine already
     # enforces correctly. The other order would leave content out of the docroot
     # with nothing recording why.
-    local $CONTENT_MOVED = 1;
+    local $CONTENT_MOVED       = 1;
+    local $CONTENT_MOVE_FAILED = 0;
     push @warnings, _sync_private_store( $rel, \%rec );
 
     # SM243/SM224 corrected: the old text ended 'Name those accounts
@@ -1861,6 +1869,7 @@ sub action_acl_set {
 
     return { ok => 1, path => $rel, acl => \%rec,
         content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
+        content_move_failed => ( $CONTENT_MOVE_FAILED ? 1 : 0 ),
         ( $CONTENT_MOVED ? ( content_moved_note => $moved_note ) : () ),
         ( $reads_open
             ? ( reads_unrestricted => 1,
