@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM515 resolved (PENDING) **every MCP tool declares its gate.** list_briefs
+  and delete_brief (SM508) shipped with no cap and the key `schema` instead
+  of `inputSchema`; a cap-less tool is channel-only to the dispatcher, so
+  any authenticated partner could delete a brief and no argument
+  validation ran. Both gated on manage_content now, and t/lint/85 asserts
+  every tool declares both keys.
+
 - SM514 resolved (PENDING) **a safety export can be read, judged from the
   listing, and offered back.** SM512 shipped list and delete; an export
   could only be listed and destroyed. The listing now carries row count

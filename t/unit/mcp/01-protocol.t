@@ -256,6 +256,16 @@ ok( $r->{result}{structuredContent}{ok}, 'rename_page succeeds' );
 like( $r->{result}{structuredContent}{content}, qr{/renamed}, 'rename_page update_links rewrote the internal link' );
 ( $st, $r ) = call( 'delete_page', { slug => 'renamed' }, $bearer_lim );
 ok( $r->{result}{structuredContent}{ok} && !( -f "$d/renamed.md" ), 'delete_page removes the page' );
+# SM515: a cap-less tool is a channel-only tool to the dispatcher. delete_brief
+# shipped without one; a theme-only bearer (no manage_content) must be refused, naming the cap.
+( $st, $r ) = call( 'delete_brief', { path => '/anything.md' }, $bearer_theme );
+ok( $r->{result}{isError} || !$r->{result}{structuredContent}{ok},
+    'delete_brief refuses a theme-only bearer (no manage_content)' );
+like( JSON::PP->new->encode($r), qr/manage_content/, 'and names the capability it needs' );
+( $st, $r ) = call( 'delete_brief', { path => '/x.md', bogus => 1 }, $bearer_full );
+ok( $r->{result}{isError} || !$r->{result}{structuredContent}{ok},
+    'and an argument outside the schema is refused (validation runs now)' );
+
 # SM513: delete_page takes read_page's identifier too.
 call( 'create_page', { slug => 'bypath', title => 'By path' }, $bearer_lim );
 ( $st, $r ) = call( 'delete_page', { path => '/bypath.md' }, $bearer_lim );

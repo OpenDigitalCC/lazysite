@@ -662,8 +662,9 @@ my %TOOLS = (
     },
     list_briefs => {
         description => 'List every brief in the store: path, size, mtime, and whether it is an ORPHAN (no content answers its key - the brief was written for a path that never existed, or its page predates the engine carrying briefs through renames and deletes). The discovery half of the lifecycle: read_brief needs a path you already know; this answers WHICH paths have one.',
-        schema => { type => 'object', properties => {} },
-        run    => sub {
+        cap => 'manage_content',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub {
             local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
             local $Lazysite::Manager::Briefs::auth_user = $_[1];
             require Lazysite::Manager::Briefs;
@@ -672,10 +673,12 @@ my %TOOLS = (
     },
     delete_brief => {
         description => 'Delete one brief store entry by its content path (as list_briefs reports it). The cleanup half of the lifecycle: an orphan surfaced by list_briefs is removed with this. Deleting a live page\'s brief discards its record of intent - prefer appending a correction with append_brief. Audited as brief-delete.',
-        schema => {
+        cap         => 'manage_content',
+        inputSchema => {
             type     => 'object',
             required => ['path'],
             properties => { path => { type => 'string', description => 'The store entry to remove' } },
+            additionalProperties => JSON::PP::false,
         },
         run => sub {
             local $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
