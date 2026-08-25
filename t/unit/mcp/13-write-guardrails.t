@@ -28,7 +28,12 @@ my $src  = do {
 
 # The validator body, so an assertion about a check cannot pass on a mention
 # somewhere else in the file.
-my ($vp) = $src =~ /(sub _validate_page\b.*?)^sub /ms;
+#
+# SM516 MC-10 split the seven checks out of _validate_page into named _check_*
+# subs that sit immediately above it and are called from nowhere else, so the
+# window is the FAMILY rather than the one sub. Still bounded, still not
+# "anywhere in the file" - which is the property this extraction exists for.
+my ($vp) = $src =~ /(sub _check_front_matter\b.*?sub _validate_page\b.*?)^sub /ms;
 ok( defined $vp, '_validate_page body located' );
 
 # --- SM243: the page-body guardrails ----------------------------------------
@@ -52,7 +57,7 @@ like( $vp, qr/unreachable/,  'the chrome warning names the real consequence' );
 
 # They are warnings. If any of these became an issue/refusal, an ordinary write
 # would start failing.
-unlike( $vp, qr/push \@issues,\s*\{\s*kind\s*=>\s*'(?:document-in-page|style-block-in-page|chrome-in-page)'/,
+unlike( $vp, qr/push \@\$?issues,\s*\{\s*kind\s*=>\s*'(?:document-in-page|style-block-in-page|chrome-in-page)'/,
     'none of the SM243 checks is raised as a blocking issue' );
 
 # --- SM243: the theme guardrails --------------------------------------------
@@ -82,7 +87,9 @@ unlike( $vp, qr/push \@issues,\s*\{\s*kind\s*=>\s*'(?:document-in-page|style-blo
 
 # --- SM244: audit_site reports the starter pages -----------------------------
 {
-    my ($as) = $src =~ /(sub _audit_site\b.*?)^sub /ms;
+    # SM516 MC-11 split the walk and the five passes out of _audit_site; the
+    # family is contiguous and _audit_site is its last member.
+    my ($as) = $src =~ /(sub _audit_collect\b.*?sub _audit_site\b.*?)^sub /ms;
     ok( defined $as, '_audit_site body located' );
     like( $as, qr/lazysite-starter/,
         'audit_site reads the provenance marker that nothing has ever read' );

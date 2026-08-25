@@ -517,29 +517,7 @@ my %TOOLS = (
             },
             required             => [ 'path', 'content_base64' ],
             additionalProperties => JSON::PP::false },
-        run => sub {
-            my ( $a, $user ) = @_;
-            my $b64 = $a->{content_base64} // '';
-            ( my $clean = $b64 ) =~ s/\s+//g;
-            # Reject what does not decode rather than writing a corrupt file:
-            # decode_base64 silently ignores characters outside the alphabet, so
-            # a truncated or mangled payload would otherwise land on disk looking
-            # like a successful upload.
-            return { ok => 0, kind => 'bad-encoding',
-                error => 'content_base64 is not valid base64 - expected only '
-                    . 'A-Z a-z 0-9 + / and = padding.' }
-                if $clean =~ m{[^A-Za-z0-9+/=]} || $clean =~ m{=[^=]};
-            return { ok => 0, kind => 'bad-encoding',
-                error => 'content_base64 length is not a multiple of 4 - the '
-                    . 'payload looks truncated.' }
-                if length($clean) % 4;
-            require MIME::Base64;
-            my $bytes = MIME::Base64::decode_base64($clean);
-            return { ok => 0, kind => 'bad-encoding',
-                error => 'content_base64 decoded to nothing.' }
-                unless length $bytes;
-            return action_save_binary( $a->{path}, $user, $bytes );
-        },
+        run => sub { _upload_file( $_[0], $_[1] ) },
     },
     write_file => {
         description => 'Create or overwrite a text file with the given content. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no operator-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
@@ -954,35 +932,7 @@ my %TOOLS = (
             required             => ['name'],
             additionalProperties => JSON::PP::false,
         },
-        run => sub {
-            my ( $a, $user, $caps ) = @_;
-            my $name = $a->{name} // '';
-            return { ok => 0, error => 'A package name is required' }
-                unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
-            my $pkg = "$LAZYSITE_DIR/backups/$name";
-            return { ok => 0, error => "Package not found: $name" } unless -f $pkg;
-
-            my $host = lc( $a->{host} // '' );
-            $host = '' if $host eq '(default)';
-
-            # Resolve the target content root + enforce the scope union.
-            my $croot = '';
-            if ( length $host ) {
-                my $row = _domain_row($host);
-                return { ok => 0, error => "Not a configured domain: $host" } unless $row;
-                $croot = $row->{content_root} // '';
-                return { ok => 0, error => "$host has no content folder of its own" }
-                    unless length $croot;
-            }
-            if ( _croot_outside_scope( $caps, $croot ) ) {
-                return { ok => 0, error => 'Target is outside your assigned scope.' };
-            }
-            local $Lazysite::Manager::SitePackage::auth_user = $user;
-            return apply_and_configure( $pkg,
-                host           => $host,
-                clean          => ( $a->{clean}          ? 1 : 0 ),
-                adopt_identity => ( $a->{adopt_identity} ? 1 : 0 ) );
-        },
+        run => sub { _site_apply( $_[0], $_[1], $_[2] ) },
     },
     replace_text => {
         description => 'Edit a file by replacing exact text - safer than rewriting the whole file for a small change to a page with HTML / front matter / scripts. Replaces every occurrence of "old" with "new"; errors if "old" is not present. read_file first to copy the exact text (including whitespace).',
@@ -1262,54 +1212,7 @@ my %TOOLS = (
             required             => [ 'path', 'name' ],
             additionalProperties => JSON::PP::false,
         },
-        run => sub {
-            my ( $a, $user ) = @_;
-            my $name = lc( $a->{name} // '' );
-            return { ok => 0, error => 'A form name (a-z0-9_-) is required' }
-                unless $name =~ /\A[a-z0-9][a-z0-9_-]*\z/;
-            return { ok => 0, error => 'A page path is required' }
-                unless defined $a->{path} && length $a->{path};
-
-            my @fields = ( ref $a->{fields} eq 'ARRAY' && @{ $a->{fields} } )
-                ? @{ $a->{fields} }
-                : ( 'name | Your name | required max:200',
-                'email | Email | required email',
-                'message | Message | required textarea' );
-            my $submit = $a->{submit} // 'Send';
-            my $block = ":::form\n" . join( "\n", @fields ) . "\nsubmit | $submit\n:::\n";
-
-            # Read the page if it exists; ensure front matter carries form: NAME,
-            # then append the block. A page with a different form already bound is
-            # left alone (do not silently rebind).
-            my $rd      = action_read( $a->{path}, $user );
-            my $content = ( ref $rd eq 'HASH' && $rd->{ok} ) ? ( $rd->{content} // '' ) : '';
-            if ( length $content && $content =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
-                my $fm = $1;
-                if ( $fm =~ /^\s*form\s*:\s*(\S+)/m && lc($1) ne $name ) {
-                    return { ok => 0, error => "Page already has a different form ('$1'); "
-                            . 'edit it directly or pick that name.' };
-                }
-                $content =~ s/\A(---\s*\n)/$1form: $name\n/ unless $fm =~ /^\s*form\s*:/m;
-                $content =~ s/\s*\z/\n/;
-                $content .= "\n$block";
-            }
-            else {
-                # No usable front matter - create a fresh page.
-                my $title = ucfirst($name) =~ s/[-_]+/ /gr;
-                $content = "---\ntitle: $title\nform: $name\n---\n\n$block";
-            }
-
-            my $save = action_save( $a->{path}, $user, $content, undef );
-            return $save unless ref $save eq 'HASH' && $save->{ok};
-            return {
-                ok       => 1,
-                path     => $a->{path},
-                form     => $name,
-                delivers => JSON::PP::false,
-                next => "Form scaffolded but NOT delivering yet. Call list_form_handlers, "
-                    . "then bind_form(form: '$name', handler: <id>) to wire delivery.",
-            };
-        },
+        run => sub { _create_form( $_[0], $_[1] ) },
     },
     bind_form => {
         description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. PREFER A HANDLER: it is operator-vetted and holds any credentials. If your grant needs to deliver somewhere the operator has not pre-defined, pass `target` instead - {type: webhook|api, url: https://...} or {type: file, path: relative/dir} - which writes the delivery target directly into the form config. That is the same thing this capability can already do over WebDAV and the control API; it is offered here so the three surfaces agree rather than one being quietly weaker. Writes lazysite/forms/<form>.conf.',
@@ -1990,26 +1893,21 @@ sub _fm_line_offset {
     return ( ( () = $fm =~ /\n/g ) + 1 ) + 2;
 }
 
-sub _validate_page {
-    my ( $path, $content, $user ) = @_;
-    if ( !defined $content ) {
-        return { ok => 0, error => 'path or content required' }
-            unless defined $path && length $path;
-        $path = _resolve_page_path($path);    # SM347
-        my $r = action_read( $path, $user );
-        return $r unless ref $r eq 'HASH' && $r->{ok};
-        $content = $r->{content};
-    }
-    my ( @issues, @warnings );
+# MC-10: _validate_page was 285 lines of seven unrelated checks sharing two
+# arrays. Each check is now its own named sub, called in the ORDER IT WAS
+# WRITTEN IN - the issue and warning lists are ordered and an agent reads them
+# top-down, so the order is part of the answer, not an accident of layout.
+# Every body below is the original text; only the two arrays became the
+# references each check is handed.
 
+sub _check_front_matter {
+    my ( $issues, $warnings, $content, $h ) = @_;
     # Front matter: opened-but-unterminated, and missing title.
     if ( $content =~ /\A---\s*\n/ && $content !~ /\A---\s*\n.*?\n---\s*\n/s ) {
-        push @issues, { kind => 'front-matter-unterminated',
+        push @$issues, { kind => 'front-matter-unterminated',
             message => 'front matter opened with --- but never closed' };
     }
-    my ( $fm, $body ) = _split_front_matter($content);
-    my $h = _parse_fm($fm);
-    push @warnings, { kind => 'no-title', message => 'page has no title in front matter' }
+    push @$warnings, { kind => 'no-title', message => 'page has no title in front matter' }
         unless length( $h->{title} // '' );
 
     # SM228: a raw/api page declaring a script-capable content_type is refused at
@@ -2019,9 +1917,13 @@ sub _validate_page {
     # same remedy the write path gives, so an existing page can be found without
     # loading each one.
     if ( my $raw = Lazysite::Manager::Common::raw_html_page_refusal($content) ) {
-        push @issues, { kind => 'raw-html-page', message => $raw };
+        push @$issues, { kind => 'raw-html-page', message => $raw };
     }
+    return;
+}
 
+sub _check_fences {
+    my ( $warnings, $fm, $body ) = @_;
     # GS11 (SM492): AN OPENING FENCE THAT IS NEVER CLOSED SAYS SO, HERE.
     #
     # The processor leaves an unbalanced `::: name` in the page as literal text
@@ -2044,7 +1946,7 @@ sub _validate_page {
             elsif ( $line =~ /^:::[ \t]*$/ ) {
                 if (@open) { pop @open }
                 else {
-                    push @warnings, { kind => 'fence-close-unmatched', line => $n + $off,
+                    push @$warnings, { kind => 'fence-close-unmatched', line => $n + $off,
                         message => 'a closing ::: with no open fence above it. It renders '
                             . 'as literal text; remove it or find the opening line it '
                             . 'was meant to close' };
@@ -2052,7 +1954,7 @@ sub _validate_page {
             }
         }
         for my $o (@open) {
-            push @warnings, { kind => 'component-fence-unmatched', line => $o->[1],
+            push @$warnings, { kind => 'component-fence-unmatched', line => $o->[1],
                 fence   => $o->[0],
                 message => "the '::: $o->[0]' fence opened here is never closed. The "
                     . 'processor leaves it in the page as literal text and the block '
@@ -2060,7 +1962,11 @@ sub _validate_page {
                     . '(count them when you nest)' };
         }
     }
+    return;
+}
 
+sub _check_db_bindings {
+    my ( $issues, $warnings, $fm ) = @_;
     # SM481: A `db:` BINDING THAT WILL RENDER NOTHING SAYS SO, HERE.
     #
     # The engine already logs the reason - "it may not be published (set
@@ -2086,14 +1992,14 @@ sub _validate_page {
             Lazysite::Data::Tables::load_table( $DOCROOT, $table );
         };
         unless ( ref $d eq 'HASH' ) {
-            push @warnings, { kind => 'db-binding-unchecked',
+            push @$warnings, { kind => 'db-binding-unchecked',
                 message => "could not check the table '$table' - the data "
                     . 'modules are not available here' };
             next;
         }
 
         unless ( $d->{ok} ) {
-            push @issues, { kind => 'db-table-missing',
+            push @$issues, { kind => 'db-table-missing',
                 message => "this page binds db:$table, and $d->{error}. The "
                     . 'binding will render nothing.' };
             next;
@@ -2103,7 +2009,7 @@ sub _validate_page {
         # visitor exactly as a table that was never declared does - which is
         # deliberate, and is why nothing on the page could say which it was.
         unless ( $d->{public} ) {
-            push @issues, { kind => 'db-table-not-published',
+            push @$issues, { kind => 'db-table-not-published',
                 message => "this page binds db:$table, which is NOT PUBLISHED. "
                     . 'An anonymous visitor sees no rows and no sign the table '
                     . 'exists, while the API and the manager still read it - so '
@@ -2111,7 +2017,11 @@ sub _validate_page {
                     . "public: true to the $table descriptor." };
         }
     }
+    return;
+}
 
+sub _check_form_rules {
+    my ( $issues, $content ) = @_;
     # Form-field rules (catch typos/unsupported rules before publish).
     if ( $content =~ /:::\s*form\b(.*?):::/s ) {
         for my $line ( split /\n/, $1 ) {
@@ -2125,12 +2035,16 @@ sub _validate_page {
             for my $tok ( split /\s+/, $check ) {
                 next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/; # known flag or key:value
                 next if $tok                      !~ /^[a-z]+$/; # only flag plain words
-                push @issues, { kind => 'invalid-form-rule',
+                push @$issues, { kind => 'invalid-form-rule',
                     message => "unknown form rule '$tok' on field '$name'" };
             }
         }
     }
+    return;
+}
 
+sub _check_html_in_page {
+    my ( $warnings, $body, $h ) = @_;
     # SM243: warn at the moment of writing, not only in a briefing the agent read
     # once. The site briefings already say all of this; the problem is that an
     # agent reads them at the start and then works through a tool surface that
@@ -2143,7 +2057,7 @@ sub _validate_page {
     # silence, not permissiveness. (SM228's REFUSAL is different in kind: it
     # catches a page that would be served as plain text, which is always broken.)
     if ( $body =~ /<!DOCTYPE\b/i || $body =~ /<html\b/i || $body =~ /<head\b/i ) {
-        push @warnings, { kind => 'document-in-page',
+        push @$warnings, { kind => 'document-in-page',
             message => 'this page body contains a whole HTML document. The layout '
                 . 'is then bypassed, the processor mangles the block tags, and the '
                 . 'page cannot be maintained as content. Author the body as Markdown '
@@ -2153,7 +2067,7 @@ sub _validate_page {
                 . 'byte-for-byte).' };
     }
     if ( $body =~ /<style[\s>]/i ) {
-        push @warnings, { kind => 'style-block-in-page',
+        push @$warnings, { kind => 'style-block-in-page',
             message => 'a <style> block in page content styles one page and leaves '
                 . 'the rest of the site inconsistent. Put the rules in the theme, '
                 . 'where every page gets them and a restyle is one change.' };
@@ -2164,7 +2078,7 @@ sub _validate_page {
     if ( ( $h->{api} // '' ) =~ /^true$/i
         && ( $body =~ /<!DOCTYPE\b/i || $body =~ /<html\b/i ) )
     {
-        push @warnings, { kind => 'api-page-is-a-document',
+        push @$warnings, { kind => 'api-page-is-a-document',
             message => 'api: true marks this page as a DATA artifact, but the body '
                 . 'is an HTML document. api: is for JSON/CSV/text endpoints; a page '
                 . 'for people belongs in the layout, and a self-contained HTML file '
@@ -2173,7 +2087,7 @@ sub _validate_page {
     # Page-baked chrome plus a theme that hides the layout's is how a site ends up
     # with unreachable navigation: the operator sets nav items that never appear.
     if ( $body =~ m{<nav[\s>]}i || $body =~ m{<footer[\s>]}i ) {
-        push @warnings, { kind => 'chrome-in-page',
+        push @$warnings, { kind => 'chrome-in-page',
             message => 'this page carries its own <nav> or <footer>. Those are the '
                 . 'layout\'s job - a page that bakes its own chrome duplicates the '
                 . 'layout\'s, and hiding one with CSS is what makes site navigation '
@@ -2194,18 +2108,22 @@ sub _validate_page {
     # t/unit/mcp/15 now asserts the ABSENCE of that warning, so reintroducing it
     # fails, and t/unit/processor/19 asserts the variables actually resolve in a
     # body - the fact the warning existed to work around.
+    return;
+}
 
+sub _check_form_delivery {
+    my ( $warnings, $content, $body, $h, $path ) = @_;
     # SM161: forms must be native (a :::form block bound to an operator-vetted
     # handler), never hand-written HTML or a third-party form service.
     my $has_fenced_form = $content =~ /^:::[ \t]*form\b/m;
     if ( $body =~ /<form\b/i || $body =~ /<input\b/i || $body =~ /<textarea\b/i ) {
-        push @warnings, { kind => 'hand-authored-form',
+        push @$warnings, { kind => 'hand-authored-form',
             message => 'hand-written <form>/<input> HTML detected - it has no delivery '
                 . 'handler and ships DEAD. Use a native :::form block (fields as '
                 . '"name | Label | rules" lines) and wire delivery with bind_form.' };
     }
     if ( $body =~ /action\s*=\s*["']\s*mailto:/i ) {
-        push @warnings, { kind => 'form-mailto',
+        push @$warnings, { kind => 'form-mailto',
             message => 'a mailto: form action exposes an address and routes visitor '
                 . 'data around the operator-vetted handlers - use a :::form + bind_form.' };
     }
@@ -2216,7 +2134,7 @@ sub _validate_page {
               | typeform\. | wufoo\. | getform\. | form\.io )
         }ix )
     {
-        push @warnings, { kind => 'form-third-party',
+        push @$warnings, { kind => 'form-third-party',
             message => 'a third-party form endpoint routes visitor data OFF this '
                 . 'instance, around the operator-vetted handlers (a data-governance '
                 . 'leak, not a style choice) - use a :::form + bind_form instead.' };
@@ -2227,19 +2145,23 @@ sub _validate_page {
     if ($has_fenced_form) {
         my $fname = $h->{form};
         if ( !defined $fname || !length $fname ) {
-            push @warnings, { kind => 'form-unnamed',
+            push @$warnings, { kind => 'form-unnamed',
                 message => 'a :::form block has no "form: NAME" in the front matter, so '
                     . 'it cannot be bound to a handler and will not deliver - add it, then bind_form.' };
         }
         elsif ( defined $path && length $path ) {
             my $conf = "$LAZYSITE_DIR/forms/$fname.conf";
-            push @warnings, { kind => 'form-unbound',
+            push @$warnings, { kind => 'form-unbound',
                 message => "the form '$fname' is not bound to a delivery handler yet "
                     . '(it renders but does not deliver) - call bind_form(form, handler).' }
                 unless -f $conf;
         }
     }
+    return;
+}
 
+sub _check_public_data {
+    my ( $warnings, $fm, $body ) = @_;
     # Public-data warnings - private/operational details that should not be
     # published accidentally (guest-instruction uploads carry these).
     # SM488: LINE NUMBERS ARE REPORTED AGAINST THE WHOLE PAGE, not the body.
@@ -2253,10 +2175,10 @@ sub _validate_page {
     my $ln = _fm_line_offset($fm);
     for my $line ( split /\n/, $body ) {
         $ln++;
-        push @warnings, { kind => 'public-credential', line => $ln,
+        push @$warnings, { kind => 'public-credential', line => $ln,
             message => 'possible Wi-Fi / password value - confirm this should be public' }
             if $line =~ /\b(?:wi-?fi|password|passphrase|wpa2?|psk)\b\s*[:=]/i;
-        push @warnings, { kind => 'public-postcode', line => $ln,
+        push @$warnings, { kind => 'public-postcode', line => $ln,
             message => 'looks like a UK postcode - confirm the full address should be public' }
             if $line =~ /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/;
         # SM488: AN ISO DATE IS NOT A PHONE NUMBER. /\d[\d\s().-]{8,}\d/ matched
@@ -2266,10 +2188,35 @@ sub _validate_page {
         # before the phone pattern runs; a real number beside a date still
         # fires, because only the date is removed, not the line.
         ( my $undated = $line ) =~ s/\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\b//g;
-        push @warnings, { kind => 'public-phone', line => $ln,
+        push @$warnings, { kind => 'public-phone', line => $ln,
             message => 'contains a phone number - fine for a contact CTA, not for a private number' }
             if $undated =~ /\+?\d[\d\s().-]{8,}\d/ && $undated =~ /\d{3}/;
     }
+    return;
+}
+
+sub _validate_page {
+    my ( $path, $content, $user ) = @_;
+    if ( !defined $content ) {
+        return { ok => 0, error => 'path or content required' }
+            unless defined $path && length $path;
+        $path = _resolve_page_path($path);    # SM347
+        my $r = action_read( $path, $user );
+        return $r unless ref $r eq 'HASH' && $r->{ok};
+        $content = $r->{content};
+    }
+    my ( @issues, @warnings );
+
+    my ( $fm, $body ) = _split_front_matter($content);
+    my $h = _parse_fm($fm);
+
+    _check_front_matter( \@issues, \@warnings, $content, $h );
+    _check_fences( \@warnings, $fm, $body );
+    _check_db_bindings( \@issues, \@warnings, $fm );
+    _check_form_rules( \@issues, $content );
+    _check_html_in_page( \@warnings, $body, $h );
+    _check_form_delivery( \@warnings, $content, $body, $h, $path );
+    _check_public_data( \@warnings, $fm, $body );
 
     return { ok => 1, valid => ( @issues ? JSON::PP::false : JSON::PP::true ),
         issues => \@issues, warnings => \@warnings };
@@ -2293,9 +2240,15 @@ sub _domain_presentation_set {
     return { %$r, scope => "domain:$host" };
 }
 
-# --- SM087 Tier 2: whole-site audit ---------------------------------------
-sub _audit_site {
-    my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages, @starter );
+# MC-11: the audit was 419 lines in one sub - a page walk, then five passes
+# over what it collected, each with its own long rationale comment. The passes
+# were already separate in everything but name (one is a bare block), so they
+# are named now and the walk hands each what it needs instead of every pass
+# reaching into the same nine lexicals. Same passes, same order, same bytes
+# out: the ORDER is part of the answer, since a reader works down the report.
+
+sub _audit_collect {
+    my ( %exists, %para, @info, @links, @forms, @rawpages, @starter );
     my %class_used;        # SM358: class name -> the first page that uses it
     my %component_used;    # SM358 follow-up: component name -> a page invoking it
     _each_page( sub {
@@ -2393,35 +2346,35 @@ sub _audit_site {
                 push @{ $para{$p} }, $slug if length $p >= 60;
             }
     } );
+    return { exists => \%exists, para => \%para, info => \@info,
+        links      => \@links,      forms          => \@forms,
+        rawpages   => \@rawpages,   starter        => \@starter,
+        class_used => \%class_used, component_used => \%component_used };
+}
 
+sub _audit_links {
+    my ( $exists, $info, $links ) = @_;
+    my %inbound;
     my @broken;
-    for my $l (@links) {
+    for my $l (@$links) {
         my ( $from, $to ) = @$l;
         next unless $to =~ m{^/};
         next if $to     =~ m{^/(?:cgi-bin|manager|lazysite|img|lazysite-assets)/};
         ( my $t = $to ) =~ s/[#?].*$//; $t =~ s{/$}{};
         next unless length $t;
-        if ( $exists{$t} || -e "$DOCROOT$t" || -f "$DOCROOT$t.md" || -f "$DOCROOT$t.html" ) {
+        if ( $exists->{$t} || -e "$DOCROOT$t" || -f "$DOCROOT$t.md" || -f "$DOCROOT$t.html" ) {
             $inbound{$t}++;
         }
         else { push @broken, { from => $from, to => $to }; last if @broken >= 200 }
     }
 
-    my @orphans = map { $_->{slug} } grep { $_->{slug} ne '/index' && !$inbound{ $_->{slug} } } @info;
-    my @no_title = map { $_->{slug} } grep { !length $_->{title} } @info;
+    my @orphans = map { $_->{slug} } grep { $_->{slug} ne '/index' && !$inbound{ $_->{slug} } } @$info;
+    my @no_title = map { $_->{slug} } grep { !length $_->{title} } @$info;
+    return ( \@broken, \@orphans, \@no_title );
+}
 
-    # Stale generated HTML: a rendered .html with no .md source.
-    #
-    # SM260: this was `my ( @stale, @stack ) = ( (), $DOCROOT );`, which does not
-    # do what it reads like. The FIRST array in a list assignment slurps every
-    # remaining value, so @stale started as ($DOCROOT) and @stack empty - the
-    # scan below never ran even once, and the docroot the walk was supposed to
-    # START from was reported to the caller as a finding. Two defects in one
-    # line: an audit that has never worked, and the server's absolute filesystem
-    # path (including the hosting account name) handed to every token and MCP
-    # partner. Declared separately so the shape cannot mislead again.
-    my @stale;
-    my @stack = ($DOCROOT);
+sub _audit_hidden_by_script {
+    my ( $class_used, $component_used ) = @_;
     # SM250: a theme whose CSS hides content by default and reveals it with a
     # script. Content at opacity:0 until JavaScript runs is invisible to a
     # visitor with JS blocked, to most crawlers, and to anything extracting
@@ -2439,144 +2392,158 @@ sub _audit_site {
     # fallback - it reaches only visitors who asked for reduced motion, and
     # reading it as a neutraliser is exactly what caused the incident.
     my @hidden_by_script;
-    {
-        my $ldir = "$LAZYSITE_DIR/layouts";
-        my @css;
-        if ( opendir my $lh, $ldir ) {
-            for my $layout ( grep { !/^\./ } readdir $lh ) {
-                my $tdir = "$ldir/$layout/themes";
-                next unless -d $tdir;
-                opendir my $th, $tdir or next;
-                for my $theme ( grep { !/^\./ } readdir $th ) {
-                    next unless -d "$tdir/$theme";
-                    for my $f ( glob "$tdir/$theme/*.css $tdir/$theme/assets/*.css" ) {
-                        push @css, [ "$layout/$theme", $f, $layout ];
-                    }
+    my $ldir = "$LAZYSITE_DIR/layouts";
+    my @css;
+    if ( opendir my $lh, $ldir ) {
+        for my $layout ( grep { !/^\./ } readdir $lh ) {
+            my $tdir = "$ldir/$layout/themes";
+            next unless -d $tdir;
+            opendir my $th, $tdir or next;
+            for my $theme ( grep { !/^\./ } readdir $th ) {
+                next unless -d "$tdir/$theme";
+                for my $f ( glob "$tdir/$theme/*.css $tdir/$theme/assets/*.css" ) {
+                    push @css, [ "$layout/$theme", $f, $layout ];
                 }
-                closedir $th;
             }
-            closedir $lh;
+            closedir $th;
         }
-        my %layout_markup;    # SM358: a layout's templates, read once
-        for my $c (@css) {
-            my ( $name, $file, $layout ) = @$c;
-            open my $fh, '<:utf8', $file or next;
-            my $text = do { local $/; <$fh> };
-            close $fh;
-            next unless $text =~ m{ (?:opacity \s*:\s* 0 (?![.\d]) | visibility \s*:\s* hidden ) }xi;
-
-            # A non-script path back to visible: anything inside <noscript>'s
-            # stylesheet counterpart, or a plain rule restoring it outside a
-            # reduced-motion block. Strip reduced-motion blocks first - they are
-            # the trap, not the remedy.
-            # NB: '#' delimiters, not braces. The pattern needs a literal
-            # unmatched '{' in a character class, and s{...}{...} then mis-pairs
-            # and swallows the rest of the sub.
-            ( my $outside = $text ) =~ s#\@media[^{]*prefers-reduced-motion.*?\}\s*\}##gs;
-            my $has_fallback = $outside =~ m{ \.no-js | html:not\(\.js\) | noscript }xi ? 1 : 0;
-            next if $has_fallback;
-
-            # SM358: A MECHANISM IS NOT A FINDING. Up to here the check has
-            # established that a stylesheet CAN hide content behind a script. It
-            # used to report that, which put an item an operator cannot clear on
-            # a list they are expected to clear: the theme is shipped, so editing
-            # it is overwritten on upgrade, and on the reporting instance no page
-            # used the class at all. "Learn to ignore the audit" was the only
-            # available response, and an audit people learn to ignore is worse
-            # than no audit.
-            #
-            # So the finding now requires a USE. Which classes do the hiding, and
-            # does anything on this site put one on the page - a layout template,
-            # or a page's own content? Both, because the SM250 incident was a
-            # LAYOUT emitting the class on every section: checking content alone
-            # would have missed the case this check exists for.
-            #
-            # WHAT DID NOT CHANGE, and the filing asked for it: a rule inside
-            # prefers-reduced-motion still does not count as a fallback. The
-            # filing proposed crediting it, or reporting it as mitigating. It
-            # reaches only visitors who asked for reduced motion, and reading it
-            # as a neutraliser is precisely what caused the incident - it is the
-            # trap, not the remedy. Narrowing the finding to real uses makes it
-            # actionable without weakening the test that exists because a live
-            # site lost every section below the fold.
-            my %hide_class;
-            while ( $outside =~ /([^{}]+)\{([^{}]*)\}/g ) {
-                my ( $sel, $decl ) = ( $1, $2 );
-                next unless $decl =~ m{ opacity \s*:\s* 0 (?![.\d])
-                    | visibility \s*:\s* hidden }xi;
-                $hide_class{$_} = 1 for $sel =~ /\.([A-Za-z][\w-]*)/g;
-            }
-            next unless %hide_class;
-
-            # SM358 follow-up: keep each template SEPARATE, so the finding can
-            # name the file that applies the class rather than the layout that
-            # contains it.
-            #
-            # The first version concatenated them and reported `layout:lumen`.
-            # On the reporting instance that was true and unhelpful: both
-            # `reveal` references in layout.tt are JavaScript, four of the six
-            # COMPONENTS apply the class in markup, and two are innocent. An
-            # operator told "layout:lumen" has six files to read; told
-            # "component:features" they have one.
-            $layout_markup{$layout} //= do {
-                my %by_file;
-                for my $tt ( glob "$ldir/$layout/*.tt $ldir/$layout/**/*.tt" ) {
-                    open my $th, '<:utf8', $tt or next;
-                    local $/;
-                    my $body = <$th>;
-                    close $th;
-                    ( my $label = $tt ) =~ s{^\Q$ldir/$layout/\E}{};
-                    $label =~ s{\.tt\z}{};
-                    $by_file{ $label eq 'layout' ? "layout:$layout" : $label }
-                        = $body;
-                }
-                \%by_file;
-            };
-
-            my ( @classes, %seen_use, @used_by );
-            for my $cls ( sort keys %hide_class ) {
-                my @where;
-                for my $file ( sort keys %{ $layout_markup{$layout} } ) {
-                    next unless $layout_markup{$layout}{$file}
-                        =~ /\bclass\s*=\s*["'][^"']*\b\Q$cls\E\b/;
-
-                    # A COMPONENT COUNTS ONLY IF A PAGE INVOKES IT. The layout's
-                    # own template renders on every page and needs no such test;
-                    # a component nothing renders hides nothing, and reporting
-                    # it put an item on the findings list that no site owner
-                    # could ever clear - the components ship inside the layout
-                    # and an edit is overwritten on reinstall.
-                    #
-                    # This is the loaded-gun case answered rather than dropped:
-                    # the finding now appears the moment a page starts using the
-                    # component, which is the moment an operator can act on it.
-                    if ( my ($comp) = $file =~ m{\Acomponents/([A-Za-z][\w-]*)\z} ) {
-                        next unless defined $component_used{$comp};
-                        push @where, "$layout/$file (used by $component_used{$comp})";
-                        next;
-                    }
-                    push @where, ( $file =~ /^layout:/ ? $file : "$layout/$file" );
-                }
-                push @where, $class_used{$cls} if defined $class_used{$cls};
-                next unless @where;
-                push @classes, $cls;
-                push @used_by, grep { !$seen_use{$_}++ } @where;
-            }
-
-            # Nothing on this site puts the class on a page, so nothing is
-            # hidden. Reporting it anyway is what made the finding unclearable.
-            next unless @classes;
-
-            ( my $rel = $file ) =~ s{^\Q$DOCROOT\E/+}{/};
-            push @hidden_by_script, {
-                theme   => $name,
-                file    => $rel,
-                classes => \@classes,
-                used_by => [ @used_by[ 0 .. ( $#used_by > 4 ? 4 : $#used_by ) ] ],
-            };
-            last if @hidden_by_script >= 50;
-        }
+        closedir $lh;
     }
+    my %layout_markup;    # SM358: a layout's templates, read once
+    for my $c (@css) {
+        my ( $name, $file, $layout ) = @$c;
+        open my $fh, '<:utf8', $file or next;
+        my $text = do { local $/; <$fh> };
+        close $fh;
+        next unless $text =~ m{ (?:opacity \s*:\s* 0 (?![.\d]) | visibility \s*:\s* hidden ) }xi;
+
+        # A non-script path back to visible: anything inside <noscript>'s
+        # stylesheet counterpart, or a plain rule restoring it outside a
+        # reduced-motion block. Strip reduced-motion blocks first - they are
+        # the trap, not the remedy.
+        # NB: '#' delimiters, not braces. The pattern needs a literal
+        # unmatched '{' in a character class, and s{...}{...} then mis-pairs
+        # and swallows the rest of the sub.
+        ( my $outside = $text ) =~ s#\@media[^{]*prefers-reduced-motion.*?\}\s*\}##gs;
+        my $has_fallback = $outside =~ m{ \.no-js | html:not\(\.js\) | noscript }xi ? 1 : 0;
+        next if $has_fallback;
+
+        # SM358: A MECHANISM IS NOT A FINDING. Up to here the check has
+        # established that a stylesheet CAN hide content behind a script. It
+        # used to report that, which put an item an operator cannot clear on
+        # a list they are expected to clear: the theme is shipped, so editing
+        # it is overwritten on upgrade, and on the reporting instance no page
+        # used the class at all. "Learn to ignore the audit" was the only
+        # available response, and an audit people learn to ignore is worse
+        # than no audit.
+        #
+        # So the finding now requires a USE. Which classes do the hiding, and
+        # does anything on this site put one on the page - a layout template,
+        # or a page's own content? Both, because the SM250 incident was a
+        # LAYOUT emitting the class on every section: checking content alone
+        # would have missed the case this check exists for.
+        #
+        # WHAT DID NOT CHANGE, and the filing asked for it: a rule inside
+        # prefers-reduced-motion still does not count as a fallback. The
+        # filing proposed crediting it, or reporting it as mitigating. It
+        # reaches only visitors who asked for reduced motion, and reading it
+        # as a neutraliser is precisely what caused the incident - it is the
+        # trap, not the remedy. Narrowing the finding to real uses makes it
+        # actionable without weakening the test that exists because a live
+        # site lost every section below the fold.
+        my %hide_class;
+        while ( $outside =~ /([^{}]+)\{([^{}]*)\}/g ) {
+            my ( $sel, $decl ) = ( $1, $2 );
+            next unless $decl =~ m{ opacity \s*:\s* 0 (?![.\d])
+                | visibility \s*:\s* hidden }xi;
+            $hide_class{$_} = 1 for $sel =~ /\.([A-Za-z][\w-]*)/g;
+        }
+        next unless %hide_class;
+
+        # SM358 follow-up: keep each template SEPARATE, so the finding can
+        # name the file that applies the class rather than the layout that
+        # contains it.
+        #
+        # The first version concatenated them and reported `layout:lumen`.
+        # On the reporting instance that was true and unhelpful: both
+        # `reveal` references in layout.tt are JavaScript, four of the six
+        # COMPONENTS apply the class in markup, and two are innocent. An
+        # operator told "layout:lumen" has six files to read; told
+        # "component:features" they have one.
+        $layout_markup{$layout} //= do {
+            my %by_file;
+            for my $tt ( glob "$ldir/$layout/*.tt $ldir/$layout/**/*.tt" ) {
+                open my $th, '<:utf8', $tt or next;
+                local $/;
+                my $body = <$th>;
+                close $th;
+                ( my $label = $tt ) =~ s{^\Q$ldir/$layout/\E}{};
+                $label =~ s{\.tt\z}{};
+                $by_file{ $label eq 'layout' ? "layout:$layout" : $label }
+                    = $body;
+            }
+            \%by_file;
+        };
+
+        my ( @classes, %seen_use, @used_by );
+        for my $cls ( sort keys %hide_class ) {
+            my @where;
+            for my $file ( sort keys %{ $layout_markup{$layout} } ) {
+                next unless $layout_markup{$layout}{$file}
+                    =~ /\bclass\s*=\s*["'][^"']*\b\Q$cls\E\b/;
+
+                # A COMPONENT COUNTS ONLY IF A PAGE INVOKES IT. The layout's
+                # own template renders on every page and needs no such test;
+                # a component nothing renders hides nothing, and reporting
+                # it put an item on the findings list that no site owner
+                # could ever clear - the components ship inside the layout
+                # and an edit is overwritten on reinstall.
+                #
+                # This is the loaded-gun case answered rather than dropped:
+                # the finding now appears the moment a page starts using the
+                # component, which is the moment an operator can act on it.
+                if ( my ($comp) = $file =~ m{\Acomponents/([A-Za-z][\w-]*)\z} ) {
+                    next unless defined $component_used->{$comp};
+                    push @where, "$layout/$file (used by $component_used->{$comp})";
+                    next;
+                }
+                push @where, ( $file =~ /^layout:/ ? $file : "$layout/$file" );
+            }
+            push @where, $class_used->{$cls} if defined $class_used->{$cls};
+            next unless @where;
+            push @classes, $cls;
+            push @used_by, grep { !$seen_use{$_}++ } @where;
+        }
+
+        # Nothing on this site puts the class on a page, so nothing is
+        # hidden. Reporting it anyway is what made the finding unclearable.
+        next unless @classes;
+
+        ( my $rel = $file ) =~ s{^\Q$DOCROOT\E/+}{/};
+        push @hidden_by_script, {
+            theme   => $name,
+            file    => $rel,
+            classes => \@classes,
+            used_by => [ @used_by[ 0 .. ( $#used_by > 4 ? 4 : $#used_by ) ] ],
+        };
+        last if @hidden_by_script >= 50;
+    }
+    return \@hidden_by_script;
+}
+
+sub _audit_static_exposure {
+    # Stale generated HTML: a rendered .html with no .md source.
+    #
+    # SM260: this was `my ( @stale, @stack ) = ( (), $DOCROOT );`, which does not
+    # do what it reads like. The FIRST array in a list assignment slurps every
+    # remaining value, so @stale started as ($DOCROOT) and @stack empty - the
+    # scan below never ran even once, and the docroot the walk was supposed to
+    # START from was reported to the caller as a finding. Two defects in one
+    # line: an audit that has never worked, and the server's absolute filesystem
+    # path (including the hosting account name) handed to every token and MCP
+    # partner. Declared separately so the shape cannot mislead again.
+    my @stale;
+    my @stack = ($DOCROOT);
 
     # SM223: a site whose auth_default is protective still serves STATIC files to
     # anyone who knows the path. A file with no .md source is never evaluated
@@ -2630,7 +2597,10 @@ sub _audit_site {
         }
         closedir $dh;
     }
+    return ( \@stale, \@unprotected, $auth_default );
+}
 
+sub _audit_acl_keys {
     # SM268 01-M3: an ACL key that matches nothing on disk.
     #
     # ACL keys are DOCROOT-relative; a content-rooted domain's URLs are relative
@@ -2676,37 +2646,53 @@ sub _audit_site {
             }
         }
     }
+    return \@acl_unmatched;
+}
 
+sub _audit_duplicates {
+    my ($para) = @_;
     my @dups;
-    for my $p ( sort keys %para ) {
-        my %u = map { $_ => 1 } @{ $para{$p} };
+    for my $p ( sort keys %$para ) {
+        my %u = map { $_ => 1 } @{ $para->{$p} };
         next unless keys %u > 1;
         push @dups, { text => substr( $p, 0, 120 ), pages => [ sort keys %u ] };
         last if @dups >= 50;
     }
+    return \@dups;
+}
 
-    return { ok => 1, pages => scalar @info,
-        broken_links  => \@broken,   orphan_pages => \@orphans,
-        missing_title => \@no_title, stale_html   => \@stale, duplicate_blocks => \@dups,
-        broken_forms  => \@forms,    raw_html_pages => \@rawpages,
-        starter_pages => \@starter,
+sub _audit_site {
+    my $c = _audit_collect();
+    my ( $broken, $orphans, $no_title )
+        = _audit_links( $c->{exists}, $c->{info}, $c->{links} );
+    my $hidden = _audit_hidden_by_script( $c->{class_used}, $c->{component_used} );
+    my ( $stale, $unprotected, $auth_default ) = _audit_static_exposure();
+    my $acl_unmatched = _audit_acl_keys();
+    my $dups          = _audit_duplicates( $c->{para} );
+
+    return { ok => 1, pages => scalar @{ $c->{info} },
+        broken_links  => $broken,     orphan_pages   => $orphans,
+        missing_title => $no_title,   stale_html     => $stale, duplicate_blocks => $dups,
+        broken_forms  => $c->{forms}, raw_html_pages => $c->{rawpages},
+        starter_pages => $c->{starter},
         # The ratio is what makes the problem obvious - no single page does.
-        starter_in_sitemap => scalar( grep { grep { $_ eq 'sitemap.xml' } @{ $_->{registered} } } @starter ),
+        starter_in_sitemap => scalar( grep { grep { $_ eq 'sitemap.xml' } @{ $_->{registered} } } @{ $c->{starter} } ),
 
         # SM223: static files a protected site is serving to anyone. Reported
         # only when auth_default is protective, because on an open site these are
         # simply the site's assets and listing them would be noise - and a
         # finding that fires on every site trains its reader to ignore it.
         # SM250: themes whose content is invisible until a script runs.
-        hidden_by_script         => \@hidden_by_script,
+        hidden_by_script         => $hidden,
         site_auth_default        => $auth_default,
-        unprotected_static_files => \@unprotected,
+        unprotected_static_files => $unprotected,
 
         # SM268 01-M3: ACL keys that match nothing, which is what a URL-shaped
         # key looks like on a content-rooted domain.
-        acl_keys_matching_nothing => \@acl_unmatched,
+        acl_keys_matching_nothing => $acl_unmatched,
     };
 }
+
 
 # --- SM088: bind a form to an operator-vetted delivery handler ------------
 # Handlers (with their destinations + credentials) live in handlers.conf and
@@ -2931,6 +2917,116 @@ sub _yaml_scalar {
     $v = '' unless defined $v;
     return ( $v =~ /[:#\[\]"']/ || $v =~ /\A["'\s]/ )
         ? '"' . ( $v =~ s/"/\\"/gr ) . '"' : $v;
+}
+
+# MC-8: upload_file, site_apply and create_form each carried thirty to forty
+# lines of body inside the tool table, where every other entry of comparable
+# weight is a one-line call to a named sub. The table is read as a CATALOGUE -
+# by agents through tools/list, and by five lint tests that parse its shape -
+# and three long bodies in the middle of it made the catalogue hard to read
+# and the handlers hard to find. The code is unchanged; only where it lives is.
+
+sub _upload_file {
+    my ( $a, $user ) = @_;
+    my $b64 = $a->{content_base64} // '';
+    ( my $clean = $b64 ) =~ s/\s+//g;
+    # Reject what does not decode rather than writing a corrupt file:
+    # decode_base64 silently ignores characters outside the alphabet, so
+    # a truncated or mangled payload would otherwise land on disk looking
+    # like a successful upload.
+    return { ok => 0, kind => 'bad-encoding',
+        error => 'content_base64 is not valid base64 - expected only '
+            . 'A-Z a-z 0-9 + / and = padding.' }
+        if $clean =~ m{[^A-Za-z0-9+/=]} || $clean =~ m{=[^=]};
+    return { ok => 0, kind => 'bad-encoding',
+        error => 'content_base64 length is not a multiple of 4 - the '
+            . 'payload looks truncated.' }
+        if length($clean) % 4;
+    require MIME::Base64;
+    my $bytes = MIME::Base64::decode_base64($clean);
+    return { ok => 0, kind => 'bad-encoding',
+        error => 'content_base64 decoded to nothing.' }
+        unless length $bytes;
+    return action_save_binary( $a->{path}, $user, $bytes );
+}
+
+sub _site_apply {
+    my ( $a, $user, $caps ) = @_;
+    my $name = $a->{name} // '';
+    return { ok => 0, error => 'A package name is required' }
+        unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
+    my $pkg = "$LAZYSITE_DIR/backups/$name";
+    return { ok => 0, error => "Package not found: $name" } unless -f $pkg;
+
+    my $host = lc( $a->{host} // '' );
+    $host = '' if $host eq '(default)';
+
+    # Resolve the target content root + enforce the scope union.
+    my $croot = '';
+    if ( length $host ) {
+        my $row = _domain_row($host);
+        return { ok => 0, error => "Not a configured domain: $host" } unless $row;
+        $croot = $row->{content_root} // '';
+        return { ok => 0, error => "$host has no content folder of its own" }
+            unless length $croot;
+    }
+    if ( _croot_outside_scope( $caps, $croot ) ) {
+        return { ok => 0, error => 'Target is outside your assigned scope.' };
+    }
+    local $Lazysite::Manager::SitePackage::auth_user = $user;
+    return apply_and_configure( $pkg,
+        host           => $host,
+        clean          => ( $a->{clean}          ? 1 : 0 ),
+        adopt_identity => ( $a->{adopt_identity} ? 1 : 0 ) );
+}
+
+sub _create_form {
+    my ( $a, $user ) = @_;
+    my $name = lc( $a->{name} // '' );
+    return { ok => 0, error => 'A form name (a-z0-9_-) is required' }
+        unless $name =~ /\A[a-z0-9][a-z0-9_-]*\z/;
+    return { ok => 0, error => 'A page path is required' }
+        unless defined $a->{path} && length $a->{path};
+
+    my @fields = ( ref $a->{fields} eq 'ARRAY' && @{ $a->{fields} } )
+        ? @{ $a->{fields} }
+        : ( 'name | Your name | required max:200',
+        'email | Email | required email',
+        'message | Message | required textarea' );
+    my $submit = $a->{submit} // 'Send';
+    my $block  = ":::form\n" . join( "\n", @fields ) . "\nsubmit | $submit\n:::\n";
+
+    # Read the page if it exists; ensure front matter carries form: NAME,
+    # then append the block. A page with a different form already bound is
+    # left alone (do not silently rebind).
+    my $rd      = action_read( $a->{path}, $user );
+    my $content = ( ref $rd eq 'HASH' && $rd->{ok} ) ? ( $rd->{content} // '' ) : '';
+    if ( length $content && $content =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
+        my $fm = $1;
+        if ( $fm =~ /^\s*form\s*:\s*(\S+)/m && lc($1) ne $name ) {
+            return { ok => 0, error => "Page already has a different form ('$1'); "
+                    . 'edit it directly or pick that name.' };
+        }
+        $content =~ s/\A(---\s*\n)/$1form: $name\n/ unless $fm =~ /^\s*form\s*:/m;
+        $content =~ s/\s*\z/\n/;
+        $content .= "\n$block";
+    }
+    else {
+        # No usable front matter - create a fresh page.
+        my $title = ucfirst($name) =~ s/[-_]+/ /gr;
+        $content = "---\ntitle: $title\nform: $name\n---\n\n$block";
+    }
+
+    my $save = action_save( $a->{path}, $user, $content, undef );
+    return $save unless ref $save eq 'HASH' && $save->{ok};
+    return {
+        ok       => 1,
+        path     => $a->{path},
+        form     => $name,
+        delivers => JSON::PP::false,
+        next     => "Form scaffolded but NOT delivering yet. Call list_form_handlers, "
+            . "then bind_form(form: '$name', handler: <id>) to wire delivery.",
+    };
 }
 
 sub _create_page {
