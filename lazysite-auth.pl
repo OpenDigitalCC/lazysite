@@ -68,6 +68,40 @@ $Lazysite::Audit::LAZYSITE_DIR         = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR    = $AUTH_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;        # SM411
 
+# FDO-2: lazysite.conf's lines, read once per process. Declared here, above
+# the dispatch and above the first sub that reads them, so nothing is
+# initialised too late (t/lint/39). See _conf_lines.
+my @CONF_LINES;
+my $CONF_READ = 0;
+
+# FDO-2: one pass over lazysite.conf per request.
+#
+# _bad_url_guard reads the file on EVERY request, and a login then reads it
+# twice more through read_conf_key (auth_redirect, manager). Same path, same
+# :utf8 layer, three opens for one small file.
+#
+# WHY THIS IS THE SAME ANSWER. What is cached is the LINES, not a value:
+# each caller still runs its own regex over the same text in the same order.
+# So _bad_url_guard keeps last-match-wins over its bad_url_* keys and
+# read_conf_key keeps first-match-wins for the key it was asked for - two
+# different rules that stay different, which a shared key/value map would
+# have quietly merged into one. A CGI process is one request, and nothing on
+# this path writes lazysite.conf.
+#
+# _host_lang is NOT a caller: it opens the same path :raw and matches with
+# \h rather than \s, so it is a different read of the same file, not a
+# fourth copy of this one.
+sub _conf_lines {
+    return \@CONF_LINES if $CONF_READ;
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
+    $CONF_READ = 1;
+    if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while (<$fh>) { push @CONF_LINES, $_ }
+        close $fh;
+    }
+    return \@CONF_LINES;
+}
+
 # Record a material authentication event in the audit trail (login/logout, claim,
 # token exchange/rotate), in addition to the application log. Origin defaults to
 # 'ui' (interactive browser); credential-API flows pass 'api'.
@@ -87,14 +121,10 @@ sub _audit_auth {
 # probe path counts toward a block. The module is loaded lazily and only when
 # enabled, so a site with the blocker off pays nothing.
 sub _bad_url_guard {
-    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($path) = @_;
     my %c;
-    if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
-        while (<$fh>) {
-            if (/^\s*(bad_url_\w+)\s*:\s*(.+?)\s*$/) { $c{$1} = $2 }
-        }
-        close $fh;
+    for my $line ( @{ _conf_lines() } ) {
+        if ( $line =~ /^\s*(bad_url_\w+)\s*:\s*(.+?)\s*$/ ) { $c{$1} = $2 }
     }
     return if ( $c{bad_url_block} // 'enabled' ) eq 'disabled';
     my $ip = $ENV{REMOTE_ADDR} // '';
@@ -1117,20 +1147,14 @@ sub check_login_rate {
 }
 
 sub read_conf_key {
-    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($key) = @_;
-    my $path = "$LAZYSITE_DIR/lazysite.conf";
-    return '' unless -f $path;
-    open( my $fh, '<:utf8', $path ) or return '';
-    while (<$fh>) {
-        if (/^\Q$key\E\s*:\s*(.+)$/) {
-            close $fh;
+    for my $line ( @{ _conf_lines() } ) {
+        if ( $line =~ /^\Q$key\E\s*:\s*(.+)$/ ) {
             my $v = $1;
             $v =~ s/^\s+|\s+$//g;
             return $v;
         }
     }
-    close $fh;
     return '';
 }
 

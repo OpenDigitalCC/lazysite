@@ -76,6 +76,11 @@ my $OWNER_MAX      = 1024;    # bytes of client owner XML retained
 
 my $PUT_CHUNK = 65536;
 
+# FDO-1: caps_for() answers for this process. Declared up here, with the
+# other request-lifetime state, so nothing is initialised below the
+# dispatch (t/lint/39). See _caps_for for what it is and why it is safe.
+my %CAPS_CACHE;
+
 # SM019 download Content-Type table. The canonical copy is
 # %Lazysite::Manager::Upload::CONTENT_TYPE_MAP; this one is kept so the
 # GET path loads no manager module.
@@ -1534,11 +1539,41 @@ sub authorise_layout {
 # SM095: all capability checks go through the one central resolver (caps_for),
 # the same one the manager UI / control API / MCP consult - so a group grant
 # applies identically over WebDAV.
-sub manage_themes_for  { return caps_for( $_[0] )->{manage_themes}  ? 1 : 0 }
-sub manage_layouts_for { return caps_for( $_[0] )->{manage_layouts} ? 1 : 0 }
-sub manage_content_for { return caps_for( $_[0] )->{manage_content} ? 1 : 0 }
-sub manage_nav_for     { return caps_for( $_[0] )->{manage_nav}     ? 1 : 0 }
-sub manage_forms_for   { return caps_for( $_[0] )->{manage_forms}   ? 1 : 0 }
+
+# FDO-1: caps_for($user), asked once per process.
+#
+# Every one of the gates below calls it, and so does webdav_enabled_for.
+# Each call re-reads groups-settings.json and re-parses the groups file
+# (Lazysite::Auth::Settings::read_group_settings and _groups_membership) -
+# a write request asks three to five of them, and a COPY or a MOVE up to
+# eight, because authorise runs twice.
+#
+# WHY EVERY CALL AFTER THE FIRST WAS ALREADY GOING TO AGREE. caps_for
+# resolves group MEMBERSHIP and the per-group capability union, and reads
+# nothing else: the groups file and groups-settings.json, both written only
+# by tools/lazysite-users.pl. Nothing a DAV request does touches either -
+# the one settings write on this path is SM163's touch_credential, into
+# user-settings.json, which caps_for never reads.
+#
+# THE MEMO'S LIFETIME IS THE PROCESS, and this endpoint is a plain CGI
+# under its own ScriptAlias: one process serves one request and exits, so
+# the memo's lifetime is the request's. If /dav is ever put behind a
+# persistent worker, this needs the (mtime, size) key that
+# Auth::Settings::read_settings carries for exactly that reason - a
+# capability revoked through the CLI must not go on working because a
+# worker is still up.
+sub _caps_for {
+    my ($user) = @_;
+    my $key = defined $user ? $user : '';
+    $CAPS_CACHE{$key} = caps_for($user) unless exists $CAPS_CACHE{$key};
+    return $CAPS_CACHE{$key};
+}
+
+sub manage_themes_for  { return _caps_for( $_[0] )->{manage_themes}  ? 1 : 0 }
+sub manage_layouts_for { return _caps_for( $_[0] )->{manage_layouts} ? 1 : 0 }
+sub manage_content_for { return _caps_for( $_[0] )->{manage_content} ? 1 : 0 }
+sub manage_nav_for     { return _caps_for( $_[0] )->{manage_nav}     ? 1 : 0 }
+sub manage_forms_for   { return _caps_for( $_[0] )->{manage_forms}   ? 1 : 0 }
 
 # SEC-2026-07: extensions that must never be written/served (execute or
 # reconfigure the server). Always blocked, case-insensitive, in addition to the
@@ -1692,7 +1727,7 @@ sub load_users {
 }
 
 sub webdav_enabled_for {
-    return caps_for( $_[0] )->{webdav} ? 1 : 0;
+    return _caps_for( $_[0] )->{webdav} ? 1 : 0;
 }
 
 # SM071 Phase 3 (P3.6): per-token volume token-bucket, shared with the
