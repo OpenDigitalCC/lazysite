@@ -259,6 +259,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM548 resolved (PENDING) **the package upload budget is per user.**
+  action_site_backup_upload called check_upload_rate($DOCROOT) where the
+  signature is ($username, $content_length), so every user of an instance
+  shared one package-upload budget keyed on the docroot path and the byte
+  limit compared against an undefined length and never fired. Found by
+  the backups structural review (N6), proven by probe. The call now passes
+  the user and the body length, as the file upload does; t/unit/manager/109
+  drives a package over the hourly byte budget to a rate refusal.
+
 - SM547 resolved (PENDING) **site packages have retention.**
   backup_retention (SM268 03-F11) bounded manual and prerestore snapshots
   and the helper's comment listed site packages too, but package_create

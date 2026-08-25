@@ -2456,7 +2456,11 @@ sub action_site_backup_upload {
     return { ok => 0, error => 'Expected a multipart file upload' }
         unless $ct =~ m{multipart/form-data}i;
 
-    my $rate = check_upload_rate($DOCROOT);
+    # SM548: ($username, $content_length), as the file upload passes them.
+    # This passed the docroot where the user belongs, so every user of the
+    # instance shared one package-upload budget and the byte limit compared
+    # against nothing.
+    my $rate = check_upload_rate( $auth_user, length( $raw // '' ) );
     return { ok => 0, kind => 'rate', error => $rate->{error} }
         if ref $rate eq 'HASH' && !$rate->{ok};
 
