@@ -259,6 +259,17 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM547 resolved (PENDING) **site packages have retention.**
+  backup_retention (SM268 03-F11) bounded manual and prerestore snapshots
+  and the helper's comment listed site packages too, but package_create
+  never called it - so the artefact an agent produces most, one per
+  site_backup call, accumulated without limit. Found by the backups
+  structural review (N5), proven by probe. package_create now applies the
+  same retention per host (kind site-<host>), so packaging one domain
+  never expires another domain's packages on a shared instance.
+  t/unit/manager/108 pins backup_retention: 1 leaving the newest package
+  per host and 0 meaning unlimited.
+
 - SM545 resolved (PENDING) **two site packages in one second are two
   files.** package_create named the package host + a one-second stamp and
   wrote it with an overwriting tar; the O_EXCL claim SM268 03-F9 gave

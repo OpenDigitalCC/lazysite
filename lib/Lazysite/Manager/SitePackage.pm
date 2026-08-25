@@ -33,7 +33,7 @@ use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
 use Lazysite::Private          ();    # SM286: what a package cannot carry
-use Lazysite::Manager::Backups qw(_claim_name); # SM546: loaded where it is called; SM545: the O_EXCL claim
+use Lazysite::Manager::Backups qw(_claim_name _apply_retention); # SM546: loaded where it is called; SM545: the O_EXCL claim
 use Lazysite::Paths            ();
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
@@ -413,6 +413,17 @@ sub package_create {
     # the digest beside it so the receiving operator can verify it arrived
     # intact, with sha256sum -c and no lazysite tooling at all.
     my $sha = Lazysite::Manager::Backups::write_sha256($out);
+
+    # SM547: bounded like every other artefact kind (SM268 03-F11). This was
+    # the one kind nothing ever bounded, and the one an agent produces most -
+    # every site_backup call is a package. Per HOST, on the helper's own
+    # doctrine that kinds are not interchangeable: on a shared instance,
+    # packaging one domain must never expire another domain's packages.
+    {
+        local $Lazysite::Manager::Backups::DOCROOT      = $DOCROOT;
+        local $Lazysite::Manager::Backups::LAZYSITE_DIR = _lz();
+        _apply_retention("site-$safehost");
+    }
 
     my @st = stat $out;
     log_event( 'INFO', 'site-package-create', 'site packaged',

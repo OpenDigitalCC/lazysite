@@ -19,7 +19,7 @@ use Exporter          qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete
     write_sha256 read_sha256 verify_sha256
-    _claim_name);
+    _claim_name _apply_retention);
 
 our $DOCROOT      = '';
 our $LAZYSITE_DIR = '';
