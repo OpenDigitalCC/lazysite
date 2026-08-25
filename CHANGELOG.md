@@ -437,6 +437,17 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM569 resolved (PENDING) **a form can land in a data table.** A handler
+  of `type: table` delivers each accepted submission as a row in a
+  declared table - the same operator-only mapping and live-write coercion
+  as the `db` handler - AND keeps the JSONL submissions store written
+  alongside, so the Submissions page, exports and bulk delete keep
+  working. A submission the types refuse leaves no row, fails honestly to
+  the visitor, and the stored copy is marked `_row_refused`. Reading the
+  table stays governed by the table's own declaration (`public` defaults
+  closed); the JSONL copy stays under read_submissions.
+  t/integration/76 proves both outcomes through the real handler.
+
 - SM558 resolved (PENDING) **the link audit sees the root page.** A link
   written as `/index` or `/index.html` was always reported broken: the
   check stripped only a trailing `/index`, so `/docs/index` resolved

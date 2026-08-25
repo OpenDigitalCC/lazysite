@@ -187,6 +187,19 @@ Handlers with `enabled: false` are skipped.
 : POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
   body, or `format: slack` for Slack-compatible `{"text": "..."}`.
 
+`db`
+: Inserts each accepted submission as a row in a declared data table,
+  under an operator-only `fields:` mapping. See
+  [Data tables](/docs/data-tables).
+
+`table`
+: The `db` insert **and** the `file` store together: the row lands in the
+  declared table and the JSONL submissions store is written alongside, so
+  the Submissions page, exports and bulk delete keep working. A submission
+  the table's types refuse leaves no row - the visitor is told the
+  submission failed, and the stored copy is marked `_row_refused`. See
+  [Data tables](/docs/data-tables).
+
 ## Where a submission is POSTed
 
 Only `/cgi-bin/form-handler.pl` accepts a submission. The generated form carries

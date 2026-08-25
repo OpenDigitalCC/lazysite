@@ -430,9 +430,10 @@ sub dispatch {
 
     my $type = $h_config{type} // '';
 
-    if    ( $type eq 'file' ) { return dispatch_file( \%h_config, $form ) }
-    elsif ( $type eq 'db' )   { return dispatch_db( \%h_config, $form ) }
-    elsif ( $type eq 'smtp' ) { return dispatch_smtp( \%h_config, $form ) }
+    if    ( $type eq 'file' )  { return dispatch_file( \%h_config, $form ) }
+    elsif ( $type eq 'db' )    { return dispatch_db( \%h_config, $form ) }
+    elsif ( $type eq 'table' ) { return dispatch_table( \%h_config, $form ) }
+    elsif ( $type eq 'smtp' )  { return dispatch_smtp( \%h_config, $form ) }
     elsif ( $type eq 'webhook' || $type eq 'api' ) { return dispatch_webhook( \%h_config, $form ) }
     else {
         log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
@@ -565,6 +566,27 @@ sub dispatch_db {
 
     log_event( 'INFO', $fname, 'form stored a row', table => $table );
     return 1;
+}
+
+# SM569: a `table` handler is DP-4's db insert AND the JSONL submissions
+# store, together. The row goes through dispatch_db unchanged - the same
+# operator-only mapping, the same plugin-enabled gate, the same insert_row
+# coercion as a live write - and the JSONL copy that the Submissions page,
+# the audit trail and SM187's bulk delete depend on is written alongside.
+# When the row is REFUSED (a value the declared types will not take), the
+# copy is still written and carries _row_refused: the rejected-import shape,
+# no row landed and the record says so - while the handler reports failure,
+# so the visitor is not thanked for a submission the table refused.
+sub dispatch_table {
+    my ( $config, $form ) = @_;
+    my $stored = dispatch_db( $config, $form );
+    my %copy   = %$form;
+    $copy{_row_refused} = 1 unless $stored;
+    my $filed = dispatch_file( $config, \%copy );
+    log_event( 'ERROR', $form->{_form} // '-',
+        'table handler stored the row but not the submissions copy' )
+        if $stored && !$filed;
+    return $stored;
 }
 
 # SM115: record a submission in the audit trail. The submitter is the public, so the
@@ -707,6 +729,10 @@ sub dispatch_file {
         $record{_quarantined} = JSON::PP::true;
         $record{_spam_reason} = $form->{_spam_reason} // '';
     }
+
+    # SM569: a table handler's JSONL copy records a refused row like a
+    # rejected import - the row did not land, and the copy says so.
+    $record{_row_refused} = JSON::PP::true if $form->{_row_refused};
 
     # Binary uploads: store the files in a per-submission subdir next to the
     # <form>.jsonl, and record the (sanitised) filenames + their dir in the record.

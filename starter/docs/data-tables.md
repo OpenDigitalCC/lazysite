@@ -428,6 +428,17 @@ quietly lost.
 The data plugin must be enabled; a form pointed at a table while it is switched
 off refuses and says so.
 
+A handler of `type: table` takes the same `table` and `fields` keys and does
+the same insert, **and** keeps the JSONL submissions store written alongside --
+the Submissions page, `read_form_submissions`, exports and bulk delete keep
+working exactly as for a `file` handler. A submission the table's types refuse
+leaves **no row** and the stored copy is marked `_row_refused`, the same shape
+as a rejected import row. Reading the **table's** rows is governed by the
+table's own declaration, like any other table: `manage_data` on the operator
+surfaces, page bindings only what the descriptor declares readable, and
+`public` defaults to closed -- a form never publishes its submissions by
+landing them in a table. The JSONL copy stays under `read_submissions`.
+
 ### Who may write
 
 A write through the manager, the API, MCP or the data endpoint needs all
