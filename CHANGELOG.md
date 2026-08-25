@@ -44,6 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM593 follow-up (PENDING) **a table's domain is checked, and shown.** The
+  migration asks for hand-typed hostnames and any string was stored with
+  `ok: true`, so a typo produced a table bound to a domain that does not
+  exist - reachable by no confined grant and looking exactly like a table that
+  is fine. It is validated against the instance's configured domains at save
+  time, and the refusal names them. `data-tables` and `data-table` both report
+  `domain`, so a half-finished migration is inspectable without reading every
+  descriptor.
+
 - SM578 follow-up (PENDING) **all four package verbs ask one rule.** The first
   cut confined `site-backup-download` and `site-backup-delete`, which share a
   refusal helper, and left `site-backup-create` and `site-backup-inspect`
