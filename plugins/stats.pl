@@ -975,6 +975,12 @@ sub scan_first_party {
 
     my $cache = _load_export_cache() || {};
     _export_ingest_first_party( $cfg, $cache, \@files );
+    # SM542: fold the form outcomes in BEFORE the day is persisted and
+    # finalised, or a day first reached by the page refresh is written with
+    # forms:{} for good - the final marker stops every later export rewriting
+    # it. Same call _export_assemble makes; both entry points now write the
+    # same durable record.
+    _ingest_form_events( $cache, $cfg );
     _persist_durable( $cache, $cfg );
     _trails_flush( $cache, $cfg );    # SM393: before the cache is saved, so a
                                       # written trail is never held twice

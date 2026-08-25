@@ -437,6 +437,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM542 resolved (PENDING) **the page refresh keeps form outcomes.** A
+  closed day first reached by the manager Stats page's refresh (`--scan`)
+  was persisted and finalised with `forms:{}` - only the export path
+  folded form-events in, and the final marker stopped every later export
+  from rewriting the file. The scan path now makes the same fold before
+  the day is persisted, so both entry points write the same durable
+  record. t/unit/plugins/30 reaches a day scan-first and reads its stored
+  and blocked outcomes from the day file.
+
 - SM541 resolved (PENDING) **a promotion reverses the device.** The event
   ring stored no device and no search term, so a late scanner promotion
   reaching back decremented `devices{unknown}` while the original hit had
