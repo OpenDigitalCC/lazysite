@@ -393,6 +393,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM565 resolved (PENDING) **whoami tells a stranger only its own shape.**
+  At the capability floor, whoami disclosed every manager group name,
+  every plugin with its configuration schema and the full theme
+  inventory. Each is now returned only to a caller holding a capability
+  that governs it: manager_groups to manage_users, plugin config schemas
+  to manage_config, themes to manage_themes or manage_layouts. The
+  caller's own capabilities, reachability and scope denies are
+  unchanged. t/unit/manager/10 pins the floor and each governing grant.
+
 - SM554 resolved (PENDING) **a posted read is not audited.** POST
   action=notices and POST action=layouts-manifest each wrote an ok audit
   row with target "/" - the only live read-shaped actions missing from

@@ -322,6 +322,39 @@ my $who2 = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
 ok( $who2->{ok} && $who2->{partner} eq 'nocap', 'whoami available without a capability' );
 
+# --- SM565: whoami tells a stranger only its own shape ---------------------
+# Introspection stays open (above), but what it RETURNS to a caller at the
+# capability floor is its own grant: capabilities, reachability, scope. The
+# site's manager group names, plugin configuration schemas and theme
+# inventory are each returned only to a caller holding a capability that
+# governs them (manage_users / manage_config / manage_themes|manage_layouts).
+ok( ref $who2->{capabilities} eq 'HASH' && ref $who2->{scope}{deny} eq 'ARRAY',
+    'SM565: the floor caller still gets its own caps and scope denies' );
+ok( !exists $who2->{manager_groups},
+    'SM565: the floor caller is not told the manager group names' );
+ok( !exists $who2->{themes}, 'SM565: the floor caller is not told the theme inventory' );
+ok( ref $who2->{plugins} eq 'ARRAY'
+        && !( grep { exists $_->{config_schema} } @{ $who2->{plugins} } ),
+    'SM565: the floor caller sees no plugin config schema' );
+ok( ref $who->{themes} eq 'ARRAY', 'SM565: manage_themes holder sees the theme inventory' );
+ok( !exists $who->{manager_groups},
+    'SM565: manage_themes alone does not unlock the manager group names' );
+uapi( $d, { action => 'add', username => 'umgr', password => 'x' } );
+grant_caps( $d, 'umgr', 'manage_users', 'api' );
+my $utok = uapi( $d, { action => 'token', username => 'umgr' } )->{token};
+my $uw   = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'umgr', $utok ) );
+ok( $uw->{ok} && ref $uw->{manager_groups} eq 'ARRAY',
+    'SM565: manage_users holder is told the manager group names' );
+ok( !exists $uw->{themes}, 'SM565: ...and not the theme inventory' );
+uapi( $d, { action => 'add', username => 'cfg', password => 'x' } );
+grant_caps( $d, 'cfg', 'manage_config', 'api' );
+my $ctok = uapi( $d, { action => 'token', username => 'cfg' } )->{token};
+my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'cfg', $ctok ) );
+ok( $cw->{ok} && ( grep { ref $_->{config_schema} eq 'ARRAY' } @{ $cw->{plugins} || [] } ),
+    'SM565: manage_config holder sees the plugin config schemas' );
+
 # --- SM072: the audit trail records the POST actions above --------------
 my $aud = mapi( $d, QUERY_STRING => 'action=audit', HTTP_X_REMOTE_USER => 'boss' );
 ok( $aud->{ok} && ref $aud->{entries} eq 'ARRAY', 'audit returns an entries list' );

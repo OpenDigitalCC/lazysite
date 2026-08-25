@@ -3177,7 +3177,9 @@ sub action_whoami {
         # are operators (full access) vs partners gated by the capability toggles.
         # SM138: derived from group settings (ui / manage_users / the manager
         # flag) - the conf manager_groups key is retired.
-        manager_groups => [ _manager_groups_from_settings() ],
+        # SM565: the group names are returned only to a caller who may manage
+        # accounts; a floor caller learns its own shape, never the site's.
+        ( $s->{manage_users} ? ( manager_groups => [ _manager_groups_from_settings() ] ) : () ),
         # $s is the EFFECTIVE settings (from settings-get -> the resolver), so report
         # every capability straight from it. SM126: derived from @CAP_KEYS (via
         # capability_keys) so a new capability appears here automatically - the old
@@ -3213,8 +3215,21 @@ sub action_whoami {
             active_theme  => $active_theme,
             available     => ( action_layouts_available() || {} )->{layouts} || [],
         },
-        themes  => ( action_theme_list()  || {} )->{themes}  || [],
-        plugins => ( action_plugin_list() || {} )->{plugins} || [],
+        # SM565: the theme inventory answers a caller who may change themes or
+        # layouts; the plugin list stays for everyone (site_capabilities already
+        # names the enabled ones) but its configuration schemas - keys, labels,
+        # defaults, notes - answer only a caller holding manage_config.
+        ( ( $s->{manage_themes} || $s->{manage_layouts} )
+            ? ( themes => ( action_theme_list() || {} )->{themes} || [] )
+            : () ),
+        plugins => [
+            map {
+                my $p = $_;
+                $s->{manage_config}
+                    ? $p
+                    : { map { $_ => $p->{$_} } grep { !/^config_(?:schema|keys)\z/ } keys %$p }
+            } @{ ( action_plugin_list() || {} )->{plugins} || [] }
+        ],
         # SM072: site-level capabilities from enabled plugins (e.g. email-send).
         site_capabilities => site_capabilities(),
         # SM179 P7: when the bound site is a language-set member, tell the agent
