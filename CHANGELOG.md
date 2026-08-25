@@ -437,6 +437,13 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM523 resolved (PENDING) **a visitor cannot flag themselves.** A
+  submission carrying `_quarantined=1&_spam_reason=...` used to be stored
+  with both keys, skip the notification bell and count as quarantined -
+  the visitor decided what the engine's spam gate should have. parse_post
+  now keeps only the protocol keys the renderer emits (`_form _page _hp
+  _ts _tk`) and drops every other client underscore key, so the status
+  meta on a stored record is engine-owned. t/unit/forms/11 pins it.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

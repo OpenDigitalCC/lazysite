@@ -91,6 +91,8 @@ our ( $REDIRECT_PAGE, $REDIRECT_FORM ) = ( '', '' );
 # Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
 # per-form size limits are even checked. Generous; real limits are per-form.
 my $MAX_POST_BYTES = 64 * 1024 * 1024;
+# SM523: the underscore keys a CLIENT may send (see parse_post).
+my %PROTOCOL_KEY = map { $_ => 1 } qw(_form _page _hp _ts _tk);
 
 # --- Main ---
 
@@ -925,7 +927,6 @@ sub parse_post {
                 $form{$name} = sanitise_header( $body, 10000 );
             }
         }
-        $form{_files} = \@files if @files;
     }
     else {
         for my $pair ( split /&/, $data ) {
@@ -954,6 +955,18 @@ sub parse_post {
             }
         }
     }
+    # SM523: the engine's status meta is ENGINE-OWNED. Every key that reaches a
+    # gate, a target or a stored record with a leading underscore is set HERE
+    # or downstream (_files, _quarantined, _spam_reason, _submitted, _ip) -
+    # except the five protocol keys the renderer emits. A visitor who posted
+    # _quarantined=1 used to mute their own notification and skew the counts,
+    # because the SM216 block only ever SET the flags on top of what arrived.
+    for my $k ( keys %form ) {
+        next unless $k =~ /^_/;
+        next if $PROTOCOL_KEY{$k};
+        delete $form{$k};
+    }
+    $form{_files} = \@files if @files;
     _fold_quantities( \%form );
     return %form;
 }
