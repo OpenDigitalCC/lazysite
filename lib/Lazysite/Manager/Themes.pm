@@ -63,20 +63,33 @@ sub _write_conf_content {
     return Lazysite::Manager::Common::write_conf_content( $content, $message );
 }
 
+# SM583: the same conf value as Domains::_parse reads, answered the same way.
+#
+# This matched \S+ and then stripped the capture to [A-Za-z0-9_-], while _parse
+# took the whole trimmed line - so `layout: my layout` was `my` here and
+# `my layout` on every domain surface. The strip was the worse half: it handed
+# back a layout name nobody wrote, as the ACTIVE layout, indistinguishable from
+# a working answer.
+#
+# So it now reads the WHOLE trimmed value, as _parse always did, and runs it
+# through the one rule (Domains::presentation_value): a name passes, anything
+# else is refused to unset. Empty is what an unconfigured site returns already,
+# and the refusal is logged once naming the value.
 sub _read_active_layout_and_theme {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $layout = '';
     my $theme  = '';
     if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
         while (<$fh>) {
-            $layout = $1 if /^layout\s*:\s*(\S+)/;
-            $theme  = $1 if /^theme\s*:\s*(\S+)/;
+            $layout = $1 if /^layout\s*:\s*(.*?)\s*$/;
+            $theme  = $1 if /^theme\s*:\s*(.*?)\s*$/;
         }
         close $fh;
     }
-    $layout =~ s/[^a-zA-Z0-9_-]//g;
-    $theme  =~ s/[^a-zA-Z0-9_-]//g;
-    return ( $layout, $theme );
+    return (
+        Lazysite::Manager::Domains::presentation_value( 'layout', $layout ) // '',
+        Lazysite::Manager::Domains::presentation_value( 'theme',  $theme )  // '',
+    );
 }
 
 # SM234: which domains resolve to each theme/layout. The delete guard already

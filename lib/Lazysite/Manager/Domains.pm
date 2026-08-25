@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path valid_presentation_name presentation_value);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -43,7 +43,76 @@ my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
     search_default allowed_groups locked_users lang lang_group);
 my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
+# SM583: the two keys that name a layout or a theme rather than describing one.
+my %IS_PRESENTATION = map { $_ => 1 } qw(layout theme);
+
 sub _conf_path { return _lz() . "/lazysite.conf" }
+
+# SM583: what a `layout:` or `theme:` conf value is allowed to be, stated ONCE.
+#
+# Two readers of the same key disagreed. Themes::_read_active_layout_and_theme
+# matched \S+ and then stripped the capture to [A-Za-z0-9_-]; _parse below took
+# the whole trimmed line. So `layout: my layout` was `my` to the active-pointer
+# reader and `my layout` to every domain surface - one line, two answers, and
+# neither of them what the operator wrote. The SM516 review proposed folding one
+# reader onto the other as duplicate conf reading; the row was refused and filed
+# instead, because unifying them without deciding this would have picked a
+# winner silently.
+#
+# THE RULE IS REJECT, NOT TRUNCATE. Truncation was the worse behaviour and the
+# one that looked like agreement: `my` is a layout nobody wrote, it may well
+# exist on this instance, and the reader handed it back as the ACTIVE layout -
+# indistinguishable from a working answer. Rejection says the site has no layout
+# configured, which is true, which every caller already handles because it is
+# the fresh-install state, and which leaves the operator's own text in the conf
+# where they can see and correct it.
+#
+# [A-Za-z0-9_-]+ is not a new rule. It is the one theme_config_issues,
+# action_create_theme and the layout walkers already enforce; it simply was not
+# written down anywhere a READER could ask for it.
+#
+# It lives here, in the lower module, because Themes uses Domains and not the
+# other way round - a predicate in Themes could not be reached from _parse
+# without closing the loop.
+sub valid_presentation_name {
+    my ($v) = @_;
+    return 0 unless defined $v;
+    return $v =~ /^[A-Za-z0-9_-]+\z/ ? 1 : 0;
+}
+
+# The single application point for the rule above, used by _parse here and by
+# Themes::_read_active_layout_and_theme.
+#
+# An EMPTY value passes through: unset is a legitimate state, and an alias
+# override deliberately cleared to empty is a choice rather than a mistake.
+# A non-empty value that is not a name returns undef - so a caller can tell a
+# refused value from a cleared one, and store neither.
+sub presentation_value {
+    my ( $key, $raw ) = @_;
+    $raw = '' unless defined $raw;
+    $raw =~ s/^\s+|\s+$//g;
+    return $raw unless length $raw;
+    return $raw if valid_presentation_name($raw);
+    _warn_refused_value( $key, $raw );
+    return undef;
+}
+
+# Once per process per offending value. A site whose layout will not resolve
+# renders without its chrome, and at the HTTP level that is indistinguishable
+# from a working site - so the refusal has to say so somewhere. Once, because
+# _parse runs on every domain listing and a misconfigured instance would
+# otherwise write this line on every request.
+my %_refused_warned;
+
+sub _warn_refused_value {
+    my ( $key, $raw ) = @_;
+    return if $_refused_warned{"$key\0$raw"}++;
+    log_event( 'WARN', 'conf-read',
+        'refused a presentation value that is not a name',
+        key  => $key, value => $raw, rule => '[A-Za-z0-9_-]+',
+        user => $auth_user );
+    return;
+}
 
 # A host label is a lowercase DNS name: dot-separated labels of [a-z0-9-], no
 # leading/trailing hyphen, no traversal, no scheme/port/path. Kept strict so a
@@ -101,12 +170,24 @@ sub _parse {
     $text = _slurp() unless defined $text;
     my %base;
     my %ov;
+    # SM583: a `layout:` or `theme:` value that is not a name is REFUSED here,
+    # not stored - so every surface downstream (the listing, _effective, the
+    # usage map, the delete guard) resolves it to unset, which is the same
+    # answer _read_active_layout_and_theme now gives. An alias override that is
+    # refused leaves the domain INHERITING, exactly as if the line had never
+    # been written. See valid_presentation_name for why reject and not truncate.
     for my $line ( split /^/, ( $text // '' ) ) {
         if ( $line =~ /^alias\.(\S+?)\.(\w+)\s*:\s*(.*?)\s*$/ ) {
-            $ov{ lc $1 }{$2} = $3;
+            my ( $host, $key, $value ) = ( lc $1, $2, $3 );
+            $value = presentation_value( $key, $value ) if $IS_PRESENTATION{$key};
+            next unless defined $value;
+            $ov{$host}{$key} = $value;
         }
         elsif ( $line =~ /^(\w+)\s*:\s*(.*?)\s*$/ ) {
-            $base{$1} = $2;
+            my ( $key, $value ) = ( $1, $2 );
+            $value = presentation_value( $key, $value ) if $IS_PRESENTATION{$key};
+            next unless defined $value;
+            $base{$key} = $value;
         }
     }
     my @hosts = grep { length } map { s/^\s+|\s+$//gr } split /,/,
@@ -834,6 +915,18 @@ sub domain_set {
         $value =~ s/^\s+|\s+$//g;
         return { ok => 0, kind => 'invalid', error => 'Invalid lang_group name' }
             unless $value eq '' || $value =~ /^[A-Za-z0-9_-]+\z/;
+    }
+    elsif ( $IS_PRESENTATION{$key} ) {
+        # SM583: the read side refuses a value that is not a name; this is
+        # where the same rule fails LOUD, so a conf never acquires a value no
+        # reader will accept. Empty clears the key.
+        $value =~ s/^\s+|\s+$//g;
+        return { ok => 0, kind => 'invalid',
+            error => "Invalid $key name '$value': a layout or theme name must "
+                . 'match [A-Za-z0-9_-]+. The value is refused rather than cut '
+                . 'down to its first word, which would activate something '
+                . 'nobody named. Leave it empty to clear the key.' }
+            unless $value eq '' || valid_presentation_name($value);
     }
     # Values are single-line conf values: no newlines.
     return { ok => 0, kind => 'invalid', error => 'Value must be a single line' }

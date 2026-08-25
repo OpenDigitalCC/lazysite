@@ -139,6 +139,22 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM583 resolved (PENDING) **one rule for a layout or theme name.**
+  Two parsers read the same conf key and disagreed:
+  `_read_active_layout_and_theme` matched non-space and stripped the
+  capture, `Domains::_parse` took the whole trimmed line, so
+  `layout: my layout` was `my` to one reader and `my layout` to the
+  other. THE RULE IS NOW REJECT, NOT TRUNCATE - `[A-Za-z0-9_-]+`,
+  stated once in `Domains::valid_presentation_name` and applied by both
+  through `presentation_value`. Truncation was the worse half: `my` is a
+  layout nobody wrote, it may well exist, and it came back as the ACTIVE
+  layout. An invalid value now reads as unset (an alias override as
+  inherited), is logged once naming the key and the rule, and
+  `domain_set` refuses it at the write. t/unit/manager/113 reads one
+  value with a space through both surfaces and asserts one answer.
+  The processor's `resolve_site_vars` is a third reader of the same key
+  and is not covered here.
+
 - SM581 resolved (PENDING) **a nav file in the wrong place is refused.**
   A write at `<content-root>/lazysite/nav.conf` is not blocklisted (the
   blocklist keys on a LEADING `lazysite/`), so it landed as ordinary
