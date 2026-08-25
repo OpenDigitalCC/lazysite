@@ -403,3 +403,113 @@ Same condition, different wording or channel across the five operator tools. One
 | TOM-6 | required-argument phrasing within users; `die` vs `{ ok => 0 }` | `Username required` (20) / `username required` / `group required` / `Usage:` lines / `Creator (--by USERNAME) required`; the CLI prints only the die |
 | TOM-7 | fleet exit semantics | cli "with findings" for any non-zero (tools NR-7); check 1 FAIL / 2 could not check; release 1/2/4/5; install 0/1/2/3/255; the finding-vs-failure split lives only in the Hestia updater |
 | TOM-8 | same tar failure, two sentences | install `Restore extraction failed (tar rc=$rc)` vs `tar -x failed (rc=$rc)`, both printing the raw wait status |
+
+# Task list, graded
+
+Every filing SM515-SM575 and every defect row above, graded for complexity: S is one sub or one table edit plus a test; M is a few subs across one to three files, or a new action pair with the parity registries; L is a subsystem, a new tool, or a design decision before any code. Status is the filing's own header on 2026-08-25.
+
+## Shipped this cut (0.10.32 edge)
+
+| SM | Title | Status | Class | Complexity | Reason |
+|---|---|---|---|---|---|
+| SM515 | every MCP tool declares its gate | shipped | security-integrity | S | two table entries, one lint |
+| SM517 | downloads honour the carve-out | shipped | security-confidentiality | S | two verbs on the surface map |
+| SM518 | the rules move with the folder | shipped | security-confidentiality | M | move re-keys and syncs store |
+| SM519 | no means no | shipped | security-confidentiality | S | one bool normaliser, one test |
+| SM520 | a domain preview is anonymous | shipped | security-confidentiality | S | one shared env-stripping helper |
+| SM567 | the ceiling control names what it governs | shipped | usability | S | relabel one row and message |
+| SM570 | a channel is not an authority | shipped | security-integrity | M | three gates, registry, new lint |
+| SM571 | the history summary walks once | shipped | operability | M | one-pass rewrite of lineage walk |
+
+Totals: 8 shipped - 5 S, 3 M, 0 L.
+
+## Security defects still open
+
+| SM | Title | Status | Class | Complexity | Reason |
+|---|---|---|---|---|---|
+| SM521 | anonymous tools/call is a tool-name oracle | candidate | security-confidentiality | S | swap two statements, add assertion |
+| SM522 | FRONT_MATTER_RESERVED is empty at request time | candidate | security-integrity | S | one accessor sub, widen lint |
+| SM523 | a visitor cannot flag themselves | candidate | security-integrity | S | drop client underscore keys, test |
+| SM524 | SMTP auth and TLS are what the conf says | candidate | security-integrity | S | reuse truthy, fix checked list |
+| SM525 | whoami.tools echoes every tool name | candidate | security-confidentiality (low) | S | derive names from filtered list |
+| SM565 | whoami tells a stranger the shape of the site | candidate | security-confidentiality | L | operator rules on disclosure first |
+
+Totals: 6 open - 5 S, 0 M, 1 L; the four `**` rows (SM521-SM524) were recommended before any beta publish.
+
+## Correctness and operability defects open, by area
+
+| SM | Title | Status | Class | Complexity | Reason |
+|---|---|---|---|---|---|
+| **Manager path core** | | | | | |
+| SM527 | a lock is keyed by the canonical path | candidate | correctness | M | seven lock sites, one key |
+| SM528 | an alias on a gated page targets its public URL | candidate | correctness | S | alias rel from public path |
+| SM529 | the site-wide reply does not claim content moved | candidate | correctness | S | root branch drops moved flag |
+| SM530 | a mkdir into an unwritable parent returns a refusal | candidate | operability | S | eval around make_path, audit |
+| SM555 | listing the engine tree logs once | candidate | operability | S | log once per listing call |
+| SM556 | a symlinked docroot is one docroot | candidate | correctness | M | canonicalise once at two dispatchers |
+| **Themes, layouts, domains** | | | | | |
+| SM526 | one answer to is-this-address-public | candidate | correctness | S | delete one classifier twin |
+| SM531 | a url page is a cache source | candidate | correctness | M | four cache walks agree on .url |
+| SM532 | renaming the active theme keeps the site styled | candidate | operability | S | rename refuses like delete does |
+| SM533 | a layout install cleans up after itself | candidate | operability | S | cleaner prefix matches install dir |
+| **Front door (DAV)** | | | | | |
+| SM534 | a DAV move reaches the registries | candidate | correctness | S | call invalidate in copy-move |
+| SM535 | a collection delete cleans up | candidate | correctness | M | walk pages, registries, alias map |
+| SM536 | a nav write reaches every cached page | candidate | correctness | M | nav mtime joins cache key |
+| **MCP** | | | | | |
+| SM537 | twenty-two tools carry the default annotation | candidate | correctness | M | annotate every entry, derive READ |
+| SM538 | _each_page hard-skips docs and quotes | candidate | correctness | S | use path_is_reserved, one test |
+| **Forms and plugins** | | | | | |
+| SM539 | a multi-answer survives a multipart post | candidate | correctness | S | accumulate in multipart branch too |
+| SM540 | a handler error is forwarded | candidate | operability | M | four plugins onto forward_line |
+| SM541 | a promotion reverses the device | candidate | correctness | M | ring events carry device, term |
+| SM542 | the page refresh keeps form outcomes | candidate | correctness | S | scan ingests form events too |
+| SM543 | a recount uses the loaded ruleset | candidate | correctness | S | compile rules before recount dispatch |
+| SM557 | a post writes no used-only-once warnings | candidate | operability | S | require before local, lint assertion |
+| SM558 | the link audit sees the root page | candidate | correctness | S | bare index case in canonical |
+| **Backups and site packages** | | | | | |
+| SM544 | the safety snapshot covers what the restore overwrites | candidate | correctness | M | archive scope walks every member |
+| SM545 | two site packages in one second are two files | candidate | correctness | S | carry O_EXCL claim across |
+| SM546 | package_apply loads what it calls | candidate | operability | S | require Backups on that path |
+| SM547 | site packages have retention | candidate | operability | S | package_create calls apply_retention |
+| SM548 | the package upload budget is per user | candidate | operability | S | pass user and length correctly |
+| SM559 | the walker returns its failures | candidate | correctness | M | walker returns list, caller labels |
+| **Manager API audit** | | | | | |
+| SM553 | the alias spelling keeps the audit target | candidate | operability | S | theme and layout target branch |
+| SM554 | a posted read is not audited | candidate | operability | S | two names on the skip list |
+| **Operator tools** | | | | | |
+| SM549 | actor local is one actor | candidate | correctness | L | SM268 C1 ruling decides first |
+| SM550 | the theme-mirror check never runs | candidate | operability | S | conf_value gets its file argument |
+| SM551 | group reach is silent on a migrated site | candidate | correctness | S | build path through model_path |
+| SM552 | the coverage verdict is dead under set -e | candidate | operability | S | scope set +e around coverage |
+| SM560 | an abort keeps what it says it kept | candidate | operability | S | abort paths honour the retention |
+| SM561 | the no-pages refusal cannot fire | candidate | operability | S | test emptiness before appending prefix |
+| SM562 | a refusal is not a finding | candidate | operability | S | map exit 2 to could-not-check |
+
+Totals: 36 open - 26 S, 9 M, 1 L; path core 6, themes 4, DAV 3, MCP 2, forms and plugins 7, backups 6, audit 2, tools 6.
+
+## New capabilities and mechanisms (SM563-SM575)
+
+| SM | Title | Status | Class | Complexity | Reason |
+|---|---|---|---|---|---|
+| SM563 | the four surfaces agree on every operation | candidate | security-integrity | L | DAV verb map needs a registry |
+| SM564 | a group is judged by its reach | candidate | security-integrity | L | new group-reach report tool |
+| SM566 | manage_data offers less over MCP than over the API | candidate | correctness | M | two MCP twins plus parity registries |
+| SM568 | reads are weaker on one channel | candidate | correctness | S | two registry gates, one lint row |
+| SM569 | a form can land in a data table | candidate | capability | L | new handler type across two plugins |
+| SM572 | the engine describes its own side effects | candidate | operability | M | expose MUTATING on describe-capabilities, MCP |
+| SM573 | the brief is checked against the grant | candidate | security-integrity | M | brief generator plus check warning |
+| SM574 | the field practice ships with every site | candidate | capability | M | import script, starter doc, lint |
+| SM575 | ownership is a pattern, or it is two cases | candidate | security-integrity | S / M | two-principal tests; M if ownership added |
+
+Totals: 9 candidates - 2 S (one rising to M), 4 M, 3 L. SM516 itself stays the plan and register, ungraded.
+
+## The cleanup batches
+
+| Batch | Rows | Risk mix | Complexity | Reason |
+|---|---|---|---|---|
+| Batch 1: trivial, dead, dedupe | 90 | 90 L | S | one commit each, diff-visible equivalence |
+| Batch 2: shared helpers within a file | 73 | 69 L, 4 M | M | helpers cross subs, named tests each |
+| Batch 3: seams, splits, reorders, cross-file folds | 49 | 10 L, 39 M | L | splits and cross-file folds, full run-all |
+
+Totals: 212 cleanup rows across the three batches - one S batch, one M batch, one L batch; every row a no-behaviour-change refactor with its proving test named. The 42 optimisation rows (M overall: memoisation with freshness tests) and the 8 message-consistency rows (S: one phrasing per row) sit outside the three batches and land with the tools branch and the per-area tidy branches.
