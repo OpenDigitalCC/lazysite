@@ -1376,15 +1376,39 @@ sub action_theme_rename {
 
     return { ok => 0, error => "Invalid name" } unless $old_name && $new_name;
 
-    my ($active_layout) = _read_active_layout_and_theme();
+    # SM532: the two guards delete applies, applied here too. A rename of the
+    # active theme, or of one a configured domain resolves to, used to answer
+    # ok:1 and leave lazysite.conf (or the domain's override) naming a
+    # directory that no longer existed - every page then rendered through the
+    # layout with no theme mirror, and nothing in the reply said so. Refuse,
+    # worded as delete refuses, rather than repoint: the operator activates
+    # another theme first, exactly as they must before a delete, and rename
+    # gains no conf-write path of its own.
+    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+    return { ok => 0, error => "Cannot rename the active theme" }
+        if $old_name eq $active_theme;
     return { ok => 0, error => "No active layout set" }
         unless length $active_layout;
+
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my @in_use = Lazysite::Manager::Domains::domains_using(
+        theme => $old_name, layout => $active_layout );
+    if (@in_use) {
+        return { ok => 0,
+            error => "Theme '$old_name' is in use by "
+                . join( ', ', @in_use )
+                . ". Repoint or remove those domains first." };
+    }
 
     my $themes_dir = _lz() . "/layouts/$active_layout/themes";
     return { ok => 0, error => "Theme not found" } unless -d "$themes_dir/$old_name";
     return { ok => 0, error => "Name already in use" } if -d "$themes_dir/$new_name";
 
-    rename "$themes_dir/$old_name", "$themes_dir/$new_name";
+    unless ( rename "$themes_dir/$old_name", "$themes_dir/$new_name" ) {
+        log_event( 'ERROR', 'theme-rename', 'rename failed',
+            from => $old_name, to => $new_name, error => "$!" );
+        return { ok => 0, error => "Rename failed" };
+    }
     _rename_theme_creator( $active_layout, $old_name, $new_name );
 
     my $old_assets = "$DOCROOT/lazysite-assets/$active_layout/$old_name";

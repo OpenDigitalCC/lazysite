@@ -109,6 +109,18 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM532 resolved (PENDING) **renaming the active theme keeps the site
+  styled.** action_theme_delete refuses the active theme and any theme a
+  configured domain resolves to; action_theme_rename checked neither,
+  answered ok:1 and left lazysite.conf naming a theme directory that no
+  longer existed, so every page rendered with no theme mirror and the
+  reply gave no hint. Found by the themes structural review (N-4), proven
+  by probe. Rename now applies delete's two guards with delete's wording
+  (refuse, rather than repoint: an operator activates another theme
+  first, as before a delete) and reports a failed directory rename as a
+  failure. t/unit/manager/102 pins both refusals, the untouched site and
+  that a free theme still renames with its mirror.
+
 - SM531 resolved (PENDING) **a url page is a cache source.** The processor
   renders <page>.url as it renders <page>.md, but Manager/Themes.pm held
   four opinions about the .html beside a .url: the activation sweep dropped
