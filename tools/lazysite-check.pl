@@ -227,6 +227,15 @@ my $store_create_needed;    # SM313: the private store to create under --fix
 my $store_repair_needed;    # SM323: an existing store whose owner/mode locks the CGI out
 sub report {    # (level, message, [hint])
     my ( $level, $msg, $hint ) = @_;
+
+    # SM584: the level is a closed vocabulary. A typo used to pass straight
+    # through: the icon printed empty, perl warned about an undefined value,
+    # and - the part that mattered - the summary counts `eq 'OK'`, so a
+    # mis-spelled level was counted as neither ok, warning nor failure and
+    # vanished from both the tally and the exit code. A check whose answer
+    # nobody sees is worse than a check that is not there.
+    die "report: unknown level '$level' for: $msg\n"
+        unless $level =~ /\A(?:OK|WARN|FAIL)\z/;
     push @results, { level => $level, msg => $msg, hint => $hint };
 }
 sub owner_name { ( getpwuid( ( stat $_[0] )[4] ) )[0] // ( stat $_[0] )[4] }
@@ -1748,12 +1757,12 @@ sub report_front_door_mode {
     $v =~ s/\A\s+|\s+\z//g;
 
     if ( $v =~ /\A(?:1|true|yes|on)\z/ ) {
-        report( 'ok', "front-door mode is ON (FRONT_DOOR=$raw in $mine)",
+        report( 'OK', "front-door mode is ON (FRONT_DOOR=$raw in $mine)",
             'The pool worker routes every request itself, so the vhost needs '
                 . 'one rule rather than a dozen.' );
     }
     elsif ( $v eq '' || $v =~ /\A(?:0|false|no|off)\z/ ) {
-        report( 'ok',
+        report( 'OK',
             'front-door mode is OFF'
                 . ( length $v ? " (FRONT_DOOR=$raw in $mine)" : " (not set in $mine)" ),
             'Set FRONT_DOOR=1 in the pool conf and restart the pool to enable '
@@ -1803,7 +1812,7 @@ sub report_theme_assets_mirrored {
         { no_chdir => 1, wanted => sub { $n++ if -f $File::Find::name } },
         $mirror ) if -d $mirror;
 
-    return report( 'ok', "theme assets are mirrored ($n file(s) for $layout/$theme)" )
+    return report( 'OK', "theme assets are mirrored ($n file(s) for $layout/$theme)" )
         if $n;
 
     # Nothing mirrored. Name the likely cause rather than the symptom: an author

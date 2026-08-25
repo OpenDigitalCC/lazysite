@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM584 resolved (PENDING) **a check's result level is one vocabulary.**
+  Three checks reported 'ok' where the vocabulary is 'OK', so the status
+  label printed empty, perl warned, and - the part that mattered - the
+  summary's `eq 'OK'` count omitted them from the tally and the exit code.
+  Visible in the 0.10.32 deploy because SM550 made one of the three run for
+  the first time. report() now refuses an unknown level outright.
+
 ## 0.10.32 - EDGE: the review answered - every defect filed, fixed and tested (2026-08-25)
 
 - SM569 resolved (80a1e539) **a form can land in a data table.** A handler
