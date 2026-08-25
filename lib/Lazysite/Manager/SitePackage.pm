@@ -62,9 +62,12 @@ sub _domain_rows {
 }
 
 # Resolve a host to its domains_list row (the primary answers to '(default)').
+# BPO-4: takes the rows when the caller already has them - package_create
+# needed the same list again for the default site's skip set, and parsed the
+# conf twice for it. Same conf, same call, nothing writes it in between.
 sub _domain_row {
-    my ($host) = @_;
-    for my $r ( @{ _domain_rows() } ) {
+    my ( $host, $rows ) = @_;
+    for my $r ( @{ $rows || _domain_rows() } ) {
         return $r if lc( $r->{host} // '' ) eq lc( $host // '' );
         return $r if $r->{is_primary} && ( $host eq '(default)' || $host eq '' );
     }
@@ -173,7 +176,8 @@ sub _copy_tree {
 # { ok, name, size, manifest } or { ok=>0, error }.
 sub package_create {
     my ( $host, %opt ) = @_;
-    my $row = _domain_row($host)
+    my $rows = _domain_rows();
+    my $row  = _domain_row( $host, $rows )
         or return { ok => 0, kind => 'not-found', error => "Not a configured domain: $host" };
 
     my %keys  = map { $_ => ( $row->{$_} // '' ) } @KEYS;
@@ -224,7 +228,7 @@ sub package_create {
     my @unreadable
         = $primary_base
         ? _copy_tree( $DOCROOT, "$stage/content",
-        skip => _base_content_skip( _domain_rows() ), drop_render_cache => 1 )
+        skip => _base_content_skip($rows), drop_render_cache => 1 )
         : _copy_tree( $content_src, "$stage/content" );
 
     # 2. nav: package the OVERRIDE only. A base-inherited nav (nav_file unset or

@@ -29,7 +29,8 @@ sub git_dir { return "$_[0]/lazysite/git" }
 # Feature gate: conf key `git_history: enabled` AND an initialised repo.
 # Cached per docroot per process (CGI is one-shot; hooks may check repeatedly).
 our %ENABLED_CACHE;
-sub reset_cache { %ENABLED_CACHE = (); return }
+our %AVAILABLE_CACHE;
+sub reset_cache { %ENABLED_CACHE = (); %AVAILABLE_CACHE = (); return }
 
 sub _conf_enabled {
     my ($docroot) = @_;
@@ -57,8 +58,20 @@ sub enabled {
 
 # Is a git binary on PATH? A cheap stat scan - no fork - so the hooks' guard
 # and the check tool's probe stay quiet and fast when git is absent.
+#
+# BPO-2: memoised on the PATH STRING, because that string is the whole input
+# - run_git asks on every call, three times per file_log incarnation and once
+# per tracked path beyond that. Keying on the string rather than caching a
+# bare answer keeps a test that swaps PATH honest, and reset_cache clears it
+# with the rest.
 sub git_available {
-    for my $dir ( split /:/, ( $ENV{PATH} // '' ) ) {
+    my $path = $ENV{PATH} // '';
+    return $AVAILABLE_CACHE{$path} //= _scan_path_for_git($path);
+}
+
+sub _scan_path_for_git {
+    my ($path) = @_;
+    for my $dir ( split /:/, $path ) {
         next unless length $dir;
         return 1 if -f "$dir/git" && -x _;
     }

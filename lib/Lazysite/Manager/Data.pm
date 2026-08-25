@@ -624,35 +624,39 @@ sub action_data_safety_export_read {
 # and restore again. A drop export needs its table re-declared first.
 sub action_data_safety_export_restore {
     my ( $file, $apply ) = @_;
+    # BPO-3: gated once. Reading through action_data_safety_export_read asked
+    # the same gate a second time; the checks and their order are unchanged.
     if ( my $off = _gate() ) { return $off }
-    my $r = action_data_safety_export_read($file);
-    return $r unless $r->{ok};
-    my $d = load_table( $DOCROOT, $r->{table} );
+    my ( $e, $bad ) = _export_path($file);
+    return $bad if $bad;
+    my $data = _read_export_file( $e->{abs} )
+        or return { ok => 0, error => 'the export is not a readable lazysite data export' };
+    my $d = load_table( $DOCROOT, $e->{table} );
     return { ok => 0, kind => 'no_such_table',
-        error => "table '$r->{table}' is not declared - re-declare it (and "
+        error => "table '$e->{table}' is not declared - re-declare it (and "
             . 'migrate) before restoring its export into it' }
         unless $d->{ok};
     my %known = map { $_ => 1 } keys %{ $d->{fields} };
     $known{ $d->{key} } = 1;
-    my @export_cols = sort keys %{ $r->{fields} || {} };
-    push @export_cols, $r->{key}
-        if defined $r->{key} && !grep { $_ eq $r->{key} } @export_cols;
+    my @export_cols = sort keys %{ $data->{fields} || {} };
+    push @export_cols, $data->{key}
+        if defined $data->{key} && !grep { $_ eq $data->{key} } @export_cols;
     my @header = grep { $known{$_} } @export_cols;
     my @gone   = grep { !$known{$_} } @export_cols;
     return { ok => 0, error => "none of the export's columns exist in the "
-            . "table '$r->{table}' any more; re-declare them first",
+            . "table '$e->{table}' any more; re-declare them first",
         not_restored_columns => \@gone }
         unless @header;
     my @rows = map {
         my $row = $_;
         [ map { ref $row->{$_} ? ( $row->{$_} ? 1 : 0 ) : $row->{$_} } @header ]
-    } grep { ref $_ eq 'HASH' } @{ $r->{rows} };
-    my $res = import_rows( $DOCROOT, $r->{table}, \@header, \@rows,
+    } grep { ref $_ eq 'HASH' } @{ $data->{rows} || [] };
+    my $res = import_rows( $DOCROOT, $e->{table}, \@header, \@rows,
         apply => ( $apply ? 1 : 0 ) );
     $res->{file}                 = $file;
     $res->{restored_columns}     = \@header;
     $res->{not_restored_columns} = \@gone if @gone;
-    log_event( 'INFO', $r->{table}, 'safety export restored',
+    log_event( 'INFO', $e->{table}, 'safety export restored',
         file  => $file, inserts => $res->{inserts}, updates => $res->{updates},
         actor => $auth_user )
         if $res->{ok} && $res->{applied};

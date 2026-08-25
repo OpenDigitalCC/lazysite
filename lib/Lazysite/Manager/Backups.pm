@@ -126,12 +126,21 @@ sub read_sha256 {
 # now.
 sub verify_sha256 {
     my ($path) = @_;
+    my ( undef, $status ) = _sha_and_status($path);
+    return $status;
+}
+
+# BPO-5: the recorded digest AND the verdict, from one read of the sidecar.
+# The verdict is a comparison against exactly the value read here, so a
+# listing that wanted both read the same file twice for every artefact.
+sub _sha_and_status {
+    my ($path) = @_;
     my $want = read_sha256($path);
-    return 'absent' unless length $want;
+    return ( '', 'absent' ) unless length $want;
     require Digest::SHA;
     my $got = eval { Digest::SHA->new('sha256')->addfile( $path, 'b' )->hexdigest };
-    return 'mismatch' unless defined $got && length $got;
-    return $got eq $want ? 'verified' : 'mismatch';
+    return ( $want, 'mismatch' ) unless defined $got && length $got;
+    return ( $want, $got eq $want ? 'verified' : 'mismatch' );
 }
 
 sub action_backup_list {
@@ -146,18 +155,20 @@ sub action_backup_list {
             my ($kind) = $f =~ /\A(?:lazysite-)?(preinstall|prerestore|manual|full|site)-/;
             $kind //= 'manual';
             my $scope = $kind eq 'full' ? 'full' : $kind eq 'site' ? 'site' : 'content';
+
+            # SM183: present only when a digest was written beside it, so an
+            # artefact from before this is simply unverified rather than
+            # looking like one whose digest failed.
+            #
+            # SM268 03-F10: and RECOMPUTED, not merely echoed. A digest
+            # displayed beside a package reads as "verified" whether or not
+            # anything checked it, so the listing now says which of the
+            # three it is: verified, mismatch, or absent.
+            my ( $sha, $status ) = _sha_and_status("$dir/$f");
             push @out, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
-                kind => $kind, scope => $scope,
-                # SM183: present only when a digest was written beside it, so an
-                # artefact from before this is simply unverified rather than
-                # looking like one whose digest failed.
-                #
-                # SM268 03-F10: and RECOMPUTED, not merely echoed. A digest
-                # displayed beside a package reads as "verified" whether or not
-                # anything checked it, so the listing now says which of the
-                # three it is: verified, mismatch, or absent.
-                sha256        => read_sha256("$dir/$f"),
-                sha256_status => verify_sha256("$dir/$f") };
+                kind          => $kind, scope => $scope,
+                sha256        => $sha,
+                sha256_status => $status };
         }
         closedir $dh;
     }
@@ -257,7 +268,11 @@ sub _apply_retention {
     closedir $dh;
     return if @mine <= $keep;
 
-    my @by_age = sort { ( stat "$dir/$b" )[9] <=> ( stat "$dir/$a" )[9] } @mine;
+    # BPO-5: stat once per name rather than twice per comparison. The same
+    # mtimes in the same comparator order the same list.
+    my @by_age = map { $_->[0] }
+        sort { $b->[1] <=> $a->[1] }
+        map { [ $_, ( stat "$dir/$_" )[9] // 0 ] } @mine;
     for my $old ( @by_age[ $keep .. $#by_age ] ) {
         next unless unlink "$dir/$old";
         log_event( 'INFO', 'backup-retention', 'expired old snapshot',
@@ -327,9 +342,13 @@ sub _archive_members {
 # SM484: the common top directory of an archive's members, or undef. Reads
 # the member list the same tar reads the archive; ./lazysite members are
 # ignored (no content archive carries them and the restore excludes them).
+# BPO-1: takes the member list, or an archive to read it from. A restore
+# lists once and hands the same list to both consumers - same file, same
+# command, and nothing writes between the two reads it used to make.
 sub _archive_scope {
     my ($archive) = @_;
-    my @members = _archive_members($archive);
+    my @members
+        = ref $archive eq 'ARRAY' ? @{$archive} : _archive_members($archive);
     my $common;
     for my $raw (@members) {
         ( my $m = $raw ) =~ s{\A\./}{};
@@ -721,7 +740,8 @@ sub action_backup_restore {
     # touch, so a partner who could back up could not roll back. An archive
     # with no single common directory (a primary-site backup) keeps the full
     # snapshot - for that target it IS the blast radius.
-    my $scope = _archive_scope($full);
+    my @members = _archive_members($full);
+    my $scope   = _archive_scope( \@members );
     my ( $safety, $refuse ) = safety_snapshot_or_refuse( 'restore', $scope );
     return $refuse if $refuse;
 
@@ -808,7 +828,6 @@ sub action_backup_restore {
         my $priv = Lazysite::Private::private_root($DOCROOT);
         my $leaf = defined $priv ? basename($priv) : undef;
         if ( defined $leaf && length $leaf ) {
-            my @members = _archive_members($full);
             if ( grep { index( $_, "$leaf/" ) == 0 } @members ) {
                 my $prc = system(
                     'tar',             'xzf', $full, '-C', dirname($priv),
