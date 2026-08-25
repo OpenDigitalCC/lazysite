@@ -156,6 +156,10 @@ sub collect_audit_results {
             next if $pages{$target};
             ( my $with_index = $target ) =~ s{/index$}{};
             next if $pages{$with_index};
+            # SM558: a bare `index` (and index.html, which the collector has
+            # already stripped to `index`) is the ROOT page - the same mapping
+            # canonical() applies to index.md, whose key is the empty string.
+            next if $target eq 'index' && $pages{''};
             next if $seen_broken{"$source->$target"}++;
             push @broken, { source => $source, target => $target };
         }

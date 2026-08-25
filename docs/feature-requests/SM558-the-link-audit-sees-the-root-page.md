@@ -3,8 +3,8 @@ title: "SM558: the link audit sees the root page"
 subtitle: "A link to /index or /index.html is always reported broken by the link audit."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND 2026-08-25 by the plugins structural review, PROVEN by probe tmp/plugins-probe-audit-index-link.pl; class: correctness; recommended timing: later. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. canonical at audit.pl 370-377 maps index.md to the empty string, but the check at 150-158 only tries stripping a trailing /index from the target and never the bare index case, so /docs/index resolves while /index and /index.html are reported broken. The probe reports BROKEN LINKS (1) about.md -> /index and flags it as a false broken. The fix handles the bare index case in the check."
+status: shipped
+status-note: "SHIPPED 0.10.32 (EDGE): the broken-link check now treats a bare `index` target (which is what /index and /index.html both normalise to in the collector) as the root page - the same mapping canonical() applies to index.md, whose key is the empty string; a trailing /index resolves as before and a genuinely missing target is still reported. Proving test t/unit/plugins/32-the-link-audit-sees-the-root-page.t runs the real plugin over a fixture docroot and asserts exactly the one real broken link remains. FOUND 2026-08-25 by the plugins structural review, PROVEN by probe tmp/plugins-probe-audit-index-link.pl; class: correctness; recommended timing: later. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. canonical at audit.pl 370-377 maps index.md to the empty string, but the check at 150-158 only tries stripping a trailing /index from the target and never the bare index case, so /docs/index resolves while /index and /index.html are reported broken. The probe reports BROKEN LINKS (1) about.md -> /index and flags it as a false broken. The fix handles the bare index case in the check."
 ---
 
 # The finding

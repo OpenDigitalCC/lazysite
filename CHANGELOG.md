@@ -437,6 +437,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM558 resolved (PENDING) **the link audit sees the root page.** A link
+  written as `/index` or `/index.html` was always reported broken: the
+  check stripped only a trailing `/index`, so `/docs/index` resolved
+  while the bare root spelling never did. The check now maps a bare
+  `index` target to the root page as canonical() maps index.md.
+  t/unit/plugins/32 audits a fixture docroot and reads exactly the one
+  genuinely broken link.
+
 - SM557 resolved (PENDING) **a post writes no used-only-once warnings.**
   Every form POST wrote two `Name "Lazysite::...::X" used only once:
   possible typo` lines to the error log - `local $Pkg::VAR` on packages
