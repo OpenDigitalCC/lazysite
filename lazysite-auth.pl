@@ -198,126 +198,14 @@ sub handle_login {
         return;
     }
 
-    unless ( length $username ) {
-        log_event( 'WARN', $username, 'login failed', ip => $ip );
-        _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
-        sleep $LOGIN_DELAY;
-        redirect("$auth_redirect?error=1");
-        return;
-    }
+    return unless _verify_credential( $username, $password, $ip, $auth_redirect );
 
-    my $users    = load_users();
-    my $expected = $users->{$username};
-
-    unless ( defined $expected ) {
-        log_event( 'WARN', $username, 'login failed', ip => $ip );
-        _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
-        sleep $LOGIN_DELAY;
-        redirect("$auth_redirect?error=1");
-        return;
-    }
-
-    if ( !length $expected ) {
-        # No-password account: only allowed from localhost
-        my $addr = $ENV{REMOTE_ADDR} // '';
-        unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
-            log_event( 'WARN', $username, 'no-password login refused (not localhost)', ip => $addr );
-            _audit_auth( $username, 'login', 'fail', 'no-password-remote' );
-            reject_no_password();
-            return;
-        }
-        log_event( 'INFO', $username, 'no-password login (localhost)', ip => $addr );
-        _audit_auth( $username, 'login', 'ok', 'no-password' );
-    }
-    else {
-        # H-2: verify_password handles both legacy (unsalted) and new
-        # (sha256iter) formats. Legacy hashes are auto-rehashed on
-        # successful login.
-        unless ( length $password && verify_password( $password, $expected ) ) {
-            log_event( 'WARN', $username, 'login failed', ip => $ip );
-            _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
-            sleep $LOGIN_DELAY;
-            redirect("$auth_redirect?error=1");
-            return;
-        }
-        if ( $expected =~ /\A[0-9a-f]{64}\z/ ) {
-            my $new_hash = hash_password($password);
-            if ( update_user_hash( $username, $new_hash ) ) {
-                log_event( 'INFO', $username, 'password rehashed to salted format' );
-            }
-        }
-    }
-
-    # SM070: enforce the per-user `ui` access mechanism. Placed after
-    # credential verification (both the verified-password and the
-    # localhost no-password branches converge here), so it leaks
-    # nothing to a password guesser - an attacker without the password
-    # never reaches it. A ui-disabled account never receives a cookie,
-    # which keeps it out of the manager UI, the manager API, and
-    # auth-protected pages alike.
-    # SM071 Phase 2: a disabled account fails authentication outright,
-    # ahead of the ui mechanism check. After credential verification, so
-    # it leaks nothing to a password guesser.
-    if ( account_disabled($username) ) {
-        log_event( 'WARN', $username, 'login refused: account disabled', ip => $ip );
-        _audit_auth( $username, 'login', 'fail', 'account-disabled' );
-        redirect("$auth_redirect?error=1");
-        return;
-    }
-
-    # SM071 Phase 2: an expired access-token credential cannot start a
-    # session (a human password has no expiry, so this never affects them).
-    if ( token_expired($username) ) {
-        log_event( 'WARN', $username, 'login refused: credential expired', ip => $ip );
-        _audit_auth( $username, 'login', 'fail', 'credential-expired' );
-        redirect("$auth_redirect?error=1");
-        return;
-    }
-
-    # SM072: account-level expiry (time-boxed access)
-    if ( account_expired($username) ) {
-        log_event( 'WARN', $username, 'login refused: account expired', ip => $ip );
-        _audit_auth( $username, 'login', 'fail', 'account-expired' );
-        redirect("$auth_redirect?error=1");
-        return;
-    }
-
-    unless ( ui_enabled($username) ) {
-        log_event( 'WARN', $username, 'interactive login disabled for account', ip => $ip );
-        _audit_auth( $username, 'login', 'fail', 'ui-disabled' );
-        reject_ui_disabled();
-        return;
-    }
-
-    # SM072 batch 4: second factor. If TOTP is enrolled, a valid code (or a
-    # single-use recovery code) is required before a cookie issues. After
-    # password + ui verification, so it leaks nothing to a password guesser.
-    if ( mfa_enrolled($username) ) {
-        my $code = $form{code} // '';
-        $code =~ s/[^0-9A-Za-z-]//g;
-        my $v = users_tool_api( { action => 'mfa-verify', username => $username, code => $code } );
-        unless ( ref $v eq 'HASH' && $v->{ok} ) {
-            log_event( 'WARN', $username, 'login refused: 2FA required or invalid', ip => $ip );
-            _audit_auth( $username, 'login', 'fail', 'mfa' );
-            sleep $LOGIN_DELAY;
-            redirect("$auth_redirect?error=mfa");
-            return;
-        }
-    }
+    return unless _account_gates( $username, $ip, $auth_redirect, \%form );
 
     # Load groups for user
     my $groups_str = load_user_groups($username);
 
-    # Generate signed cookie. SM141: the payload carries a short random
-    # session id (user:ts:sid:groups) so this session can be listed and
-    # revoked individually. Legacy 3-field cookies (user:ts:groups) minted
-    # before SM141 stay valid until natural expiry - see handle_request.
-    my $ts      = time();
-    my $sid     = generate_random_hex(8);                  # 16 hex chars
-    my $secret  = load_auth_secret();
-    my $payload = "$username:$ts:$sid:$groups_str";
-    my $sig     = hmac_sha256_hex( $payload, $secret );
-    my $cookie  = uri_encode_simple($payload) . ":$sig";
+    my ( $cookie, $ts, $sid ) = _mint_session( $username, $groups_str );
 
     # SM141: record the session in the registry (listing metadata only -
     # losing the file degrades the Sessions page, never authentication).
@@ -350,6 +238,157 @@ sub handle_login {
     print "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
     print "Location: $next\r\n\r\n";
     return;
+}
+
+# FD-25: handle_login's credential half - the username shape, the users
+# file, the localhost-only no-password branch and the H-2 password check
+# with its legacy rehash, in the order handle_login ran them.
+#
+# Every refusal answers the request itself, with the audit reason and the
+# delay that refusal carried before; the caller returns without adding
+# anything. True means the credential is good and the account gates are
+# next.
+sub _verify_credential {
+    my ( $username, $password, $ip, $auth_redirect ) = @_;
+
+    unless ( length $username ) {
+        log_event( 'WARN', $username, 'login failed', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
+        sleep $LOGIN_DELAY;
+        redirect("$auth_redirect?error=1");
+        return 0;
+    }
+
+    my $users    = load_users();
+    my $expected = $users->{$username};
+
+    unless ( defined $expected ) {
+        log_event( 'WARN', $username, 'login failed', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
+        sleep $LOGIN_DELAY;
+        redirect("$auth_redirect?error=1");
+        return 0;
+    }
+
+    if ( !length $expected ) {
+        # No-password account: only allowed from localhost
+        my $addr = $ENV{REMOTE_ADDR} // '';
+        unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
+            log_event( 'WARN', $username, 'no-password login refused (not localhost)', ip => $addr );
+            _audit_auth( $username, 'login', 'fail', 'no-password-remote' );
+            reject_no_password();
+            return 0;
+        }
+        log_event( 'INFO', $username, 'no-password login (localhost)', ip => $addr );
+        _audit_auth( $username, 'login', 'ok', 'no-password' );
+    }
+    else {
+        # H-2: verify_password handles both legacy (unsalted) and new
+        # (sha256iter) formats. Legacy hashes are auto-rehashed on
+        # successful login.
+        unless ( length $password && verify_password( $password, $expected ) ) {
+            log_event( 'WARN', $username, 'login failed', ip => $ip );
+            _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
+            sleep $LOGIN_DELAY;
+            redirect("$auth_redirect?error=1");
+            return 0;
+        }
+        if ( $expected =~ /\A[0-9a-f]{64}\z/ ) {
+            my $new_hash = hash_password($password);
+            if ( update_user_hash( $username, $new_hash ) ) {
+                log_event( 'INFO', $username, 'password rehashed to salted format' );
+            }
+        }
+    }
+    return 1;
+}
+
+# FD-25: the five account gates a verified credential still has to pass,
+# in the order handle_login ran them - disabled, credential expired,
+# account expired, interactive-ui, second factor.
+#
+# THE ORDER IS THE SECURITY PROPERTY: every one of these sits after the
+# credential check so that none of them tells a password guesser anything
+# about an account it cannot open. The comments moved with the gates they
+# describe. Each refusal answers the request itself; true means a cookie
+# may now issue.
+sub _account_gates {
+    my ( $username, $ip, $auth_redirect, $form ) = @_;
+
+    # SM070: enforce the per-user `ui` access mechanism. Placed after
+    # credential verification (both the verified-password and the
+    # localhost no-password branches converge here), so it leaks
+    # nothing to a password guesser - an attacker without the password
+    # never reaches it. A ui-disabled account never receives a cookie,
+    # which keeps it out of the manager UI, the manager API, and
+    # auth-protected pages alike.
+    # SM071 Phase 2: a disabled account fails authentication outright,
+    # ahead of the ui mechanism check. After credential verification, so
+    # it leaks nothing to a password guesser.
+    if ( account_disabled($username) ) {
+        log_event( 'WARN', $username, 'login refused: account disabled', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'account-disabled' );
+        redirect("$auth_redirect?error=1");
+        return 0;
+    }
+
+    # SM071 Phase 2: an expired access-token credential cannot start a
+    # session (a human password has no expiry, so this never affects them).
+    if ( token_expired($username) ) {
+        log_event( 'WARN', $username, 'login refused: credential expired', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'credential-expired' );
+        redirect("$auth_redirect?error=1");
+        return 0;
+    }
+
+    # SM072: account-level expiry (time-boxed access)
+    if ( account_expired($username) ) {
+        log_event( 'WARN', $username, 'login refused: account expired', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'account-expired' );
+        redirect("$auth_redirect?error=1");
+        return 0;
+    }
+
+    unless ( ui_enabled($username) ) {
+        log_event( 'WARN', $username, 'interactive login disabled for account', ip => $ip );
+        _audit_auth( $username, 'login', 'fail', 'ui-disabled' );
+        reject_ui_disabled();
+        return 0;
+    }
+
+    # SM072 batch 4: second factor. If TOTP is enrolled, a valid code (or a
+    # single-use recovery code) is required before a cookie issues. After
+    # password + ui verification, so it leaks nothing to a password guesser.
+    if ( mfa_enrolled($username) ) {
+        my $code = $form->{code} // '';
+        $code =~ s/[^0-9A-Za-z-]//g;
+        my $v = users_tool_api( { action => 'mfa-verify', username => $username, code => $code } );
+        unless ( ref $v eq 'HASH' && $v->{ok} ) {
+            log_event( 'WARN', $username, 'login refused: 2FA required or invalid', ip => $ip );
+            _audit_auth( $username, 'login', 'fail', 'mfa' );
+            sleep $LOGIN_DELAY;
+            redirect("$auth_redirect?error=mfa");
+            return 0;
+        }
+    }
+    return 1;
+}
+
+# FD-25: mint the signed session cookie. SM141: the payload carries a short
+# random session id (user:ts:sid:groups) so this session can be listed and
+# revoked individually. Legacy 3-field cookies (user:ts:groups) minted
+# before SM141 stay valid until natural expiry - see handle_request.
+#
+# Returns ( $cookie, $ts, $sid ): the caller needs the last two for the
+# session registry.
+sub _mint_session {
+    my ( $username, $groups_str ) = @_;
+    my $ts      = time();
+    my $sid     = generate_random_hex(8);                 # 16 hex chars
+    my $secret  = load_auth_secret();
+    my $payload = "$username:$ts:$sid:$groups_str";
+    my $sig     = hmac_sha256_hex( $payload, $secret );
+    return ( uri_encode_simple($payload) . ":$sig", $ts, $sid );
 }
 
 # Verify the session cookie and return ( $user, $sid ) - $sid is '' for a

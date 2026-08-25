@@ -149,55 +149,13 @@ sub main {
         return send_status( 403, body => "HTTPS required\n" );
     }
 
-    # 3. Authentication (Basic), with a per-IP failed-attempt limiter.
-    if ( dav_rate_blocked($ip) ) {
-        log_event( 'WARN', '-', 'dav auth rate limit exceeded', ip => $ip );
-        return send_status( 429, body => "Too many failed attempts\n" );
-    }
-    my ( $user, $pass ) = parse_basic_auth();
-    unless ( defined $user ) {
-        # No / malformed credentials: challenge, no rate penalty (this
-        # is the normal first probe of any DAV client).
-        return send_status( 401,
-            headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
-            body    => "Authentication required\n" );
-    }
-    my $users  = load_users();
-    my $stored = $users->{$user};
-    unless ( defined $stored && length $stored && verify_password( $pass, $stored ) ) {
-        dav_rate_record($ip);
-        sleep $FAIL_DELAY if $FAIL_DELAY;
-        log_event( 'WARN', $user, 'dav auth failed', ip => $ip );
-        return send_status( 401,
-            headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
-            body    => "Authentication failed\n" );
-    }
-
-    # SM071 Phase 2: a disabled account is denied outright, ahead of the
-    # mechanism gate.
-    if ( disabled_for($user) ) {
-        log_event( 'WARN', $user, 'dav access denied (account disabled)', ip => $ip );
-        return send_status( 403, body => "Account disabled\n" );
-    }
-
-    # SM071 Phase 2: an expired access token must be rotated/re-exchanged.
-    if ( token_expired($user) ) {
-        log_event( 'WARN', $user, 'dav access denied (credential expired)', ip => $ip );
-        return send_status( 401,
-            headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
-            body    => "Credential expired\n" );
-    }
-
-    # 4. Mechanism gate - WebDAV must be enabled for this user.
-    unless ( webdav_enabled_for($user) ) {
-        log_event( 'WARN', $user, 'dav access denied (mechanism off)', ip => $ip );
-        return send_status( 403, body => "WebDAV not enabled for this account\n" );
-    }
-
-    # SM163: record that this machine key was used (throttled), so the Sessions &
-    # Keys view shows it in-use - WebDAV verifies the credential directly here, so
-    # without this a key used only over /dav would read "not used yet".
-    Lazysite::Auth::Settings::touch_credential($user);
+    # 3. Authentication (Basic) with the per-IP failed-attempt limiter, the
+    #    SM071 Phase 2 account gates and 4. the mechanism gate, then SM163's
+    #    credential touch - _authenticate keeps them in that order, which is
+    #    the security property. It answers the request itself on every
+    #    refusal and hands back the status main returns.
+    my ( $user, $refused ) = _authenticate($ip);
+    return $refused unless defined $user;
 
     # OPTIONS advertises capabilities and touches no files.
     if ( $method eq 'OPTIONS' ) {
@@ -283,6 +241,76 @@ sub main {
     audit_log( $user, $act, $target, $ip,
         ( $ok ? 'ok' : 'fail' ), 'dav', ( $ok ? '' : "http $code" ) );
     return $code;
+}
+
+# FD-13: main's authentication half - the per-IP failed-attempt limiter,
+# the Basic credentials, the password check, the SM071 Phase 2 account
+# gates, the mechanism gate and SM163's credential touch.
+#
+# THE ORDER IS THE SECURITY PROPERTY and is unchanged: the disabled and
+# expired gates sit AFTER the password check so neither leaks anything to
+# a guesser, and touch_credential runs only once every gate has passed.
+# The comments moved with the statements they belong to.
+#
+# Returns ( $user, undef ) when the caller may go on, and ( undef, $code )
+# when the response has already been sent - $code is what main returns.
+sub _authenticate {
+    my ($ip) = @_;
+
+    if ( dav_rate_blocked($ip) ) {
+        log_event( 'WARN', '-', 'dav auth rate limit exceeded', ip => $ip );
+        return ( undef, send_status( 429, body => "Too many failed attempts\n" ) );
+    }
+    my ( $user, $pass ) = parse_basic_auth();
+    unless ( defined $user ) {
+        # No / malformed credentials: challenge, no rate penalty (this
+        # is the normal first probe of any DAV client).
+        return ( undef,
+            send_status( 401,
+                headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
+                body    => "Authentication required\n" ) );
+    }
+    my $users  = load_users();
+    my $stored = $users->{$user};
+    unless ( defined $stored && length $stored && verify_password( $pass, $stored ) ) {
+        dav_rate_record($ip);
+        sleep $FAIL_DELAY if $FAIL_DELAY;
+        log_event( 'WARN', $user, 'dav auth failed', ip => $ip );
+        return ( undef,
+            send_status( 401,
+                headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
+                body    => "Authentication failed\n" ) );
+    }
+
+    # SM071 Phase 2: a disabled account is denied outright, ahead of the
+    # mechanism gate.
+    if ( disabled_for($user) ) {
+        log_event( 'WARN', $user, 'dav access denied (account disabled)', ip => $ip );
+        return ( undef, send_status( 403, body => "Account disabled\n" ) );
+    }
+
+    # SM071 Phase 2: an expired access token must be rotated/re-exchanged.
+    if ( token_expired($user) ) {
+        log_event( 'WARN', $user, 'dav access denied (credential expired)', ip => $ip );
+        return ( undef,
+            send_status( 401,
+                headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
+                body    => "Credential expired\n" ) );
+    }
+
+    # 4. Mechanism gate - WebDAV must be enabled for this user.
+    unless ( webdav_enabled_for($user) ) {
+        log_event( 'WARN', $user, 'dav access denied (mechanism off)', ip => $ip );
+        return ( undef,
+            send_status( 403, body => "WebDAV not enabled for this account\n" ) );
+    }
+
+    # SM163: record that this machine key was used (throttled), so the Sessions &
+    # Keys view shows it in-use - WebDAV verifies the credential directly here, so
+    # without this a key used only over /dav would read "not used yet".
+    Lazysite::Auth::Settings::touch_credential($user);
+
+    return ( $user, undef );
 }
 
 # ---------------------------------------------------------------------
@@ -490,32 +518,16 @@ sub do_put {
         return send_status( 413, body => "Payload too large\n" );
     }
 
-    my $tmp = "$r->{abs}.tmp.$$";
-    open my $out, '>:raw', $tmp
-        or return _write_failure( 'create the file', $!, $r->{abs} );
-    binmode STDIN;
-    my $written = 0;
-    my $buf;
-    my $remaining = ( defined $clen && $clen =~ /^\d+$/ ) ? $clen : undef;
-    while (1) {
-        my $want = $PUT_CHUNK;
-        $want = $remaining if defined $remaining && $remaining < $want;
-        last if defined $remaining && $remaining <= 0;
-        my $n = read( STDIN, $buf, $want );
-        last unless $n;
-        $written += $n;
-        if ( $written > $max ) {
-            close $out; unlink $tmp;
-            return send_status( 413, body => "Payload too large\n" );
-        }
-        print {$out} $buf;
-        $remaining -= $n if defined $remaining;
-    }
-    unless ( close $out ) {
-        my $e = $!;
-        unlink $tmp;
-        return _write_failure( 'write the file', $e, $r->{abs} );
-    }
+    my $tmp    = "$r->{abs}.tmp.$$";
+    my $stream = _stream_body( $tmp, $max, $clen );
+    my $failed = $stream->{failed} // '';
+    return _write_failure( 'create the file', $stream->{errno}, $r->{abs} )
+        if $failed eq 'create';
+    return send_status( 413, body => "Payload too large\n" )
+        if $failed eq 'toobig';
+    return _write_failure( 'write the file', $stream->{errno}, $r->{abs} )
+        if $failed eq 'write';
+    my $written = $stream->{written};
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
     # + a script-capable content_type) - the same guard the manager/MCP save path
     # applies (Lazysite::Manager::Common::raw_html_page_refusal). The front matter
@@ -539,35 +551,12 @@ sub do_put {
         return _write_failure( 'store the file', $e, $r->{abs} );
     }
 
-    invalidate_cache( $r->{abs} );
-    # SM438: a stale PRIVATE copy of a mirror asset is what redirected updates
-    # into the void (resolve() prefers private, so it would ALSO shadow this
-    # write for every engine read). The mirror is derived output; the stray is
-    # removed, named in the log, and the site heals on its own next publish
-    # instead of needing delete-then-create.
-    if ( $a{rel} =~ m{\Alazysite-assets/} ) {
-        my $stray = Lazysite::Private::private_path( $DOCROOT, $a{rel} );
-        if ( defined $stray && -f $stray && unlink $stray ) {
-            log_event( 'INFO', $a{user}, 'removed stale private copy of mirror asset',
-                path => $a{rel} );
-        }
-    }
-    # SM483: a DAV content write never invalidated the registries at all, so
-    # a page published this way stayed out of the sitemap until the TTL. Same
-    # trigger as the alias map below - .md content changed.
-    if ( $a{rel} =~ /\.md\z/ ) {
-        _invalidate_registries_as( $a{user} );
-    }
-    # SM134: keep the alias-redirect map current for content pages.
-    if ( $a{rel} =~ /\.md\z/ ) {
-        require Lazysite::Aliases;
-        my $body = '';
-        if ( open my $rf, '<:raw', $r->{abs} ) { local $/; $body = <$rf>; close $rf }
-        ( my $arel = $r->{abs} ) =~ s{^\Q$DOCROOT\E/?}{};
-        Lazysite::Aliases::index_page( $DOCROOT, $arel, $body );
-    }
+    _after_put( $a{rel}, $r->{abs}, $a{user} );
     # SM085: a DAV write is a content-history commit with the same actor
     # attribution as the audit trail (instant no-op when git history is off).
+    # It stays in this sub's own body: t/unit/lib/18-git-guarantee.t registers
+    # DAV::do_put as hooked and looks for the call HERE, so a write verb that
+    # delegates its commit is indistinguishable from one that forgot it.
     require Lazysite::Git;
     Lazysite::Git::commit_paths( $DOCROOT, $a{user},
         ( $exists ? "edit $a{rel}" : "create $a{rel}" ), $a{rel} );
@@ -575,6 +564,85 @@ sub do_put {
         path   => $a{rel}, bytes => $written,
         status => ( $exists ? 204 : 201 ) );
     send_status( $exists ? 204 : 201 );
+}
+
+# FD-12: PUT's body stream. Opens the temp file, copies at most $max bytes
+# from STDIN and closes it - the guard order above it is what do_put is
+# about, and it now reads on one screen.
+#
+# Returns a hashref: { written => $n } once the bytes are on disk, or
+# { failed => 'create'|'write'|'toobig', errno => $! } for the three
+# outcomes do_put already answered separately. The temp file is removed
+# on every failure here, exactly as before.
+sub _stream_body {
+    my ( $tmp, $max, $clen ) = @_;
+    open my $out, '>:raw', $tmp
+        or return { failed => 'create', errno => $! };
+    binmode STDIN;
+    my $written = 0;
+    my $buf;
+    my $remaining = ( defined $clen && $clen =~ /^\d+$/ ) ? $clen : undef;
+    while (1) {
+        my $want = $PUT_CHUNK;
+        $want = $remaining if defined $remaining && $remaining < $want;
+        last if defined $remaining && $remaining <= 0;
+        my $n = read( STDIN, $buf, $want );
+        last unless $n;
+        $written += $n;
+        if ( $written > $max ) {
+            close $out; unlink $tmp;
+            return { failed => 'toobig' };
+        }
+        print {$out} $buf;
+        $remaining -= $n if defined $remaining;
+    }
+    unless ( close $out ) {
+        my $e = $!;
+        unlink $tmp;
+        return { failed => 'write', errno => $e };
+    }
+    return { written => $written };
+}
+
+# FD-12: the housekeeping a completed PUT owes the rest of the site, in the
+# order do_put ran it: the render cache, the SM438 stray private mirror
+# copy, the SM483 registries and the SM134 alias map. Nothing here can
+# refuse the write - it has already happened - so none of it returns a
+# status.
+#
+# The SM085 history commit is deliberately NOT here; it stays in do_put,
+# where t/unit/lib/18-git-guarantee.t's write-path registry can see it.
+sub _after_put {
+    my ( $rel, $abs, $user ) = @_;
+
+    invalidate_cache($abs);
+    # SM438: a stale PRIVATE copy of a mirror asset is what redirected updates
+    # into the void (resolve() prefers private, so it would ALSO shadow this
+    # write for every engine read). The mirror is derived output; the stray is
+    # removed, named in the log, and the site heals on its own next publish
+    # instead of needing delete-then-create.
+    if ( $rel =~ m{\Alazysite-assets/} ) {
+        my $stray = Lazysite::Private::private_path( $DOCROOT, $rel );
+        if ( defined $stray && -f $stray && unlink $stray ) {
+            log_event( 'INFO', $user, 'removed stale private copy of mirror asset',
+                path => $rel );
+        }
+    }
+    # SM483: a DAV content write never invalidated the registries at all, so
+    # a page published this way stayed out of the sitemap until the TTL. Same
+    # trigger as the alias map below - .md content changed.
+    if ( $rel =~ /\.md\z/ ) {
+        _invalidate_registries_as($user);
+    }
+    # SM134: keep the alias-redirect map current for content pages.
+    if ( $rel =~ /\.md\z/ ) {
+        require Lazysite::Aliases;
+        my $body = '';
+        if ( open my $rf, '<:raw', $abs ) { local $/; $body = <$rf>; close $rf }
+        ( my $arel = $abs ) =~ s{^\Q$DOCROOT\E/?}{};
+        Lazysite::Aliases::index_page( $DOCROOT, $arel, $body );
+    }
+    return;
 }
 
 sub do_mkcol {
@@ -750,6 +818,58 @@ sub _sync_acl_store {
     return @warnings;
 }
 
+# FD-11: remove one entry, whichever kind it is, and say whether it went.
+# do_copy_move wrote this out three times - clearing an existing
+# destination, removing a MOVE's source, and rolling a failed MOVE's copy
+# back - with the same two branches each time.
+#
+# The answers are the ones the original returned: `!-e` for a collection
+# (SM284 - the removal decides a MOVE's outcome, so it is checked rather
+# than performed for effect) and unlink's own count for a file.
+#
+# do_delete keeps its own pair: it passes remove_tree an `error` collector,
+# which changes what remove_tree does when a removal fails, so it is not
+# the same call.
+sub _remove_entry {
+    my ($abs) = @_;
+    if ( -d $abs ) {
+        remove_tree( $abs, { safe => 1 } );
+        return !-e $abs;
+    }
+    return unlink $abs;
+}
+
+# FD-11: MOVE's byte mover - rename where the filesystem allows it, and a
+# copy-then-remove across devices otherwise. Returns whether the move
+# completed, which is what the SM284 message below depends on.
+sub _move_bytes {
+    my ( $src, $dst ) = @_;
+
+    my $ok = rename( $src, $dst );
+    return $ok if $ok;
+
+    # cross-device: copy then remove
+    $ok = copy_tree( $src, $dst );
+    return $ok unless $ok;
+
+    # SM284: the removal decides the outcome too. It was performed
+    # for effect and never checked, so a MOVE out of an unwritable
+    # directory copied the entry, failed to remove the original, and
+    # answered 201 - a MOVE silently downgraded to a COPY, with both
+    # copies live and the client told it had moved. Found while
+    # building the source-side failure case, which could not fire
+    # until this did.
+    $ok = _remove_entry($src);
+
+    # Roll the copy back, so a failed MOVE leaves no entry the
+    # caller never asked to create. Reporting the failure while
+    # leaving the copy in place would be the same defect one step
+    # further on: the client is told nothing happened, and a second
+    # file exists.
+    _remove_entry($dst) unless $ok;
+    return $ok;
+}
+
 sub do_copy_move {
     my (%a)  = @_;
     my $move = $a{move};
@@ -784,42 +904,11 @@ sub do_copy_move {
         return send_status( $code, body => "Source locked\n" );
     }
 
-    if ($dst_exists) {
-        if ( -d $dst->{abs} ) { remove_tree( $dst->{abs}, { safe => 1 } ) }
-        else                  { unlink $dst->{abs} }
-    }
+    _remove_entry( $dst->{abs} ) if $dst_exists;
 
     my $ok;
     if ($move) {
-        $ok = rename( $src->{abs}, $dst->{abs} );
-        if ( !$ok ) {    # cross-device: copy then remove
-            $ok = copy_tree( $src->{abs}, $dst->{abs} );
-            if ($ok) {
-                # SM284: the removal decides the outcome too. It was performed
-                # for effect and never checked, so a MOVE out of an unwritable
-                # directory copied the entry, failed to remove the original, and
-                # answered 201 - a MOVE silently downgraded to a COPY, with both
-                # copies live and the client told it had moved. Found while
-                # building the source-side failure case, which could not fire
-                # until this did.
-                if ( -d $src->{abs} ) {
-                    remove_tree( $src->{abs}, { safe => 1 } );
-                    $ok = !-e $src->{abs};
-                }
-                else { $ok = unlink $src->{abs} }
-                # Roll the copy back, so a failed MOVE leaves no entry the
-                # caller never asked to create. Reporting the failure while
-                # leaving the copy in place would be the same defect one step
-                # further on: the client is told nothing happened, and a second
-                # file exists.
-                unless ($ok) {
-                    if ( -d $dst->{abs} ) {
-                        remove_tree( $dst->{abs}, { safe => 1 } );
-                    }
-                    else { unlink $dst->{abs} }
-                }
-            }
-        }
+        $ok = _move_bytes( $src->{abs}, $dst->{abs} );
         remove_lock( $a{rel} ) if $ok;
     }
     else {
