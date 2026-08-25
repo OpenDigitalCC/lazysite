@@ -188,18 +188,19 @@ sub send_401 {
     # or refresh) | token-invalid (an OAuth token we do not recognise - revoked, or
     # the site secret was rotated).
     my $hdr = $ENV{HTTP_AUTHORIZATION} || $ENV{REDIRECT_HTTP_AUTHORIZATION} || '';
+    my ($tok) = $hdr =~ /^Bearer\s+(\S+)/;
     my ( $reason, $msg );
-    if ( $hdr !~ /^Bearer\s+(\S+)/ ) {
+    if ( !defined $tok ) {
         $reason = 'sign-in-incomplete';
         $msg    = 'Connector sign-in incomplete - finish authorising the connector '
             . "(paste the operator's one-time connect code at the sign-in prompt) before "
             . 'calling tools. This is not a missing header you can fix in the prompt.';
     }
-    elsif ( index( $1, ':' ) >= 0 ) { # static user:token bearer (Code / Desktop / a script)
+    elsif ( index( $tok, ':' ) >= 0 ) { # static user:token bearer (Code / Desktop / a script)
         $reason = 'credential-invalid';
         $msg = 'Credential did not verify (expired or revoked) - reissue the token / reconnect.';
     }
-    elsif ( Lazysite::Auth::OAuth::token_status($1) eq 'expired' ) {
+    elsif ( Lazysite::Auth::OAuth::token_status($tok) eq 'expired' ) {
         $reason = 'token-expired';
         $msg    = 'The connector access token has EXPIRED - reconnect, or let the client '
             . 'refresh it (the OAuth session is short-lived).';
@@ -260,7 +261,6 @@ sub _stats_tool {
 # log, log path, filesystem path, or visitor IP.
 sub _stats_export {
     my ($opt) = @_;
-    $opt = { window => $opt } unless ref $opt eq 'HASH';    # back-compat: scalar window
     my $tool = _stats_tool()
         or return { ok => 0, error => 'stats plugin not found' };
     my $window = ( defined $opt->{window} && $opt->{window} =~ /^\d+$/ ) ? $opt->{window} : 30;
@@ -339,11 +339,11 @@ sub setup_context {
     $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
     $Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Manager::Themes::auth_user    = $user;
+    $Lazysite::Manager::Themes::action       = 'mcp';
     # SM318: the shared nav implementation, same context as every other module.
     $Lazysite::Manager::Nav::DOCROOT           = $DOCROOT;
     $Lazysite::Manager::Nav::LAZYSITE_DIR      = $LAZYSITE_DIR;
     $Lazysite::Manager::Nav::auth_user         = $user;
-    $Lazysite::Manager::Themes::action         = 'mcp';
     $Lazysite::Manager::Layouts::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
     $Lazysite::Manager::Layouts::auth_user     = $user;
@@ -365,8 +365,28 @@ sub setup_context {
         # was allowed over WebDAV and refused here. Being an operator is still
         # refused above - that is a capability question, and this is not.
     @Lazysite::Auth::Acl::user_groups = Lazysite::Auth::Acl::groups_for_user($user);
-    $Lazysite::Audit::LAZYSITE_DIR    = $LAZYSITE_DIR;
     return;
+}
+
+# --- shared site-tool helpers ---------------------------------------------
+# site_backup and site_apply both resolve a configured domain and then test its
+# content root against the caller's scope union. The two blocks were verbatim
+# copies; only the refusal WORDING differs, so that stays at each call site.
+sub _domain_row {
+    my ($host) = @_;
+    my ($row)  = grep { lc( $_->{host} // '' ) eq $host }
+        @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+    return $row;
+}
+
+# True when the caller carries a scope union AND the target content root sits
+# outside it. An unscoped caller (no dav_scopes) and an empty content root are
+# both "not outside", exactly as the inline tests read.
+sub _croot_outside_scope {
+    my ( $caps, $croot ) = @_;
+    my $scopes = $caps->{dav_scopes};
+    return 0 unless ref $scopes eq 'ARRAY' && @$scopes && length $croot;
+    return Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) ? 1 : 0;
 }
 
 # --- tool registry --------------------------------------------------------
@@ -905,16 +925,10 @@ my %TOOLS = (
             my ( $a, $user, $caps ) = @_;
             my $host = lc( $a->{host} // '' );
             return { ok => 0, error => 'A host is required' } unless length $host;
-            my ($row) = grep { lc( $_->{host} // '' ) eq $host }
-                @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+            my $row = _domain_row($host);
             return { ok => 0, error => "Not a configured domain: $host" } unless $row;
-            my $croot  = $row->{content_root} // '';
-            my $scopes = $caps->{dav_scopes};
-            if ( ref $scopes eq 'ARRAY'
-                && @$scopes
-                && length $croot
-                && Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) )
-            {
+            my $croot = $row->{content_root} // '';
+            if ( _croot_outside_scope( $caps, $croot ) ) {
                 return { ok => 0, error => "You do not have access to the content of $host." };
             }
             local $Lazysite::Manager::SitePackage::auth_user = $user;
@@ -956,19 +970,13 @@ my %TOOLS = (
             # Resolve the target content root + enforce the scope union.
             my $croot = '';
             if ( length $host ) {
-                my ($row) = grep { lc( $_->{host} // '' ) eq $host }
-                    @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+                my $row = _domain_row($host);
                 return { ok => 0, error => "Not a configured domain: $host" } unless $row;
                 $croot = $row->{content_root} // '';
                 return { ok => 0, error => "$host has no content folder of its own" }
                     unless length $croot;
             }
-            my $scopes = $caps->{dav_scopes};
-            if ( ref $scopes eq 'ARRAY'
-                && @$scopes
-                && length $croot
-                && Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) )
-            {
+            if ( _croot_outside_scope( $caps, $croot ) ) {
                 return { ok => 0, error => 'Target is outside your assigned scope.' };
             }
             local $Lazysite::Manager::SitePackage::auth_user = $user;
@@ -1734,11 +1742,24 @@ sub _mcp_search {
 # the path as given is not there. A path that resolves to nothing comes back as
 # it was asked for, so the error names what the caller said rather than
 # something the engine invented.
+# Turn a caller's page path into the relative slug the docroot is keyed on.
+# The callers deliberately differ in HOW FAR they go - only the page verbs strip
+# a `.md` suffix, and only create/rename strip a trailing slash - so the extra
+# steps are named options rather than folded into one chain.
+sub _norm_slug {
+    my ( $path, %opt ) = @_;
+    my $slug = defined $path ? $path : '';
+    $slug =~ s{^/+}{};
+    $slug =~ s{\.\.}{}g  if $opt{dots};
+    $slug =~ s{\.md\z}{} if $opt{md};
+    $slug =~ s{/+\z}{}   if $opt{trail};
+    return $slug;
+}
+
 sub _resolve_page_path {
     my ($path) = @_;
     return $path unless defined $path && length $path;
-    ( my $rel = $path ) =~ s{^/+}{};
-    $rel =~ s{\.\.}{}g;
+    my $rel = _norm_slug( $path, dots => 1 );
     return $path      if -f "$DOCROOT/$rel";
     return "/$rel.md" if $rel !~ /\.md\z/ && -f "$DOCROOT/$rel.md";
     return $path;
@@ -1748,7 +1769,7 @@ sub _page_status {
     my ($path) = @_;
     return { ok => 0, error => 'path required' } unless defined $path && length $path;
     $path = _resolve_page_path($path);    # SM347
-    ( my $rel = $path ) =~ s{^/+}{}; $rel =~ s{\.\.}{}g;
+    my $rel    = _norm_slug( $path, dots => 1 );
     my $full   = "$DOCROOT/$rel";
     my $exists = -f $full;
     my %out    = ( ok => 1, path => "/$rel",
@@ -1762,9 +1783,7 @@ sub _page_status {
         $out{render_pending} =
             ( !$cached || ( $exists && ( stat $html )[9] < ( stat $full )[9] ) )
             ? JSON::PP::true : JSON::PP::false;
-        ( my $slug = $rel ) =~ s/\.md$//;
-        my $host = $ENV{HTTP_HOST} // $ENV{SERVER_NAME} // '';
-        $out{public_url} = length $host ? "https://$host/$slug" : "/$slug";
+        $out{public_url} = _public_url($rel);
     }
     return \%out;
 }
@@ -1850,11 +1869,9 @@ sub _read_page {
     ( my $rel = $path ) =~ s{^/+}{};
     return { ok => 1, path => "/$rel",
         front_matter => _parse_fm($fm), body => $body,
-        has_brief    => (
-            ( -f "$LAZYSITE_DIR/briefs/$rel" || -f "$DOCROOT/$rel.brief" )
-            ? JSON::PP::true
-            : JSON::PP::false
-        ),
+        # SM245 retired the .brief sidecar; the engine-owned store is the
+        # only place a brief lives, as read_brief's own description says.
+        has_brief => ( -f "$LAZYSITE_DIR/briefs/$rel" ? JSON::PP::true : JSON::PP::false ),
         public_url => _public_url($rel), modified => $r->{mtime} };
 }
 
@@ -1882,7 +1899,7 @@ sub _each_page {
                     || Lazysite::Manager::Common::path_is_reserved($drel);
                 next;
             }
-            next unless -f $full && $e =~ /\.md$/ && $e !~ /\.md\.brief$/;
+            next unless -f $full && $e =~ /\.md$/;
             ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{};
             return if ++$n > 1000;
             $cb->( $rel, $full );
@@ -1940,6 +1957,16 @@ sub _validate_theme_json {
     return \@w;
 }
 
+# SM488: a warning's line number counts from the top of the FILE, so a scan
+# over the BODY (which _split_front_matter returns without its --- fences) has
+# to start at the front matter's line count plus the two fences. Written twice
+# with two spellings before SM516.
+sub _fm_line_offset {
+    my ($fm) = @_;
+    return 0 unless length $fm;
+    return ( ( () = $fm =~ /\n/g ) + 1 ) + 2;
+}
+
 sub _validate_page {
     my ( $path, $content, $user ) = @_;
     if ( !defined $content ) {
@@ -1983,7 +2010,7 @@ sub _validate_page {
     # Lines inside ``` code blocks are skipped: a page that DOCUMENTS fences
     # would otherwise trip the check that exists to make fences safe.
     {
-        my $off = length($fm) ? ( ( () = $fm =~ /\n/g ) + 1 ) + 2 : 0;
+        my $off = _fm_line_offset($fm);
         my ( @open, $in_code );
         my $n = 0;
         for my $line ( split /\n/, ( $body // '' ) ) {
@@ -2200,8 +2227,7 @@ sub _validate_page {
     # fences. A warning that points at the wrong line is worse than none: the
     # reader opens line 15, finds a canonical link, and concludes the tool is
     # broken - which is nearly right and completely useless.
-    my $fm_lines = length($fm) ? ( () = $fm =~ /\n/g ) + 1 : 0;
-    my $ln       = length($fm) ? $fm_lines + 2             : 0;    # + the two --- fences
+    my $ln = _fm_line_offset($fm);
     for my $line ( split /\n/, $body ) {
         $ln++;
         push @warnings, { kind => 'public-credential', line => $ln,
@@ -2226,7 +2252,7 @@ sub _validate_page {
         issues => \@issues, warnings => \@warnings };
 }
 
-# --- SM087 Tier 2: whole-site audit ---------------------------------------
+# --- SM238: one presentation key on one configured domain -----------------
 # SM238: bind one presentation key on one configured domain. The MCP surface had
 # NO domain tools at all beyond site_backup/site_apply, while the control API
 # carried the whole domain family under the same manage_domains capability - so an
@@ -2245,6 +2271,7 @@ sub _domain_presentation_set {
     return { %$r, scope => "domain:$host" };
 }
 
+# --- SM087 Tier 2: whole-site audit ---------------------------------------
 sub _audit_site {
     my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages, @starter );
     my %class_used;        # SM358: class name -> the first page that uses it
@@ -2816,11 +2843,6 @@ sub _write_form_conf {
     return { ok => 1, %$result, path => "/lazysite/forms/$form.conf" };
 }
 
-# --- SM087: navigation (read_nav / set_nav) -------------------------------
-# nav.conf format: "Label | /url" per line; an indented line is a child; a line
-# with no "| url" is a section header. Default location lazysite/nav.conf.
-
-
 # --- SM102: agent/connector feedback ------------------------------------------
 # The agent supplies the content (summary/good/bad/rating/context); the server
 # stamps the identity + context (user, method, ip, site, version, capabilities) so
@@ -2845,9 +2867,12 @@ sub _submit_feedback {
     ( my $safe = defined $user ? $user : 'anon' ) =~ s/[^A-Za-z0-9_.-]/_/g;
     my $id = "$stamp-$safe";
 
-    my @caplist = sort grep { $caps->{$_} }
-        qw(webdav manage_content manage_nav manage_forms
-        manage_themes manage_layouts manage_config create_sub_users analytics);
+    # SM516 MC-16: this roster was written by hand and then left behind -
+    # manage_domains, manage_data, read_submissions, feedback, mcp, audit,
+    # notifications and manage_users all arrived after it, so a report from a
+    # partner holding them under-stated what that partner could do. Ask the one
+    # source of truth (Auth::Settings::@CAP_KEYS, via Capabilities) instead.
+    my @caplist = sort grep { $caps->{$_} } Lazysite::Capabilities::capability_keys();
 
     my $report = {
         ts           => $iso,
@@ -2895,7 +2920,7 @@ sub _yaml_scalar {
 sub _create_page {
     my ( $a, $user ) = @_;
     my $slug = $a->{slug} // '';
-    $slug =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md\z}{}; $slug =~ s{/+\z}{};
+    $slug = _norm_slug( $slug, dots => 1, md => 1, trail => 1 );
     return { ok => 0, error => 'slug required' } unless length $slug;
     return { ok => 0, kind => 'exists', error => "page already exists: /$slug (use write_file to overwrite)" }
         if -e "$DOCROOT/$slug.md";
@@ -2935,7 +2960,7 @@ sub _delete_page {
     # SM513: `slug` as before, or `path` in read_page's spelling - two page
     # tools with two identifiers was a mistake every agent made once.
     my $slug = $a->{slug} // $a->{path} // '';
-    $slug =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md\z}{};
+    $slug = _norm_slug( $slug, dots => 1, md => 1 );
     return { ok => 0, error => 'slug or path required - the page to delete, '
             . 'as a slug (about) or a path (/about.md)' }
         unless length $slug;
@@ -2979,7 +3004,7 @@ sub _rewrite_links {
 sub _rename_page {
     my ( $a,   $user ) = @_;
     my ( $old, $new )  = ( $a->{old} // '', $a->{new} // '' );
-    for my $s ( \$old, \$new ) { $$s =~ s{^/+}{}; $$s =~ s{\.\.}{}g; $$s =~ s{\.md\z}{}; $$s =~ s{/+\z}{} }
+    for my $s ( \$old, \$new ) { $$s = _norm_slug( $$s, dots => 1, md => 1, trail => 1 ) }
     return { ok => 0, error => 'old and new required' } unless length $old && length $new;
     my $r = action_move( "/$old.md", "/$new.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
@@ -3335,10 +3360,9 @@ elsif ( $method eq 'tools/call' ) {
     rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
 
     # Introspection tools (whoami, describe_capabilities) stay open to ANY
-    # authenticated session, per the SM072/SM126 contract. Declared here so BOTH
-    # gates below honour it (the SM127 gate previously ran ahead of it and wrongly
-    # refused whoami on a manager-linked account).
-    my %introspection = ( 'whoami' => 1, 'describe_capabilities' => 1 );
+    # authenticated session, per the SM072/SM126 contract. %INTROSPECTION_TOOLS
+    # is the one list; BOTH gates below honour it (the SM127 gate previously ran
+    # ahead of it and wrongly refused whoami on a manager-linked account).
 
     # SM127: manager/UI-remote separation. An account that can ACTUALLY use the
     # interactive manager UI must not drive the site over MCP (a leaked connector
@@ -3348,7 +3372,7 @@ elsif ( $method eq 'tools/call' ) {
     # account - as this message advises - so its connector honours its own mcp/api
     # capabilities regardless of any manager group it also sits in; per the partner
     # contract the token path is capability-based. Introspection is exempt.
-    if ( $caps->{manager_ui} && $caps->{ui} && !$introspection{$name} ) {
+    if ( $caps->{manager_ui} && $caps->{ui} && !$INTROSPECTION_TOOLS{$name} ) {
         my $a = $params->{arguments} || {};
         audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
             'fail', 'mcp', 'denied: interactive manager account on the mcp channel' );
@@ -3365,7 +3389,7 @@ elsif ( $method eq 'tools/call' ) {
     # Introspection tools (whoami, describe_capabilities) stay open to any
     # authenticated session so a capless agent can self-diagnose and learn it
     # lacks the channel, per the SM072 introspection contract.
-    unless ( $caps->{mcp} || $introspection{$name} ) {
+    unless ( $caps->{mcp} || $INTROSPECTION_TOOLS{$name} ) {
         my $a = $params->{arguments} || {};
         audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
             'fail', 'mcp', 'denied: mcp channel capability' );
