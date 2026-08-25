@@ -797,6 +797,18 @@ sub _set_theme_pointer {
     return { ok => 1, theme => $theme_name };
 }
 
+# SM531: what counts as the SOURCE of a <page>.html render - one answer for
+# every cache walk in this module. The processor renders <page>.md and
+# <page>.url alike, so an .html beside either is a generated cache. Four walks
+# once answered this separately and disagreed on .url: the activation sweep
+# dropped its render, the wildcard invalidate kept it, the listing said it had
+# no source, and the single-path branch refused it as not-a-cache. An .html
+# with NEITHER sibling is legacy static content (SM133) and is never a cache.
+sub _cache_source_exists {
+    my ($base) = @_;
+    return ( -f "$base.md" || -f "$base.url" ) ? 1 : 0;
+}
+
 sub _invalidate_html_cache {
     find( sub {
             return unless /\.html$/;
@@ -808,7 +820,7 @@ sub _invalidate_html_cache {
             # source (e.g. an include partial) is content, not cache - never
             # delete it (deleting author partials gutted pages, SM072 report).
             ( my $base = $File::Find::name ) =~ s/\.html$//;
-            unlink $_ if -f "$base.md" || -f "$base.url";
+            unlink $_ if _cache_source_exists($base);
     }, $DOCROOT );
     # SM110: a theme/layout change re-chromes every page of every host -
     # drop the per-alias-host cache tree wholesale too.
@@ -1623,13 +1635,13 @@ sub action_cache_list {
         sub {
             return unless /\.html$/;
             my $rel = $File::Find::name;
-            $rel                            =~ s{^\Q$DOCROOT\E/?}{/};
-            return if $rel                  =~ m{^/lazysite/};
-            ( my $src = $File::Find::name ) =~ s/\.html$/.md/;
+            $rel                             =~ s{^\Q$DOCROOT\E/?}{/};
+            return if $rel                   =~ m{^/lazysite/};
+            ( my $base = $File::Find::name ) =~ s/\.html$//;
             push @cached, {
                 path       => $rel,
                 mtime      => ( stat $_ )[9],
-                has_source => -f $src ? 1 : 0,
+                has_source => _cache_source_exists($base),
             };
         },
         $DOCROOT
@@ -1651,13 +1663,13 @@ sub action_cache_list {
                 my ( $host, $page ) = ( $rel =~ m{\A([^/]+)/(.+)\z} );
                 return unless defined $host && defined $page;
                 my $url = "/$page";    # keep .html, matching the primary entries
-                ( my $src_rel = $page ) =~ s/\.html\z/.md/;
+                ( my $base_rel = $page ) =~ s/\.html\z//;
                 my $croot = _host_content_root($host);
                 push @cached, {
                     path       => $url,
                     host       => $host,
                     mtime      => ( stat $_ )[9],
-                    has_source => -f "$croot/$src_rel" ? 1 : 0,
+                    has_source => _cache_source_exists("$croot/$base_rel"),
                 };
             },
             $hosts_dir
@@ -1694,8 +1706,8 @@ sub action_cache_invalidate {
                 # content (served by the migration fallback), not a render
                 # cache - deleting it would destroy the page. Sweep only
                 # true caches.
-                ( my $src = $File::Find::name ) =~ s/\.html$/.md/;
-                return unless -f $src;
+                ( my $base = $File::Find::name ) =~ s/\.html$//;
+                return unless _cache_source_exists($base);
                 unlink $_;
                 $count++;
             },
@@ -1759,7 +1771,8 @@ sub action_cache_invalidate {
     #
     # Verified against the code before fixing: a .html with no source was
     # unlinked and the response said it had cleared one.
-    ( my $src = $real ) =~ s/\.html\z/.md/;
+    ( my $src_base = $real ) =~ s/\.html\z//;
+    my $has_source = _cache_source_exists($src_base);
 
     # SM367 follow-up, from the field: "no .md sibling" is NOT the same question
     # as "not a render", and the first version of this guard conflated them.
@@ -1794,7 +1807,7 @@ sub action_cache_invalidate {
             if $head =~ /<meta\s+name="generator"\s+content="lazysite/i;
     }
 
-    if ( -f $real && !-f $src && !$is_render ) {
+    if ( -f $real && !$has_source && !$is_render ) {
         return {
             ok    => 0,
             kind  => 'not-a-cache',
@@ -1813,7 +1826,7 @@ sub action_cache_invalidate {
     # could not distinguish cleared, nothing-was-cached, and no-such-path - and
     # that is what made two field misdiagnoses possible, because the success
     # flag did not merely fail to help, it pointed away from itself.
-    if ( !-f $real && !-f $src && !$is_render ) {
+    if ( !-f $real && !$has_source && !$is_render ) {
         return {
             ok    => 0,
             kind  => 'not-found',

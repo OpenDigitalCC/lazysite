@@ -109,6 +109,18 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM531 resolved (PENDING) **a url page is a cache source.** The processor
+  renders <page>.url as it renders <page>.md, but Manager/Themes.pm held
+  four opinions about the .html beside a .url: the activation sweep dropped
+  it, invalidate('*') kept it, the cache listing said has_source: 0, and
+  invalidating it by path refused it as not-a-cache. An operator who
+  cleared everything was served the stale .url page and told it had no
+  source. Found by the themes structural review (N-2), proven by probe.
+  One _cache_source_exists($base) now answers for every walk; an .html
+  with neither sibling is still legacy content and is never touched
+  (SM133). t/unit/manager/100 drives a .md, a .url and an orphan .html
+  through all four walks and pins the single definition.
+
 - SM533 resolved (PENDING) **a layout install cleans up after itself.**
   Manager/Layouts.pm's one temporary-directory cleaner only removed
   /tmp/lazysite-layouts-<pid>, the catalogue actions' directory; the
