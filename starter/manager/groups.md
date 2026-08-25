@@ -30,7 +30,7 @@ the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var allGroups = {};   // {group: {label, manager, caps:{}, members:[]}}
+var allGroups = {};   // {group: {label, manager, assignable, caps:{}, members:[]}}
 var allUsers  = [];   // [username]
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
 
@@ -145,9 +145,16 @@ function groupSummaryInner(g) {
   var inert = (nOn > 0 && members.length === 0)
     ? ' <span class="mg-badge mg-badge-muted" title="This group grants capabilities but has no members, so it applies to no one. Add a member to put its access into effect.">no members</span>'
     : '';
+  // SM576: a backend group exists to aggregate capabilities and other groups -
+  // it is not something to give a person. Said on the summary line so the
+  // distinction is visible without opening the card, which is where an operator
+  // picks a group to put somebody in.
+  var backend = (info.assignable === false)
+    ? ' <span class="mg-badge mg-badge-muted" title="A backend group: it aggregates capabilities and other groups. People are not added to it - they are added to a role that is nested inside it.">backend</span>'
+    : '';
   return '<span class="mg-acc-name">' + ge + '</span>' + recentDot(g) +
     (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
-    inert +
+    backend + inert +
     '<span class="mg-acc-spacer"></span>' +
     '<span class="mg-acc-tags">' +
     nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
@@ -232,6 +239,14 @@ function renderGroups() {
     h += '<div class="mg-line"><label style="min-width:5.5rem">Description</label>'
        + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.description || '') + '" '
        + 'onchange="setDescription(\'' + ge + '\', this.value)" placeholder="what this role is for"></div>';
+    // SM576 part 3: the role/backend decision, offered where the group is
+    // described rather than buried with the capability grid - it is a statement
+    // about what the group IS, not about what it grants.
+    h += '<div class="mg-line"><label style="min-width:5.5rem">Kind</label>'
+       + '<label class="mg-chk"><input type="checkbox"' + (info.assignable === false ? '' : ' checked')
+       + ' onchange="setAssignable(\'' + ge + '\', this.checked)"> Assignable to people'
+       + ' <span style="font-weight:400;color:#888">— unticked, it is a backend group that only aggregates capabilities and other groups</span>'
+       + '</label></div>';
 
     var row = function(c, isChannel) {
       // SM180: a channel that IS granted but whose SITE service is switched off
@@ -267,6 +282,13 @@ function renderGroups() {
     // but no members does nothing. Warn inline, right where the fix is (Members).
     // Always-present container so add/remove-member can refresh it in place.
     h += '<div class="mg-sec">Members</div>';
+    // SM576: name the alternative where the operator is about to be refused,
+    // not after. A backend group takes GROUPS; a person goes in a role.
+    if (info.assignable === false) {
+      h += '<div class="mg-cap-dormant" style="margin:0.25rem 0 0.4rem;">&#9888; '
+         + 'This is a backend group, so people are not added to it directly. '
+         + 'Add a ROLE below (an assignable group) and everyone in that role inherits what this group carries.</div>';
+    }
     h += '<div id="ginert-' + ge + '">' + inertWarnHtml(g) + '</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
     // SM305: a real <select>, not a datalist. The datalist suggested known names
@@ -291,6 +313,18 @@ function renderGroups() {
     h += '</div></details>';
     return h;
   }).join('');
+}
+
+function setAssignable(group, on) {
+  apiCall({ action: 'group-settings-set', group: group, key: 'assignable', value: on ? 'on' : 'off' })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      if (allGroups[group]) allGroups[group].assignable = !!on;
+      refreshGroupSummary(group);
+      renderGroups();
+      showStatus(on ? '@' + group + ' can be given to people.' : '@' + group + ' is now a backend group.');
+    })
+    .catch(function(e) { showStatus('Failed: ' + e.message, true); });
 }
 
 function setDescription(group, value) {

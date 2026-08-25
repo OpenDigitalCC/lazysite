@@ -15,7 +15,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for groups_grant_cap site_grants_manager
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
-    read_group_settings write_group_settings @CAP_KEYS);
+    read_group_settings write_group_settings group_is_assignable @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
 
@@ -237,6 +237,36 @@ sub groups_grant_cap {
 # Confinement, in one place: resolve_user_scopes -> DomainAccess::effective_scopes
 # (the content roots of the domains a user's groups may manage), intersected up
 # the created_by chain so a sub-user can never out-reach its creator.
+
+# SM576 part 3: is this group one to give a PERSON, or a backend group that
+# exists only to aggregate other groups and capabilities?
+#
+# Nesting already works and is already the enforcement path (_group_closure
+# above); the distinction this answers is the one thing that was missing, and
+# it is a distinction about INTENT that no amount of reading the graph can
+# recover - "content-write" and "Site editor" have the same shape.
+#
+# TWO FALLBACKS, both deliberate:
+#
+#   NO RECORD AT ALL. A group that exists only in the membership file holds no
+#   capabilities, so it aggregates nothing and refusing a member would cost an
+#   operator something and protect nobody.
+#
+#   THE FLAG HAS NEVER BEEN SEEN. Until any group in the store carries it, the
+#   store predates the flag and every group in it was assignable - because
+#   that was the only kind there was. The users tool backfills the store the
+#   first time it lists groups, so this fallback is what covers the window
+#   before that write, never a permanent second meaning.
+sub group_is_assignable {
+    my ( $group, $gs ) = @_;
+    $gs ||= read_group_settings();
+    my $cfg = $gs->{$group};
+    return 1 unless ref $cfg eq 'HASH' && %{$cfg};
+    return 1
+        unless grep { ref $gs->{$_} eq 'HASH' && exists $gs->{$_}{assignable} }
+        keys %{$gs};
+    return $cfg->{assignable} ? 1 : 0;
+}
 
 # DA-23: write-temp, lock, rename - once for this file's two JSON stores.
 # Both take secure_write_perms at 0660 (SM289: root must not own an auth

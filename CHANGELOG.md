@@ -51,6 +51,23 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM576 part 3 resolved (PENDING) **a group says whether it is a role or a
+  backend group.** Group-of-group nesting already existed and was already
+  the enforcement path, so composing a role out of capability groups
+  worked; what was missing was any way to tell the two kinds apart, which
+  is why `agent-ai` and `mcp-ai` drifted as capabilities were added around
+  them (SM564). One flag, `assignable`, settles it: flagged, the group is
+  offered when giving a person a role; unflagged, it is a backend group
+  that only aggregates, and adding a PERSON to it is refused while nesting
+  a GROUP still works. The closure is reused untouched. On upgrade the
+  store is backfilled once - while no group carries the flag, every group
+  was assignable, because that was the only kind there was - and a group
+  created by naming it is a role, so an unflagged group is always a
+  deliberate choice. Shown on the manager's Groups page (badge, checkbox,
+  and a Members note naming the alternative) and in `lazysite-users
+  groups`. t/unit/users/34 proves the refusal, the nesting that is still
+  allowed, and the union through `effective_groups`.
+
 - SM576 part 1 resolved (PENDING) **`manage_briefs` - briefs stop riding
   `manage_content`.** SM575 measured one partner agent reading, appending
   to and permanently deleting another agent's authoring brief while

@@ -862,6 +862,28 @@ sub cmd_group_add {
     # user to e.g. user-managers actually confers that group's caps via caps_for.
     _ensure_groups_seeded();
 
+    # SM576 part 3: a backend group is not something you give a PERSON. It
+    # exists to aggregate other groups and capabilities, and the way a person
+    # reaches what it carries is by being put in a ROLE that is nested inside
+    # it - which is `group-nest`, a different verb, deliberately left open.
+    #
+    # This is the whole enforcement point of the flag, and it is here rather
+    # than in the resolver because the resolver answers "what does this account
+    # hold", which must keep working for whatever memberships already exist. A
+    # rule that retroactively revoked access would be a different filing.
+    my $gs = _migrate_group_assignable();
+    unless ( Lazysite::Auth::Settings::group_is_assignable( $group, $gs ) ) {
+        my @roles = sort grep {
+            ref $gs->{$_} eq 'HASH' && $gs->{$_}{assignable}
+        } keys %{$gs};
+        die "'$group' is a BACKEND group: it exists to aggregate capabilities "
+            . "and other groups, not to be given to a person. Put '$user' in a "
+            . "role instead"
+            . ( @roles ? ' (' . join( ', ', @roles ) . ')' : '' )
+            . ", and nest that role in '$group' with: group-nest <role> $group\n"
+            . "To make '$group' itself a role: group-set $group assignable on\n";
+    }
+
     my %users = read_users();
     # exists, not truthiness: a token-only account (empty hash) can still
     # join groups.
@@ -1015,8 +1037,13 @@ sub _ensure_manager_group_caps {
     # @CAP_KEYS alone and never reads grantable - _may_confer is its ONLY
     # consumer - so this grants no ability to use either channel. Asserted in
     # t/unit/users/15, because that is the claim the whole change rests on.
-    $gs->{$group}
-        = { label => $group, manager => 1, %caps, grantable => [ 'api', 'mcp' ] };
+    # SM576 part 3: a manager group is a ROLE - it exists to be given to the
+    # person who runs the site. Flagged here as well as in the seed, because
+    # setup-manager adds the account to the group BEFORE this heals it, and a
+    # manager group that read as a backend group would refuse the first and
+    # only account on a fresh site.
+    $gs->{$group} = { label => $group, manager => 1, assignable => 1, %caps,
+        grantable => [ 'api', 'mcp' ] };
     write_group_settings($gs);
     return;
 }
@@ -1056,9 +1083,15 @@ sub cmd_setup_manager {
             local $AUDIT_SUPPRESS = 1;
             my %users = read_users();
             cmd_add( $user, generate_random_hex(12) ) unless exists $users{$user};
+            # SM576 part 3: heal the manager group BEFORE joining it. The group
+            # has to exist and say it is a role before anyone is put in it.
+            # Seed first: _ensure_manager_group_caps WRITES the group-settings
+            # file, and _ensure_groups_seeded only seeds when that file is
+            # absent - so healing first would cost the site its role groups.
+            _ensure_groups_seeded();
+            _ensure_manager_group_caps($group);
             cmd_group_add( $user, $group );
             _ensure_conf_key( 'manager', 'enabled' );
-            _ensure_manager_group_caps($group);
             $users{$user} = '';    # revoke any credential
             write_users(%users);
             my $all = read_settings();
@@ -1094,9 +1127,12 @@ sub cmd_setup_manager {
         my %users = read_users();
         if ( exists $users{$user} ) { cmd_passwd( $user, $pass ) }
         else                        { cmd_add( $user, $pass ) }
+        # SM576 part 3: as the --link branch above - seed, then heal the manager
+        # group (declaring it a role), then put the account in it.
+        _ensure_groups_seeded();
+        _ensure_manager_group_caps($group);
         cmd_group_add( $user, $group );
         _ensure_conf_key( 'manager', 'enabled' );
-        _ensure_manager_group_caps($group);
     }
     cli_audit( 'setup-manager', $group, "manager account '$user'" );
     cli_audit( 'user-passwd', $user,
@@ -1134,9 +1170,18 @@ sub cmd_group_remove {
 
 sub cmd_groups {
     my %groups = read_groups();
-    if (%groups) {
-        for my $g ( sort keys %groups ) {
-            printf "%-20s %s\n", "$g:", join( ', ', @{ $groups{$g} } );
+    # SM576 part 3: a listing that does not distinguish a role from a backend
+    # group leaves the operator to infer it from the names, which is what the
+    # flag exists to stop. Groups with a settings record but no members appear
+    # too - a backend group with nothing nested in it is a real thing to see.
+    my $gs  = _migrate_group_assignable();
+    my %all = map { $_ => 1 } ( keys %groups, keys %{$gs} );
+    if (%all) {
+        for my $g ( sort keys %all ) {
+            printf "%-20s %-40s %s\n", "$g:",
+                join( ', ', @{ $groups{$g} || [] } ),
+                ( Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
+                ? '' : '[backend]' );
         }
     }
     else {
@@ -2778,6 +2823,10 @@ sub _grant_account_caps {
     # Internal role-group plumbing: the calling command's entry covers it.
     local $AUDIT_SUPPRESS = 1;
     cmd_group_add( $account, "role-$account" );
+    # SM576 part 3: role-<account> is by definition a role - it exists to carry
+    # ONE person's grant. Said explicitly, or the next add to it is refused as
+    # a backend group once it has capabilities.
+    cmd_group_settings_set( "role-$account", 'assignable', 'on' );
     for my $c (@caps) { cmd_group_settings_set( "role-$account", $c, 'on' ); }
     return;
 }
@@ -2941,17 +2990,21 @@ sub write_users {
 
 sub _default_group_seed {
     return {
-        'content-editors' => { label => 'Content editors',
+        # SM576 part 3: the shipped groups ARE roles - they exist to be given
+        # to a person - so each says so. A site that composes backend groups
+        # later leaves them unflagged, and the distinction is visible from the
+        # first day rather than backfilled onto it.
+        'content-editors' => { label => 'Content editors', assignable => 1,
             ui => 1, webdav => 1, manage_content => 1, manage_nav => 1, manage_forms => 1 },
-        'design-team' => { label => 'Layouts & themes',
+        'design-team' => { label => 'Layouts & themes', assignable => 1,
             ui => 1, webdav => 1, manage_themes => 1, manage_layouts => 1 },
-        'agent-ai' => { label => 'Agent AI',
+        'agent-ai' => { label => 'Agent AI', assignable => 1,
             webdav => 1, api => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
             manage_themes => 1, manage_layouts => 1, analytics => 1 },
-        'mcp-ai' => { label => 'MCP AI',
+        'mcp-ai' => { label => 'MCP AI', assignable => 1,
             mcp           => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
             manage_themes => 1, manage_layouts => 1, analytics  => 1 },
-        'user-managers' => { label => 'User managers',
+        'user-managers' => { label => 'User managers', assignable => 1,
             ui               => 1, manage_users               => 1, notifications => 1,
             create_sub_users => 1, delegate_sub_user_creation => 1 },
     };
@@ -2982,7 +3035,8 @@ sub _ensure_groups_seeded {
     for my $g ( _conf_manager_groups() ) {
         $seed->{$g}{manager} = 1;
         $seed->{$g}{label} //= $g;
-        # SM127: manager groups are interactive-only - no remote api/mcp channels.
+        $seed->{$g}{assignable} = 1;    # SM576: a manager group is a role
+            # SM127: manager groups are interactive-only - no remote api/mcp channels.
         $seed->{$g}{$_} = 1 for grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
         # SM467: but they may CONFER those channels - see
         # _ensure_manager_group_caps for why the two are different questions.
@@ -3007,15 +3061,64 @@ sub _migrate_conf_manager_groups {
     my $gs      = Lazysite::Auth::Settings::read_group_settings();
     my $changed = 0;
     for my $g (@conf) {
-        $gs->{$g} ||= { label => $g };
+        $gs->{$g} ||= _new_group_record($g);
         next if $gs->{$g}{manager};    # already a manager group - grant complete
-        $gs->{$g}{manager} = 1;
-        $gs->{$g}{$_}      = 1 for grep { $_ ne q(api) && $_ ne q(mcp) } @CAP_KEYS;
-        $changed           = 1;
+        $gs->{$g}{manager}    = 1;
+        $gs->{$g}{assignable} = 1;     # SM576: a manager group is a role
+        $gs->{$g}{$_}         = 1 for grep { $_ ne q(api) && $_ ne q(mcp) } @CAP_KEYS;
+        $changed              = 1;
     }
     write_group_settings($gs) if $changed;
     _remove_conf_key('manager_groups');
     return;
+}
+
+# SM576 part 3: the one-shot backfill that makes `assignable` safe to ship.
+#
+# Read literally, "an unflagged group is a backend group" would, on upgrade
+# day, turn every group on every existing site into one nobody can be added to
+# - a capability nobody asked for, applied to the entire estate at once. So the
+# first time this release looks at a store where NO group carries the flag, it
+# writes `assignable: true` onto every group, which is what every group was
+# before the distinction existed. The presence of the key anywhere is the
+# marker that the migration has run, so an operator turning the flag OFF stores
+# an explicit false rather than deleting the key - that is what keeps this from
+# firing a second time and undoing their decision.
+#
+# Called from the paths that already read or write the whole group store (the
+# Groups view, a membership add, a group setting change), never from the
+# request-path resolvers - caps_for must not grow a write.
+# SM576 part 3: a fresh group record. A group somebody CREATES by naming it is
+# a role - that is what naming one is for - so the flag is written at creation
+# and never left to be inferred. A backend group is then a deliberate untick,
+# which is the only way "unflagged" ever describes an intention rather than an
+# omission.
+sub _new_group_record {
+    my ($group) = @_;
+    return { label => $group, assignable => 1 };
+}
+
+sub _migrate_group_assignable {
+    my ($gs) = @_;
+    $gs ||= Lazysite::Auth::Settings::read_group_settings();
+    return $gs
+        if grep { ref $gs->{$_} eq 'HASH' && exists $gs->{$_}{assignable} } keys %{$gs};
+    my $touched = 0;
+    for my $g ( keys %{$gs} ) {
+        next unless ref $gs->{$g} eq 'HASH' && %{ $gs->{$g} };
+        $gs->{$g}{assignable} = 1;
+        $touched++;
+    }
+    return $gs unless $touched;
+    write_group_settings($gs);
+    log_event( 'INFO', 'groups', 'assignable backfilled', groups => $touched );
+    return $gs;
+}
+
+sub _has_settings_entry {
+    my ($group) = @_;
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    return ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} } ? 1 : 0;
 }
 
 # Seed-if-absent, then read via the shared module - the SINGLE source of truth
@@ -3211,7 +3314,7 @@ sub cmd_audit_registry {
 # Unified Groups view for the manager UI: every group (from group-settings OR the
 # membership file), with its capabilities, manager flag, label, and members.
 sub _group_settings_view {
-    my $gs      = read_group_settings();
+    my $gs      = _migrate_group_assignable();    # SM576 part 3: one-shot backfill
     my %members = read_groups();
     my %all     = map { $_ => 1 } ( keys %$gs, keys %members );
     my %view;
@@ -3233,8 +3336,16 @@ sub _group_settings_view {
             label       => ( defined $cfg->{label}       ? $cfg->{label}       : $g ),
             description => ( defined $cfg->{description} ? $cfg->{description} : '' ),
             manager     => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
-            caps        => \%caps,
-            members     => ( $members{$g} || [] ),
+            # SM576 part 3: is this a role to give a person, or a backend group
+            # that only aggregates? Resolved through the shared helper so the
+            # page and the gate cannot answer differently.
+            assignable => (
+                Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
+                ? JSON::PP::true()
+                : JSON::PP::false()
+            ),
+            caps    => \%caps,
+            members => ( $members{$g} || [] ),
             # SM155: the domain binding - members are confined to dav_scope
             # (content root) on every channel; home_domain is the UI pointer.
             dav_scope   => ( defined $cfg->{dav_scope}   ? $cfg->{dav_scope}   : '' ),
@@ -3387,7 +3498,7 @@ sub cmd_group_settings_set {
     # Free-text settings (label, description) are stored verbatim (single line).
     if ( defined $key && ( $key eq 'description' || $key eq 'label' ) ) {
         my $gs = read_group_settings();
-        $gs->{$group} ||= { label => $group };
+        $gs->{$group} ||= _new_group_record($group);
         my $v = defined $value ? $value : '';
         $v =~ s/[\r\n]+/ /g;
         $v = substr( $v, 0, 500 ) if length $v > 500;
@@ -3452,7 +3563,7 @@ sub cmd_group_settings_set {
             if defined $actor && length $actor && $actor ne 'local';
 
         my $gs = read_group_settings();
-        $gs->{$group} ||= { label => $group };
+        $gs->{$group} ||= _new_group_record($group);
         my @caps  = grep { length } split /[,\s]+/, ( $value // '' );
         my %known = map  { $_ => 1 } @CAP_KEYS;
         my @bad   = grep { !$known{$_} } @caps;
@@ -3468,6 +3579,28 @@ sub cmd_group_settings_set {
         cli_audit( 'user-group-settings-set', $group,
             'grantable=' . ( @caps ? join( ',', @caps ) : '(cleared)' ) );
         return { ok => 1, grantable => \@caps };
+    }
+
+    # SM576 part 3: `assignable` - may this group be given to a PERSON, or does
+    # it exist only to aggregate? Handled here, before the capability branch,
+    # because it is not a capability: it confers nothing, so the SM195 ceiling
+    # below has nothing to weigh. Turning it on lets a delegate ADD someone to
+    # the group, and cmd_group_add still applies the ceiling to what the group
+    # grants, so this is not a route around it.
+    #
+    # OFF is stored as an explicit false rather than deleted. The presence of
+    # the key anywhere in the store is what tells _migrate_group_assignable
+    # that the flag has been used; deleting it would let the backfill fire
+    # again and silently undo the operator's decision.
+    if ( defined $key && $key eq 'assignable' ) {
+        my $gs = _migrate_group_assignable();
+        $gs->{$group} ||= _new_group_record($group);
+        my $on = ( defined $value && $value =~ /^(?:on|1|true|yes)$/i ) ? 1 : 0;
+        $gs->{$group}{assignable} = $on ? 1 : 0;
+        write_group_settings($gs);
+        log_event( 'INFO', $group, 'group assignable set', assignable => $on );
+        cli_audit( 'user-group-settings-set', $group, "assignable=" . ( $on ? 'on' : 'off' ) );
+        return { ok => 1, assignable => $on ? JSON::PP::true() : JSON::PP::false() };
     }
 
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
@@ -3554,7 +3687,7 @@ sub cmd_group_settings_set {
         }
     }
 
-    $gs->{$group} ||= { label => $group };
+    $gs->{$group} ||= _new_group_record($group);
     # SM496: off writes an EXPLICIT 0 rather than deleting the key. Absent and
     # off used to be the same byte, which is why SM471 could only warn: the
     # store could not tell "this capability did not exist when the group was
@@ -3613,7 +3746,7 @@ sub cmd_group_create {
     my %members = read_groups();
     return { ok => 0, error => "group '$group' already exists" }
         if $gs->{$group} || $members{$group};
-    $gs->{$group} = { label => $group };
+    $gs->{$group} = _new_group_record($group);
     write_group_settings($gs);
     log_event( 'INFO', $group, 'group created' );
     cli_audit( 'user-group-create', $group );
