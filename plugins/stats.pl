@@ -1915,13 +1915,27 @@ sub _apply_event {
     # tally that cannot be undone would make a repair produce a different answer
     # from the ingest it repairs. The raw term is available on the way down as
     # well as the way up, since it rides on the event rather than the bucket.
-    if ( defined $r->{term} && length $r->{term} && !$is_asset ) {
-        my $h = _visitor_token( $r->{term} );
+    #
+    # SM541: a ring replay (the reach-back) carries only the HASH, `term_h` -
+    # the words are never written to the ring. The term for the sq map is then
+    # recovered from sq itself, where it can only be if the floor was reached;
+    # below the floor there is nothing on disk to take it out of.
+    my $term = $r->{term};
+    my $h =
+        defined $term && length $term ? _visitor_token($term)
+        : defined $r->{term_h}        ? $r->{term_h}
+        :                               undef;
+    if ( defined $h && length $h && !$is_asset ) {
         $b->{sq_seen}{$h} += $sign;
         my $n = $b->{sq_seen}{$h} // 0;
-        if   ( $n <= 0 )                  { delete $b->{sq_seen}{$h} }
-        if   ( $n >= $SEARCH_TERM_FLOOR ) { $b->{sq}{ $r->{term} } = $n }
-        else                              { delete $b->{sq}{ $r->{term} } }
+        if     ( $n <= 0 ) { delete $b->{sq_seen}{$h} }
+        unless ( defined $term && length $term ) {
+            ($term) = grep { _visitor_token($_) eq $h } keys %{ $b->{sq} || {} };
+        }
+        if ( defined $term && length $term ) {
+            if ( $n >= $SEARCH_TERM_FLOOR ) { $b->{sq}{$term} = $n }
+            else                            { delete $b->{sq}{$term} }
+        }
     }
 
     $b->{status}{$st} += $sign;
@@ -2440,6 +2454,17 @@ sub _tally_batch {
             pkey => $pk,
             day  => $r->{day},
             ref  => ( $r->{ref} // '' ),
+            # SM541: what the reach-back must be able to UNDO. The device is
+            # carried as counted; a search term is carried as the hash the
+            # tally keys sq_seen by and never as the words - this ring lives
+            # in the export cache on disk, and the SM336 promise is that a
+            # term one visitor typed exists there as twelve hex characters
+            # and nothing else.
+            ( defined $r->{device} ? ( device => $r->{device} ) : () ),
+            ( defined $r->{term} && length $r->{term}
+                ? ( term_h => _visitor_token( $r->{term} ) )
+                : ()
+            ),
         };
         shift @{ $cache->{events} } while @{ $cache->{events} } > $EVENT_CAP;
     }

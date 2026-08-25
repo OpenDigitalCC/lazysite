@@ -437,6 +437,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM541 resolved (PENDING) **a promotion reverses the device.** The event
+  ring stored no device and no search term, so a late scanner promotion
+  reaching back decremented `devices{unknown}` while the original hit had
+  gone to `devices{desktop}`, and a term the visitor had pushed over the
+  floor stayed counted. The ring now carries the device and the term's
+  hash (never the words - the ring is on disk), and the reversal undoes
+  what the hit did. t/unit/plugins/29 promotes a desktop visitor in a
+  second batch and reads zero desktop, zero human and no term.
+
 - SM540 resolved (PENDING) **a handler error is forwarded.** With
   `forward_diagnostics: true` an ERROR from a form submission stayed on
   STDERR: the four plugin copies of log_event (form-handler, form-smtp,
