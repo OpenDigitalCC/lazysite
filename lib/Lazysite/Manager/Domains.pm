@@ -426,7 +426,12 @@ sub domains_for_scopes {
             }
         }
     }
-    return sort keys %host;
+    # Listed, not returned straight from sort: perlcritic is right that a
+    # sort in a return is undefined in scalar context, and this is called in
+    # list context everywhere - which is exactly how that stays true by
+    # accident until it does not.
+    my @hosts = sort keys %host;
+    return @hosts;
 }
 
 sub _owner_for_path {
