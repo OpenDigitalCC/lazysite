@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-# lazysite-audit - link audit for lazysite docroots
+# audit.pl - link audit for lazysite docroots
 # Reports orphaned pages (exist but not linked) and broken links
 #
-# Usage: perl lazysite-audit.pl [options] [docroot]
+# Usage: perl plugins/audit.pl [options] [docroot]
 #
 # Options:
 #   --exclude path,path,...   comma-separated canonical paths to exclude
@@ -15,8 +15,9 @@ use strict;
 use warnings;
 use File::Find;
 use File::Basename qw(dirname basename);
-use File::Path qw(make_path);
-use Cwd qw(abs_path);
+use POSIX          qw(strftime);
+use File::Path     qw(make_path);
+use Cwd            qw(abs_path);
 
 my $LOG_COMPONENT = 'audit';
 
@@ -35,7 +36,7 @@ my %exclude;
 my $DOCROOT;
 my $SCAN_MODE = 0;
 
-while ( @ARGV ) {
+while (@ARGV) {
     my $arg = shift @ARGV;
     if ( $arg eq '--describe' ) {
         print_describe();
@@ -52,8 +53,8 @@ while ( @ARGV ) {
         $exclude{$_} = 1 for split /,/, $list;
     }
     elsif ( $arg eq '--exclude-file' ) {
-        my $file = shift @ARGV or die "Missing value for --exclude-file\n";
-        open( my $fh, '<:utf8', $file ) or die "Cannot read $file: $!\n";  # L-6
+        my $file = shift @ARGV          or die "Missing value for --exclude-file\n";
+        open( my $fh, '<:utf8', $file ) or die "Cannot read $file: $!\n";            # L-6
         while (<$fh>) {
             chomp;
             s/^\s+|\s+$//g;
@@ -77,13 +78,13 @@ $exclude{''}    = 1;
 
 # --- Main ---
 
-log_event('INFO', $DOCROOT, 'audit started');
+log_event( 'INFO', $DOCROOT, 'audit started' );
 
 my $results = collect_audit_results();
 
-log_event('INFO', $DOCROOT, 'audit complete', pages => scalar keys %{ $results->{pages} });
+log_event( 'INFO', $DOCROOT, 'audit complete', pages => scalar keys %{ $results->{pages} } );
 
-if ( $SCAN_MODE ) {
+if ($SCAN_MODE) {
     run_scan($results);
 }
 else {
@@ -99,47 +100,43 @@ sub collect_audit_results {
     my %outbound;
 
     find( sub {
-        return unless -f;
-        return unless /\.(md|url)$/;
-        my $rel = $File::Find::name;
-        $rel =~ s{^\Q$DOCROOT\E/}{};
-        return if $rel =~ m{^lazysite/};
-        return if $rel =~ m{(^|/)\.};
-        my $canon = canonical($rel);
-        $pages{$canon}   = 1;
-        $sources{$canon} = $rel;
-        # .url files are themselves reachable entry points
-        push @{ $inbound{$canon} }, 'url-entrypoint' if /\.url$/;
+            return unless -f;
+            return unless /\.(md|url)$/;
+            my $rel = _rel_of($File::Find::name);
+            return if $rel =~ m{^lazysite/};
+            return if $rel =~ m{(^|/)\.};
+            my $canon = canonical($rel);
+            $pages{$canon}   = 1;
+            $sources{$canon} = $rel;
+            # .url files are themselves reachable entry points
+            push @{ $inbound{$canon} }, 'url-entrypoint' if /\.url$/;
     }, $DOCROOT );
 
     find( sub {
-        return unless -f && /\.md$/;
-        my $rel = $File::Find::name;
-        $rel =~ s{^\Q$DOCROOT\E/}{};
-        return if $rel =~ m{^lazysite/};
-        return if $rel =~ m{(^|/)\.};
-        extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
-        extract_scan_refs( $File::Find::name, $rel, \%inbound );
+            return unless -f && /\.md$/;
+            my $rel = _rel_of($File::Find::name);
+            return if $rel =~ m{^lazysite/};
+            return if $rel =~ m{(^|/)\.};
+            extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
+            extract_scan_refs( $File::Find::name, $rel, \%inbound );
     }, $DOCROOT );
 
     find( sub {
-        return unless -f && /\.url$/;
-        my $rel = $File::Find::name;
-        $rel =~ s{^\Q$DOCROOT\E/}{};
-        return if $rel =~ m{(^|/)\.};
-        ( my $html_path = $File::Find::name ) =~ s/\.url$/.html/;
-        if ( -f $html_path ) {
-            extract_links( $html_path, $rel, \%inbound, \%outbound );
-        }
+            return unless -f && /\.url$/;
+            my $rel = _rel_of($File::Find::name);
+            return if $rel =~ m{(^|/)\.};
+            ( my $html_path = $File::Find::name ) =~ s/\.url$/.html/;
+            if ( -f $html_path ) {
+                extract_links( $html_path, $rel, \%inbound, \%outbound );
+            }
     }, $DOCROOT );
 
     if ( -d "$DOCROOT/lazysite/templates" ) {
         find( sub {
-            return unless -f && /\.tt$/;
-            my $rel = $File::Find::name;
-            $rel =~ s{^\Q$DOCROOT\E/}{};
-            return if $rel =~ m{(^|/)\.};
-            extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
+                return unless -f && /\.tt$/;
+                my $rel = _rel_of($File::Find::name);
+                return if $rel =~ m{(^|/)\.};
+                extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
         }, "$DOCROOT/lazysite/templates" );
     }
 
@@ -185,7 +182,7 @@ sub run_scan {
     my $report_url  = '/manager/audit-report';
 
     write_audit_report( $report_path, $results );
-    log_event('INFO', $DOCROOT, 'report written', path => $report_path);
+    log_event( 'INFO', $DOCROOT, 'report written', path => $report_path );
 
     my $cache = "$report_dir/audit-report.html";
     unlink $cache if -f $cache;
@@ -202,12 +199,12 @@ sub run_scan {
     }
 
     require JSON::PP;
-    print JSON::PP::encode_json({
-        ok         => 1,
-        report_url => $report_url,
-        broken     => scalar @{ $results->{broken} },
-        orphaned   => scalar @{ $results->{orphaned} },
-    });
+    print JSON::PP::encode_json( {
+            ok         => 1,
+            report_url => $report_url,
+            broken     => scalar @{ $results->{broken} },
+            orphaned   => scalar @{ $results->{orphaned} },
+    } );
 }
 
 sub _h {
@@ -223,7 +220,6 @@ sub _h {
 sub write_audit_report {
     my ( $path, $results ) = @_;
 
-    require POSIX;
     my $now     = POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $now_iso = POSIX::strftime( '%Y-%m-%dT%H:%M:%S', localtime );
 
@@ -250,13 +246,13 @@ sub write_audit_report {
     $md .= qq(<div class="mg-card-body">\n\n);
 
     # Summary tiles - same shape as the stats page (mg-stat-tiles).
-    my $b_label = 'Broken link'    . ( $b_count == 1 ? '' : 's' );
-    my $o_label = 'Orphaned page'  . ( $o_count == 1 ? '' : 's' );
+    my $b_label = 'Broken link' .   ( $b_count == 1 ? '' : 's' );
+    my $o_label = 'Orphaned page' . ( $o_count == 1 ? '' : 's' );
     $md .= qq(<div class="mg-stat-tiles">\n);
     $md .= qq(  <div class="mg-stat-tile"><div class="mg-stat-value">$b_count</div>)
-         . qq(<div class="mg-stat-label">$b_label</div></div>\n);
+        . qq(<div class="mg-stat-label">$b_label</div></div>\n);
     $md .= qq(  <div class="mg-stat-tile"><div class="mg-stat-value">$o_count</div>)
-         . qq(<div class="mg-stat-label">$o_label</div></div>\n);
+        . qq(<div class="mg-stat-label">$o_label</div></div>\n);
     $md .= qq(</div>\n\n);
 
     if ( $b_count == 0 && $o_count == 0 ) {
@@ -266,12 +262,12 @@ sub write_audit_report {
     if ( $b_count > 0 ) {
         $md .= qq(<div class="mg-sec">Broken internal links</div>\n);
         $md .= qq(<table class="mg-table">\n)
-             . qq(<thead><tr><th>Page</th><th>Broken link</th><th></th></tr></thead>\n<tbody>\n);
-        for my $item ( @$broken ) {
+            . qq(<thead><tr><th>Page</th><th>Broken link</th><th></th></tr></thead>\n<tbody>\n);
+        for my $item (@$broken) {
             my $page_md = $item->{source};
             $page_md =~ s{^/}{};
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
-            my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
+            my $edit_url = _edit_url($page_md);
 
             # Display text keeps the file path (with .md) so the table reads like
             # what the author sees in the editor; the link target is the live URL.
@@ -282,8 +278,8 @@ sub write_audit_report {
             $page_url = '/' if $page_url eq '';
 
             $md .= qq(<tr><td><a href=") . _h($page_url) . qq(">) . _h($page_md) . qq(</a></td>)
-                 . qq(<td><code>/) . _h( $item->{target} ) . qq(</code></td>)
-                 . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
+                . qq(<td><code>/) . _h( $item->{target} ) . qq(</code></td>)
+                . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
         }
         $md .= qq(</tbody>\n</table>\n\n);
     }
@@ -292,14 +288,14 @@ sub write_audit_report {
         $md .= qq(<div class="mg-sec">Orphaned pages</div>\n);
         $md .= qq(<p class="mg-hint">Pages that exist but are not linked from any other page.</p>\n);
         $md .= qq(<table class="mg-table">\n)
-             . qq(<thead><tr><th>Page</th><th></th></tr></thead>\n<tbody>\n);
-        for my $page ( @$orphaned ) {
+            . qq(<thead><tr><th>Page</th><th></th></tr></thead>\n<tbody>\n);
+        for my $page (@$orphaned) {
             my $page_md = $page;
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
-            my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
+            my $edit_url = _edit_url($page_md);
             # Orphaned $page is already the URL form (canonical); link it to itself.
             $md .= qq(<tr><td><a href="/) . _h($page) . qq(">/) . _h($page) . qq(</a></td>)
-                 . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
+                . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
         }
         $md .= qq(</tbody>\n</table>\n\n);
     }
@@ -316,10 +312,10 @@ sub write_audit_report {
 
 sub print_report {
     my ($results) = @_;
-    my $broken   = $results->{broken};
-    my $orphaned = $results->{orphaned};
-    my $pages    = $results->{pages};
-    my $sources  = $results->{sources};
+    my $broken    = $results->{broken};
+    my $orphaned  = $results->{orphaned};
+    my $pages     = $results->{pages};
+    my $sources   = $results->{sources};
 
     print "lazysite link audit: $DOCROOT\n";
     print "=" x 60 . "\n\n";
@@ -351,27 +347,36 @@ sub print_report {
 
 sub print_describe {
     require JSON::PP;
-    print JSON::PP::encode_json({
-        id          => 'link-audit',
-        name        => 'Link Audit',
-        description => 'Scan for broken internal links and orphaned pages',
-        version     => '1.0',
-        config_file => '',
-        config_schema => [],
-        actions     => [
-            {
-                id          => 'run',
-                label       => 'Run audit',
-                confirm     => 'This will scan all pages and may take a moment on large sites.',
-                endpoint    => 'plugin-action',
-                on_complete => 'open_url',
-                result_key  => 'report_url',
-            }
-        ],
-    });
+    print JSON::PP::encode_json( {
+            id            => 'link-audit',
+            name          => 'Link Audit',
+            description   => 'Scan for broken internal links and orphaned pages',
+            version       => '1.0',
+            config_file   => '',
+            config_schema => [],
+            actions       => [
+                {
+                    id    => 'run',
+                    label => 'Run audit',
+                    confirm => 'This will scan all pages and may take a moment on large sites.',
+                    endpoint    => 'plugin-action',
+                    on_complete => 'open_url',
+                    result_key  => 'report_url',
+                }
+            ],
+    } );
 }
 
 # --- Utilities ---
+
+# A found path, relative to the docroot. The SKIPS deliberately stay with each
+# caller: the .url walk does NOT skip lazysite/ and the others do, which is a
+# real divergence and not this helper's to decide.
+sub _rel_of {
+    my ($abs) = @_;
+    ( my $rel = $abs ) =~ s{^\Q$DOCROOT\E/}{};
+    return $rel;
+}
 
 sub canonical {
     my ($rel) = @_;
@@ -419,7 +424,7 @@ sub extract_links {
         $link =~ s{/$}{};
         next unless length $link;
 
-        push @{ $inbound->{$link} },  $label;
+        push @{ $inbound->{$link} },   $label;
         push @{ $outbound->{$label} }, $link;
     }
 }
@@ -474,8 +479,8 @@ sub resolve_scan_for_audit {
                 for my $entry ( readdir($dh) ) {
                     next if $entry =~ /^\./;
                     my $p = "$dir/$entry";
-                    if ( -d $p )                    { push @queue, $p }
-                    elsif ( $entry =~ $file_re )    { push @files, $p }
+                    if    ( -d $p )              { push @queue, $p }
+                    elsif ( $entry =~ $file_re ) { push @files, $p }
                 }
                 closedir($dh);
             }
@@ -486,10 +491,16 @@ sub resolve_scan_for_audit {
     }
 
     for my $f (@files) {
-        ( my $rel = $f ) =~ s{^\Q$DOCROOT\E/}{};
+        my $rel   = _rel_of($f);
         my $canon = canonical($rel);
         push @{ $inbound->{$canon} }, "scan:$label";
     }
+}
+
+# The manager's edit link for a source file.
+sub _edit_url {
+    my ($page_md) = @_;
+    return '/manager/edit?path=' . uri_encode("/$page_md");
 }
 
 sub uri_encode {
@@ -501,22 +512,21 @@ sub uri_encode {
 # --- Logging ---
 
 sub log_event {
-    my ($level, $context, $message, %extra) = @_;
+    my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
-    use POSIX qw(strftime);
-    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
         my $pairs = join ',',
-            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            map { '"' . _json_str($_) . '":"' . _json_str( $extra{$_} ) . '"' }
             keys %extra;
         my $json = '{"ts":"' . $ts . '"'
-            . ',"level":"'     . _json_str($level)          . '"'
-            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
-            . ',"context":"'   . _json_str($context)        . '"'
-            . ',"message":"'   . _json_str($message)        . '"'
+            . ',"level":"' . _json_str($level) . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT) . '"'
+            . ',"context":"' . _json_str($context) . '"'
+            . ',"message":"' . _json_str($message) . '"'
             . ( $pairs ? ",$pairs" : '' )
             . '}';
         print STDERR "$json\n";
@@ -526,7 +536,7 @@ sub log_event {
         my $extras = join ' ',
             map { "$_=" . $extra{$_} } keys %extra;
         my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
-        $line   .= " $extras" if $extras;
+        $line .= " $extras" if $extras;
         print STDERR "$line\n";
         _forward_diag( $level, $line );
     }

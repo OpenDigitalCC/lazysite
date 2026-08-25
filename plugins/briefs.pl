@@ -56,15 +56,16 @@ sub describe {
 
 sub run {
     my (@argv) = @_;
-    if ( grep { $_ eq '--describe' } @argv ) {
-        print encode_json( describe() );
-        return 0;
-    }
     my %opt;
     for my $i ( 0 .. $#argv ) {
-        $opt{docroot} = $argv[ $i + 1 ] if $argv[$i] eq '--docroot';
-        $opt{action}  = $argv[ $i + 1 ] if $argv[$i] eq '--action';
-        $opt{status}  = 1               if $argv[$i] eq '--scan';
+        $opt{describe} = 1               if $argv[$i] eq '--describe';
+        $opt{docroot}  = $argv[ $i + 1 ] if $argv[$i] eq '--docroot';
+        $opt{action}   = $argv[ $i + 1 ] if $argv[$i] eq '--action';
+        $opt{status}   = 1               if $argv[$i] eq '--scan';
+    }
+    if ( $opt{describe} ) {
+        print encode_json( describe() );
+        return 0;
     }
     my $docroot = $opt{docroot} // $ENV{DOCUMENT_ROOT} // '';
     my $act     = $opt{action}  // ( $opt{status} ? 'status' : '' );

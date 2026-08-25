@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use Digest::SHA qw(hmac_sha256_hex);
 use File::Path  qw(make_path);
+use POSIX       qw(strftime);
 
 my $LOG_COMPONENT = 'payment-demo';
 
@@ -199,7 +200,6 @@ sub log_event {
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
     my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
-    use POSIX qw(strftime);
     my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {

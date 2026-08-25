@@ -98,7 +98,7 @@ sub describe {
         ],
         actions => [
             { id => 'test', label => 'Test connection',     needs => 'remote_url' },
-            { id => 'push', label => 'Push - send changes', run => 'action' },
+            { id => 'push', label => 'Push - send changes', run   => 'action' },
             {
                 id      => 'pull',
                 label   => 'Pull - fetch changes',
@@ -492,15 +492,27 @@ sub do_test {
 }
 
 # PUSH: send the local history to the remote. Refuses cleanly when the remote
+# The four steps both do_push and do_pull take before they touch the network:
+# the gate, the worktree capture, the remote address, and the one sentence that
+# reports a remote we could not record. Returns ( conf, refusal ) - exactly one
+# of them is defined.
+sub _prepare_remote {
+    my ( $docroot, $user )    = @_;
+    my ( $conf,    $refusal ) = _gate($docroot);
+    return ( undef, $refusal ) if $refusal;
+    _capture_worktree( $docroot, $user );
+    _set_remote( $docroot, $conf->{remote_url} )
+        or return ( undef, { ok => 0,
+            error => 'Could not record the remote address. '
+                . 'The server log has the technical detail.' } );
+    return ( $conf, undef );
+}
+
 # is ahead - never forces, never merges here; Pull owns combining.
 sub do_push {
     my ( $docroot, $user )    = @_;
-    my ( $conf,    $refusal ) = _gate($docroot);
+    my ( $conf,    $refusal ) = _prepare_remote( $docroot, $user );
     return $refusal if $refusal;
-    _capture_worktree( $docroot, $user );
-    _set_remote( $docroot, $conf->{remote_url} )
-        or return { ok => 0, error => 'Could not record the remote address. '
-            . 'The server log has the technical detail.' };
 
     my $branch = $conf->{branch};
     my ( $fok, undef, $ferr ) = _net_git( $docroot, $conf, 'fetch', 'origin', $branch );
@@ -551,12 +563,8 @@ sub do_pull {
     $choice = '' unless defined $choice;
     return { ok => 0, error => 'Unknown choice.' }
         if length $choice && $choice ne 'keep_mine' && $choice ne 'take_theirs';
-    my ( $conf, $refusal ) = _gate($docroot);
+    my ( $conf, $refusal ) = _prepare_remote( $docroot, $user );
     return $refusal if $refusal;
-    _capture_worktree( $docroot, $user );
-    _set_remote( $docroot, $conf->{remote_url} )
-        or return { ok => 0, error => 'Could not record the remote address. '
-            . 'The server log has the technical detail.' };
 
     my ( $fok, undef, $ferr ) =
         _net_git( $docroot, $conf, 'fetch', 'origin', $conf->{branch} );

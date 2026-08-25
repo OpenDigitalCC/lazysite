@@ -60,9 +60,20 @@ like( $code, qr/_audit_submission\([^)]*REMOTE_ADDR/,
 # The delivery targets skip _-prefixed keys. Asserted because it is the reason
 # `_auth_user` was harmless, and if it ever stopped being true a future
 # _-prefixed field would start leaking into stored records.
-my @loops = ( $code =~ /for my \$k \( sort keys %\$form \) \{\s*next if \$k =~ [^;]+;/g );
-cmp_ok( scalar @loops, '>=', 3,
-    'the file, SMTP and webhook targets each skip _-prefixed keys' );
+#
+# SM516 PL-3 folded the three verbatim loops into _visible_fields, so the skip
+# is asserted where it now lives and the three targets are asserted to go
+# through it. That is the same property, read once rather than three times -
+# and it closes the gap the old count had, which a fourth target could have
+# satisfied without skipping anything.
+my ($visible) = $code =~ /\nsub _visible_fields \{(.*?)\n\}/s;
+ok( $visible, '_visible_fields is present' );
+like( $visible, qr/for my \$k \( sort keys %\$form \) \{\s*next if \$k =~ [^;]+;/,
+    'and it is the one place the _-prefixed keys are skipped' );
+
+my @users = ( $code =~ /_visible_fields\(\s*\$form\s*\)/g );
+cmp_ok( scalar @users, '>=', 3,
+    'the file, SMTP and webhook targets each build their record through it' );
 
 my $smtp = "$root/plugins/form-smtp.pl";
 SKIP: {

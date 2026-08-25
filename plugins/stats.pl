@@ -193,6 +193,12 @@ sub _flag_on {
 our $SEARCH_TERM_FLOOR = 3;
 our $SEARCH_TERM_TOPN  = 20;
 
+# Paths that are never a PAGE view: the engine's own surfaces. Written twice
+# before SM516 PL-12, and a pattern that drifts between two copies silently
+# counts two different things as a page. Declared HERE, above the dispatch,
+# for the reason the classification patterns are (lint/39).
+my $NOT_A_PAGE_RE = qr{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
+
 my $ASSET_RE = qr{
     \.(?: jpe?g | png | gif | webp | avif | svg | ico | bmp     # images
         | css | js | mjs | map                                  # styles, scripts
@@ -603,7 +609,7 @@ if ( $arg{describe} ) {
 }
 
 if ( $arg{resolve_log} ) {
-    my $log = find_log( read_conf() );
+    my $log = find_log();
     print encode_json( { ok => ( length $log ? JSON::PP::true : JSON::PP::false ),
             configured => ( length $log ? JSON::PP::true : JSON::PP::false ),
             path       => $log } );    # server-internal only; never shown to the page
@@ -725,7 +731,15 @@ if ( defined $arg{action} ) {
     exit 0;
 }
 
-print encode_json( { ok => 0, error => 'usage: --describe | --scan --docroot DIR | --resolve-log --docroot DIR | --classify --path PATH [--ua UA] [--status N] --docroot DIR' } );
+print encode_json( { ok => 0,
+        error => 'usage: --describe | --scan --docroot DIR'
+            . ' | --export [--window N] --docroot DIR'
+            . ' | --index | --day YYYY-MM-DD | --month YYYY-MM --docroot DIR'
+            . ' | --trails SELECTOR --docroot DIR'
+            . ' | --recount [--apply] --docroot DIR'
+            . ' | --action NAME [--choice C] --docroot DIR'
+            . ' | --resolve-log --docroot DIR'
+            . ' | --classify --path PATH [--ua UA] [--status N] --docroot DIR' } );
 exit 0;
 
 sub read_conf {
@@ -761,7 +775,6 @@ sub _site_domain {
 # common locations for a log QUALIFIED BY THIS SITE'S DOMAIN. First readable
 # match wins; '' means "not found" (the page then asks the operator to set it).
 sub find_log {
-    my ($cfg) = @_;
     # Server-owner override set at install time in the web-server environment
     # (Apache SetEnv / FastCGI config). NOT manager-editable - the site manager
     # must never be able to point the log reader at an arbitrary file.
@@ -797,7 +810,6 @@ sub find_log {
 
 # Optional error log for this site, mirroring find_log. '' if not found.
 sub find_error_log {
-    my ($cfg) = @_;
     # Owner-set, install-time only (see find_log) - never manager-editable.
     return $ENV{LAZYSITE_ERROR_LOG}
         if defined $ENV{LAZYSITE_ERROR_LOG} && length $ENV{LAZYSITE_ERROR_LOG};
@@ -908,7 +920,7 @@ sub _split_csv {
 # sources.
 sub _error_surface {
     my ($cfg)  = @_;
-    my $elog   = find_error_log($cfg);
+    my $elog   = find_error_log();
     my %errors = ( available => JSON::PP::false );
     if ( length $elog && -r $elog ) {
         my @recent = _tail_lines( $elog, 1000 );    # bounded to the trailing 64 KB
@@ -1053,13 +1065,6 @@ sub _page_view_from_buckets {
         $byday{$day} = ( $b->{hits} // 0 );
     }
 
-    my $top = sub {
-        my ($h) = @_;
-        my @k = sort { $h->{$b} <=> $h->{$a} || $a cmp $b } keys %$h;
-        @k = @k[ 0 .. ( $top_n - 1 ) ] if @k > $top_n;
-        return [ map { { key => $_, count => $h->{$_} } } @k ];
-    };
-
     # SM330's canonical list, plus the one class that exists only here. Derived
     # rather than written out, so a sixth class cannot be left off this view the
     # way `scanner` was left off the index.
@@ -1078,29 +1083,29 @@ sub _page_view_from_buckets {
         log_configured  => JSON::PP::true,
         errors          => _error_surface($cfg),
         classes         => \%classes,
-        hits            => $hits,                  # human only, as before
-        asset_hits      => $assets,                # SM329
+        hits            => $hits,                      # human only, as before
+        asset_hits      => $assets,                    # SM329
         unique_visitors => scalar keys %vis,
         bytes           => $bytes,
-        top_pages       => $top->( \%pages ),
+        top_pages       => _topn( \%pages, $top_n ),
         referrers       => {
-            external => $top->( \%ref_ext ),
+            external => _topn( \%ref_ext, $top_n ),
             internal => $ref_internal,
             direct   => $ref_direct,
         },
         status   => {%status},
-        devices  => {%devices},                    # SM336 item 6
-        sessions => $sessions,                     # SM363
-        journeys => {                              # SM363
-            entry => $top->( \%entry ),
-            exit  => $top->( \%exit_ ),
+        devices  => {%devices},                        # SM336 item 6
+        sessions => $sessions,                         # SM363
+        journeys => {                                  # SM363
+            entry => _topn( \%entry, $top_n ),
+            exit  => _topn( \%exit_, $top_n ),
             depth => {%depth},
         },
 
         # SM336 item 7: absent on a site that never enabled it, matching the day
         # rollup - an empty list reads as "nobody searched" when the truth is
         # "nobody was asked".
-        ( %terms ? ( search_terms => $top->( \%terms ) ) : () ),
+        ( %terms ? ( search_terms => _topn( \%terms, $top_n ) ) : () ),
 
         per_day => [ map { { day => $_, count => $byday{$_} } } sort keys %byday ],
     };
@@ -1382,6 +1387,51 @@ sub _read_json_file {
     return eval { JSON::PP::decode_json($j) };
 }
 
+# Is a referrer host our own site? Bare host in, www- and case-insensitive,
+# and a suffix match so a subdomain counts as internal. Written once because
+# three readers asked it and a fourth would have written a fourth copy.
+# Month-on-month page views with the delta to the previous month. $basis_set
+# is the index's extra: SM338's warning that a month whose counting basis
+# CHANGED shows a delta that reads like an audience leaving. The export has no
+# basis map and passes none, which is the only difference between the two
+# copies this replaces.
+sub _month_series {
+    my ( $month_pv, $basis_set ) = @_;
+    my @mk = sort keys %{$month_pv};
+    my @out;
+    for my $i ( 0 .. $#mk ) {
+        my $prev = $i > 0 ? $month_pv->{ $mk[ $i - 1 ] } : undef;
+        my %row  = (
+            month           => $mk[$i],
+            pageviews       => $month_pv->{ $mk[$i] },
+            delta_pageviews => ( defined $prev ? ( $month_pv->{ $mk[$i] } - $prev ) : undef ),
+        );
+        $row{counting_basis_mixed} =
+            ( keys %{ $basis_set->{ $mk[$i] } || {} } > 1 ? JSON::PP::true : JSON::PP::false )
+            if $basis_set;
+        push @out, \%row;
+    }
+    return @out;
+}
+
+# Fold one day-bucket's per-form outcomes into a running total (SM216-2).
+sub _forms_fold {
+    my ( $into, $day_forms ) = @_;
+    for my $fn ( keys %{ $day_forms || {} } ) {
+        my $fb = $day_forms->{$fn};
+        $into->{$fn}{stored}      += $fb->{stored}      // 0;
+        $into->{$fn}{quarantined} += $fb->{quarantined} // 0;
+        $into->{$fn}{blocked}{$_} += $fb->{blocked}{$_} for keys %{ $fb->{blocked} || {} };
+    }
+    return;
+}
+
+sub _ref_is_internal {
+    my ( $host, $site_host ) = @_;
+    return 0 unless length $site_host;
+    return ( lc $host eq lc $site_host || $host =~ /\Q$site_host\E$/i ) ? 1 : 0;
+}
+
 # Top-N of a { key => count } hash, descending. NB: never name a lexical $a/$b in
 # this scope - it would shadow sort's package vars.
 sub _topn {
@@ -1501,12 +1551,7 @@ sub _month_rollup {
         $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
-        for my $fn ( keys %{ $b->{forms} || {} } ) {     # SM216-2
-            my $fb = $b->{forms}{$fn};
-            $forms{$fn}{stored}      += $fb->{stored}      // 0;
-            $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
-            $forms{$fn}{blocked}{$_} += $fb->{blocked}{$_} for keys %{ $fb->{blocked} || {} };
-        }
+        _forms_fold( \%forms, $b->{forms} );             # SM216-2
     }
     return {
         month => $mon,
@@ -1631,25 +1676,11 @@ sub _persist_durable {
         $month_pv{$m} += $days->{$day}{hits} // 0;
         $month_basis_set{$m}{$_} = 1 for _basis_of( $days->{$day} );    # SM338
     }
-    my @mk = sort keys %month_pv;
-    my @months_idx;
-    for my $i ( 0 .. $#mk ) {
-        my $prev = $i > 0 ? $month_pv{ $mk[ $i - 1 ] } : undef;
-        push @months_idx, {
-            month           => $mk[$i],
-            pageviews       => $month_pv{ $mk[$i] },
-            delta_pageviews => ( defined $prev ? ( $month_pv{ $mk[$i] } - $prev ) : undef ),
-
-            # SM338: the DELTA is the number that misleads. In the month an
-            # instance upgrades, a fall of a third is the counting changing and
-            # reads exactly like an audience leaving - and this series is the
-            # first thing anybody looks at.
-            counting_basis_mixed =>
-                ( keys %{ $month_basis_set{ $mk[$i] } || {} } > 1
-                ? JSON::PP::true
-                : JSON::PP::false ),
-        };
-    }
+    # SM338: the DELTA is the number that misleads. In the month an instance
+    # upgrades, a fall of a third is the counting changing and reads exactly
+    # like an audience leaving - and this series is the first thing anybody
+    # looks at, so the index carries the basis column the export does not.
+    my @months_idx = _month_series( \%month_pv, \%month_basis_set );
     _write_json_atomic( _stats_dir() . '/index.json', {
             ok        => JSON::PP::true,
             generated => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
@@ -1954,7 +1985,7 @@ sub _apply_event {
 
     if ( $st < 400
         && !$is_asset
-        && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b} )
+        && $r->{path} !~ $NOT_A_PAGE_RE )
     {
         $b->{pages}{ $r->{path} } += $sign;
         delete $b->{pages}{ $r->{path} } if ( $b->{pages}{ $r->{path} } // 0 ) <= 0;
@@ -1964,9 +1995,7 @@ sub _apply_event {
     if    ( !length $ref || $ref eq '-' ) { $b->{ref_direct} += $sign }
     elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
         ( my $rh = $1 ) =~ s/^www\.//i;
-        if ( length $site_host
-            && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
-        {
+        if ( _ref_is_internal( $rh, $site_host ) ) {
             $b->{ref_internal} += $sign;
         }
         elsif ( !_ref_is_spam($rh) ) {
@@ -2031,8 +2060,7 @@ sub _sessionise {
         if ( length( $r->{ref} // '' ) && $r->{ref} ne '-' ) {
             if ( my ($h) = ( $r->{ref} =~ m{^\S+?://([^/\s]+)} ) ) {
                 ( my $bare = $h ) =~ s/^www\.//i;
-                my $internal = length $site_host
-                    && ( lc $bare eq lc $site_host || $bare =~ /\Q$site_host\E$/i );
+                my $internal = _ref_is_internal( $bare, $site_host );
                 $ref_host = $bare if !$internal && !_ref_is_spam($bare);
             }
         }
@@ -2393,7 +2421,7 @@ sub _tally_batch {
             && length $tok
             && ( $r->{status} // 0 ) < 400
             && !_is_asset( $r->{path} )
-            && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b} )
+            && $r->{path} !~ $NOT_A_PAGE_RE )
         {
             # SM417: the SESSION key is per source (token+user-agent), the same
             # separation SM392 gave the promotion key and for the same reason -
@@ -2412,9 +2440,7 @@ sub _tally_batch {
             my ($rh) = ( $r->{ref} =~ m{^\S+?://([^/\s]+)} );
             if ( defined $rh ) {
                 ( my $bare = $rh ) =~ s/^www\.//i;
-                if ( length $site_host
-                    && ( lc $bare eq lc $site_host || $bare =~ /\Q$site_host\E$/i ) )
-                {
+                if ( _ref_is_internal( $bare, $site_host ) ) {
                     my ($rp) = ( $r->{ref} =~ m{^\S+?://[^/\s]+([^\s?#]*)} );
                     $rp = '/' unless defined $rp && length $rp;
                     $b->{nf_from}{"$r->{path}>$rp"}++
@@ -2649,7 +2675,7 @@ sub export_stats {
 # second time. Returns { ok_to_assemble => 1 } or a caller-facing error hash.
 sub _export_ingest_server_log {
     my ( $cfg, $cache ) = @_;
-    my $log = find_log($cfg);
+    my $log = find_log();
 
     # SM335: TWO refusals, not one. The manager Stats page distinguished these
     # and the export did not, and collapsing them when the readers were unified
@@ -2697,8 +2723,6 @@ sub _export_ingest_server_log {
     my $want_terms  = _flag_on( $cfg->{search_terms} );
     my $extra_noise = _split_csv( $cfg->{noise_paths} );
     my $site_host   = _site_domain();
-    my $EVENT_CAP   = 5000;
-    my $IP_CAP      = 50000;
 
     my $offset = $cache->{offset} // 0;
     if ( $size > $offset && open my $fh, '<', $log ) {
@@ -2910,12 +2934,7 @@ sub _export_assemble {
     for my $day ( sort keys %{ $cache->{days} } ) {
         next if $day lt $from_day;
         my $b = $cache->{days}{$day};
-        for my $fn ( keys %{ $b->{forms} || {} } ) {    # SM216-2
-            my $fb = $b->{forms}{$fn};
-            $forms{$fn}{stored}      += $fb->{stored}      // 0;
-            $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
-            $forms{$fn}{blocked}{$_} += $fb->{blocked}{$_} for keys %{ $fb->{blocked} || {} };
-        }
+        _forms_fold( \%forms, $b->{forms} );    # SM216-2
         $cls{$_} += $b->{cls}{$_} for keys %{ $b->{cls} };
         $uips{$_} = 1 for keys %{ $b->{ips} };
 
@@ -2933,14 +2952,8 @@ sub _export_assemble {
         $ref_internal += $b->{ref_internal} // 0;
         $ref_direct   += $b->{ref_direct}   // 0;
         $nf_junk      += $b->{nf_junk}      // 0;
-        push @by_day, {
-            date    => $day,
-            human   => ( $b->{cls}{human}   // 0 ),
-            ai      => ( $b->{cls}{ai}      // 0 ),
-            bot     => ( $b->{cls}{bot}     // 0 ),
-            noise   => ( $b->{cls}{noise}   // 0 ),
-            scanner => ( $b->{cls}{scanner} // 0 ),
-        };
+        push @by_day,    # SM330: derived, so a sixth class cannot be left off
+            { date => $day, map { $_ => ( $b->{cls}{$_} // 0 ) } @CLASSES };
     }
 
     my $total_cls = 0;
@@ -2954,12 +2967,6 @@ sub _export_assemble {
         };
     }
 
-    my $top = sub {
-        my ( $h, $n ) = @_;
-        my @k = sort { $h->{$b} <=> $h->{$a} || $a cmp $b } keys %$h;
-        @k = @k[ 0 .. $n - 1 ] if @k > $n;
-        return [ map { { key => $_, count => $h->{$_} } } @k ];
-    };
     my $top_n = ( $cfg->{top_n} || 15 ) + 0;
     # SM340: an EXPLICIT projection, not the ring passed through. The ring is
     # internal working state and now carries fields the reconciliation below
@@ -2985,16 +2992,7 @@ sub _export_assemble {
         my ($m) = $day =~ /^(\d{4}-\d{2})/;
         $month_pv{$m} += $cache->{days}{$day}{hits} // 0 if defined $m;
     }
-    my @mk = sort keys %month_pv;
-    my @months;
-    for my $i ( 0 .. $#mk ) {
-        my $prev = $i > 0 ? $month_pv{ $mk[ $i - 1 ] } : undef;
-        push @months, {
-            month           => $mk[$i],
-            pageviews       => $month_pv{ $mk[$i] },
-            delta_pageviews => ( defined $prev ? ( $month_pv{ $mk[$i] } - $prev ) : undef ),
-        };
-    }
+    my @months = _month_series( \%month_pv );
     my ( $ev_from, $ev_to );
     for my $e ( @{ $cache->{events} } ) {
         my $t = $e->{t} // next;
@@ -3032,14 +3030,14 @@ sub _export_assemble {
         traffic_classes => \%class_out,
         by_day          => \@by_day,
         months          => \@months,
-        top_pages       => $top->( \%pages, $top_n ),
-        referrers => { direct => $ref_direct, internal => $ref_internal, external => $top->( \%ref_ext, $top_n ) },
+        top_pages       => _topn( \%pages, $top_n ),
+        referrers => { direct => $ref_direct, internal => $ref_internal, external => _topn( \%ref_ext, $top_n ) },
         status_codes => { map { ( $_ => $status{$_} ) } keys %status },
-        devices      => {%devices},                                       # SM336 item 6
-        ( %terms ? ( search_terms => $top->( \%terms, $top_n ) ) : () ),    # SM336 item 7
+        devices      => {%devices},                                        # SM336 item 6
+        ( %terms ? ( search_terms => _topn( \%terms, $top_n ) ) : () ),    # SM336 item 7
         not_found => {
-            plausible  => $top->( \%nf_pl, $top_n ),    # a human hit a missing page
-            junk_count => $nf_junk,                     # scanner-chorus 404s (count only)
+            plausible  => _topn( \%nf_pl, $top_n ),    # a human hit a missing page
+            junk_count => $nf_junk,                    # scanner-chorus 404s (count only)
         },
         # SM223: paths a visitor was TURNED AWAY from, as opposed to paths that
         # were missing. A file appearing here that the operator believes is
@@ -3047,9 +3045,9 @@ sub _export_assemble {
         # now also governing reading - the upgrade risk of extending the read
         # list to the public path, made visible whenever it bites rather than
         # only in the release notes of the version that changed it.
-        auth_refused  => $top->( \%auth_ref, $top_n ),
+        auth_refused  => _topn( \%auth_ref, $top_n ),
         events        => \@events,
-        form_delivery => \@form_delivery,    # SM216-2: blocked vs stored per form
+        form_delivery => \@form_delivery,            # SM216-2: blocked vs stored per form
         sample        => {
             from  => ( defined $ev_from ? _day_str($ev_from) : undef ),
             to    => ( defined $ev_to   ? _day_str($ev_to)   : undef ),

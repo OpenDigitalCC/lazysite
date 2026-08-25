@@ -165,12 +165,7 @@ eval {
     # a rate limit, never anybody a form.
     my $signed_in = eval {
         unless ( $INC{'Lazysite/Auth/Session.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
+            _locate_lib();
         }
         # SM557: the package is require'd at runtime, so this file mentions the
         # variable once by design - t/lint/04 refuses the 'used only once' warning.
@@ -234,7 +229,8 @@ eval {
     _audit_submission( $name, '', $ENV{REMOTE_ADDR} // '' );    # SM402: no verified actor
         # SM216: a quarantined (suspect) submission is stored but does NOT ring the
         # bell - the operator finds it under the Submissions Quarantine filter.
-    _notify_submission($name) unless $form{_quarantined};    # SM113 badge
+    _notify_submission( $name, $conf->{notify_off} )
+        unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
     respond_ok('Thank you - your message has been sent.');
 };
@@ -275,22 +271,66 @@ sub load_handlers {
     return %handlers;
 }
 
-# SM231: is a top-level boolean key in a form's own config explicitly OFF?
-# Absent, unreadable or anything else => 0 (not off), so the caller's default
-# stands. Never rejects, never dies - it is consulted from the notification
-# path, which must not be able to affect a submission.
-sub _form_conf_flag_off {
-    my ( $name, $key ) = @_;
-    return 0 unless defined $name && $name =~ /\A[\w.-]+\z/;
-    open my $fh, '<:utf8', "$FORMS_DIR/$name.conf" or return 0;
+# SM231: is a top-level boolean key explicitly OFF in a form's own config
+# text? Absent, unparseable or anything else => 0 (not off), so the caller's
+# default stands.
+sub _conf_flag_off {
+    my ( $text, $key ) = @_;
     my $off = 0;
-    while ( my $l = <$fh> ) {
+    for my $l ( split /\n/, ( $text // '' ) ) {
         next unless $l =~ /^\Q$key\E\s*:\s*(.+?)\s*$/;
         $off = ( $1 =~ /^(?:0|off|false|no)$/i ) ? 1 : 0;
         last;
     }
-    close $fh;
     return $off;
+}
+
+# The form's delivery targets: handler references if it uses the current
+# format, else the legacy inline type blocks. An empty list is the caller's to
+# reject - this only reads.
+sub _targets_from {
+    my ($text) = @_;
+    my @targets;
+
+    # New format: handler references
+    while ( $text =~ /^\s*-\s+handler:\s*(\S+)/mg ) {
+        push @targets, { handler => $1 };
+    }
+    return @targets if @targets;
+
+    # Legacy format: inline type config
+    while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
+        my ( $type, $block ) = ( $1, $2 );
+        my %t = ( type => $type );
+        $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
+        $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
+        $t{path}   = $1 if $block =~ /^\s*path:\s*(.+)$/m;
+        $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
+        push @targets, \%t;
+    }
+    return @targets;
+}
+
+# Optional binary-upload constraints. Present any of these keys to enable file
+# uploads on the form; absent (undef) = the form accepts no files.
+#   upload_max_kb:    <int>           max size of EACH file, KiB
+#   upload_max_files: <int>           max number of files per submission
+#   upload_accept:    jpg, png, pdf   allowed extensions (also matched loosely
+#                                     against the part's Content-Type)
+sub _upload_rules {
+    my ($text) = @_;
+    return undef unless $text =~ /^\s*upload_(?:max_kb|max_files|accept)\s*:/m;
+    my ($kb)   = $text =~ /^\s*upload_max_kb\s*:\s*(\d+)/m;
+    my ($maxn) = $text =~ /^\s*upload_max_files\s*:\s*(\d+)/m;
+    my ($acc)  = $text =~ /^\s*upload_accept\s*:\s*(.+?)\s*$/m;
+    my @accept = grep { length }
+        map { my $x = lc $_; $x =~ s/^\s+|\s+$//g; $x =~ s/^\.//; $x }
+        split /[,\s|]+/, ( $acc // '' );
+    return {
+        max_kb    => ( $kb   ? $kb + 0   : 5120 ),    # 5 MiB default
+        max_files => ( $maxn ? $maxn + 0 : 5 ),
+        accept    => \@accept,                        # empty = any type
+    };
 }
 
 sub load_form_conf {
@@ -302,48 +342,10 @@ sub load_form_conf {
     my $text = do { local $/; <$fh> };
     close $fh;
 
-    my @targets;
-
-    # New format: handler references
-    while ( $text =~ /^\s*-\s+handler:\s*(\S+)/mg ) {
-        push @targets, { handler => $1 };
-    }
-
-    # Legacy format: inline type config
-    if ( !@targets ) {
-        while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
-            my ( $type, $block ) = ( $1, $2 );
-            my %t = ( type => $type );
-            $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
-            $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
-            $t{path}   = $1 if $block =~ /^\s*path:\s*(.+)$/m;
-            $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
-            push @targets, \%t;
-        }
-    }
-
+    my @targets = _targets_from($text);
     reject("No targets configured for form '$name'") unless @targets;
 
-    # Optional binary-upload constraints. Present any of these keys to enable file
-    # uploads on the form; absent = the form accepts no files.
-    #   upload_max_kb:    <int>           max size of EACH file, KiB
-    #   upload_max_files: <int>           max number of files per submission
-    #   upload_accept:    jpg, png, pdf   allowed extensions (also matched loosely
-    #                                     against the part's Content-Type)
-    my $upload;
-    if ( $text =~ /^\s*upload_(?:max_kb|max_files|accept)\s*:/m ) {
-        my ($kb)   = $text =~ /^\s*upload_max_kb\s*:\s*(\d+)/m;
-        my ($maxn) = $text =~ /^\s*upload_max_files\s*:\s*(\d+)/m;
-        my ($acc)  = $text =~ /^\s*upload_accept\s*:\s*(.+?)\s*$/m;
-        my @accept = grep { length }
-            map { my $x = lc $_; $x =~ s/^\s+|\s+$//g; $x =~ s/^\.//; $x }
-            split /[,\s|]+/, ( $acc // '' );
-        $upload = {
-            max_kb    => ( $kb   ? $kb + 0   : 5120 ),    # 5 MiB default
-            max_files => ( $maxn ? $maxn + 0 : 5 ),
-            accept    => \@accept,                        # empty = any type
-        };
-    }
+    my $upload = _upload_rules($text);
 
     # SM401: per-form submission ceiling, submissions per address per hour.
     # Absent leaves the shipped default of 5; `off` (or 0) removes the limit for
@@ -366,6 +368,7 @@ sub load_form_conf {
     return {
         targets            => \@targets,
         upload             => $upload,
+        notify_off         => _conf_flag_off( $text, 'notify' ),    # SM231
         quarantine         => ( defined $q  ? $q      : 'on' ),
         spam_keywords      => ( defined $kw ? $kw     : '' ),
         spam_url_threshold => ( defined $ut ? $ut + 0 : 2 ),
@@ -497,12 +500,7 @@ sub dispatch_db {
 
     my $ok = eval {
         unless ( $INC{'Lazysite/Data/Tables.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
+            _locate_lib();
         }
         require Lazysite::Data::Tables;
         require Lazysite::Manager::Plugins;
@@ -645,7 +643,7 @@ sub _record_form_event {
 # SM113: raise an operator notification for a new submission. Append-only store
 # the manager reads for its unread badge. Best-effort (never blocks delivery).
 sub _notify_submission {
-    my ($form) = @_;
+    my ( $form, $notify_off ) = @_;
     my $logdir = "$DOCROOT/lazysite/logs";
     return unless -d $logdir;
     ( my $f = defined $form ? "$form" : '' ) =~ s/[\r\n]+/ /g;
@@ -661,11 +659,10 @@ sub _notify_submission {
     # .conf silences that form alone - the other forty-one steps stay quiet
     # while the five that matter still speak. (Site-wide silencing of the whole
     # type is the separate `emit.submission` key in notify.conf.)
-    # Read the one key directly rather than through load_form_conf, which
-    # returns delivery targets and calls reject() on a missing or empty config -
-    # aborting a request from inside a best-effort notification would be a
-    # spectacular way to fail.
-    return if _form_conf_flag_off( $form, 'notify' );
+    # The VALUE is passed in, never re-read here: load_form_conf calls reject()
+    # on a missing or empty config, and aborting a request from inside a
+    # best-effort notification would be a spectacular way to fail.
+    return if $notify_off;
 
     # SM136: prefer the shared notify path (bell + optional XMPP delivery). This
     # plugin ships without `use lib`, so locate the module tree the same way the
@@ -673,12 +670,7 @@ sub _notify_submission {
     # bell-store append below so a submission notice is never lost.
     my $sent = eval {
         unless ( $INC{'Lazysite/Notify.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
+            _locate_lib();
             require Lazysite::Notify;
         }
         Lazysite::Notify::notify( $DOCROOT, {
@@ -713,11 +705,7 @@ sub dispatch_file {
     my $form_name = $form->{_form} // 'unknown';
     $form_name =~ s/[^a-zA-Z0-9_-]//g;
 
-    my %record;
-    for my $k ( sort keys %$form ) {
-        next if $k =~ /^_/;
-        $record{$k} = $form->{$k};
-    }
+    my %record = _visible_fields($form);
     $record{_submitted} = strftime( '%Y-%m-%dT%H:%M:%S', localtime );
     $record{_ip}        = $ENV{REMOTE_ADDR} // 'unknown';
     $record{_form}      = $form_name;
@@ -825,11 +813,7 @@ sub dispatch_smtp {
         return;
     }
 
-    my %fields;
-    for my $k ( sort keys %$form ) {
-        next if $k =~ /^_/;
-        $fields{$k} = $form->{$k};
-    }
+    my %fields = _visible_fields($form);
 
     my %payload = ( config => $config, form => \%fields );
 
@@ -871,11 +855,7 @@ sub dispatch_webhook {
     my ( $config, $form ) = @_;
     my $url = $config->{url} or return;
 
-    my %fields;
-    for my $k ( sort keys %$form ) {
-        next if $k =~ /^_/;
-        $fields{$k} = $form->{$k};
-    }
+    my %fields = _visible_fields($form);
 
     my $body;
     if ( ( $config->{format} // 'json' ) eq 'slack' ) {
@@ -1073,14 +1053,13 @@ sub check_timestamp {
 # cryptographically (SM411's shared verifier - HMAC, registry, account
 # checks), which no client can mint without the site secret. The identity it
 # yields is used as a boolean for the limiter and recorded nowhere, so the
-# SM402 line holds unchanged. See SM402 for the
-# related finding that the same header is already trusted for ATTRIBUTION here.
+# SM402 line holds unchanged: nothing here is recorded as an actor, and the
+# audit entry a submission writes carries none (t/unit/forms/07 asserts it).
 #
 # An operator setting `rate_limit:` on the one gated form they built is explicit,
 # auditable, and needs no trust decision about a header nobody verified.
 sub check_rate_limit {
     my ( $ip, $limit ) = @_;
-    return unless $ip;
 
     # Absent = 5, the shipped default. 0 or `off` = no limit, for a form whose
     # access is already controlled by something better than an address count.
@@ -1183,7 +1162,6 @@ sub log_event {
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
     my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
-    use POSIX qw(strftime);
     my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
@@ -1221,18 +1199,45 @@ sub _forward_diag {
     my %prio = ( DEBUG => 'debug', INFO => 'info', WARN => 'warning', ERROR => 'err' );
     eval {
         unless ( $INC{'Lazysite/Util.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
+            _locate_lib();
             require Lazysite::Util;
         }
         Lazysite::Util::forward_line( 'diag', $prio{$level} // 'info', $line );
         1;
     };
     return;
+}
+
+# Put the engine's module tree on @INC, if it is findable from here.
+#
+# Four call sites carried this verbatim. It stays a RUNTIME unshift and must
+# never become a `use lib`: this plugin is module-free by design (SM425/SM136),
+# and every caller wraps its require in an eval so that a missing lib costs a
+# member a rate-limit waiver or an operator a bell - never anybody a
+# submission. The SM473 lesson is why it is needed at all: `prove -l` puts
+# lib/ on @INC and a real install does not.
+sub _locate_lib {
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+    return;
+}
+
+# The answers a visitor actually gave. Underscore-prefixed keys are the
+# handler's own bookkeeping (_form, _files, _page, _quarantined) and never
+# belong in a delivered record - which is why _auth_user was harmless when it
+# existed, and why every delivery target skips them the same way.
+sub _visible_fields {
+    my ($form) = @_;
+    my %visible;
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;
+        $visible{$k} = $form->{$k};
+    }
+    return %visible;
 }
 
 sub _json_str {
