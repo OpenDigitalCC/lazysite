@@ -16,7 +16,7 @@ use File::Path qw(make_path);
 use POSIX      qw(strftime);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_cmd);
 
 my $PLUGIN = repo_root() . '/plugins/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
@@ -40,7 +40,9 @@ close $lf;
 
 sub run {
     my (@args) = @_;
-    my $out = qx($^X \Q$PLUGIN\E @args --docroot \Q$d\E 2>/dev/null);
+    # t/lint/40: list form, never a shell string - an argument containing a
+    # space would otherwise re-split and fail every assertion in the file.
+    my $out = TestHelper::run_cmd( $^X, $PLUGIN, @args, '--docroot', $d );
     return decode_json( $out || '{}' );
 }
 
