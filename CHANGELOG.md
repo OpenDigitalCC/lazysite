@@ -44,6 +44,50 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM563 resolved (PENDING) **the four surfaces agree on every operation.**
+  lint 14 compared cookie-vs-token, lint 86 token-vs-registry, lint 23
+  API-vs-MCP; the DAV verb map was compared to nothing. NEW t/lint/87
+  reads, per logical operation, the capability set from all four tables
+  (%COOKIE_CAP, %need, the MCP tool caps, and the capabilities the DAV
+  deny strings themselves name) and fails on any disagreement; deliberate
+  absences are exempted with their reasons, and a channel capability in
+  any column fails on sight - the SM570 shape, structurally refused.
+
+- SM572 resolved (PENDING) **the engine describes its own side effects.**
+  A systematic caller of the control API could not ask whether an
+  action writes, so a read-shaped sweep rebuilt a live table and cleared
+  five roots. actions-list rows and a describe-capabilities `actions`
+  block now carry `mutating` (read from %MUTATING, the POST/CSRF gate,
+  never restated) and `destructive` for the drop/delete/rebuild family.
+  MCP's %ANNOTATE remains the tool-name spelling of the same fact and
+  t/lint/23 keeps the two equal through its twin map - which found four
+  MCP tools (delete_theme, drop_data_table, rebuild_data_table,
+  delete_data_row) with no destructive hint; they carry it now.
+  t/unit/manager/10 proves both directions on both surfaces.
+
+- SM565 resolved (PENDING) **whoami tells a stranger only its own shape.**
+  At the capability floor, whoami disclosed every manager group name,
+  every plugin with its configuration schema and the full theme
+  inventory. Each is now returned only to a caller holding a capability
+  that governs it: manager_groups to manage_users, plugin config schemas
+  to manage_config, themes to manage_themes or manage_layouts. The
+  caller's own capabilities, reachability and scope denies are
+  unchanged. t/unit/manager/10 pins the floor and each governing grant.
+
+- SM554 resolved (PENDING) **a posted read is not audited.** POST
+  action=notices and POST action=layouts-manifest each wrote an ok audit
+  row with target "/" - the only live read-shaped actions missing from
+  the audit skip list. Both are now skipped, so the trail records
+  changes, never looks. NEW t/unit/manager/98 pins it with a real write
+  as the control.
+
+- SM553 resolved (PENDING) **the alias spelling keeps the audit target.**
+  theme-activate&theme=sky and layout-activate&layout=grid (the SM261
+  alias spellings) audited target "/" because the alias resolution lived
+  only in the dispatch branch. _audit_implicit_target now names the
+  theme or layout whichever spelling was used. t/unit/manager/56 runs
+  the dispatcher for both spellings and pins the audit target.
+
 - SM564 resolved (PENDING) **a group is judged by its reach, not its record.**
   NEW `Lazysite::Capabilities::reach_for(\%caps)`: the effective callable
   set per channel ({held, unlocked, callable}) from the same `unlocks`
@@ -393,40 +437,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM572 resolved (PENDING) **the engine describes its own side effects.**
-  A systematic caller of the control API could not ask whether an
-  action writes, so a read-shaped sweep rebuilt a live table and cleared
-  five roots. actions-list rows and a describe-capabilities `actions`
-  block now carry `mutating` (read from %MUTATING, the POST/CSRF gate,
-  never restated) and `destructive` for the drop/delete/rebuild family.
-  MCP's %ANNOTATE remains the tool-name spelling of the same fact and
-  t/lint/23 keeps the two equal through its twin map - which found four
-  MCP tools (delete_theme, drop_data_table, rebuild_data_table,
-  delete_data_row) with no destructive hint; they carry it now.
-  t/unit/manager/10 proves both directions on both surfaces.
-
-- SM565 resolved (PENDING) **whoami tells a stranger only its own shape.**
-  At the capability floor, whoami disclosed every manager group name,
-  every plugin with its configuration schema and the full theme
-  inventory. Each is now returned only to a caller holding a capability
-  that governs it: manager_groups to manage_users, plugin config schemas
-  to manage_config, themes to manage_themes or manage_layouts. The
-  caller's own capabilities, reachability and scope denies are
-  unchanged. t/unit/manager/10 pins the floor and each governing grant.
-
-- SM554 resolved (PENDING) **a posted read is not audited.** POST
-  action=notices and POST action=layouts-manifest each wrote an ok audit
-  row with target "/" - the only live read-shaped actions missing from
-  the audit skip list. Both are now skipped, so the trail records
-  changes, never looks. NEW t/unit/manager/98 pins it with a real write
-  as the control.
-
-- SM553 resolved (PENDING) **the alias spelling keeps the audit target.**
-  theme-activate&theme=sky and layout-activate&layout=grid (the SM261
-  alias spellings) audited target "/" because the alias resolution lived
-  only in the dispatch branch. _audit_implicit_target now names the
-  theme or layout whichever spelling was used. t/unit/manager/56 runs
-  the dispatcher for both spellings and pins the audit target.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
