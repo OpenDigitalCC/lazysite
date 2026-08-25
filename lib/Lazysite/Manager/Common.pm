@@ -584,6 +584,18 @@ sub respond {
 
 our $_upload_limits_cache;
 
+# PC-10/SM516: the comma list a conf key carries, as both blocked-path keys
+# parse it - split on commas, drop empties, strip leading and trailing slashes.
+# The blocked_extensions arm is the `lc` variant and keeps its own two lines.
+sub _conf_list {
+    my ($v) = @_;
+    return [
+        map { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
+            grep { length }
+            split /\s*,\s*/, $v
+    ];
+}
+
 sub load_upload_limits {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %limits = (
@@ -628,11 +640,7 @@ sub load_upload_limits {
             my $v = $1;
             $v =~ s/\s+$//;
             if ( length $v ) {
-                $limits{blocked_paths} = [
-                    map { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
-                        grep { length }
-                        split /\s*,\s*/, $v
-                ];
+                $limits{blocked_paths} = _conf_list($v);
             }
             $new_key_seen = 1;
         }
@@ -643,11 +651,7 @@ sub load_upload_limits {
             my $v = $1;
             $v =~ s/\s+$//;
             if ( length $v ) {
-                $limits{_deprecated_blocked_paths} = [
-                    map { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
-                        grep { length }
-                        split /\s*,\s*/, $v
-                ];
+                $limits{_deprecated_blocked_paths} = _conf_list($v);
             }
             $old_key_seen = 1;
         }

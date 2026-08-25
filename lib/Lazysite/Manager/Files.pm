@@ -86,6 +86,22 @@ sub _sibling_dir {
     return length $canon ? "$other/$canon" : $other;
 }
 
+# PC-5/SM516: run $code with Manager::Domains pointed at this docroot.
+#
+# The require / `no warnings 'once'` / `local $Domains::DOCROOT` / eval bracket,
+# written three times (the registry roots, the aliases card, the folder-to-URL
+# prefix). `return eval { ... }` propagates the caller's context, so a site
+# calling in list context still gets one. The eval is the callers' own: a
+# Domains failure has always meant "no domains" here rather than a die, and $@
+# is left set exactly as it was.
+sub _with_domains {
+    my ($code) = @_;
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    return eval { $code->() };
+}
+
 # SM360: the nearest ACL key that governs a path.
 #
 # Longest match wins, walking up: a rule on /docs/private beats one on /docs,
@@ -426,9 +442,7 @@ sub action_save_binary {
 
     my $lock_file = _lock_file( $result->{rel} );    # SM527: canonical key
     my $lrec      = _read_lock_record($lock_file);
-    if ( _lock_fresh($lrec)
-        && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) )
-    {
+    if ( _foreign_live_lock( $lrec, $username ) ) {
         return { ok => 0, locked => 1,
             error => "File is locked by " . ( $lrec->{user} // 'another client' ) };
     }
@@ -531,8 +545,7 @@ sub action_save {
     # hole where a manager save could clobber a WebDAV-locked file.)
     my $lock_file = _lock_file( $result->{rel} );    # SM527: canonical key
     my $lrec      = _read_lock_record($lock_file);
-    if ( _lock_fresh($lrec)
-        && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
+    if ( _foreign_live_lock( $lrec, $username ) ) {
         return {
             ok     => 0,
             locked => 1,
@@ -555,10 +568,7 @@ sub action_save {
 
     # Invalidate cache (only for .md files that have .html cache)
     if ( $full =~ /\.md$/ ) {
-        ( my $cache = $full ) =~ s/\.md$/.html/;
-        unlink $cache if -f $cache;
-        # SM110: drop the per-alias-host copies of this page's render too.
-        unlink_host_copies( $DOCROOT, $cache );
+        _drop_render_cache($full);
         # SM134: keep the alias-redirect map current for this content page.
         # SM528: keyed by validate_path's rel - the URL the page is served
         # under whichever tree holds it. Stripping the docroot from $full gave
@@ -629,10 +639,7 @@ sub action_delete {
 
     unlink $full or return { ok => 0, error => "Cannot delete: $!" };
 
-    ( my $cache = $full ) =~ s/\.md$/.html/;
-    unlink $cache if -f $cache;
-    # SM110: drop the per-alias-host copies of this page's render too.
-    unlink_host_copies( $DOCROOT, $cache ) if $full =~ /\.md$/;
+    _drop_render_cache($full);
 
     # SM134: drop this page's alias-redirect entries. SM528: by the same rel
     # the save indexed them under, so a gated page's rows can be removed.
@@ -731,8 +738,7 @@ sub action_move {
     # Refuse a live foreign lock on the source (mirror action_save).
     my $lock_file = _lock_file( $s->{rel} );         # SM527: canonical key
     my $lrec      = _read_lock_record($lock_file);
-    if ( _lock_fresh($lrec)
-        && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
+    if ( _foreign_live_lock( $lrec, $username ) ) {
         return { ok => 0, locked => 1,
             error => "Source is locked by " . ( $lrec->{user} // 'another user' ) };
     }
@@ -967,10 +973,7 @@ sub action_migrate_to_local {
         save_acls($acls);
     }
 
-    ( my $cache = $md_full ) =~ s/\.md$/.html/;
-    unlink $cache if -f $cache;
-    # SM110: drop the per-alias-host copies of this page's render too.
-    unlink_host_copies( $DOCROOT, $cache );
+    _drop_render_cache($md_full);
 
     # SM134 follow-ups: the fetched body may declare aliases - index the new
     # local page now rather than on its next save (same gap as move/copy).
@@ -991,6 +994,22 @@ sub action_migrate_to_local {
 # Invalidation for the generated registries (sitemap.xml, llms.txt, feed.*) and
 # for the .html render cache. Called by the CRUD actions above and exposed to
 # MCP and the control API through the two public wrappers.
+
+# PC-4/SM516: drop a page's generated render.
+#
+# The .html beside the .md, plus SM110's per-alias-host copies of it. Written
+# three times (save, delete, migrate); this is action_delete's spelling, the
+# general one - the host sweep asks whether the path is a page, the local
+# unlink cannot delete anything else because a non-.md path leaves $cache
+# equal to $full, which the caller has already dealt with.
+sub _drop_render_cache {
+    my ($full) = @_;
+    ( my $cache = $full ) =~ s/\.md$/.html/;
+    unlink $cache if -f $cache;
+    # SM110: drop the per-alias-host copies of this page's render too.
+    unlink_host_copies( $DOCROOT, $cache ) if $full =~ /\.md$/;
+    return;
+}
 
 # SM087: a content create/delete/move changes the page set (or a page's lastmod),
 # so the generated registries (sitemap.xml, llms.txt, feed.*) are now stale.
@@ -1017,10 +1036,7 @@ sub _registry_roots {
 
     # Reuse the domain parser rather than re-reading the conf here - SM255's
     # lesson about one file with several readers applies to parsing too.
-    require Lazysite::Manager::Domains;
-    no warnings 'once';
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my $r = eval { Lazysite::Manager::Domains::domains_list() };
+    my $r = _with_domains( sub { Lazysite::Manager::Domains::domains_list() } );
     return @roots unless ref $r eq 'HASH' && $r->{ok};
 
     for my $d ( @{ $r->{domains} || [] } ) {
@@ -1204,10 +1220,8 @@ sub action_aliases_list {
     # docroot's map - the primary's, and every single-site instance's.
     my $key;
     if ( defined $host && length $host && $host ne '(default)' ) {
-        require Lazysite::Manager::Domains;
-        no warnings 'once';
-        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-        my $rows = eval { Lazysite::Manager::Domains::domains_list() };
+        my $rows
+            = _with_domains( sub { Lazysite::Manager::Domains::domains_list() } );
         for my $d ( @{ ( ref $rows eq 'HASH' ? $rows->{domains} : [] ) || [] } ) {
             next unless lc( $d->{host} // '' ) eq lc $host;
             my $cr = $d->{content_root} // '';
@@ -1257,10 +1271,8 @@ sub _url_prefix_for_folder {
     $folder =~ s{/+$}{};
     return '/' unless length $folder;
 
-    require Lazysite::Manager::Domains;
-    no warnings 'once';
-    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
-    my ($root) = eval { Lazysite::Manager::Domains::content_root_for_path($folder) };
+    my ($root) = _with_domains(
+        sub { Lazysite::Manager::Domains::content_root_for_path($folder) } );
     $root = '' unless defined $root;
 
     if ( length $root ) {
@@ -1315,6 +1327,22 @@ sub _lock_fresh {
     return $age < ( $rec->{timeout} // $LOCK_TIMEOUT ) ? 1 : 0;
 }
 
+# PC-2/SM516: is this lock LIVE and held by somebody else?
+#
+# A WebDAV lock is always foreign - its holder is opaque to the manager, so the
+# manager never overrides one. A manager lock is foreign when another user took
+# it; a user may always take their own lock again. The four write surfaces
+# (save, save-binary, move, acquire) asked this in the same words and now ask it
+# here. The expression is theirs unchanged, `$username` bare on the right, so a
+# caller that passes an undefined username warns exactly where it did before.
+sub _foreign_live_lock {
+    my ( $rec, $username ) = @_;
+    return 0 unless _lock_fresh($rec);
+    return ( $rec->{origin} eq 'dav' || ( $rec->{user} // '' ) ne $username )
+        ? 1
+        : 0;
+}
+
 # SM527: THE LOCK IS KEYED BY THE CANONICAL PATH.
 #
 # The key was minted from the request spelling at seven sites, so a lock taken
@@ -1351,8 +1379,7 @@ sub acquire_lock {
     # A fresh lock blocks if it is held via WebDAV (opaque to the
     # manager) or by a different manager user. The user may refresh
     # their own manager lock.
-    if ( _lock_fresh($rec)
-        && ( $rec->{origin} eq 'dav' || ( $rec->{user} // '' ) ne $username ) ) {
+    if ( _foreign_live_lock( $rec, $username ) ) {
         return {
             ok        => 0,
             locked    => 1,
@@ -1436,9 +1463,9 @@ sub action_acl_get {
                 . "governs the whole site, use \"/\" as the path." };
     }
     if ( $rootish eq 'root' ) {
-        my $acls      = load_acls();
-        my ($present) = grep { exists $acls->{$_} } ( '/', '', '.', './' );
-        my $a         = defined $present ? $acls->{$present} : undef;
+        my $acls    = load_acls();
+        my $present = _present_root_key($acls);
+        my $a       = defined $present ? $acls->{$present} : undef;
         # SM464: reading is the audit half - manage_users (or an operator, or a
         # token grant carrying manage_users) may read ANY rule. Modifying stays
         # owner-only; the split is the point.
@@ -1473,8 +1500,14 @@ sub action_acl_get {
 # store has no glob syntax anywhere else, so accepting '*' would imply a
 # matching language that does not exist, and quietly storing it is how this
 # started - the old behaviour accepted every one of these and gated nothing.
-my %ROOT_SPELLING = map { $_ => 1 } ( '/', '',   '.',  './' );
-my %ROOT_GLOB     = map { $_ => 1 } ( '*', '/*', '**', '/**', './*' );
+#
+# SM516: the ORDER of the four root spellings is part of the answer, not just
+# their membership - the two readers of the store take the FIRST spelling
+# present, so '/' beats '' beats '.' beats './'. The list is stated once and the
+# lookup map built from it, so the set and the order cannot drift apart.
+my @ROOT_SPELLINGS = ( '/', '', '.', './' );
+my %ROOT_SPELLING  = map { $_ => 1 } @ROOT_SPELLINGS;
+my %ROOT_GLOB      = map { $_ => 1 } ( '*', '/*', '**', '/**', './*' );
 
 sub _acl_root_key {
     my ($raw) = @_;
@@ -1483,6 +1516,15 @@ sub _acl_root_key {
     return 'root' if $ROOT_SPELLING{$t};
     return 'glob' if $ROOT_GLOB{$t};
     return '';
+}
+
+# PC-6/SM516: which spelling of the site-wide key this store actually holds,
+# or undef if it holds none. Both root readers ask this; both took the first
+# match, in the order above.
+sub _present_root_key {
+    my ($acls)    = @_;
+    my ($present) = grep { exists $acls->{$_} } @ROOT_SPELLINGS;
+    return $present;
 }
 
 # SM286: does this ACL record keep the PUBLIC out?
@@ -2038,8 +2080,8 @@ sub action_acl_remove {
                 . "governs the whole site, use \"/\" as the path." };
     }
     if ( $rootish eq 'root' ) {
-        my $acls = load_acls();
-        my ($present) = grep { exists $acls->{$_} } ( '/', '', '.', './' );
+        my $acls    = load_acls();
+        my $present = _present_root_key($acls);
         return { ok => 1, path => '/', removed => 0 } unless defined $present;
         my $existing = $acls->{$present};
         unless ( _is_operator()
@@ -2047,7 +2089,7 @@ sub action_acl_remove {
         {
             return { ok => 0, error => "Only the owner may remove permissions" };
         }
-        delete $acls->{$_} for ( '/', '', '.', './' );
+        delete $acls->{$_} for @ROOT_SPELLINGS;
         save_acls($acls)
             or return { ok => 0, error => "Cannot write the ACL store" };
         log_event( 'INFO', 'acl-remove', 'site-wide acl removed',
