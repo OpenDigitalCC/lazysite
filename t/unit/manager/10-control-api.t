@@ -385,6 +385,58 @@ ok( !exists $who2->{themes}, 'SM565: the floor caller is not told the theme inve
 ok( ref $who2->{plugins} eq 'ARRAY'
         && !( grep { exists $_->{config_schema} } @{ $who2->{plugins} } ),
     'SM565: the floor caller sees no plugin config schema' );
+# --- SM589: the floor is not told how the site is installed ----------------
+# SM565 withheld the schemas. What was still returned described the
+# INSTALLATION to a caller holding nothing: _script (where the code lives),
+# config_file (where its configuration lives) and _enabled (what is switched
+# on). None is needed to USE a feature, which is what the inventory is for.
+{
+    my @p = @{ $who2->{plugins} || [] };
+    ok( scalar @p, 'SM589: the floor caller still gets a plugin inventory' );
+    ok( !( grep { exists $_->{_script} } @p ),
+        'SM589: the floor caller is not told where a plugin script lives' );
+    ok( !( grep { exists $_->{config_file} } @p ),
+        'SM589: the floor caller is not told where a plugin keeps its config' );
+    ok( !( grep { exists $_->{_enabled} } @p ),
+        'SM589: the floor caller is not told which plugins are switched on' );
+    ok( ( grep { length( $_->{id} // '' ) } @p ),
+        'SM589: id survives - a partner still learns which features exist' );
+}
+
+# A caller who may configure the site has a reason to know what is enabled.
+uapi( $d, { action => 'add', username => 'ucfg', password => 'x' } );
+grant_caps( $d, 'ucfg', 'manage_config', 'api' );
+my $ctok = uapi( $d, { action => 'token', username => 'ucfg' } )->{token};
+my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'ucfg', $ctok ) );
+{
+    my @p = @{ $cw->{plugins} || [] };
+    ok( ( grep { exists $_->{_enabled} } @p ),
+        'SM589: a manage_config caller IS told which plugins are enabled' );
+    ok( !( grep { exists $_->{_script} } @p ),
+        'SM589: but _script is withheld from everyone - it is an internal path' );
+}
+
+# The capability-holder half: manage_briefs governs the briefs plugin, so its
+# holder is told that plugin's state - and only that one. This is the part that
+# distinguishes the decision from "gate everything on manage_config".
+uapi( $d, { action => 'add', username => 'ubrf', password => 'x' } );
+grant_caps( $d, 'ubrf', 'manage_briefs', 'api' );
+my $btok = uapi( $d, { action => 'token', username => 'ubrf' } )->{token};
+my $bw   = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'ubrf', $btok ) );
+{
+    my @p = @{ $bw->{plugins} || [] };
+    my ($briefs) = grep { ( $_->{id} // '' ) eq 'briefs' } @p;
+    SKIP: {
+        skip 'no briefs plugin in this tree', 2 unless $briefs;
+        ok( exists $briefs->{_enabled},
+            'SM589: a manage_briefs holder is told the briefs plugin state' );
+        ok( !( grep { ( $_->{id} // '' ) ne 'briefs' && exists $_->{_enabled} } @p ),
+            'SM589: and is told nothing about the state of plugins it does not govern' );
+    }
+}
+
 ok( ref $who->{themes} eq 'ARRAY', 'SM565: manage_themes holder sees the theme inventory' );
 ok( !exists $who->{manager_groups},
     'SM565: manage_themes alone does not unlock the manager group names' );

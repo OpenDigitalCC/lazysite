@@ -3181,12 +3181,29 @@ sub action_whoami {
         ( ( $s->{manage_themes} || $s->{manage_layouts} )
             ? ( themes => ( action_theme_list() || {} )->{themes} || [] )
             : () ),
+        # SM589: the inventory says WHICH FEATURES EXIST, which is what a
+        # partner needs before it can use one. It stopped short of saying how
+        # the site is INSTALLED.
+        #
+        # `_script` and `config_file` are internal filesystem paths and are
+        # withheld from every caller here - the Plugin Manager reads them from
+        # `plugin-list`, which is gated separately, so nothing in the UI loses
+        # them. `_enabled` is what is switched on: a caller who may configure
+        # the site has a reason to know, and so does one holding a capability
+        # the plugin itself governs (a manage_briefs holder learning the briefs
+        # plugin is off is being told about its own capability, not about the
+        # site's shape). Everyone else gets id, name, description and version.
         plugins => [
             map {
-                my $p = $_;
-                $s->{manage_config}
-                    ? $p
-                    : { map { $_ => $p->{$_} } grep { !/^config_(?:schema|keys)\z/ } keys %$p }
+                my $p    = $_;
+                my @owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
+                    ? @{ $p->{owns}{capabilities} } : ();
+                my $may_see_state = $s->{manage_config} || ( grep { $s->{$_} } @owns );
+                my %out           = %$p;
+                delete @out{qw(_script config_file)};
+                delete $out{_enabled} unless $may_see_state;
+                delete @out{qw(config_schema config_keys)} unless $s->{manage_config};
+                \%out;
             } @{ ( action_plugin_list() || {} )->{plugins} || [] }
         ],
         # SM072: site-level capabilities from enabled plugins (e.g. email-send).

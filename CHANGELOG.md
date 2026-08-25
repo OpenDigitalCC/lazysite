@@ -56,6 +56,15 @@ Naming the commit: AFTER it lands, never before
   would silently truncate as the header grew. Proven by
   `t/tools/42-the-watcher-can-be-told-what-it-last-deployed.t`, whose control
   is the same tree with no `--baseline`, deploying nothing.
+- SM589 resolved (PENDING) **the floor is not told how the site is installed.**
+  SM565 withheld the plugin config schemas; what was still returned described
+  the INSTALLATION to a caller holding nothing - `_script` and `config_file`
+  (where the code and its configuration live) and `_enabled` (what is switched
+  on). The paths are now withheld from every caller of the control API's
+  `whoami`, and `_enabled` answers a caller holding `manage_config` or a
+  capability the plugin itself governs. `id`, `name`, `description` and
+  `version` stay discoverable, so a partner still learns which features exist.
+
 - SM590 resolved (PENDING) **table delivery is handler-only, in writing.**
   `bind_form` offers an inline `target` for a destination the operator has
   not pre-defined, and `db`/`table` are deliberately not among the types it
