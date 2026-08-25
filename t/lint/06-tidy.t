@@ -20,7 +20,22 @@ my $rc  = $? >> 8;
 
 if ( $out =~ /SKIP/ ) {
     diag($out);
-    ok( 1, 'tidy gate skipped (no perltidy/git or no base tag)' );
+    # SM599: A SKIP IS ONLY ACCEPTABLE WHERE THE TOOL GENUINELY CANNOT RUN -
+    # a release tarball with no git, or a host with no perltidy. Where both
+    # ARE present the tool must examine something, and for a long time it did
+    # not: it tested for a .git DIRECTORY, a linked worktree has a .git FILE,
+    # and every gate runs in a worktree. So this lint passed without looking
+    # at a line, and the first thing to notice was a release build refusing
+    # nine minutes in. A skip that happens where the tool could have run is a
+    # failure now, because the alternative is a gate that cannot fail.
+    my $have_git  = -e "$root/.git";                          # -e: a worktree's is a FILE
+    my $have_tidy = `sh -c 'command -v perltidy' 2>/dev/null`;
+    if ( $have_git && length($have_tidy) ) {
+        fail("the tidy gate skipped in a tree where it could have run: $out");
+    }
+    else {
+        ok( 1, 'tidy gate skipped (no perltidy/git or no base tag)' );
+    }
 }
 else {
     is( $rc, 0, 'all code changed since the last release is perltidy-clean' )

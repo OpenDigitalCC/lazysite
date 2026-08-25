@@ -44,7 +44,15 @@ if (@files) {
     $touched{$_} = {} for grep { is_prod($_) } @files;    # whole-file check
 }
 else {
-    unless ( -d "$root/.git" ) { exit_skip('not a git checkout; pass files explicitly') }
+    # SM599: EITHER, because a LINKED WORKTREE'S .git IS A FILE holding
+    # `gitdir: ...`, not a directory - and every gate this project runs is run
+    # in a worktree. Testing only for the directory meant this tool exited SKIP
+    # with status 0 in every gate, so t/lint/06 passed without examining a
+    # line, and the rule was enforced only in the release build's staging
+    # clone - nine minutes in, at the end. git itself accepts both.
+    unless ( -d "$root/.git" || -f "$root/.git" ) {
+        exit_skip('not a git checkout; pass files explicitly');
+    }
     $base ||= `git -C \Q$root\E describe --tags --abbrev=0 2>/dev/null`;
     chomp $base;
     exit_skip('no base ref (no tags); pass --base') unless length $base;

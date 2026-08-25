@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM599 resolved (PENDING) **the tidy gate can fail again.**
+  `tools/tidy-check.pl` tested for a `.git` DIRECTORY, and a linked
+  worktree's `.git` is a FILE - so in every gate this project runs, which are
+  all run in worktrees, it exited SKIP with status 0 and `t/lint/06` passed
+  without examining a line. The rule was enforced only in the release build's
+  staging clone, which is where 0.10.33 first refused. Both forms are
+  accepted now, as git itself does, and a skip in a tree where the tool
+  *could* have run is a failure rather than a pass - a gate that cannot fail
+  is the reason nobody looked.
+
 - SM573 resolved (PENDING) **a brief states the grant it was issued for.** The
   onboarding brief's capability block was a hand-written list of seven, so an
   account holding seventeen capabilities was described as holding seven - a
