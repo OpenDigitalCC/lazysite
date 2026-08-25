@@ -102,6 +102,30 @@ sub _with_domains {
     return eval { $code->() };
 }
 
+# SM581: Manager::Nav owns the answer to "which paths are a navigation"; this
+# module is the one that has to ask before it writes. Required at RUNTIME and
+# not `use`d: Nav uses Themes, which uses this module, so a compile-time
+# dependency would close the loop. Same bracket as _with_domains, and the eval
+# is the callers' own - an unreadable conf has always meant "the default nav"
+# here rather than a die.
+sub _with_nav {
+    my ($code) = @_;
+    require Lazysite::Manager::Nav;
+    no warnings 'once';
+    local $Lazysite::Manager::Nav::DOCROOT      = $DOCROOT;
+    local $Lazysite::Manager::Nav::LAZYSITE_DIR = _lz();
+    return eval { $code->() };
+}
+
+# SM581: is this docroot-relative path the resolved nav for some configured
+# domain? The cache claim below turns on it, and so does the write refusal.
+sub _is_resolved_nav {
+    my ($rel) = @_;
+    return 0 unless defined $rel && length $rel;
+    my $navs = _with_nav( sub { Lazysite::Manager::Nav::resolved_nav_files() } );
+    return ( ref $navs eq 'HASH' && $navs->{$rel} ) ? 1 : 0;
+}
+
 # SM360: the nearest ACL key that governs a path.
 #
 # Longest match wins, walking up: a rule on /docs/private beats one on /docs,
@@ -532,6 +556,18 @@ sub action_save {
         return { ok => 0, error => $err, kind => 'brief-sidecar-refused' };
     }
 
+    # SM581: a path ending `lazysite/nav.conf` that is not the resolved nav for
+    # any configured domain. It is not blocklisted (the blocklist keys on a
+    # LEADING `lazysite/`), so it used to land as ordinary content and report
+    # created:1 with a full cache rebuild - a success indistinguishable from the
+    # write that would have worked, for a file nothing reads. Nav owns the rule;
+    # it names set_nav and the host argument that reaches the real file.
+    if ( my $err = _with_nav(
+            sub { Lazysite::Manager::Nav::nav_write_refusal( $result->{rel} ) } ) )
+    {
+        return { ok => 0, error => $err, kind => 'nav-not-here' };
+    }
+
     my $full = $result->{full};
 
     # Whether this is a create (new file) or an edit (overwrite) - surfaced in
@@ -603,14 +639,24 @@ sub action_save {
         $result->{rel} );
 
     _invalidate_registries();
+
     # A nav change shows on every page - clear all caches, and tell the caller.
-    my $nav_change = $rel_path =~ m{(?:^|/)nav\.conf$} ? 1 : 0;
-    _invalidate_all_html() if $nav_change;
+    #
+    # SM581: only for a path that IS a nav, and reporting what was actually
+    # dropped. This keyed on ANY path ending nav.conf, against the caller's raw
+    # string rather than the canonical rel: an ordinary file with that name
+    # deleted every generated render on the instance and the reply claimed
+    # `cache_rebuilt: all-pages` for a rebuild the write had nothing to do with.
+    # all-pages is a label; the count is the fact.
+    my $nav_change = _is_resolved_nav( $result->{rel} );
+    my $cleared    = $nav_change ? _invalidate_all_html() : 0;
 
     my @st = stat($full);
     return { ok => 1, path => $rel_path, mtime => $st[9] // 0,
         created => $existed ? 0 : 1,
-        ( $nav_change ? ( cache_rebuilt => 'all-pages' ) : () ) };
+        ( $nav_change
+            ? ( cache_rebuilt => 'all-pages', cache_cleared => $cleared )
+            : () ) };
 }
 
 sub action_delete {
@@ -1212,8 +1258,14 @@ sub _invalidate_registries {
 # SM087: a site-wide config change (nav.conf) appears on every rendered page, so
 # the per-page cache clear isn't enough - drop every generated .html so all pages
 # re-render with the new nav on the next request.
+#
+# SM581: returns HOW MANY renders it dropped. The caller used to answer a nav
+# write with the fixed string `all-pages`, which is a description of the
+# intention and not of the outcome - the one thing that distinguishes a rebuild
+# from a claim of one is the number of files that went.
 sub _invalidate_all_html {
-    my @stack = ($DOCROOT);
+    my $cleared = 0;
+    my @stack   = ($DOCROOT);
     while (@stack) {
         my $dir = pop @stack;
         opendir my $dh, $dir or next;
@@ -1221,14 +1273,15 @@ sub _invalidate_all_html {
             next if $e =~ /^\./;
             my $full = "$dir/$e";
             if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
-            unlink $full if $e =~ /\.html$/;
+            next unless $e =~ /\.html$/;
+            $cleared++ if unlink $full;
         }
         closedir $dh;
     }
     # SM110: the sweep above skips lazysite/ - drop the per-alias-host cache
     # tree wholesale too (a nav change shows on every page of every host).
     clear_host_cache($DOCROOT);
-    return;
+    return $cleared;
 }
 
 # SM134 follow-ups: the current alias-redirect map for the manager's read-only

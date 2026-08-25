@@ -139,6 +139,24 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM581 resolved (PENDING) **a nav file in the wrong place is refused.**
+  A write at `<content-root>/lazysite/nav.conf` is not blocklisted (the
+  blocklist keys on a LEADING `lazysite/`), so it landed as ordinary
+  content, reported `created: 1` with `cache_rebuilt: all-pages`, and
+  nothing ever read it - SM318's defect one layer out, with no tool to
+  correct it. A path of that shape that is not the resolved nav for any
+  configured domain is now refused, naming `set_nav`, its `host`
+  argument and the domain that owns the content root. The refusal is
+  affordable because the legitimate set is enumerable:
+  `Nav::resolved_nav_files` derives every path that IS a navigation from
+  the domain list, and each one is let through - including a domain
+  whose `nav_file` genuinely sits at that shape. The same set fixes the
+  claim: `action_save` treated ANY path ending `nav.conf` as a nav
+  change, dropping every generated render on the instance for a file
+  that was not one. It now invalidates only for a real nav and reports
+  `cache_cleared: <n>` - what went, not a label.
+  t/unit/manager/112 holds the refusal, both legitimate writes and the
+  claim.
 
 - SM584 resolved (PENDING) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status

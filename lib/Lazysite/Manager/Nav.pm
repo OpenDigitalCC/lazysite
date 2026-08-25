@@ -41,7 +41,8 @@ use Lazysite::Manager::Common qw(write_file_checked);
 use Lazysite::Manager::Themes qw(action_cache_invalidate);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(action_nav_read action_nav_save _nav_conf_info _nav_conf_path);
+our @EXPORT_OK = qw(action_nav_read action_nav_save _nav_conf_info _nav_conf_path
+    resolved_nav_files nav_write_refusal);
 
 our $DOCROOT;
 our $LAZYSITE_DIR;
@@ -78,6 +79,103 @@ sub _nav_conf_path {
     my ($host) = @_;
     my ($path) = _nav_conf_info($host);
     return $path;
+}
+
+# SM581: the paths that ARE a navigation on this instance.
+#
+# A nav lives where the domain's nav_file says: $DOCROOT/<nav_file> for the
+# primary (default lazysite/nav.conf), $DOCROOT/<alias.<host>.nav_file> for a
+# domain given its own. Every other path is content - INCLUDING one spelled to
+# look like a nav, which is the whole defect: a file at
+# <content-root>/lazysite/nav.conf is accepted, inert, and reported exactly like
+# the write that would have worked.
+#
+# Derived from domains_list rather than a second parse of lazysite.conf, so
+# inheritance and per-alias overrides resolve the way _nav_conf_info resolves
+# them and the two readers cannot drift apart.
+#
+# Returns { <docroot-relative path> => [ host, ... ] }; the primary is ''. Fails
+# safe: a conf that cannot be read answers with the default nav alone, which is
+# the answer this had before it knew about domains.
+sub resolved_nav_files {
+    my $r = do {
+        require Lazysite::Manager::Domains;
+        no warnings 'once';
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        eval { Lazysite::Manager::Domains::domains_list() };
+    };
+    my @rows = ( ref $r eq 'HASH' && $r->{ok} ) ? @{ $r->{domains} || [] } : ();
+    @rows = ( { host => '', is_primary => 1 } ) unless @rows;
+
+    my %by_rel;
+    for my $d (@rows) {
+        my $rel = $d->{nav_file} // '';
+        $rel =~ s/^\s+|\s+$//g;
+        $rel =~ s{^/+}{};
+        $rel = 'lazysite/nav.conf' unless length $rel;
+        push @{ $by_rel{$rel} }, ( $d->{is_primary} ? '' : lc( $d->{host} // '' ) );
+    }
+    return \%by_rel;
+}
+
+# SM581: refuse a write that LOOKS like a navigation and is not one.
+#
+# The incident: the site agent wrote /sites/xisl/lazysite/nav.conf, was told
+# created:1 with a full cache rebuild, and the live nav did not change. The
+# blocklist keys on a LEADING `lazysite/`, so the primary's nav is governed
+# there and one under a content root is not seen at all.
+#
+# ONE shape is refused - a path ending `lazysite/nav.conf` - and a REFUSAL is
+# affordable precisely because the legitimate set is enumerable:
+# resolved_nav_files names every path that is a nav, each of them is let
+# through, and that includes a domain whose nav_file genuinely sits at this
+# shape. What is left is a file nothing reads, so a warning attached to a
+# success would be the same trap with a footnote.
+#
+# The message has to be actionable on its own, because the thing it replaces
+# looked like success: it names set_nav, its `host` argument, and the domain
+# that owns the content root the caller was writing into.
+#
+# Returns the message, or undef when the write is fine.
+sub nav_write_refusal {
+    my ($rel) = @_;
+    return undef unless defined $rel && length $rel;
+    $rel =~ s{^/+}{};
+    return undef unless $rel =~ m{(?:^|/)lazysite/nav\.conf$};
+
+    my $navs = resolved_nav_files();
+    return undef if $navs->{$rel};
+
+    my %nav_of;
+    for my $path ( keys %$navs ) {
+        $nav_of{$_} = $path for @{ $navs->{$path} };
+    }
+
+    my ($host) = do {
+        require Lazysite::Manager::Domains;
+        no warnings 'once';
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        eval { Lazysite::Manager::Domains::host_for_path($rel) };
+    };
+    $host = '' unless defined $host;
+
+    my $why = "$rel is not the navigation for any configured domain. A file at "
+        . 'this path is ordinary content: it saves, it reads back, and nothing '
+        . 'ever renders it.';
+
+    if ( length $host ) {
+        my $theirs = $nav_of{$host} // 'lazysite/nav.conf';
+        return "$why It sits under the content root of $host, whose navigation "
+            . "resolves to $theirs. Change a site's navigation with set_nav and "
+            . "its `host` argument - set_nav with host: $host - which resolves "
+            . 'that domain\'s nav_file for you.';
+    }
+
+    my $known = join ', ', sort keys %$navs;
+    return "$why Change a site's navigation with set_nav and its `host` "
+        . 'argument, or omit `host` for the primary site; set_nav resolves the '
+        . "domain's nav_file for you. The navigation files this instance "
+        . "actually reads are: $known.";
 }
 
 sub action_nav_read {
