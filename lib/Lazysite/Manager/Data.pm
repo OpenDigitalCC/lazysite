@@ -40,7 +40,7 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_safety_export_delete action_data_safety_export_read
     action_data_safety_export_restore);
 
-our $DOCROOT;           # set by the caller (manager-api or the CLI)
+our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
 # SM593: the caller's own dav_scopes, set by whichever surface is answering.
 # EMPTY MEANS UNCONFINED, which is the operator - never "no domains". The CLI
@@ -126,9 +126,9 @@ sub _table_domain {
 
 sub _may_reach {
     my ($table) = @_;
-    return 1 unless @CALLER_SCOPES;              # unconfined - the operator
+    return 1 unless @CALLER_SCOPES;    # unconfined - the operator
     my $dom = _table_domain($table);
-    return 1 unless length $dom;                 # unscoped - as it always was
+    return 1 unless length $dom;       # unscoped - as it always was
     return ( grep { $_ eq $dom } _caller_domains() ) ? 1 : 0;
 }
 

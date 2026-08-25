@@ -21,7 +21,8 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper               qw(repo_root grant_caps);
+use Lazysite::Auth::Settings qw(@CAP_KEYS);
 
 my $utool = repo_root() . '/tools/lazysite-users.pl';
 plan skip_all => "no $utool" unless -f $utool;
@@ -49,7 +50,7 @@ uapi( $d, { action => 'add', username => 'partner', password => 'partner-pw-0123
 # A grant deliberately WIDER than the seven the old list could describe, and
 # reaching capabilities that list had no line for at all.
 grant_caps( $d, 'partner', qw(webdav manage_content manage_themes manage_data
-    manage_users manage_domains read_submissions audit api) );
+        manage_users manage_domains read_submissions audit api) );
 
 my $eff = uapi( $d, { action => 'settings-get', username => 'partner' } )->{settings} || {};
 my $brief = uapi( $d, { action => 'onboarding', username => 'partner' } )->{onboarding};
@@ -69,14 +70,13 @@ my @stated = sort @found;
 # answers from. Taking every truthy SETTINGS key instead would sweep in
 # dav_scopes, groups, top_level and scope_ceiling, which are not capabilities:
 # the test would then demand the brief state things that are not grants.
-require Lazysite::Auth::Settings;
 my @held = sort grep {
     $eff->{$_} && !/\A(?:ui|api|mcp)\z/    # channels, not authority
-} @Lazysite::Auth::Settings::CAP_KEYS;
+} @CAP_KEYS;
 
 is_deeply( \@stated, \@held,
     'the brief states exactly the capabilities the account holds' )
-    or diag( "brief: @stated\nheld:  @held" );
+    or diag("brief: @stated\nheld:  @held");
 
 # The direction that mattered: nothing held is left unsaid.
 for my $c (qw(manage_data manage_users manage_domains read_submissions audit)) {

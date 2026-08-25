@@ -2311,7 +2311,7 @@ sub _onboarding_brief {
     $held{manage_forms}   = 1
         if ( defined $s->{manage_forms} ? $s->{manage_forms} : $eff_content );
     delete @held{qw(ui api mcp)};
-    my @mcaps = sort keys %held;
+    my @mcaps      = sort keys %held;
     my $mcaps_yaml = join "\n", map { "  - $_" } @mcaps;
 
     # And the prose list must not be shorter than the truth. Anything held that

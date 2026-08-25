@@ -1452,7 +1452,7 @@ sub conf_value {
 # upgrading into the release keeps every table working, and this names the ones
 # still to scope.
 sub report_unscoped_data_tables {
-    my $d = $opt{docroot};
+    my $d   = $opt{docroot};
     my $dir = "$d/lazysite/db/tables";
     return unless -d $dir;
 
@@ -1460,7 +1460,7 @@ sub report_unscoped_data_tables {
     # multi-domain instance on, read here the same way every other conf value
     # in this tool is read.
     my $aliases = conf_value( $conf, 'alias_hosts' ) // '';
-    my @hosts = grep { length } map { s/^\s+|\s+$//gr } split /,/, $aliases;
+    my @hosts   = grep { length } map { s/^\s+|\s+$//gr } split /,/, $aliases;
     return unless @hosts;    # one domain: nothing to be confined from
 
     opendir( my $dh, $dir ) or return;
@@ -1476,8 +1476,8 @@ sub report_unscoped_data_tables {
         # Read as TEXT, not through the YAML parser: this tool runs on installs
         # where the data plugin's modules may not be present, and a check that
         # cannot run where the problem lives is not a check.
-        if ( $txt =~ /^domain:\s*\S/m ) { push @scoped, $name }
-        else                            { push @unscoped, $name }
+        if   ( $txt =~ /^domain:\s*\S/m ) { push @scoped,   $name }
+        else                              { push @unscoped, $name }
     }
     return unless @unscoped;
 

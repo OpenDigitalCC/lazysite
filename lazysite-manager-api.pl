@@ -3240,13 +3240,13 @@ sub action_whoami {
         # site's shape). Everyone else gets id, name, description and version.
         plugins => [
             map {
-                my $p    = $_;
+                my $p = $_;
                 my @owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
                     ? @{ $p->{owns}{capabilities} } : ();
                 my $may_see_state = $s->{manage_config} || ( grep { $s->{$_} } @owns );
                 my %out           = %$p;
                 delete @out{qw(_script config_file)};
-                delete $out{_enabled} unless $may_see_state;
+                delete $out{_enabled}                      unless $may_see_state;
                 delete @out{qw(config_schema config_keys)} unless $s->{manage_config};
                 \%out;
             } @{ ( action_plugin_list() || {} )->{plugins} || [] }

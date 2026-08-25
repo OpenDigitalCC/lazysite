@@ -417,7 +417,7 @@ sub domains_for_scopes {
         next unless length $cr;
         next if $cr =~ m{(?:^|/)\.\.(?:/|$)};
         for my $sc (@clean) {
-            if (   $cr eq $sc
+            if ( $cr eq $sc
                 || index( $cr, "$sc/" ) == 0
                 || index( $sc, "$cr/" ) == 0 )
             {
