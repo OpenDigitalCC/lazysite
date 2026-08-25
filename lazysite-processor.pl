@@ -2810,18 +2810,48 @@ sub _esc_html {
 # plain "$DOCROOT/<rel>" string form (not realpath) to match the scan walk,
 # which builds "$dir/$entry" from the docroot down; symlinked dirs are already
 # skipped separately, so no symlink normalisation is needed here.
-sub _declared_content_roots {
-    my %roots;
-    return \%roots unless -f $CONF_FILE;
-    my $text = read_file($CONF_FILE);
-    return \%roots unless defined $text;
-    while ( $text =~ /^(?:alias\.\S+\.)?content_root\s*:\s*(.+?)\s*$/mg ) {
-        ( my $rel = $1 ) =~ s{^/+|/+$}{}g;
-        next unless length $rel;
-        next if $rel =~ m{(?:^|/)\.\.(?:/|$)};    # ignore traversal shapes
-        $roots{"$DOCROOT/$rel"} = 1;
+{
+    # PO-3: memoised on the conf mtime. Every scan and every registry walk asked
+    # for this set, and each ask re-read and re-parsed lazysite.conf.
+    #
+    # EQUIVALENCE. The answer is a pure function of the conf file's text and
+    # $DOCROOT, neither of which this process changes, so within one request the
+    # memo returns exactly the hash a re-read would have built. The bare block is
+    # the file's existing idiom for a lexical shared with one sub, and the key is
+    # the SAME signature resolve_site_vars memoises on a few thousand lines down
+    # (P-2): the conf's mtime, so an edit between requests re-reads even in a
+    # persistent worker that never calls reset_request_state, and a second edit
+    # inside the same clock second is stale to exactly the degree the site vars
+    # already are. A missing conf keys as -1 and still answers with the empty set.
+    my %_droots_cache;
+    my $_droots_sig    = '';
+    my $_droots_loaded = 0;
+
+    sub _declared_content_roots {
+        my $sig = -f $CONF_FILE ? ( ( stat $CONF_FILE )[9] // 0 ) : -1;
+        return {%_droots_cache} if $_droots_loaded && $sig eq $_droots_sig;
+
+        my %roots;
+        if ( -f $CONF_FILE ) {
+            my $text = read_file($CONF_FILE);
+            if ( defined $text ) {
+                while ( $text =~ /^(?:alias\.\S+\.)?content_root\s*:\s*(.+?)\s*$/mg ) {
+                    ( my $rel = $1 ) =~ s{^/+|/+$}{}g;
+                    next unless length $rel;
+                    next if $rel =~ m{(?:^|/)\.\.(?:/|$)};    # ignore traversal shapes
+                    $roots{"$DOCROOT/$rel"} = 1;
+                }
+            }
+        }
+
+        # A COPY out, never the memo itself: the old sub handed back a hash no
+        # other caller held, and a caller that decided to write to what it got
+        # must not reach the next caller's answer.
+        %_droots_cache  = %roots;
+        $_droots_sig    = $sig;
+        $_droots_loaded = 1;
+        return {%roots};
     }
-    return \%roots;
 }
 
 # SM151: resolve a per-domain content root to a confined absolute directory.
@@ -5572,6 +5602,17 @@ sub resolve_scan {
     # Read site search default once if any filter references searchable
     my $search_default;
 
+    # PO-1: two loop invariants, hoisted.
+    #
+    # EQUIVALENCE. Both were recomputed once per scanned file and neither can
+    # change while the loop runs: _private_twin is a pure function of
+    # $scan_root, the private root and $DOCROOT, and the loop body writes none
+    # of them; _front_matter_reserved returns a fresh hash built from a literal
+    # qw list, and the loop only ever READS $reserved{$k}. So each call returned
+    # what the one before it returned, 200 times at the cap.
+    my $priv_scan = _private_twin($scan_root);
+    my %reserved  = %{ _front_matter_reserved() };
+
     my @pages;
     # @files is already sorted (the private-wins dedupe above sorts it) and the
     # only thing between here and there is the 200-file cap, which takes a
@@ -5616,8 +5657,7 @@ sub resolve_scan {
         #
         # Boundary-safe (eq or "$root/"), so a sibling directory whose name
         # merely starts with the private root's is untouched.
-        my $url_src   = $path;
-        my $priv_scan = _private_twin($scan_root);
+        my $url_src = $path;
         if ( defined $priv_scan
             && length $priv_scan
             && ( $url_src eq $priv_scan
@@ -5673,7 +5713,6 @@ sub resolve_scan {
         # [% p.demo %], [% p.order %] - instead of smuggling data through tags.
         # Computed fields below take precedence; control/internal keys are excluded;
         # surrounding quotes and TT markers are stripped from scalar values.
-        my %reserved = %{ _front_matter_reserved() };
         my %custom;
         for my $k ( keys %$meta ) {
             next if $reserved{$k} || $k =~ /^(?:tt_|_)/;
