@@ -393,6 +393,13 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM554 resolved (PENDING) **a posted read is not audited.** POST
+  action=notices and POST action=layouts-manifest each wrote an ok audit
+  row with target "/" - the only live read-shaped actions missing from
+  the audit skip list. Both are now skipped, so the trail records
+  changes, never looks. NEW t/unit/manager/98 pins it with a real write
+  as the control.
+
 - SM553 resolved (PENDING) **the alias spelling keeps the audit target.**
   theme-activate&theme=sky and layout-activate&layout=grid (the SM261
   alias spellings) audited target "/" because the alias resolution lived

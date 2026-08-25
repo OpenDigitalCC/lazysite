@@ -1773,7 +1773,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         site-backup-inspect protected-sections
         data-tables data-table data-rows
         data-table-source data-migrate-plan data-safety-exports data-safety-export-read
-        brief-read briefs-list
+        brief-read briefs-list notices layouts-manifest
     );
 
     # SM447: the three data READS are skip-listed for the same reason as every

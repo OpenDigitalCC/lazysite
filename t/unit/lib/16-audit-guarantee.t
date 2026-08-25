@@ -193,17 +193,20 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # %skip is audited by construction - the fail-safe direction). Adding a
     # manager-api action means deciding: read-ish (the %skip list in the
     # source) or material (THIS list). An action in neither fails the test.
-    # A few GET-shaped reads (file-download, notices, layouts-manifest...)
-    # sit here deliberately: if they are ever POSTed they audit, which errs
-    # loud rather than silent.
+    # The streaming downloads (file-download, backup-download...) sit here
+    # deliberately: they exit before the audit block on GET, and if ever
+    # POSTed they audit, which errs loud rather than silent. SM554 moved
+    # notices and layouts-manifest OUT of this list: the manager UI POSTs
+    # everything, so those two reads audited on every call and buried the
+    # rows recording who changed something.
     my %audited = map { $_ => 1 } qw(
         acl-remove acl-set artifact-backups-delete backup-create backup-delete
         backup-download backup-restore bad-url-unblock config-set copy delete
         domain-add domain-remove domain-set
         file-download file-upload file-zip-download form-targets-save git-init
         git-restore handler-delete handler-save layout-activate layout-delete
-        layout-install layouts-install layouts-manifest layouts-repo-set
-        migrate-to-local mkdir move nav-save notices notices-seen
+        layout-install layouts-install layouts-repo-set
+        migrate-to-local mkdir move nav-save notices-seen
         key-revoke plugin-action plugin-disable plugin-enable plugin-save
         rotate-auth-secret save session-revoke theme-activate theme-delete
         theme-rename theme-upload user-revoke users
