@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM599 resolved (PENDING) **the tidy gate can fail again.**
+## 0.10.33 - EDGE: a grant decides what a partner reaches, and every surface says so (2026-08-25)
+
+- SM599 resolved (79f1cbd4) **the tidy gate can fail again.**
   `tools/tidy-check.pl` tested for a `.git` DIRECTORY, and a linked
   worktree's `.git` is a FILE - so in every gate this project runs, which are
   all run in worktrees, it exited SKIP with status 0 and `t/lint/06` passed
@@ -54,7 +56,7 @@ Naming the commit: AFTER it lands, never before
   *could* have run is a failure rather than a pass - a gate that cannot fail
   is the reason nobody looked.
 
-- SM573 resolved (PENDING) **a brief states the grant it was issued for.** The
+- SM573 resolved (24914e59) **a brief states the grant it was issued for.** The
   onboarding brief's capability block was a hand-written list of seven, so an
   account holding seventeen capabilities was described as holding seven - a
   brief that understates hands out authority nobody wrote down, while the
@@ -65,7 +67,7 @@ Naming the commit: AFTER it lands, never before
   brief is generated on demand and never stored, so nothing typed survives to
   drift, and the divergence it would report can no longer arise.
 
-- SM580 resolved (PENDING) **the sessions page says who it cannot show.** The
+- SM580 resolved (4b063257) **the sessions page says who it cannot show.** The
   session registry is written only by the cookie login path, so an agent
   acting over the API, MCP or WebDAV is absent from *Active sessions* by
   construction - and the card said "everyone signed in right now", so its
@@ -74,7 +76,7 @@ Naming the commit: AFTER it lands, never before
   the past - and showed a time only for expired tokens; a live key now shows
   when it was last used, which is what attaches an audit line to a principal.
 
-- SM578 resolved (PENDING) **a package is confined by the action, not by
+- SM578 resolved (39e81e7c) **a package is confined by the action, not by
   whether a scope happens to be set.** `_package_scope_refusal` returned early
   whenever the caller had no `dav_scopes`, reading that as unconfined - true
   of a cookie session, which is the operator, and false of a token grant where
@@ -85,14 +87,14 @@ Naming the commit: AFTER it lands, never before
   through the same refusal the download and delete verbs use, so a name and
   size are no longer readable by a caller who cannot open the file.
 
-- SM577 resolved (PENDING) **deleting a package is scoped by the grant.** The
+- SM577 resolved (f0a773c2) **deleting a package is scoped by the grant.** The
   same refusal governs `site-backup-delete`, so a token partner can no longer
   remove an archive belonging to another domain on the instance - the
   irreversible half of SM578, and the sharpest case. An operator on a cookie
   session still reaches every domain's archives, which is SM151's design and
   the person who owns the instance.
 
-- SM593 resolved (PENDING) **a data table can belong to a domain.**
+- SM593 resolved (a4f17a68) **a data table can belong to a domain.**
   `manage_data` is an instance capability and a table's ACL path carries no
   domain component, so on an instance hosting unrelated parties one client's
   grant reached every other client's tables - and `may_read` returns true for
@@ -104,7 +106,7 @@ Naming the commit: AFTER it lands, never before
   tables loses nothing on upgrade - `lazysite-check` names the ones still to
   scope on a multi-domain instance.
 
-- SM596 resolved (PENDING) **the AI connector is offered to AI accounts.**
+- SM596 resolved (ad890890) **the AI connector is offered to AI accounts.**
   The account sheet titles each account human or AI, then offered *Connect an
   AI assistant* to both - the guard was a literal `if (true)`. It now follows
   the page's own marker (`!ui`), plus any account holding `api` or `mcp`,
@@ -115,7 +117,7 @@ Naming the commit: AFTER it lands, never before
   WebDAV block no longer points at it. `t/unit/users/35` runs the page's
   JavaScript rather than grepping it.
 
-- SM589 resolved (PENDING) **the floor is not told how the site is installed.**
+- SM589 resolved (124a744a) **the floor is not told how the site is installed.**
   SM565 withheld the plugin config schemas; what was still returned described
   the INSTALLATION to a caller holding nothing - `_script` and `config_file`
   (where the code and its configuration live) and `_enabled` (what is switched
@@ -124,7 +126,7 @@ Naming the commit: AFTER it lands, never before
   capability the plugin itself governs. `id`, `name`, `description` and
   `version` stay discoverable, so a partner still learns which features exist.
 
-- SM590 resolved (PENDING) **table delivery is handler-only, in writing.**
+- SM590 resolved (5ec8cc5c) **table delivery is handler-only, in writing.**
   `bind_form` offers an inline `target` for a destination the operator has
   not pre-defined, and `db`/`table` are deliberately not among the types it
   accepts - a form writing rows into a declared data table is what an
@@ -132,7 +134,7 @@ Naming the commit: AFTER it lands, never before
   agent could only discover it by being refused. The tool description and
   `/docs/forms` now say it and why, and `t/unit/mcp/17` pins both spellings.
 
-- SM595 resolved (PENDING) **the watcher can be told what it last deployed.**
+- SM595 resolved (50cd875d) **the watcher can be told what it last deployed.**
   `tools/lazysite-deploy.sh` took its baseline from whatever was already in
   `dist` at startup, so a release that landed while the watcher was DOWN
   became the baseline and could never deploy - the workaround was renaming
@@ -145,7 +147,7 @@ Naming the commit: AFTER it lands, never before
   `t/tools/42-the-watcher-can-be-told-what-it-last-deployed.t`, whose control
   is the same tree with no `--baseline`, deploying nothing.
 
-- SM574 resolved (PENDING) **the field practice ships with every site.** The
+- SM574 resolved (7d087351) **the field practice ships with every site.** The
   site agent's two best-practice files - what building and breaking real
   sites and apps on the engine taught - lived outside the tree and were read
   by one agent. `tools/import-field-practice.pl` pulls them in and writes
@@ -157,7 +159,7 @@ Naming the commit: AFTER it lands, never before
   engine, and the field scars are marked version-independent. t/lint/88
   fails the build if the served copy stops matching its import sources.
 
-- SM575 resolved (PENDING) **ownership is two stores, and three that are
+- SM575 resolved (fe84396b) **ownership is two stores, and three that are
   shared on purpose.** The SM570 two-principal walk measured ownership store
   by store on a live site and found two answers - ACLs and themes refuse a
   non-owner; content, briefs and data tables do not - and nothing in the suite
@@ -177,7 +179,7 @@ Naming the commit: AFTER it lands, never before
   singular authored thing - not which store happened to get a check. No source
   changed.
 
-- SM583 resolved (PENDING) **one rule for a layout or theme name.**
+- SM583 resolved (8d86e6fe) **one rule for a layout or theme name.**
   Two parsers read the same conf key and disagreed:
   `_read_active_layout_and_theme` matched non-space and stripped the
   capture, `Domains::_parse` took the whole trimmed line, so
@@ -193,7 +195,7 @@ Naming the commit: AFTER it lands, never before
   The processor's `resolve_site_vars` is a third reader of the same key
   and is not covered here.
 
-- SM581 resolved (PENDING) **a nav file in the wrong place is refused.**
+- SM581 resolved (4b063257) **a nav file in the wrong place is refused.**
   A write at `<content-root>/lazysite/nav.conf` is not blocklisted (the
   blocklist keys on a LEADING `lazysite/`), so it landed as ordinary
   content, reported `created: 1` with `cache_rebuilt: all-pages`, and
@@ -212,7 +214,7 @@ Naming the commit: AFTER it lands, never before
   t/unit/manager/112 holds the refusal, both legitimate writes and the
   claim.
 
-- SM582 resolved (PENDING) **the two WebDAV write paths nobody was
+- SM582 resolved (8d86e6fe) **the two WebDAV write paths nobody was
   watching, and the defect behind one.** Breaking either changed no test
   result. PUT's streaming size ceiling was unreachable under the suite -
   every test declared a CONTENT_LENGTH, so the pre-read gate answered 413
@@ -230,7 +232,7 @@ Naming the commit: AFTER it lands, never before
   nothing happened while the content was destroyed. _move_bytes now
   restores the source from that copy before rolling it back.
 
-- SM591 resolved (PENDING) **housekeeping is a grant of its own, in two
+- SM591 resolved (0a7f0122) **housekeeping is a grant of its own, in two
   tiers.** Granting somebody the ability to USE a module granted them the
   ability to DESTROY inside it: measured on edge, a principal holding
   `manage_data` and nothing else dropped another principal's table and
@@ -251,7 +253,7 @@ Naming the commit: AFTER it lands, never before
   it - said where the capability is described. `backup-delete` stays
   cookie-only. t/unit/manager/114 proves each boundary over the real CGI.
 
-- SM576 part 3 resolved (PENDING) **a group says whether it is a role or a
+- SM576 part 3 resolved (073e9b7d) **a group says whether it is a role or a
   backend group.** Group-of-group nesting already existed and was already
   the enforcement path, so composing a role out of capability groups
   worked; what was missing was any way to tell the two kinds apart, which
@@ -268,7 +270,7 @@ Naming the commit: AFTER it lands, never before
   groups`. t/unit/users/34 proves the refusal, the nesting that is still
   allowed, and the union through `effective_groups`.
 
-- SM576 part 1 resolved (PENDING) **`manage_briefs` - briefs stop riding
+- SM576 part 1 resolved (073e9b7d) **`manage_briefs` - briefs stop riding
   `manage_content`.** SM575 measured one partner agent reading, appending
   to and permanently deleting another agent's authoring brief while
   holding nothing but `manage_content`. The right to write a brief is now
@@ -285,7 +287,7 @@ Naming the commit: AFTER it lands, never before
   the control API's predicate gates could already say.
   t/unit/manager/113 proves the split over the real CGI.
 
-- SM587 resolved (PENDING) **destructive is about the data; exposure is a
+- SM587 resolved (eeddfed2) **destructive is about the data; exposure is a
   second axis.** `destructive` now has one written test - does a copy
   survive the call? - and a second flag, `changes_access`, answers the
   other question a caller needs: does this alter who may read? Both are
@@ -300,7 +302,7 @@ Naming the commit: AFTER it lands, never before
   in the MCP tool annotations. t/lint/23 keeps the two spellings equal;
   t/unit/manager/112 proves the divergence in both directions.
 
-- SM586 resolved (PENDING) **YAML's own `false` is false.** SM519 refused
+- SM586 resolved (dda8b52d) **YAML's own `false` is false.** SM519 refused
   `public: false` - the one spelling that makes a table private - because
   YAML::PP returns a bare `false` as a defined, ZERO-LENGTH string, which
   matched neither the true nor the false set; `'false'`, `0` and `true` all
@@ -308,7 +310,7 @@ Naming the commit: AFTER it lands, never before
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
 
-- SM584 resolved (PENDING) **a check's result level is one vocabulary.**
+- SM584 resolved (208a4598) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status
   label printed empty, perl warned, and - the part that mattered - the
   summary's `eq 'OK'` count omitted them from the tally and the exit code.
