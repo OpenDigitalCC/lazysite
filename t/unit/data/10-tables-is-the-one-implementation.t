@@ -87,8 +87,8 @@ subtest 'declared but not yet migrated reads empty, and admits it' => sub {
 
 subtest 'apply_schema reports what it did and what it refused' => sub {
     my $r = apply_schema( $docroot, 'products' );
-    ok( $r->{ok}, 'the schema applies' ) or diag( $r->{error} );
-    ok( scalar @{ $r->{applied} },  'it says what it did' );
+    ok( $r->{ok},                  'the schema applies' ) or diag( $r->{error} );
+    ok( scalar @{ $r->{applied} }, 'it says what it did' );
     is_deeply( $r->{blocked}, [], 'and nothing was refused on a fresh table' );
 
     my $again = apply_schema( $docroot, 'products' );
@@ -102,9 +102,9 @@ subtest 'the write path, through one implementation' => sub {
     is( $r->{key}, 'A1', 'and it reports the key' );
 
     my $rows = read_rows( $docroot, 'products', as => 'operator' )->{rows};
-    is( scalar @{$rows}, 1, 'one row' );
-    is( $rows->[0]{name}, q{Bob's "widget"}, 'the awkward name survives' );
-    is( $rows->[0]{active}, 1, 'the descriptor default was applied' );
+    is( scalar @{$rows},    1,                 'one row' );
+    is( $rows->[0]{name},   q{Bob's "widget"}, 'the awkward name survives' );
+    is( $rows->[0]{active}, 1,                 'the descriptor default was applied' );
 
     ok( !insert_row( $docroot, 'products', { code => 'A2', price => 'lots' } )->{ok},
         'a bad value is refused here too - the same coercion' );
@@ -119,7 +119,7 @@ subtest 'the write path, through one implementation' => sub {
             . 'not exist.' );
     is( $miss->{kind}, 'no_such_row', 'with a kind the caller can act on' );
 
-    ok( delete_row( $docroot, 'products', 'A1' )->{ok}, 'delete' );
+    ok( delete_row( $docroot,  'products', 'A1' )->{ok}, 'delete' );
     ok( !delete_row( $docroot, 'products', 'A1' )->{ok},
         'and deleting it twice is refused, not silently fine' );
 };
@@ -151,7 +151,7 @@ subtest 'a decimal survives the REAL handles, trailing zeros and all' => sub {
         for sort keys %want;
 
     my $rows = read_rows( $d2, 'money', as => 'operator' )->{rows};
-    my %got = map { $_->{ref} => $_->{amount} } @{$rows};
+    my %got  = map { $_->{ref} => $_->{amount} } @{$rows};
     for my $k ( sort keys %want ) {
         is( $got{$k}, $want{$k}, "$want{$k} reads back exactly" )
             or diag( 'A decimal that loses a place between the store and the '
@@ -210,7 +210,7 @@ subtest 'and the read handle itself refuses writes' => sub {
     ok( $ro, 'a read handle opens' );
 
     my $wrote = eval {
-        $ro->do( 'DELETE FROM products' );
+        $ro->do('DELETE FROM products');
         1;
     };
     ok( !$wrote, 'a write through it fails' )
@@ -221,6 +221,38 @@ subtest 'and the read handle itself refuses writes' => sub {
     my $rows = read_rows( $docroot, 'products', as => 'operator' )->{rows};
     ok( ( grep { $_->{code} eq 'B1' } @{ $rows || [] } ),
         'and the row the DELETE would have removed is still there' );
+};
+
+subtest 'an edited descriptor is seen on the next load_table' => sub {
+
+    # DAO-2: load_table is memoised on (path, mtime, size). mtime is one-second
+    # granular, so an edit landing in the same second as the previous read, and
+    # keeping the SAME LENGTH - renaming a field from `aaaa` to `bbbb` does
+    # exactly that - carries an identical key. The one-second guard is the only
+    # thing between the memo and a descriptor from the past, so it is what this
+    # drives; delete the guard and this subtest fails.
+    write_descriptor( 'memoed', <<'YAML' );
+key: code
+fields:
+  code: { type: text, required: true }
+  aaaa: { type: text }
+YAML
+    my $first = load_table( $docroot, 'memoed' );
+    ok( $first->{ok} && $first->{fields}{aaaa}, 'the descriptor loads' )
+        or diag explain $first;
+
+    write_descriptor( 'memoed', <<'YAML' );
+key: code
+fields:
+  code: { type: text, required: true }
+  bbbb: { type: text }
+YAML
+    my $second = load_table( $docroot, 'memoed' );
+    ok( $second->{fields}{bbbb}, 'the edit is seen on the next load' )
+        or diag( 'A descriptor decides who may read a table and what a page '
+            . 'renders. A memo that outlives the file it was read from is an '
+            . 'answer from before the operator changed their mind.' );
+    ok( !$second->{fields}{aaaa}, 'and the replaced field is gone with it' );
 };
 
 done_testing();

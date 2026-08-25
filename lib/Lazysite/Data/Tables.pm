@@ -70,47 +70,88 @@ sub list_tables {
 # The YAML is read here rather than in Descriptor.pm, which takes a structure:
 # that keeps the validator testable without a filesystem, and keeps the parser
 # dependency at the edge where the SBOM declaration expects it.
-sub load_table {
-    my ( $docroot, $name ) = @_;
-    return _err('a table name is required')
-        unless defined $name && $name =~ /\A[a-z][a-z0-9_]*\z/;
+# MEMOISED ON (path, mtime, size), with the same one-second guard read_settings
+# uses (DAO-2). A descriptor is a pure function of its file text, and the YAML
+# parse is the most expensive thing on the per-visitor binding path.
+#
+# HOW STALENESS IS PREVENTED, three ways and all three are needed:
+#
+#   1. THE KEY IS THE FILE'S IDENTITY, not a clock. A rewrite changes mtime or
+#      size, which changes the key, which misses. Correctness never depends on
+#      a window being short enough - the same reasoning SM334 wrote down for
+#      the settings cache, and for the same reason: this decides what a
+#      visitor is served.
+#   2. THE ONE-SECOND GUARD covers the case the key cannot. mtime is
+#      one-second granular, so an edit landing in the same second as a read,
+#      keeping the same size - renaming a field from `aaaa` to `bbbb` does
+#      exactly that - would carry an identical key. A file younger than a
+#      second is read fresh every time until it settles.
+#   3. NOTHING ASSIGNS INTO THE RETURNED DESCRIPTOR, so the shared reference
+#      cannot be poisoned by a caller. Verified across Manager/Data.pm,
+#      Manager/SitePackage.pm, plugins/data.pl, lazysite-data.pl,
+#      lazysite-mcp.pl and this file: the only writes into a descriptor are
+#      Descriptor.pm's own normalisation of `required` and `unique`, which
+#      happens during the load being cached.
+#
+# The map is bounded the way the settings cache is - by how many distinct
+# versions of one file a process sees, which is one in practice.
+{
+    my %_descriptor_cache;
 
-    my $dir = descriptor_dir($docroot);
-    my ($file) = grep { -f $_ } ( "$dir/$name.yaml", "$dir/$name.yml" );
-    return _err( "no table '$name' is declared", table => $name,
-        kind => 'no_such_table' )
-        unless $file;
+    sub _descriptor_cache_clear { %_descriptor_cache = (); return }
 
-    # SM472: A MISSING MODULE IS A DIAGNOSIS, NOT A 500.
-    #
-    # This was a bare `require`, so on a host without YAML::PP it DIED - and a
-    # die in a CGI is an HTTP 500 with an HTML body. The field bisected it
-    # carefully and correctly and still could not see the cause, because
-    # nothing anywhere said the word "YAML::PP": every descriptor 500'd, an
-    # empty listing succeeded (it globs filenames and never parses), and a call
-    # with no descriptor answered properly (the parameter check runs first).
-    # Three consistent, honest signals that pointed nowhere.
-    #
-    # The dependency is declared - in sbom-deps.json, in the deb, in the
-    # plugin's `owns` - so this is not about whether it SHOULD be there. It is
-    # about what happens on the host where it is not, and "500" is the one
-    # answer that cannot be acted on.
-    unless ( eval { require YAML::PP; 1 } ) {
-        return _err(
-            "table '$name': the YAML::PP module is not installed, so a "
-                . 'descriptor cannot be read. Install it (Debian: '
-                . 'libyaml-pp-perl) and try again.',
-            table  => $name,
-            kind   => 'missing_module',
-            module => 'YAML::PP',
-        );
+    sub load_table {
+        my ( $docroot, $name ) = @_;
+        return _err('a table name is required')
+            unless defined $name && $name =~ /\A[a-z][a-z0-9_]*\z/;
+
+        my $dir = descriptor_dir($docroot);
+        my ($file) = grep { -f $_ } ( "$dir/$name.yaml", "$dir/$name.yml" );
+        return _err( "no table '$name' is declared", table => $name,
+            kind => 'no_such_table' )
+            unless $file;
+
+        my @st  = stat $file;
+        my $key = @st ? "$file:$st[9]:$st[7]" : '';
+        return $_descriptor_cache{$key}
+            if length $key && exists $_descriptor_cache{$key};
+
+        # SM472: A MISSING MODULE IS A DIAGNOSIS, NOT A 500.
+        #
+        # This was a bare `require`, so on a host without YAML::PP it DIED - and a
+        # die in a CGI is an HTTP 500 with an HTML body. The field bisected it
+        # carefully and correctly and still could not see the cause, because
+        # nothing anywhere said the word "YAML::PP": every descriptor 500'd, an
+        # empty listing succeeded (it globs filenames and never parses), and a call
+        # with no descriptor answered properly (the parameter check runs first).
+        # Three consistent, honest signals that pointed nowhere.
+        #
+        # The dependency is declared - in sbom-deps.json, in the deb, in the
+        # plugin's `owns` - so this is not about whether it SHOULD be there. It is
+        # about what happens on the host where it is not, and "500" is the one
+        # answer that cannot be acted on.
+        unless ( eval { require YAML::PP; 1 } ) {
+            return _err(
+                "table '$name': the YAML::PP module is not installed, so a "
+                    . 'descriptor cannot be read. Install it (Debian: '
+                    . 'libyaml-pp-perl) and try again.',
+                table  => $name,
+                kind   => 'missing_module',
+                module => 'YAML::PP',
+            );
+        }
+        my $raw = eval { YAML::PP->new->load_file($file) };
+        return _err( "table '$name': the descriptor is not valid YAML - $@",
+            table => $name )
+            unless defined $raw && !$@;
+
+        my $d = load_descriptor( $name, $raw );
+        if ( length $key && @st && $st[9] < time() - 1 ) {
+            %_descriptor_cache = () if keys %_descriptor_cache > 8;
+            $_descriptor_cache{$key} = $d;
+        }
+        return $d;
     }
-    my $raw = eval { YAML::PP->new->load_file($file) };
-    return _err( "table '$name': the descriptor is not valid YAML - $@",
-        table => $name )
-        unless defined $raw && !$@;
-
-    return load_descriptor( $name, $raw );
 }
 
 # Rows, for a surface that may read them.
@@ -151,6 +192,30 @@ sub read_rows {
     return _err( "no table '$name' is declared", table => $name,
         kind => 'no_such_table' )
         unless Lazysite::Data::Access::may_read( $docroot, $d, $as );
+
+    return _read_rows_loaded( $docroot, $d, %opt );
+}
+
+# DAO-1: THE ROWS, ONCE THE DESCRIPTOR IS IN HAND AND THE GATE HAS ANSWERED.
+#
+# resolve_binding loaded the descriptor, gated on it, and then called
+# read_rows - which loaded the same descriptor from the same file in the same
+# process a second time, so every page binding cost TWO YAML parses. The
+# gate it repeated was `as => 'operator'`, which may_read answers by
+# short-circuit; nothing else was lost by asking once.
+#
+# THIS SITS BENEATH read_rows, NEVER BESIDE IT. SM476's die is the design:
+# a caller cannot read rows without saying who is asking. This helper is
+# private, and the only two ways in are read_rows (which dies without `as`)
+# and resolve_binding (which has already called may_read). A third caller
+# reaching past the gate would be the second door SM476 exists to close.
+#
+# want_total (DAO-3) is 1 unless the caller says otherwise: read_rows always
+# reports a total, because SM502 U-1 made that its contract.
+sub _read_rows_loaded {
+    my ( $docroot, $d, %opt ) = @_;
+    my $name       = $d->{table};
+    my $want_total = exists $opt{want_total} ? delete $opt{want_total} : 1;
 
     # NO STORE AT ALL is the same answer as no table, and is checked BEFORE
     # connecting. A read-only handle cannot open a file that does not exist, so
@@ -207,6 +272,13 @@ sub read_rows {
     # SM502 U-1: the listing knows its total. select_sql has ALWAYS capped at
     # 200 rows by default, so a big table silently showed one page with
     # nothing saying so - the reply now carries the count behind the page.
+    #
+    # DAO-3: BUT NOT WHEN NOBODY IS GOING TO READ IT. `.field(column,key=K)`
+    # returns rows[0]{column} and never looks at the total, and it was paying
+    # for a second query against the same table on every render.
+    return { ok => 1, table => $name, rows => $rows || [] }
+        unless $want_total;
+
     my ( $csql, $cbinds ) = count_sql( $d, where => $opt{where} );
     my ($total) = eval { $dbh->selectrow_array( $csql, undef, @{$cbinds} ) };
     $total = scalar @{ $rows || [] } unless defined $total;
@@ -451,7 +523,11 @@ sub resolve_binding {
     my $q = Lazysite::Data::Query::parse_binding( $spec, $d );
     return $q unless $q->{ok};
 
-    my %opt = ( as => 'operator' );    # already gated, three lines above
+    # DAO-1: no `as` here any more. It said 'operator' only to satisfy
+    # read_rows' SM476 die, and may_read answers 'operator' by short-circuit,
+    # so the second gate decided nothing. The rows now come from
+    # _read_rows_loaded, beneath the gate that ran nine lines above.
+    my %opt;
     $opt{where}    = $q->{filters}  if %{ $q->{filters} };
     $opt{order_by} = $q->{order_by} if defined $q->{order_by};
     $opt{order}    = $q->{order}    if defined $q->{order};
@@ -472,7 +548,7 @@ sub resolve_binding {
     # filter and the limit is 1 whatever the binding said.
     if ( $scalar eq 'field' ) {
         $opt{limit} = 1;
-        my $r = read_rows( $docroot, $shape->{table}, %opt );
+        my $r = _read_rows_loaded( $docroot, $d, %opt, want_total => 0 );
         return $r unless $r->{ok};
         my $row = $r->{rows}[0];
         return _timed( $q, $t0,
@@ -480,7 +556,7 @@ sub resolve_binding {
                 value => ( $row ? $row->{ $q->{column} } : undef ) } );
     }
 
-    my $r = read_rows( $docroot, $shape->{table}, %opt );
+    my $r = _read_rows_loaded( $docroot, $d, %opt );
     return $r unless $r->{ok};
 
     # `.count` is the TRUE count of what the filters select - before any

@@ -86,14 +86,80 @@ sub _acls_path { _lz() . "/auth/acls.json" }
 # belongs to the caller's scope, so this supplies the value, not the binding.
 sub _settings_dir { return _lz() . "/auth" }
 
-sub load_acls {
-    my $path = _acls_path();
-    return {} unless -f $path;
-    open my $fh, '<', $path or return {};
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return ref $m eq 'HASH' ? $m : {};
+# A caller's own copy of the map. load_acls has ALWAYS handed back a fresh
+# structure - it decoded the file on every call - and several callers rely on
+# that: acl_drop_tree and acl_move_tree here, and the manager's acl actions,
+# mutate what they were given before saving it. The memo below would otherwise
+# hand every caller the same reference, and a mutation whose save FAILED would
+# leave the process answering from a map that never reached the file.
+sub _acls_copy {
+    my ($m) = @_;
+    my %out;
+    for my $k ( keys %{$m} ) {
+        my $e = $m->{$k};
+        if ( ref $e eq 'HASH' ) {
+            $out{$k} = {
+                map {
+                    $_ => (
+                        ref $e->{$_} eq 'ARRAY' ? [ @{ $e->{$_} } ] : $e->{$_} )
+                } keys %{$e}
+            };
+        }
+        else {
+            $out{$k} = $e;
+        }
+    }
+    return \%out;
+}
+
+# MEMOISED ON (path, mtime, size), with the one-second guard (DAO-4). This file
+# is read once per binding per visitor - Access::may_read reaches _acl_allows,
+# which reaches here - and the JSON decode is pure Perl.
+#
+# HOW STALENESS IS PREVENTED:
+#
+#   1. save_acls replaces the file by rename, so mtime (and almost always
+#      size) changes, and the key with it. A rule saved by another process is
+#      seen by this one on the next read.
+#   2. THE ONE-SECOND GUARD covers a same-second rewrite of the same length -
+#      swapping one three-letter username for another does exactly that - which
+#      would otherwise carry an identical key. mtime is one-second granular, so
+#      a file younger than a second is read fresh every time.
+#   3. save_acls clears this process's memo, because the (mtime,size) key
+#      cannot see OUR OWN write within the granularity of the clock, and the
+#      write and the next authorisation can be milliseconds apart. Same
+#      reasoning as SM334's _settings_cache_clear.
+#   4. Every caller gets its own copy, so a caller that mutates the map -
+#      several do - cannot change what the next caller reads.
+#
+# This is an access-control store, so none of these four is decorative.
+{
+    my %_acls_cache;
+
+    sub _acls_cache_clear { %_acls_cache = (); return }
+
+    sub load_acls {
+        my $path = _acls_path();
+        return {} unless -f $path;
+
+        my @st  = stat $path;
+        my $key = @st ? "$path:$st[9]:$st[7]" : '';
+        return _acls_copy( $_acls_cache{$key} )
+            if length $key && exists $_acls_cache{$key};
+
+        open my $fh, '<', $path or return {};
+        my $raw = do { local $/; <$fh> };
+        close $fh;
+        my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
+        return {} unless ref $m eq 'HASH';
+
+        if ( length $key && @st && $st[9] < time() - 1 ) {
+            %_acls_cache = () if keys %_acls_cache > 8;
+            $_acls_cache{$key} = $m;
+            return _acls_copy($m);
+        }
+        return $m;
+    }
 }
 
 sub save_acls {
@@ -139,7 +205,14 @@ sub save_acls {
     # (users, groups) and matches the 2770 setgid directory they live in.
     # Nothing world-readable either way.
     Lazysite::Util::secure_write_perms( $tmp, oct '660' );
-    return rename $tmp, $path;
+    my $ok = rename $tmp, $path;
+
+    # DAO-4: this process must not answer from a memo it has just
+    # superseded. The (mtime,size) key handles another process's write; this
+    # handles our own, which is the case where a permission change and the
+    # next authorisation are milliseconds apart.
+    _acls_cache_clear();
+    return $ok;
 }
 
 # --- CF-2: the ACL lifecycle, in one place -----------------------------------
