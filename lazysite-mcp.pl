@@ -381,15 +381,16 @@ my %TOOLS = (
         run => sub {
             my ( $args, $user, $caps ) = @_;
             my ( $layout, $theme ) = _read_active_layout_and_theme();
-            # Echo the full tool list so an agent sees every available tool in one
-            # call (the connector loads tools a few at a time, which can hide some).
+            # Echo the tool list so an agent sees every tool it may call in one
+            # call (the connector loads tools a few at a time, which can hide
+            # some). SM525: filtered to this session's grant, as tools/list is.
             return { ok => 1, user => $user, capabilities => $caps,
                 # SM491: the same reachability block the API whoami carries,
                 # from the same derivation - so the two surfaces cannot
                 # disagree about which door is open (SM288).
                 reachable     => Lazysite::Capabilities::reachability($caps),
                 active_layout => $layout, active_theme => $theme,
-                tools         => _tool_names(),
+                tools         => _tool_names($caps),
                 # How this session authenticated + when the credential expires
                 # (OAuth tokens expire ~hourly and refresh transparently; a
                 # static/operator credential may be permanent = null).
@@ -3063,7 +3064,9 @@ my %ANNOTATE = (
     restore_version       => [ 0, 0, 1 ],
 );
 
-sub _tool_names { return [ sort keys %TOOLS ] }
+# SM525: whoami's tool list is tools/list's answer for the same session - one
+# filtered source, so the two cannot disagree about what a grant may call.
+sub _tool_names { my ($caps) = @_; return [ map { $_->{name} } @{ tool_list($caps) } ] }
 
 # SM196: which tools an AUTHENTICATED session may invoke - the same gate as
 # tools/call (mcp channel + per-tool capability; path-aware tools are also

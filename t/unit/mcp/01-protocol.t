@@ -128,6 +128,17 @@ ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' )
     ok( !$ln{activate_theme}, 'content-only session: activate_theme filtered (no manage_themes) (SM196)' );
     ok( $ln{whoami}, 'content session: whoami present (introspection)' );
 
+    # SM525: whoami.tools is the SAME filtered list, name for name. It used to
+    # echo every key of the tool table to any authenticated caller, so the two
+    # answers to "what can I call" disagreed (the SM353 / lint-57 class).
+    my ( undef, $rw ) = mcp( { jsonrpc => '2.0', id => 23, method => 'tools/call',
+            params => { name => 'whoami', arguments => {} } }, auth => $bearer_lim );
+    my @who = sort @{ $rw->{result}{structuredContent}{tools} || [] };
+    is_deeply( \@who, [ sort keys %ln ],
+        'content session: whoami.tools names exactly what tools/list advertises (SM525)' );
+    ok( !( grep { $_ eq 'activate_theme' } @who ),
+        'content-only session: whoami.tools omits activate_theme (SM525)' );
+
     # Annotation + output-schema shape (authed list; SM210 keeps these tools out
     # of the anonymous surface).
     ok( $fn{delete_file}{annotations}{destructiveHint}, 'delete_file is annotated destructive' );

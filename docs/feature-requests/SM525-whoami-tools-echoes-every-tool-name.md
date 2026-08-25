@@ -3,8 +3,8 @@ title: "SM525: whoami.tools echoes every tool name"
 subtitle: "An authenticated caller sees the whole tool vocabulary in whoami while tools/list shows only what its capabilities allow."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND 2026-08-25 by the mcp structural review, PROVEN by probe tmp/mcp-probe-anomalies.t; class: security-confidentiality (low); recommended timing: 0.10.33. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. _tool_names() in lazysite-mcp.pl ignores the session's capabilities, so whoami.tools lists every tool name for any authenticated caller, while tools/list for the same session filters by caps (SM196). Two answers to 'what can I call' disagree, the SM353 / lint-57 class. Derive the whoami list from tool_list($caps) and pin it with an assertion in unit/mcp/01."
+status: shipped
+status-note: "SHIPPED 0.10.32 (EDGE): _tool_names now derives from tool_list($caps), so whoami.tools is the filtered tools/list answer for the same session; proving test in t/unit/mcp/01 (content-only session: whoami.tools equals tools/list name for name and omits activate_theme). FOUND 2026-08-25 by the mcp structural review, PROVEN by probe tmp/mcp-probe-anomalies.t; class: security-confidentiality (low); recommended timing: 0.10.33. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. _tool_names() in lazysite-mcp.pl ignores the session's capabilities, so whoami.tools lists every tool name for any authenticated caller, while tools/list for the same session filters by caps (SM196). Two answers to 'what can I call' disagree, the SM353 / lint-57 class. Derive the whoami list from tool_list($caps) and pin it with an assertion in unit/mcp/01."
 ---
 
 # The finding

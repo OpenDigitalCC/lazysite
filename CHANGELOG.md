@@ -214,6 +214,12 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM525 resolved (PENDING) **whoami names only the tools the session may
+  call.** whoami.tools echoed every tool in the table to any authenticated
+  caller while tools/list filtered by capability (SM196) - two answers to
+  "what can I call". whoami now reads the same filtered list. t/unit/mcp/01
+  pins a content-only session: whoami.tools equals tools/list.
+
 - SM521 resolved (PENDING) **an anonymous tools/call no longer tells known
   tool names from unknown ones.** With no bearer, a bogus name answered
   -32602 "Unknown tool" and a real one 401, because the lookup ran before
