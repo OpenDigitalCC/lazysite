@@ -324,6 +324,15 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM550 resolved (PENDING) **the theme-mirror check runs.**
+  `report_theme_assets_mirrored` in lazysite-check.pl called
+  `conf_value('layout')` with one argument to a `($file, $key)` function, so
+  SM315's standing check opened a file named `layout` and returned before
+  looking - it had never run. It now reads the conf file. NEW
+  t/tools/62-check-reports-an-unmirrored-theme.t: a theme with its CSS beside
+  theme.json and no mirror produces the "no mirrored assets" line naming the
+  misplaced file.
+
 - SM549 resolved (PENDING) **actor local is one actor in the users tool.**
   `_authorise_manage` refused `actor: local` for account-disable,
   account-enable and account-reassign while passwd, rename, claim and

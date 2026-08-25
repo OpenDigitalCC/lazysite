@@ -1783,8 +1783,11 @@ sub report_front_door_mode {
 # other route - a partial deploy, a mirror cleared by hand, an asset directory
 # that vanished. The activation warning cannot help those.
 sub report_theme_assets_mirrored {
-    my $layout = conf_value('layout');
-    my $theme  = conf_value('theme');
+    # SM550: conf_value is ($file, $key). Called with the key alone it opened a
+    # file named `layout`, so this check returned before looking - and had
+    # never run since SM315 shipped it.
+    my $layout = conf_value( $conf, 'layout' );
+    my $theme  = conf_value( $conf, 'theme' );
     return unless defined $layout && length $layout;
     return unless defined $theme  && length $theme;
 
