@@ -324,6 +324,13 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM561 resolved (PENDING) **the produced-no-pages refusal can fire.**
+  release.sh appended the trailing `--prefix` to `MAN_ADD` before testing
+  it for emptiness, so a manpage generator that produced nothing passed the
+  gate and shipped a package with no manual pages. The test now comes
+  first. t/tools/27-manpages.t lifts the block and runs it against an empty
+  man directory, expecting the refusal and exit 1.
+
 - SM560 resolved (PENDING) **an abort says what became of the stage,
   truthfully.** release.sh printed "staging dir retained: PATH" on eleven
   abort paths while the SM328 EXIT trap removed it unless `--keep-stage` was

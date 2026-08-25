@@ -663,12 +663,15 @@ for m in "$STAGE"/man/man1/*.1; do
     # each page under man/man1/ (restored to the plain prefix afterwards).
     MAN_ADD+=("--prefix=lazysite-$VERSION/man/man1/" "--add-file=man/man1/$(basename "$m")")
 done
-MAN_ADD+=("--prefix=lazysite-$VERSION/")
+# SM561: TEST FIRST, THEN APPEND. The trailing --prefix used to be added
+# before this test, so the array was never empty and a generator that
+# produced nothing shipped a package with no manual pages.
 if [ "${#MAN_ADD[@]}" -eq 0 ]; then
     echo "release.sh: gen-manpages.pl produced no pages; not releasing." >&2
     stage_disposition
     exit 1
 fi
+MAN_ADD+=("--prefix=lazysite-$VERSION/")
 
 # --- build tarball ---
 
