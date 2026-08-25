@@ -27,7 +27,7 @@ use Lazysite::Auth::Session qw(
 use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
-use Lazysite::Auth::Settings   qw(groups_grant_cap);
+use Lazysite::Auth::Settings   qw(read_settings groups_grant_cap);
 use Lazysite::I18n             qw(chrome_string);    # SM179 P8: engine-chrome i18n
 $Lazysite::Util::COMPONENT = 'auth';
 
@@ -421,7 +421,7 @@ sub handle_claim {
     my $ip       = $ENV{REMOTE_ADDR} // '';
 
     # HTTPS-only (setting a secret); localhost allowed for dev/CLI.
-    unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
+    unless ( _secure_transport($ip) ) {
         log_event( 'WARN', $username, 'claim over plaintext refused', ip => $ip );
         redirect("/claim?u=$username&error=1");
         return;
@@ -548,7 +548,7 @@ sub handle_exchange {
     $key =~ s/[^a-zA-Z0-9_]//g;
     my $ip = $ENV{REMOTE_ADDR} // '';
 
-    unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
+    unless ( _secure_transport($ip) ) {
         json_response( { ok => 0, error => 'HTTPS required' }, 403 );
         return;
     }
@@ -577,7 +577,7 @@ sub handle_exchange {
 # CURRENT token (Basic auth) and receives a fresh {token, expires_at}.
 sub handle_rotate {
     my $ip = $ENV{REMOTE_ADDR} // '';
-    unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
+    unless ( _secure_transport($ip) ) {
         json_response( { ok => 0, error => 'HTTPS required' }, 403 );
         return;
     }
@@ -871,6 +871,11 @@ sub load_users {
 # file cannot lock the operator out of the manager - and the WARN
 # surfaces the problem. The settings file is written only by
 # tools/lazysite-users.pl; this is a read-only consumer.
+#
+# FD-19: the only reader here that still opens the file itself. The WARN
+# is the reason - it names the account and says which default was taken,
+# and read_settings' own warning says neither. The other three readers
+# below go through read_settings.
 sub ui_enabled {
     my ($username) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
@@ -896,15 +901,7 @@ sub ui_enabled {
 # missing/corrupt file, matching the other settings consumers here.
 sub token_expired {
     my ($username) = @_;
-    my $path = "$AUTH_DIR/user-settings.json";
-    return 0 unless -f $path;
-    open my $fh, '<:raw', $path or return 0;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    require JSON::PP;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return 0 unless ref $data eq 'HASH';
-    my $s = $data->{$username};
+    my $s = read_settings()->{$username};
     return 0 unless ref $s eq 'HASH' && $s->{token_expires_at};
     return time() > $s->{token_expires_at} ? 1 : 0;
 }
@@ -913,15 +910,7 @@ sub token_expired {
 # whole account fails authentication, whatever credential it holds.
 sub account_expired {
     my ($username) = @_;
-    my $path = "$AUTH_DIR/user-settings.json";
-    return 0 unless -f $path;
-    open my $fh, '<:raw', $path or return 0;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    require JSON::PP;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return 0 unless ref $data eq 'HASH';
-    my $s = $data->{$username};
+    my $s = read_settings()->{$username};
     return 0 unless ref $s eq 'HASH' && $s->{expires_at};
     return time() > $s->{expires_at} ? 1 : 0;
 }
@@ -929,15 +918,7 @@ sub account_expired {
 # SM072 batch 4: is TOTP enrolled for this account?
 sub mfa_enrolled {
     my ($username) = @_;
-    my $path = "$AUTH_DIR/user-settings.json";
-    return 0 unless -f $path;
-    open my $fh, '<:raw', $path or return 0;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    require JSON::PP;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return 0 unless ref $data eq 'HASH';
-    my $s = $data->{$username};
+    my $s = read_settings()->{$username};
     # SM148: a PENDING (unconfirmed) enrolment does not enforce 2FA - the user
     # has not yet proved their authenticator works, so it must not gate login.
     return ( ref $s eq 'HASH' && $s->{totp_secret} && !$s->{mfa_pending} ) ? 1 : 0;
@@ -1152,6 +1133,16 @@ sub parse_post {
         $form{$k} = $v;
     }
     return %form;
+}
+
+# FD-9: the transport gate handle_claim, handle_exchange and handle_rotate
+# share - a secret may cross the wire under TLS, or from the loopback
+# address a dev/CLI caller comes from, and nowhere else. lazysite-dav.pl
+# has a fourth copy which is NOT this one: it also honours the conf key
+# dav_allow_insecure, so it is a different decision.
+sub _secure_transport {
+    my ($ip) = @_;
+    return ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) ? 1 : 0;
 }
 
 sub sanitise_next {
