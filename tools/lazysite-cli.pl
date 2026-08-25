@@ -344,7 +344,7 @@ sub run_tool_per_site {
     fail("payload tool missing: $tool") unless -f $tool;
 
     my $worst = 0;
-    my ( @ok, @bad );
+    my ( @ok, @bad, @unchecked );
     for my $s (@$targets) {
         my @a = ( '--docroot', $s->{docroot} );
         push @a, '--cgibin', $s->{cgibin} if length( $s->{cgibin} // '' );
@@ -352,13 +352,20 @@ sub run_tool_per_site {
         my $rc = system( $^X, _lib_arg(), $tool, @a, @$args );
         $rc    = $rc == -1 ? 127 : ( $rc >> 8 );
         $worst = $rc if $rc > $worst;
-        if   ($rc) { push @bad, $s->{name} }
-        else       { push @ok,  $s->{name} }
+        # SM562: exit 2 is "could not check at all" (lazysite-check's contract;
+        # a usage refusal elsewhere) - a refusal, not a finding. Labelling it
+        # "with findings" sent operators hunting for a content problem on a
+        # site the tool had never looked at.
+        if    ( $rc == 2 ) { push @unchecked, $s->{name} }
+        elsif ($rc)        { push @bad,       $s->{name} }
+        else               { push @ok,        $s->{name} }
     }
 
     if ( @$targets > 1 ) {
-        printf "\n== %d ok, %d with findings.\n", scalar @ok, scalar @bad;
-        printf "   findings on: %s\n", join( ', ', @bad ) if @bad;
+        printf "\n== %d ok, %d with findings, %d could not check.\n",
+            scalar @ok, scalar @bad, scalar @unchecked;
+        printf "   findings on: %s\n",     join( ', ', @bad )       if @bad;
+        printf "   could not check: %s\n", join( ', ', @unchecked ) if @unchecked;
     }
     exit $worst;
 }

@@ -324,6 +324,13 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM562 resolved (PENDING) **a refusal is a refusal, a finding is a finding.**
+  `lazysite check --all` labelled every non-zero child exit "with findings",
+  so a site the check could not examine (no engine tree) was reported as a
+  site finding. Exit 2 now lands in a "could not check" bucket of its own,
+  named beside "findings on:"; the worst-status exit contract is untouched.
+  NEW t/tools/63-a-refusal-is-not-a-finding.t.
+
 - SM561 resolved (PENDING) **the produced-no-pages refusal can fire.**
   release.sh appended the trailing `--prefix` to `MAN_ADD` before testing
   it for emptiness, so a manpage generator that produced nothing passed the
