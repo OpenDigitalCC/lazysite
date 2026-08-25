@@ -67,6 +67,14 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM528 resolved (PENDING) **an alias on a gated page targets its public
+  URL.** A page saved with `aliases:` into a gated section indexed its
+  alias against the private-store path (/old-x -> /-lazysite-private/...),
+  a promise leading nowhere that delete, deriving the same path, could
+  never remove. Found by the path-core review (NR-2), proven by probe.
+  Save and delete now key the alias map by validate_path's rel.
+  t/unit/manager/71 pins the public target and the de-index.
+
 - SM527 resolved (PENDING) **a lock is keyed by the canonical path.** The
   manager's lock key was the request spelling, so a lock taken as
   content/p.md was invisible to a save of /content/p.md, ./content/p.md or

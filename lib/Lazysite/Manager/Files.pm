@@ -528,9 +528,11 @@ sub action_save {
         # SM110: drop the per-alias-host copies of this page's render too.
         unlink_host_copies( $DOCROOT, $cache );
         # SM134: keep the alias-redirect map current for this content page.
+        # SM528: keyed by validate_path's rel - the URL the page is served
+        # under whichever tree holds it. Stripping the docroot from $full gave
+        # a gated page the STORE path as its target, a row that led nowhere.
         require Lazysite::Aliases;
-        ( my $arel = $full ) =~ s{^\Q$DOCROOT\E/?}{};
-        Lazysite::Aliases::index_page( $DOCROOT, $arel, $content );
+        Lazysite::Aliases::index_page( $DOCROOT, $result->{rel}, $content );
     }
 
     # Release lock
@@ -801,11 +803,11 @@ sub action_delete {
     # SM110: drop the per-alias-host copies of this page's render too.
     unlink_host_copies( $DOCROOT, $cache ) if $full =~ /\.md$/;
 
-    # SM134: drop this page's alias-redirect entries.
+    # SM134: drop this page's alias-redirect entries. SM528: by the same rel
+    # the save indexed them under, so a gated page's rows can be removed.
     if ( $full =~ /\.md$/ ) {
         require Lazysite::Aliases;
-        ( my $arel = $full ) =~ s{^\Q$DOCROOT\E/?}{};
-        Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
+        Lazysite::Aliases::deindex_page( $DOCROOT, $result->{rel} );
     }
 
     # CF-2: the rule goes with the content. An entry outlives the file it

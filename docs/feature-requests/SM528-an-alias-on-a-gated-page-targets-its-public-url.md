@@ -3,8 +3,8 @@ title: "SM528: an alias on a gated page targets its public URL"
 subtitle: "An alias declared on a page that lives in the private store is indexed against the store path, so the alias points nowhere and can never be removed."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "FOUND 2026-08-25 by the path-core structural review, PROVEN by probe tmp/pathcore-probe.t (P2, evidence in tmp/pathcore-probe.out); class: correctness; recommended timing: 0.10.33. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. Saving members/x.md with aliases: [/old-x] into a gated section writes the alias map row /old-x -> /-lazysite-private/members/x. Manager/Files.pm 536 derives the alias rel by stripping the docroot from the full path, and for a gated page the full path is the private store path; action_delete at 811 does the same, so the bogus row can never be de-indexed either. Fix: pass the validated rel, which is already in hand."
+status: shipped
+status-note: "SHIPPED 0.10.32 (EDGE): action_save and action_delete pass validate_path's rel to the alias indexer and de-indexer instead of re-deriving it from the full path. Proving test t/unit/manager/71-acl-moves-content.t 'an alias on a gated page targets its public URL': the row reads /old-x -> /members/x, the store path appears nowhere in the map, and deleting the page removes the row. FOUND 2026-08-25 by the path-core structural review, PROVEN by probe tmp/pathcore-probe.t (P2, evidence in tmp/pathcore-probe.out); class: correctness; recommended timing: 0.10.33. PLANNED under SM516 for 0.10.33 unless the operator pulls it forward. Saving members/x.md with aliases: [/old-x] into a gated section writes the alias map row /old-x -> /-lazysite-private/members/x. Manager/Files.pm 536 derives the alias rel by stripping the docroot from the full path, and for a gated page the full path is the private store path; action_delete at 811 does the same, so the bogus row can never be de-indexed either. Fix: pass the validated rel, which is already in hand."
 ---
 
 # The finding

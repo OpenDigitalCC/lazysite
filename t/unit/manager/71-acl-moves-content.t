@@ -87,6 +87,33 @@ subtest 'gating a folder moves it out of the document root' => sub {
         or diag( 'keys: ' . join ', ', map { "'$_'" } keys %{ load_acls() } );
 };
 
+subtest 'an alias on a gated page targets its public URL' => sub {
+    # SM528: the alias indexer was handed the page's rel derived from its FULL
+    # path, and for a gated page the full path is the private store path. The
+    # row read /old-x -> /-lazysite-private/members/x: a promise leading to a
+    # path that is never served, and one that delete - making the same
+    # derivation - could never remove.
+    require Lazysite::Aliases;
+    my $r = Lazysite::Manager::Files::action_save( 'members/x.md', 'alice',
+        "---\ntitle: X\naliases: [/old-x]\n---\n\nbody\n", undef );
+    ok( $r->{ok}, 'a page with an alias saves into the gated section' )
+        or diag( $r->{error} // '' );
+    ok( -f private_path( $d, 'members/x.md' ), 'and lands in the store' );
+
+    my $rows = Lazysite::Aliases::list_aliases( $d, undef );
+    my ($row) = grep { $_->{alias} eq '/old-x' } @$rows;
+    is( ( $row ? $row->{target} : '(no row)' ), '/members/x',
+        'the alias targets the URL the page is served under' );
+    unlike( join( ' ', map { $_->{target} } @$rows ), qr/lazysite-private/,
+        'and the store path appears nowhere in the alias map' );
+
+    my $del = Lazysite::Manager::Files::action_delete( 'members/x.md', 'alice' );
+    ok( $del->{ok}, 'deleting the page is accepted' ) or diag( $del->{error} // '' );
+    my @left = grep { $_->{alias} eq '/old-x' }
+        @{ Lazysite::Aliases::list_aliases( $d, undef ) };
+    is( scalar @left, 0, 'and its alias row is gone - it can be de-indexed' );
+};
+
 subtest 'removing the rule brings it back' => sub {
     my $r = action_acl_remove( 'members/', 'alice' );
     ok( $r->{ok},      'the removal is accepted' ) or diag( $r->{error} // '' );
