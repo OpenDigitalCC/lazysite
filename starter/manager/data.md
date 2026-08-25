@@ -40,11 +40,13 @@ search: false
        discovering half a file landed. -->
   <div id="import-panel" class="mg-card" style="display:none;margin:0 0 12px;max-width:40rem;">
     <div class="mg-card-header"><span class="mg-card-title">Import</span></div>
+    <div class="mg-card-body">
     <div id="import-plan" style="font-size:0.9em;"></div>
     <div id="import-error" class="mg-status"></div>
     <div style="display:flex;gap:8px;margin-top:10px;">
       <button class="mg-btn mg-btn-primary" id="import-apply-btn" onclick="applyImport()" style="display:none;">Apply</button>
       <button class="mg-btn" onclick="cancelImport()">Cancel</button>
+    </div>
     </div>
   </div>
   <div style="overflow-x:auto;">
@@ -61,6 +63,7 @@ search: false
      a migration WOULD do, and the operator decides. -->
 <div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;max-width:48rem;">
   <div class="mg-card-header"><span class="mg-card-title" id="descriptor-title"></span></div>
+  <div class="mg-card-body">
   <!-- SM502 U-4: THE FORM IS A SECOND DOOR ONTO THE TEXT. The YAML stays
        authoritative (DM-5: it is a thing an operator reads); the form edits
        the same declaration without asking anyone to type YAML, and saving
@@ -92,6 +95,7 @@ search: false
       <button class="mg-btn mg-btn-danger" id="plan-rebuild-btn" onclick="runRebuild()" style="display:none;">Rebuild, losing the named columns</button>
     </div>
   </div>
+  </div>
 </div>
 
 <!-- DM-3: THE EDITOR IS BUILT FROM THE DESCRIPTOR, NOT WRITTEN BY HAND. One
@@ -103,11 +107,13 @@ search: false
      disagree the first time one of them changed. -->
 <div id="row-editor" class="mg-card" style="display:none;margin-top:14px;max-width:40rem;">
   <div class="mg-card-header"><span class="mg-card-title" id="editor-title"></span></div>
+  <div class="mg-card-body">
   <div id="editor-fields"></div>
   <div id="editor-error" class="mg-status" style="margin-top:8px;"></div>
   <div style="display:flex;gap:8px;margin-top:12px;">
     <button class="mg-btn mg-btn-primary" onclick="saveRow()">Save</button>
     <button class="mg-btn" onclick="closeEditor()">Cancel</button>
+  </div>
   </div>
 </div>
 
@@ -351,10 +357,15 @@ function showModal(panelId, cancelFn) {
   panel.parentNode.insertBefore(mark, panel);
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  // SM585: the CARD is the frame. .mg-card already carries the manager's
+  // surface, border, radius and shadow, and .mg-card-header/.mg-card-body
+  // carry the padding - so the box only sizes and scrolls. Painting a second
+  // background and radius here stacked two surfaces and left the content
+  // hard against the edge, which is what the operator saw.
   var box = document.createElement('div');
-  box.style.cssText = 'background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:48rem;max-height:90vh;overflow:auto;border-radius:8px;';
+  box.style.cssText = 'width:92%;max-width:48rem;max-height:90vh;overflow:auto;';
   panel.style.display = 'block';
-  panel.style.marginTop = '0';
+  panel.style.margin = '0';
   panel.style.maxWidth = 'none';
   box.appendChild(panel);
   ov.appendChild(box);
