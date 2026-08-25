@@ -57,8 +57,10 @@ my $PROTOCOL = '2025-11-25';
 # reply that trips the client's per-call timeout. Normal pages are a few KB.
 my $MAX_READ_BYTES = 512 * 1024;
 
-my $DOCROOT      = $ENV{DOCUMENT_ROOT} // '';
-my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
+# SM556: resolved once, here, as the control API does - one spelling of the
+# tree for every module's confinement check.
+my $DOCROOT      = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // '' );
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);                        # SM293
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 # Set early so verify_bearer (which runs before setup_context) can audit a connect.

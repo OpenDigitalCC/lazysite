@@ -68,7 +68,9 @@ use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
-my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
+# SM556: resolved once, here, so every module confines against one spelling
+# of the tree (see Paths::canonical_docroot for when it is left as given).
+my $DOCROOT = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n" );
 $Lazysite::Auth::Acl::DOCROOT            = $DOCROOT;
 $Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;

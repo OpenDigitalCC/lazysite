@@ -44,6 +44,68 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM556 resolved (PENDING) **a symlinked docroot is one docroot.** Every
+  manager module confines a target against the docroot the dispatcher
+  hands it, assuming that docroot is canonical; neither dispatcher made
+  it so. Under a symlinked DOCUMENT_ROOT theme delete, cache invalidate
+  and the submissions reader refused ("Invalid theme path", blocked,
+  "Invalid submissions file") while layout delete and the domain purge,
+  which resolve both sides, succeeded. Found by the themes structural
+  review (N-5), proven by probe. Both dispatchers now take their docroot
+  through Paths::canonical_docroot, which resolves it only when both
+  spellings find the same engine tree and keeps the given spelling for a
+  migrated tree found by one spelling only, so the engine tree never
+  moves out from under the front end. t/unit/manager/103
+  drives the control API and the MCP under a symlinked docroot.
+
+- SM532 resolved (PENDING) **renaming the active theme keeps the site
+  styled.** action_theme_delete refuses the active theme and any theme a
+  configured domain resolves to; action_theme_rename checked neither,
+  answered ok:1 and left lazysite.conf naming a theme directory that no
+  longer existed, so every page rendered with no theme mirror and the
+  reply gave no hint. Found by the themes structural review (N-4), proven
+  by probe. Rename now applies delete's two guards with delete's wording
+  (refuse, rather than repoint: an operator activates another theme
+  first, as before a delete) and reports a failed directory rename as a
+  failure. t/unit/manager/102 pins both refusals, the untouched site and
+  that a free theme still renames with its mirror.
+
+- SM531 resolved (PENDING) **a url page is a cache source.** The processor
+  renders <page>.url as it renders <page>.md, but Manager/Themes.pm held
+  four opinions about the .html beside a .url: the activation sweep dropped
+  it, invalidate('*') kept it, the cache listing said has_source: 0, and
+  invalidating it by path refused it as not-a-cache. An operator who
+  cleared everything was served the stale .url page and told it had no
+  source. Found by the themes structural review (N-2), proven by probe.
+  One _cache_source_exists($base) now answers for every walk; an .html
+  with neither sibling is still legacy content and is never touched
+  (SM133). t/unit/manager/100 drives a .md, a .url and an orphan .html
+  through all four walks and pins the single definition.
+
+- SM533 resolved (PENDING) **a layout install cleans up after itself.**
+  Manager/Layouts.pm's one temporary-directory cleaner only removed
+  /tmp/lazysite-layouts-<pid>, the catalogue actions' directory; the
+  manifest install works in /tmp/lazysite-layout-install-<pid> and handed
+  that to the same cleaner on every exit, which matched nothing. Every
+  install_layout call over the API or MCP left its downloaded packages in
+  /tmp and reported success as though it had tidied. Found by the themes
+  structural review (N-6), proven by probe. The guard now names both
+  prefixes the module mints. t/unit/manager/104 drives a mocked manifest
+  install to its end and asserts the working directory is gone.
+
+- SM526 resolved (PENDING) **one answer to is-this-address-public.**
+  Manager/Domains.pm carried two address classifiers: the SSRF guard
+  domain_check applies to every resolved address, and a second filter
+  instance_public_ips used to decide which addresses are "this server".
+  They disagreed on 8 of 15 inputs - CGNAT, multicast, 240/4, a malformed
+  octet, `::`, fe90::/10 and the IPv4-mapped loopback and RFC1918 forms
+  were all public to the second - so a mapped loopback or a proxy's CGNAT
+  address could be offered to the points-to-this-server check as an
+  address of this install. Found by the themes structural review (N-1),
+  proven by probe. The second classifier is deleted and the self-address
+  filter is the guard. t/unit/manager/99 drives the eight inputs through
+  instance_public_ips and pins that one sub remains.
+
 - SM555 resolved (PENDING) **listing the engine tree logs once.** Opening
   /lazysite in the file browser wrote one "blocked lazysite tree" WARN per
   hidden entry - six per open, reading as a traversal attempt in a log
@@ -109,53 +171,6 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
-- SM532 resolved (PENDING) **renaming the active theme keeps the site
-  styled.** action_theme_delete refuses the active theme and any theme a
-  configured domain resolves to; action_theme_rename checked neither,
-  answered ok:1 and left lazysite.conf naming a theme directory that no
-  longer existed, so every page rendered with no theme mirror and the
-  reply gave no hint. Found by the themes structural review (N-4), proven
-  by probe. Rename now applies delete's two guards with delete's wording
-  (refuse, rather than repoint: an operator activates another theme
-  first, as before a delete) and reports a failed directory rename as a
-  failure. t/unit/manager/102 pins both refusals, the untouched site and
-  that a free theme still renames with its mirror.
-
-- SM531 resolved (PENDING) **a url page is a cache source.** The processor
-  renders <page>.url as it renders <page>.md, but Manager/Themes.pm held
-  four opinions about the .html beside a .url: the activation sweep dropped
-  it, invalidate('*') kept it, the cache listing said has_source: 0, and
-  invalidating it by path refused it as not-a-cache. An operator who
-  cleared everything was served the stale .url page and told it had no
-  source. Found by the themes structural review (N-2), proven by probe.
-  One _cache_source_exists($base) now answers for every walk; an .html
-  with neither sibling is still legacy content and is never touched
-  (SM133). t/unit/manager/100 drives a .md, a .url and an orphan .html
-  through all four walks and pins the single definition.
-
-- SM533 resolved (PENDING) **a layout install cleans up after itself.**
-  Manager/Layouts.pm's one temporary-directory cleaner only removed
-  /tmp/lazysite-layouts-<pid>, the catalogue actions' directory; the
-  manifest install works in /tmp/lazysite-layout-install-<pid> and handed
-  that to the same cleaner on every exit, which matched nothing. Every
-  install_layout call over the API or MCP left its downloaded packages in
-  /tmp and reported success as though it had tidied. Found by the themes
-  structural review (N-6), proven by probe. The guard now names both
-  prefixes the module mints. t/unit/manager/104 drives a mocked manifest
-  install to its end and asserts the working directory is gone.
-
-- SM526 resolved (PENDING) **one answer to is-this-address-public.**
-  Manager/Domains.pm carried two address classifiers: the SSRF guard
-  domain_check applies to every resolved address, and a second filter
-  instance_public_ips used to decide which addresses are "this server".
-  They disagreed on 8 of 15 inputs - CGNAT, multicast, 240/4, a malformed
-  octet, `::`, fe90::/10 and the IPv4-mapped loopback and RFC1918 forms
-  were all public to the second - so a mapped loopback or a proxy's CGNAT
-  address could be offered to the points-to-this-server check as an
-  address of this install. Found by the themes structural review (N-1),
-  proven by probe. The second classifier is deleted and the self-address
-  filter is the guard. t/unit/manager/99 drives the eight inputs through
-  instance_public_ips and pins that one sub remains.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether

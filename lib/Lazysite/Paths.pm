@@ -41,7 +41,7 @@ use warnings;
 use File::Basename qw(dirname basename);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir stray_lazysite);
+our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir stray_lazysite canonical_docroot);
 
 our $DIRNAME = 'lazysite';
 
@@ -70,6 +70,34 @@ sub lazysite_dir {
     my $ext = external_lazysite_dir($docroot);
     return $ext if defined $ext && -d $ext;
     return "$docroot/$DIRNAME";
+}
+
+# SM556: the docroot a DISPATCHER hands every manager module, resolved once.
+#
+# Every module confines a target by comparing realpath($target) against the
+# $DOCROOT it was given, on the assumption that the given one is canonical.
+# Under a symlinked DOCUMENT_ROOT that assumption held nowhere: three modules
+# refused ("Invalid theme path", blocked, "Invalid submissions file") and two,
+# which resolve both sides, succeeded. One site, one tree, two answers.
+#
+# Resolved ONLY when both spellings find the same engine tree - in practice an
+# unmigrated site, whose tree sits inside the docroot. A migrated site's
+# <docroot>-lazysite tree is named for one spelling and found only through it
+# (beside the symlink, or beside the real directory); resolving would send the
+# manager to a tree the front end does not serve, so the given spelling is
+# kept. Given back unchanged when there is nothing to resolve.
+sub canonical_docroot {
+    my ($docroot) = @_;
+    return $docroot unless defined $docroot && length $docroot;
+    require Cwd;
+    my $real = Cwd::realpath($docroot);
+    return $docroot unless defined $real && length $real;
+    ( my $given = $docroot ) =~ s{/+\z}{};
+    return $real if $real eq $given;
+    my $here  = Cwd::realpath( lazysite_dir($given) );
+    my $there = Cwd::realpath( lazysite_dir($real) );
+    return $docroot unless defined $here && defined $there && $here eq $there;
+    return $real;
 }
 
 # Is this site half-migrated - an engine tree in BOTH places?
