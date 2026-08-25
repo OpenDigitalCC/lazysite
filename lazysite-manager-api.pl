@@ -154,6 +154,16 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 # Replaces the retired lazysite.conf manager_groups signal.
 my $site_secured = site_grants_manager();
 
+# SM262: set when the request authenticated with a TOKEN rather than a manager
+# cookie, so theme-delete can be restricted to themes the caller created. Declared
+# here because it is set in the auth branch and read at dispatch.
+my $RESTRICT_THEME_DELETE = 0;
+
+# SM465: the rule before and after an acl-set, for the audit entry at the end
+# of the dispatch. File scope rather than threaded through, because the audit
+# block runs after the chain has finished and every action shares that one exit.
+my ( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
+
 # SM237: every action name the dispatch chain below recognises, whichever channel
 # serves it. Needed because the token-client gate runs BEFORE dispatch and only
 # knows %need (the token subset), so without this it cannot tell "exists, but
@@ -165,16 +175,6 @@ my $site_secured = site_grants_manager();
 # 108-branch refactor in a copy-and-discoverability release. Drift is impossible:
 # t/lint/22-known-action-parity.t extracts the chain's action names and asserts
 # this set matches exactly.
-# SM262: set when the request authenticated with a TOKEN rather than a manager
-# cookie, so theme-delete can be restricted to themes the caller created. Declared
-# here because it is set in the auth branch and read at dispatch.
-my $RESTRICT_THEME_DELETE = 0;
-
-# SM465: the rule before and after an acl-set, for the audit entry at the end
-# of the dispatch. File scope rather than threaded through, because the audit
-# block runs after the chain has finished and every action shares that one exit.
-my ( $ACL_AUDIT_BEFORE, $ACL_AUDIT_AFTER );
-
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set actions-list aliases-list analyse_visitors
     brief-read brief-append briefs-migrate briefs-list brief-delete
@@ -224,12 +224,10 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
     my $origin = $ENV{HTTP_ORIGIN} // '';
     log_event( 'INFO', 'cors', 'browser-origin preflight refused',
         origin => ( length $origin ? $origin : '(none)' ) );
-    binmode(STDOUT);
-    print "Status: 405 Method Not Allowed\r\n";
-    print "Allow: GET, POST\r\n";
-    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json( {
-            ok    => JSON::PP::false,                                             # SM353
+    _emit_json(
+        '405 Method Not Allowed',
+        ['Allow: GET, POST'],
+        { ok => JSON::PP::false,    # SM353
             error => 'The control API is not callable from a browser page. It '
                 . 'serves agents, scripts and the manager, which hold '
                 . 'operator-issued credentials; a page cannot hold one safely. To '
@@ -237,7 +235,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
                 . 'validated, stored, and it raises a notification). To do '
                 . 'privileged work, call this API from somewhere that holds a '
                 . 'credential. See /docs/api.',
-    } );
+        } );
     exit 0;
 }
 
@@ -490,17 +488,6 @@ if ( $action eq 'csrf-token' ) {
     exit 0;
 }
 
-# SEC-2026-07 (H1/H2): cookie/manager path authorization. The %need map below
-# gates only TOKEN clients; a cookie session historically reached every action
-# ungated ("manager UI = trusted operator"), so a low-privilege interactive
-# account (content-editors) could config-set, run backups, enable plugins, etc.
-# Now the cookie path is capability-gated by the same model, and a state-changing
-# action must be POST (a GET would bypass the CSRF gate above - and be CSRF-able
-# from an admin's browser). Operators (manage_users, or the unsecured/dev
-# fallback where no group grants manager) bypass the CAPABILITY gate, matching
-# the rest of the manager. The users/sessions/keys/audit/notices actions keep
-# their own bespoke gates in dispatch (they carry actor confinement / forbidden
-# messaging), so they are not listed here.
 # SM475: A MUTATING ACTION IS POST-ONLY ON BOTH CHANNELS.
 #
 # This lived INSIDE the cookie branch below, so it never applied to a token
@@ -556,6 +543,17 @@ if ( $MUTATING{$action} && $method ne 'POST' ) {
 }
 
 if ( !$token_auth ) {
+    # SEC-2026-07 (H1/H2): cookie/manager path authorization. The %need map below
+    # gates only TOKEN clients; a cookie session historically reached every action
+    # ungated ("manager UI = trusted operator"), so a low-privilege interactive
+    # account (content-editors) could config-set, run backups, enable plugins, etc.
+    # Now the cookie path is capability-gated by the same model, and a state-changing
+    # action must be POST (a GET would bypass the CSRF gate above - and be CSRF-able
+    # from an admin's browser). Operators (manage_users, or the unsecured/dev
+    # fallback where no group grants manager) bypass the CAPABILITY gate, matching
+    # the rest of the manager. The users/sessions/keys/audit/notices actions keep
+    # their own bespoke gates in dispatch (they carry actor confinement / forbidden
+    # messaging), so they are not listed here.
     my %COOKIE_CAP = (
         # Content-mutation actions (save/delete/mkdir/move/copy/file-upload/
         # migrate-to-local) and acl-get/set/remove self-authorize per file via
@@ -962,11 +960,8 @@ if ($token_auth) {
     # so the client can back off per the documented retry contract.
     my $rl = _rate_ok($auth_user);
     unless ( $rl->{ok} ) {
-        binmode(STDOUT);    # encode_json emits UTF-8 bytes; do not re-encode
-        print "Status: 429 Too Many Requests\r\n";
-        print "Retry-After: $rl->{retry_after}\r\n";
-        print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-        print encode_json(
+        _emit_json( '429 Too Many Requests',
+            ["Retry-After: $rl->{retry_after}"],
             { ok => JSON::PP::false, error => 'Rate limit exceeded' } );    # SM353
         exit 0;
     }
@@ -1037,6 +1032,46 @@ if ($token_auth) {
         }
     }
 }
+
+# --- Audit tables ------------------------------------------------------------
+#
+# The last two tables the request meets, and the only ones that used to be
+# declared BELOW the dispatch, inside the audit block itself. They are
+# constants; hoisting them puts every table this file consults above the chain
+# that consults it (lint/39's rule stated positively).
+#
+# %skip: the read-ish actions the audit trail deliberately does not record.
+# t/unit/lib/16-audit-guarantee.t reads this list out of the source and requires
+# every dispatched action to be here or on its expected-audited list, so an
+# action added to the chain and to neither fails.
+#
+# SM447: the three data READS are skip-listed for the same reason as every other
+# read here - they change nothing, and an audit trail of who looked at a table
+# would bury the entries that record who CHANGED one. The three data WRITERS -
+# data-migrate, data-row-save, data-row-delete - are deliberately absent, so they
+# are audited by construction: a schema migration and a row edit are exactly what
+# an operator asks the trail about. SM245: brief-read skips as a read;
+# brief-append and briefs-migrate stay out for the same reason the data writers
+# do. SM508: briefs-list skips as a read; brief-delete is audited - removing a
+# record of intent is exactly what a trail should remember.
+my %skip = map { $_ => 1 } qw(
+    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors
+    cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
+    layouts-available layouts-releases layouts-repo-get layouts-release-contents
+    handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
+    artifact-validate lock unlock renew-lock preview preview-clear preview-grant
+    backup-list sessions-list keys-list git-status git-history git-history-summary git-show
+    site-backup-inspect protected-sections
+    data-tables data-table data-rows
+    data-table-source data-migrate-plan data-safety-exports data-safety-export-read
+    brief-read briefs-list notices layouts-manifest
+);
+
+# %uskip: the same decision one level down, for the sub-actions action=users
+# carries in its POST body - the reads of the account store.
+my %uskip = map { $_ => 1 } qw(
+    list users-detail users-page groups group-settings-get permissions-grid capability-holders settings-get credential-status partner-caps
+    verify-credential totp-code onboarding );
 
 # --- Dispatch ---
 
@@ -1241,9 +1276,7 @@ elsif ( $action eq 'brief-read' ) {
                 . 'the brief is about.' };
     }
     else {
-        require Lazysite::Manager::Briefs;
-        $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-        $Lazysite::Manager::Briefs::auth_user = $auth_user;
+        _briefs();
         $result = Lazysite::Manager::Briefs::action_brief_read($path);
     }
 }
@@ -1256,23 +1289,17 @@ elsif ( $action eq 'brief-append' ) {
                 . 'the entry is about.' };
     }
     else {
-        require Lazysite::Manager::Briefs;
-        $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-        $Lazysite::Manager::Briefs::auth_user = $auth_user;
+        _briefs();
         my $req = _json_body();
         $result = Lazysite::Manager::Briefs::action_brief_append( $path, $req->{entry} );
     }
 }
 elsif ( $action eq 'briefs-migrate' ) {
-    require Lazysite::Manager::Briefs;
-    $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-    $Lazysite::Manager::Briefs::auth_user = $auth_user;
+    _briefs();
     $result = Lazysite::Manager::Briefs::action_briefs_migrate();
 }
 elsif ( $action eq 'briefs-list' ) {
-    require Lazysite::Manager::Briefs;
-    $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-    $Lazysite::Manager::Briefs::auth_user = $auth_user;
+    _briefs();
     $result = Lazysite::Manager::Briefs::action_briefs_list();
 }
 elsif ( $action eq 'brief-delete' ) {
@@ -1288,9 +1315,7 @@ elsif ( $action eq 'brief-delete' ) {
                 . 'to remove, as briefs-list reports it.' };
     }
     else {
-        require Lazysite::Manager::Briefs;
-        $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
-        $Lazysite::Manager::Briefs::auth_user = $auth_user;
+        _briefs();
         $result = Lazysite::Manager::Briefs::action_brief_delete($path);
     }
 }
@@ -1753,30 +1778,6 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 # audited; the access log and the stats plugin cover those, and the audit must
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
-    my %skip = map { $_ => 1 } qw(
-        csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors
-        cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
-        layouts-available layouts-releases layouts-repo-get layouts-release-contents
-        handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
-        artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-        backup-list sessions-list keys-list git-status git-history git-history-summary git-show
-        site-backup-inspect protected-sections
-        data-tables data-table data-rows
-        data-table-source data-migrate-plan data-safety-exports data-safety-export-read
-        brief-read briefs-list notices layouts-manifest
-    );
-
-    # SM447: the three data READS are skip-listed for the same reason as every
-    # other read here - they change nothing, and an audit trail of who looked
-    # at a table would bury the entries that record who CHANGED one.
-    #
-    # The three data WRITERS - data-migrate, data-row-save, data-row-delete -
-    # are deliberately NOT here, so they are audited by construction. A schema
-    # migration and a row edit are exactly what an operator asks the trail
-    # about. SM245: brief-read skips as a read; brief-append and
-    # briefs-migrate stay out for the same reason the data writers do.
-    # SM508: briefs-list skips as a read; brief-delete is audited - removing
-    # a record of intent is exactly what a trail should remember.
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -1798,11 +1799,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # action=users carries its sub-action in the POST body; audit only the
     # material ones (add / remove / settings-set / token / ...), not the reads.
     if ( $action eq 'users' ) {
-        my $b     = _json_body();
-        my $sub   = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
-        my %uskip = map { $_ => 1 } qw(
-            list users-detail users-page groups group-settings-get permissions-grid capability-holders settings-get credential-status partner-caps
-            verify-credential totp-code onboarding );
+        my $b   = _json_body();
+        my $sub = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
         if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
         else {
             $aud_action = "user-$sub";
@@ -1896,6 +1894,59 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 }
 
 respond($result);
+
+# SM245: the brief store, wired to this request. Five branches asked for it
+# with the same three lines; the module name stays in each branch through the
+# action call it makes, which is what t/lint/77 reads.
+sub _briefs {
+    require Lazysite::Manager::Briefs;
+    no warnings 'once';    # fully-qualified package vars, set here and read there
+    $Lazysite::Manager::Briefs::DOCROOT   = $DOCROOT;
+    $Lazysite::Manager::Briefs::auth_user = $auth_user;
+    return;
+}
+
+# The lazysite.conf text, verbatim, as Lazysite::Lang wants it - the raw layer
+# because the language helpers parse bytes and re-emit them unchanged.
+sub _conf_text {
+    my $conf = '';
+    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
+        local $/;
+        $conf = <$fh>;
+        close $fh;
+    }
+    return $conf;
+}
+
+# SM183: a scope-confined caller may only reach a package whose source content
+# root lies within their dav_scope union, so one client's manager cannot read
+# another's package metadata on a shared instance. Returns the refusal, or
+# undef when the caller may proceed. Unconfined operators always may.
+sub _package_scope_refusal {
+    my ($pkg) = @_;
+    return undef unless @REQUEST_SCOPES;
+    my $info  = package_inspect($pkg);
+    my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
+    return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
+        if !length $croot
+        || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
+    return undef;
+}
+
+# The four responses this file prints itself rather than handing to respond():
+# the OPTIONS refusal and the rate-limit 429 (both need their own status), and
+# the two preview verbs (both need Set-Cookie). Content-Type is always last
+# before the blank line, and STDOUT is always put in binmode first - encode_json
+# emits UTF-8 bytes and must not be re-encoded.
+sub _emit_json {
+    my ( $status, $headers, $body ) = @_;
+    binmode(STDOUT);
+    print "Status: $status\r\n";
+    print "$_\r\n" for @{ $headers || [] };
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json($body);
+    return;
+}
 
 # --- Request-pipeline helpers ------------------------------------------------
 
@@ -2048,26 +2099,26 @@ sub action_preview_grant {
     log_event( 'INFO', 'preview-grant', 'preview granted',
         layout => $layout, theme => $theme, user => $auth_user );
 
-    binmode(STDOUT);    # encode_json emits UTF-8 bytes; do not re-encode
-    print "Status: 200 OK\r\n";
-    print "Set-Cookie: $PREVIEW_COOKIE=$value; HttpOnly; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
-    # Non-HttpOnly UI marker so the manager can show/hide "Stop preview".
-    # Carries no auth value - the signed HttpOnly cookie above is the gate.
-    print "Set-Cookie: ${PREVIEW_COOKIE}_active=1; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
-    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json(
+    # The second cookie is a non-HttpOnly UI marker so the manager can show or
+    # hide "Stop preview". It carries no auth value - the signed HttpOnly cookie
+    # above it is the gate.
+    _emit_json(
+        '200 OK',
+        [ "Set-Cookie: $PREVIEW_COOKIE=$value; HttpOnly; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure",
+            "Set-Cookie: ${PREVIEW_COOKIE}_active=1; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure",
+        ],
         { ok => JSON::PP::true, layout => $layout, theme => $theme, expires => $exp } ); # SM353
 }
 
 sub action_preview_clear {
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
     log_event( 'INFO', 'preview-clear', 'preview cleared', user => $auth_user );
-    binmode(STDOUT);    # encode_json emits UTF-8 bytes; do not re-encode
-    print "Status: 200 OK\r\n";
-    print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
-    print "Set-Cookie: ${PREVIEW_COOKIE}_active=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
-    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json( { ok => JSON::PP::true } );    # SM353
+    _emit_json(
+        '200 OK',
+        [ "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure",
+            "Set-Cookie: ${PREVIEW_COOKIE}_active=; SameSite=Lax; Path=/; Max-Age=0$secure",
+        ],
+        { ok => JSON::PP::true } );    # SM353
 }
 
 # --- SM071 Phase 3: control-API helpers ---
@@ -2101,19 +2152,25 @@ sub _rate_ok {
     return $allow ? { ok => 1 } : { ok => 0, retry_after => $retry };
 }
 
-# Resolve the user-management tool across install layouts (cgi-bin sibling
-# of tools/ in production; repo root in tests). LAZYSITE_USERS_TOOL wins.
-sub _users_tool_path {
+# Resolve a shipped tool across install layouts: the cgi-bin sibling in
+# production, the repo root in tests, the docroot's parent for a packaged
+# install. The named environment variable wins, so a test or an operator can
+# point at one directly.
+sub _tool_path {
+    my ( $env_key, $rel ) = @_;
     for my $c (
-        $ENV{LAZYSITE_USERS_TOOL},
-        dirname($0) . "/../tools/lazysite-users.pl",
-        dirname($0) . "/tools/lazysite-users.pl",
-        "$DOCROOT/../tools/lazysite-users.pl",
+        $ENV{$env_key},
+        dirname($0) . "/../$rel",
+        dirname($0) . "/$rel",
+        "$DOCROOT/../$rel",
     ) {
         return $c if defined $c && -f $c;
     }
     return undef;
 }
+
+# The user-management tool. LAZYSITE_USERS_TOOL wins.
+sub _users_tool_path { return _tool_path( 'LAZYSITE_USERS_TOOL', 'tools/lazysite-users.pl' ) }
 
 # One request against tools/lazysite-users.pl --api, decoded. The three
 # failure sentences are PASSED IN rather than unified: both callers surface
@@ -2339,13 +2396,8 @@ sub action_site_backup_delete {
         or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
-    if (@REQUEST_SCOPES) {
-        my $info  = package_inspect($pkg);
-        my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
-        return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
-            if !length $croot
-            || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
-    }
+    my $refusal = _package_scope_refusal($pkg);
+    return $refusal if $refusal;
 
     unlink $pkg or return { ok => 0, error => "Could not delete the package: $!" };
     # SM183: and its integrity sidecar, or the next listing shows a digest for a
@@ -2369,13 +2421,8 @@ sub action_site_backup_download {
         or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
-    if (@REQUEST_SCOPES) {
-        my $info  = package_inspect($pkg);
-        my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
-        return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
-            if !length $croot
-            || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
-    }
+    my $refusal = _package_scope_refusal($pkg);
+    return $refusal if $refusal;
 
     my $size = ( stat $pkg )[7] // 0;
     ( my $safe = $name ) =~ s/[\r\n"\\]//g;
@@ -2554,12 +2601,6 @@ sub action_site_backup_apply {
     };
 }
 
-# SM122: a manage_config token may read a safe subset of the site config to
-# self-diagnose (active layout/theme, whether WebDAV is on) instead of inferring
-# from HTTP codes. No secrets - just the operator-visible site settings.
-# SM097: the public-page URL list, for the nav editor's autocomplete. Walks the
-# docroot for .md/.url pages and maps each to its clean URL (about.md -> /about,
-# index.md -> /, foo/index.md -> /foo/), skipping internal trees.
 # SM113: operator notifications. A small append-only store (logs/notices.jsonl)
 # that producers (the first is form submissions) append to, plus a per-operator
 # last-seen marker (logs/notices-seen.json) so the manager can show an unread
@@ -2606,12 +2647,6 @@ sub action_notices_seen {
     return { ok => 1, unread => 0 };
 }
 
-# Derive a plugin's name for the audit target: the plugin param if present,
-# else the body's script basename (form-handler.pl -> form-handler). Returns ''
-# when neither is available.
-# Audit target for an action that carries no file PATH of its own - so the audit
-# trail names WHAT was acted on (a domain, a config key, a backup) instead of a
-# bare '/'. Derives from the query params / JSON body. '' = no implicit target.
 # SM180: the per-channel service state for the Groups/Users capability grids.
 # A CHANNEL capability is DORMANT - granted but inert - when its site service is
 # switched off. Returns { channel => 0|1 } for ui/webdav/api/mcp, read from the
@@ -2631,6 +2666,9 @@ sub action_channel_services {
     return { ok => 1, services => \%svc, channel_for_key => \%by_key };
 }
 
+# Audit target for an action that carries no file PATH of its own - so the audit
+# trail names WHAT was acted on (a domain, a config key, a backup) instead of a
+# bare '/'. Derives from the query params / JSON body. '' = no implicit target.
 sub _audit_implicit_target {
     my ( $action, $params, $body ) = @_;
     $action //= '';
@@ -2681,6 +2719,9 @@ sub _audit_implicit_target {
     return '';
 }
 
+# Derive a plugin's name for the audit target: the plugin param if present,
+# else the body's script basename (form-handler.pl -> form-handler). Returns ''
+# when neither is available.
 sub _audit_plugin_target {
     my ( $params, $body, $action, $result ) = @_;
     my $plugin = $params->{plugin} // '';
@@ -2728,6 +2769,9 @@ sub _audit_plugin_target {
     return $plugin;
 }
 
+# SM097: the public-page URL list, for the nav editor's autocomplete. Walks the
+# docroot for .md/.url pages and maps each to its clean URL (about.md -> /about,
+# index.md -> /, foo/index.md -> /foo/), skipping internal trees.
 sub action_pages {
     my @urls;
     my $walk;
@@ -2757,6 +2801,9 @@ sub action_pages {
     return { ok => 1, urls => [ sort @urls ] };
 }
 
+# SM122: a manage_config token may read a safe subset of the site config to
+# self-diagnose (active layout/theme, whether WebDAV is on) instead of inferring
+# from HTTP codes. No secrets - just the operator-visible site settings.
 sub action_config_read {
     # SM042: the Config page loads via config-read (not the retired lazysite
     # pseudo-plugin), so this subset must surface EVERY key the page shows -
@@ -2828,12 +2875,7 @@ sub action_domains_list {
 # needs doing without any bookkeeping of its own.
 sub action_lang_status {
     my ($group) = @_;
-    my $conf = '';
-    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
-        local $/;
-        $conf = <$fh>;
-        close $fh;
-    }
+    my $conf = _conf_text();
     if ( !defined $group || !length $group ) {
         $group = sole_group($conf);
     }
@@ -3088,13 +3130,8 @@ sub action_whoami {
 # partner's `lang` is that of their bound home_domain (else the source). `source`
 # marks the source-of-truth root a translation agent copies FROM.
 sub _language_context {
-    my ($s) = @_;
-    my $conf = '';
-    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
-        local $/;
-        $conf = <$fh>;
-        close $fh;
-    }
+    my ($s)   = @_;
+    my $conf  = _conf_text();
     my $group = sole_group($conf);
     return undef unless length $group;
     my @members = Lazysite::Lang::set_members( $conf, $group );
@@ -3121,12 +3158,6 @@ sub _language_context {
     };
 }
 
-# SM072 audit trail: append one line per state-changing request to a
-# manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
-# audit_log now lives in Lazysite::Audit (shared with WebDAV + MCP); imported
-# at the top. action_audit (the reader, below) stays here - it is a manager
-# action.
-
 # SM138: the groups that confer manager access, read from group settings.
 sub _manager_groups_from_settings {
     my $gs  = Lazysite::Auth::Settings::read_group_settings();
@@ -3146,6 +3177,12 @@ sub _user_caps {
     return {} unless defined $user && length $user;
     return ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
 }
+
+# SM072 audit trail: append one line per state-changing request to a
+# manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
+# audit_log now lives in Lazysite::Audit (shared with WebDAV + MCP); imported
+# at the top. action_audit (the reader, below) stays here - it is a manager
+# action.
 
 sub _audit_parse_line {
     my ($line) = @_;
@@ -3285,18 +3322,8 @@ sub action_audit {
         targets => [ sort keys %ftargets ] };
 }
 
-# SM072: the running version, read from the install state .install-state.json.
-sub _stats_tool_path {
-    for my $c (
-        $ENV{LAZYSITE_STATS_TOOL},
-        dirname($0) . "/../plugins/stats.pl",
-        dirname($0) . "/plugins/stats.pl",
-        "$DOCROOT/../plugins/stats.pl",
-    ) {
-        return $c if defined $c && -f $c;
-    }
-    return undef;
-}
+# The visitor-stats plugin. LAZYSITE_STATS_TOOL wins.
+sub _stats_tool_path { return _tool_path( 'LAZYSITE_STATS_TOOL', 'plugins/stats.pl' ) }
 
 # SM095: visitor-log analysis over the control API (gated on `analytics`, like the
 # MCP analyse_visitors tool). Returns the stats plugin's sanitised, cached export -
@@ -3335,6 +3362,7 @@ sub action_analyse_visitors {
     return eval { decode_json( $resp // '{}' ) } || { ok => 0, error => 'No stats output' };
 }
 
+# SM072: the running version, read from the install state .install-state.json.
 sub action_version {
     my $path = "$LAZYSITE_DIR/.install-state.json";
     return { ok => 1, version => undef } unless -f $path;
