@@ -222,6 +222,18 @@ sub action_list {
     return { ok => 0, error => "Cannot read directory" }
         unless %child || -d $real;
 
+    # PCO-1/SM516: the store label needs the private root, which is a pure
+    # function of $DOCROOT - and the loop below does not write $DOCROOT. Asked
+    # once per ENTRY, a two-hundred-file folder asked it two hundred times.
+    my $priv_root = Lazysite::Private::private_root($DOCROOT);
+
+    # PCO-2/SM516: every lock key is "$LOCK_DIR/<key>.lock" and
+    # _read_lock_record returns undef unless -f its argument, so with no lock
+    # directory there is no lock file to find and every entry answers undef.
+    # One stat for the listing rather than one open attempt per file; the
+    # `lock` field is set on exactly the entries it was set on before.
+    my $have_locks = ( defined $LOCK_DIR && -d $LOCK_DIR ) ? 1 : 0;
+
     my $hidden = 0;    # SM555: entries the blocklist sweep kept out of view
     for my $name ( sort keys %child ) {
         my $full = $child{$name};
@@ -274,7 +286,6 @@ sub action_list {
         # never exposed through any surface, and the store's location is a
         # filesystem fact; 'private' tells the operator what they need to act on
         # and discloses nothing about the layout of the host.
-        my $priv_root = Lazysite::Private::private_root($DOCROOT);
         $entry->{store} =
             ( defined $priv_root
                 && ( $full eq $priv_root || index( $full, "$priv_root/" ) == 0 ) )
@@ -340,7 +351,10 @@ sub action_list {
                 # Same reason `store` is a label and not a location (SM286).
                 my $gov = _governing_acl_key( $acls, $own );
                 $entry->{governed_by} = $gov if defined $gov;
-                my $lrec = _read_lock_record( _lock_file($entry_key) );
+                my $lrec
+                    = $have_locks
+                    ? _read_lock_record( _lock_file($entry_key) )
+                    : undef;
                 if ( _lock_fresh($lrec) ) {
                     $entry->{lock} =
                         { locked_by => $lrec->{user}, origin => $lrec->{origin} };
@@ -1066,7 +1080,7 @@ sub invalidate_registries { return _invalidate_registries() }
 sub action_regenerate_registries {
     my $docroot = $DOCROOT;
     my @roots   = _registry_roots();
-    my ( $shadowed, $cleared ) = _invalidate_registries();
+    my ( $shadowed, $cleared ) = _invalidate_registries( \@roots );
     my @shadowed = @{$shadowed};
     my @rel      = map {
         my $r = $_;
@@ -1136,7 +1150,16 @@ sub registry_roots { return _registry_roots() }
 #
 # Reporting the unlinks makes that visible in the FIRST response instead of
 # after an afternoon of probing: zero files against seven roots is a finding.
+#
+# PCO-3/SM516: takes the root list when the caller already has one.
+# action_regenerate_registries derives it to report cleared_roots and then
+# called here, which derived it again - two domains_list parses of
+# lazysite.conf per regenerate call. Passed nothing (the public wrapper, and
+# every save / delete / move) it derives its own, exactly as before.
 sub _invalidate_registries {
+    my ($roots) = @_;
+    my @roots = ref $roots eq 'ARRAY' ? @{$roots} : _registry_roots();
+
     my $rdir = _lz() . "/templates/registries";
     return ( [], [] ) unless -d $rdir;
     opendir my $dh, $rdir or return ( [], [] );
@@ -1154,7 +1177,7 @@ sub _invalidate_registries {
     # its TTL. Reproduced by rig against HEAD; the mechanism is recorded in
     # the SM483 filing.
     my $real_docroot = Cwd::realpath($DOCROOT) // $DOCROOT;
-    for my $root ( _registry_roots() ) {
+    for my $root (@roots) {
         my $real_root = Cwd::realpath($root) // $root;
         my $key       = $real_root;
         # Strip whichever docroot spelling prefixes the resolved root - the
@@ -1979,8 +2002,16 @@ sub action_protected_sections {
         # never with the writer.
         my $is_section = ( $key =~ m{/\z} ) ? 1 : 0;
         ( my $bare = $key ) =~ s{/+\z}{};
+
+        # PCO-4/SM516: this resolve and the one below the scope filter take the
+        # same $bare and nothing between them writes to the filesystem, so the
+        # first answer is kept rather than asked for twice. A key that already
+        # read as a section never reached this call and still resolves once.
+        my ( $abs, $where );
+        my $resolved = 0;
         if ( !$is_section && length $bare ) {
-            my ( $abs, $where ) = Lazysite::Private::resolve( $DOCROOT, $bare );
+            ( $abs, $where ) = Lazysite::Private::resolve( $DOCROOT, $bare );
+            $resolved   = 1;
             $is_section = 1 if $where && -d $abs;
         }
         next unless $is_section;
@@ -2000,8 +2031,9 @@ sub action_protected_sections {
         # lives outside the docroot, so counting only the docroot would report
         # every gated section as 0 pages / 0 assets / exists:false - "held back
         # and empty" - at the exact moment protecting it succeeded.
-        my ( $dir, $where ) = Lazysite::Private::resolve( $DOCROOT, $bare );
-        $dir = "$DOCROOT/$key" unless $where;
+        ( $abs, $where ) = Lazysite::Private::resolve( $DOCROOT, $bare )
+            unless $resolved;
+        my $dir = $where ? $abs : "$DOCROOT/$key";
         if ( -d $dir ) {
             File::Find::find(
                 { no_chdir => 1,
