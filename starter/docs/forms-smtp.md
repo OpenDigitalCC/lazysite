@@ -86,6 +86,12 @@ auth: false
 
 ## TLS options
 
+`tls` accepts `false` (also `no`, `off`, `0`), `starttls`, or `true` (also
+`yes`, `on`, `1`); `auth` accepts the same true and false spellings. Any
+other value is refused: the validator reports it at the config stage and a
+send stops before the connection opens, so a typo never quietly means "no
+TLS" or "no authentication".
+
 `tls: true`
 : Connect with implicit TLS (port 465 typically).
 

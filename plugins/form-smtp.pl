@@ -199,6 +199,29 @@ sub load_smtp_conf {
 
 sub _truthy { my $v = shift; defined $v && lc("$v") =~ /^(?:1|true|yes|on|enabled)$/ }
 
+# SM524: the SM519 discipline for the two flags smtp.conf carries. `auth: 1`
+# used to skip authentication (the read was /^true$/i) and `tls: false` was a
+# truthy STRING that got listed as checked. A spelling the reader does not know
+# is REFUSED - it must never degrade to "no auth" or "no TLS".
+sub _falsy { my $v = shift; !defined $v || lc("$v") =~ /^(?:|0|false|no|off|disabled)$/ }
+
+sub _smtp_auth_flag {
+    my ($conf) = @_;
+    my $v = $conf->{auth};
+    return 1 if _truthy($v);
+    return 0 if _falsy($v);
+    die "smtp.conf: auth must be true or false (got '$v')\n";
+}
+
+sub _smtp_tls_mode {
+    my ($conf) = @_;
+    my $v = $conf->{tls};
+    return ''         if _falsy($v);
+    return 'starttls' if lc("$v") eq 'starttls';
+    return 'true'     if _truthy($v);
+    die "smtp.conf: tls must be false, starttls or true (got '$v')\n";
+}
+
 sub _human_size {
     my $n = shift // 0;
     return "$n B"                              if $n < 1024;
@@ -317,8 +340,8 @@ sub send_via_smtp {
 
     my $host = $conf->{host} || 'localhost';
     my $port = $conf->{port} || 25;
-    my $tls  = $conf->{tls}  || '';
-    my $auth = $conf->{auth} && $conf->{auth} =~ /^true$/i;
+    my $tls  = _smtp_tls_mode($conf);    # SM524
+    my $auth = _smtp_auth_flag($conf);
 
     my %opts = (
         Host    => $host,
@@ -453,8 +476,13 @@ sub validate_smtp {
 
     my $host = $conf->{host} || 'localhost';
     my $port = $conf->{port} || 25;
-    my $tls  = $conf->{tls}  || '';
-    my $auth = $conf->{auth} && $conf->{auth} =~ /^true$/i;
+    # SM524: a spelling the reader refuses is a CONFIG fault, reported before
+    # any socket opens.
+    my ( $tls, $auth ) = eval { ( _smtp_tls_mode($conf), _smtp_auth_flag($conf) ) };
+    if ($@) {
+        ( my $err = $@ ) =~ s/\s+$//;
+        return { ok => 0, stage => 'config', error => "Config issue: $err" };
+    }
     my @checked;
 
     my $result = eval {

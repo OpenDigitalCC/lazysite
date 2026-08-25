@@ -109,6 +109,40 @@ my $np = validate();
 is( $np->{stage}, 'auth', 'auth without a password -> stage auth' );
 like( $np->{error}, qr/no password/i, 'names the missing password' );
 
+# SM524: the SM519 discipline - auth and tls are what the conf SAYS. `auth: 1`
+# and `auth: yes` used to skip authentication silently (/^true$/i); a spelling
+# the reader does not know must stop the run, never degrade to "no auth".
+for my $spelling (qw(1 yes on true)) {
+    conf( "method: smtp\nhost: 127.0.0.1\nport: $port\ntls: false\n"
+        . "auth: $spelling\nusername: u\n" );
+    my $r = validate();
+    is( $r->{stage}, 'auth', "auth: $spelling reaches the auth stage" )
+        or diag explain $r;
+}
+for my $spelling (qw(0 no off false)) {
+    conf( "method: smtp\nhost: 127.0.0.1\nport: $port\ntls: false\n"
+        . "auth: $spelling\nusername: u\n" );
+    my $r = validate();
+    ok( $r->{ok}, "auth: $spelling means no authentication" ) or diag explain $r;
+}
+conf("method: smtp\nhost: 127.0.0.1\nport: $port\ntls: false\nauth: maybe\nusername: u\n");
+my $bad_auth = validate();
+is( $bad_auth->{stage}, 'config', 'auth: maybe is refused at the config stage' );
+like( $bad_auth->{error}, qr/auth must be true or false/, 'and the refusal names the key' );
+
+# `tls: false` used to be listed under checked because the STRING was truthy.
+for my $spelling (qw(false no off 0)) {
+    conf("method: smtp\nhost: 127.0.0.1\nport: $port\ntls: $spelling\n");
+    my $r = validate();
+    ok( $r->{ok}, "tls: $spelling validates" ) or diag explain $r;
+    ok( !( grep { $_ eq 'tls' } @{ $r->{checked} || [] } ),
+        "tls: $spelling does not list tls as checked" );
+}
+conf("method: smtp\nhost: 127.0.0.1\nport: $port\ntls: sometimes\n");
+my $bad_tls = validate();
+is( $bad_tls->{stage}, 'config', 'tls: sometimes is refused at the config stage' );
+like( $bad_tls->{error}, qr/tls must be/, 'and the refusal names the key' );
+
 kill 'TERM', $pid;
 waitpid $pid, 0;
 
