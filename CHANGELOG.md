@@ -51,6 +51,20 @@ Naming the commit: AFTER it lands, never before
   passed. Found on a live site in the first ten minutes of the 0.10.32
   retest. The empty string is now false, and t/unit/data/01 drives the YAML
   text rather than a hash so the parser's representation is what is pinned.
+- SM587 resolved (PENDING) **destructive is about the data; exposure is a
+  second axis.** `destructive` now has one written test - does a copy
+  survive the call? - and a second flag, `changes_access`, answers the
+  other question a caller needs: does this alter who may read? Both are
+  answered by reading the code, so neither is assigned by argument, and
+  the rule is stated once where an action is classified. `acl-remove` is
+  the case that needed it: reversible as an object (the rule can be
+  re-set) and irreversible as an effect (content that was exposed cannot
+  be un-exposed), so it is not destructive and does carry the exposure
+  flag. Carried by acl-set, acl-remove, preview-grant, preview-clear and
+  MCP's set_permissions; published on `actions-list` and
+  `describe-capabilities` beside `mutating`, and as `changesAccessHint`
+  in the MCP tool annotations. t/lint/23 keeps the two spellings equal;
+  t/unit/manager/112 proves the divergence in both directions.
 
 - SM584 resolved (PENDING) **a check's result level is one vocabulary.**
   Three checks reported 'ok' where the vocabulary is 'OK', so the status

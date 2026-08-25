@@ -521,6 +521,36 @@ my %MUTATING = map { $_ => 1 } qw(
     site-export-primary
 );
 
+# SM587: HOW AN ACTION IS CLASSIFIED. Read this before adding a name to either
+# table below, because the whole value of the two flags is that neither is ever
+# assigned by an argument about consequences.
+#
+#   destructive     - DOES A COPY SURVIVE THE CALL? If the engine retains one,
+#                     the action is not destructive however alarming it looks.
+#                     data-table-drop mints a safety export, so it is not;
+#                     data-safety-export-delete removes that export, so it is,
+#                     and it is what makes an earlier drop permanent.
+#   changes_access  - DOES THE CALL ALTER WHO MAY READ? If it moves the
+#                     boundary between who can see a thing and who cannot, in
+#                     EITHER direction, it is flagged.
+#
+# Both questions are answered by reading the code, which is why the operator
+# took Option A on 2026-08-25 rather than "can the world be put back as it
+# was": under that reading publishing a page is destructive, and a flag true of
+# most writes tells a caller nothing.
+#
+# The two axes disagree in exactly one place found so far, and that is the
+# point of having two. `acl-remove` is reversible as an OBJECT - the rule can
+# simply be re-set, so no copy is lost and it is NOT destructive - and
+# irreversible as an EFFECT, because content that was exposed cannot be
+# un-exposed. It carries changes_access, which is the honest description, and
+# neither half of the fact is lost.
+#
+# A flag is a property of the ACTION, never of its arguments. `save` writing
+# `draft: true` into front matter changes what a visitor sees, and is still not
+# a changes_access action: the day that is flagged from an argument value is the
+# day the classification stops being mechanical.
+
 # SM572: the drop/delete/rebuild family - a mutating action whose effect is
 # not undone by another call. actions-list and describe-capabilities publish
 # it as `destructive: true` beside `mutating`, which is read from %MUTATING
@@ -538,6 +568,27 @@ my %DESTRUCTIVE = map { $_ => 1 } qw(
     site-backup-delete
 
     site-backup-apply
+);
+
+# SM587: the second axis - the actions that move the read boundary. Published
+# as `changes_access: true` beside `mutating` and `destructive`, from the same
+# _action_effects sub, so a caller learns both facts in one answer. MCP spells
+# it by tool name in the fourth slot of its %ANNOTATE and publishes it as
+# `changesAccessHint`; t/lint/23's third twin check keeps the two equal.
+#
+# THE CARRIERS, each by the test above and not by argument:
+#   acl-set / acl-remove   set or clear the rule that decides who may read a
+#                          path. acl-set is also the draft/publish pair the
+#                          filing names - there is no separate publish verb;
+#                          setting `draft` gates the path and clearing it
+#                          publishes, so one action carries both directions.
+#   preview-grant          mints a signed link that lets somebody read a page
+#   preview-clear          withdraws it
+# acl-get and get_permissions READ the rule and move nothing, so they are not
+# here. NOTE: no comments inside the qw() below - the lint parses it as words.
+my %CHANGES_ACCESS = map { $_ => 1 } qw(
+    acl-set acl-remove
+    preview-grant preview-clear
 );
 
 if ( $MUTATING{$action} && $method ne 'POST' ) {
@@ -3034,6 +3085,10 @@ sub action_actions_list {
 # `mutating` is %MUTATING (the POST/CSRF gate) and `destructive` is the
 # drop/delete/rebuild family, so a caller can skip writers by declaration
 # rather than by memory.
+# SM587: and `changes_access` is the second axis - what happens to the data and
+# what happens to who can read it are two questions, answered here together.
+# Both optional keys are emitted only when true, so a listing stays readable
+# and an absent key means the same thing as false.
 # JSON booleans for the whoami payload and the language block beneath it -
 # one spelling, so the two emitters cannot drift.
 sub _json_bool { return $_[0] ? JSON::PP::true() : JSON::PP::false() }
@@ -3042,7 +3097,8 @@ sub _action_effects {
     my ($name) = @_;
     return {
         mutating => ( $MUTATING{$name} ? JSON::PP::true() : JSON::PP::false() ),
-        ( $DESTRUCTIVE{$name} ? ( destructive => JSON::PP::true() ) : () ),
+        ( $DESTRUCTIVE{$name}    ? ( destructive => JSON::PP::true() )    : () ),
+        ( $CHANGES_ACCESS{$name} ? ( changes_access => JSON::PP::true() ) : () ),
     };
 }
 

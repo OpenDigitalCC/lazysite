@@ -331,4 +331,49 @@ subtest 'SM567: the recorded twin differences are still twins, and still differ'
         or diag( join "\n", @twin_disagree );
 }
 
+# --- 5. the exposure twins agree ---------------------------------------------
+# SM587: the second axis, kept honest exactly as the destructive pair is. The
+# control API declares %CHANGES_ACCESS by action name; MCP declares the same
+# fact in the FOURTH slot of %ANNOTATE and publishes it as changesAccessHint.
+# Two spellings of one fact means two places to forget, which is what SM572
+# found on site-backup-apply and what this closes before it can happen again.
+{
+    my ($ca_block) = $api_src =~ /my %CHANGES_ACCESS = map \{ \$_ => 1 \} qw\((.*?)\)/s;
+    ok( defined $ca_block, 'the control API declares %CHANGES_ACCESS' )
+        or diag( 'SM587 named the second axis; without the table there is '
+            . 'nothing for a caller to read and nothing here to compare.' );
+    my %api_ca = map { $_ => 1 } split ' ', ( $ca_block // '' );
+    cmp_ok( scalar keys %api_ca, '>=', 3, '%CHANGES_ACCESS parsed non-trivially' );
+
+    # The two axes are INDEPENDENT, and an implementation that quietly made one
+    # imply the other would pass every other assertion in this file. acl-remove
+    # is the case the operator ruled on: it changes access and is not
+    # destructive.
+    my ($destr_block) = $api_src =~ /my %DESTRUCTIVE = map \{ \$_ => 1 \} qw\((.*?)\)/s;
+    my %api_destr = map { $_ => 1 } split ' ', ( $destr_block // '' );
+    ok( $api_ca{'acl-remove'}, 'acl-remove carries the exposure flag' );
+    ok( !$api_destr{'acl-remove'},
+        'acl-remove is NOT destructive - the rule can be re-set, so a copy survives' );
+    ok( $api_destr{'brief-delete'}, 'brief-delete is destructive' );
+    ok( !$api_ca{'brief-delete'},
+        'brief-delete does not change who can see things - the axes are independent' );
+
+    my ($ann_block) = $mcp_src =~ /my %ANNOTATE = \((.*?)\n\);/s;
+    my %mcp_ca;
+    while ( ( $ann_block // '' ) =~ /^\s*([a-z_]+)\s*=>\s*\[\s*[01]\s*,\s*[01]\s*,\s*[01]\s*(?:,\s*([01])\s*)?\]/mg ) {
+        $mcp_ca{$1} = $2 // 0;
+    }
+    cmp_ok( scalar keys %mcp_ca, '>=', 30, '%ANNOTATE parsed for the fourth slot' );
+
+    my @ca_disagree;
+    for my $a ( sort keys %PAIR ) {
+        my $t   = $PAIR{$a};
+        my $api = $api_ca{$a} ? 1 : 0;
+        my $mcp = $mcp_ca{$t} // 0;      # an unannotated tool moves no read boundary
+        push @ca_disagree, "$a=$api / $t=$mcp" if $api != $mcp;
+    }
+    is( "@ca_disagree", '', 'API %CHANGES_ACCESS and MCP %ANNOTATE agree on every twin' )
+        or diag( join "\n", @ca_disagree );
+}
+
 done_testing();

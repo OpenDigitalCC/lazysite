@@ -3204,13 +3204,25 @@ my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
 
 my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
 
-# MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
-# ChatGPT (drives its per-call approval + read/write gating) and good practice
-# for every client. openWorld = the action publishes to / changes the live site.
+# MCP tool annotation hints [readOnly, destructive, openWorld, changesAccess].
+# The first three are the MCP spec's own hints, required by ChatGPT (they drive
+# its per-call approval + read/write gating) and good practice for every client.
+# openWorld = the action publishes to / changes the live site.
 # SM537: EVERY tool is named here - t/lint/85 refuses one that is not. The
 # default in tool_list is a safety net for the dispatcher, never a value an
 # entry may rely on: a read that falls to it advertises as an open-world write,
 # and a drop advertises as non-destructive.
+#
+# SM587: the FOURTH slot is lazysite's own axis, published as
+# `changesAccessHint` beside the three. HOW EITHER FLAG IS ASSIGNED is written
+# once, beside %MUTATING / %DESTRUCTIVE / %CHANGES_ACCESS in
+# lazysite-manager-api.pl - read it there rather than inferring a rule from the
+# rows below. In one line: `destructive` asks whether a copy survives, and
+# `changesAccess` asks whether the call alters who may read. t/lint/23 keeps
+# both this table's second slot and its fourth equal to the API's twins, so the
+# two spellings of each fact cannot drift.
+# The fourth slot may be omitted - an absent value is 0, as it is for a tool
+# that moves no read boundary, which is nearly all of them.
 my %ANNOTATE = (
     whoami                 => [ 1, 0, 0 ],
     describe_capabilities  => [ 1, 0, 0 ],
@@ -3265,12 +3277,12 @@ my %ANNOTATE = (
     read_nav           => [ 1, 0, 0 ],
     set_nav            => [ 0, 0, 1 ],
     submit_feedback => [ 0, 0, 0 ], # writes a report, but changes nothing on the live site
-    delete_page           => [ 0, 1, 1 ],
-    rename_page           => [ 0, 0, 1 ],
-    get_permissions       => [ 1, 0, 0 ],
-    move_file             => [ 0, 0, 1 ],
-    delete_file           => [ 0, 1, 1 ],
-    set_permissions       => [ 0, 0, 0 ],
+    delete_page     => [ 0, 1, 1 ],
+    rename_page     => [ 0, 0, 1 ],
+    get_permissions => [ 1, 0, 0 ],
+    move_file       => [ 0, 0, 1 ],
+    delete_file     => [ 0, 1, 1 ],
+    set_permissions => [ 0, 0, 0, 1 ], # SM587: acl-set's twin - it moves the read boundary
     list_themes           => [ 1, 0, 0 ],
     theme_tokens          => [ 1, 0, 0 ],
     activate_theme        => [ 0, 0, 1 ],
@@ -3333,7 +3345,7 @@ sub tool_list {
         else {
             next unless $INTROSPECTION_TOOLS{$name};
         }
-        my $a = $ANNOTATE{$name} || [ 0, 0, 1 ];
+        my $a = $ANNOTATE{$name} || [ 0, 0, 1, 0 ];
         push @list, {
             name         => $name,
             description  => $TOOLS{$name}{description},
@@ -3344,6 +3356,13 @@ sub tool_list {
                 readOnlyHint    => $a->[0] ? JSON::PP::true : JSON::PP::false,
                 destructiveHint => $a->[1] ? JSON::PP::true : JSON::PP::false,
                 openWorldHint   => $a->[2] ? JSON::PP::true : JSON::PP::false,
+
+                # SM587: lazysite's own axis, named in the house style of its
+                # three neighbours. A client that does not know it ignores it;
+                # one that does learns that this call moves the read boundary,
+                # which no MCP hint says and which `destructive` deliberately
+                # does not mean.
+                changesAccessHint => $a->[3] ? JSON::PP::true : JSON::PP::false,
             },
         };
     }
