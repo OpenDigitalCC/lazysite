@@ -38,7 +38,7 @@ use Exporter              qw(import);
 use JSON::PP              ();
 use Lazysite::Data::Value qw(coerce_row);
 
-our @EXPORT_OK = qw(export_table import_table FORMAT_VERSION);
+our @EXPORT_OK = qw(export_table import_table to_json FORMAT_VERSION);
 
 # A sub rather than `use constant`, which perlcritic refuses at severity 4
 # (PBP p55). Call sites use parens so the parse is not in question.

@@ -56,17 +56,15 @@ package Lazysite::Data::Query;
 use strict;
 use warnings;
 use Exporter 'import';
-use Lazysite::Data::Value ();
+use Lazysite::Data::Value  ();
+use Lazysite::Data::SQLite ();
 
 our @EXPORT_OK = qw(parse_binding ROW_CAP);
 
 # The ceiling a page may ask for. select_sql caps again on its own account;
 # this one exists so that an author asking for 5000 is TOLD, rather than
 # quietly served 1000 and left to wonder where the rest went.
-sub ROW_CAP {
-    require Lazysite::Data::SQLite;
-    return Lazysite::Data::SQLite::MAX_ROWS();
-}
+sub ROW_CAP { return Lazysite::Data::SQLite::MAX_ROWS() }
 
 sub _err { return { ok => 0, error => $_[0] } }
 

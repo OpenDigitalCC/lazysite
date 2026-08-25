@@ -177,10 +177,6 @@ sub plan_migration {
     }
 
     # Missing indexes ARE additive - an index holds no data of its own.
-    my %want_index;
-    for my $ix ( @{ $d->{indexes} || [] } ) {
-        $want_index{ _index_name( $d->{table}, @{$ix} ) } = 1;
-    }
     my @index_sql = index_sql($d);
     my $i         = 0;
     for my $ix ( @{ $d->{indexes} || [] } ) {
@@ -320,7 +316,6 @@ sub plan_rebuild {
     #              Value.pm can judge, so the distinct values come out and go
     #              through coerce_field one at a time
     my @blocked;
-    require Lazysite::Data::Value;
     for my $f (@carry) {
         my $spec = $d->{fields}{$f} or next;    # timestamps carry no spec
         my $have = $observed->{columns}{$f};
@@ -350,7 +345,7 @@ sub plan_rebuild {
             my $vals = eval { $dbh->selectcol_arrayref( column_values_sql( $d, $f ) ) } || [];
             my @bad;
             for my $v ( @{$vals} ) {
-                my ($why) = Lazysite::Data::Value::coerce_field( $f, $spec, $v );
+                my ($why) = coerce_field( $f, $spec, $v );
                 push @bad, $v if defined $why;
                 last if @bad >= 3;
             }

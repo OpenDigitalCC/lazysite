@@ -20,6 +20,7 @@ package Lazysite::Auth::Session;
 use strict;
 use warnings;
 use Digest::SHA    qw(hmac_sha256_hex);
+use JSON::PP       ();
 use File::Path     qw(make_path);
 use File::Basename qw(dirname);
 use Lazysite::Util qw(const_eq log_event);
@@ -132,7 +133,6 @@ sub account_disabled {
     open my $fh, '<:raw', $path or return 0;
     my $raw = do { local $/; <$fh> };
     close $fh;
-    require JSON::PP;
     my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
     return 0 unless ref $data eq 'HASH';
     my $s = $data->{$username};
@@ -148,7 +148,6 @@ sub session_revoked {
     if ( open my $fh, '<:raw', $path ) {
         my $raw = do { local $/; <$fh> };
         close $fh;
-        require JSON::PP;
         $data = eval { JSON::PP::decode_json( $raw // '' ) };
     }
     unless ( ref $data eq 'HASH' ) {

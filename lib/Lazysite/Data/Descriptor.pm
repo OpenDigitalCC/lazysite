@@ -33,7 +33,7 @@ use strict;
 use warnings;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(load_descriptor load_all validate_row TYPES);
+our @EXPORT_OK = qw(load_descriptor TYPES);
 
 # The v1 type set, kept deliberately tight - extended later only with cause.
 # A type is present here or it is rejected; there is no permissive default,

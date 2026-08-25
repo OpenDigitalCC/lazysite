@@ -63,12 +63,19 @@ sub intersect_scopes {
     return @out ? @out : ($DA);    # disjoint => confined to nothing
 }
 
+# The empty domain record, written once. read_domains seeds the default site
+# with it and creates every alias with it; the two copies drifting apart is
+# what this closes.
+sub _blank_domain {
+    return { content_root => '', allowed_groups => [], locked_users => [] };
+}
+
 # Parse the domain records from a lazysite.conf path:
 #   { host => { content_root, allowed_groups => [...], locked_users => [...] } }
 # The default site is the record under host ''. Read-only; never writes.
 sub read_domains {
     my ($conf_path) = @_;
-    my %dom = ( '' => { content_root => '', allowed_groups => [], locked_users => [] } );
+    my %dom = ( '' => _blank_domain() );
     open my $fh, '<:utf8', $conf_path or return \%dom;
     while ( my $line = <$fh> ) {
         chomp $line;
@@ -79,7 +86,7 @@ sub read_domains {
         }
         elsif ( $line =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users)\s*:\s*(.+)/x ) {
             my ( $host, $key, $val ) = ( $1, $2, $3 );
-            $dom{$host} ||= { content_root => '', allowed_groups => [], locked_users => [] };
+            $dom{$host} ||= _blank_domain();
             if ( $key eq 'content_root' ) {
                 $dom{$host}{content_root} = _trim($val);
             }

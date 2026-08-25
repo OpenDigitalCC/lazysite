@@ -7,6 +7,7 @@ package Lazysite::Auth::Settings;
 use strict;
 use warnings;
 use Fcntl          qw(:flock);
+use JSON::PP       ();
 use Lazysite::Util qw(log_event secure_write_perms);
 use Exporter 'import';
 
@@ -190,7 +191,6 @@ sub _groups_membership {
 # decode_json a character string, which dies on any non-ASCII content (e.g. a
 # group description) and silently wiped the whole read to {}.
 sub read_group_settings {
-    require JSON::PP;
     my $f = _group_settings_file();
     return {} unless -f $f;
     open my $fh, '<:raw', $f or return {};
@@ -235,7 +235,6 @@ sub groups_grant_cap {
 # the created_by chain so a sub-user can never out-reach its creator.
 
 sub write_group_settings {
-    require JSON::PP;
     my ($ref) = @_;
     my $file  = _group_settings_file();
     my $tmp   = "$file.tmp.$$";
@@ -319,7 +318,6 @@ sub caps_for {
     sub _settings_cache_clear { %_settings_cache = (); return }
 
     sub read_settings {
-        require JSON::PP;
         my $file = _settings_file();
         return {} unless -f $file;
 
@@ -361,10 +359,9 @@ sub caps_for {
 # www-data CGI both manage it.
 sub write_settings {
     my ($data) = @_;
-    require JSON::PP;
-    my $file = _settings_file();
-    my $json = JSON::PP->new->canonical->pretty->encode($data);
-    my $tmp  = "$file.tmp.$$";
+    my $file   = _settings_file();
+    my $json   = JSON::PP->new->canonical->pretty->encode($data);
+    my $tmp    = "$file.tmp.$$";
     open my $fh, '>:utf8', $tmp or die "Cannot write $file: $!\n";
     flock( $fh, LOCK_EX );
     print {$fh} $json;

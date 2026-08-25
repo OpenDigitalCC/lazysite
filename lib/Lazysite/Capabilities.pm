@@ -14,6 +14,7 @@ package Lazysite::Capabilities;
 use strict;
 use warnings;
 use JSON::PP                 ();
+use Lazysite::Util           ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
 our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface);
@@ -440,7 +441,6 @@ sub _holds_why {
         my $svc = $CHANNEL_SERVICE{$k};
         next unless defined $svc;
         next unless defined $docroot && length $docroot;
-        require Lazysite::Util;
         next if Lazysite::Util::service_enabled( $docroot, $svc );
         $why{$k} = "granted, but DORMANT: this site's `$svc` service is off, so "
             . 'the channel refuses regardless of the grant. Ask the operator to '

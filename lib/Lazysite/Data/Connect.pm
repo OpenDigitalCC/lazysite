@@ -126,13 +126,8 @@ sub _connect {
     #
     # WAL is a property of the DATABASE, not the connection, so it is set once
     # by a writer; a read-only handle cannot set it and must not try.
-    unless ( $opt{readonly} ) {
-        eval { $dbh->do('PRAGMA journal_mode = WAL');              1 };
-        eval { $dbh->do("PRAGMA busy_timeout = $BUSY_TIMEOUT_MS"); 1 };
-    }
-    else {
-        eval { $dbh->do("PRAGMA busy_timeout = $BUSY_TIMEOUT_MS"); 1 };
-    }
+    eval { $dbh->do('PRAGMA journal_mode = WAL');              1 } unless $opt{readonly};
+    eval { $dbh->do("PRAGMA busy_timeout = $BUSY_TIMEOUT_MS"); 1 };
 
     return $dbh;
 }

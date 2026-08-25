@@ -26,6 +26,8 @@ package Lazysite::Data::Tables;
 use strict;
 use warnings;
 use Exporter                   qw(import);
+use JSON::PP                   ();
+use Time::HiRes                ();
 use Lazysite::Util             qw(log_event);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect
@@ -34,7 +36,7 @@ use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
 use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
     qw(select_sql count_sql insert_sql update_sql delete_sql observed_schema last_insert_key
-    key_list_sql history_table_sql history_insert_sql history_rows_sql);
+    key_list_sql history_table_sql history_insert_sql history_rows_sql drop_table_sql);
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema schema_history insert_row update_row delete_row export_all_rows
@@ -108,9 +110,7 @@ sub load_table {
         table => $name )
         unless defined $raw && !$@;
 
-    my $d = load_descriptor( $name, $raw );
-    return $d unless $d->{ok};
-    return $d;
+    return load_descriptor( $name, $raw );
 }
 
 # Rows, for a surface that may read them.
@@ -229,7 +229,6 @@ sub read_rows {
 # logged and the operation proceeds.
 sub _record_history {
     my ( $dbh, $actor, $table, $op, $detail ) = @_;
-    require JSON::PP;
     eval {
         $dbh->do( history_table_sql() );
         $dbh->do( history_insert_sql(), undef,
@@ -254,11 +253,10 @@ sub _now_iso {
 # where absence of history is a fact, not an error.
 sub schema_history {
     my ( $docroot, $name ) = @_;
-    my $dbh  = Lazysite::Data::Connect::read_handle($docroot) or return [];
+    my $dbh  = read_handle($docroot) or return [];
     my $rows = eval {
         $dbh->selectall_arrayref( history_rows_sql(), { Slice => {} }, $name );
     } || [];
-    require JSON::PP;
     for my $r (@$rows) {
         $r->{detail} = eval { JSON::PP::decode_json( $r->{detail} ) } // {};
     }
@@ -449,7 +447,7 @@ sub resolve_binding {
 our $SLOW_MS = 25;
 
 sub _now {
-    return eval { require Time::HiRes; Time::HiRes::time() } || 0;
+    return Time::HiRes::time();
 }
 
 # WHAT THE WARNING SAYS AND WHY IT SAYS IT. An author who sees "this page is
@@ -675,7 +673,6 @@ sub drop_table {
     return $rows unless $rows->{ok};
 
     require Lazysite::Data::Export;
-    require JSON::PP;
     my $dir = "$docroot/lazysite/db/rebuilds";
     unless ( -d $dir ) {
         require File::Path;
@@ -704,8 +701,7 @@ sub drop_table {
 
     my $dbh = write_handle($docroot);
     if ($dbh) {
-        require Lazysite::Data::SQLite;
-        my $sql = Lazysite::Data::SQLite::drop_table_sql($d);
+        my $sql = drop_table_sql($d);
         my $ok  = eval { $dbh->do($sql); 1 };
         unless ($ok) {
             my $why = $@ || $dbh->errstr || 'unknown';
@@ -827,8 +823,7 @@ sub rebuild_table {
     # clause could never be the one that refused, and sabotage proved it:
     # deleting that clause changed nothing. A condition no test can reach is
     # one that will be wrong one day without anybody noticing.
-    my $mig  = plan_migration( $d, $dbh );
-    my $plan = plan_rebuild( $d, $dbh );
+    my $mig = plan_migration( $d, $dbh );
     if ( $mig->{ok}
         && !@{ $mig->{additive} || [] }
         && !@{ $mig->{blocked}  || [] }
@@ -838,6 +833,10 @@ sub rebuild_table {
             note => "the stored table already matches the descriptor - "
                 . 'nothing to rebuild' };
     }
+    # DAO-5: the preflight is three queries per column and the no-op check
+    # above never reads $plan, so it is paid for only when there is a rebuild
+    # to plan.
+    my $plan = plan_rebuild( $d, $dbh );
     return _err( "table '$name': $plan->{error}", table => $name )
         unless $plan->{ok};
 
@@ -873,7 +872,6 @@ sub rebuild_table {
     my $rows = export_all_rows( $docroot, $name );
     return $rows unless $rows->{ok};
     require Lazysite::Data::Export;
-    require JSON::PP;
     my $dir = "$docroot/lazysite/db/rebuilds";
     unless ( -d $dir ) {
         require File::Path;
