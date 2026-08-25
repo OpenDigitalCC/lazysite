@@ -97,8 +97,15 @@ subtest 'SM347: one path vocabulary' => sub {
         <$s>;
     };
     my ($sub) = $src =~ /(sub _resolve_page_path \{.*?\n\}\n)/s;
-    ok( $sub, 'the resolver was found' )                          or return;
-    eval "package PathCheck; our \$DOCROOT = '$docroot'; $sub 1;" or die $@;
+    ok( $sub, 'the resolver was found' ) or return;
+
+    # SM516 MC-6: the resolver now calls the shared _norm_slug rather than
+    # spelling the normalisation out, so the lift takes the helper with it.
+    # Lifting a sub by regex means lifting what it calls; the alternative is
+    # a test that pins a shape nobody may improve.
+    my ($helper) = $src =~ /(sub _norm_slug \{.*?\n\}\n)/s;
+    ok( $helper, 'and the slug helper it calls' )                         or return;
+    eval "package PathCheck; our \$DOCROOT = '$docroot'; $helper $sub 1;" or die $@;
 
     is( PathCheck::_resolve_page_path('/zz/probe'), '/zz/probe.md',
         'a page addressed as it is SERVED resolves to how it is stored' )
