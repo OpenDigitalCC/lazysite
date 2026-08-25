@@ -1537,7 +1537,10 @@ sub is_ancestor {
 # operator; an API actor may only manage accounts in its own sub-tree.
 sub _authorise_manage {
     my ( $actor, $target, $all ) = @_;
-    return if !defined $actor || !length $actor;    # operator / CLI
+    # SM549: `local` is the operator sentinel (SM268 C1), so it is unconfined
+    # here exactly as an absent actor is - the five inline confinement blocks
+    # already read it that way, and this was the one gate that did not.
+    return if !defined $actor || !length $actor || $actor eq 'local';    # operator / CLI
     die "Not authorised to manage '$target'\n"
         unless is_ancestor( $actor, $target, $all );
 }
