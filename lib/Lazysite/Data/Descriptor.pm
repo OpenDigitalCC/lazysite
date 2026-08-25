@@ -407,6 +407,22 @@ sub load_descriptor {
     my ( $wb, $wb_err ) = _check_writable_by( $name, $raw );
     return $wb_err if $wb_err;
 
+    # SM593: which DOMAIN declared this table, on an instance carrying several.
+    #
+    # Optional, and its absence is not a default that means "everyone" - it
+    # means the table predates the key, and the manager surface treats it
+    # exactly as it did before. Validated as a hostname rather than passed
+    # through, because it is compared against a configured domain's host and a
+    # value that could never match would confine the table to nobody while
+    # looking like it confined it to somebody.
+    my $domain = $raw->{domain};
+    $domain = '' unless defined $domain && !ref $domain;
+    $domain =~ s/\A\s+|\s+\z//g;
+    if ( length $domain && $domain !~ /\A[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\z/ ) {
+        return _err( "table '$name': domain '$domain' is not a hostname",
+            kind => 'invalid', rule => 'domain' );
+    }
+
     return {
         ok          => 1,
         table       => $name,
@@ -422,6 +438,7 @@ sub load_descriptor {
             : () ),
         unique     => [ sort grep { $fields->{$_}{unique} } keys %{$fields} ],
         timestamps => $timestamps,
+        ( length $domain ? ( domain => $domain ) : () ),
     };
 }
 

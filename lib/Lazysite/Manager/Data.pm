@@ -41,6 +41,11 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
     action_data_safety_export_restore);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
+
+# SM593: the caller's own dav_scopes, set by whichever surface is answering.
+# EMPTY MEANS UNCONFINED, which is the operator - never "no domains". The CLI
+# and the processor's render path leave it empty and are unaffected.
+our @CALLER_SCOPES;
 our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
 
 # SM469: OFF MEANS OFF, on this path too.
@@ -78,7 +83,65 @@ sub _need_table {
 # two refusals. Written out twelve times before this; one name now.
 sub _table_action {
     my ($table) = @_;
-    return _gate() // _need_table($table);
+    return _gate() // _need_table($table) // _outside_scope($table);
+}
+
+# SM593: WHICH DOMAINS THIS CALLER MAY REACH, derived from its grant.
+#
+# `manage_data` is an INSTANCE capability and a table's ACL path carries no
+# domain component, so on a multi-domain instance one client's grant reached
+# every other client's tables - and the table NAMES are their own disclosure,
+# which is why an unpublished table is invisible to a visitor in the first
+# place.
+#
+# Memoised per request because every action asks, and the answer cannot change
+# inside one.
+my @_CALLER_DOMAINS;
+my $_CALLER_DOMAINS_FOR = "\0";
+
+sub _caller_domains {
+    my $key = join( "\0", @CALLER_SCOPES );
+    return @_CALLER_DOMAINS if $key eq $_CALLER_DOMAINS_FOR;
+    require Lazysite::Manager::Domains;
+    @_CALLER_DOMAINS     = Lazysite::Manager::Domains::domains_for_scopes(@CALLER_SCOPES);
+    $_CALLER_DOMAINS_FOR = $key;
+    return @_CALLER_DOMAINS;
+}
+
+# May this caller act on this table at all?
+#
+# A table that names no domain behaves EXACTLY as it did before this existed.
+# That is deliberate and is the whole migration story: an instance carrying
+# live tables upgrades to this release and nothing changes for them, and a
+# table becomes confined the moment somebody writes `domain:` on it. The
+# alternative - unscoped means nobody's - would have emptied every existing
+# table out from under its own application on upgrade day.
+sub _table_domain {
+    my ($table) = @_;
+    my $d = Lazysite::Data::Tables::load_table( $DOCROOT, $table );
+    return '' unless ref $d eq 'HASH' && $d->{ok};
+    my $dom = $d->{domain};
+    return ( defined $dom && !ref $dom ) ? $dom : '';
+}
+
+sub _may_reach {
+    my ($table) = @_;
+    return 1 unless @CALLER_SCOPES;              # unconfined - the operator
+    my $dom = _table_domain($table);
+    return 1 unless length $dom;                 # unscoped - as it always was
+    return ( grep { $_ eq $dom } _caller_domains() ) ? 1 : 0;
+}
+
+# THE REFUSAL IS THE ONE A MISSING TABLE GETS, word for word and kind for kind.
+# A caller that could tell "not yours" from "no such table" would learn the
+# names of the tables it may not reach, which is the disclosure this exists to
+# stop - the filing's own point, since an unpublished table is hidden from a
+# visitor precisely so its name cannot be guessed.
+sub _outside_scope {
+    my ($table) = @_;
+    return undef if _may_reach($table);
+    return { ok => 0, error => "no table '$table' is declared",
+        table => $table, kind => 'no_such_table' };
 }
 
 # SM470: the table NAME is a filename under a reserved root, so it is
@@ -117,6 +180,10 @@ sub action_data_tables {
     # existence off the database, per D2. The database is the state.
     my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT);
     for my $name ( @{ list_tables($DOCROOT) } ) {
+        # SM593: a confined caller is not told the names of another domain's
+        # tables. Filtered rather than refused, because a listing that refused
+        # would still say how many there are.
+        next unless _may_reach($name);
         my $d = load_table( $DOCROOT, $name );
         unless ( $d->{ok} ) {
             push @out, { table => $name, ok => 0, error => $d->{error} };

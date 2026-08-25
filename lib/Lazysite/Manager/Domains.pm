@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path valid_presentation_name presentation_value);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -383,6 +383,50 @@ sub host_for_path {
     my ($rel) = @_;
     my ( $host, $tied ) = _owner_for_path($rel);
     return ( $host, $tied );
+}
+
+# SM593/SM578: which domains a CONFINED caller may act on, derived from the
+# grant rather than from anything the caller says.
+#
+# A grant with no dav_scopes is UNCONFINED - that is the operator, and the
+# empty list means "no restriction", never "no domains". Callers must treat an
+# empty return as "ask no further", which is why this returns a list and the
+# confinement decision is made by whoever called it: a function that answered
+# "these domains" for the operator would have to enumerate every domain, and a
+# bug in the caller would then read as a narrow answer rather than a wide one.
+#
+# A scope and a content_root match if either contains the other. A partner
+# scoped INTO a domain (sites/jpm-stock/docs) is confined to that domain; a
+# partner scoped ABOVE several (sites) reaches all of them. Both are the same
+# question - do these two paths overlap - asked in the two directions a grant
+# can be written.
+sub domains_for_scopes {
+    my (@scopes) = @_;
+    return () unless @scopes;
+
+    my $r = eval { domains_list() };
+    return () unless ref $r eq 'HASH' && $r->{ok};
+
+    my @clean = grep { length } map { my $x = $_ // ''; $x =~ s{^/+|/+$}{}g; $x } @scopes;
+    return () unless @clean;
+
+    my %host;
+    for my $d ( @{ $r->{domains} || [] } ) {
+        my $cr = $d->{content_root} // '';
+        $cr =~ s{^/+|/+$}{}g;
+        next unless length $cr;
+        next if $cr =~ m{(?:^|/)\.\.(?:/|$)};
+        for my $sc (@clean) {
+            if (   $cr eq $sc
+                || index( $cr, "$sc/" ) == 0
+                || index( $sc, "$cr/" ) == 0 )
+            {
+                $host{ $d->{host} } = 1 if length( $d->{host} // '' );
+                last;
+            }
+        }
+    }
+    return sort keys %host;
 }
 
 sub _owner_for_path {

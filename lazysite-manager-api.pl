@@ -1142,6 +1142,14 @@ my %uskip = map { $_ => 1 } qw(
     list users-detail users-page groups group-settings-get permissions-grid capability-holders settings-get credential-status partner-caps
     verify-credential totp-code onboarding );
 
+# SM593: the data surface confines itself by the caller's own grant, so it
+# needs the resolved scopes - and they are resolved by AUTH, which runs after
+# the block of package-variable assignments above. Set here, immediately before
+# dispatch, where @REQUEST_SCOPES is final for this request. Empty stays empty:
+# an unconfined grant is the operator and the data surface behaves as it always
+# did.
+@Lazysite::Manager::Data::CALLER_SCOPES = @REQUEST_SCOPES;
+
 # --- Dispatch ---
 
 my $result;

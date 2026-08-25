@@ -311,6 +311,44 @@ Reading and writing tables through the manager, the API or MCP needs the
 A **page binding** is not a capability question: it renders as part of the
 page, so a gated section's table is as reachable as the section is.
 
+### On an instance hosting several domains
+
+`manage_data` is an **instance** capability, and a table name is
+instance-wide -- there is one `lazysite/db/tables/` for the whole
+instance, not one per domain. On a single-site instance that is all there
+is to know.
+
+Where one instance serves several domains belonging to different people,
+say which domain a table belongs to:
+
+```yaml
+domain: shop.example.com
+```
+
+A caller whose grant confines it to one domain's content then reaches
+that domain's tables and no others -- and is not told that the rest
+exist, because a table name is itself a disclosure. That is why an
+unpublished table is invisible to a visitor in the first place.
+
+**A table that names no domain is reachable by any `manage_data`
+holder on the instance.** That is deliberate, so an upgrade takes nothing
+away from a running application, and it means the protection is opt-in:
+until you write `domain:` on a table, a partner scoped to a neighbouring
+domain can read it.
+
+Two things follow, and both matter on a shared instance:
+
+- Add `domain:` to every table on an instance that hosts unrelated
+  parties. `lazysite-check` lists the ones that lack it.
+- An operator's own grant is normally unconfined, and an unconfined
+  caller reaches everything by design. The confinement describes what a
+  *partner* reaches, not what you do.
+
+The older mitigation still works and composes with this: ACL lookup takes
+the longest matching prefix, so a restrictive rule on
+`lazysite/db/tables` plus a per-table rule for each site's own people
+closes the same gap by hand.
+
 ### The order the table is in
 
 A gallery is an ordered list -- somebody chose the sequence. Say so once, on

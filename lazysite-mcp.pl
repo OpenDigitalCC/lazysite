@@ -3641,6 +3641,11 @@ elsif ( $method eq 'tools/call' ) {
     }
 
     setup_context($user);
+    # SM593: the data surface confines itself by the caller's grant, from the
+    # same dav_scopes this tool call was just checked against - so the control
+    # API and MCP cannot disagree about which domain's tables a partner reaches.
+    @Lazysite::Manager::Data::CALLER_SCOPES
+        = ( ref $scopes eq 'ARRAY' ) ? @{$scopes} : ();
     # SM464: the grant's own settings, for the acl audit-read override - same
     # line the control API sets, so the two token surfaces cannot disagree.
     %Lazysite::Auth::Acl::token_caps = %{ $caps || {} };

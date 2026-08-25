@@ -1056,6 +1056,7 @@ sub run_checks {
     report_engine_sees_statics( $opt{check_acl} ) if defined $opt{check_acl};
 
     # --- 8c. who an @group ACL entry now admits (SM288) -------------------------
+    report_unscoped_data_tables();
     report_group_acl_reach();
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
@@ -1440,6 +1441,64 @@ sub conf_value {
 # nagging about it would teach the reader to skip this section. It reports the
 # entries and who resolves into them, so "who gains" is answerable before the
 # upgrade rather than after.
+# SM593: on an instance serving several unrelated domains, a table that names
+# no `domain:` is reachable by ANY manage_data holder - including a partner
+# scoped to a neighbouring domain, who is not supposed to know it exists.
+#
+# A WARNING RATHER THAN A FAILURE, and only where several domains are
+# configured. On a single-site instance the instance-wide namespace is the only
+# namespace there is and the key would be noise; the exposure needs a second
+# party before it is an exposure. This is also the migration list: an instance
+# upgrading into the release keeps every table working, and this names the ones
+# still to scope.
+sub report_unscoped_data_tables {
+    my $d = $opt{docroot};
+    my $dir = "$d/lazysite/db/tables";
+    return unless -d $dir;
+
+    # Several domains configured? `alias_hosts` is the list SM151 keys the
+    # multi-domain instance on, read here the same way every other conf value
+    # in this tool is read.
+    my $aliases = conf_value( $conf, 'alias_hosts' ) // '';
+    my @hosts = grep { length } map { s/^\s+|\s+$//gr } split /,/, $aliases;
+    return unless @hosts;    # one domain: nothing to be confined from
+
+    opendir( my $dh, $dir ) or return;
+    my @files = sort grep { /\.ya?ml\z/ } readdir $dh;
+    closedir $dh;
+    return unless @files;
+
+    my ( @unscoped, @scoped );
+    for my $f (@files) {
+        ( my $name = $f ) =~ s/\.ya?ml\z//;
+        my $txt = '';
+        if ( open my $fh, '<', "$dir/$f" ) { local $/; $txt = <$fh>; close $fh }
+        # Read as TEXT, not through the YAML parser: this tool runs on installs
+        # where the data plugin's modules may not be present, and a check that
+        # cannot run where the problem lives is not a check.
+        if ( $txt =~ /^domain:\s*\S/m ) { push @scoped, $name }
+        else                            { push @unscoped, $name }
+    }
+    return unless @unscoped;
+
+    report( 'WARN',
+        sprintf( '%d data table%s %s no domain on a %d-domain instance: %s',
+            scalar @unscoped,
+            ( @unscoped == 1 ? ''      : 's' ),
+            ( @unscoped == 1 ? 'names' : 'name' ),
+            scalar @hosts + 1, join( ', ', @unscoped ) ),
+        'Any manage_data holder on this instance reads them, including a '
+            . 'partner scoped to another domain - and a table name is itself a '
+            . "disclosure. Add `domain: <host>` to each descriptor in "
+            . "lazysite/db/tables/. See /docs/data-tables."
+    );
+    report( 'OK',
+        sprintf( '%d data table%s scoped to a domain',
+            scalar @scoped, ( @scoped == 1 ? ' is' : 's are' ) )
+    ) if @scoped;
+    return;
+}
+
 sub report_group_acl_reach {
     my $d = $opt{docroot};
     # SM551: through the engine-tree resolver, never "$d/lazysite/..." by hand -
