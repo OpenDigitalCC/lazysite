@@ -1074,8 +1074,17 @@ sub check_rate_limit {
     my $count = $db{$key} || 0;
     if ( $count >= $limit ) { untie %db; reject('Rate limit exceeded'); }
     $db{$key} = $count + 1;
-    for my $k ( keys %db ) {
-        delete $db{$k} if $k =~ /:(\d+)$/ && $1 < $hour - 1;
+
+    # Purge the stale hours ONCE PER HOUR, not once per submission. The keys
+    # deleted are a function of $hour alone, so a second pass within the same
+    # hour can only find what the first already removed - and this walks every
+    # key in the DB, which is the one unbounded thing on the submission path.
+    # The marker carries no colon, so it can never look like an "ip:hour" key.
+    if ( ( $db{_purged_hour} // -1 ) != $hour ) {
+        for my $k ( keys %db ) {
+            delete $db{$k} if $k =~ /:(\d+)$/ && $1 < $hour - 1;
+        }
+        $db{_purged_hour} = $hour;
     }
     untie %db;
 }

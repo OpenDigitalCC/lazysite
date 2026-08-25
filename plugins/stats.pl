@@ -197,6 +197,12 @@ our $SEARCH_TERM_TOPN  = 20;
 # before SM516 PL-12, and a pattern that drifts between two copies silently
 # counts two different things as a page. Declared HERE, above the dispatch,
 # for the reason the classification patterns are (lint/39).
+# PLO-3: _site_domain reads lazysite.conf, and four readers asked it per run.
+# $DOCROOT is fixed for the life of the process and the file is not rewritten
+# under us, so the answer is the same every time. Declared here, above the
+# dispatch, for the reason everything else here is (lint/39).
+my $SITE_DOMAIN_MEMO;
+
 my $NOT_A_PAGE_RE = qr{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
 
 my $ASSET_RE = qr{
@@ -754,6 +760,7 @@ sub read_conf {
 # This site's domain - used to pick a log qualified by THIS site, never another
 # site's log in a shared directory, and to split self-referrers from external.
 sub _site_domain {
+    return $SITE_DOMAIN_MEMO if defined $SITE_DOMAIN_MEMO;
     my $host = '';
     if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
         while ( my $l = <$fh> ) {
@@ -768,6 +775,7 @@ sub _site_domain {
         my $d = File::Basename::basename( File::Basename::dirname($DOCROOT) );
         $host = ( defined $d && $d =~ /\./ ) ? $d : '';
     }
+    $SITE_DOMAIN_MEMO = $host;
     return $host;
 }
 
@@ -1445,6 +1453,9 @@ sub _topn {
 sub _day_rollup {
     my ( $day, $bucket, $top_n ) = @_;
     my %cls = %{ $bucket->{cls} || {} };
+
+    # PLO-6: identical argument both times, and _basis_of sorts.
+    my @basis = _basis_of($bucket);
     return {
         date             => $day,
         pageviews        => ( $bucket->{hits}             // 0 ),
@@ -1476,15 +1487,13 @@ sub _day_rollup {
         # counted them. "the numbers changed" and "the rules changed" are
         # different answers and a reader cannot tell them apart without this.
         classifier_version   => $CLASSIFIER_VERSION,
-        counting_basis       => ( _basis_of($bucket) )[-1],
-        counting_basis_mixed => (
-            scalar( _basis_of($bucket) ) > 1 ? JSON::PP::true : JSON::PP::false
-        ),
-        unique_visitors => scalar keys %{ $bucket->{ips} || {} },
-        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
-        top_pages       => _topn( $bucket->{pages} || {}, $top_n ),
-        status_codes    => { %{ $bucket->{status} || {} } },
-        not_found       => {
+        counting_basis       => $basis[-1],
+        counting_basis_mixed => ( @basis > 1 ? JSON::PP::true : JSON::PP::false ),
+        unique_visitors      => scalar keys %{ $bucket->{ips} || {} },
+        classes              => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages            => _topn( $bucket->{pages} || {}, $top_n ),
+        status_codes         => { %{ $bucket->{status} || {} } },
+        not_found            => {
             plausible  => _topn( $bucket->{nf_plausible} || {}, $top_n ),
             junk_count => ( $bucket->{nf_junk} // 0 ),
         },
@@ -1907,7 +1916,7 @@ sub _new_day_bucket {
 # Class-INDEPENDENT effects stay at the call site: the visitor set, which a
 # reclassification does not change, and the day's basis marker.
 sub _apply_event {
-    my ( $b, $r, $cls, $sign, $site_host, $inferred, $nf_cap ) = @_;
+    my ( $b, $r, $cls, $sign, $site_host, $inferred, $nf_cap, $is_asset ) = @_;
     my $st = $r->{status} // 0;
 
     $b->{cls}{$cls} += $sign;
@@ -1931,7 +1940,8 @@ sub _apply_event {
 
     return unless $cls eq 'human';
 
-    my $is_asset = _is_asset( $r->{path} );
+    # PLO-5: the caller may already have asked, for the same path string.
+    $is_asset = _is_asset( $r->{path} ) unless defined $is_asset;
     if   ( $is_asset && $st < 400 ) { $b->{asset_hits} += $sign }
     else                            { $b->{hits}       += $sign }
 
@@ -2404,6 +2414,11 @@ sub _tally_batch {
         my $pk  = $r->{pkey} || $tok;
         my $cls = ( length($pk) && $cache->{scanner}{$pk} ) ? 'scanner' : $r->{class};
         my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
+        # PLO-5: the session gate below and _apply_event both ask whether this
+        # path is an asset, for the same string. Asked once, and only for the
+        # class either of them acts on - _apply_event returns before its own
+        # test for anything that is not human.
+        my $is_asset = $cls eq 'human' ? _is_asset( $r->{path} ) : undef;
         $b->{basis}{$COUNTING_BASIS} = 1;    # SM338
         $b->{ips}{$tok}              = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
 
@@ -2420,7 +2435,7 @@ sub _tally_batch {
         if ( $cls eq 'human'
             && length $tok
             && ( $r->{status} // 0 ) < 400
-            && !_is_asset( $r->{path} )
+            && !$is_asset
             && $r->{path} !~ $NOT_A_PAGE_RE )
         {
             # SM417: the SESSION key is per source (token+user-agent), the same
@@ -2463,7 +2478,8 @@ sub _tally_batch {
         # server-log ingester propagated the same miss there, which is how the
         # sweep test caught a defect that had been live on the other path.
         _apply_event( $b, $r, $cls, 1, $site_host,
-            ( ( $cache->{scanner_by}{$pk} // '' ) eq 'behaviour' ), $NF_CAP );
+            ( ( $cache->{scanner_by}{$pk} // '' ) eq 'behaviour' ),
+            $NF_CAP, $is_asset );
 
         # SM223: refusals are counted per PATH, for every class rather than
         # humans only. The case this exists to catch is an asset that became
@@ -2731,6 +2747,8 @@ sub _export_ingest_server_log {
         while ( my $line = <$fh> ) {
             last unless $line =~ /\n\z/;    # incomplete final line: process next time
             my $p = _parse_line($line) or next;
+            # PLO-4: same input, deterministic - once per line, not twice.
+            my $vis_token = _visitor_token( _anon_ip( $p->{ip} ) );
             push @batch, {
                 day    => $p->{day},
                 path   => $p->{path},
@@ -2741,16 +2759,15 @@ sub _export_ingest_server_log {
                 device => _device_class( $p->{ua} ),
                 term   => ( $want_terms ? _search_term( $p->{query} ) : undef ),
                 bytes  => ( ( $p->{bytes} // 0 ) + 0 ),                            # SM335
-                token  => _visitor_token( _anon_ip( $p->{ip} ) ),
+                token  => $vis_token,
                 # SM417: the per-source key, on THIS ingester too. SM392 added
                 # it to the first-party record and every consumer falls back to
                 # the bare token when it is absent - so on the server-log path
                 # the per-source promotion silently never happened. Found when
                 # the per-source SESSION key split nothing for the same reason.
-                pkey => _promo_key( _visitor_token( _anon_ip( $p->{ip} ) ),
-                    $p->{ua} ),
-                ref => $p->{ref},
-                t   => $p->{epoch},
+                pkey => _promo_key( $vis_token, $p->{ua} ),
+                ref  => $p->{ref},
+                t    => $p->{epoch},
             };
         }
         close $fh;
