@@ -57,12 +57,27 @@ my %INTROSPECTION = map { $_ => 1 }
 
 # --- 1. the map must be COMPLETE, or everything below measures nothing -------
 my $map = describe();
-my ( %api_cap, %mcp_cap );
+my ( %api_cap,  %mcp_cap );
+my ( %api_caps, %mcp_caps );    # SM567: the SET, for the twin comparison
 for my $c ( action_keys() ) {
     my $u = $map->{capabilities}{$c}{unlocks} || {};
-    $api_cap{$_} = $c for @{ $u->{api} || [] };
-    $mcp_cap{$_} = $c for @{ $u->{mcp} || [] };
+    $api_cap{$_}      = $c for @{ $u->{api} || [] };
+    $mcp_cap{$_}      = $c for @{ $u->{mcp} || [] };
+    $api_caps{$_}{$c} = 1  for @{ $u->{api} || [] };
+    $mcp_caps{$_}{$c} = 1  for @{ $u->{mcp} || [] };
 }
+
+# SM567: twins that sit under DIFFERENT capabilities on the two channels,
+# each with the reason - the same discipline as %API_ONLY. A twin listed
+# here is a recorded decision or a filed question, never an oversight.
+my %TWIN_DIFFERS = (
+    # SM568: reading the navigation and the page list needs manage_nav on the
+    # API and manage_content over MCP - reads are weaker on one channel, and
+    # nobody decided that. Filed; the lint records the question until it is
+    # answered, so the class stays guarded for every other twin.
+    'nav-read' => 'SM568: manage_nav (API) vs manage_content (MCP) - undecided, filed',
+    'pages'    => 'SM568: manage_nav (API) vs manage_content (MCP) - undecided, filed',
+);
 for my $a ( sort @api_live ) {
     next if $INTROSPECTION{$a};
     ok( $api_cap{$a}, "control-API action '$a' is declared under a capability" )
@@ -144,6 +159,24 @@ for my $a ( sort keys %PAIR ) {
     ok( ( grep { $_ eq $a } @api_live ), "paired API action '$a' still exists" );
     ok( ( grep { $_ eq $PAIR{$a} } @mcp_live ),
         "paired MCP tool '$PAIR{$a}' still exists" );
+
+    # SM567 (the operator's four-surface check, API-to-MCP column): twins sit
+    # under the SAME capability. SM570 was two tables disagreeing about WHO
+    # while both looked authoritative; a twin under a different capability on
+    # the other channel is that defect wearing the other hat.
+    next if $TWIN_DIFFERS{$a};
+
+    # An MCP tool declares ONE capability; the API may accept EITHER of two
+    # (manage_forms or read_submissions for a submission read; manage_layouts
+    # or manage_themes for a catalogue) - decided either-ofs, not drift. So
+    # the rule is: the MCP capability must be one the API accepts for the same
+    # operation. A twin whose MCP capability the API does not accept at all is
+    # the SM570 shape wearing the other hat.
+    my @mcp_only = grep { !$api_caps{$a}{$_} } sort keys %{ $mcp_caps{ $PAIR{$a} } || {} };
+    is_deeply( \@mcp_only, [],
+        "twins '$a' / '$PAIR{$a}': the MCP capability is one the API accepts" )
+        or diag( "MCP unlocks '$PAIR{$a}' under @mcp_only; the API unlocks '$a' under "
+            . join( ',', sort keys %{ $api_caps{$a} || {} } ) );
 }
 
 # --- 3. one-sided actions, each with a recorded reason -----------------------
@@ -253,5 +286,13 @@ for my $t ( sort keys %MCP_ONLY ) {
     ok( $mcp_live_h{$t},  "MCP-only entry '$t' still names a real tool" );
     ok( !$paired_mcp{$t}, "MCP-only entry '$t' is not also listed as paired" );
 }
+
+subtest 'SM567: the recorded twin differences are still twins, and still differ' => sub {
+    for my $a ( sort keys %TWIN_DIFFERS ) {
+        ok( $PAIR{$a}, "'$a' is a recorded pair" );
+        my @mcp_only = grep { !$api_caps{$a}{$_} } sort keys %{ $mcp_caps{ $PAIR{$a} } || {} };
+        ok( @mcp_only, "'$a' still differs - remove it from %TWIN_DIFFERS when it is decided" );
+    }
+};
 
 done_testing();

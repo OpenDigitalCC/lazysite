@@ -658,9 +658,12 @@ function accountSettingsHtml(row) {
             ? '<span class="mg-muted" style="font-size:0.85em">Currently capped by: '
               + ceil.map(escHtml).join(' &rarr; ') + '</span>'
             : '<span class="mg-muted" style="font-size:0.85em">Nothing caps this account (no creator).</span>');
-      ac += '<div class="mg-line"><span class="mg-line-lbl">Content access</span>' +
+      // SM567: the row names the SUBJECT - this is a ceiling on the account's
+      // REACH across every channel, capped by its creator's reach - and the
+      // checkbox names the EFFECT of ticking it. "Content access" said neither.
+      ac += '<div class="mg-line"><span class="mg-line-lbl">Scope ceiling</span>' +
         '<label class="mg-chk"><input type="checkbox"' + (s.scope_independent ? ' checked' : '') +
-        ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> Set by its own grants alone</label>' +
+        ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> None &mdash; its own domain grants alone decide its reach</label>' +
         '<span class="mg-help" title="Off: this account can reach at most what the account that created it can reach, and that limit follows the whole chain of creators. On: its access is decided by its own domain grants alone, so it may reach content its creator cannot. The record of who created it is unchanged either way. This is separate from the Parent setting above - moving an account to top level does not affect it.">&#9432;</span>' +
         '<span class="mg-inline-msg" id="scimsg-' + ue + '"></span></div>' +
         '<div class="mg-line"><span class="mg-line-lbl"></span>' + ceilNote + '</div>';
@@ -1154,7 +1157,7 @@ function toggleScopeIndependent(user, on) {
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); loadUsers(); return; }  // reload to revert the checkbox
       showStatus('"' + user + '" content access is ' + (on
-        ? 'now set by its own grants alone.'
+        ? 'no longer capped by its creator: its own domain grants alone decide its reach.'
         : 'limited again by the account that created it.'));
       loadUsers();   // SM233: refresh so the ceiling line reflects the new state
     })

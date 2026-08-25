@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM567 resolved (PENDING) **the scope-ceiling control is named for what it
+  governs.** "Content access - set by its own grants alone" governs whether
+  an account's REACH is capped by its creator's reach (SM194), on every
+  channel; it is relabelled "Scope ceiling" / "None - its own domain grants
+  alone decide its reach". t/lint/23 now pins that API/MCP twins sit under
+  the same capability. SM570 and SM515 filings carry the floor-row proofs.
+
 - SM518 resolved (PENDING) **the rules move with the folder.** A directory
   move through the manager (and so MCP move_file) re-keyed only the exact
   source ACL key, so every per-file rule beneath a renamed folder stayed
