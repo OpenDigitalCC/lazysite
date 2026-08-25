@@ -19,7 +19,7 @@ use Lazysite::Auth::Acl qw(_acl_denied);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    action_file_upload action_file_download action_file_zip_download
+    action_file_upload action_file_download action_file_zip_download collect_zip_paths
     check_upload_rate parse_multipart_body sanitise_upload_filename
     detect_content_type is_editable_text
 );

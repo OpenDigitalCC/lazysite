@@ -35,7 +35,7 @@ use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key processor_path);
-use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download
+use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
@@ -987,13 +987,20 @@ if ($token_auth) {
         'preview'     => 'read',
         'git-history' => 'read',
         'git-show'    => 'read',
-        'save'        => 'write',
-        'delete'      => 'write',
-        'acl-set'     => 'write',
-        'acl-remove'  => 'write',
-        'mkdir'       => 'write',
-        'move'        => 'write',
-        'copy'        => 'write',
+        # SM517: the two download verbs reached the same files through a
+        # different door. Neither was here, so a manage_content-only account
+        # on a secured site was refused `read` of the submission store and
+        # nav.conf and then downloaded both - the SM418 defect in its
+        # read-side form. The zip is gated over every requested path below.
+        'file-download'     => 'read',
+        'file-zip-download' => 'read',
+        'save'              => 'write',
+        'delete'            => 'write',
+        'acl-set'           => 'write',
+        'acl-remove'        => 'write',
+        'mkdir'             => 'write',
+        'move'              => 'write',
+        'copy'              => 'write',
         # SM418: the DISPATCHED action name, which is 'file-upload'. Keyed
         # 'upload' this lookup was always undef, so the carve-out gate never
         # ran for a single upload - an unscoped manage_content account could
@@ -1010,7 +1017,15 @@ if ($token_auth) {
     my $fs_mode = $file_surface{$action};
     if ( defined $fs_mode && $site_secured ) {
         my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
-        for my $p ( $path, $params{to} ) {
+        # SM517: the zip parses `paths=` from the query string itself, so $path
+        # is `/` here; gate every entry it will read. One governed path the
+        # caller may not read refuses the WHOLE zip, naming the path and the
+        # capability, as `read` of that path would - the zip's own skip-and-log
+        # convention is silent to the caller and would hand back an archive
+        # that quietly lacked the file.
+        my @targets = ( $path, $params{to} );
+        push @targets, collect_zip_paths() if $action eq 'file-zip-download';
+        for my $p (@targets) {
             next unless defined $p && length $p;
             my $refusal = Lazysite::Manager::Common::carveout_refusal( $p, $fs_mode, $caps );
             next unless $refusal;

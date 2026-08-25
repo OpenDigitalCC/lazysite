@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM517 resolved (PENDING) **downloads honour the carve-out.** SM268 H4
+  gates nav.conf (manage_nav) and the submission store (read_submissions)
+  on every file verb in %file_surface; file-download and file-zip-download
+  were never in it, and the zip parses `paths=` itself so no gate saw its
+  list. On a secured site a manage_content-only account was refused `read`
+  of a submission file and then downloaded it, alone or zipped with
+  nav.conf. Found by the manager-api structural review and proven by
+  probe. Both verbs are now gated as reads, the zip over every requested
+  path - one governed path refuses the whole zip, naming the path and the
+  capability. t/unit/manager/62 drives both verbs; t/lint/14 asserts every
+  path-bearing action is in %file_surface.
+
 - SM520 resolved (PENDING) **a domain preview is anonymous.** domain_preview
   shelled the processor with the operator's HTTP_COOKIE and
   HTTP_AUTHORIZATION still set (only HTTP_X_REMOTE_* and LAZYSITE_AUTH_*

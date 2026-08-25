@@ -106,6 +106,26 @@ my @read_but_mutating = sort grep { $mutating{$_} } keys %READ;
 is( "@read_but_mutating", '',
     'no read-allowlisted action is also in %MUTATING (reads do not change state)' );
 
+# --- 2b. every path-bearing read/write verb is under the SM268 H4 gate --------
+# SM517: %file_surface keys the carve-out gate (nav.conf needs manage_nav, the
+# submission store needs read_submissions). It listed read, list, preview and
+# git-show but neither download verb, so a manage_content-only account was
+# refused `read` of the store and then downloaded it - the same defect SM418
+# closed for file-upload. %SCOPED_ACTION is the reviewed set of verbs that take
+# a content path; every one of them must be in %file_surface, except the two
+# that carry no path at all.
+my ($fs_block) = $src =~ /my %file_surface = \((.*?)\n    \);/s;
+ok( $fs_block, 'found the %file_surface carve-out map' );
+my %file_surface = map { $_ => 1 } ( $fs_block =~ /'([a-z0-9-]+)'\s*=>\s*'(?:read|write)'/g );
+my ($scoped_block) = $src =~ /my %SCOPED_ACTION = map \{ \$_ => 1 \} qw\((.*?)\)/s;
+my %scoped         = map { $_ => 1 } split ' ', ( $scoped_block // '' );
+cmp_ok( scalar keys %scoped, '>=', 20, '%SCOPED_ACTION parsed non-trivially' );
+my %NO_PATH = map       { $_ => 1 } qw( git-status cache-invalidate );
+my @ungated = sort grep { !$file_surface{$_} && !$NO_PATH{$_} } keys %scoped;
+is( "@ungated", '',
+    'every path-bearing action in %SCOPED_ACTION is keyed in %file_surface (SM268 H4 carve-out gate)' )
+    or diag "OUTSIDE THE CARVE-OUT GATE: @ungated";
+
 # --- 3. cross-channel capability parity ---------------------------------------
 # For an action gated on BOTH channels, the OR-set of accepted capabilities must
 # be identical - otherwise one channel is a weaker door than the other. Any

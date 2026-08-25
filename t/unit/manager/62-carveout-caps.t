@@ -48,7 +48,7 @@ print {$sub} encode_json(
 close $sub;
 
 open my $nav, '>', "$docroot/lazysite/nav.conf" or die $!;
-print {$nav} "Home|/\n";
+print {$nav} "NAV-BODY-MARKER|/\n";
 close $nav;
 
 # An ordinary content page, to show the gate is specific to the carve-outs.
@@ -81,6 +81,22 @@ sub api_get {
             DOCUMENT_ROOT         => $docroot,
             REQUEST_METHOD        => 'GET',
             QUERY_STRING          => "action=$action&path=$path",
+            HTTP_X_REMOTE_USER    => 'editor',
+            HTTP_X_REMOTE_GROUPS  => 'site-editors',
+            LAZYSITE_AUTH_TRUSTED => 1,
+        },
+    );
+}
+
+sub api_zip {
+    my (@paths) = @_;
+    my $qs      = join '&', 'action=file-zip-download', map { "paths=$_" } @paths;
+    return run_script(
+        'lazysite-manager-api.pl',
+        env => {
+            DOCUMENT_ROOT         => $docroot,
+            REQUEST_METHOD        => 'GET',
+            QUERY_STRING          => $qs,
             HTTP_X_REMOTE_USER    => 'editor',
             HTTP_X_REMOTE_GROUPS  => 'site-editors',
             LAZYSITE_AUTH_TRUSTED => 1,
@@ -121,9 +137,41 @@ subtest 'manage_content alone cannot rewrite the navigation' => sub {
     open my $fh, '<', "$docroot/lazysite/nav.conf" or die $!;
     my $now = do { local $/; <$fh> };
     close $fh;
-    is( $now, "Home|/\n",
+    is( $now, "NAV-BODY-MARKER|/\n",
         'and nav.conf is byte-for-byte unchanged - a refusal that still wrote '
             . 'would be the whole defect' );
+};
+
+# SM517: the two download verbs reach the same files by a different door.
+# %file_surface listed read/list/preview/git-show but neither download, and
+# the zip re-parses `paths=` itself so $path was `/` and no gate saw the list.
+# Both assertions confirmed FAILING before the fix: 200 with the body.
+subtest 'manage_content alone cannot download the submission store' => sub {
+    my $out = api_get( 'file-download', 'lazysite/forms/submissions/contact.jsonl' );
+    unlike( $out, qr/SUBMISSION-BODY-MARKER/, 'the submitted message body did not come back' );
+    unlike( $out, qr/Content-Disposition: attachment/, 'and nothing was offered as a file' );
+    like( $out, qr/read_submissions/, 'the refusal names the capability that would reach it' );
+};
+
+subtest 'manage_content alone cannot download nav.conf' => sub {
+    my $out = api_get( 'file-download', 'lazysite/nav.conf' );
+    unlike( $out, qr/NAV-BODY-MARKER/, 'the navigation did not come back' );
+    like( $out, qr/manage_nav/, 'the refusal names manage_nav' );
+};
+
+subtest 'manage_content alone cannot zip either path' => sub {
+    my $out = api_zip( 'lazysite/forms/submissions/contact.jsonl', 'lazysite/nav.conf', 'index.md' );
+    unlike( $out, qr/Content-Type: application\/zip/, 'no zip was served' );
+    unlike( $out, qr/SUBMISSION-BODY-MARKER/, 'the submission body is not in the response' );
+    unlike( $out, qr/NAV-BODY-MARKER/,        'nor is the navigation' );
+    like( $out, qr/contact\.jsonl/,   'the refusal names the path' );
+    like( $out, qr/read_submissions/, 'and the capability' );
+};
+
+subtest 'a zip of ordinary content is unaffected' => sub {
+    my $out = api_zip('index.md');
+    like( $out, qr/Content-Type: application\/zip/,
+        'a gate that refused every zip would pass the test above for the wrong reason' );
 };
 
 subtest 'ordinary content is unaffected' => sub {
@@ -140,6 +188,8 @@ subtest 'the capability, once granted, reaches both' => sub {
     my $read = api_get( 'read', 'lazysite/forms/submissions/contact.jsonl' );
     like( $read, qr/SUBMISSION-BODY-MARKER/,
         'read_submissions reads the store' );
+    my $dl = api_get( 'file-download', 'lazysite/forms/submissions/contact.jsonl' );
+    like( $dl, qr/SUBMISSION-BODY-MARKER/, 'and downloads it (SM517)' );
 
     my $save = api_save( 'lazysite/nav.conf', "Home|/\nAbout|/about\n" );
     like( $save, qr/"ok"\s*:\s*true/, 'manage_nav writes nav.conf' );    # SM353
