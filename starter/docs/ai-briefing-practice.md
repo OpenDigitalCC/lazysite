@@ -9,9 +9,9 @@ register:
      engine-version: 0.10.33
      imported: 2026-08-25
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b8ffa790cbef5875e60b905376649c09d985fbb4882690adc6b64f5cb964276b modified=2026-08-25
+     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2467a0bc2e0b02ac3ba097823cfc802af85f8c21dc3f458bd6d5b8db8061e4fd modified=2026-08-24
-     body-sha256: 71272e27a186be0e3b6c8bd7ca7850c6111759ef3cfb433f5a6de0aa0cfaa4a1
+     body-sha256: c06b33be884d8c8c988d4296d92b9565d7cd53e07acc29263f4794f643d939a6
 -->
 
 ## What this is, and what it is not
@@ -62,8 +62,12 @@ tt_page_var:
 
 ### Template Toolkit in the page body
 
-Front-matter variables are available in the body, and TT directives are
-evaluated there before Markdown runs. `loop` carries everything a list needs:
+Front-matter variables are available in the body. **The body becomes HTML
+first and TT runs second, over the rendered HTML** - see "Things that look
+equivalent and are not" for the two things that follow from it, both of which
+bite when a variable feeds an image or a `:::` fence.
+
+`loop` carries everything a list needs:
 
 - `loop.count` / `loop.size` - a human-facing counter
 - `loop.index` - zero-based, for "first N" decisions
@@ -121,7 +125,7 @@ which imports every existing sidecar idempotently and never removes one it could
 not import.
 
 | Was | Is, from 0.10.29 |
-| --- | --- |
+|---|---|
 | write `<file>.brief` over WebDAV | `append_brief` (MCP) / `brief-append` (API), under `manage_content` |
 | read the sidecar | `read_brief` / `brief-read` |
 | you stamped the date and your name | the store stamps the date and your **verified** identity |
@@ -281,7 +285,7 @@ once a table passes 200 rows - which is exactly when a site has become worth
 something - so check which engine a site runs before trusting a list.
 
 | Binding | 0.10.29 and earlier | From 0.10.30 |
-| --- | --- | --- |
+|---|---|---|
 | `db:works`, 250-row table | **200 rows, silently** | 500-row ceiling; a capped render logs a WARN |
 | `.count` on that page | **200** - counted after the limit, so it agreed with the short list | the **true** count, 250 |
 | `db:works limit=501` | **nothing at all**, no error | clamps to the ceiling and **serves rows**, warning on the result |
@@ -323,7 +327,7 @@ So:
 Verified on 0.10.30, and the channel decides:
 
 | Channel | Deep path with missing parents |
-| --- | --- |
+|---|---|
 | MCP `write_file` / `create_page` | **creates the parents** and the page |
 | Manager save | creates the parents |
 | WebDAV `PUT` | **refused** - "Parent collection missing - MKCOL the parent(s) first" |
@@ -344,7 +348,7 @@ shape: **the manager path cleans up and the DAV path does not**, so the same
 logical edit has two different outcomes depending on how you made it.
 
 | What you do over DAV | What is left stale |
-| --- | --- |
+|---|---|
 | `MOVE` or `COPY` a page | Registries are never invalidated - **the sitemap keeps advertising the old URL**. The manager's own move clears it |
 | `DELETE` a collection | A **301 alias survives, pointing at a page that no longer exists** |
 | Write `nav.conf` | Cached pages keep rendering the **old nav** until something else invalidates them |
