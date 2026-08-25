@@ -92,19 +92,22 @@ sub _clean_content_root {
 
 # Parse the conf into ( \%base, \%overrides, \@hosts ). %overrides is
 # host => { key => value }; @hosts is the ordered alias_hosts list.
+# TLO-5: the verbs that rewrite the file slurp it anyway, so they pass the text
+# they already hold rather than making this open it a second time. With no
+# argument it reads the file itself, as every other caller does. split /^/ keeps
+# each line's newline, which is what the readline loop it replaces produced.
 sub _parse {
+    my ($text) = @_;
+    $text = _slurp() unless defined $text;
     my %base;
     my %ov;
-    if ( open my $fh, '<:utf8', _conf_path() ) {
-        while ( my $line = <$fh> ) {
-            if ( $line =~ /^alias\.(\S+?)\.(\w+)\s*:\s*(.*?)\s*$/ ) {
-                $ov{ lc $1 }{$2} = $3;
-            }
-            elsif ( $line =~ /^(\w+)\s*:\s*(.*?)\s*$/ ) {
-                $base{$1} = $2;
-            }
+    for my $line ( split /^/, ( $text // '' ) ) {
+        if ( $line =~ /^alias\.(\S+?)\.(\w+)\s*:\s*(.*?)\s*$/ ) {
+            $ov{ lc $1 }{$2} = $3;
         }
-        close $fh;
+        elsif ( $line =~ /^(\w+)\s*:\s*(.*?)\s*$/ ) {
+            $base{$1} = $2;
+        }
     }
     my @hosts = grep { length } map { s/^\s+|\s+$//gr } split /,/,
         ( $base{alias_hosts} // '' );
@@ -725,11 +728,11 @@ sub domain_add {
             if $opts{$k} =~ /[\r\n]/;
     }
 
-    my ( $base, $ov, $hosts ) = _parse();
+    my $content = _slurp();
+    my ( $base, $ov, $hosts ) = _parse($content);
     return { ok => 0, kind => 'exists', error => "Domain already configured: $host" }
         if grep { $_ eq $host } @$hosts;
 
-    my $content = _slurp();
     return { ok => 0, error => 'Cannot read lazysite.conf' } unless defined $content;
 
     # content_root first (only when the host has its own), then any presentation
@@ -836,11 +839,11 @@ sub domain_set {
     return { ok => 0, kind => 'invalid', error => 'Value must be a single line' }
         if $value =~ /[\r\n]/;
 
-    my ( undef, undef, $hosts ) = _parse();
+    my $content = _slurp();
+    my ( undef, undef, $hosts ) = _parse($content);
     return { ok => 0, kind => 'not-found', error => "Domain not configured: $host" }
         unless grep { $_ eq $host } @$hosts;
 
-    my $content = _slurp();
     return { ok => 0, error => 'Cannot read lazysite.conf' } unless defined $content;
     $content = _set_line( $content, $host, $key, $value );
     my ( $ok, $err ) = _write( $content, "set domain key $host" );
@@ -938,13 +941,13 @@ sub domain_remove {
     return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
         unless _valid_host($host);
 
-    my ( undef, $ov, $hosts ) = _parse();
+    my $content = _slurp();
+    my ( undef, $ov, $hosts ) = _parse($content);
     return { ok => 0, kind => 'not-found', error => "Domain not configured: $host" }
         unless grep { $_ eq $host } @$hosts;
 
     my $rel = $ov->{$host}{content_root};
 
-    my $content = _slurp();
     return { ok => 0, error => 'Cannot read lazysite.conf' } unless defined $content;
 
     # Strip every alias.<host>.<key> line.

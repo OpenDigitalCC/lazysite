@@ -744,9 +744,12 @@ sub _layouts_ref {
     return ( defined $ref && length $ref ) ? $ref : 'main';
 }
 
+# TLO-2: the caller may pass the two values it has already read, so the URL is
+# still built in one place and the conf is not scanned again for them.
 sub _raw_base {
-    my $repo = _layouts_repo();
-    my $ref  = _layouts_ref();
+    my ( $repo, $ref ) = @_;
+    $repo = _layouts_repo() unless defined $repo;
+    $ref  = _layouts_ref()  unless defined $ref;
     return "https://raw.githubusercontent.com/$repo/$ref";
 }
 
@@ -931,7 +934,12 @@ sub action_layout_install {
         error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
         unless _have_azip();
 
-    my ( $mok, $mbody ) = _http_get( _raw_base() . '/manifest.json' );
+    # TLO-2: layouts_repo and layouts_ref, once each. Activation below rewrites
+    # only the layout: and theme: lines, so neither can change mid-call.
+    my $ref  = _layouts_ref();
+    my $base = _raw_base( $repo, $ref );
+
+    my ( $mok, $mbody ) = _http_get("$base/manifest.json");
     return { ok => 0, error => "Could not fetch manifest.json ($mbody)" }
         unless $mok;
     my $manifest = eval { decode_json($mbody) };
@@ -939,7 +947,6 @@ sub action_layout_install {
         ( $all ? undef : $theme ), $all );
     return $plan unless $plan->{ok};
 
-    my $base    = _raw_base();
     my $tmp_dir = "/tmp/lazysite-layout-install-$$";
     make_path($tmp_dir);
 
@@ -996,7 +1003,7 @@ sub action_layout_install {
     }
 
     log_event( 'INFO', 'layout-install', 'manifest install',
-        repo      => $repo, ref => _layouts_ref(), layout => $layout,
+        repo      => $repo, ref => $ref, layout => $layout,
         themes    => join( ',',  @themes_installed ),
         errors    => join( '; ', @theme_errors ),
         activated => ( $activate ? 1 : 0 ), user => $auth_user );

@@ -267,10 +267,13 @@ sub _describe {
 #
 # Returns a message naming what is missing, or undef.
 sub _missing_deps {
-    my ($script) = @_;
-    my $full = resolve_plugin_script($script) or return undef;
-
-    my $desc = _describe($full);
+    my ( $script, $full, $desc ) = @_;
+    # TLO-1: the caller may already hold the resolved path and the descriptor.
+    # Counted, not tested for truth, so an undef descriptor passed in is not
+    # quietly fetched again.
+    $full = resolve_plugin_script($script) if @_ < 2;
+    return undef unless $full;
+    $desc = _describe($full) if @_ < 3;
     return undef unless ref $desc eq 'HASH' && ref $desc->{owns} eq 'HASH';
 
     my @deps = @{ $desc->{owns}{deps} || [] };
@@ -301,8 +304,13 @@ sub action_plugin_enable {
     # SM152: only a REGISTERED plugin can be enabled - so a stray name can never
     # be written into the conf `plugins:` list (and the on_enable hook only ever
     # runs a registry script).
-    return { ok => 0, error => "Unknown plugin: $script" }
-        unless plugin_registry()->{$script};
+    #
+    # TLO-1: the registry is still SCANNED on this call - what it yields is
+    # carried down to _missing_deps and _run_plugin_hook instead of being
+    # looked up twice more. It is NOT cached across calls, which is the
+    # property t/unit/manager/27 pins.
+    my $full = plugin_registry()->{$script};
+    return { ok => 0, error => "Unknown plugin: $script" } unless $full;
 
     # SM472: A PLUGIN THAT CANNOT RUN IS NOT ENABLED.
     #
@@ -322,13 +330,20 @@ sub action_plugin_enable {
     # message names the module AND a package that provides it, so the refusal
     # is a next step rather than a dead end; install, then enable, which is the
     # right order anyway.
-    if ( my $missing = _missing_deps($script) ) {
+    #
+    # ONE --describe for the whole action. The descriptor is read before the
+    # conf gains the entry, and the hook below reads the same one: --describe
+    # is run with no --docroot (see _describe_json), so a descriptor cannot
+    # depend on this site's lazysite.conf and the write between them is
+    # invisible to it.
+    my $desc = _describe($full);
+    if ( my $missing = _missing_deps( $script, $full, $desc ) ) {
         return { ok => 0, kind => 'missing_deps', error => $missing };
     }
 
     my $r = _update_plugins_conf( $script, 'add' );
     return $r unless $r->{ok};
-    my $hook = _run_plugin_hook( $script, 'on_enable' );
+    my $hook = _run_plugin_hook( $script, 'on_enable', $full, $desc );
     $r->{hook} = $hook if $hook;
     return $r;
 }
@@ -353,10 +368,12 @@ sub action_plugin_disable {
 # descriptor literals ever reach the command line. A failed hook never undoes
 # the toggle: the plugin's own status action is the recovery surface.
 sub _run_plugin_hook {
-    my ( $script, $hook_key ) = @_;
-    my $full_script = resolve_plugin_script($script);
+    my ( $script, $hook_key, $full_script, $desc ) = @_;
+    # TLO-1: as _missing_deps - the enable path resolves and describes once and
+    # hands both down; disable calls with two arguments and does its own.
+    $full_script = resolve_plugin_script($script) if @_ < 3;
     return undef unless $full_script;
-    my $desc = _describe($full_script);
+    $desc = _describe($full_script) if @_ < 4;
     return undef unless $desc && ref $desc eq 'HASH';
 
     # SM409: hooks are deliberately NOT gated. They run only from the toggle

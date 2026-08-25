@@ -1497,6 +1497,10 @@ sub action_theme_upload {
 
 sub _install_theme_from_dir {
     my ( $extract_dir, $action_label, $user, $update ) = @_;
+    # TLO-4: _lz() stats the tree beside the docroot to decide where the engine
+    # lives, and the per-layout loops below asked it once per layout per step.
+    # The docroot does not migrate mid-call, so ask once.
+    my $lz = _lz();
 
     return { ok => 0, error => "Upload must contain theme.json" }
         unless -f "$extract_dir/theme.json";
@@ -1540,7 +1544,7 @@ sub _install_theme_from_dir {
     my @missing;
     for my $l (@clean_layouts) {
         push @missing, $l
-            unless -f _lz() . "/layouts/$l/layout.tt";
+            unless -f "$lz/layouts/$l/layout.tt";
     }
     if (@missing) {
         return { ok => 0,
@@ -1552,7 +1556,7 @@ sub _install_theme_from_dir {
     # every layout so operators can refer to the theme by a single
     # name in lazysite.conf's theme: key.
     my $install_name = $theme_name;
-    my $first_dest   = _lz() . "/layouts/$clean_layouts[0]/themes/$theme_name";
+    my $first_dest   = "$lz/layouts/$clean_layouts[0]/themes/$theme_name";
     if ( -d $first_dest && !$update ) {
         my @t = localtime( time() );
         $install_name = sprintf( "%04d%02d%02d-%s",
@@ -1582,13 +1586,13 @@ sub _install_theme_from_dir {
         # than traded away - _snapshot_artifact is a no-op on a theme still at
         # its pristine baseline (SM176), so an unedited theme costs nothing.
         for my $l (@clean_layouts) {
-            _snapshot_artifact( _lz() . "/layouts/$l/themes", $theme_name );
+            _snapshot_artifact( "$lz/layouts/$l/themes", $theme_name );
         }
     }
 
     my @installed;
     for my $l (@clean_layouts) {
-        my $dest = _lz() . "/layouts/$l/themes/$install_name";
+        my $dest = "$lz/layouts/$l/themes/$install_name";
         make_path($dest);
         my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
         if ( $rc != 0 ) {
@@ -1611,7 +1615,7 @@ sub _install_theme_from_dir {
 
         # SM176: record the pristine baseline so switching away from this theme
         # later, if the operator never edited it, does not spawn a pointless backup.
-        _write_pristine( _lz() . "/layouts/$l/themes",
+        _write_pristine( "$lz/layouts/$l/themes",
             $install_name, _artifact_digest($dest) );
 
         push @installed, $l;
