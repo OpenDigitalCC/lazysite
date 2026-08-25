@@ -87,7 +87,7 @@ sub resolve {
 
 # --- the same resolution for layout= ----------------------------------------
 {
-    is( resolve( '/',    { layout => 'base' }, 'layout' ), 'base', 'layout= is used' );
+    is( resolve( '/',    { layout => 'base' },  'layout' ), 'base', 'layout= is used' );
     is( resolve( 'base', { layout => 'other' }, 'layout' ), 'base', 'path wins' );
     is( resolve( '/',    {}, 'layout' ), '', 'nothing resolves to empty' );
 }
@@ -105,6 +105,66 @@ sub resolve {
         'layout-activate falls back to $params{layout}' );
     like( $src, qr/\$path ne '\/'/,
         "and treats the defaulted '/' as absent, not as a name" );
+}
+
+# --- the audit row names the theme, whichever spelling was used -------------
+# SM553: the alias resolution above lived only in the dispatch branch, so the
+# audit block still saw path='/' and recorded target '/' for the alias
+# spellings. An audit row for an activation is the record of what went live;
+# it has to carry the name either way.
+{
+    use lib "$FindBin::Bin/../../lib";
+    require TestHelper;
+    require Digest::SHA;
+    my $SECRET = 'testsecret0123456789abcdef0123456789abcdef0123456789abcdef012345';
+    my $ad     = Cwd::realpath( tempdir( CLEANUP => 1 ) );
+    make_path( "$ad/lazysite/auth", "$ad/lazysite/logs" );
+    open my $cf, '>', "$ad/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: T\nsite_url: http://localhost\n";
+    close $cf;
+    open my $sf, '>', "$ad/lazysite/auth/.secret" or die $!;
+    print {$sf} "$SECRET\n";
+    close $sf;
+    my $stub = "$ad/users-stub.pl";
+    open my $st, '>', $stub or die $!;
+    print {$st} <<'STUB';
+#!/usr/bin/perl
+use strict; use warnings; use JSON::PP qw(encode_json);
+my $in = do { local $/; <STDIN> };
+print encode_json({ ok => 1, settings => { manage_themes => 1, manage_layouts => 1, ui => 1 }, users => [], groups => {} });
+STUB
+    close $st;
+    chmod 0755, $stub;
+    my $csrf = Digest::SHA::hmac_sha256_hex( "csrf:admin:" . int( time() / 3600 ), $SECRET );
+    my $post = sub {
+        my ($qs) = @_;
+        TestHelper::run_script(
+            'lazysite-manager-api.pl',
+            stdin => '{}',
+            env   => {
+                DOCUMENT_ROOT         => $ad,
+                REQUEST_METHOD        => 'POST',
+                QUERY_STRING          => $qs,
+                CONTENT_LENGTH        => 2,
+                HTTP_X_REMOTE_USER    => 'admin',
+                LAZYSITE_AUTH_TRUSTED => 1,
+                HTTP_X_CSRF_TOKEN     => $csrf,
+                LAZYSITE_USERS_TOOL   => $stub,
+            }
+        );
+    };
+    $post->('action=theme-activate&path=sky');
+    $post->('action=theme-activate&theme=sky');
+    $post->('action=layout-activate&layout=grid');
+    open my $al, '<', "$ad/lazysite/logs/audit.log" or die "no audit log: $!";
+    my @l = <$al>;
+    close $al;
+    is( scalar( grep { /\| theme-activate \| sky \|/ } @l ), 2,
+        'theme-activate audits target "sky" for path= AND for theme=' );
+    ok( ( grep { /\| layout-activate \| grid \|/ } @l ),
+        'layout-activate audits target "grid" for layout=' );
+    ok( !( grep { /\| (?:theme|layout)-activate \| \/ \|/ } @l ),
+        'no activation audits a bare "/" target' );
 }
 
 done_testing();

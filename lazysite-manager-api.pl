@@ -2813,6 +2813,14 @@ sub _audit_implicit_target {
         my $n = $params->{name} // $req->{name} // '';
         return $n if length $n && $action =~ /^site-backup-/;
     }
+    # SM553: the SM261 alias spellings (theme=, layout=) resolve to a name
+    # inside the dispatch branch only; the audit block still sees path='/'.
+    # Name the theme or layout that went live whichever spelling was used.
+    if ( $action eq 'theme-activate' || $action eq 'layout-activate' ) {
+        my $k = $action eq 'theme-activate' ? 'theme' : 'layout';
+        my $n = $params->{$k} // $req->{$k} // '';
+        return $n if length $n;
+    }
     # config-set: name the KEY that changed (e.g. site_name), not a bare '/'.
     if ( $action eq 'config-set' ) {
         my $k = $params->{key} // $req->{key} // '';

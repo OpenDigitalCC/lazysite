@@ -393,6 +393,12 @@ Naming the commit: AFTER it lands, never before
   path as before. Same output shape and sort. t/unit/lib/20 pins 40 files
   x 3 commits in at most 3 git invocations (124 before, 2 after). Found by
   the site agent's capability sweep, 2026-08-25.
+- SM553 resolved (PENDING) **the alias spelling keeps the audit target.**
+  theme-activate&theme=sky and layout-activate&layout=grid (the SM261
+  alias spellings) audited target "/" because the alias resolution lived
+  only in the dispatch branch. _audit_implicit_target now names the
+  theme or layout whichever spelling was used. t/unit/manager/56 runs
+  the dispatcher for both spellings and pins the audit target.
 
 - SM567 resolved (PENDING) **the scope-ceiling control is named for what it
   governs.** "Content access - set by its own grants alone" governs whether
