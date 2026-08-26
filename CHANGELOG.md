@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM593 follow-up (PENDING) **a table's domain is checked, and shown.** The
+## 0.10.34 - BETA: the field pass answered - every package verb, and every table, says who it is for (2026-08-26)
+
+- SM593 follow-up (06261242) **a table's domain is checked, and shown.** The
   migration asks for hand-typed hostnames and any string was stored with
   `ok: true`, so a typo produced a table bound to a domain that does not
   exist - reachable by no confined grant and looking exactly like a table that
@@ -53,7 +55,7 @@ Naming the commit: AFTER it lands, never before
   `domain`, so a half-finished migration is inspectable without reading every
   descriptor.
 
-- SM578 follow-up (PENDING) **all four package verbs ask one rule.** The first
+- SM578 follow-up (61fd3b7b) **all four package verbs ask one rule.** The first
   cut confined `site-backup-download` and `site-backup-delete`, which share a
   refusal helper, and left `site-backup-create` and `site-backup-inspect`
   carrying their own inline copy of the old test - so a scopeless token grant
@@ -68,7 +70,7 @@ Naming the commit: AFTER it lands, never before
   domain as their happy path, which is the clearest statement of what was
   wrong.
 
-- SM593 follow-up (PENDING) **the unscoped-table check asks whether anybody
+- SM593 follow-up (06261242) **the unscoped-table check asks whether anybody
   is confined.** It keyed on the DOMAIN COUNT, so the first 0.10.33 deploy
   reported nine tables needing a human on an instance whose domains all
   belong to one person - a finding about nothing, repeated on every deploy,
