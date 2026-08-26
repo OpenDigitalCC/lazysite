@@ -60,7 +60,6 @@ Naming the commit: AFTER it lands, never before
   because what matters is not how many times a number appears today but how much
   a bump rewrites - and it names WHICH three lines move, so swapping them for a
   different three is visible rather than merely staying under the count.
-
 - SM622/SM623 resolved (PENDING) **the manager says whether a connection can
   work before you spend time on it, and the service switches are grouped by what
   needs them.** The 0.9.0 killswitches leave every remote surface off by default
@@ -78,7 +77,6 @@ Naming the commit: AFTER it lands, never before
   split, each group with a preset that sets its own switches and marks the form
   dirty WITHOUT saving, and `token_exchange_enabled` is relabelled to name its
   consequence: whether a brief you just issued can be redeemed at all.
-
 - SM621 resolved (PENDING) **the connector instructions match the dialog again.**
   Claude.ai's Add-custom-connector dialog gained an OAuth client section and
   recommends *"Use Anthropic's hosted client metadata (CIMD)"*, where the server
@@ -97,7 +95,9 @@ Naming the commit: AFTER it lands, never before
   cannot work, and *"None - Detected"* beside Authentication means
   `oauth_enabled` is off on that instance.
 
-- SM619 resolved (PENDING) **a lazysite tool run under sudo becomes the site's
+## 0.11.1 - STABLE: a tool run under sudo becomes the site owner before it writes (2026-08-26)
+
+- SM619 resolved (98123189) **a lazysite tool run under sudo becomes the site's
   owner before it writes.** A fleet sweep after the 0.11.0 upgrade found 31
   sites with 16 identical failures each, all traceable to a tree owned
   `root:root`. The rule was already written - `lazysite-check.pl:2291` states it
