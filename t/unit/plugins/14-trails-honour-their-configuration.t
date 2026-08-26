@@ -28,7 +28,15 @@ plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
 my $now = time();
 
-sub day_of { my @t = gmtime( $now - ( $_[0] * 86_400 ) ); sprintf '%04d-%02d-%02d', $t[5] + 1900, $t[4] + 1, $t[3] }
+# SM600: every day this fixture names is measured from the instant its RECORDS
+# carry (90 minutes back, so the export closes the session), not from the
+# clock. Inside 90 minutes of UTC midnight the two fall on different days and
+# the pre-seeded trail files land a day away from the log they are checked
+# against. `$now` stays real: the export compares against real time to decide
+# what is old enough to close.
+my $rec = $now - 5400;
+
+sub day_of { my @t = gmtime( $rec - ( $_[0] * 86_400 ) ); sprintf '%04d-%02d-%02d', $t[5] + 1900, $t[4] + 1, $t[3] }
 
 # Build a site with some traffic and some pre-existing trail files, run the
 # export, and hand back what survived.
@@ -56,7 +64,7 @@ sub run_site {
         close $fh;
     }
 
-    my @t   = gmtime($now);
+    my @t   = gmtime($rec);
     my $ymd = sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3];
     open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;
 

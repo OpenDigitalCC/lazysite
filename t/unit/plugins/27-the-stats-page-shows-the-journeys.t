@@ -40,8 +40,20 @@ my $page = do { open my $fh, '<', $pagef or die $!; local $/; <$fh> };
 # ---------------------------------------------------------------------
 # The plugin side
 # ---------------------------------------------------------------------
-my $now   = time();
-my @gm    = gmtime($now);
+my $now = time();
+# SM600: THE DAY COMES FROM THE RECORDS, NOT FROM NOW.
+#
+# This fixture stamps its records 90 minutes back so the session is older than
+# SESSION_GAP and the export closes it into a trail. It used to derive the day
+# it asks for from `$now`, and for the 90 minutes after UTC midnight those are
+# opposite sides of midnight: written under yesterday, asked for today. The
+# same commit passed its release gate at 23:18 UTC and failed at 00:20.
+#
+# `$now` itself stays the real clock, deliberately: the export decides what is
+# old enough to close by comparing against the real time, so back-dating $now
+# stops sessions closing at all and no trail is written.
+my $rec   = $now - 5400;
+my @gm    = gmtime($rec);
 my $today = sprintf '%04d-%02d-%02d', $gm[5] + 1900, $gm[4] + 1, $gm[3];
 my $ymd   = sprintf '%04d%02d%02d',   $gm[5] + 1900, $gm[4] + 1, $gm[3];
 

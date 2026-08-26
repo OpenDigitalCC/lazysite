@@ -28,8 +28,20 @@ use TestHelper qw(repo_root);
 my $PLUGIN = repo_root() . '/plugins/stats.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
-my $now   = time();
-my @gm    = gmtime($now);
+my $now = time();
+# SM600: THE DAY COMES FROM THE RECORDS, NOT FROM NOW.
+#
+# This fixture stamps its records 90 minutes back so the session is older than
+# SESSION_GAP and the export closes it into a trail. It used to derive the day
+# it asks for from `$now`, and for the 90 minutes after UTC midnight those are
+# opposite sides of midnight: written under yesterday, asked for today. The
+# same commit passed its release gate at 23:18 UTC and failed at 00:20.
+#
+# `$now` itself stays the real clock, deliberately: the export decides what is
+# old enough to close by comparing against the real time, so back-dating $now
+# stops sessions closing at all and no trail is written.
+my $rec   = $now - 5400;
+my @gm    = gmtime($rec);
 my $TODAY = sprintf '%04d-%02d-%02d', $gm[5] + 1900, $gm[4] + 1, $gm[3];
 my $YMD   = sprintf '%04d%02d%02d',   $gm[5] + 1900, $gm[4] + 1, $gm[3];
 
@@ -47,7 +59,7 @@ sub build {
     for my $v ( 1 .. $visitors ) {
         for my $s ( 1 .. $steps ) {
             printf {$lf} qq({"t":%d,"p":"/p%d","s":200,"ch":"page","v":"V%d","ua":"Mozilla/5.0 Chrome/120"}\n),
-                $now - 5400 + ( $s * 10 ), $s, $v;
+                $rec + ( $s * 10 ), $s, $v;
         }
     }
     close $lf;

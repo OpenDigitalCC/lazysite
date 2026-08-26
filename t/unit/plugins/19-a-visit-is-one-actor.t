@@ -36,8 +36,13 @@ open my $cf, '>', "$d/lazysite/stats.conf" or die $!;
 print {$cf} "site_url: https://d.example.io\nfirst_party_analytics: on\n";
 close $cf;
 
-my $ymd = do { my @t = gmtime; sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3] };
 my $now = time();
+# SM600: the day comes from the RECORDS, not from now - inside 90 minutes of
+# UTC midnight the two are opposite sides of it, and the fixture then asks for
+# a day it never wrote. `$now` stays the real clock, because the export decides
+# what is old enough to close by comparing against real time.
+my $rec = $now - 5400;
+my $ymd = do { my @t = gmtime($rec); sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3] };
 open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;
 
 sub ev {
@@ -63,7 +68,7 @@ my $res = eval { decode_json($out) };
 ok( ref $res eq 'HASH', 'the export ran' ) or BAIL_OUT('no export');
 
 my $day = do {
-    my @t = gmtime;
+    my @t = gmtime($rec);    # SM600: the records' day, not the clock's
     sprintf '%04d-%02d-%02d', $t[5] + 1900, $t[4] + 1, $t[3];
 };
 
@@ -116,7 +121,7 @@ subtest 'the server-log ingester separates by source too' => sub {
     # Common Log Format, which is what find_log's candidates all are.
     my $log = "$sd/server-access.log";
     open my $sl, '>', $log or die $!;
-    my @stamp = gmtime( $now - 5400 );
+    my @stamp = gmtime($rec);
     my $when  = POSIX::strftime( '%d/%b/%Y:%H:%M:%S +0000', @stamp );
     my $line  = sub {
         my ( $path, $ua ) = @_;
@@ -164,7 +169,7 @@ subtest 'a behavioural promotion is recorded as inferred on the first-party log'
     # Six distinct 404s inside the window: a SWEEP by behaviour, carrying no
     # probe signature at all, so the promotion can only be the inferred kind.
     printf {$l3} qq({"t":%d,"p":"/gone-%d","s":404,"ch":"page","v":"SWEEPER","ua":"%s"}\n),
-        $now - 300 + $_, $_, $UA_A
+        $rec + 300 + $_, $_, $UA_A
         for 0 .. 5;
     close $l3;
 

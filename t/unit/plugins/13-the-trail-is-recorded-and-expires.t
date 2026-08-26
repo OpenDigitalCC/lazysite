@@ -70,8 +70,8 @@ my $ymd = do { my @t = gmtime($now); sprintf '%04d%02d%02d', $t[5] + 1900, $t[4]
 # separately and silently disagreed. If this ever fails, the fixture is
 # straddling again and nothing below it means anything.
 {
-    my $a = do { my @t = gmtime($now);        sprintf '%04d%02d%02d', $t[5]+1900, $t[4]+1, $t[3] };
-    my $b = do { my @t = gmtime($now - 5400); sprintf '%04d%02d%02d', $t[5]+1900, $t[4]+1, $t[3] };
+    my $a = do { my @t = gmtime($now); sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3] };
+    my $b = do { my @t = gmtime( $now - 5400 ); sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3] };
     is( $a, $b, 'the fixture does not straddle a UTC midnight' );
 }
 open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;

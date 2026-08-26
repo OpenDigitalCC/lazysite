@@ -44,7 +44,19 @@ print {$cf} "site_url: https://d.example.io\n";
 close $cf;
 
 my $now = time();
-my @gm  = gmtime($now);
+# SM600: THE DAY COMES FROM THE RECORDS, NOT FROM NOW.
+#
+# This fixture stamps its records 90 minutes back so the session is older than
+# SESSION_GAP and the export closes it into a trail. It used to derive the day
+# it asks for from `$now`, and for the 90 minutes after UTC midnight those are
+# opposite sides of midnight: written under yesterday, asked for today. The
+# same commit passed its release gate at 23:18 UTC and failed at 00:20.
+#
+# `$now` itself stays the real clock, deliberately: the export decides what is
+# old enough to close by comparing against the real time, so back-dating $now
+# stops sessions closing at all and no trail is written.
+my $rec = $now - 5400;
+my @gm  = gmtime($rec);
 my $ymd = sprintf '%04d%02d%02d',   $gm[5] + 1900, $gm[4] + 1, $gm[3];
 my $day = sprintf '%04d-%02d-%02d', $gm[5] + 1900, $gm[4] + 1, $gm[3];
 
@@ -53,7 +65,7 @@ my $i = 0;
 sub ev {
     my ( $path, $ch ) = @_;
     printf {$lf} qq({"t":%d,"p":"%s","s":200,"ch":"%s","v":"V1","ua":"Mozilla/5.0 Chrome/120"}\n),
-        $now - 5400 + ( $i++ * 10 ), $path, $ch;
+        $rec + ( $i++ * 10 ), $path, $ch;
 }
 ev( '/',            'page' );
 ev( '/about',       'page' );
