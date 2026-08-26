@@ -114,6 +114,46 @@ fleet-wide. Against a payload that does not declare it, the command refuses
 before touching any site: the override is only as strong as the release's
 own declaration.
 
+### Repairing permissions and ownership - the one way
+
+**`lazysite repair`.** It runs the doctor, applies its safe fixes, then checks
+again and reports the state AFTER the repair, per site.
+
+```bash
+sudo lazysite repair --all --dry-run           # preview every site, change nothing
+sudo lazysite repair --all                     # apply
+sudo lazysite repair --domain example.com      # one site, by name
+```
+
+It finds the sites itself: the registry at `/etc/lazysite/sites.d/` on a
+deb-managed host, falling back to Hestia's own site list when that registry does
+not exist (SM329) - which is every tarball deployment, since `provision` is what
+writes the registry and the tarball path never runs it. Root is needed for both:
+the chown half of the repair, and the Hestia list.
+
+From an unpacked tarball, where `/usr/bin/lazysite` is not installed:
+
+```bash
+sudo perl /path/to/lazysite-<version>/tools/lazysite-cli.pl repair --all
+```
+
+::: widebox
+**There are several doors into this and only one is worth remembering.**
+`lazysite-check.pl --docroot ... --fix` is the engine - correct, but per-site and
+you supply the paths. `lazysite-fix-perms.pl` is a front-end to the same engine
+with no fleet addressing. `lazysite check --all --fix` works by pass-through, but
+`check` is the verb that REPORTS; `repair` is the one that fixes and then
+re-checks, which is what you want after an upgrade. They are one implementation
+behind four entrances, so none of them disagree - but use `repair`.
+:::
+
+**When to run it.** After any upgrade, and after anything that rebuilds a vhost
+through the control panel. Hestia's `v-rebuild-web-domain` re-applies its own
+docroot permissions (`2751`: setgid, no group write) and a rebuild driven from
+the panel never reaches the lazysite deploy that repairs that - so an SSL
+renewal or an alias change can leave a site the CGI cannot write to, and nothing
+says so until the manager fails to save.
+
 ### FastCGI pools
 
 Sites on the packaged FastCGI pattern (SM142) run a persistent per-site worker
@@ -166,10 +206,11 @@ plain-CGI path; only anonymous visitor pages are pooled.
 
 | Symptom | Cause |
 |---|---|
-| `/dav` 404s every method | WebDAV disabled site-wide (`webdav_enabled: yes`). |
-| add-user "Permission denied" | auth files not group-writable; re-deploy or `chmod g+w lazysite/auth/*`. |
+| `/dav` 404s every method | WebDAV disabled site-wide - Config -> Services, or `webdav_enabled: yes`. |
+| connector never asks for the connect code | the OAuth client is set to CIMD (use "register one automatically"), or `oauth_enabled` is off - see `/docs/ai-connector-setup`. |
+| add-user "Permission denied" | auth files not group-writable - `sudo lazysite repair --domain <site>`. |
 | site shows Hestia placeholder | stray `index.html` shadowing `index.md` - the deploy removes it. |
-| login 500 | `lazysite/auth` not writable by www-data (the `.secret` can't be minted). |
+| login 500 | `lazysite/auth` not writable by www-data (the `.secret` can't be minted) - `sudo lazysite repair --domain <site>`. |
 
 ## Backups
 

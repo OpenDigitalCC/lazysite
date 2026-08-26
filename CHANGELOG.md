@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM624 resolved (PENDING) **one documented way to repair a site.** Four
+  invocations were in field use for one job while `lazysite repair` - which
+  fixes, then re-checks and reports the state AFTER, and takes `--all` and
+  `--dry-run` - appeared nowhere in `OPERATOR.md`. The four do not disagree;
+  they are one implementation behind four entrances, and `lazysite-fix-perms`
+  says so in its own header. The doc now names the verb, the fleet form, and
+  WHY it works without the deb registry: `--all` reads
+  `/etc/lazysite/sites.d`, which `provision` writes and the tarball path never
+  runs, and SM329 already added the fallback to Hestia's own site list - fixed
+  in code, never said in the doc. Two Troubleshooting rows that told the
+  operator to `chmod g+w` by hand now point at the verb, and a row is added for
+  the connector that never asks for its connect code.
+
 - SM620 resolved (PENDING) **the practice briefing states its engine version
   once.** Every release must re-import it - the header records the version and
   `t/lint/89` requires it to match the build - and a bump used to rewrite twelve

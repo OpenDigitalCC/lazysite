@@ -40,6 +40,15 @@ sub _usage {
 }
 die "--docroot is required\n" . _usage() unless defined $docroot && length $docroot;
 
+# SM624: this tool works and is not being retired - it is the SINGLE-SITE door,
+# and `lazysite repair` is the one that also addresses a fleet. An operator who
+# found this one first had no way to know the other existed, which is how four
+# different invocations ended up in use for one job. Say it once, on stderr, so
+# it never pollutes output a script is parsing.
+print {*STDERR} "note: `lazysite repair --domain <site>` does this and re-checks "
+    . "afterwards; `--all` does every site.\n"
+    unless $ENV{LAZYSITE_QUIET_HINTS};
+
 my $check = dirname(__FILE__) . '/lazysite-check.pl';
 die "cannot find lazysite-check.pl beside this tool ($check)\n" unless -f $check;
 
