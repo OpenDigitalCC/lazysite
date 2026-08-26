@@ -39,7 +39,11 @@ my $dir = tempdir( CLEANUP => 1 );
 open my $js, '>', "$dir/card.js" or die $!;
 print {$js} <<"JS";
 function escHtml(x) { return String(x == null ? '' : x); }
-var box = {};
+var box = { style: {} };
+// SM622 added a prerequisite warning that renders above the steps; this test is
+// about the STEPS, so it renders the ready case - no warning. t/unit/manager/125
+// owns the warning itself.
+var warn = '';
 var ue = 'partner', dom = 'example.test',
     url = 'https://example.test/cgi-bin/lazysite-mcp.pl', code = 'ABCD-1234';
 $body

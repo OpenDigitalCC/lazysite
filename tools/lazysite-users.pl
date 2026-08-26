@@ -2800,7 +2800,63 @@ sub cmd_onboarding_web {
         connector_url   => "$base/cgi-bin/lazysite-mcp.pl",
         connector_setup => _connector_setup_text( $user, $cc->{code}, $domain, $base ),
         assistant_prompt => _assistant_prompt( $user, $domain, $base, effective_settings($user) ),
+        # SM622: so the panel can say "this cannot work yet" BEFORE the operator
+        # spends thirty minutes on a code nothing will ask for.
+        prereqs => _connection_prereqs(),
     };
+}
+
+# SM622: what a connection type NEEDS, and whether this instance has it.
+#
+# The connector panel used to mint a connect code, start a 30-minute countdown
+# and poll for a connection that could not happen, because the services the
+# flow runs on are OFF BY DEFAULT (the 0.9.0 killswitches) and nothing on the
+# panel said so. An operator gets a code, follows the steps, sees no sign-in
+# prompt, and blames the code - the same misreading SM621 documents for the
+# OAuth-client radio, arriving from a different direction.
+#
+# The two flows need different things, which is the reason this is a map and
+# not a single boolean:
+#
+#   web    Claude.ai / ChatGPT, the OAuth connect-code flow this panel drives.
+#          mcp_enabled serves the endpoint; oauth_enabled serves registration,
+#          authorize and token. Without oauth_enabled every OAuth endpoint
+#          returns 404 and the client never reaches the consent page where the
+#          code is typed.
+#   agent  Claude Code / Desktop / scripts. These redeem a PAIRING KEY through
+#          the token exchange, so token_exchange_enabled is what makes the
+#          credential obtainable at all; the rest is whichever surface the
+#          agent actually drives.
+#
+# Reported rather than enforced: an operator may be mid-setup, and a panel that
+# refused to issue a code would be worse than one that says what is missing.
+sub _connection_prereqs {
+    my %svc = (
+        mcp            => 'mcp_enabled',
+        oauth          => 'oauth_enabled',
+        api            => 'control_api_enabled',
+        webdav         => 'webdav_enabled',
+        token_exchange => 'token_exchange_enabled',
+    );
+    my %on = map { $_ => ( Lazysite::Util::service_enabled( $DOCROOT, $svc{$_} ) ? 1 : 0 ) }
+        keys %svc;
+
+    my %need = (
+        web   => [qw(mcp oauth)],
+        agent => [qw(token_exchange)],
+    );
+
+    my %out;
+    for my $flow ( sort keys %need ) {
+        my @missing = grep { !$on{$_} } @{ $need{$flow} };
+        $out{$flow} = {
+            ready   => ( @missing ? JSON::PP::false : JSON::PP::true ),
+            missing => [ map { $svc{$_} } @missing ],
+        };
+    }
+    $out{services} = { map { $svc{$_} => ( $on{$_} ? JSON::PP::true : JSON::PP::false ) }
+            keys %svc };
+    return \%out;
 }
 
 # The OPERATOR's instructions. Claude.ai web connectors are OAuth-only: the user

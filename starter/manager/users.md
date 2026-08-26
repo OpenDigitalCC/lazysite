@@ -945,11 +945,37 @@ function showConnector(user) {
       box._poll = (box._poll || 0) + 1;
       box._expires = d.connect_code_expires_at || 0;
       var ue = escHtml(user), dom = escHtml(d.domain), url = escHtml(d.connector_url), code = escHtml(d.connect_code);
+
+      // SM622: the services this flow runs on are OFF BY DEFAULT (the 0.9.0
+      // killswitches), and until now nothing here said so. The panel would mint
+      // a code, count down thirty minutes and poll for a connection that could
+      // not happen - and the operator, looking at a code with a Regenerate
+      // button beside it, blames the code. Same misreading as SM621's OAuth
+      // radio, reached from a different direction.
+      //
+      // ABOVE the steps, not beside them: this is the thing to do FIRST, and a
+      // warning under the code is a warning found after the code is used.
+      var warn = '';
+      var pq = d.prereqs && d.prereqs.web;
+      if (pq && !pq.ready) {
+        var names = { mcp_enabled: 'MCP connector', oauth_enabled: 'OAuth authorization server' };
+        var off = (pq.missing || []).map(function(k) { return names[k] || k; });
+        warn =
+          '<div class="mg-onb-warn"><strong>This will not connect yet.</strong> ' +
+          'The web connector needs ' + escHtml(off.join(' and ')) +
+          ', which ' + (off.length > 1 ? 'are' : 'is') + ' switched off on this site. ' +
+          'Every request to ' + (off.length > 1 ? 'those endpoints returns' : 'that endpoint returns') +
+          ' 404, so Claude never reaches the sign-in prompt and the code below is never asked for. ' +
+          'Turn ' + (off.length > 1 ? 'them' : 'it') + ' on in <b>Config &rarr; Services</b>, then reopen this panel.' +
+          '</div>';
+      }
+
       box.style.display = '';
       box.innerHTML =
         '<div class="mg-onb-card">' +
         '<div class="mg-onb-head"><strong>Step 1 &mdash; connect your AI assistant (do this once)</strong>' +
         '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + ue + '\')">Close</button></div>' +
+        warn +
         '<ol class="mg-onb-list">' +
         '<li>In your AI app, add a custom MCP connector with this URL:' +
         '<div class="mg-code-box"><div>Name&ensp;<code>' + dom + '</code></div>' +

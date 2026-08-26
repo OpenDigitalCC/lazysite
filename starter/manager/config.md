@@ -43,24 +43,38 @@ var SITE_SCHEMA = [
   { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
-  { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
-    note: 'The /dav publishing endpoint (files, themes, layouts) for partner tools and agents. Off by default; when off, /dav returns 404 to every request.' },
-  // 0.9.0 service killswitches: every remote surface is OFF until the operator
-  // enables it here (the WebDAV posture, extended to the rest). When off, each
-  // endpoint returns 404 / refuses and discloses nothing.
+  // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
+  // order they were added. They were interleaved - WebDAV, MCP, OAuth, control
+  // API, token exchange - so an operator setting up one kind of connection had
+  // to know which of five unrelated-looking switches applied to it, and the two
+  // that a web connector needs sat either side of one it does not.
+  //
+  // The grouping is the SAME split the connector panel checks (SM622): a web
+  // connector runs on mcp + oauth; an agent redeems a pairing key through the
+  // token exchange and then drives whichever surfaces it holds. Each group
+  // carries a preset that flips exactly its own switches - which is the point,
+  // because the mistake this prevents is turning on four of the five and
+  // wondering why sign-in never appears.
   { key: 'mcp_enabled', label: 'MCP connector', type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    on: 'enabled', off: 'disabled', default: 'disabled',
+    group: 'Services: web AI connector (Claude.ai, ChatGPT)', group_preset: 'web',
     note: 'The Model Context Protocol server exposing site tools to AI agents (Claude, ChatGPT). Off by default; when off the endpoint returns 404 and lists no tools. Enable to let an agent connect.' },
   { key: 'oauth_enabled', label: 'OAuth authorization server', type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
-    note: 'The OAuth2 server for web AI connectors (dynamic client registration, authorize, token). Off by default; when off every OAuth endpoint returns 404. Enable only if a connector requires OAuth.' },
+    on: 'enabled', off: 'disabled', default: 'disabled',
+    group: 'Services: web AI connector (Claude.ai, ChatGPT)',
+    note: 'The OAuth2 server a WEB connector signs in through (dynamic client registration, authorize, token) - this is what asks for the one-time connect code. Off by default; when off every OAuth endpoint returns 404, the sign-in prompt never appears, and the connect code is never asked for. Needed for Claude.ai and ChatGPT; NOT needed for Claude Code, Claude Desktop or scripts, which present a token directly.' },
   { key: 'control_api_enabled', label: 'Control API (token access)', type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    on: 'enabled', off: 'disabled', default: 'disabled',
+    group: 'Services: agent and CLI access (Claude Code, Desktop, scripts)', group_preset: 'agent',
     note: 'The token-authenticated control API for partner tools and scripts (lzs_ tokens). Off by default; when off token requests are refused - the manager UI you are using now is unaffected. Enable to let API / agent tokens drive the site.' },
-  { key: 'token_exchange_enabled', label: 'AI-partner token exchange', type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
-    note: 'Pairing-key exchange and token rotation - how an AI partner turns a one-time pairing key into a working token. Off by default. Enable while provisioning AI partners, then it can be turned off again.' },
+  { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled',
+    group: 'Services: agent and CLI access (Claude Code, Desktop, scripts)',
+    note: 'The /dav publishing endpoint (files, themes, layouts) for partner tools and agents. Off by default; when off, /dav returns 404 to every request.' },
+  { key: 'token_exchange_enabled', label: 'Pairing key exchange and token rotation', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled',
+    group: 'Services: agent and CLI access (Claude Code, Desktop, scripts)',
+    note: 'How an agent turns the one-time PAIRING KEY from "Generate agent brief" into a working token, and how it rotates one later. Off by default; when off the key cannot be redeemed, so a brief you issue cannot be used. Enable while provisioning agents; it can go off again afterwards, though rotation stops with it.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
     options: ['all', 'beta', 'stable'], default: 'all', group: 'Updates',
     note: 'The minimum release maturity this site accepts, on the edge < beta < stable < certified ladder. "all" installs every release (early testing); "beta" takes beta and above (tested, bedding in); "stable" takes stable and certified builds - supported software; "certified" takes only builds whose compliance records were walked before the cut. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },
@@ -236,6 +250,55 @@ function onLayoutChange(select) {
   applyShowWhen(select.form);
 }
 
+// SM623: one button per service group, flipping exactly that group's switches.
+// The sets are written out rather than derived from the schema, because the
+// schema says which GROUP a toggle is in and this says what a WORKING setup
+// looks like - and those are allowed to differ. t/unit/manager/124 pins them to
+// each other so a toggle cannot join a group and be silently left out.
+//
+// Sets and marks dirty; does NOT save. The operator sees what changed and
+// presses Save, so a preset can never alter a live site by itself - and turning
+// a service on is exactly the kind of change that should be looked at once.
+var SERVICE_PRESETS = {
+  web: {
+    label: 'Turn these on',
+    sets: { mcp_enabled: 'enabled', oauth_enabled: 'enabled' }
+  },
+  agent: {
+    label: 'Turn these on',
+    sets: { control_api_enabled: 'enabled', webdav_enabled: 'enabled',
+            token_exchange_enabled: 'enabled' }
+  }
+};
+
+function applyPreset(name) {
+  var p = SERVICE_PRESETS[name];
+  if (!p) return;
+  var changed = [], already = [];
+  Object.keys(p.sets).forEach(function(k) {
+    var h = document.getElementById('cfg-' + k);
+    if (!h) return;                       // not on this page - say nothing
+    if (h.value === p.sets[k]) { already.push(k); return; }
+    h.value = p.sets[k];
+    var row = h.closest ? h.closest('.mg-form-row') : null;
+    var cb = row ? row.querySelector('input.mg-toggle') : null;
+    if (cb) cb.checked = (p.sets[k] === 'enabled');
+    changed.push(k);
+  });
+  var form = document.getElementById('site-form');
+  if (form) applyShowWhen(form);
+  if (!changed.length) {
+    showStatus('Already on - nothing to change.');
+    return;
+  }
+  markSiteDirty();
+  // Name the count rather than the keys: the switches are on screen and now
+  // visibly moved, so repeating their names adds nothing. What the operator
+  // cannot see is that this is UNSAVED.
+  showStatus(changed.length + ' switch' + (changed.length === 1 ? '' : 'es') +
+    ' turned on - press Save to apply.');
+}
+
 function renderSiteForm(values) {
   var html = '<form id="site-form" onsubmit="saveSiteSettings(event)" oninput="markSiteDirty()" onchange="markSiteDirty()">';
   // Emit a group heading only when the group CHANGES, so consecutive fields in
@@ -244,6 +307,16 @@ function renderSiteForm(values) {
   SITE_SCHEMA.forEach(function(f) {
     if (f.group && f.group !== lastGroup) {
       html += '<h3 class="mg-config-group">' + esc(f.group) + '</h3>';
+      // The preset rides on the FIRST field of its group, so the button lands
+      // under the heading it belongs to.
+      if (f.group_preset && SERVICE_PRESETS[f.group_preset]) {
+        html += '<div class="mg-config-preset">'
+             +  '<button type="button" class="mg-btn mg-btn-sm" onclick="applyPreset(\''
+             +  esc(f.group_preset) + '\')">'
+             +  esc(SERVICE_PRESETS[f.group_preset].label) + '</button>'
+             +  '<span class="mg-muted">Sets every switch in this group. Nothing is saved until you press Save.</span>'
+             +  '</div>';
+      }
     }
     if (f.group) lastGroup = f.group;
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');

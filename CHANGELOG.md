@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM622/SM623 resolved (PENDING) **the manager says whether a connection can
+  work before you spend time on it, and the service switches are grouped by what
+  needs them.** The 0.9.0 killswitches leave every remote surface off by default
+  - correct - and nothing on the connector panel said which ones the flow needs,
+  so it would mint a connect code, count down thirty minutes and poll for a
+  connection that could not happen. The operator sees a code that did not work,
+  with a Regenerate button beside it, and re-mints it; none of them will ever be
+  asked for. That is the second time in one day a wrong SETTING presented itself
+  as a bad CODE (SM621 was the first). `cmd_onboarding_web` now reports what the
+  flow needs and the panel warns ABOVE the steps, in words rather than conf
+  keys. The two flows differ - a web connector needs `mcp_enabled` +
+  `oauth_enabled`; an agent redeems a pairing key through
+  `token_exchange_enabled` - verified against `%CHANNEL_SERVICE` and the
+  pairing-key path rather than assumed. The Services page groups by the same
+  split, each group with a preset that sets its own switches and marks the form
+  dirty WITHOUT saving, and `token_exchange_enabled` is relabelled to name its
+  consequence: whether a brief you just issued can be redeemed at all.
+
 - SM621 resolved (PENDING) **the connector instructions match the dialog again.**
   Claude.ai's Add-custom-connector dialog gained an OAuth client section and
   recommends *"Use Anthropic's hosted client metadata (CIMD)"*, where the server
