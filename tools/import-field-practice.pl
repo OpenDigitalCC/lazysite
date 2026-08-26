@@ -269,16 +269,31 @@ sub render_section {
             = $has_table
             ? ' The before/after columns below are kept on purpose.'
             : '';
+        # SM620: the note says the behaviour is version-DEPENDENT and tells the
+        # reader to check the engine. It used to append "Imported for engine
+        # X.Y.Z" as well, which is the ONE version this document already states
+        # at the top - repeated here, and in every other note, so a re-import
+        # rewrote a dozen lines to say the same new number. The header stamp is
+        # the single reference; this points at it rather than copying it.
         push @out,
             '*Version-dated - this describes behaviour that **differs by engine'
-            . " version**.$columns Check which engine the site runs before acting"
-            . " on it. Imported for engine $engine_version.*";
+            . " version**.$columns Check which engine the site runs before"
+            . ' acting on it, and compare it with the version this copy was'
+            . ' generated for, at the top.*';
         push @out, '';
     }
     elsif ( $kind eq 'field-scar' ) {
+
+        # SM620: this one was WRONG, not merely repetitive. It read "it held
+        # before engine X and holds after it" - a sentence whose entire claim is
+        # that the version does not matter, anchored to whichever version was
+        # last cut. Re-importing moved it, so on 0.11.5 a reader was told a
+        # version-independent scar held before 0.11.5: true, uninformative, and
+        # quietly narrower than the author meant. It names no version now,
+        # because that is what version-independent means.
         push @out,
-            '*Version-independent - a field scar. It held before engine'
-            . " $engine_version and holds after it, on any site you connect to.*";
+            '*Version-independent - a field scar. It holds on any site you'
+            . ' connect to, whatever engine that site runs.*';
         push @out, '';
     }
     push @out, @body;
@@ -461,10 +476,16 @@ sub provenance_section {
     return (
         '## Where this came from',
         '',
-        "Imported on **$import_date** by `tools/import-field-practice.pl`, for"
-            . " engine **$engine_version**. Written by **$agent** - the agent that"
-            . ' builds and maintains sites on this engine - as a working record,'
-            . ' and kept current in its own project trees:',
+        # SM620: the engine version is stated ONCE, at the top, where a reader
+        # meets it before acting on anything here. This section is about WHERE
+        # the material came from - date, author, sources - so it says that and
+        # points at the stamp rather than carrying a second copy that a
+        # re-import has to keep in step.
+        "Imported on **$import_date** by `tools/import-field-practice.pl`, for the"
+            . ' engine version stamped at the top of this page. Written by'
+            . " **$agent** - the agent that builds and maintains sites on this"
+            . ' engine - as a working record, and kept current in its own'
+            . ' project trees:',
         '',
         '| Source | Covers | Last changed |',
         '| --- | --- | --- |',

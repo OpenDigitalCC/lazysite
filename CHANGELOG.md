@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM620 resolved (PENDING) **the practice briefing states its engine version
+  once.** Every release must re-import it - the header records the version and
+  `t/lint/89` requires it to match the build - and a bump used to rewrite twelve
+  lines with the sources byte-identical. Two of those were wrong rather than
+  repetitive: notes introducing themselves as *"Version-independent - a field
+  scar. It held before engine 0.11.0 and holds after it"*, a sentence whose
+  entire claim is that the version does not matter, anchored to whichever
+  version was last cut. They name no version at all now, because that is what
+  version-independent means; the version-DATED notes still say to check which
+  engine the site runs, and point at the stamp rather than copying it. A bump
+  now rewrites three lines: the machine header the lint reads, the body hash it
+  implies, and one prose stamp where a reader meets the version before acting on
+  anything. `t/unit/tools/71` runs the generator at two versions and diffs them,
+  because what matters is not how many times a number appears today but how much
+  a bump rewrites - and it names WHICH three lines move, so swapping them for a
+  different three is visible rather than merely staying under the count.
+
 - SM622/SM623 resolved (PENDING) **the manager says whether a connection can
   work before you spend time on it, and the service switches are grouped by what
   needs them.** The 0.9.0 killswitches leave every remote surface off by default

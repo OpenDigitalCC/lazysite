@@ -11,7 +11,7 @@ register:
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2409926c3faddb606da8aae63100c1dbf3f065296ea51456a62ad17ac1deb2e0 modified=2026-08-26
-     body-sha256: d73f5f01683e0484c77c59cc802983e96f8675984099a186b45bd04ef5d7d5c1
+     body-sha256: 268d3ac9baaf0b7cbd18131d34cc2c45b626bad7779e49b7ac6c1c82ceb1edd4
 -->
 
 ## What this is, and what it is not
@@ -116,7 +116,7 @@ colours. This is what makes a restyle a one-file change.
 
 ## Briefs: stop writing sidecars from 0.10.29
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 **SM245 retires the `.brief` sidecar.** The record survives, in an engine-owned
 store at `lazysite/briefs/<content-path>`, owned by a contract plugin that ships
@@ -278,7 +278,7 @@ just a sentence next to the claim it qualifies. (Keep `precisely` where it means
 
 ## A `db:` binding has a row ceiling, and it changed in 0.10.30
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 A binding with no explicit limit does not return every row. This bites only
 once a table passes 200 rows - which is exactly when a site has become worth
@@ -322,7 +322,7 @@ So:
 
 ## Creating a page in a folder that does not exist yet
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 Verified on 0.10.30, and the channel decides:
 
@@ -341,7 +341,7 @@ there yet, on any channel - that is what makes brief-first authoring possible.
 
 ## WebDAV writes that leave something stale
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 Proven defects as at 0.10.32, fix planned but NOT yet shipped. They share one
 shape: **the manager path cleans up and the DAV path does not**, so the same
@@ -365,7 +365,7 @@ engine's bookkeeping hangs off the tools that know about pages.
 
 ## Things that look equivalent and are not
 
-*Version-independent - a field scar. It held before engine 0.11.1 and holds after it, on any site you connect to.*
+*Version-independent - a field scar. It holds on any site you connect to, whatever engine that site runs.*
 
 Each of these cost real time; none is obvious from reading.
 
@@ -415,7 +415,7 @@ Each of these cost real time; none is obvious from reading.
 
 ## Verify like this
 
-*Version-independent - a field scar. It held before engine 0.11.1 and holds after it, on any site you connect to.*
+*Version-independent - a field scar. It holds on any site you connect to, whatever engine that site runs.*
 
 - After every publish, fetch the page and confirm the thing you changed.
 - Prefer a probe that cannot lie: to test a loop, render it; to test a version,
@@ -514,7 +514,7 @@ notice - see *State that only exists in one browser*, below.
 
 ## Probe the action before you design around the capability
 
-*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 `describe-capabilities` lists actions its own server will refuse. A capability
 reads `true`, the action appears in the `actions` map, and the call answers
@@ -781,7 +781,7 @@ early saves building it twice.
 
 ## Changing rows over the API
 
-*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 Reading is `db:` in the page. Writing is the control API, and four of its
 conventions cost a round trip each the first time you meet them. Verified
@@ -1282,7 +1282,7 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-08-26** by `tools/import-field-practice.pl`, for engine **0.11.1**. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-08-26** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
