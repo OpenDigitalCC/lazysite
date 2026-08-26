@@ -47,6 +47,7 @@ print {$lt} '<html><body>[% content %]'
     . '[% FOREACH p IN products %]<li>[% p.name %] @ [% p.price %]</li>[% END %]'
     . '[% IF products_total %]<p>TOT=[% products_total %]</p>[% END %]'
     . '[% IF many %]<p>MANY=[% many.size %]/[% many_total %]</p>[% END %]'
+    . '[% IF heading %]<p>H=[% heading.label %]</p>[% END %]'
     . '</body></html>';
 close $lt;
 
@@ -281,6 +282,56 @@ subtest 'a changed row reaches the page' => sub {
     # stale descriptor or a cached statement.
 };
 
+subtest 'SM604: a json: binding cannot vouch for a db: binding' => sub {
+    # REPORTED FROM THE FIELD on 0.10.33: a page bound only to a table renders
+    # per request and is always current; add ONE json: binding and the table's
+    # rows freeze indefinitely. Order did not matter, and a flush brought it
+    # straight to current - so the binding resolved correctly throughout and it
+    # was purely a cache-freshness fault.
+    #
+    # WHY, and it is a two-mechanism disagreement rather than either being
+    # wrong. A snapshot db: binding records NO dependency, deliberately: there
+    # is nothing it could record whose mtime proves a row unchanged. A json:
+    # binding records the file it read, and SM311 makes the cached HTML fresh
+    # while it post-dates every recorded file. Put both on a page and the
+    # SECOND mechanism answers for the whole page: every file in the record is
+    # older than the render, so the page is judged fresh, and the table - which
+    # is not in the record and CANNOT be - is never consulted again.
+    #
+    # Recording nothing is safe only while nothing else is recorded, and a
+    # binding does not control what else the page binds.
+    open my $jf, '>', "$docroot/lookup.json" or die $!;
+    print {$jf} '{"label":"Catalogue"}';
+    close $jf;
+
+    open my $pm, '>', "$docroot/mixed.md" or die $!;
+    print {$pm} "---\ntitle: Mixed\ntt_page_var:\n"
+        . "  heading: json:lookup.json\n"
+        . "  products: db:products(order=name,limit=10)\n---\n\nHi\n";
+    close $pm;
+    unlink glob "$docroot/lazysite/cache/ct/*";
+
+    my $first = visit('/mixed');
+    like( $first, qr/Widget/, 'the mixed page renders its rows' );
+
+    ok( api_post( 'action=data-row-save&table=products&key=W1',
+            { row => { price => '99.99' } } )->{ok}, 'a row changes under it' );
+
+    my $second = visit('/mixed');
+    like( $second, qr/99\.99/,
+        'and the next request shows the new value - the json: file being '
+            . 'unchanged does not make the TABLE unchanged' )
+        or diag( 'The page was served from cache on the strength of a file '
+            . 'that says nothing about the table.' );
+
+    # The static half must keep working exactly as SM311 left it.
+    open my $jf2, '>', "$docroot/lookup.json" or die $!;
+    print {$jf2} '{"label":"Revised catalogue"}';
+    close $jf2;
+    like( visit('/mixed'), qr/H=Revised catalogue/,
+        'and editing the json: file still refreshes the page (SM311 intact)' );
+};
+
 subtest 'DP-2: the mode decides whether the page is live' => sub {
     # ASSERTED ON THE DEPENDENCY RECORD, because that is where the guarantee
     # lives. Provoking a stale render proves nothing here - a fixture that
@@ -308,12 +359,28 @@ subtest 'DP-2: the mode decides whether the page is live' => sub {
     unlink glob "$docroot/lazysite/cache/ct/*";
     visit('/');
     my ( undef, $live ) = live_flag();
-    ok( !$live, 'a snapshot binding does NOT force the page live' )
-        or diag( 'Snapshot means resolved at render and cached with the page, '
-            . 'refreshed by the page ttl like any other content.' );
+    # SM604: SNAPSHOT MARKS THE PAGE TOO, and the reasoning that said it need
+    # not is what the field disproved. "Nothing's mtime proves a row unchanged,
+    # so record nothing" is sound about the TABLE and wrong about the PAGE:
+    # recording nothing is safe only while NOTHING ELSE is recorded, and a
+    # binding does not control what else its page binds. One json: source
+    # alongside it and SM311's rule vouched for the whole page, freezing rows
+    # three writes behind with no signal.
+    #
+    # This does not restore the cliff DP-2 removed. The marker withdraws the
+    # MTIME proof only; the ttl branch still serves a snapshot page for its
+    # declared ttl, which is what "snapshot's freshness is the page's ttl"
+    # always meant.
+    ok( $live, 'a snapshot binding marks the page unprovable by mtime' )
+        or diag( 'Without the marker, any other recorded source vouches for '
+            . 'the table - which nothing can do.' );
 
-    # AND IT REGISTERS NO DEPENDENCY EITHER, which is worth stating rather than
-    # discovering. There is nothing for a snapshot to depend ON: the store is
+    # IT STILL REGISTERS NO PATH, which remains right: there is nothing for a
+    # snapshot to depend ON, and a dependency that cannot detect a change would
+    # report freshness it never established. What changed in SM604 is that
+    # recording no PATH is not the same as recording NOTHING - the page still
+    # has to say its freshness cannot be proven by mtime. Original reasoning,
+    # which holds for the store: the store is
     # written through WAL, so a row can change without the database file's
     # timestamp moving, and a dependency that cannot detect a change is worse
     # than none - it would report freshness it never established. Snapshot's

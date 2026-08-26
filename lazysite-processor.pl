@@ -4929,7 +4929,24 @@ sub resolve_db {
     # Recorded AFTER the read, because the mode comes from the parsed binding -
     # and a binding that failed to parse gets the safe answer rather than the
     # default one.
-    $TT_DEP_LIVE = 1 if !$r->{ok} || ( $r->{mode} // 'live' ) ne 'snapshot';
+    # SM604: EVERY db: BINDING, snapshot included.
+    #
+    # A snapshot recorded nothing at all - no path, no marker - on the reasoning
+    # that there is nothing whose mtime proves a row unchanged. That reasoning
+    # is right and the conclusion did not follow: recording nothing is safe only
+    # while NOTHING ELSE IS RECORDED, and a binding does not control what else
+    # its page binds. Add one json: source and SM311's rule answers for the
+    # whole page - every recorded file is older than the render, so the page is
+    # fresh - and the table, which is not in the record and cannot be, is never
+    # read again. Measured in the field on 0.10.33: rows three writes behind,
+    # with no signal, on a page split by how often its data changes, which is
+    # exactly what a careful author does.
+    #
+    # This does NOT re-render a snapshot page per request. The marker only
+    # withdraws the mtime proof; the ttl branch below still serves such a page
+    # for its declared ttl, which is what "snapshot's freshness is the page's
+    # ttl" always meant.
+    $TT_DEP_LIVE = 1;
 
     # A SLOW READ SAYS SO, with the page, the binding and what to do about it.
     # This is what replaced refusing an unindexed filter or order: the refusal

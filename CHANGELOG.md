@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM604 resolved (PENDING) **one `json:` binding no longer vouches for a
+  `db:` binding.** A page bound to a table re-rendered per request and stayed
+  current; adding a single `json:` binding froze its rows indefinitely, three
+  writes behind by the end of the field probe, with no signal. A snapshot
+  `db:` binding recorded no dependency - correctly, since nothing's mtime
+  proves a row unchanged - but recording nothing is safe only while nothing
+  else is recorded, and SM311's rule then answered for the whole page from a
+  file that says nothing about the table. Every `db:` binding now marks its
+  page unprovable by mtime; the ttl branch still serves a snapshot page for
+  its declared ttl, so the per-visitor read DP-2 removed does not come back.
+
 - SM601 resolved (PENDING) **the bench baseline writer works, and stops
   destroying the baseline when it fails.** `--baseline` encoded a `loadavg`
   field whose function was never defined, so the mode died at the point of
