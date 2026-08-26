@@ -494,6 +494,33 @@ if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; th
     abort_build "compliance records are not current for this cut; not releasing."
 fi
 
+# SM597: THE PRACTICE BRIEFING'S STAMP, CHECKED IN A SECOND RATHER THAN IN NINE
+# MINUTES.
+#
+# starter/docs/ai-briefing-practice.md records the engine version it was
+# generated for, and t/lint/89 asserts that stamp equals the version being
+# built. So EVERY release needs a re-import - the version bump alone
+# invalidates it, with no content change at all - and the 0.10.34 beta
+# discovered that nine minutes in, after the full suite had run.
+#
+# This does not re-import: the staging tree is a checkout of a COMMIT, and
+# writing to it here would ship an artefact that does not match the tag. It
+# says what to do, before anything slow starts.
+PRACTICE="$STAGE/starter/docs/ai-briefing-practice.md"
+if [ -f "$PRACTICE" ]; then
+    stamped=$(sed -n 's/^[[:space:]]*engine-version:[[:space:]]*\([0-9.]*\).*/\1/p' "$PRACTICE" | head -1)
+    if [ -n "$stamped" ] && [ "$stamped" != "$VERSION" ]; then
+        printf '\n' >&2
+        printf 'The field-practice briefing is stamped %s and this cut is %s.\n' \
+            "$stamped" "$VERSION" >&2
+        printf 'Its content may be identical - the stamp alone fails t/lint/89.\n' >&2
+        printf 'In the SOURCE repo, before cutting:\n\n' >&2
+        printf '    perl tools/import-field-practice.pl\n' >&2
+        printf '    git add starter/docs/ai-briefing-practice.md && git commit\n\n' >&2
+        abort_build "the practice briefing is stamped for a different version; not releasing."
+    fi
+fi
+
 # --- run tests ---
 
 # `cd "$STAGE" && prove -lr t/`, and BOTH halves are load-bearing.

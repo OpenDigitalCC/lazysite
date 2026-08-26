@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM600 resolved (PENDING) **the stats fixtures agree with themselves about
+  which day they mean.** Five tests stamped their records 90 minutes back and
+  derived the day they asked for from `$now`, so for the 90 minutes after UTC
+  midnight they wrote under one day and asked for the next - the same commit
+  passed its release gate at 23:18 UTC and failed at 00:20. Every day string
+  now comes from the record instant. `$now` stays the real clock, because the
+  export compares against real time to decide what is old enough to close.
+
+- SM597 resolved (PENDING) **a release refuses early when the practice
+  briefing is stamped for another version.** The briefing records the engine
+  version it was generated for and `t/lint/89` requires it to match, so every
+  cut needs a re-import - the version bump alone invalidates it - and 0.10.34
+  discovered that nine minutes in, after the full suite. A preflight beside
+  the compliance check now says so in a second, with the command to run. It
+  does not re-import: the staging tree is a checkout of a commit, and
+  rewriting it there would ship an artefact that does not match its tag.
+
 ## 0.10.34 - BETA: the field pass answered - every package verb, and every table, says who it is for (2026-08-26)
 
 - SM593 follow-up (06261242) **a table's domain is checked, and shown.** The
