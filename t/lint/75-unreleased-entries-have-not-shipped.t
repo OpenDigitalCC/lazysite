@@ -117,7 +117,15 @@ sub touches_code {
     for my $h (@hashes) {
         my @touched = grep { /\S/ } split /\n/,
             `git -C \Q$root\E show --name-only --format= \Q$h\E`;
-        return 1 if grep { !m{^docs/} } @touched;
+        # CHANGELOG.md IS THE RECORD, NEVER THE WORK. The landing tool rebuilds
+        # the changelog and amends it into whatever commit it is landing, so a
+        # filing commit that touched one document arrives carrying CHANGELOG.md
+        # too - and this then read it as work and called the SM shipped in that
+        # release. SM597 was filed as a candidate under v0.10.33 and FIXED for
+        # 0.11.0; without this it was refused as work stranded in 0.10.33. A
+        # genuine work commit always touches something else as well, so nothing
+        # is weakened by ignoring it.
+        return 1 if grep { !m{^docs/} && $_ ne 'CHANGELOG.md' } @touched;
     }
     return 0;
 }
