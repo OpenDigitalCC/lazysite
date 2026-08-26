@@ -55,6 +55,8 @@ var now = Math.floor(Date.now() / 1000);
 renderKeys({ ok: true, keys: [
   { user: 'agent', channels: ['mcp'], issued_at: now - 7200,
     used_at: now - 120, in_use: true },
+  { user: 'human', channels: ['webdav'], issued_at: now - 7200,
+    used_at: now - 60, in_use: true, interactive: true },
   { user: 'fresh', channels: ['api'], issued_at: now - 60,
     used_at: 0, in_use: false }
 ] });
@@ -64,6 +66,13 @@ JS
     my $raw = `\Q$node\E \Q$dir/t.js\E 2>&1`;
     my $got = eval { require JSON::PP; JSON::PP::decode_json($raw) };
     ok( $got, 'renderKeys ran' ) or do { diag($raw); skip 'did not run', 1 };
+
+    like( $got->{html}, qr/also signs in/,
+        'SM613: an interactive account is marked as one BESIDE THE ACCOUNT, '
+            . 'not only in the revoke column where it reads as a footnote' );
+    unlike( $got->{html}, qr/mg-tag-auto">manager</,
+        'and no channel tag says `manager` - the key does not open the manager, '
+            . 'and "Key for" stays strictly about what it does open' );
 
     like( $got->{html}, qr/in use.*last used/s,
         'a key in use says WHEN it was last used - the fact that ties an '

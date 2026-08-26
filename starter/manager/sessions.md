@@ -35,7 +35,9 @@ appear here &mdash; it holds a key, not a browser session. See
 <p class="mg-card-subtitle" style="margin:0 0 0.5rem">
 Access keys let AI agents and publishing tools reach this site without a browser
 &mdash; on the API, the MCP connector, or WebDAV. Each account below holds a live
-key. <strong>Revoke key</strong> stops it working on the next request; the
+key. <strong>A key is not a browser session</strong>: an account marked
+<em>also signs in</em> reaches the manager through a session listed under
+<strong>Active sessions</strong> above, and revoking its key would not end that. <strong>Revoke key</strong> stops it working on the next request; the
 account is left intact and can be issued a fresh key later from its card on the
 <a href="/manager/users">Users</a> page.
 </p>
@@ -252,7 +254,23 @@ function renderKeys(d) {
           : '<div class="mg-muted" style="font-size:0.8em" title="An in-use token has its expiry renewed on each use, so it never lapses while the key is active. Revoke to end it.">renews on use</div>')
       : '';
     h += '<tr>' +
-      '<td><a href="/manager/users?user=' + encodeURIComponent(k.user) + '">' + escHtml(k.user) + '</a></td>' +
+      // SM613: the account's NATURE, beside the account. The row already
+      // carried `interactive`, and it was rendered only in the far-right
+      // action column - where it reads as a footnote about revocation rather
+      // than as a fact about the account. An operator signed into the manager,
+      // seeing their own row say "Key for: webdav", reasonably asked whether
+      // their manager session was governed by it. It is not: the key is a
+      // machine credential, the manager is a cookie session, and the answer
+      // was in the one column they had no reason to read.
+      //
+      // `Key for` stays strictly about what the KEY opens. The manager is not
+      // listed there because the key does not open it - saying so would be
+      // false in the direction that matters.
+      '<td><a href="/manager/users?user=' + encodeURIComponent(k.user) + '">' + escHtml(k.user) + '</a>' +
+      (k.interactive
+        ? '<br><span class="mg-tag mg-tag-auto" title="This account also signs in to the manager. That is a browser session, listed under Active sessions above - it is not this key, and revoking a key would not end it.">also signs in</span>'
+        : '') +
+      '</td>' +
       '<td>' + chans + '</td>' +
       '<td>' + when + '</td>' +
       '<td>' + status + '</td>' +

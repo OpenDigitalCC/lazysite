@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM613 resolved (PENDING) **an account that also signs in says so beside the
+  account.** The Keys table carried `interactive` and rendered it only in the
+  far-right action column, where it reads as a footnote about revocation
+  rather than a fact about the account - so an operator signed into the
+  manager, seeing their own row say "Key for: webdav", had no way to tell
+  whether their manager session was governed by it. It is not: the key is a
+  machine credential, the manager is a cookie session, and revoking a key
+  would not end it. The tag now sits beside the account name and says so.
+  `Key for` still lists only what the key opens.
+
 - SM612 resolved (PENDING) **the manager cannot be switched off by a token
   client, a dead transport says so, and whoami names the build.** Three
   findings from the capability campaign. `config-set` admitted `manager` and
