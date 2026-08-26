@@ -10,8 +10,8 @@ register:
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=49e8699b7b6248035644deabb66690c4042d4027ec6f5ff5d67243c63c5d6561 modified=2026-08-26
-     body-sha256: c21575d2f06552b2c4ca1cdb0dd30786704fe8ae5249fd069c10c4544d923b3b
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=3ef4303f85aed410a99a0f568c672ded326f81bd00ab93628ec109074dc4f836 modified=2026-08-26
+     body-sha256: 165490dcfcb35684785b54bd0df61b1b4d09ab595dd9498da7ad4466847d052f
 -->
 
 ## What this is, and what it is not
@@ -614,18 +614,6 @@ So **the render cost is a freshness choice, not a storage cost.** An uncached
 table page buys you rows that are right to the second and charges about 160 ms
 of somebody's time for it, on every hit. A ttl buys the cost back and spends
 staleness instead.
-
-The binding carries a mode as well, and it is the other half of the same
-choice. The default - `snapshot` - is what everything above measures: the rows
-are read once when the page renders and cached with it. Writing
-`db:table(mode=live)` opts the page out of caching altogether, whatever ttl it
-sets, and pays the render on every request in exchange for never serving a
-stale row.
-
-That is two levers pointing opposite ways: `ttl:` trades freshness for speed,
-`mode=live` trades speed for freshness. Reach for `mode=live` only when a stale
-row would actually mislead someone - it is the expensive direction, and the
-default is not it.
 
 Choose the ttl from how old the data may be before it misleads someone - not
 from how fast you want the page. A price list is fine at `ttl: 3600`. A queue

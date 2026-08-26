@@ -164,14 +164,33 @@ widths: 3cm | X
 bold: 1
 tone: medium
 ---
-`snapshot` | **the default.** Read once at render and cached with the page, refreshed by the page's `ttl:` like any other content
-`live` | read on every request. The page is never cached -- use it for stock levels and queue lengths, and pay for it knowingly
+`snapshot` | **the default.** Read at render. The page is served from cache for its `ttl:`, and re-rendered on every request if it declares none
+`live` | as `snapshot` today -- see the note below. Intended for stock levels and queue lengths
 `client` | no rows at render; the page's own script fetches them
 ```
 
 ```yaml
   stock: db:stock(mode=live)
 ```
+
+**`live` and `snapshot` currently behave identically, and this table used to
+say otherwise.** It said `live` was "read on every request, the page is never
+cached". That was wrong in a way worth spelling out, because an agent read it,
+reasoned correctly from it, and reached a false conclusion.
+
+A table has no timestamp that can prove a cached page still current, so a
+binding withdraws the *mtime* proof of freshness. It does not touch the page's
+`ttl:`, which is a separate mechanism and the only one such a page has. So a
+page carrying `ttl: 300` is served from cache for five minutes whatever its
+mode, and a page carrying no `ttl:` is re-rendered every request whatever its
+mode. "Never cached" was only ever true of the second case.
+
+Since SM604 every `db:` binding withdraws that proof - it had to, because
+otherwise one `json:` binding on the same page vouched for the table's
+freshness, which nothing can do. That is what leaves the two modes with no
+observable difference. `mode=live` is accepted and parses; it does not change
+behaviour today. Do not choose between them on the strength of caching: choose
+a `ttl:`.
 
 A snapshot is **snapshot at render**: a row you change now appears when the
 page's `ttl:` next expires, not on the next request. Nothing depends on the
@@ -387,6 +406,13 @@ make the existing rows distinct before migrating again.
 A page's own JavaScript reads rows from `/cgi-bin/lazysite-data.pl?table=<name>`,
 and that address is reached directly -- it inherits nothing from any page.
 Putting a table behind a gated page gates **the page**, not the table.
+
+**The endpoint reads four query parameters and no others:** `order_by`,
+`order`, `limit`, `offset`. Anything else is **ignored, not refused** - so
+`?table=t&chunk=AAA` returns *every* row, in a reply shaped exactly like a
+filtered one. Filter on the page binding (`db:t(chunk=AAA)`), which does
+support conditions, or filter the rows in your own script after reading them.
+Never read an unfiltered result as a filtered one (SM606).
 
 So publication is declared on the table itself:
 

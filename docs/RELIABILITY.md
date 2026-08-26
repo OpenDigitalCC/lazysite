@@ -46,6 +46,34 @@ The targets are those proposed in the 2026-07-01 review's holds document
 declared now as the project's reference values; the launch-time hosting
 decision confirms or overrides them per deployment.
 
+# Which failures each RPO covers
+
+An RPO is bounded by a backup, and a backup that shares the fate of what it
+protects bounds nothing. `action_backup_create` writes into
+`lazysite/backups/`, **inside the document root it is backing up** - which is
+the right default (it needs no credentials and nothing to configure, and
+`install.pl --restore` finds it unaided) and is not the whole story.
+
+```datatable
+columns: Failure | Docroot survives | Backup survives | RPO holds
+widths: X | 3cm | 3cm | 2.6cm
+bold: 1
+tone: medium
+---
+A bad edit, a deleted page, a broken upgrade | yes | yes | **yes**
+Disk loss, an errant `rm -rf`, a compromise reaching the tree | no | **no** | **no**
+```
+
+For the second class the stated 24-hour RPO is not met and cannot be: there
+is nothing left to restore from. **An operator who needs the declared RPO to
+hold against docroot loss must copy backups off the host**, and no shipped
+mechanism does that for them today - it is an operator task, scheduled
+alongside the backup itself.
+
+Recorded here rather than left implicit because the 2026-08-26 rehearsal only
+completed by copying the backup out before destroying the docroot, which a
+real operator has no step for (SM602).
+
 # Error budget
 
 The budget is derived directly from the SLOs over a calendar month

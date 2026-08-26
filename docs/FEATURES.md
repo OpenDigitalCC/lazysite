@@ -1624,6 +1624,30 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.11.0** (2026-08-26, STABLE) - **The release that checked its own
+  instruments.** Four gates were found giving the wrong answer, and all four
+  had been invisible because they either passed when they should not or failed
+  for reasons that looked like somebody else's fault. The perltidy gate had
+  been SKIPPING in every worktree - and every gate this project runs is run in
+  a worktree - so it passed without examining a line, enforced only in the
+  release build's staging clone. The bench baseline writer had been dead for
+  eleven days, and each attempt DESTROYED the baseline it was replacing.
+  Five stats tests failed for the ninety minutes after UTC midnight, daily,
+  because they stamped their records at one instant and asked for the day of
+  another. A release now refuses in a second, rather than nine minutes in,
+  when the shipped practice briefing is stamped for a different version.
+  **The correctness fix that matters most to a site**: one `json:` binding on
+  a page stopped vouching for a `db:` binding on the same page - a table's
+  rows had frozen indefinitely, with no warning, on a page split by how often
+  its data changes, which is exactly what a careful author does. **And the
+  reference stopped lying about caching**: `/docs/data-tables` said `live`
+  mode is never cached; it is cached for the page's `ttl:` like any other,
+  and an agent reasoned correctly from the wrong sentence and stopped a
+  release to say so. Plus the four non-functional dimensions brought current
+  for a stable cut - a re-captured performance baseline with its drift
+  explained rather than absorbed, a timed restore rehearsal against the
+  shipped artefact, this timeline, and a significant-change assessment
+  covering twenty-five versions.
 - **0.10.34** (2026-08-26, BETA) - **What a grant reaches, decided by the
   grant.** The four site-package verbs shared one confinement rule instead of
   four copies of it - `create` and `inspect` had been left open, so a token

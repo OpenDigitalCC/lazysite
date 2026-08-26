@@ -203,4 +203,24 @@ cmp_ok( $holders->{purge}{users}, '>=', 1,
     'an account that holds it only through a NESTED group is counted in the roster' )
     or diag( explain $holders->{purge} );
 
+# SM605: a confirmation sent by the wrong route says which route to use.
+#
+# `table` is read from the body OR the query string; `confirm` from the body
+# alone. Both failures used to answer identically, so a caller who sent a
+# correct confirmation in the query string was told it did not match - and the
+# obvious next move, retyping the table name, cannot work. Two field calls went
+# that way.
+{
+    # The caller must HOLD housekeeping, or the capability gate answers first
+    # and this measures that instead - which is what the first version of this
+    # block did.
+    hold('housekeeping');
+    my $qs_confirm = post('action=data-table-drop&table=t&confirm=t');
+    ok( !$qs_confirm->{ok}, 'a query-string confirmation is still refused' );
+    like( $qs_confirm->{error} // '', qr/request body/i,
+        'and the refusal names the route to use instead of implying the value '
+            . 'was wrong' )
+        or diag( explain $qs_confirm );
+}
+
 done_testing();

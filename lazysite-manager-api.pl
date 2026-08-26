@@ -1446,9 +1446,29 @@ elsif ( $action eq 'data-table-drop' ) {
     # same way, and SM479 is what happens when two neighbouring arguments take
     # different routes and one is silently ignored.
     my $req = _json_body();
-    $result = Lazysite::Manager::Data::action_data_table_drop(
-        $req->{table} // $params{table},
-        $req->{confirm} );
+
+    # SM605: A CONFIRMATION SENT THE OTHER WAY IS TOLD SO.
+    #
+    # `table` is read from the body OR the query string and `confirm` from the
+    # body alone, which is the asymmetry the comment above warns about - and
+    # both failures answered identically, so a caller who sent a perfectly good
+    # confirmation in the query string was told it did not match. The obvious
+    # next move is to retype the table name, and it cannot work. Two calls were
+    # lost to that in the field.
+    #
+    # The body-only rule stays: a destructive confirmation in a URL is easier to
+    # send by accident and ends up in logs and shell history. What changes is
+    # that the silence does.
+    if ( !defined $req->{confirm} && defined $params{confirm} ) {
+        $result = { ok => 0, kind => 'invalid', field => 'confirm',
+            error => 'the confirmation must be sent in the request body, not '
+                . 'the query string - {"table":"...","confirm":"..."}' };
+    }
+    else {
+        $result = Lazysite::Manager::Data::action_data_table_drop(
+            $req->{table} // $params{table},
+            $req->{confirm} );
+    }
 }
 elsif ( $action eq 'data-import' ) {
     # The CSV arrives as a multipart upload, the part named `file`, exactly as

@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM607 resolved (PENDING) **the data reference said `live` is never cached,
+  and it is not.** A `db:` binding withdraws the *mtime* proof of freshness -
+  a table has no timestamp that could establish it - and never touched the
+  page's `ttl:`, which is a separate branch and the only freshness bound such
+  a page has. So "never cached" was only ever true of a page carrying no
+  `ttl:`. Found because an agent reasoned correctly from the sentence and
+  stopped a release to say they had not measured it. Since SM604 the two modes
+  have no observable difference at all, and the reference now says so.
+
+- SM605 resolved (PENDING) **a confirmation sent by the wrong route says
+  which route to use.** `data-table-drop` reads `table` from the body or the
+  query string and `confirm` from the body alone, and answered a query-string
+  confirmation exactly as it answers a wrong one - so the obvious next move,
+  retyping the table name, could not work. The body-only rule stays; the
+  silence does not.
+
+- SM602/SM606 documented (PENDING) **two limits stated rather than left to be
+  discovered.** `RELIABILITY.md` now says which failure classes each RPO
+  covers - the backup lives inside the docroot it protects, so the 24-hour
+  bound does not hold against docroot loss - and `/docs/data-tables` states
+  the four query parameters the data endpoint reads and that the rest are
+  ignored rather than refused.
+
 - SM604 resolved (PENDING) **one `json:` binding no longer vouches for a
   `db:` binding.** A page bound to a table re-rendered per request and stayed
   current; adding a single `json:` binding froze its rows indefinitely, three
