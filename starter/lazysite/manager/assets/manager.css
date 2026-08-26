@@ -1863,3 +1863,14 @@ body.mg-sheet-open { overflow:hidden; }
   font-size: 0.75em; font-weight: 700; line-height: 1.5;
   background: var(--mg-accent-bg, #e8f0fa); color: var(--mg-accent, #3a7bd5); }
 .mg-alias-302 { background: var(--mg-warn-bg, #faf3e0); color: var(--mg-warn, #b07d1a); }
+
+/* SM629: the size of one revision's change, in the history row. Tabular
+   numerals so a column of them lines up and can be scanned for the large edit,
+   which is the whole reason for showing it. Colour is a SECOND signal, never
+   the only one - the + and - carry the meaning for anyone who cannot see the
+   difference between the two greens and reds. */
+.mg-diff-plus, .mg-diff-minus {
+  font-family: var(--mg-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82em; font-variant-numeric: tabular-nums; }
+.mg-diff-plus  { color: var(--mg-ok, #2f7d32); }
+.mg-diff-minus { color: var(--mg-danger, #b3261e); }

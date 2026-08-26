@@ -1062,8 +1062,36 @@ sub _ensure_manager_group_caps {
     # setup-manager adds the account to the group BEFORE this heals it, and a
     # manager group that read as a backend group would refuse the first and
     # only account on a fresh site.
-    $gs->{$group} = { label => $group, manager => 1, assignable => 1, %caps,
-        grantable => [ 'api', 'mcp' ] };
+    # SM630: ALL of them, not just the two channels.
+    #
+    # SM467's argument above is right and was applied too narrowly. It answered
+    # "holding is not conferring" for the two capabilities it knew this group
+    # would not hold, and let holding cover the other twenty-one. So grant
+    # authority silently tracked whatever the group happened to hold - fine for
+    # an administrator who holds everything for ever, and wrong the moment one
+    # practises least privilege on their own account. Give up `purge` and you
+    # lose the authority to delegate it, with no warning, and no control in the
+    # manager that names grant authority at all.
+    #
+    # No power is added at bootstrap: the group already holds all but the two
+    # channels, and holding implies conferring. What changes is that the
+    # authority SURVIVES the operator narrowing what they hold - so the one
+    # command that creates the first administrator stays the only shell step,
+    # and handover is adding the next administrator to this group from the UI.
+    # SM631: it needs a description like every other role - it is the one an
+    # operator meets first, and the tooltip was blank precisely there. Caught by
+    # widening t/unit/users/38 to cover assignable groups rather than only the
+    # seeded bundles.
+    $gs->{$group} = {
+        label       => $group,
+        description => 'The site owner. Holds every capability except the remote '
+            . 'api/mcp channels (manager groups are interactive-only), and may '
+            . 'CONFER any capability - including the ones it does not hold - so '
+            . 'narrowing what it holds never costs it the ability to delegate.',
+        manager    => 1,
+        assignable => 1,
+        %caps,
+        grantable => [ sort @CAP_KEYS ] };
     write_group_settings($gs);
     return;
 }
@@ -3117,26 +3145,180 @@ sub write_users {
 # clean cut (0.5.20) that union is group-only: legacy per-user grants are ignored.
 
 sub _default_group_seed {
+
+    # SM631: THREE LAYERS, and only one of them is assignable.
+    #
+    # What shipped before was six FLAT groups, two of which - `agent-ai` and
+    # `mcp-ai` - carried IDENTICAL capability sets and differed only in which
+    # channel they used. One fact stored twice: add a capability to the agent
+    # role and the MCP twin drifts, silently, and an operator looking at an
+    # agent whose MCP column is all dots gets no hint a sibling group exists.
+    #
+    # The capability model already separates WHAT a grant may do from WHICH DOOR
+    # it comes through, everywhere except here. So:
+    #
+    #   cap-*   capability bundles - what a job needs doing
+    #   ch-*    channel bundles    - which door it comes through
+    #   role-*  the composition    - THE ONLY THING AN OPERATOR PICKS
+    #
+    # Bundles are `assignable: 0`, so a person cannot be put in one directly
+    # (SM616) - the layering is enforced rather than merely documented. Roles
+    # gain a channel by nesting one more bundle instead of growing a twin.
+    #
+    # Nesting is in _default_group_nesting(): membership in the SUB confers the
+    # PARENT's grants, so each bundle LISTS the roles that draw on it.
+    #
+    # Every group carries a `description`. The Groups and Users pages show it on
+    # hover, because the whole point is that an operator assigning access reads
+    # a job title and knows what it hands over without decoding a 19x4 grid.
+    my %seed = (
+        # --- capability bundles: what a job needs doing --------------------
+        'cap-content' => {
+            label          => 'Capability: content', assignable => 0,
+            description    => 'Pages, navigation and forms. The everyday authoring set.',
+            manage_content => 1, manage_nav => 1, manage_forms => 1 },
+        'cap-design' => {
+            label         => 'Capability: design', assignable => 0,
+            description   => 'Themes and layouts - how the site looks, site-wide.',
+            manage_themes => 1, manage_layouts => 1 },
+        'cap-data' => {
+            label       => 'Capability: data', assignable => 0,
+            description => 'Typed data tables and authoring briefs - the app-building set.',
+            manage_data => 1, manage_briefs => 1 },
+        'cap-site' => {
+            label       => 'Capability: site settings', assignable => 0,
+            description => 'Domains, site packages, configuration and plugins. '
+                . 'Changes what the whole site is, not what is on it.',
+            manage_domains => 1, manage_config => 1 },
+        'cap-people' => {
+            label       => 'Capability: people', assignable => 0,
+            description => 'Accounts, groups and sub-users, plus the operator '
+                . 'notification bell. Hands over who may do anything at all.',
+            manage_users               => 1, create_sub_users => 1,
+            delegate_sub_user_creation => 1, notifications    => 1 },
+        # SM631: SPLIT, because these are not the same size of grant. Analytics
+        # is sanitised and IP-anonymised; the audit trail is INSTANCE-WIDE and
+        # carries raw source IPs and the operator's own sessions (SM618). An AI
+        # agent wants the first routinely and must never acquire the second as a
+        # side effect of a job title - which is what one bundle would have done.
+        'cap-analytics' => {
+            label       => 'Capability: analytics', assignable => 0,
+            description => 'Sanitised, IP-anonymised visitor analytics.',
+            analytics   => 1 },
+        'cap-audit' => {
+            label       => 'Capability: audit trail', assignable => 0,
+            description => 'The append-only audit trail. INSTANCE-WIDE and NOT '
+                . 'scoped by the grant reading it: entries name the actor and carry '
+                . 'a raw source IP, the operator\'s own sessions among them (SM618).',
+            audit => 1 },
+        'cap-tidy' => {
+            label       => 'Capability: housekeeping', assignable => 0,
+            description => 'Clearing away what is recoverable. `purge` is '
+                . 'deliberately NOT here: destroying the last copy is a separate '
+                . 'decision (SM587/SM591).',
+            housekeeping => 1 },
+
+        # --- channel bundles: which door ----------------------------------
+        # SM631: SPLIT. The manager UI and file access are different doors: a
+        # user manager works in the UI and has no business with WebDAV, and one
+        # bundle handed them both. The first cut of this change widened
+        # user-managers by exactly that, and t/unit/users/14 caught it.
+        'ch-ui' => {
+            label       => 'Channel: manager UI', assignable => 0,
+            description => 'The manager web interface - for a person at a keyboard.',
+            ui          => 1 },
+        'ch-files' => {
+            label       => 'Channel: file access', assignable => 0,
+            description => 'WebDAV - direct file access to the content tree.',
+            webdav      => 1 },
+        'ch-agent' => {
+            label       => 'Channel: AI agent', assignable => 0,
+            description => 'MCP - the self-describing tool surface an AI assistant '
+                . 'connects to. Carries the authoring verbs (create_page, '
+                . 'rename_page, validate_page) that the control API does not.',
+            mcp => 1 },
+        'ch-script' => {
+            label       => 'Channel: scripts', assignable => 0,
+            description => 'The control API and WebDAV - for scripts and pipelines. '
+                . 'Read, history, ACLs and registries; no authoring verbs.',
+            api => 1, webdav => 1 },
+
+        # --- roles: the only thing an operator assigns ---------------------
+        #
+        # THE ESTABLISHED NAMES STAY. content-editors, design-team, agent-ai,
+        # mcp-ai and user-managers are what operators, docs and scripts already
+        # say; renaming them would have been churn charged to everyone else for
+        # a tidier taxonomy here. They become roles by drawing on the bundles
+        # rather than by listing capabilities themselves.
+        #
+        # This also settles agent-ai/mcp-ai properly. They no longer duplicate a
+        # capability LIST: both draw on cap-content and cap-design, so that fact
+        # is stored once and cannot drift. What differs is the DOOR, which is a
+        # real distinction and now a one-line one - agent-ai reaches both, mcp-ai
+        # is the MCP-only variant for a partner that should hold no API access.
+        'content-editors' => {
+            label       => 'Website editor', assignable => 1,
+            description => 'Writes and edits pages, navigation and forms, in the '
+                . 'manager. Cannot change how the site looks or who may use it.' },
+        'design-team' => {
+            label       => 'Designer', assignable => 1,
+            description => 'Themes and layouts, in the manager. Cannot edit content.' },
+        'agent-ai' => {
+            label       => 'Web developer (AI agent)', assignable => 1,
+            description => 'An AI assistant that builds and maintains the site: '
+                . 'content, navigation, forms, themes and layouts, over MCP and '
+                . 'the control API.' },
+        'mcp-ai' => {
+            label       => 'Web developer (MCP only)', assignable => 1,
+            description => 'The same work as the web developer role, over MCP '
+                . 'alone - for a partner that should hold no control-API access.' },
+        'app-developers' => {
+            label       => 'App developer (AI agent)', assignable => 1,
+            description => 'An AI assistant building data-backed apps over MCP: '
+                . 'content plus typed data tables and authoring briefs.' },
+        'site-admins' => {
+            label       => 'Site administrator', assignable => 1,
+            description => 'Runs the site day to day: content, design, settings and '
+                . 'housekeeping, in the manager. Not people, and not purge.' },
+        'user-managers' => {
+            label       => 'User manager', assignable => 1,
+            description => 'Manages accounts and groups in the manager. Holds no '
+                . 'content or design capability of its own.' },
+        'analysts' => {
+            label       => 'Analyst', assignable => 1,
+            description => 'Reads analytics and the audit trail. Changes nothing.' },
+        'lead-readers' => {
+            label       => 'Lead reader', assignable => 1,
+            description => 'Reads form submissions over the API and nothing else - '
+                . 'the least-privilege grant for processing enquiries.',
+            read_submissions => 1 },
+    );
+    return \%seed;
+}
+
+# SM631: which bundles each role draws on.
+#
+# DIRECTION MATTERS AND IS COUNTER-INTUITIVE: _group_closure walks from a user's
+# own groups UPWARD to any group that LISTS them as a member, so a bundle lists
+# the roles that draw on it - not the other way round. Written once, here, so no
+# caller has to get it right twice.
+sub _default_group_nesting {
     return {
-        # SM576 part 3: the shipped groups ARE roles - they exist to be given
-        # to a person - so each says so. A site that composes backend groups
-        # later leaves them unflagged, and the distinction is visible from the
-        # first day rather than backfilled onto it.
-        'content-editors' => { label => 'Content editors', assignable => 1,
-            ui => 1, webdav => 1, manage_content => 1, manage_nav => 1, manage_forms => 1 },
-        'design-team' => { label => 'Layouts & themes', assignable => 1,
-            ui => 1, webdav => 1, manage_themes => 1, manage_layouts => 1 },
-        'agent-ai' => { label => 'Agent AI', assignable => 1,
-            webdav => 1, api => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
-            manage_themes => 1, manage_layouts => 1, analytics => 1 },
-        'mcp-ai' => { label => 'MCP AI', assignable => 1,
-            mcp           => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
-            manage_themes => 1, manage_layouts => 1, analytics  => 1 },
-        'user-managers' => { label => 'User managers', assignable => 1,
-            ui               => 1, manage_users               => 1, notifications => 1,
-            create_sub_users => 1, delegate_sub_user_creation => 1 },
+        'cap-content' => [qw(content-editors agent-ai mcp-ai app-developers site-admins)],
+        'cap-design'  => [qw(design-team agent-ai mcp-ai site-admins)],
+        'cap-data'    => [qw(app-developers)],
+        'cap-site'    => [qw(site-admins)],
+        'cap-people'  => [qw(user-managers)],
+        'cap-analytics' => [qw(analysts agent-ai mcp-ai)],
+        'cap-audit'     => [qw(analysts)],
+        'cap-tidy'      => [qw(site-admins)],
+        'ch-ui' => [qw(content-editors design-team site-admins user-managers analysts)],
+        'ch-files'  => [qw(content-editors design-team site-admins)],
+        'ch-agent'  => [qw(agent-ai mcp-ai app-developers)],
+        'ch-script' => [qw(agent-ai lead-readers)],
     };
 }
+
 
 # Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
 # from the effective lookup so the seeder never recurses through itself.
@@ -3163,14 +3345,62 @@ sub _ensure_groups_seeded {
     for my $g ( _conf_manager_groups() ) {
         $seed->{$g}{manager} = 1;
         $seed->{$g}{label} //= $g;
+        # SM631: a description here as well as in the healer. Both paths can
+        # create this group and only one of them had it, which is how the
+        # tooltip came out blank on exactly the group an operator meets first.
+        $seed->{$g}{description} //= 'The site owner. Holds every capability '
+            . 'except the remote api/mcp channels (manager groups are '
+            . 'interactive-only), and may CONFER any capability - including the '
+            . 'ones it does not hold - so narrowing what it holds never costs '
+            . 'it the ability to delegate.';
         $seed->{$g}{assignable} = 1;    # SM576: a manager group is a role
             # SM127: manager groups are interactive-only - no remote api/mcp channels.
         $seed->{$g}{$_} = 1 for grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
-        # SM467: but they may CONFER those channels - see
-        # _ensure_manager_group_caps for why the two are different questions.
-        $seed->{$g}{grantable} = [ 'api', 'mcp' ];
+
+        # SM467 established that HOLDING and CONFERRING are different questions,
+        # and answered it for the two channels a manager group deliberately does
+        # not hold. SM630: answer it for ALL of them.
+        #
+        # Grant authority was otherwise DERIVED from holding, so it silently
+        # tracked whatever the group happened to hold. That is fine for an
+        # administrator who holds everything for ever, and wrong the moment one
+        # practises least privilege on their own account: give up a capability
+        # and you lose the authority to delegate it, with no warning and no
+        # control in the manager that says so. The operator who reported this
+        # had done exactly the right thing and been penalised for it.
+        #
+        # This adds NO power today - the group already holds all but the two
+        # channels, and holding implies conferring. What it does is KEEP the
+        # authority when the operator later narrows what they hold, so the one
+        # bootstrap command is the only shell step there ever needs to be:
+        # handover is then adding the next administrator to this group, in the
+        # UI, which is where a website administrator works.
+        #
+        # Still conferred from above and never self-assumed: `grantable` remains
+        # operator-only to SET (cmd_group_settings_set), so a delegate cannot
+        # widen its own. This decides what the FIRST group starts with, which is
+        # a bootstrap decision and belongs with the rest of the seed.
+        $seed->{$g}{grantable} = [ sort @CAP_KEYS ];
     }
     write_group_settings($seed);
+
+    # SM631: the nesting is what makes a role a role. Written only here, where
+    # the settings file was absent, so an existing site's memberships are never
+    # touched - re-homing a live grant is exactly the operation that must not
+    # happen by accident, and an operator moving people onto the new roles does
+    # it deliberately.
+    #
+    # MERGED, not overwritten: a fresh site can still have a groups file (the
+    # manager group is added to it before this runs on some paths), and
+    # clobbering it would drop that membership on the floor.
+    my $nest   = _default_group_nesting();
+    my %groups = read_groups();
+    for my $parent ( sort keys %$nest ) {
+        my %have = map { $_ => 1 } @{ $groups{$parent} || [] };
+        push @{ $groups{$parent} }, grep { !$have{$_}++ } @{ $nest->{$parent} };
+    }
+    write_groups(%groups);
+
     _remove_conf_key('manager_groups');    # SM138: key retired once migrated
     return;
 }
@@ -3284,11 +3514,36 @@ sub cmd_permissions_grid {
     # escalate by nesting, and the review screen shows nothing.
     my @mygroups = sort( Lazysite::Auth::Settings::effective_groups($user) );
 
+    # SM631: name the group the OPERATOR ASSIGNED, not the bundle behind it.
+    #
+    # This walks effective_groups - the closure - and names whichever group
+    # carries the flag. Once roles are composed from bundles that is always the
+    # BUNDLE, so an operator hovering a tick on the permissions grid was told
+    # "ch-agent" about an account they put in "mcp-ai". True, and not an answer
+    # to the question being asked: the actionable fact is which membership to
+    # change.
+    #
+    # So attribute to the DIRECT groups first, through _caps_granted_by_group -
+    # the same function the conferral ceiling uses, which walks the closure
+    # upward. The closure pass stays as the fallback, for a capability reached
+    # some way a direct membership does not explain and for `manager`, which
+    # _caps_granted_by_group does not report.
+    my %members = read_groups();
+    my @direct  = sort grep {
+        my $g = $_;
+        grep { $_ eq $user } @{ $members{$g} || [] }
+    } keys %members;
+
     my %granted_by;    # cap => [ groups granting it ]
+    for my $g (@direct) {
+        push @{ $granted_by{$_} }, $g for _caps_granted_by_group($g);
+    }
     for my $g (@mygroups) {
         my $cfg = $gs->{$g} or next;
         for my $k ( @CAP_KEYS, 'manager' ) {
-            push @{ $granted_by{$k} }, $g if $cfg->{$k};
+            next unless $cfg->{$k};
+            next if @{ $granted_by{$k} || [] };    # a role already explains it
+            push @{ $granted_by{$k} }, $g;
         }
     }
     # SM126: derive the grid axes from @CAP_KEYS (the single source of truth) so a
@@ -3561,18 +3816,32 @@ sub _caps_granted_by_group {
     my $gs      = read_group_settings();
     my %members = read_groups();
 
-    my ( %seen, %caps );
-    my @stack = ($group);
-    while (@stack) {
-        my $g = shift @stack;
-        next if $seen{$g}++;
+    # SM631: WHICH WAY THE WALK GOES, and it is the opposite of how it reads.
+    #
+    # This asks "what does a person ACQUIRE by being put in $group?", which is
+    # the ceiling's whole question - a delegate may not confer what it does not
+    # hold. Capabilities flow UPWARD: group X listing Y as a member gives Y's
+    # members X's capabilities, which is what _group_closure walks and what
+    # caps_for enforces.
+    #
+    # The previous walk went DOWNWARD, collecting $group's own members. That was
+    # harmless while every role carried its capabilities directly and had no
+    # parents. Composing roles from bundles made every role's OWN settings
+    # empty, so the ceiling looked at a role, found nothing to confer, and
+    # allowed the assignment - a manage_users delegate could put anyone into any
+    # role, including ones conferring api, mcp and purge. Caught by
+    # t/unit/users/30, which had guarded this since SM195.
+    #
+    # Reusing the closure rather than walking again is the point: SM268 02-5 was
+    # this same defect, from `grantable` reading direct membership while
+    # caps_for read the closure. Two walkers for one question is how the halves
+    # disagree.
+    my %caps;
+    my @closure = Lazysite::Auth::Settings::group_closure($group);
+    for my $g ( $group, @closure ) {
         my $cfg = $gs->{$g};
-        if ( ref $cfg eq 'HASH' ) {
-            for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
-        }
-        for my $m ( @{ $members{$g} || [] } ) {
-            push @stack, $m if exists $gs->{$m} || exists $members{$m};
-        }
+        next unless ref $cfg eq 'HASH';
+        for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
     }
     my @out = sort keys %caps;
     return @out;

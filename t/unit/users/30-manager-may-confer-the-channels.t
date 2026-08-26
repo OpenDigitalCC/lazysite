@@ -83,8 +83,16 @@ subtest 'grant authority confers NO ability to use the channel (SM127)' => sub {
         local $/; <$fh>;
     } );
     my $admin = $gs->{'lazysite-admins'};
-    is_deeply( $admin->{grantable}, [ 'api', 'mcp' ],
+    # SM630 widened this from exactly ['api','mcp'] to every capability. The
+    # INTENT this subtest protects is unchanged and is now stronger: the admin
+    # group may CONFER the channels it does not hold. Pinning the exact pair
+    # would have pinned the old bootstrap decision rather than the property.
+    my %grant = map { $_ => 1 } @{ $admin->{grantable} || [] };
+    ok( $grant{api} && $grant{mcp},
         'the admin group carries grant authority for both channels' );
+    cmp_ok( scalar keys %grant, '>=', 20,
+        'and for every other capability too, so narrowing what it HOLDS never '
+            . 'costs it the authority to delegate (SM630)' );
     ok( !$admin->{api}, 'and does NOT hold api' );
     ok( !$admin->{mcp}, 'and does NOT hold mcp' );
 

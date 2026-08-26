@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM628/SM629/SM630/SM631 resolved (PENDING) **the manager stops making an
+  operator decode a grid to do their job.** **SM631**: the seeded groups were six
+  flat lists, two of which - `agent-ai` and `mcp-ai` - carried identical
+  capabilities and differed only in channel, so adding a capability to one made
+  the other drift. They are now capability bundles, channel bundles and the
+  roles composed from them; only roles are assignable, every bundle and role
+  says what it grants on hover, and `purge` belongs to none of them. **SM630**:
+  the first administrator gets grant authority over every capability from the
+  one `setup-manager` command, so narrowing what you hold no longer costs you
+  the ability to delegate it - grant authority was derived from holding, which
+  penalised least privilege. **SM628**: the Files page's alias list opens on
+  click instead of fetching at page load and on every folder change. **SM629**:
+  a content-history row shows how big that change was, from `--numstat` on the
+  git call already being made; a binary revision says "binary" rather than
+  claiming zero lines changed.
+
 - SM625/SM626/SM627 resolved (PENDING) **a fleet of healthy sites stops
   reporting as a fleet in trouble, and the last two standing warnings can
   actually be cleared.** A 26-site repair reported `0 clean, 0 repaired, 26 need

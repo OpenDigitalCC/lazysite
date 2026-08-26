@@ -27,6 +27,7 @@ search: false
 <button class="mg-btn" onclick="triggerUpload()">Upload</button>
 </div>
 <div class="mg-file-actions-right">
+<button class="mg-btn" id="alias-btn" onclick="openAliases()" title="Alternate URLs that redirect into this folder">Aliases</button>
 <button class="mg-btn" id="hist-overview-btn" style="display:none" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">&#128337; History overview</button>
 <button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
 <button class="mg-btn mg-btn-danger" id="del-btn" style="display:none" onclick="deleteSelected()">Delete selected</button>
@@ -69,21 +70,6 @@ every listing, while a signed-in editor can still preview it.</p>
 </table>
 <p class="mg-muted" id="protected-empty" style="display:none">Nothing is held back &mdash;
 every folder on this site is public.</p>
-</div>
-</div>
-
-<div class="mg-card" id="aliases-card">
-<div class="mg-card-header"><span class="mg-card-title">Aliases</span>
-<button class="mg-btn mg-btn-sm" onclick="loadAliases()">Refresh</button></div>
-<div class="mg-card-body">
-<p class="mg-muted">Alternate URLs that redirect to a page. Aliases are authored in each
-page's front matter (<code>aliases:</code> for permanent 301 redirects,
-<code>aliases_temp:</code> for temporary 302s) - this list is read-only.</p>
-<table class="mg-file-table" id="alias-table" style="display:none">
-<thead><tr><th>Alias</th><th>Redirects to</th><th>Type</th></tr></thead>
-<tbody id="alias-rows"></tbody>
-</table>
-<p class="mg-muted" id="alias-empty" style="display:none">No aliases are defined yet.</p>
 </div>
 </div>
 
@@ -154,10 +140,12 @@ function loadDir(dir) {
   currentDir = dir || '/';
   updateBreadcrumb();
   if (typeof loadProtectedSections === 'function') loadProtectedSections();
-  // The alias card is scoped to the folder, so it has to follow navigation.
-  // It used to load once at page load and never again, which meant that after
-  // the first click it described somewhere the operator had left.
-  if (typeof loadAliases === 'function') loadAliases();
+  // SM628: aliases no longer follow navigation, because nothing is showing
+  // them. The card they used to fill was on screen for every visit to this
+  // page and fetched on every folder change, to answer a question an operator
+  // asks occasionally. It opens on click now and reads the folder it is opened
+  // in, which also retires the defect the old comment here described - a panel
+  // that loaded once and then described somewhere the operator had left.
   var sa = document.getElementById('select-all');
   if (sa) { sa.checked = false; sa.indeterminate = false; }
   // SM103: recent-change markers - fetch what changed lately, then render.
@@ -1170,20 +1158,88 @@ function publishSection(prefix, draftOnly) {
 // content root - a page at sites/alpha/blog/post.md answers to /blog/post -
 // and a second copy of that mapping here is exactly what SM440 got wrong once
 // already.
-function loadAliases() {
+// SM628: aliases open on click, in a modal, and fetch nothing until they do.
+//
+// The list was a card on the page: present on every visit to Files, fetched at
+// page load AND again on every folder change, to answer a question an operator
+// asks occasionally - "what redirects into here?". It is read-only and authored
+// elsewhere (front matter), so nothing on the page acts on it.
+//
+// Opening on demand also retires a defect rather than keeping it fixed. The
+// card was scoped to a folder, so it had to be re-fetched on navigation or it
+// would sit there describing somewhere the operator had left. A modal reads
+// currentDir at the moment it opens, so it cannot be stale by construction.
+function openAliases() {
+  if (document.getElementById('alias-modal')) return;
+  var here = (currentDir === '/' ? 'this site' : currentDir);
+
+  var ov = document.createElement('div');
+  ov.id = 'alias-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;'
+                   + 'display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML =
+      '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;'
+    + 'max-width:820px;max-height:86vh;border-radius:8px;display:flex;flex-direction:column;'
+    + 'overflow:hidden;">'
+    + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'
+    + 'border-bottom:1px solid var(--mg-border,#ddd);">'
+    + '<strong style="flex:1">Aliases in ' + escHtml(here) + '</strong>'
+    + '<button class="mg-btn mg-btn-sm" onclick="openAliasesRefresh()">Refresh</button>'
+    + '<button class="mg-btn mg-btn-sm" onclick="closeAliases()">Close</button></div>'
+    + '<div id="alias-modal-body" style="flex:1;overflow:auto;padding:12px 14px;">'
+    + '<p class="mg-muted">Loading&hellip;</p></div></div>';
+
+  // Click the backdrop to dismiss, and Escape - a modal that traps the operator
+  // is worse than the card it replaced.
+  ov.addEventListener('click', function(e) { if (e.target === ov) closeAliases(); });
+  document.body.appendChild(ov);
+  if (!openAliases._esc) {
+    openAliases._esc = function(e) { if (e.key === 'Escape') closeAliases(); };
+  }
+  document.addEventListener('keydown', openAliases._esc);
+
+  loadAliasesInto();
+}
+
+function closeAliases() {
+  var ov = document.getElementById('alias-modal');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+  if (openAliases._esc) document.removeEventListener('keydown', openAliases._esc);
+}
+
+function openAliasesRefresh() { loadAliasesInto(); }
+
+function loadAliasesInto() {
+  var body = document.getElementById('alias-modal-body');
+  if (!body) return;
+  var here = (currentDir === '/' ? 'this site' : currentDir);
+  body.innerHTML = '<p class="mg-muted">Loading&hellip;</p>';
+
   fetch(API + '?action=aliases-list&path=' + encodeURIComponent(currentDir))
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (!d.ok) return;   // leave the card in its empty state
+      if (!body.parentNode) return;              // closed while in flight
+      if (!d.ok) {
+        // The card version returned silently on an error and left an empty
+        // list, which reads as "no aliases" - a wrong answer rather than none.
+        body.innerHTML = '<p class="mg-muted">Could not read the alias list: '
+                       + escHtml(d.error || 'the server refused') + '</p>';
+        return;
+      }
       var rows = d.aliases || [];
-      var table = document.getElementById('alias-table');
-      var empty = document.getElementById('alias-empty');
-      // Say WHERE the answer applies, so an empty card reads as "none here"
-      // rather than "none at all" - a difference the operator cannot see.
-      var here = (currentDir === '/' ? 'this site' : currentDir);
-      if (empty) empty.textContent = 'No aliases point into ' + here + '.';
-      if (!rows.length) { table.style.display = 'none'; empty.style.display = ''; return; }
-      var html = '';
+      var intro = '<p class="mg-muted">Alternate URLs that redirect to a page. '
+                + 'Aliases are authored in each page\'s front matter '
+                + '(<code>aliases:</code> for permanent 301 redirects, '
+                + '<code>aliases_temp:</code> for temporary 302s) &mdash; this list '
+                + 'is read-only.</p>';
+      if (!rows.length) {
+        body.innerHTML = intro + '<p class="mg-muted">No aliases point into '
+                       + escHtml(here) + '.</p>';
+        return;
+      }
+      var html = intro
+        + '<table class="mg-file-table"><thead><tr><th>Alias</th>'
+        + '<th>Redirects to</th><th>Type</th></tr></thead><tbody>';
       for (var i = 0; i < rows.length; i++) {
         var a = rows[i];
         var badge = a.code === 302
@@ -1193,11 +1249,13 @@ function loadAliases() {
               + '<td><a href="' + escHtml(a.target) + '">' + escHtml(a.target) + '</a></td>'
               + '<td>' + badge + '</td></tr>';
       }
-      document.getElementById('alias-rows').innerHTML = html;
-      table.style.display = '';
-      empty.style.display = 'none';
+      body.innerHTML = html + '</tbody></table>';
     })
-    .catch(function() { /* card stays empty */ });
+    .catch(function() {
+      if (body.parentNode) {
+        body.innerHTML = '<p class="mg-muted">Could not reach the server.</p>';
+      }
+    });
 }
 
 // SM085: content history (git). The feature flag is fetched once at load;
@@ -1345,13 +1403,35 @@ function renderHistory(panel, entries) {
     return;
   }
   var html = '<table class="mg-file-table"><thead><tr>'
-           + '<th>When</th><th>Who</th><th>Change</th><th></th></tr></thead><tbody>';
+           + '<th>When</th><th>Who</th><th>Change</th><th>Size</th><th></th></tr></thead><tbody>';
   for (var i = 0; i < entries.length; i++) {
     var e = entries[i];
+
+    // SM629: how big the edit was, so a row can be judged without opening the
+    // diff. Lines added and removed come from --numstat on the log call that
+    // was already being made, so this costs no extra work per revision.
+    //
+    // A binary file reports "-" for both, which arrives as null and is shown as
+    // "binary" rather than "+0 -0": "nothing changed" and "not countable in
+    // lines" are different answers, and 0 would state the wrong one confidently.
+    var size;
+    if (e.binary) {
+      size = '<span class="mg-muted" title="Not countable in lines">binary</span>';
+    } else if (e.added == null && e.removed == null) {
+      size = '<span class="mg-muted">&mdash;</span>';
+    } else {
+      var plus = e.added == null ? 0 : e.added, minus = e.removed == null ? 0 : e.removed;
+      size = '<span title="' + plus + ' line' + (plus === 1 ? '' : 's') + ' added, '
+           + minus + ' removed">'
+           + '<span class="mg-diff-plus">+' + plus + '</span> '
+           + '<span class="mg-diff-minus">&minus;' + minus + '</span></span>';
+    }
+
     html += '<tr>'
           + '<td>' + escHtml(absTime(e.epoch)) + '</td>'
           + '<td>' + escHtml(e.author || '') + '</td>'
           + '<td><span title="' + escHtml(e.sha) + '">' + escHtml(e.subject || '') + '</span></td>'
+          + '<td style="white-space:nowrap">' + size + '</td>'
           + '<td style="white-space:nowrap">'
           +   '<button class="mg-btn mg-btn-sm" data-sha="' + escHtml(e.sha) + '" onclick="showVersion(this, \'view\')">View</button> '
           +   '<button class="mg-btn mg-btn-sm" data-sha="' + escHtml(e.sha) + '" onclick="showVersion(this, \'diff\')">Diff</button> '
@@ -1482,5 +1562,4 @@ function readInitDir() {
 renderScopeSwitcher();
 loadPrincipals().then(loadGitStatus).then(function() { loadDir(readInitDir()); });
 loadProtectedSections();
-loadAliases();
 </script>

@@ -84,6 +84,7 @@ groups from each user's card below.
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var DAV_BASE = location.origin + '/dav';
 var allGroups = {};   // {group: [members]}
+var groupMeta = {};   // SM631: {group: {label, description, assignable}}
 var uiGroups  = {};   // {group: true} - groups that grant the `ui` (manager) capability
 var allUsers  = [];   // [username]
 var groupLabels = {}; // {group: description-or-label} - for the add-user picker
@@ -186,6 +187,16 @@ function loadUsers() {
       }
       groupLabels[name] = info.description
         || (info.label && info.label !== name ? info.label : '');
+      // SM631: keep the three facts apart. groupLabels is "something to show
+      // beside the name" and collapses label into description when one is
+      // missing; the picker needs the LABEL as the visible text and the
+      // DESCRIPTION as the tooltip, and needs to know which groups may be
+      // assigned at all.
+      groupMeta[name] = {
+        label: (info.label && info.label !== name) ? info.label : name,
+        description: info.description || '',
+        assignable: info.assignable !== false
+      };
     });
     var rows = (d.users || []).filter(function(r) { return r && r.user != null; });
     allGroups = g;
@@ -609,12 +620,44 @@ function accountSettingsHtml(row) {
   // --- Groups ---
   var mine = groupsForUser(u);
   var gnames = Object.keys(allGroups).sort();
+
+  // SM631: offer the ROLES. A backend bundle is refused by group-add
+  // (assignable, SM616), so listing one here is offering a control that can
+  // only fail - and with capability and channel bundles seeded there are now
+  // enough of them to bury the roles an operator actually wants.
+  //
+  // A group already held is always shown even if it is not assignable: hiding
+  // it would hide part of what this account HAS, and the operator still needs
+  // to be able to take it away.
+  function meta(g) { return groupMeta[g] || { label: g, description: '', assignable: true }; }
+  var roles = gnames.filter(function(g) {
+    return meta(g).assignable || mine.indexOf(g) !== -1;
+  });
+  var backend = gnames.length - roles.length;
+
   var grp = '<div class="mg-checks">';
-  grp += gnames.length ? gnames.map(function(g) {
+  grp += roles.length ? roles.map(function(g) {
     var on = mine.indexOf(g) !== -1;
-    return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
-      ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> ' + escHtml(g) + '</label>';
+    var m  = meta(g);
+    // The description IS the tooltip - the point of naming a role is that an
+    // operator knows what it hands over without decoding the capability grid.
+    var tip = m.description || ('Group "' + g + '"');
+    if (!m.assignable) {
+      tip = 'Backend group - held, but not offered for new assignment. ' + tip;
+    }
+    return '<label class="mg-chk" title="' + escHtml(tip) + '">'
+      + '<input type="checkbox"' + (on ? ' checked' : '')
+      + ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> '
+      + escHtml(m.label)
+      + (m.label !== g ? ' <span class="mg-muted">(' + escHtml(g) + ')</span>' : '')
+      + '</label>';
   }).join('') : '<span class="mg-empty">No groups yet.</span>';
+  if (backend > 0) {
+    grp += '<span class="mg-muted" title="Capability and channel bundles. Roles are '
+        +  'composed from them, so a person is given a role and inherits the bundles '
+        +  'behind it.">' + backend + ' backend group'
+        +  (backend === 1 ? '' : 's') + ' not shown</span>';
+  }
   grp += '</div>';
   h += sec('Groups', grp);
 

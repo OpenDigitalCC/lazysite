@@ -336,7 +336,8 @@ sub commit_move {
 
 # --- reads (repo-absent / disabled = empty or undef, never an error) --------------
 
-# Per-file timeline: [ { sha, epoch, author, subject }, ... ] newest first.
+# Per-file timeline: [ { sha, epoch, author, subject, added, removed, binary },
+# ... ] newest first.
 # SM175: the history follows the file's IDENTITY, not merely its path. It walks
 # the current incarnation - back to the most recent commit that added this path
 # (--diff-filter=A) - and then, ONLY if that commit is a recorded move (carries a
@@ -365,19 +366,49 @@ sub file_log {
             '-n1', '--format=%H', $start, '--', $cur );
         my ($add) = ( $aout // '' ) =~ /\A([0-9a-f]{40})/;
 
-        my ( $lok, $lout ) = run_git( $docroot, 'log',
+        # SM629: --numstat adds the size of each change to the SAME call, so a
+        # history row can say how big the edit was without a second git process
+        # per revision. Output becomes a commit line followed by one numstat
+        # line per changed path:
+        #
+        #   <sha>\t<epoch>\t<author>\t<subject>
+        #   <added>\t<removed>\t<path>
+        #
+        # A binary file reports "-\t-", which stays undef rather than being
+        # counted as zero: "no lines changed" and "not countable in lines" are
+        # different answers and an operator cannot tell them apart from a 0.
+        my ( $lok, $lout ) = run_git( $docroot, 'log', '--numstat',
             '--format=%H%x09%at%x09%an%x09%s', $start, '--', $cur );
         last unless $lok && defined $lout;
 
         my $reached_add = 0;
+        my $stop_after  = 0;
         for my $line ( split /\n/, $lout ) {
+
+            # A numstat line belongs to the entry just pushed. Checked BEFORE
+            # the commit-line parse, because a subject could otherwise look
+            # like one.
+            if ( @entries && $line =~ /\A(\d+|-)\t(\d+|-)\t/ ) {
+                my ( $plus, $minus ) = ( $1, $2 );
+                my $e = $entries[-1];
+                $e->{added}   = $plus eq '-'                      ? undef : $plus + 0;
+                $e->{removed} = $minus eq '-'                     ? undef : $minus + 0;
+                $e->{binary}  = ( $plus eq '-' && $minus eq '-' ) ? 1     : 0;
+                last if $stop_after;
+                next;
+            }
+
             my ( $sha, $at, $an, $subject ) = split /\t/, $line, 4;
             next unless defined $sha && $sha =~ /\A[0-9a-f]{40}\z/;
             push @entries,
                 { sha => $sha, epoch => ( $at // 0 ) + 0, author => ( $an // '' ),
                 subject => ( $subject // '' ), path => $cur };
-            if ( defined $add && $sha eq $add ) { $reached_add = 1; last }
-            last if @entries >= $limit;
+
+            # Defer the stop by one record so this entry can still collect its
+            # numstat line, which arrives AFTER it. Stopping on the commit line
+            # would leave the last row of every page with no size.
+            if ( defined $add && $sha eq $add ) { $reached_add = 1; $stop_after = 1; next }
+            if ( @entries >= $limit ) { $stop_after = 1; next }
         }
         # A limit cut-off mid-incarnation must not jump lineage; stop unless we
         # cleanly reached this incarnation's add commit.

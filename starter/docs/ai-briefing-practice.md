@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.11.1
+     engine-version: 0.11.2
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2409926c3faddb606da8aae63100c1dbf3f065296ea51456a62ad17ac1deb2e0 modified=2026-08-26
-     body-sha256: 268d3ac9baaf0b7cbd18131d34cc2c45b626bad7779e49b7ac6c1c82ceb1edd4
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=f6d13d86a1643d27fe946f8982d40dd7012fa90e578bc7ed006e15ef5d1c7bfe modified=2026-08-26
+     body-sha256: 8a71408070bf89b46dc3188d73b316aaa66c9a78eb3e4c01819549cc9037f66c
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.11.1**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.11.2**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -511,6 +511,54 @@ Each of these cost real time; none is obvious from reading.
 If yes, it is an app and it needs a store. If no, it is a page. Most prototypes
 answer no without meaning to, because the browser makes it so easy not to
 notice - see *State that only exists in one browser*, below.
+
+## Start with the design system, not the pages
+
+The failure mode this avoids: a design tool emits one HTML page with the
+styling, the data and the structure fused together, and it is dropped onto the
+platform as if it were static hosting. It cannot then be themed, bound to real
+data, or extended - and the next agent to touch it writes another monolith
+beside it. Build the opposite, in three layers, each finished and gated before
+the next relies on it:
+
+1. **Schema first.** The data contract is the most expensive thing to change
+   once pages read it. Settle every table, key and type and prove a read/write
+   round-trip before any page exists.
+2. **Design system second, and complete.** Extract the whole class vocabulary
+   from the design up front into ONE theme + layout. No page ever carries its
+   own styling.
+3. **Pages third, and mechanical.** A page is structure + catalogued classes +
+   a data binding. A page that seems to need new styling or a new type is a gap
+   to fix in layer 1 or 2, never a page-level hack.
+
+Once the schema and the design system pass their gates, every further page is
+straightforward and looks right for free - which is also the hand-over promise:
+the client can add a view later without touching design.
+
+### The internal style guide (the governing rule)
+
+Build one page - `/style-guide` - that renders **every** visual element the app
+uses, with test content, in every state. It is the single control point for the
+look:
+
+- Every visual element appears there.
+- Styling is reviewed and adjusted there - between that page, the layout and the
+  theme - never on a content page. This is where the user reviews the look.
+- Any new element is prototyped there first, then used.
+
+It is the fence that keeps a later agent from fighting the theme: the class it
+needs already exists, named and styled. Establish it before the first real page.
+(Author it as an included bare `.html` partial so indented markup is not mangled
+by the Markdown processor; person tint reaches elements as `style="--who:#hex"`
+and classes consume `var(--who)`, so the palette stays in the data layer.)
+
+### A project room for the build
+
+Give a collaborative build its own gated area on the site - a `/team/` section
+ACL'd to an admins group - holding the plan, the settled decisions, the build
+method, and a questions page. It travels with the site, so a new collaborator
+picks the work up without re-deriving it. Distinct from the app the end users
+see. (Native forms there need a one-time operator setup - see *Forms*.)
 
 ## Probe the action before you design around the capability
 
@@ -1037,6 +1085,16 @@ from one office address. From SM425 a submission whose **session cookie
 verifies** bypasses the anonymous limit, so a signed-in team needs no tuning -
 check the deployed build before reaching for `rate_limit: off`, which remains
 the mechanism for forms that are open but protected another way.
+
+**Wiring a native form needs a one-time operator step.** A token holding
+`manage_forms` still cannot create the delivery handler: `handler-save` (and
+`plugin-read`/`plugin-save`) are manager-UI / cookie-session only, and
+`lazysite/forms/handlers.conf` is protected against WebDAV writes even with
+`manage_config`. An agent CAN write the form config `lazysite/forms/<name>.conf`
+(with `manage_config`) and create the target data table (`manage_data`) in
+advance - but the operator must add the handler on the Forms page once. Plan for
+that step, or use an editable gated page (an admins-group member answers inline;
+the build reads it back) as the collaboration channel, which needs no handler.
 
 ## Importing from a feed
 
