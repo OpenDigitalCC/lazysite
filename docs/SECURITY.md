@@ -750,7 +750,7 @@ verdict
   than a weakness in the model - but the condition is recorded here so that
   judgement is auditable rather than implied.
 
-### 2026-08-26 - SM570/SM578/SM577/SM593/SM589/SM592 (0.11.0): confinement stops being a property of how a partner was scoped
+### 2026-08-26 - SM570/SM578/SM577/SM593/SM589/SM592/SM618 (0.11.0): confinement stops being a property of how a partner was scoped, and two capabilities admit what they hand over
 
 what changed
 : The release assesses **twenty-five versions**, 0.10.10 to 0.11.0, because the
@@ -771,7 +771,15 @@ what changed
   returned `_script` and `config_file` - internal paths - to a caller holding
   nothing. **SM592**, found while writing coverage rather than by report: a
   cross-device collection MOVE out of an unwritable parent emptied the source
-  and deleted the copy.
+  and deleted the copy. **SM618** changes no behaviour and belongs here anyway:
+  a capability-row campaign measured `audit` returning the WHOLE instance's
+  trail - actor identities and raw source IPv4 addresses, including the
+  operator's own manager, command-line and install sessions - under a partner
+  token holding that one capability, and `manage_forms` returning live
+  submission bodies (name, email, phone, message, submitter IP) under the grant
+  an operator gives an agent to WIRE UP a form. Both titles described only the
+  benign half. The operator's ruling is that both reaches STAND, `audit` on
+  `purge`'s SM577 precedent; the titles now state them.
 
 threat delta
 : **Information disclosure moves most, and moves down.** Three separate routes
@@ -782,7 +790,13 @@ threat delta
   own, an exposure axis distinct from destructiveness, and groups that declare
   whether they are assignable. Each is a narrowing. **Loss of integrity**
   improves by one measured case (SM592). **Denial of service** is unchanged; no
-  new long-lived execution path was added in this range.
+  new long-lived execution path was added in this range. Against the movement
+  down, SM618 records **no change in exposure and a change in what is known
+  about it**: two capabilities disclose personal data to a partner token and
+  always did. Nothing was closed, so nothing may be counted as closed - what
+  changed is that an operator granting them can now read that fact before
+  granting rather than after. A register that logged only the narrowings would
+  make this release look better than it is.
 
 controls
 : Confinement is derived from the caller's own grant through one function per
@@ -791,19 +805,31 @@ controls
   now ask one. The refusal for another domain's table is byte-identical to the
   refusal for a table that does not exist, so an instance cannot be enumerated
   by guessing names. `t/lint/87` requires the four surfaces to agree on every
-  operation; `t/lint/86` refuses a channel used as an authority.
+  operation; `t/lint/86` refuses a channel used as an authority. For SM618 the
+  DECLARATION is the control, because the reach is sanctioned: an instance-wide
+  capability that says so is the model `purge` set, and `t/unit/manager/122`
+  pins it for `audit` and `manage_forms` as `t/unit/manager/114` already did
+  for `purge` - the three are coupled deliberately and change together.
 
 residual risk
-: **SM593's central guarantee is not field-verified.** No control-API or MCP
-  action mints a scoped credential, so a partner cannot create the confined
-  grant the confinement is about, and the field pass could only exercise the
-  unconfined path. The mechanism is unit-tested and sabotage-verified; what is
-  outstanding is confirmation on a live instance with a real confined grant,
-  which requires the operator to issue one from the manager UI. **A table
+: **SM593's central guarantee is now field-verified, and this entry's previous
+  text saying otherwise is superseded rather than deleted.** The operator issued
+  a domain-scoped credential (`dav_scopes` = `sites/edge3`) on 2026-08-26 - the
+  first non-`/` scope any measurement on this instance had held - and two
+  throwaway tables identical but for their `domain:` field were read from it.
+  The out-of-scope table was absent from the listing, and its refusal by name
+  was word-for-word identical to the refusal for a table that does not exist,
+  differing only in the echoed name. The property the controls paragraph claims
+  from the source is therefore observed in behaviour: an instance cannot be
+  enumerated by guessing table names. **A table
   naming no domain remains reachable by any `manage_data` holder** - deliberate,
   so an instance carrying live tables loses nothing on upgrade, and it means
   the protection is opt-in until an operator migrates. `lazysite-check` lists
-  what is unmigrated. **SM602** records that the full-system backup is written
+  what is unmigrated. **The audit trail remains instance-wide and carries raw
+  source IPs** - accepted, declared, and the largest single disclosure a
+  one-capability partner token can obtain on this estate. It is recorded as
+  residual rather than resolved because the declaration changed and the reach
+  did not. **SM602** records that the full-system backup is written
   inside the docroot it backs up, so the declared RPO does not hold for
   docroot loss.
 

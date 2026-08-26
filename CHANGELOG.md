@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM618 resolved (PENDING) **two capabilities that hand over personal data now
+  say so.** A capability-row campaign measured `audit` returning the WHOLE
+  instance's trail under a partner token holding that one capability - actor
+  identities and raw source IPv4 addresses, including the operator's own
+  manager, command-line and install sessions - and `manage_forms` returning
+  live submission bodies (name, email, phone, message, submitter IP) under the
+  grant an operator gives an agent to wire up a form. Both titles described
+  only the benign half, and `audit` sat beside `analytics`, which promises
+  anonymisation and keeps that promise: the pair invited the inference that the
+  trail read is the careful one. It is the opposite. Both reaches are RULED
+  CORRECT and unchanged - `audit` on `purge`'s SM577 precedent, an agent asked
+  what changed and who changed it needs the whole trail. The defect was that
+  `purge` says so and these two did not. Two strings, the generated capability
+  map, the security register, and `t/unit/manager/122`, which is the sibling of
+  the test that already pinned the same property for `purge`.
+
 - SM616/SM617 resolved (PENDING) **the Groups page says what it grants, and
   what marking a group backend does not take away.** The backend warning read
   "people are not added to it directly" directly above the people already in

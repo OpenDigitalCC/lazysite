@@ -95,7 +95,22 @@ my %ACTION_INFO = (
         },
     },
     manage_forms => {
-        title => 'Wire forms to delivery handlers. A submitted form also raises an '
+        # SM618: the title said what this capability CONFIGURES and stayed
+        # silent on what it READS, while the sentence it did spend words on -
+        # that the notification never carries content - reads as a reassurance
+        # about the grant. It is a statement about the BELL. `form-submissions`
+        # is gated on [manage_forms, read_submissions] and EITHER admits, so
+        # this grant returns live submission bodies. Measured on edge
+        # 2026-08-26: name, email, phone, message and the submitter's IP, under
+        # a capability an operator grants to let an agent wire up a form.
+        title => 'Wire forms to delivery handlers - AND read what has been '
+            . 'submitted through them. SM618: `form-submissions` admits either '
+            . 'this or `read_submissions`, so this grant returns live '
+            . 'submission CONTENT: whatever a form collects, in practice name, '
+            . 'email, phone and message, together with the submitter\'s source '
+            . 'IP. Grant `read_submissions` instead where an agent only needs '
+            . 'to process leads, and this one where it must also change how '
+            . 'forms are wired. A submitted form also raises an '
             . 'operator notification of its own accord (the manager bell, plus chat '
             . 'where notify-xmpp is configured) naming the form and the time but '
             . 'never the content - so nothing needs to poll to learn that something '
@@ -281,7 +296,29 @@ my %ACTION_INFO = (
         unlocks => { api => [qw(analyse_visitors)], mcp => [qw(analyse_visitors)] },
     },
     audit => {
-        title   => 'Read the append-only audit trail.',
+        # SM618: measured on edge 2026-08-26 under a grant holding `analytics`
+        # + `audit` and nothing else - 93 pages, six distinct actors, 180 full
+        # IPv4 dotted-quads in 192 sampled entries, and origins `ui`, `cli` and
+        # `install`, which are the OPERATOR's own sessions rather than partner
+        # traffic. The engine states `scoped: false` in the reply itself.
+        #
+        # The reach is SANCTIONED, on `purge`'s SM577 precedent: an agent asked
+        # "what changed here, and who changed it" needs the whole trail, and a
+        # redacted one answers less. What was wrong is that `purge` SAYS SO and
+        # this did not. It sat beside `analytics` - which promises anonymisation
+        # in its own title and keeps that promise - so the pair invited exactly
+        # the wrong inference: that the trail read is at least as careful with
+        # personal data as the visitor read. It is the opposite, and an operator
+        # learned that only by granting it.
+        title => 'Read the append-only audit trail. SM618: THE TRAIL IS '
+            . 'INSTANCE-WIDE and is NOT scoped by the grant that authorised the '
+            . 'read - one instance serves many domains into one trail, so this '
+            . 'reaches entries for OTHER sites, and every entry names the actor '
+            . 'and carries a RAW source IP, the operator\'s own manager, '
+            . 'command-line and install sessions among them. Sanctioned '
+            . 'instance-wide for the same reason as `purge`. Its sibling '
+            . '`analytics` is the sanitised, anonymised read; this one is '
+            . 'neither, and the two sit together deliberately.',
         unlocks => { api => [qw(audit)] },
     },
     notifications => {
