@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM270 resolved (PENDING) **the manager says the site is unwritable on its next
+  page load, and the cure is written down at last.** Hestia's
+  `v-rebuild-web-domain` re-applies `2751` - setgid, no group write - and a
+  rebuild driven through the control panel never reaches the lazysite deploy
+  that repairs it. This was fixed by ordering, recurred three releases later,
+  had an end-of-run repair added, and recurred again across 26 sites: all three
+  fixes assume lazysite is running when the damage happens, and the panel is
+  what does it. The manager now warns immediately - ownership and mode
+  arithmetic, manager pages only, naming the directories, the usual cause and
+  `lazysite repair`. That is the safety net. **The cure is that the fight only
+  exists under the no-suexec CGI:** a site on the SM142 per-site FastCGI pool
+  runs as its own user, so owner-write suffices and `2751` is harmless. True
+  since SM142 and never stated; `docs/OPERATOR.md` states it now.
+
 - SM628/SM629/SM630/SM631 resolved (PENDING) **the manager stops making an
   operator decode a grid to do their job.** **SM631**: the seeded groups were six
   flat lists, two of which - `agent-ai` and `mcp-ai` - carried identical

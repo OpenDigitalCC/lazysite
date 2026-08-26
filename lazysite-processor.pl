@@ -95,6 +95,26 @@ sub _lazysite_dir_for {
     return -d $ext ? $ext : "$d/lazysite";
 }
 my $LAZYSITE_DIR = _lazysite_dir_for($DOCROOT);
+
+# SM270: can THIS process write here? Ownership and mode arithmetic, never -w.
+#
+# -w answers for the real uid when the process is running as one identity and
+# asking about another's reach, and under a no-suexec CGI those differ - which
+# is the whole subject of the question. lazysite-check evaluates effective
+# access the same way and for the same reason.
+#
+# Cheap on purpose: two stats, no fork, and only ever called on a manager page.
+sub _cgi_can_write {
+    my ($path) = @_;
+    return 1 unless defined $path && length $path;
+    my @st = stat $path or return 1;    # cannot stat: not our finding to report
+    my ( $mode, $uid, $gid ) = @st[ 2, 4, 5 ];
+    return 1 if $mode & 0002;                      # world-writable
+    return 1 if $uid == $> && ( $mode & 0200 );    # owner
+    return 1 if ( $mode & 0020 )                   # group, including supplementary
+        && grep { $_ == $gid } ( $) =~ /(\d+)/g );
+    return 0;
+}
 my $LAZYSITE_URI = "/lazysite";
 
 # SM294: the front-door settings are DEPLOYMENT properties - they describe how
@@ -7003,6 +7023,48 @@ sub render_template {
                 or $output = $banner . $output;
         }
         };
+
+    # SM270: say so the moment the site stops being writable, not at the next save.
+    #
+    # Hestia's v-rebuild-web-domain re-applies its OWN docroot permissions -
+    # 2751: setgid, no group write - and a rebuild driven through the control
+    # panel (an SSL renewal, an alias change, a panel upgrade) never reaches the
+    # lazysite deploy that repairs that. The ordering fix and the end-of-run
+    # repair both help only when lazysite RUNS, so a stable-channel site that
+    # takes no deploy for a month is unwritable for a month. SM270 was fixed
+    # once by ordering and recurred three releases later for exactly this.
+    #
+    # The engine cannot stop the panel. What it can do is stop the condition
+    # being INVISIBLE - the changelog's own words were "nothing notices until
+    # the manager fails to save", and this is that notice, arriving on the next
+    # manager page load instead.
+    #
+    # Manager pages only: it is operator-facing and auth-gated, so a public
+    # visitor pays nothing and learns nothing. Ownership+mode arithmetic, no
+    # write attempt and no fork - the same reasoning lazysite-check uses,
+    # because -w answers for the process's real ability and that is what is
+    # being questioned.
+    if ( defined $layout && $layout eq $MANAGER_LAYOUT ) {
+        my @unwritable = grep { !_cgi_can_write($_) } ( $DOCROOT, $LAZYSITE_DIR );
+        if (@unwritable) {
+            my $where = join ', ', map { my $p = $_; $p =~ s/^\Q$DOCROOT\E\/?/./; $p } @unwritable;
+            my $host = $ENV{HTTP_HOST} // '';
+            $host =~ s/[^A-Za-z0-9.:-]//g;
+            my $banner =
+                '<div id="ls-perms-warning" style="background:#8a5300;color:#fff;'
+                . 'padding:10px 14px;font:14px/1.4 system-ui,sans-serif;">'
+                . '<strong>This site is not writable by the web server.</strong> '
+                . 'Saving anything here will fail. Affected: <code>'
+                . $where
+                . '</code>. This usually follows a control-panel rebuild, which '
+                . 're-applies its own permissions. Repair it with <code>sudo '
+                . 'lazysite repair'
+                . ( length $host ? " --domain $host" : ' --docroot &lt;docroot&gt;' )
+                . '</code>.</div>';
+            $output =~ s/(<body[^>]*>)/$1$banner/i
+                or $output = $banner . $output;
+        }
+    }
 
     # SM112: identify the generator (+ optional author/description) in the head,
     # regardless of which layout rendered the page.

@@ -151,8 +151,33 @@ behind four entrances, so none of them disagree - but use `repair`.
 through the control panel. Hestia's `v-rebuild-web-domain` re-applies its own
 docroot permissions (`2751`: setgid, no group write) and a rebuild driven from
 the panel never reaches the lazysite deploy that repairs that - so an SSL
-renewal or an alias change can leave a site the CGI cannot write to, and nothing
-says so until the manager fails to save.
+renewal or an alias change can leave a site the CGI cannot write to.
+
+Since 0.11.2 the manager **says so on its next page load** rather than waiting
+for a save to fail (SM270): a banner names the affected directories and the
+repair command. That is a safety net, not the cure.
+
+::: widebox
+**The cure is to stop needing group write at all.** The permission fight exists
+only under the no-suexec CGI, where the engine runs as `www-data` and therefore
+needs the site's files to be group-writable - which is precisely the bit Hestia
+strips. A site on the **per-site FastCGI pool** (SM142) runs as its OWN user:
+the launcher binds the socket as root, chowns it, drops privileges to the site
+user, and execs the processor. Owner-write is then enough, `2751` is harmless,
+and `v-rebuild-web-domain` cannot break the site however often it runs.
+
+So a site that keeps coming back with permission drift is telling you it should
+be on a pool:
+
+```bash
+sudo systemctl enable --now lazysite@example.com
+```
+
+Identity comes from `/etc/lazysite/pools/example.com.conf` (`DOCROOT=`,
+`USER=`); point the web server at the socket - see README.Debian and the
+FastCGI pools section below. Sites left on the shared `www-data` CGI keep the
+banner and `lazysite repair` as their answer.
+:::
 
 ### FastCGI pools
 
