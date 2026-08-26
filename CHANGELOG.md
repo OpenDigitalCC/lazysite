@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM619 resolved (PENDING) **a lazysite tool run under sudo becomes the site's
+  owner before it writes.** A fleet sweep after the 0.11.0 upgrade found 31
+  sites with 16 identical failures each, all traceable to a tree owned
+  `root:root`. The rule was already written - `lazysite-check.pl:2291` states it
+  as SM139, "lazysite never writes into a site tree as root, because root-owned
+  files there are exactly what stops the manager working afterwards" - and was
+  enforced in exactly one probe. `lazysite-users.pl` performed sixteen site-tree
+  writes with no notion of root at all, and it is the tool the doctor's own
+  remediation hints tell an operator to run. ONE sudo run explains a whole tree:
+  `lazysite/auth` is setgid `02770`, so once its group is root everything made
+  beneath it afterwards inherits group root, including writes by code that is
+  itself careful. `drop_to_tree_owner()` reads the identity from the tree per
+  call - one host serves many sites owned by different users - takes the group
+  from the TREE rather than the user record, and is wired in ABOVE the
+  `make_path` that creates the directory whose group propagates. A root-owned
+  tree cannot say whose it is, so the tool refuses and names the repair instead
+  of guessing; `--as-user` covers that case. `t/unit/tools/70` runs the tool
+  under `unshare -r`, where the euid is genuinely 0, so the refusal is measured
+  rather than reasoned about. `bundle-apply` gained the house `unshift @INC`
+  bootstrap rather than the `use lib` first written for it - `t/lint/59`
+  refused that, and it is right to: a tool is run from wherever an operator
+  happens to be.
+
 ## 0.11.0 - STABLE: every entry a defect or a gap against stated intent, and the checks that passed now pass for a reason (2026-08-26)
 
 - SM618 resolved (b1fc6998) **two capabilities that hand over personal data now

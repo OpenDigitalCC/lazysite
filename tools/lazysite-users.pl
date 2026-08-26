@@ -124,7 +124,7 @@ BEGIN {
     }
 }
 use Lazysite::Paths ();    # SM293: where this site keeps its engine tree
-use Lazysite::Util  qw(log_event const_eq secure_write_perms);
+use Lazysite::Util  qw(log_event const_eq secure_write_perms drop_to_tree_owner);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
@@ -148,12 +148,14 @@ my $CLAIM_TTL     = 86_400;    # SM072 setup/reset claim: 24 hours
 
 my $DOCROOT;
 my $API_MODE = 0;
+my $AS_USER;
 my @args;
 
 while (@ARGV) {
     my $arg = shift @ARGV;
-    if    ( $arg eq '--docroot' ) { $DOCROOT = shift @ARGV }
+    if    ( $arg eq '--docroot' ) { $DOCROOT  = shift @ARGV }
     elsif ( $arg eq '--api' )     { $API_MODE = 1 }
+    elsif ( $arg eq '--as-user' ) { $AS_USER  = shift @ARGV }
     elsif ( $arg eq '--help' )    { usage(); exit 0 }
     else                          { push @args, $arg }
 }
@@ -162,6 +164,24 @@ unless ($DOCROOT) {
     print STDERR "lazysite-users.pl: --docroot is required\n\n";
     usage();
     exit 2;
+}
+
+# SM619: BECOME the site's owner before anything is written. This tool performs
+# sixteen writes into the site tree and had no notion of root at all, so
+# `sudo lazysite-users.pl ... setup-manager` created lazysite/auth/ owned
+# root:root - and because that directory is setgid 02770, every file and
+# directory made beneath it afterwards inherited group root, including writes by
+# code that was itself careful. One sudo run, a whole tree.
+#
+# The drop must happen HERE, above the make_path() below, not merely before the
+# file writes: the directory is the thing whose ownership propagates.
+{
+    my $d = drop_to_tree_owner( $DOCROOT, as_user => $AS_USER );
+    if ( !$d->{dropped} && $> == 0 ) {
+        print STDERR "lazysite-users.pl: refusing to write into '$DOCROOT' as root - "
+            . "$d->{why}\n";
+        exit 2;
+    }
 }
 
 # SM293: ASK where the engine tree is. This one matters more than most - the
@@ -3899,6 +3919,12 @@ lazysite-users.pl - user management for lazysite built-in auth
 
 Usage: perl tools/lazysite-users.pl --docroot PATH COMMAND [ARGS]
        perl tools/lazysite-users.pl --api --docroot PATH < request.json
+
+Run under sudo, this BECOMES the user that owns the docroot before writing
+anything, so nothing root-owned is left in the site tree (SM619). A tree that
+is itself owned by root cannot say whose it is: the tool refuses rather than
+guess, and --as-user NAMES the owner for that case. Repair an already-root-owned
+tree with lazysite-check.pl --fix (as root) first.
 
 Commands:
   add USERNAME PASSWORD       Add a new user

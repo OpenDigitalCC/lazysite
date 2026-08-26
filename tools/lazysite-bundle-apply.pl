@@ -12,20 +12,47 @@
 # Paths are docroot-relative. Core-only Perl; no CPAN.
 use strict;
 use warnings;
-use JSON::PP qw(decode_json);
-use File::Path qw(make_path);
+use JSON::PP       qw(decode_json);
+use File::Path     qw(make_path);
 use File::Basename qw(dirname);
 
-my ( $docroot, $apply, $file );
+# SM329: the house bootstrap, not `use lib` - t/lint/59 requires an
+# `unshift @INC` that runs BEFORE the load it exists for, because a tool is run
+# from wherever an operator happens to be and a relative lib path is not a
+# guarantee. The lint exists because six tools once could not load the modules
+# they declared, and no test noticed: nothing ran them the way an operator does.
+BEGIN {
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+use Lazysite::Util ();
+
+my ( $docroot, $apply, $file, $as_user );
 while ( my $a = shift @ARGV ) {
     if    ( $a eq '--docroot' ) { $docroot = shift @ARGV }
-    elsif ( $a eq '--apply' )   { $apply = 1 }
+    elsif ( $a eq '--apply' )   { $apply   = 1 }
+    elsif ( $a eq '--as-user' ) { $as_user = shift @ARGV }
     elsif ( $a eq '--help' )    { usage(); exit 0 }
     else                        { $file = $a }
 }
 usage_die("--docroot is required") unless defined $docroot && length $docroot;
 $docroot =~ s{/+$}{};
 usage_die("docroot '$docroot' is not a directory") unless -d $docroot;
+
+# SM619: become the tree's owner before --apply writes anything. Dropped
+# unconditionally rather than only under --apply, so a dry run and a real run
+# read the tree as the same identity - a preview performed as root can see
+# files the apply will not be able to, and would then promise work it cannot do.
+{
+    my $d = Lazysite::Util::drop_to_tree_owner( $docroot, as_user => $as_user );
+    if ( !$d->{dropped} && $> == 0 ) {
+        die "lazysite-bundle-apply.pl: refusing to act on '$docroot' as root - $d->{why}\n";
+    }
+}
 
 # Canonical deny list - the paths a bundle must never write. Reconciled from the
 # WebDAV deny list, the manager blocked-paths, and the rsync excludes.
@@ -52,8 +79,8 @@ die "Bundle has no files\n" unless @files;
 my ( @ok, @denied );
 for my $f (@files) {
     my $p = $f->{path} // '';
-    $p =~ s{^/+}{};                                  # treat as docroot-relative
-    if ( $p eq '' || $p =~ m{(?:^|/)\.\.(?:/|$)} ) { # no traversal
+    $p =~ s{^/+}{};                                     # treat as docroot-relative
+    if ( $p eq '' || $p =~ m{(?:^|/)\.\.(?:/|$)} ) {    # no traversal
         push @denied, { path => $f->{path}, why => 'invalid path' };
         next;
     }
@@ -61,14 +88,14 @@ for my $f (@files) {
         push @denied, { path => $p, why => 'denied path' };
         next;
     }
-    my $abs  = "$docroot/$p";
-    my $op   = ( -e $abs ) ? 'overwrite' : 'create';
+    my $abs = "$docroot/$p";
+    my $op  = ( -e $abs ) ? 'overwrite' : 'create';
     push @ok, { path => $p, abs => $abs, op => $op, content => $f->{content} // '' };
 }
 
 print "Bundle: ", scalar(@files), " file(s); ", scalar(@ok), " allowed, ",
-      scalar(@denied), " denied.\n";
-print "  [$_->{op}] $_->{path}\n" for @ok;
+    scalar(@denied), " denied.\n";
+print "  [$_->{op}] $_->{path}\n"         for @ok;
 print "  [DENIED:$_->{why}] $_->{path}\n" for @denied;
 
 if ($apply) {

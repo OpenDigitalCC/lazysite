@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity);
 
 our $COMPONENT = 'lazysite';
 
@@ -35,6 +35,105 @@ sub secure_write_perms {
     if ( $> == 0 ) { chown $duid, $dgid, $path }    # root: match the provisioned dir
     else           { chown -1, $dgid, $path }       # non-root: group only, best-effort
     return;
+}
+
+# SM619: BECOME the owner of the site tree before writing into it.
+#
+# The rule this enforces is not new - lazysite-check.pl states it as SM139:
+# "lazysite never writes into a site tree as root, because root-owned files
+# there are exactly what stops the manager working afterwards". It was enforced
+# in exactly one probe. A fleet sweep after the 0.11.0 upgrade found 31 sites
+# with 16 identical failures each, every one traceable to a tree owned root:root
+# - and one root-run command explains a whole tree, because lazysite/auth is
+# setgid (02770): once ITS group is root, everything created beneath it
+# afterwards inherits group root, including writes by callers that are
+# themselves careful.
+#
+# secure_write_perms (SM215) is the per-FILE remedy and cannot reach this case:
+# it inherits owner and group from the parent directory, so when the parent is
+# the thing make_path() just created as root, it faithfully inherits root.
+#
+# WHOSE identity: the docroot's, read per call. One host serves many sites owned
+# by different users, so this is never a constant - it is whatever owns the tree
+# being written to, resolved fresh each time.
+#
+# Returns a hashref: { dropped => 0|1, user, group, why }. NEVER dies - the
+# caller decides whether a refusal to drop is fatal, because that answer differs
+# between a tool that writes (fatal) and one that only reads (harmless).
+# The DECISION half, split out so it can be tested without being root: given a
+# tree and an optional --as-user, who should this process become? Returns
+# ( uid, gid ) or ( undef, why ). A test can point it at any real directory,
+# including a genuinely root-owned one like '/', which is how the refusal path
+# gets exercised at all - the alternative was a fake-root environment variable
+# inside a privilege-dropping function, which is a worse thing to own.
+sub target_identity {
+    my ( $docroot, %opt ) = @_;
+    my ( $uid, $gid );
+    if ( defined $opt{as_user} && length $opt{as_user} ) {
+        my @pw = getpwnam $opt{as_user}
+            or return ( undef, "no such user '$opt{as_user}'" );
+        ( $uid, $gid ) = @pw[ 2, 3 ];
+        # An explicit --as-user names the OWNER; the tree still decides the
+        # group, so a file lands in the web group the site is provisioned with
+        # rather than the user's private group.
+        my @ds = stat $docroot;
+        $gid = $ds[5] if @ds && $ds[5] != 0;
+    }
+    else {
+        my @ds = stat $docroot
+            or return ( undef, "cannot stat '$docroot'" );
+        ( $uid, $gid ) = @ds[ 4, 5 ];
+        # A root-owned tree cannot say who it belongs to. Guessing here is how
+        # the damage spread in the first place, so say so and let the caller
+        # refuse - the repair (lazysite-check --fix, as root) is a different
+        # tool with a different job.
+        return ( undef,
+            "the tree at '$docroot' is owned by root, so it cannot say "
+                . 'which user to become - repair ownership first '
+                . '(lazysite-check.pl --docroot ... --fix, as root), '
+                . 'or name the owner with --as-user' )
+            if $uid == 0;
+    }
+
+    return ( $uid, $gid );
+}
+
+sub drop_to_tree_owner {
+    my ( $docroot, %opt ) = @_;
+    return { dropped => 0, why => 'not running as root' } if $> != 0;
+
+    my ( $uid, $gid ) = target_identity( $docroot, %opt );
+    return { dropped => 0, why => $gid } unless defined $uid;
+
+    # ORDER MATTERS AND IS NOT RECOVERABLE. The group must be set while still
+    # root: once the UID is dropped the process can no longer change its GID, so
+    # a UID-first version would strand the process in root's group with no way
+    # back and no error to say so.
+    $) = "$gid $gid";    ## no critic (Variables::RequireLocalizedPunctuationVars)
+    $( = $gid;           ## no critic (Variables::RequireLocalizedPunctuationVars)
+    $> = $uid;           ## no critic (Variables::RequireLocalizedPunctuationVars)
+    $< = $uid;           ## no critic (Variables::RequireLocalizedPunctuationVars)
+
+    # Perl does not die when one of those assignments fails, so VERIFY rather
+    # than assume. Both real and effective are checked: dropping only the
+    # effective ids would leave the privilege reachable again through $> = 0.
+    if ( $> != $uid || $< != $uid || $) + 0 != $gid || $( + 0 != $gid ) {
+        return {
+            dropped => 0,
+            why     => "could not drop to uid $uid gid $gid "
+                . "(now euid=$>, uid=$<, egid=" . ( $) + 0 ) . ", gid=" . ( $( + 0 ) . ')'
+        };
+    }
+
+    # 0002, so a new file is group-writable and a new directory group-writable
+    # and traversable - what the CGI needs, and what the deploy sets by hand.
+    umask 0002;
+
+    return {
+        dropped => 1,
+        user    => scalar( ( getpwuid $uid )[0] ) // $uid,
+        group   => scalar( ( getgrgid $gid )[0] ) // $gid,
+    };
 }
 
 # Constant-time string compare for timing-safe credential/token checks.
