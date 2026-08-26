@@ -38,10 +38,39 @@ The capability gating and per-file ACLs are identical whichever you use - call
    (it waits for the connection, then reveals the task prompt).
 2. In Claude.ai: **Settings** (click your username) → **Connectors** (under
    *Customize*) → **Add custom connector**. Enter the **Name** (the site domain)
-   and the **URL** above; leave Advanced settings blank; **Add**.
-3. Open a new chat, enable the connector, and ask Claude to run `whoami`.
-4. Claude.ai shows a sign-in pop-up; paste the **connect code**. Done - the Users
+   and the **URL** above.
+3. **Set the OAuth client to "No client ID - register one automatically".**
+   This one matters and the default is wrong for this server. Claude.ai now asks
+   which kind of OAuth client to use, and recommends *"Use Anthropic's hosted
+   client metadata (CIMD)"* - where the server fetches Claude's client details
+   from a URL Anthropic hosts. **This server does not support CIMD.** It
+   implements RFC 7591 dynamic client registration, which is the option
+   Claude.ai labels *"No client ID - register one automatically"*. Choose that
+   and registration succeeds; leave the recommended default and the connector
+   never reaches the sign-in step, so the connect code has nowhere to go.
+4. Leave **Authentication** as *"Required when the server asks"* - this server
+   answers an unauthenticated request with `WWW-Authenticate`, which is exactly
+   the ask that setting waits for. *"Always required"* also works.
+5. Under **Advanced**, leave **Transport** on **Streamable HTTP**. This server is
+   POST-only and answers `GET` with 405, so **SSE (legacy) will not work**.
+   Claude.ai selects SSE automatically for a URL ending in `/sse`; this one does
+   not, so the default is already right - just do not change it.
+6. Open a new chat, enable the connector, and ask Claude to run `whoami`.
+7. Claude.ai shows a sign-in pop-up; paste the **connect code**. Done - the Users
    panel flips to connected and gives you the prompt to paste.
+
+::: widebox
+**If Authentication shows "None - Detected".** Claude.ai probed the server and
+found no OAuth, which means `oauth_enabled` is off on this instance. Turn it on
+in the manager: **Config → Services → OAuth authorization server**. Every OAuth
+endpoint returns 404 until you do, so the connect-code flow cannot start.
+
+You can also skip OAuth entirely: leave Authentication on **None**, and add
+`Authorization: Bearer <partner-id>:<token>` under **Additional request
+headers** using a token from **Generate agent brief**. That path needs no
+`oauth_enabled` and no connect code - it is the static-bearer method below,
+driven from the web app.
+:::
 
 ## ChatGPT (Plus / Pro / Business / Enterprise)
 

@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM621 resolved (PENDING) **the connector instructions match the dialog again.**
+  Claude.ai's Add-custom-connector dialog gained an OAuth client section and
+  recommends *"Use Anthropic's hosted client metadata (CIMD)"*, where the server
+  fetches Claude's client details from a URL Anthropic hosts. `lazysite-oauth.pl`
+  implements RFC 7591 dynamic client registration - the option that dialog calls
+  *"No client ID, register one automatically"*. Taking the recommendation
+  produces a connector that never reaches the sign-in prompt, so the one-time
+  connect code is never asked for. The failure is misleading: the code is the
+  thing on screen, counting down, with a Regenerate button beside it, so it gets
+  blamed and re-minted forever. Our guide said *"leave Advanced settings blank"*,
+  which was true of the old dialog and became wrong without anyone touching the
+  file. The correction is on the CARD as well as in the guide, because the card
+  is what an operator is looking at when it happens; `t/unit/manager/123` runs
+  the card builder and asserts on rendered HTML, and pins the guide to the card
+  so the two cannot drift apart again. Also stated now: `GET` is 405, so SSE
+  cannot work, and *"None - Detected"* beside Authentication means
+  `oauth_enabled` is off on that instance.
+
 - SM619 resolved (PENDING) **a lazysite tool run under sudo becomes the site's
   owner before it writes.** A fleet sweep after the 0.11.0 upgrade found 31
   sites with 16 identical failures each, all traceable to a tree owned

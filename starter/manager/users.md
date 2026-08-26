@@ -957,6 +957,21 @@ function showConnector(user) {
         '<span class="mg-muted"><b>Claude.ai:</b> Settings &rarr; Connectors &rarr; Add custom connector. ' +
         '<b>ChatGPT:</b> Settings &rarr; Apps &rarr; Developer mode &rarr; create. ' +
         '<a href="/docs/ai-connector-setup" target="_blank">full guide</a></span></li>' +
+        // SM621: Claude.ai's dialog gained an OAuth client section whose
+        // RECOMMENDED default (CIMD - the server fetches Claude's client
+        // details from a URL Anthropic hosts) is one this server does not
+        // implement. It does RFC 7591 dynamic registration, which that dialog
+        // calls "No client ID - register one automatically". An operator who
+        // takes the recommendation never reaches the sign-in prompt, so the
+        // connect code below has nowhere to go - and the failure looks like a
+        // bad code rather than a wrong radio button. Said HERE, beside the
+        // code, because that is where the operator is looking; the guide has
+        // the long version.
+        '<li>If Claude.ai asks for an <b>OAuth client</b>, choose ' +
+        '<b>&ldquo;No client ID &mdash; register one automatically&rdquo;</b>. ' +
+        'Its recommended default (Anthropic&rsquo;s hosted client metadata) is not ' +
+        'supported here, and picking it means step 3 never appears. ' +
+        'Leave <b>Transport</b> on <b>Streamable HTTP</b>.</li>' +
         '<li>Open a <b>new chat</b> and use this prompt: <i>&ldquo;Enable the ' + dom +
         ' connector, and verify it is active by running whoami.&rdquo;</i></li>' +
         '<li>When it asks you to sign in, paste this one-time connect code:' +
