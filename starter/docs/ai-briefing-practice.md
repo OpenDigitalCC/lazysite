@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.11.0
+     engine-version: 0.11.1
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2409926c3faddb606da8aae63100c1dbf3f065296ea51456a62ad17ac1deb2e0 modified=2026-08-26
-     body-sha256: f27d1868224ccf739016f9645e2321e6ac93c31f9b121417ecb3b66501eec2ad
+     body-sha256: d73f5f01683e0484c77c59cc802983e96f8675984099a186b45bd04ef5d7d5c1
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.11.0**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.11.1**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -116,7 +116,7 @@ colours. This is what makes a restyle a one-file change.
 
 ## Briefs: stop writing sidecars from 0.10.29
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
 
 **SM245 retires the `.brief` sidecar.** The record survives, in an engine-owned
 store at `lazysite/briefs/<content-path>`, owned by a contract plugin that ships
@@ -278,7 +278,7 @@ just a sentence next to the claim it qualifies. (Keep `precisely` where it means
 
 ## A `db:` binding has a row ceiling, and it changed in 0.10.30
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
 
 A binding with no explicit limit does not return every row. This bites only
 once a table passes 200 rows - which is exactly when a site has become worth
@@ -322,7 +322,7 @@ So:
 
 ## Creating a page in a folder that does not exist yet
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
 
 Verified on 0.10.30, and the channel decides:
 
@@ -341,7 +341,7 @@ there yet, on any channel - that is what makes brief-first authoring possible.
 
 ## WebDAV writes that leave something stale
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
 
 Proven defects as at 0.10.32, fix planned but NOT yet shipped. They share one
 shape: **the manager path cleans up and the DAV path does not**, so the same
@@ -365,7 +365,7 @@ engine's bookkeeping hangs off the tools that know about pages.
 
 ## Things that look equivalent and are not
 
-*Version-independent - a field scar. It held before engine 0.11.0 and holds after it, on any site you connect to.*
+*Version-independent - a field scar. It held before engine 0.11.1 and holds after it, on any site you connect to.*
 
 Each of these cost real time; none is obvious from reading.
 
@@ -415,7 +415,7 @@ Each of these cost real time; none is obvious from reading.
 
 ## Verify like this
 
-*Version-independent - a field scar. It held before engine 0.11.0 and holds after it, on any site you connect to.*
+*Version-independent - a field scar. It held before engine 0.11.1 and holds after it, on any site you connect to.*
 
 - After every publish, fetch the page and confirm the thing you changed.
 - Prefer a probe that cannot lie: to test a loop, render it; to test a version,
@@ -514,7 +514,7 @@ notice - see *State that only exists in one browser*, below.
 
 ## Probe the action before you design around the capability
 
-*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
 
 `describe-capabilities` lists actions its own server will refuse. A capability
 reads `true`, the action appears in the `actions` map, and the call answers
@@ -781,7 +781,7 @@ early saves building it twice.
 
 ## Changing rows over the API
 
-*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.1.*
 
 Reading is `db:` in the page. Writing is the control API, and four of its
 conventions cost a round trip each the first time you meet them. Verified
@@ -1282,7 +1282,7 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-08-26** by `tools/import-field-practice.pl`, for engine **0.11.0**. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-08-26** by `tools/import-field-practice.pl`, for engine **0.11.1**. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
