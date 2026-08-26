@@ -42,6 +42,36 @@ END {
     }
 }
 
+# SM603: THE REHEARSAL RECORD IS A FIXTURE NOW, not ambient state.
+#
+# The certified subtest needs a STALE rehearsal to prove the finding is a hard
+# FAIL there. It used to get one by the repo happening to be behind - so the
+# moment a rehearsal was recorded, as the 0.11.0 stable prep did, the test that
+# checks staleness is caught failed because nothing was stale. A test that
+# needs the project to be broken cannot be run on a healthy project.
+#
+# Same pattern set_switch already uses: mutate, measure, restore. The END block
+# below restores both, so a die mid-test cannot leave the record edited.
+my $reliab = "$root/docs/RELIABILITY.md";
+my $reliab_orig = do { open my $fh, '<', $reliab or die $!; local $/; <$fh> };
+
+sub age_rehearsals {
+    ( my $t = $reliab_orig ) =~ s/^(\s*)20\d\d-\d\d-\d\d(\s*\|)/${1}2001-01-01${2}/mg;
+    open my $fh, '>', $reliab or die $!;
+    print {$fh} $t;
+    close $fh;
+    return;
+}
+
+sub restore_rehearsals {
+    open my $fh, '>', $reliab or die $!;
+    print {$fh} $reliab_orig;
+    close $fh;
+    return;
+}
+
+END { restore_rehearsals() if defined $reliab_orig }
+
 sub set_switch {
     my ($value) = @_;
     ( my $t = $orig ) =~ s/^signoff_required:.*$/signoff_required: $value/m;
@@ -67,8 +97,24 @@ subtest 'a stable cut passes under the documented protocol - the gate MOVED' => 
     is( $rc, 0, 'a stable cut passes with the switch at no' ) or diag($out);
     like( $out, qr/blocking at a certified cut/,
         'the declaration finding is an advisory pointing one rung up' );
-    like( $out, qr/blocking at certified/,
-        'and so is the restore-rehearsal finding' );
+    # SM603: ONLY WHEN THE FINDING IS THERE. This asserted the restore-rehearsal
+    # warning's text unconditionally, which pinned a TRANSIENT STATE: the
+    # warning exists only while the rehearsal record is stale, so recording a
+    # rehearsal - the very thing the finding asks for - failed the test that
+    # checks the finding is advisory. A check whose evidence disappears when
+    # the problem is fixed cannot tell "fixed" from "broken".
+    #
+    # The property is: IF the rehearsal finding appears at stable, it points one
+    # rung up rather than blocking. When the cadence is met there is no finding
+    # and nothing to point anywhere, which is the stronger outcome.
+    if ( $out =~ /restore rehearsal:/ ) {
+        like( $out, qr/blocking at certified/,
+            'and so is the restore-rehearsal finding' );
+    }
+    else {
+        like( $out, qr/newest restore rehearsal/,
+            'the rehearsal cadence is met, so there is no finding to be advisory' );
+    }
 };
 
 subtest 'the switch keeps its voluntary meaning below certified' => sub {
@@ -86,6 +132,7 @@ subtest 'certified is where the records bite, and the switch cannot mask them' =
     # cut with the switch left at 'no' must not sail through on masked
     # findings - that would be a certified label over unwalked records.
     set_switch('no');
+    age_rehearsals();    # SM603: construct the staleness rather than depend on it
     my ( $rc, $out ) = run_check('certified');
     isnt( $rc, 0, 'a certified cut refuses on this tree despite the switch' );
     like( $out, qr/signoff_required forced on/,

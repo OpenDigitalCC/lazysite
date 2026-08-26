@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.10.34
-     imported: 2026-08-25
+     engine-version: 0.11.0
+     imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=b8d287f5694bc85258f3223ec0365714f80084feabdec4e8be1579ffe0d7ec8a modified=2026-08-25
-     body-sha256: 79c882c6950c863c70a2e3f74ec5ffae2fb050fdfd213d44e4c20561ef3f9b69
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=eff4a8d7f86631afc17072abe4269648d83d1f67e633ec09c83b9bc0f22722c7 modified=2026-08-26
+     body-sha256: 9820d09a1e87f31a4e0f84f3171ec3c936c2883ad3df00b7846f9ec4f209f781
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.10.34**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.11.0**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -116,7 +116,7 @@ colours. This is what makes a restyle a one-file change.
 
 ## Briefs: stop writing sidecars from 0.10.29
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.34.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
 
 **SM245 retires the `.brief` sidecar.** The record survives, in an engine-owned
 store at `lazysite/briefs/<content-path>`, owned by a contract plugin that ships
@@ -278,7 +278,7 @@ just a sentence next to the claim it qualifies. (Keep `precisely` where it means
 
 ## A `db:` binding has a row ceiling, and it changed in 0.10.30
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.34.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
 
 A binding with no explicit limit does not return every row. This bites only
 once a table passes 200 rows - which is exactly when a site has become worth
@@ -322,7 +322,7 @@ So:
 
 ## Creating a page in a folder that does not exist yet
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.34.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
 
 Verified on 0.10.30, and the channel decides:
 
@@ -341,7 +341,7 @@ there yet, on any channel - that is what makes brief-first authoring possible.
 
 ## WebDAV writes that leave something stale
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.10.34.*
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
 
 Proven defects as at 0.10.32, fix planned but NOT yet shipped. They share one
 shape: **the manager path cleans up and the DAV path does not**, so the same
@@ -365,7 +365,7 @@ engine's bookkeeping hangs off the tools that know about pages.
 
 ## Things that look equivalent and are not
 
-*Version-independent - a field scar. It held before engine 0.10.34 and holds after it, on any site you connect to.*
+*Version-independent - a field scar. It held before engine 0.11.0 and holds after it, on any site you connect to.*
 
 Each of these cost real time; none is obvious from reading.
 
@@ -415,7 +415,7 @@ Each of these cost real time; none is obvious from reading.
 
 ## Verify like this
 
-*Version-independent - a field scar. It held before engine 0.10.34 and holds after it, on any site you connect to.*
+*Version-independent - a field scar. It held before engine 0.11.0 and holds after it, on any site you connect to.*
 
 - After every publish, fetch the page and confirm the thing you changed.
 - Prefer a probe that cannot lie: to test a loop, render it; to test a version,
@@ -514,7 +514,7 @@ notice - see *State that only exists in one browser*, below.
 
 ## Probe the action before you design around the capability
 
-*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.10.34.*
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
 
 `describe-capabilities` lists actions its own server will refuse. A capability
 reads `true`, the action appears in the `actions` map, and the call answers
@@ -551,6 +551,123 @@ something else after the tables were already built.
 **The browser** (`localStorage`)
 : Only for genuinely local preferences - which tab was open, a draft not yet
   submitted. Never for the thing the app is *for*.
+
+## Choosing between a table and a JSON file
+
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
+
+The rule in one line: **if the data is written often, or by more than one
+person at a time, or must be private, it is a table. If it is written rarely by
+an author and only read by visitors, it is a JSON file.**
+
+The reason is not the storage. It is what each does to the page cache, and the
+difference is larger than it looks.
+
+### A db: page is never cached. A json: page is
+
+A page bound to a JSON file is rendered once and served from the cache
+afterwards; SM311 makes the cache notice when the file changes, so it is fresh
+without being re-rendered. A page bound to a table is rendered **on every
+request**, because a table has no timestamp that could prove the cached copy
+still current.
+
+Measured on edge (0.10.33), median of 15 requests, as the cost **above a plain
+cached page** so network latency is subtracted out:
+
+| Ref | What the page reads | json: | db: |
+| --- | --- | --- | --- |
+| S-1 | 10 rows | +1 ms | **+159 ms** |
+| S-2 | 100 rows | +2 ms | **+190 ms** |
+| S-3 | 500 rows | +29 ms | **+202 ms** |
+| S-4 | 100 rows of long text | 0 ms | **+163 ms** |
+| S-5 | 500 rows, filtered to 125 | +2 ms | **+173 ms** |
+| S-6 | a count of 500 rows | +19 ms | **+178 ms** |
+
+Three things follow, and each one changes a design decision.
+
+**The table cost is nearly all fixed.** Going from 10 rows to 500 adds about
+40 ms; simply *having* a `db:` binding costs about 160 ms. "It is only a few
+rows" is not a defence - a five-row table on a busy page costs almost exactly
+what a five-hundred-row one does. What you are paying for is the render, and
+the data modules it has to load, on every request.
+
+**Filters and indexes do not rescue it.** S-5 filtered 500 rows down to 125 in
+SQL and still paid the full fixed cost, and an indexed column measured the same
+as an unindexed one at this size. Indexing is worth doing for large tables; it
+does not make a bound page cheap.
+
+**The JSON cost tracks the OUTPUT, not the input.** S-3's +29 ms is 500 rows of
+HTML going over the wire, not the file being parsed - S-5 reads the same 500-row
+file, renders 125 rows, and costs +2 ms. The parse happens once, at render.
+
+### Writing
+
+One record changed, median of 5, wall time including network:
+
+| Ref | Dataset | Table write | JSON write |
+| --- | --- | --- | --- |
+| W-1 | 10 records (0.9 KB) | 678 ms | 303 ms |
+| W-2 | 100 records (9.5 KB) | 687 ms | 330 ms |
+| W-3 | 500 records (48.6 KB) | 696 ms | 371 ms |
+
+**Read that shape, not those numbers.** A JSON write is cheaper here because it
+is a WebDAV PUT against a light endpoint while a row write goes through the
+control API - that is the endpoint, not the storage. What matters is the slope:
+**the table write is flat in the size of the table, and the JSON write grows
+with the size of the file**, because there is no way to change one record in a
+JSON file without rewriting all of it. At 500 records the gap is already
+closing; at several thousand it inverts and keeps going.
+
+### The two things that decide it more often than speed
+
+**Concurrent writers.** Changing one record in a JSON file means read, modify,
+write the whole file. Two people doing that at once lose one of the changes,
+silently, and nothing in the mechanism can prevent it. A table writes one row,
+and a unique key gives a genuine atomic test-and-set - which is what makes
+[handing out work to several people at once](#handing-out-work-to-several-people-at-once)
+possible at all. **If two people can write at the same time, it is a table, and
+speed does not enter into it.**
+
+**Privacy.** A JSON file in the docroot is fetched by anyone who knows its URL -
+this was confirmed by fetching a 49 KB data file anonymously. A table is private
+unless its descriptor says `public: true`, and an anonymous request for a
+non-public table is refused without confirming it exists.
+
+That cuts both ways, and the second half is a trap: **a `db:` page renders ZERO
+rows to a signed-out visitor unless the table is public, with no error on the
+page.** A binding resolves as the person requesting it, so a page that looks
+right to you while signed in can be empty to everyone else. Test every
+table-backed public page signed out before believing it.
+
+### Do not mix the two on one page
+
+The tempting arrangement - a JSON file for the static lookup, a table for the
+rows that change - **does not work, and fails silently.** A page carrying both
+becomes cacheable on the strength of the JSON dependency, and its table rows
+then freeze at whatever they were when it was last rendered. Measured on edge,
+a mixed page served rows three writes out of date, in both binding orders, until
+it was flushed by hand. Filed 2026-08-26 as
+`mixing-json-and-db-bindings-freezes-the-db-rows`.
+
+Split by **page**, not by binding: a cached, JSON-backed page for the static
+material, and a separate table-backed page for the live rows.
+
+### So, in practice
+
+| Ref | The data | Store | Why |
+| --- | --- | --- | --- |
+| C-1 | A price list, a gallery, a set of questions, a lookup table | **JSON** | Author writes it, visitors read it, cache serves it for nothing |
+| C-2 | Anything a visitor or operator submits | **Table** | There is a write path, and it needs to be safe |
+| C-3 | A work queue several people draw from | **Table** | Only a unique key makes the claim atomic |
+| C-4 | Anything not everyone may see | **Table** | A docroot file has no reader check |
+| C-5 | Reference data that changes monthly, on a busy public page | **JSON** | Paying 160 ms per visitor for data that changes monthly is the wrong trade |
+| C-6 | Reference data that must be right within the minute | **Table** | Freshness is what the render cost buys |
+
+The awkward case is C-5 against C-6: read-mostly data that still has to be
+current. Prefer JSON and re-publish the file when it changes - the re-publish
+invalidates the page by itself, and every visitor between changes reads from
+cache. Reach for a table only when "within the minute" is a real requirement
+rather than a preference.
 
 ## State that only exists in one browser
 
@@ -652,7 +769,7 @@ early saves building it twice.
 
 ## Changing rows over the API
 
-*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.10.34.*
+*Version-dated - this describes behaviour that **differs by engine version**. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
 
 Reading is `db:` in the page. Writing is the control API, and four of its
 conventions cost a round trip each the first time you meet them. Verified
@@ -1147,12 +1264,12 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-08-25** by `tools/import-field-practice.pl`, for engine **0.10.34**. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-08-26** by `tools/import-field-practice.pl`, for engine **0.11.0**. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md` | sites and content | 2026-08-25 |
-| `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-25 |
+| `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-26 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; an operator can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
