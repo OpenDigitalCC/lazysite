@@ -10,8 +10,8 @@ register:
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=94f6f4b357acbeb9d66abfd6e6acc53d93a6a19f5968ab7a9d4c7063db797f0a modified=2026-08-26
-     body-sha256: 7527d5b874f299a788218653ba6aa8973548efd6f09769c6b429456250695f58
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=49e8699b7b6248035644deabb66690c4042d4027ec6f5ff5d67243c63c5d6561 modified=2026-08-26
+     body-sha256: c21575d2f06552b2c4ca1cdb0dd30786704fe8ae5249fd069c10c4544d923b3b
 -->
 
 ## What this is, and what it is not
@@ -560,21 +560,22 @@ The rule in one line: **if the data is written often, or by more than one
 person at a time, or must be private, it is a table. If it is written rarely by
 an author and only read by visitors, it is a JSON file.**
 
-The reason is not the storage. It is what each does to the page cache, and the
-difference is larger than it looks.
+The storage choice is decided by who writes it and who may read it. The render
+cost that looks like it should decide it is a separate question with its own
+lever, and it is worth taking that off the table first.
 
-### A db: page is never cached. A json: page is
+### What a table-backed page costs, and the one line that removes it
 
-A page bound to a JSON file is rendered once and served from the cache
-afterwards; SM311 makes the cache notice when the file changes, so it is fresh
-without being re-rendered. A page bound to a table is rendered **on every
-request**, because a table has no timestamp that could prove the cached copy
-still current.
+A page bound to a table **and carrying no `ttl:`** is re-rendered on every
+request. It declares no dependency that could prove a cached copy still current -
+a table has no timestamp to compare against - so the engine renders it again
+rather than serve something it cannot vouch for.
 
 Measured on edge (0.10.33), median of 15 requests, as the cost **above a plain
-cached page** so network latency is subtracted out:
+cached page**, so network latency is subtracted out. Every page here carries no
+`ttl:`:
 
-| Ref | What the page reads | json: | db: |
+| Ref | What the page reads | json: | db:, no ttl: |
 | --- | --- | --- | --- |
 | S-1 | 10 rows | +1 ms | **+159 ms** |
 | S-2 | 100 rows | +2 ms | **+190 ms** |
@@ -583,22 +584,56 @@ cached page** so network latency is subtracted out:
 | S-5 | 500 rows, filtered to 125 | +2 ms | **+173 ms** |
 | S-6 | a count of 500 rows | +19 ms | **+178 ms** |
 
-Three things follow, and each one changes a design decision.
+**The cost is nearly all fixed.** Going from 10 rows to 500 adds about 40 ms;
+simply *having* the binding on an uncached page costs about 160 ms. "It is only
+a few rows" is not a defence - what you are paying for is the render, and the
+data modules it has to load.
 
-**The table cost is nearly all fixed.** Going from 10 rows to 500 adds about
-40 ms; simply *having* a `db:` binding costs about 160 ms. "It is only a few
-rows" is not a defence - a five-row table on a busy page costs almost exactly
-what a five-hundred-row one does. What you are paying for is the render, and
-the data modules it has to load, on every request.
-
-**Filters and indexes do not rescue it.** S-5 filtered 500 rows down to 125 in
-SQL and still paid the full fixed cost, and an indexed column measured the same
-as an unindexed one at this size. Indexing is worth doing for large tables; it
-does not make a bound page cheap.
+**Filters and indexes do not rescue it.** S-5 filtered 500 rows to 125 in SQL
+and still paid the full fixed cost, and an indexed column measured the same as
+an unindexed one at this size. Indexing is worth doing for large tables; it does
+not make an uncached page cheap.
 
 **The JSON cost tracks the OUTPUT, not the input.** S-3's +29 ms is 500 rows of
 HTML going over the wire, not the file being parsed - S-5 reads the same 500-row
 file, renders 125 rows, and costs +2 ms. The parse happens once, at render.
+
+### One line of front matter removes all of it
+
+`ttl:` puts the page on the cache's time branch: rendered once, served from
+cache until the ttl expires, then rendered again. Same binding, same 100 rows,
+the only difference being one line:
+
+| Ref | Page | Cost per request | What a visitor sees |
+| --- | --- | --- | --- |
+| T-1 | `db:` with no `ttl:` | **+166 ms** | always current |
+| T-2 | `db:` with `ttl: 300` | **+3 ms** | up to 5 minutes old |
+| T-3 | `json:` (control) | +2 ms | current within the cache's own tracking |
+
+So **the render cost is a freshness choice, not a storage cost.** An uncached
+table page buys you rows that are right to the second and charges about 160 ms
+of somebody's time for it, on every hit. A ttl buys the cost back and spends
+staleness instead.
+
+The binding carries a mode as well, and it is the other half of the same
+choice. The default - `snapshot` - is what everything above measures: the rows
+are read once when the page renders and cached with it. Writing
+`db:table(mode=live)` opts the page out of caching altogether, whatever ttl it
+sets, and pays the render on every request in exchange for never serving a
+stale row.
+
+That is two levers pointing opposite ways: `ttl:` trades freshness for speed,
+`mode=live` trades speed for freshness. Reach for `mode=live` only when a stale
+row would actually mislead someone - it is the expensive direction, and the
+default is not it.
+
+Choose the ttl from how old the data may be before it misleads someone - not
+from how fast you want the page. A price list is fine at `ttl: 3600`. A queue
+four people are drawing from is not fine at any ttl, which is why the
+reconciliation app renders its rows in the browser instead of binding them.
+
+With a ttl in place the two sources cost the same to read, and the choice
+between them comes down to the two questions below.
 
 ### Writing
 
@@ -647,14 +682,15 @@ table-backed public page signed out before believing it.
 | C-2 | Anything a visitor or operator submits | **Table** | There is a write path, and it needs to be safe |
 | C-3 | A work queue several people draw from | **Table** | Only a unique key makes the claim atomic |
 | C-4 | Anything not everyone may see | **Table** | A docroot file has no reader check |
-| C-5 | Reference data that changes monthly, on a busy public page | **JSON** | Paying 160 ms per visitor for data that changes monthly is the wrong trade |
-| C-6 | Reference data that must be right within the minute | **Table** | Freshness is what the render cost buys |
+| C-5 | Reference data that changes monthly, on a busy public page | **Either** | Give the page a ttl and both cost the same; decide it on C-2 to C-4 |
+| C-6 | Rows that must be right to the second | **Table, no ttl** | The per-request render is exactly what buys that |
 
-The awkward case is C-5 against C-6: read-mostly data that still has to be
-current. Prefer JSON and re-publish the file when it changes - the re-publish
-invalidates the page by itself, and every visitor between changes reads from
-cache. Reach for a table only when "within the minute" is a real requirement
-rather than a preference.
+C-5 is the case people get wrong, in both directions. Read-mostly data on a
+busy page is not a reason to denormalise a table into a JSON file - a ttl
+settles the cost. And a table is not automatically the safe choice for data
+that must be current: if it must be right to the second for several people at
+once, a bound page is the wrong shape whatever its ttl, and the rows should be
+read in the browser at the moment they are needed.
 
 ## State that only exists in one browser
 
@@ -722,8 +758,11 @@ storing any of it in the data.
 
 Three properties worth knowing:
 
-- **A `db:` page is never cached.** It renders per request. That is correct for
-  data that changes, and it is a cost to keep in mind on a heavy page.
+- **A `db:` page with no `ttl:` renders per request**, at about 160 ms a hit.
+  That is correct for data that changes, and it is a real cost on a heavy page.
+  Adding `ttl:` moves the page onto the cache's time branch and the cost goes
+  away - see *Choosing between a table and a JSON file*, above, for the numbers
+  and for how to pick the ttl.
 - **An unpublished table renders nothing to an ANONYMOUS visitor, silently** -
   not the rows, not the fact that it exists - while the API and the manager
   still read it, so the data looks fine and the page looks broken. It renders
