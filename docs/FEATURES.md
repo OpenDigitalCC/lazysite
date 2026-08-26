@@ -12,7 +12,7 @@ the processor renders it to HTML through a layout/theme, caches the result as a
 sibling `.html`, and the web server serves that cache directly thereafter. There
 is **no build step, no database, and no application server** - just CGI scripts, a
 tree of Markdown, and a flat-file configuration. (For production speed the same
-processor can run as a persistent per-site FastCGI pool - see Part IX - but
+processor can run as a persistent per-site FastCGI pool - see Part X - but
 plain CGI remains the default and the baseline.)
 
 Around that core sits a full publishing and management stack: a browser-based
@@ -1318,7 +1318,138 @@ MCP tool let an agent read submissions over API/MCP without the broader
 
 ---
 
-# Part IX - Installation, deployment, and operations
+# Part IX - Typed data: tables, bindings and the write doors
+
+A lazysite site can hold **declared, typed tables** as well as content files.
+This is what the app examples rest on: a work queue, a stock list, a
+reconciliation run are all rows in a table with a schema somebody wrote down,
+rather than JSON somebody hopes stays well-formed.
+
+Reference: `/docs/data-tables`. Authoring practice: `/docs/ai-briefing-data`.
+
+## The descriptor is the schema
+
+One YAML file per table under `lazysite/db/tables/<name>.yaml`, and the
+**filename is the table name** - lower-case letters, digits and underscores.
+The descriptor is the only place a table's shape is stated; nothing infers a
+column from a row.
+
+```yaml
+title: Products
+domain: shop.example.com     # which domain owns it, on a multi-domain instance
+key: code
+public: false
+fields:
+  code:  { type: text, required: true, max: 20, unique: true }
+  price: { type: decimal, digits: 8, places: 2 }
+  in_stock: { type: boolean, default: true }
+```
+
+| Key | What it settles |
+|---|---|
+| `key` | which field identifies a row; `id` if absent, and then auto-assigned |
+| `fields` | the columns and their types - `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `enum` |
+| `required`, `max`, `unique`, `default` | per field, enforced on every write |
+| `indexes` | what to index, for tables large enough to need it |
+| `timestamps` | records when a row was created and changed |
+| `default_order` | the sequence the table is in, said once instead of in every binding |
+| `writable_by` | which accounts or groups may write, beyond holding the capability |
+| `public` | whether an **anonymous visitor** may read it; closed by default |
+| `domain` | which domain owns it - see domain scoping below |
+
+A boolean key accepts `true`/`false`, `yes`/`no`, `on`/`off`, `1`/`0` in any
+case, and refuses any other word rather than guessing. `public: no` reading as
+true is the defect that made that rule explicit.
+
+## Bindings put rows on a page
+
+Front matter binds a page variable to a query. The page then renders rows with
+no code of its own.
+
+```yaml
+tt_page_var:
+  products: db:products(order=name,limit=20)
+  total:    db:products.count()
+```
+
+| Binding | Answers |
+|---|---|
+| `db:products` | the whole table, in its declared order |
+| `db:products(featured=true,limit=4)` | filtered, conditions AND-combined |
+| `db:tasks(order=due)` / `(order=-due)` | ordered, ascending or descending |
+| `db:tasks.count(done=false)` | a number, not a list |
+| `db:products.field(price,code=SKU1)` | one value out of one row |
+
+A binding carries a **row ceiling** and reports when it clamps, so a page that
+outgrows its limit says so in the log rather than quietly showing a short list.
+`items_total` beside `items.size` is how a page says "showing 200 of 250".
+
+## Freshness is the page's `ttl:`, and modes currently do not differ
+
+A table has **no timestamp that can prove a cached page still current** - the
+store is written through WAL, so a row changes without the file's mtime moving.
+So a `db:` binding withdraws the mtime proof of freshness, and the page's own
+`ttl:` becomes the only bound it has: a page declaring one is served from cache
+for that window, and a page declaring none is re-rendered on every request.
+
+The descriptor grammar accepts `mode=snapshot` (the default), `mode=live` and
+`mode=client`. **`snapshot` and `live` currently behave identically** -
+withdrawing the mtime proof is the only thing the mode ever did, and since
+SM604 every `db:` binding does it, because otherwise one `json:` binding on the
+same page vouched for the table's freshness, which nothing can do. `client`
+is genuinely different: no rows at render, the page's own script fetches them.
+
+Choose a `ttl:` from how stale the data may be before it misleads someone. That
+is the decision; the mode is not, today.
+
+## Four doors write to a table, and they are not equivalent
+
+| Door | Who | Notes |
+|---|---|---|
+| Control API `data-row-save` / `data-row-delete` | a grant holding `manage_data` | the operator and partner path |
+| MCP `save_data_row` / `delete_data_row` | the same | the twin of the above; the two are pinned to agree |
+| `/cgi-bin/lazysite-data.pl` | a signed-in **session**, not a partner token | the page's own script; a custom data app's route |
+| A form handler of `type: db` or `type: table` | a visitor, through a form | operator-vetted mapping only; not settable inline |
+
+The endpoint reads `order_by`, `order`, `limit` and `offset` **and no other
+query parameter** - anything else is ignored rather than refused, so a filter
+sent that way returns every row in a reply shaped like a filtered one. Filter
+on the binding, or filter in your own script.
+
+Every door applies the same type checks, `required`, `unique` and
+`writable_by`. There is one implementation of what a value means.
+
+## Domain scoping, on an instance serving several parties
+
+`manage_data` is an **instance** capability and a table name is instance-wide -
+there is one `lazysite/db/tables/` for the whole install. On a single-site
+instance that is all there is to know.
+
+Where one instance serves domains belonging to different people, a descriptor
+names its owner with `domain:`. A caller confined by its grant then reaches
+that domain's tables and **is not told the others exist** - the refusal for
+another domain's table is word for word the one a missing table gets, so an
+instance cannot be enumerated by guessing names.
+
+**A table naming no domain stays reachable by any `manage_data` holder.** That
+is deliberate: an instance carrying live tables loses nothing on upgrade, and
+the protection is opt-in until an operator migrates. `lazysite-check` lists the
+tables still to scope, and only on an instance where a domain actually confines
+a group - several domains belonging to one person is not several parties.
+
+## Dropping a table leaves a safety export
+
+The irreversible verb is not, in practice. `data-table-drop` writes a **safety
+export** of the rows before removing anything, so a drop that turns out to be
+a mistake is recoverable. The export is listed by `data-safety-exports`, read
+by `data-safety-export-read`, restored by `data-safety-export-restore` - and
+deleted only by a grant holding `purge`, which is a different capability from
+the one that dropped the table.
+
+That split is the point: `manage_data` lists, `housekeeping` drops, `purge`
+deletes the copy. One grant cannot both destroy a table and remove the evidence.
+
+# Part X - Installation, deployment, and operations
 
 ## The installer
 
@@ -1455,7 +1586,7 @@ Pages, Netlify, or Cloudflare Pages.
 
 ---
 
-# Part X - Tooling, packaging, and supply chain
+# Part XI - Tooling, packaging, and supply chain
 
 - **Release manifest** (`build-manifest.pl`) - deterministic classification of every
   shipped file with SHA + size + bucket; dies on unmatched files or path collisions;
@@ -1478,7 +1609,7 @@ Pages, Netlify, or Cloudflare Pages.
   (`docs/POLICY.md`).
 - **Debian packaging** (`tools/build-deb.sh` + `debian/`) - builds
   `lazysite-common`, `lazysite-hestia`, `lazysite-apache` and `lazysite-nginx`
-  (Part IX); lintian-clean, smoke-tested from the extracted deb,
+  (Part X); lintian-clean, smoke-tested from the extracted deb,
   template/packaging invariants pinned by `t/tools/30-hestia-pkg.t` and
   `t/tools/31-webserver-glue.t`.
 - **Permissions doctor** (`lazysite-check.pl`) - the health/permissions checker
@@ -1511,7 +1642,7 @@ SBOM gate; `release.sh` refuses to run when the lint tools are absent.
 
 ---
 
-# Part XI - The security model in one place
+# Part XII - The security model in one place
 
 - **Header trust model.** The central threat is auth/payment header spoofing; the
   defence is the two-signal trust gate plus edge stripping. Headers are the universal
@@ -1593,7 +1724,7 @@ SBOM gate; `release.sh` refuses to run when the lint tools are absent.
 
 ---
 
-# Part XII - Why it is built this way
+# Part XIII - Why it is built this way
 
 The recurring design principles, drawn from the feature-request record:
 
@@ -1620,7 +1751,7 @@ The recurring design principles, drawn from the feature-request record:
 
 ---
 
-# Part XIII - Version history (feature timeline)
+# Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
 
@@ -2069,7 +2200,7 @@ Newest first; releases are git tags.
 
 ---
 
-# Part XIV - Roadmap
+# Part XV - Roadmap
 
 **Actionable now:**
 
@@ -2095,10 +2226,9 @@ Newest first; releases are git tags.
 ---
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
-documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.11.0 (the stable line: what a partner reaches is decided by its grant on
-every surface, a page's data cannot be vouched for by a file that says nothing
-about it, and the release gates were themselves audited and four of them found
-answering wrongly). For the authoritative detail
+documentation set, the `docs/feature-requests/` record, and the CHANGELOG. The
+version it describes is named once, in the subtitle at the top - deliberately
+once, because a document that dates itself twice is a document with two things
+to keep in step. For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding
 `SMxxx` feature-request.*
