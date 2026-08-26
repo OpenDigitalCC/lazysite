@@ -265,6 +265,24 @@ for my $r (
         advisory("FEATURES.md newest release entry is $newest, cutting $VERSION");
     }
     else { good('FEATURES.md current') }
+
+    # SM609: THE DOCUMENT'S OWN STAMPS, not just its version list.
+    #
+    # The check above reads the timeline entries. FEATURES.md also says which
+    # version it is current to, twice - in its subtitle and in its closing
+    # note - and those are prose that nothing was reading. The 0.11.0 prep
+    # found the subtitle claiming v0.9.14 and the footer v0.10.19 while the
+    # timeline had been brought to 0.10.34: this check said "current" the
+    # whole time, because it was looking at the one part that had been
+    # maintained.
+    #
+    # Advisory, like its neighbour: a stale stamp misleads a reader and blocks
+    # nothing.
+    for my $stamp ( $feat =~ /(?:as of|current\s*\n?to)\s+v(\d+\.\d+\.\d+)/g ) {
+        next unless vcmp( $stamp, $VERSION ) < 0;
+        advisory( "FEATURES.md still says it is current to v$stamp, "
+                . "cutting $VERSION" );
+    }
 }
 
 # --- 5. the bench baseline is not older than the tree it gates --------------

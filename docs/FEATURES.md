@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.9.14"
+subtitle: "Everything lazysite has and does, and why - as of v0.11.0"
 brand: plain
 ---
 
@@ -2096,8 +2096,9 @@ Newest first; releases are git tags.
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.10.19 (the first BETA promotion: the front end makes no content
-decisions, the security header set is enforced rather than claimed, the
-statistics say what they mean, and a build names the commit it validated). For the authoritative detail
+to v0.11.0 (the stable line: what a partner reaches is decided by its grant on
+every surface, a page's data cannot be vouched for by a file that says nothing
+about it, and the release gates were themselves audited and four of them found
+answering wrongly). For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding
 `SMxxx` feature-request.*
