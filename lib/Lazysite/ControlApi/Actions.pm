@@ -141,7 +141,17 @@ our %ACTION = (
     'git-init'            => { caps => ['manage_config'],  params => [] },
     'git-restore' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-show' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
-    'git-status'     => { caps => ['manage_content'], params => [] },
+    'git-status' => { caps => ['manage_content'], params => [] },
+    # SM632: the inverse of bind_form. Gated on manage_forms for a token, and
+    # confirmation names the form - a destructive verb taking only an id is one
+    # an agent fires by having the wrong id.
+    'form-delete' => { caps => ['manage_forms'],
+        # Exactly data-table-drop's shape: the OBJECT may come either way, the
+        # CONFIRMATION is body-only. Declaring `form` as body-only was wrong -
+        # the dispatch reads `$req->{form} // $params{form}` - and t/lint/58
+        # extracts the branch rather than trusting this table, so it said so.
+        params => [ { name => 'form', in => 'query_or_body' },
+            { name => 'confirm', in => 'body' } ] },
     'handler-delete' => { caps => undef, params => [ { name => 'id', in => 'body' } ] },
     'handler-list'   => { caps => undef, params => [] },
     'handler-save'   => { caps => undef, params => [] },

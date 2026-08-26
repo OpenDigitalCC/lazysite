@@ -71,6 +71,15 @@ my %EXEMPT = (
     action_briefs_migrate => 'engine-walked sidecars into the engine-named store',
     action_data_safety_export_delete => 'SM512: unlinks only under lazysite/db/rebuilds, the name validated to the exact minted shape (no separators can reach it); t/unit/data/25 pins the refusals',
     action_backup_delete   => 'backups dir, name validated by _valid_name',
+    # SM632: unlinks only lazysite/forms/<name>.conf. The name is validated to
+    # [A-Za-z0-9_-]+ before it is used, so no separator and no .. can reach the
+    # path, and handlers/smtp are refused by name - there is no caller-supplied
+    # PATH here to validate, only a bare name the action turns into one.
+    # t/unit/manager/129 pins the traversal and reserved-name refusals.
+    action_form_delete =>
+        'SM632: unlinks under lazysite/forms/ only; the bare name is validated '
+        . 'to [A-Za-z0-9_-]+ before a path is built from it, so no separator '
+        . 'reaches it, and handlers/smtp are refused outright',
     action_backup_create   => 'backups dir, name minted by _claim_name',
     action_backup_restore  => 'extracts into the docroot; name validated, tar confined',
     action_git_show        => 'reads git objects; writes only a temp file it names',

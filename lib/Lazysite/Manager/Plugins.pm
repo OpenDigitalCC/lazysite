@@ -20,6 +20,7 @@ our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
     action_handler_list action_handler_save action_handler_delete action_form_list
+    action_form_delete
     action_form_targets_read action_form_targets_save action_form_submissions
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
@@ -1167,6 +1168,70 @@ sub action_form_submissions_delete_bulk {
 
     if ( my $e = _rewrite_store( $abs, \@keep ) ) { return $e }
     return { ok => 1, file => $rel, deleted => $deleted };
+}
+
+# SM632: the inverse of bind_form.
+#
+# `bind_form` writes lazysite/forms/<name>.conf and there was NO inverse on any
+# token surface: not in the action registry, and delete_file refuses the path
+# because lazysite/ is internal (correctly). So a capability a token may hold
+# created an object no capability a token may hold could destroy, and
+# registrations accumulated with nothing able to prune them - form-list counts a
+# bound form with no store as a real form. That is the same create-without-delete
+# asymmetry SM578 closed for site packages, on a different object.
+#
+# WHAT IT DELETES AND WHAT IT WILL NOT. The registration only. A form with
+# STORED SUBMISSIONS is refused, because those are personal data and deleting
+# their registration would orphan them - present on disk, absent from every
+# listing, which is worse than leaving the form. Removing submissions is
+# form-submission-delete, kept interactive on purpose (SM214: a human confirms a
+# destructive operation on personal data, often on the only copy). An empty
+# store is not a reason to refuse: there is nothing to orphan.
+#
+# Confirmation names the form, like data-table-drop. A destructive verb that
+# takes only an id is one an agent fires by having the wrong id.
+sub action_form_delete {
+    my ( $name, $confirm ) = @_;
+
+    return { ok => 0, error => 'form name required', kind => 'invalid' }
+        unless defined $name && length $name;
+    return { ok => 0, error => "invalid name '$name'", kind => 'invalid-path' }
+        unless $name =~ /\A[A-Za-z0-9_-]+\z/;
+    return { ok => 0, error => 'refusing to delete a reserved config',
+        kind => 'invalid' }
+        if $name eq 'handlers' || $name eq 'smtp';
+
+    my $conf = _lz() . "/forms/$name.conf";
+    return { ok => 0, kind => 'no_such_form',
+        error => "no form '$name' is registered" }
+        unless -f $conf;
+
+    # The row count comes from the SAME reader the listing uses, so a form that
+    # looks empty in form-list cannot be refused here, or look full there and be
+    # deleted here. Two counters for one question is how the halves disagree.
+    my $listing = action_form_list();
+    my ($rec)   = grep { $_->{name} eq $name } @{ $listing->{forms} || [] };
+    my $rows    = $rec ? ( $rec->{row_count} // 0 ) : 0;
+    if ( $rows > 0 ) {
+        return { ok => 0, kind => 'has_submissions', rows => $rows,
+            error => "'$name' has $rows stored submission"
+                . ( $rows == 1 ? '' : 's' )
+                . '. Deleting the registration would leave them on disk and out '
+                . 'of every listing. Remove them in the manager first '
+                . '(submission deletion is interactive by design), then delete '
+                . 'the form.' };
+    }
+
+    unless ( defined $confirm && $confirm eq $name ) {
+        return { ok => 0, kind => 'confirm', field => 'confirm',
+            error => "Confirm by naming it exactly: {\"form\":\"$name\","
+                . "\"confirm\":\"$name\"}" };
+    }
+
+    unlink $conf
+        or return { ok => 0, error => "cannot remove the form config: $!" };
+    log_event( 'INFO', $name, 'form registration deleted' );
+    return { ok => 1, form => $name, removed => "lazysite/forms/$name.conf" };
 }
 
 1;

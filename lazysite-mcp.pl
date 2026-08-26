@@ -1254,6 +1254,37 @@ my %TOOLS = (
         },
         run => sub { _create_form( $_[0], $_[1] ) },
     },
+    # SM632: the inverse of bind_form, on both surfaces at once. There was no
+    # undo on ANY token surface - not in the action registry, and delete_file
+    # refuses lazysite/ because it is internal (correctly) - so a tool an agent
+    # holds created a registration nothing it holds could remove, and they
+    # accumulated. A field agent left one behind on edge and had to ask the
+    # operator to rm it.
+    delete_form => {
+        description => 'Remove a form REGISTRATION (lazysite/forms/<form>.conf) - '
+            . 'the inverse of bind_form. Use it to clean up a form you created, or '
+            . 'one whose page has gone. REFUSED while the form has stored '
+            . 'submissions: those are personal data, and removing the registration '
+            . 'would leave them on disk and out of every listing. Deleting '
+            . 'submissions is a manager-UI operation on purpose. Confirm by passing '
+            . 'confirm equal to the form name. Does NOT edit the page: remove the '
+            . ':::form block and the "form:" front matter separately if the page '
+            . 'still exists.',
+        cap         => 'manage_forms',
+        destructive => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                form => { type => 'string', description => 'the registered form name' },
+                confirm => { type => 'string', description => 'the form name again, to confirm' },
+            },
+            required => [ 'form', 'confirm' ],
+        },
+        run => sub {
+            require Lazysite::Manager::Plugins;
+            return Lazysite::Manager::Plugins::action_form_delete(
+                $_[0]->{form}, $_[0]->{confirm} );
+        },
+    },
     bind_form => {
         description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. PREFER A HANDLER: it is operator-vetted and holds any credentials. If your grant needs to deliver somewhere the operator has not pre-defined, pass `target` instead - {type: webhook|api, url: https://...} or {type: file, path: relative/dir} - which writes the delivery target directly into the form config. That is the same thing this capability can already do over WebDAV and the control API; it is offered here so the three surfaces agree rather than one being quietly weaker. NOT AN INLINE TARGET TYPE: delivery into a declared DATA TABLE is handler-only, and deliberately so. The inline route exists to reach somewhere the operator has not pre-defined; a form writing rows into a declared table is precisely what the operator should vet, and an inline table target would let any declared table be named as a destination without them wiring it. Ask the operator for a handler. Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
@@ -3264,6 +3295,10 @@ my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' =
 # The fourth slot may be omitted - an absent value is 0, as it is for a tool
 # that moves no read boundary, which is nearly all of them.
 my %ANNOTATE = (
+    # SM632: destroys a registration; the twin form-delete is in %DESTRUCTIVE.
+    # Not idempotent in the third slot's sense - a second call finds nothing to
+    # remove and says so, which is a different answer, not the same one again.
+    delete_form            => [ 0, 1, 0 ],
     whoami                 => [ 1, 0, 0 ],
     describe_capabilities  => [ 1, 0, 0 ],
     upload_file            => [ 0, 0, 1 ],

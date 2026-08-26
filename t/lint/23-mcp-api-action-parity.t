@@ -99,6 +99,12 @@ my %PAIR = (
     'site-backup-apply'     => 'site_apply',
     'form-submissions'      => 'read_form_submissions',
     'form-list'             => 'form_list',
+    # SM632: the inverse of bind_form, added to both surfaces at once. bind_form
+    # is MCP-only by long standing (the API writes the conf directly), so the
+    # DESTROY is the first half of that pair to exist on both - which is the
+    # right way round: a create with no undo is what left a registration on a
+    # live site that nobody with a token could remove.
+    'form-delete'           => 'delete_form',
     'git-history'           => 'list_versions',
     'git-history-summary'   => 'list_content_history',
     'git-show'              => 'view_version',

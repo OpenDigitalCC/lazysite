@@ -212,7 +212,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         theme-rename theme-upload user-revoke users
         site-backup-create site-backup-upload site-backup-apply site-backup-delete
         site-backup-download
-        site-export-primary form-submission-delete
+        site-export-primary form-submission-delete form-delete
         form-submission-confirm form-submissions-delete-bulk
         data-migrate data-row-save data-row-delete data-table-save data-rebuild
         data-export data-import data-table-drop data-safety-export-delete data-safety-export-restore

@@ -41,7 +41,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save
     action_form_submissions action_form_submission_delete action_form_list
-    action_form_submission_confirm action_form_submissions_delete_bulk);
+    action_form_submission_confirm action_form_submissions_delete_bulk
+    action_form_delete);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -191,6 +192,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     form-submission-confirm form-submission-delete form-submissions
     form-submissions-delete-bulk form-targets-read form-targets-save
     git-history git-history-summary git-init git-restore git-show
+    form-delete
     git-status handler-delete handler-list handler-save key-revoke
     keys-list lang-status layout-activate layout-delete layout-install
     regenerate-registries
@@ -504,6 +506,7 @@ if ( $action eq 'csrf-token' ) {
 # whoever is asking.
 #
 my %MUTATING = map { $_ => 1 } qw(
+    form-delete
     data-migrate data-row-save data-row-delete data-table-save
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
     save delete mkdir move copy migrate-to-local file-upload git-restore
@@ -565,6 +568,7 @@ my %DESTRUCTIVE = map { $_ => 1 } qw(
     delete data-row-delete data-table-drop data-rebuild data-safety-export-delete
     brief-delete backup-delete theme-delete layout-delete artifact-backups-delete
     handler-delete form-submission-delete form-submissions-delete-bulk
+    form-delete
     site-backup-delete
 
     site-backup-apply
@@ -696,6 +700,7 @@ if ( !$token_auth ) {
         'nav-save'                => 'manage_nav',
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
+        'form-delete'             => 'manage_forms',
         'form-submissions' => 'manage_forms|read_submissions', # SM182/SM187: read PII submissions (GET)
         'form-list' => 'manage_forms|read_submissions',   # SM214: PII-free form discovery
         'form-submission-delete' => 'manage_forms', # SM187: remove a handled submission row
@@ -882,6 +887,7 @@ if ($token_auth) {
             # cap OR the operator's manage_forms - parity with the cookie channel.
         'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
         'form-list' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} }, # SM214: read-only, PII-free
+        'form-delete' => sub { $_[0]->{manage_forms} },  # SM632: the inverse of bind_form
         'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
         'bad-url-unblock' => sub { $_[0]->{manage_config} },
         # SM097: page-URL list for the nav editor. SM568: a content read too,
@@ -1825,6 +1831,26 @@ elsif ( $action eq 'form-submissions' ) {
 }
 elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
     $result = action_form_list();
+}
+elsif ( $action eq 'form-delete' ) {    # SM632: the inverse of bind_form
+    my $req = _json_body();
+
+    # SM605, same shape as data-table-drop: a confirmation sent in the query
+    # string is not a confirmation, and saying nothing sends the caller round
+    # again with the same value. Read from the RAW query string rather than the
+    # params hash so t/lint/58 does not extract it as a second ACCEPTED source
+    # and publish it as one.
+    if ( !defined $req->{confirm}
+        && ( $ENV{QUERY_STRING} // '' ) =~ /(?:\A|&)confirm=/ )
+    {
+        $result = { ok => 0, kind => 'invalid', field => 'confirm',
+            error => 'the confirmation must be sent in the request body, not '
+                . 'the query string - {"form":"...","confirm":"..."}' };
+    }
+    else {
+        $result = action_form_delete( $req->{form} // $params{form},
+            $req->{confirm} );
+    }
 }
 elsif ( $action eq 'form-submission-delete' ) {
     my $req = _json_body();

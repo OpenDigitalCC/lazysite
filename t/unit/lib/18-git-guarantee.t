@@ -178,6 +178,11 @@ my %EXEMPT = (
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',
     'Plugins::action_handler_save'   =>
         'writes under lazysite/forms/ - excluded from the versioned set',
+    # SM632: removes a form REGISTRATION, which lives under lazysite/forms/ and
+    # is outside the versioned content set for the same reason handler-save is.
+    # The page that used the form is content and is edited separately.
+    'Plugins::action_form_delete' =>
+        'removes a conf under lazysite/forms/ - excluded from the versioned set',
     'Plugins::action_handler_delete'         => 'as action_handler_save',
     'Plugins::action_form_targets_save'      => 'as action_handler_save',
     'Plugins::action_form_submission_delete' =>

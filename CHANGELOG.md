@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM632 resolved (PENDING) **`bind_form` has an inverse.** It wrote
+  `lazysite/forms/<name>.conf` and nothing on any token surface could remove it
+  - not the action registry, and not `delete_file`, which refuses `lazysite/`
+  as internal. A capability a token may hold created an object no capability a
+  token may hold could destroy, so registrations accumulated and a field agent
+  left one on a live site it had to ask the operator to clear. `form-delete`
+  and its MCP twin `delete_form` close it, under `manage_forms`, confirmed by
+  naming the form. A form holding STORED SUBMISSIONS is refused: removing its
+  registration would leave personal data on disk and out of every listing,
+  which is worse than the residue - deleting submissions stays interactive by
+  design (SM214). An empty store does not block it; there is nothing to orphan.
+
 - SM270 resolved (PENDING) **the manager says the site is unwritable on its next
   page load, and the cure is written down at last.** Hestia's
   `v-rebuild-web-domain` re-applies `2751` - setgid, no group write - and a

@@ -133,8 +133,12 @@ my %ACTION_INFO = (
         # nothing 403s, nothing errors, the agent simply cannot find a door it
         # is holding the key to.
         unlocks => {
-            api    => [qw(form-submissions form-list)],
-            mcp    => [qw(list_form_handlers bind_form)],
+            # SM632: form-delete/delete_form are the inverse of bind_form.
+            # Declared on both surfaces at the same time, because a capability
+            # that advertises the create and not the destroy is how an agent
+            # concludes the object is permanent (t/lint/71, t/lint/23).
+            api    => [qw(form-submissions form-list form-delete)],
+            mcp    => [qw(list_form_handlers bind_form delete_form)],
             webdav => ['lazysite/forms/<name>.conf (not smtp.conf / handlers.conf)'],
         },
     },

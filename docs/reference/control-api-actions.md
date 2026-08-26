@@ -98,6 +98,7 @@ tone: medium
 `file-download` | cookie only | path (query)
 `file-upload` | cookie only | path (query)
 `file-zip-download` | cookie only |  
+`form-delete` | manage_forms | form (query_or_body), confirm (body)
 `form-list` | manage_forms / read_submissions |  
 `form-submission-confirm` | cookie only | file (query_or_body), id (body)
 `form-submission-delete` | cookie only | file (query_or_body), id (body)
