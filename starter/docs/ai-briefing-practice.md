@@ -10,8 +10,8 @@ register:
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=eff4a8d7f86631afc17072abe4269648d83d1f67e633ec09c83b9bc0f22722c7 modified=2026-08-26
-     body-sha256: 9820d09a1e87f31a4e0f84f3171ec3c936c2883ad3df00b7846f9ec4f209f781
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=94f6f4b357acbeb9d66abfd6e6acc53d93a6a19f5968ab7a9d4c7063db797f0a modified=2026-08-26
+     body-sha256: 7527d5b874f299a788218653ba6aa8973548efd6f09769c6b429456250695f58
 -->
 
 ## What this is, and what it is not
@@ -639,19 +639,6 @@ page.** A binding resolves as the person requesting it, so a page that looks
 right to you while signed in can be empty to everyone else. Test every
 table-backed public page signed out before believing it.
 
-### Do not mix the two on one page
-
-The tempting arrangement - a JSON file for the static lookup, a table for the
-rows that change - **does not work, and fails silently.** A page carrying both
-becomes cacheable on the strength of the JSON dependency, and its table rows
-then freeze at whatever they were when it was last rendered. Measured on edge,
-a mixed page served rows three writes out of date, in both binding orders, until
-it was flushed by hand. Filed 2026-08-26 as
-`mixing-json-and-db-bindings-freezes-the-db-rows`.
-
-Split by **page**, not by binding: a cached, JSON-backed page for the static
-material, and a separate table-backed page for the live rows.
-
 ### So, in practice
 
 | Ref | The data | Store | Why |
@@ -796,16 +783,22 @@ against 0.10.29.
   same "descriptor text required". `data-table-source` returns it under
   `descriptor` too, **not** `source`.
 
-`data-table-drop` confirms by NAME
-: `confirm` takes the table's own name, not `1` and not `true`. Deliberate -
-  it makes a drop impossible to fire by copying another call's confirm flag.
+`data-table-drop` confirms by NAME, in the BODY
+: `confirm` takes the table's own name, not `1` and not `true` - deliberate, so
+  a drop cannot be fired by copying another call's confirm flag. It is read
+  from the body only. Passing `confirm=<name>` in the query string is ignored
+  and returns the same refusal, which reads as the confirmation being rejected
+  rather than unread.
 
-A drop leaves a safety export you may not be able to delete
+Dropping and clearing up after it are three different grants
 : Dropping writes every row to `lazysite/db/rebuilds/<table>-dropped-<ts>.json`
-  first. That is good - a drop is recoverable. But `lazysite/db/` is denied over
-  WebDAV by design, so an agent holding `manage_data` can legitimately drop a
-  table and then cannot clean up the file its own drop created. Plan for an
-  operator to remove it, and say so when you hand over.
+  first, so a drop is recoverable. The three steps are gated separately:
+  `manage_data` lists the exports, **`housekeeping`** performs the drop, and
+  **`purge`** deletes the export - which is what makes the drop permanent.
+  A grant with `manage_data` alone can neither drop nor tidy; one with
+  `housekeeping` but not `purge` can drop and then cannot remove the file its
+  own drop created. Check which of the three you hold before planning a
+  clear-up, and say what you are leaving behind when you hand over.
 
 Two properties of these that are easy to misread:
 
