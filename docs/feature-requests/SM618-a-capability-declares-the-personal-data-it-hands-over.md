@@ -4,6 +4,7 @@ subtitle: "Two rows of the capability-row campaign (R-11, R-13), measured on 0.1
 brand: plain
 standard-margins: true
 status: shipped
+status-note: "SHIPPED in 0.11.0 (stable, 2026-08-26)."
 ---
 
 # What an operator reads at the moment of granting

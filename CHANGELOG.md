@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM618 resolved (PENDING) **two capabilities that hand over personal data now
+## 0.11.0 - STABLE: every entry a defect or a gap against stated intent, and the checks that passed now pass for a reason (2026-08-26)
+
+- SM618 resolved (b1fc6998) **two capabilities that hand over personal data now
   say so.** A capability-row campaign measured `audit` returning the WHOLE
   instance's trail under a partner token holding that one capability - actor
   identities and raw source IPv4 addresses, including the operator's own
@@ -60,7 +62,7 @@ Naming the commit: AFTER it lands, never before
   map, the security register, and `t/unit/manager/122`, which is the sibling of
   the test that already pinned the same property for `purge`.
 
-- SM616/SM617 resolved (PENDING) **the Groups page says what it grants, and
+- SM616/SM617 resolved (ae0ff2fb) **the Groups page says what it grants, and
   what marking a group backend does not take away.** The backend warning read
   "people are not added to it directly" directly above the people already in
   the group - true about the future, silent about what the reader was looking
@@ -72,7 +74,7 @@ Naming the commit: AFTER it lands, never before
   hover - the grid shows human labels while `whoami`, the docs, the capability
   map and a partner's refusal all name it in code.
 
-- SM615 resolved (PENDING) **one page answers who could reach this site.** An
+- SM615 resolved (55c8f3ee) **one page answers who could reach this site.** An
   account holding only a password and the manager was hidden from both cards -
   from Active sessions whenever no browser cookie happened to be live, and
   from Active keys by its machine-channel filter. SM439 states the intent of
@@ -83,7 +85,7 @@ Naming the commit: AFTER it lands, never before
   credential; revocation is unchanged and still refused for an interactive
   account, because listing is not offering.
 
-- SM613 resolved (PENDING) **an account that also signs in says so beside the
+- SM613 resolved (137d74d1) **an account that also signs in says so beside the
   account.** The Keys table carried `interactive` and rendered it only in the
   far-right action column, where it reads as a footnote about revocation
   rather than a fact about the account - so an operator signed into the
@@ -93,7 +95,7 @@ Naming the commit: AFTER it lands, never before
   would not end it. The tag now sits beside the account name and says so.
   `Key for` still lists only what the key opens.
 
-- SM612 resolved (PENDING) **the manager cannot be switched off by a token
+- SM612 resolved (0f66141d) **the manager cannot be switched off by a token
   client, a dead transport says so, and whoami names the build.** Three
   findings from the capability campaign. `config-set` admitted `manager` and
   `manager_path`, and capabilities can be revoked only in the manager UI over
@@ -108,7 +110,7 @@ Naming the commit: AFTER it lands, never before
   signal reported the running build, and a correct field finding was withdrawn
   on the strength of that gap.
 
-- SM607 resolved (PENDING) **the data reference said `live` is never cached,
+- SM607 resolved (ef43f945) **the data reference said `live` is never cached,
   and it is not.** A `db:` binding withdraws the *mtime* proof of freshness -
   a table has no timestamp that could establish it - and never touched the
   page's `ttl:`, which is a separate branch and the only freshness bound such
@@ -117,21 +119,21 @@ Naming the commit: AFTER it lands, never before
   stopped a release to say they had not measured it. Since SM604 the two modes
   have no observable difference at all, and the reference now says so.
 
-- SM605 resolved (PENDING) **a confirmation sent by the wrong route says
+- SM605 resolved (ef43f945) **a confirmation sent by the wrong route says
   which route to use.** `data-table-drop` reads `table` from the body or the
   query string and `confirm` from the body alone, and answered a query-string
   confirmation exactly as it answers a wrong one - so the obvious next move,
   retyping the table name, could not work. The body-only rule stays; the
   silence does not.
 
-- SM602/SM606 documented (PENDING) **two limits stated rather than left to be
+- SM602/SM606 documented (ef43f945) **two limits stated rather than left to be
   discovered.** `RELIABILITY.md` now says which failure classes each RPO
   covers - the backup lives inside the docroot it protects, so the 24-hour
   bound does not hold against docroot loss - and `/docs/data-tables` states
   the four query parameters the data endpoint reads and that the rest are
   ignored rather than refused.
 
-- SM604 resolved (PENDING) **one `json:` binding no longer vouches for a
+- SM604 resolved (f204924b) **one `json:` binding no longer vouches for a
   `db:` binding.** A page bound to a table re-rendered per request and stayed
   current; adding a single `json:` binding froze its rows indefinitely, three
   writes behind by the end of the field probe, with no signal. A snapshot
@@ -142,7 +144,7 @@ Naming the commit: AFTER it lands, never before
   page unprovable by mtime; the ttl branch still serves a snapshot page for
   its declared ttl, so the per-visitor read DP-2 removed does not come back.
 
-- SM601 resolved (PENDING) **the bench baseline writer works, and stops
+- SM601 resolved (efb13001) **the bench baseline writer works, and stops
   destroying the baseline when it fails.** `--baseline` encoded a `loadavg`
   field whose function was never defined, so the mode died at the point of
   writing and had done since 2026-08-15 - unnoticed because re-capturing is
@@ -153,7 +155,7 @@ Naming the commit: AFTER it lands, never before
   `/proc/loadavg`, and the write goes through a temp file and a rename.
   `t/tools/65` pins both - there was no test for `bench.pl` at all.
 
-- SM600 resolved (PENDING) **the stats fixtures agree with themselves about
+- SM600 resolved (a5076867) **the stats fixtures agree with themselves about
   which day they mean.** Five tests stamped their records 90 minutes back and
   derived the day they asked for from `$now`, so for the 90 minutes after UTC
   midnight they wrote under one day and asked for the next - the same commit
@@ -161,7 +163,7 @@ Naming the commit: AFTER it lands, never before
   now comes from the record instant. `$now` stays the real clock, because the
   export compares against real time to decide what is old enough to close.
 
-- SM597 resolved (PENDING) **a release refuses early when the practice
+- SM597 resolved (0add0d39) **a release refuses early when the practice
   briefing is stamped for another version.** The briefing records the engine
   version it was generated for and `t/lint/89` requires it to match, so every
   cut needs a re-import - the version bump alone invalidates it - and 0.10.34
