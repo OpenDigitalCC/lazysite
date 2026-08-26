@@ -452,10 +452,20 @@ subtest 'a leftover generated registry in the docroot is reported' => sub {
     # matched nothing and looked like the finding was absent.
     like( $out, qr/\[ warn \].*still in the document root/,
         'as a warning - a stale sitemap is an SEO problem, not a disclosure' );
-    like( $out, qr/If you DID write your own, leave it/,
-        'and it does not tell an operator to delete a file they authored' );
+    # SM627 changed the remedy from "delete it yourself, unless you wrote it"
+    # to "--fix moves it aside". The INTENT this assertion protects is
+    # unchanged and is the reason the wording moved: nothing must tell an
+    # operator to destroy a file they may have authored, and nothing may
+    # destroy one on their behalf. The engine yields to an operator's own
+    # sitemap and cannot tell one from a generated file - the templates carry
+    # no generator marker - so the repair is made RECOVERABLE rather than made
+    # clever.
+    like( $out, qr/MOVES them/,
+        'the remedy is a move, so an operator-authored file survives it' );
+    unlike( $out, qr/delete them and the engine will/,
+        'and it no longer asks the operator to delete a file they may have written' );
 
-    ok( -f "$doc/sitemap.xml", 'and it was not deleted' );
+    ok( -f "$doc/sitemap.xml", 'a plain check never touches the file' );
     unlink "$doc/sitemap.xml";
 };
 

@@ -51,7 +51,21 @@ elsif ( $verb eq 'check' ) {
 }
 elsif ( $verb eq 'repair' ) { cmd_repair() }
 elsif ( $verb eq 'probe' )  { cmd_probe() }
-elsif ( $verb eq 'users' )  { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
+elsif ( $verb eq 'users' ) {
+
+    # SM625: `users` was the last verb with no fleet addressing. SM321 gave
+    # --domain/--all to `check` and `acl` because an operator holds a site's
+    # NAME, not its docroot; `repair`, `probe` and `migrate-engine-tree` have it
+    # too. This one was left a pure pass-through - and it is the verb that
+    # settles a capability decision, which is exactly the thing that arrives
+    # across a whole fleet at once when a release adds capabilities to a group
+    # that was seeded before them. Twenty-six sites, one decision, and the only
+    # way to apply it was a shell loop.
+    my $targets = extract_site_targets( \@ARGV );
+    $targets
+        ? run_tool_per_site( 'tools/lazysite-users.pl', $targets, \@ARGV )
+        : run_tool( 'tools/lazysite-users.pl', @ARGV );
+}
 elsif ( $verb eq 'acl' ) {
     my $targets = extract_site_targets( \@ARGV );
     $targets
@@ -104,7 +118,15 @@ Verbs:
                          Takes --domain NAME or --all instead of --docroot:
                          the registry holds each site's docroot and cgibin, so
                          name the site rather than reconstructing its paths.
-  users [args...]        Auth user management (lazysite-users.pl).
+  users [args...]        Auth user management (lazysite-users.pl). Also takes
+                         --domain NAME or --all, so one decision can be applied
+                         across the fleet:
+                           sudo lazysite users --all group-set \\
+                             lazysite-admins housekeeping on
+                         Every site gets the SAME command - which is what you
+                         want for a capability decision, and is not what you
+                         want for `add`. Preview with --all on a read-only
+                         subcommand (`groups`, `list`) first.
   repair --docroot D | --domain NAME | --all [--dry-run]
         Run the doctor, apply its safe fixes, then CHECK AGAIN and
         report the state AFTER the repair, per site.
@@ -773,7 +795,16 @@ sub cmd_repair {
         or fail('bad options for repair');
 
     my $tool = payload_root() . '/tools/lazysite-check.pl';
-    my ( @clean, @repaired, @stuck );
+
+    # SM626: a pending DECISION is not an unfixed DEFECT, and counting them
+    # together made the tally useless. A fleet of 26 healthy sites - 43 ok, zero
+    # failures each - reported as "0 clean, 0 repaired, 26 need a human",
+    # because every one carried the same warning: a group seeded before this
+    # release has not been told what to do about the capabilities the release
+    # added. That warning CANNOT be repaired. It clears when a human decides,
+    # and until then it pins every site into the worst bucket, where a genuine
+    # unfixable failure would be indistinguishable from it.
+    my ( @clean, @repaired, @stuck, @decide );
 
     for my $s (@$targets) {
         my @base = ( '--docroot', $s->{docroot} );
@@ -798,9 +829,21 @@ sub cmd_repair {
 
         my $after = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
         my @left = grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $after;
-        if (@left) {
+
+        # Split by SEVERITY, from the doctor's own marker. A FAIL after a repair
+        # is something the repair could not do; a warn is, by the doctor's
+        # contract, a thing it was never going to do. Reading the marker rather
+        # than matching the capability sentence keeps this from rotting the next
+        # time that wording changes.
+        my @fails = grep { /\[ FAIL \]/ } @left;
+        if (@fails) {
             push @stuck, $s->{name};
-            print "  -> STILL OUTSTANDING:\n";
+            print "  -> STILL FAILING:\n";
+            print "     $_\n" for @left;
+        }
+        elsif (@left) {
+            push @decide, $s->{name};
+            print "  -> repaired. Left for you to decide, not a fault:\n";
             print "     $_\n" for @left;
         }
         else {
@@ -809,9 +852,15 @@ sub cmd_repair {
         }
     }
 
-    printf "\n%d clean, %d repaired, %d need a human.\n",
-        scalar @clean, scalar @repaired, scalar @stuck;
-    printf "NEEDS A HUMAN: %s\n", join( ', ', @stuck ) if @stuck;
+    printf "\n%d clean, %d repaired, %d awaiting your decision, %d need a human.\n",
+        scalar @clean, scalar @repaired, scalar @decide, scalar @stuck;
+    printf "AWAITING YOUR DECISION: %s\n", join( ', ', @decide ) if @decide;
+    printf "NEEDS A HUMAN: %s\n",          join( ', ', @stuck )  if @stuck;
+
+    # SM626: exit non-zero for a FAILURE, not for a pending decision. A fleet
+    # run in a script should not go red because nobody has ruled on a capability
+    # yet - that is a standing state, not an incident, and a check that cries
+    # wolf every run is one nobody reads.
     exit( @stuck ? 1 : 0 );
 }
 

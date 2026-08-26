@@ -221,7 +221,7 @@ my $exp_grp  = ( getgrgid $exp_gid )[0] // $exp_gid;
 my $cgi_uid = ( getpwnam 'www-data' )[2];
 
 # --- result collection -------------------------------------------------------
-my ( @results, @chmod_fixes, $chown_needed, $tt_cache_bad );
+my ( @results, @chmod_fixes, $chown_needed, $tt_cache_bad, @stale_registries );
 my ( $git_fix_root, $git_shared_fix );
 my $store_create_needed;    # SM313: the private store to create under --fix
 my $store_repair_needed;    # SM323: an existing store whose owner/mode locks the CGI out
@@ -285,7 +285,8 @@ my $conf = "$LZ/lazysite.conf";
 # snapshot (SM139 increment 5).
 sub run_checks {
     @results        = ();
-    @chmod_fixes    = ();
+    @chmod_fixes      = ();
+    @stale_registries = ();
     $chown_needed   = 0;
     $tt_cache_bad   = 0;
     $git_fix_root   = '';
@@ -1239,6 +1240,54 @@ sub handover_mode {
 
 sub apply_fixes {
     my $fixed = 0;
+
+    # SM627: move a stale generated registry out of the document root. Named
+    # with the time it was moved, so two repairs on different days do not
+    # overwrite each other's copy - the second would otherwise destroy the only
+    # remaining copy of an operator's own file, which is the exact outcome
+    # moving instead of deleting exists to prevent.
+    if (@stale_registries) {
+        require File::Path;
+        require File::Copy;
+        my $bak = "$LZ/backups/stale-registries";
+        File::Path::make_path($bak) unless -d $bak;
+        my $when = do {
+            my @t = gmtime;
+            sprintf '%04d%02d%02dT%02d%02d%02dZ',
+                $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
+        };
+        for my $src (@stale_registries) {
+            my $name = $src =~ m{([^/]+)\z} ? $1 : $src;
+            my $dst  = "$bak/$name.$when";
+
+            # The stamp has one-second resolution, so two repairs inside the
+            # same second land on the same name and move() would OVERWRITE -
+            # destroying the copy this whole mechanism exists to keep. Caught by
+            # t/unit/tools/73, which repaired twice in a row. Never overwrite:
+            # find a free name, and give up rather than clobber.
+            if ( -e $dst ) {
+                my $n = 1;
+                $n++ while $n < 1000 && -e "$dst.$n";
+                if ( -e "$dst.$n" ) {
+                    warn "not moving $name: $dst and 1000 variants all exist\n";
+                    next;
+                }
+                $dst = "$dst.$n";
+            }
+
+            if ( File::Copy::move( $src, $dst ) ) {
+                my $short = $dst =~ m{([^/]+)\z} ? $1 : $dst;
+                print "fixed: moved $name out of the document root -> "
+                    . "lazysite/backups/stale-registries/$short "
+                    . "(the engine now serves a current one)\n";
+                $fixed++;
+            }
+            else {
+                warn "could not move $src aside: $!\n";
+            }
+        }
+    }
+
     if ($tt_cache_bad) {
         require File::Path;
         my $err;
@@ -1667,6 +1716,25 @@ sub report_stale_registries {
     my @found = grep { -f "$d/$_" } sort @names;
     return unless @found;
 
+    # SM627: repairable, and the repair is a MOVE.
+    #
+    # This warning stood on all 26 sites of a fleet after an upgrade and could
+    # not be cleared by any repair, so `repair --all` reported every site as
+    # needing a human forever. It is determinable - the file must not stay where
+    # it is, or it is served stale for good - but the ACTION is not simply
+    # "delete", because the engine deliberately yields to an operator's own
+    # sitemap or llms.txt and nothing in the file says which it is: the shipped
+    # templates emit no generator marker, so a generated registry and a
+    # hand-written one are indistinguishable on disk.
+    #
+    # So it moves rather than deletes. The stale file stops being served, the
+    # engine serves a current one, and if it WAS the operator's it is sitting
+    # under lazysite/backups/stale-registries/ with its name and the time it was
+    # moved. That is the project's own recoverable-vs-irreversible line (SM587,
+    # SM591) applied to a file: this tier is allowed to act because what it does
+    # can be undone.
+    @stale_registries = map { "$d/$_" } @found;
+
     report(
         'WARN',
         'these generated files are still in the document root: '
@@ -1674,9 +1742,9 @@ sub report_stale_registries {
             . ' - the engine now generates them on request and caches them '
             . 'outside the document root, so a file left here is served '
             . 'instead and never refreshed',
-        'if you did not write them yourself, delete them and the engine will '
-            . 'serve a current one. If you DID write your own, leave it: the '
-            . 'engine yields to it deliberately.'
+        '--fix MOVES them to lazysite/backups/stale-registries/ (it does not '
+            . 'delete them): the engine then serves a current one, and if you '
+            . 'wrote your own it is recoverable by name from there.'
     );
     return;
 }

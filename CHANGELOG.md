@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM625/SM626/SM627 resolved (PENDING) **a fleet of healthy sites stops
+  reporting as a fleet in trouble, and the last two standing warnings can
+  actually be cleared.** A 26-site repair reported `0 clean, 0 repaired, 26 need
+  a human` while every site read 43 ok and zero failures. **SM626**: a pending
+  DECISION was counted as an unfixed DEFECT, so the tally could never improve
+  and the run exited non-zero forever; decisions have their own bucket now,
+  separated by the doctor's own `[ FAIL ]` marker rather than by matching a
+  sentence, and only failures colour the exit status. **SM625**: `users` - the
+  verb that settles that decision - was the one verb with no `--domain`/`--all`,
+  so the single action needed across 26 sites was the only one requiring a shell
+  loop. **SM627**: a generated registry left in the document root was reported
+  and never repairable. `--fix` now MOVES it to
+  `lazysite/backups/stale-registries/` rather than deleting it: nothing on disk
+  distinguishes a stale generated file from an operator's own, since the shipped
+  templates carry no generator marker, so the repair is made recoverable instead
+  of made careful.
+
 - SM624 resolved (PENDING) **one documented way to repair a site.** Four
   invocations were in field use for one job while `lazysite repair` - which
   fixes, then re-checks and reports the state AFTER, and takes `--all` and
