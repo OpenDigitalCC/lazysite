@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM632 resolved (PENDING) **`bind_form` has an inverse.** It wrote
+## 0.11.2 - EDGE: roles an operator recognises, permission drift made visible, and bind_form finally has an inverse (2026-08-26)
+
+- SM632 resolved (98ad467e) **`bind_form` has an inverse.** It wrote
   `lazysite/forms/<name>.conf` and nothing on any token surface could remove it
   - not the action registry, and not `delete_file`, which refuses `lazysite/`
   as internal. A capability a token may hold created an object no capability a
@@ -56,7 +58,7 @@ Naming the commit: AFTER it lands, never before
   which is worse than the residue - deleting submissions stays interactive by
   design (SM214). An empty store does not block it; there is nothing to orphan.
 
-- SM270 resolved (PENDING) **the manager says the site is unwritable on its next
+- SM270 resolved (262f7dd3) **the manager says the site is unwritable on its next
   page load, and the cure is written down at last.** Hestia's
   `v-rebuild-web-domain` re-applies `2751` - setgid, no group write - and a
   rebuild driven through the control panel never reaches the lazysite deploy
@@ -70,7 +72,7 @@ Naming the commit: AFTER it lands, never before
   runs as its own user, so owner-write suffices and `2751` is harmless. True
   since SM142 and never stated; `docs/OPERATOR.md` states it now.
 
-- SM628/SM629/SM630/SM631 resolved (PENDING) **the manager stops making an
+- SM628/SM629/SM630/SM631 resolved (45a44eaf) **the manager stops making an
   operator decode a grid to do their job.** **SM631**: the seeded groups were six
   flat lists, two of which - `agent-ai` and `mcp-ai` - carried identical
   capabilities and differed only in channel, so adding a capability to one made
@@ -86,7 +88,7 @@ Naming the commit: AFTER it lands, never before
   git call already being made; a binary revision says "binary" rather than
   claiming zero lines changed.
 
-- SM625/SM626/SM627 resolved (PENDING) **a fleet of healthy sites stops
+- SM625/SM626/SM627 resolved (e612ae9f) **a fleet of healthy sites stops
   reporting as a fleet in trouble, and the last two standing warnings can
   actually be cleared.** A 26-site repair reported `0 clean, 0 repaired, 26 need
   a human` while every site read 43 ok and zero failures. **SM626**: a pending
@@ -103,7 +105,7 @@ Naming the commit: AFTER it lands, never before
   templates carry no generator marker, so the repair is made recoverable instead
   of made careful.
 
-- SM624 resolved (PENDING) **one documented way to repair a site.** Four
+- SM624 resolved (9da699f0) **one documented way to repair a site.** Four
   invocations were in field use for one job while `lazysite repair` - which
   fixes, then re-checks and reports the state AFTER, and takes `--all` and
   `--dry-run` - appeared nowhere in `OPERATOR.md`. The four do not disagree;
@@ -116,7 +118,7 @@ Naming the commit: AFTER it lands, never before
   operator to `chmod g+w` by hand now point at the verb, and a row is added for
   the connector that never asks for its connect code.
 
-- SM620 resolved (PENDING) **the practice briefing states its engine version
+- SM620 resolved (534b82e5) **the practice briefing states its engine version
   once.** Every release must re-import it - the header records the version and
   `t/lint/89` requires it to match the build - and a bump used to rewrite twelve
   lines with the sources byte-identical. Two of those were wrong rather than
@@ -132,7 +134,7 @@ Naming the commit: AFTER it lands, never before
   because what matters is not how many times a number appears today but how much
   a bump rewrites - and it names WHICH three lines move, so swapping them for a
   different three is visible rather than merely staying under the count.
-- SM622/SM623 resolved (PENDING) **the manager says whether a connection can
+- SM622/SM623 resolved (8dc27742) **the manager says whether a connection can
   work before you spend time on it, and the service switches are grouped by what
   needs them.** The 0.9.0 killswitches leave every remote surface off by default
   - correct - and nothing on the connector panel said which ones the flow needs,
@@ -149,7 +151,7 @@ Naming the commit: AFTER it lands, never before
   split, each group with a preset that sets its own switches and marks the form
   dirty WITHOUT saving, and `token_exchange_enabled` is relabelled to name its
   consequence: whether a brief you just issued can be redeemed at all.
-- SM621 resolved (PENDING) **the connector instructions match the dialog again.**
+- SM621 resolved (e0e5e9e3) **the connector instructions match the dialog again.**
   Claude.ai's Add-custom-connector dialog gained an OAuth client section and
   recommends *"Use Anthropic's hosted client metadata (CIMD)"*, where the server
   fetches Claude's client details from a URL Anthropic hosts. `lazysite-oauth.pl`
