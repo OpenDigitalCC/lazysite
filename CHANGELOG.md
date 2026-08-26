@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM616/SM617 resolved (PENDING) **the Groups page says what it grants, and
+  what marking a group backend does not take away.** The backend warning read
+  "people are not added to it directly" directly above the people already in
+  the group - true about the future, silent about what the reader was looking
+  at, and so read as "these should not be here". Marking a group backend takes
+  nothing away: the flag is enforced at `group-add` only, members stay listed,
+  and removal is not gated on either surface. The warning now says so, and
+  `t/unit/users/34` pins the behaviour, which had been stated in a comment and
+  asserted nowhere. Each capability checkbox also carries its technical name on
+  hover - the grid shows human labels while `whoami`, the docs, the capability
+  map and a partner's refusal all name it in code.
+
 - SM615 resolved (PENDING) **one page answers who could reach this site.** An
   account holding only a password and the manager was hidden from both cards -
   from Active sessions whenever no browser cookie happened to be live, and

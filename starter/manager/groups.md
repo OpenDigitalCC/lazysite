@@ -260,7 +260,17 @@ function renderGroups() {
           + ' service is switched OFF site-wide — a site admin must enable it in '
           + 'Settings → Services for this grant to take effect.">&#9888;</span>';
       }
-      return '<label class="mg-chk"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
+      // SM617: the TECHNICAL NAME on hover. The grid shows human labels, which
+      // is right for choosing a grant - and every other surface names the same
+      // capability in code: whoami and describe_capabilities answer
+      // `manage_content`, the docs and the capability map use it, a partner
+      // reports being refused by it, and a filing cites it. An operator
+      // reading any of those had to map the label back by inference.
+      //
+      // On the label rather than the input, so hovering the row works. The
+      // dormant-channel warning keeps its own title, which is more specific
+      // and correctly wins on that icon.
+      return '<label class="mg-chk" title="' + escHtml(c[0]) + '"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
         ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + warn + '</label>';
     };
     // SM496: capabilities this release has that this manager group has never
@@ -287,9 +297,32 @@ function renderGroups() {
     // SM576: name the alternative where the operator is about to be refused,
     // not after. A backend group takes GROUPS; a person goes in a role.
     if (info.assignable === false) {
+      // SM616: the warning spoke only about the FUTURE, and was displayed
+      // directly above whoever is already in the group. "People are not added
+      // to it directly", over a list of people, reads as "these should not be
+      // here" or "these are not really members" - and neither is true. The
+      // flag is enforced at group-add ONLY, deliberately: a rule that
+      // retroactively revoked access would be a far more dangerous thing than
+      // a labelling change, so anyone assigned before the group was marked
+      // backend keeps it and everything it grants.
+      //
+      // The operator who asked assumed those members were invisible and that
+      // removing one meant re-enabling the flag, removing, and disabling
+      // again. None of that is so - removal is not gated at all - but nothing
+      // on this page said it.
+      var peopleIn = (members || []).filter(function(m) {
+        return !Object.prototype.hasOwnProperty.call(allGroups, m);
+      });
       h += '<div class="mg-cap-dormant" style="margin:0.25rem 0 0.4rem;">&#9888; '
-         + 'This is a backend group, so people are not added to it directly. '
-         + 'Add a ROLE below (an assignable group) and everyone in that role inherits what this group carries.</div>';
+         + 'This is a backend group, so people are not added to it from now on. '
+         + 'Add a ROLE below (an assignable group) and everyone in that role inherits what this group carries.'
+         + (peopleIn.length
+             ? ' <strong>The ' + peopleIn.length + ' ' + (peopleIn.length === 1 ? 'person' : 'people')
+               + ' already here keep it</strong>, and everything it grants &mdash; marking a group backend never '
+               + 'takes access away. Remove any of them with the &times; on their name; you do not need to '
+               + 'change this setting to do it.'
+             : '')
+         + '</div>';
     }
     h += '<div id="ginert-' + ge + '">' + inertWarnHtml(g) + '</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';

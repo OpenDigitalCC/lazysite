@@ -163,4 +163,44 @@ ok( $backfilled->{editors}{assignable},
     'and the store is backfilled once, so the flag stops being ambiguous' );
 ok( $backfilled->{admins}{assignable}, 'every group, not just the one touched' );
 
+# SM616: MARKING A GROUP BACKEND TAKES NOTHING AWAY, and removal is not gated.
+#
+# The flag is enforced at group-add only, deliberately - the resolver answers
+# "what does this account hold" and must keep working for memberships that
+# already exist. That was stated in a comment and asserted nowhere, so nothing
+# stopped a later change making the flag retroactive, which would strip live
+# access from people on an upgrade.
+#
+# The operator asked whether a retained member becomes invisible, and whether
+# removing one means re-enabling the flag, removing, then disabling again. The
+# answers are no and no, and now they are pinned.
+{
+    my $e = fresh();
+    write_groups_settings( $e, {
+            'ops' => { label => 'Ops', manage_content => 1,
+                assignable => JSON::PP::true() },
+    } );
+    cli( $e, 'add',       'person', 'person-pw-0123456789' );
+    cli( $e, 'group-add', 'person', 'ops' );                    # while it is still a role
+    cli( $e, 'group-set', 'ops',    'assignable', 'off' );
+
+    my $g = uapi( $e, { action => 'groups' } )->{groups} || {};
+    ok( ( grep { $_ eq 'person' } @{ $g->{ops} || [] } ),
+        'a member assigned before the flag KEEPS the group' );
+
+    cli( $e, 'add', 'later', 'later-pw-0123456789' );
+    like( cli( $e, 'group-add', 'later', 'ops' ), qr/backend group/i,
+        'while a NEW assignment is refused' );
+
+    # No dance: no re-enable, no re-disable.
+    cli( $e, 'group-remove', 'person', 'ops' );
+    my $g2 = uapi( $e, { action => 'groups' } )->{groups} || {};
+    ok( !( grep { $_ eq 'person' } @{ $g2->{ops} || [] } ),
+        'and a retained member is removed with the flag still off' );
+
+    my $gs = read_groups_settings($e);
+    ok( !$gs->{ops}{assignable},
+        'the group is still backend - nothing had to be toggled to do it' );
+}
+
 done_testing();
