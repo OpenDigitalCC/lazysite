@@ -37,7 +37,7 @@ our %BEHAVIOUR;
         push @CALLS, [ 'AuthSend', $a{username}, $a{resource} ];
         return $BEHAVIOUR{auth_fails} ? ('failed') : ('ok');
     }
-    sub Send        { push @CALLS, [ 'Send', ref $_[1] ]; 1 }
+    sub Send { push @CALLS, [ 'Send', ref $_[1] ]; 1 }
     sub MessageSend {
         my ( $self, %a ) = @_;
         push @CALLS, [ 'MessageSend', $a{to}, $a{type}, $a{body} ];
@@ -48,7 +48,7 @@ our %BEHAVIOUR;
 
     package Net::XMPP::Presence;
     sub new          { bless {}, shift }
-    sub SetTo        { push @CALLS, [ 'SetTo', $_[1] ]; 1 }
+    sub SetTo        { push @CALLS, [ 'SetTo',        $_[1] ]; 1 }
     sub InsertRawXML { push @CALLS, [ 'InsertRawXML', $_[1] ]; 1 }
 
     package Net::XMPP;

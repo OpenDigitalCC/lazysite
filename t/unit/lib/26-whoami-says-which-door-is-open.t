@@ -19,7 +19,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use Lazysite::Capabilities ();
 
-sub reach { Lazysite::Capabilities::reachability( { @_ } ) }
+sub reach { Lazysite::Capabilities::reachability( {@_} ) }
 
 subtest "THE REPORTER'S GRANT: analytics on, mcp off" => sub {
     my $r = reach( analytics => 1, api => 1, mcp => 0 );
@@ -56,8 +56,8 @@ subtest 'it is DERIVED from the unlocks map, not a hand-list' => sub {
     # Any capability with an api or mcp surface must appear when held with
     # both channels on; a hand-list would silently omit the next one added.
     my %all = map { $_ => 1 } Lazysite::Capabilities::capability_keys();
-    my $r = reach( %all, api => 1, mcp => 1 );
-    my $n = scalar keys %{$r};
+    my $r   = reach( %all, api => 1, mcp => 1 );
+    my $n   = scalar keys %{$r};
     cmp_ok( $n, '>=', 5, "$n capabilities have a remote surface and are all reported" );
     ok( $r->{manage_data}, 'including manage_data, which arrived after the original hand-lists' );
 };

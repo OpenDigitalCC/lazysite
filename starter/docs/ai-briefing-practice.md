@@ -10,8 +10,8 @@ register:
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=3ef4303f85aed410a99a0f568c672ded326f81bd00ab93628ec109074dc4f836 modified=2026-08-26
-     body-sha256: 165490dcfcb35684785b54bd0df61b1b4d09ab595dd9498da7ad4466847d052f
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=2409926c3faddb606da8aae63100c1dbf3f065296ea51456a62ad17ac1deb2e0 modified=2026-08-26
+     body-sha256: f27d1868224ccf739016f9645e2321e6ac93c31f9b121417ecb3b66501eec2ad
 -->
 
 ## What this is, and what it is not
@@ -554,8 +554,6 @@ something else after the tables were already built.
 
 ## Choosing between a table and a JSON file
 
-*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it. Imported for engine 0.11.0.*
-
 The rule in one line: **if the data is written often, or by more than one
 person at a time, or must be private, it is a table. If it is written rarely by
 an author and only read by visitors, it is a JSON file.**
@@ -571,7 +569,7 @@ request. It declares no dependency that could prove a cached copy still current 
 a table has no timestamp to compare against - so the engine renders it again
 rather than serve something it cannot vouch for.
 
-Measured on edge (0.10.33), median of 15 requests, as the cost **above a plain
+Measured on edge, median of 15 requests, as the cost **above a plain
 cached page**, so network latency is subtracted out. Every page here carries no
 `ttl:`:
 

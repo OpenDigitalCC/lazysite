@@ -3065,10 +3065,46 @@ sub action_lang_status {
 sub action_config_set {
     my ( $key, $value ) = @_;
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
+    #
+    # SM612: `manager` and `manager_path` are settable HERE but not by a TOKEN
+    # client - see the channel check below. The reason is narrower than "they
+    # are dangerous".
+    #
+    # Capabilities can be revoked in ONE place: the manager UI, over a cookie
+    # session. The `users` action is refused to token clients outright, so no
+    # API or MCP call writes a group's capabilities. That makes the manager the
+    # recovery surface for every other mistake an operator can make with a
+    # grant.
+    #
+    # So a token grant holding manage_config could switch off - or relocate -
+    # the only surface on which its own manage_config could be taken away.
+    # That is not an escalation: the account was trusted with the capability.
+    # It is a LOSS OF CONTROL, and the thing being switched off is the
+    # operator's ability to correct the decision. Recovery was editing
+    # lazysite.conf on the host.
+    #
+    # THE TRANSPORT SWITCHES STAY, deliberately, and the difference is
+    # recoverability. Disabling webdav, mcp, the control API or token exchange
+    # is instance-wide and unpleasant, and the manager UI survives it - so an
+    # operator can undo it from inside the product. Disabling the manager is
+    # the one that removes the undo.
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
         update_channel canonical_ip manager manager_path asset_max_age
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
+
+    # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
+    # manager on its own Config page over a cookie session; a partner grant
+    # holding manage_config may not.
+    my %cookie_only_key = ( manager => 1, manager_path => 1 );
+    if ( $token_auth && $cookie_only_key{ $key // '' } ) {
+        return { ok => 0, kind => 'forbidden', field => $key,
+            error => "Config key '$key' is set only from the manager UI over a "
+                . 'cookie session. It decides whether that UI exists, and the '
+                . 'manager is the only surface on which a capability can be '
+                . 'revoked - so a token client that could switch it off could '
+                . 'not be switched off again.' };
+    }
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
@@ -3232,6 +3268,10 @@ sub action_whoami {
     return {
         ok      => 1,
         partner => $user,
+        # SM612: the same build field the MCP whoami carries. The two doors
+        # answer the same question the same way, or an agent that switches
+        # surface gets a different answer about the same instance.
+        engine_version => ( action_version() || {} )->{version},
         # SM094: the site's manager groups, so the Users UI can tell which accounts
         # are operators (full access) vs partners gated by the capability toggles.
         # SM138: derived from group settings (ui / manage_users / the manager
@@ -3258,8 +3298,17 @@ sub action_whoami {
         # and no test noticed, because the test pinned the derivation and
         # neither surface's emission. t/integration/69 now pins both.
         reachable => reachability($s),
-        groups    => \@groups,
-        scope     => {
+        # SM612: WHICH TRANSPORTS THIS INSTANCE HAS SWITCHED ON, beside what
+        # the grant holds. Reported as its own block rather than folded into
+        # `reachable`, for two reasons found by trying the other way: services
+        # are OPT-IN, so an absent key reads as off and folding it in would
+        # have reported every api capability unreachable on any site that had
+        # not enabled the control API; and `reachable` covers api and mcp only,
+        # while the case that prompted this was WEBDAV - a grant holding it
+        # while PROPFIND answered 404 for everyone.
+        services => _service_state(),
+        groups   => \@groups,
+        scope    => {
             # SM155: group-derived; a comma-joined list for a multi-domain editor.
             allow => ( @{ $s->{dav_scopes} || [] }
                 ? join( ', ', @{ $s->{dav_scopes} } ) : '/' ),
@@ -3576,6 +3625,25 @@ sub action_analyse_visitors {
 }
 
 # SM072: the running version, read from the install state .install-state.json.
+# SM612: which transports the INSTANCE has switched on. Read through
+# service_enabled, the same predicate the request gate uses, so "is this
+# channel on" has one answer wherever it is asked.
+sub _service_state {
+    my %map = (
+        api    => 'control_api_enabled',
+        mcp    => 'mcp_enabled',
+        webdav => 'webdav_enabled',
+        oauth  => 'oauth_enabled',
+    );
+    my %on;
+    for my $ch ( sort keys %map ) {
+        $on{$ch} = Lazysite::Util::service_enabled( $DOCROOT, $map{$ch} )
+            ? JSON::PP::true
+            : JSON::PP::false;
+    }
+    return \%on;
+}
+
 sub action_version {
     my $path = "$LAZYSITE_DIR/.install-state.json";
     return { ok => 1, version => undef } unless -f $path;

@@ -131,26 +131,23 @@ ok( !$cipbad->{ok}, 'a hostname is refused as canonical_ip (IP literals only)' )
 # manager_path (previously written by the pseudo-plugin's plugin-save) are
 # settable here too.
 {
-    my $m = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
-        HTTP_AUTHORIZATION => basic( 'p', $tok ),
-        body => encode_json( { key => 'manager', value => 'enabled' } ) );
-    ok( $m->{ok}, 'config-set manager=enabled succeeds' );
-    like( conf($d), qr/^manager: enabled$/m, 'manager written to lazysite.conf' );
-
-    my $mp = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
-        HTTP_AUTHORIZATION => basic( 'p', $tok ),
-        body => encode_json( { key => 'manager_path', value => '/admin' } ) );
-    ok( $mp->{ok}, 'config-set manager_path=/admin succeeds' );
-
-    my $bad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
-        HTTP_AUTHORIZATION => basic( 'p', $tok ),
-        body => encode_json( { key => 'manager_path', value => 'no-leading-slash' } ) );
-    ok( !$bad->{ok}, 'a manager_path without a leading slash is refused' );
-
-    my $bm = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
-        HTTP_AUTHORIZATION => basic( 'p', $tok ),
-        body => encode_json( { key => 'manager', value => 'maybe' } ) );
-    ok( !$bm->{ok}, 'an invalid manager value is refused (enabled/disabled only)' );
+    # SM612: THE TOKEN PATH IS REFUSED FOR THESE TWO NOW, and this block used
+    # to assert the opposite. Capabilities are revoked only in the manager UI
+    # over a cookie session, so a token grant that could switch that UI off
+    # could not be switched off again. The keys stay settable - the CHANNEL
+    # narrows - and the cookie half, including manager_path's format check,
+    # is exercised in t/unit/manager/10.
+    for my $k (qw(manager manager_path)) {
+        my $r = mapi( $d, REQUEST_METHOD => 'POST',
+            QUERY_STRING       => 'action=config-set',
+            HTTP_AUTHORIZATION => basic( 'p', $tok ),
+            body => encode_json( { key => $k, value => 'enabled' } ) );
+        ok( !$r->{ok}, "a token client cannot set $k" );
+        like( $r->{error} // '', qr/cookie session/i,
+            "and is told where $k IS set, rather than only that it is refused" );
+    }
+    unlike( conf($d), qr/^manager: enabled$/m,
+        'and nothing was written to lazysite.conf' );
 }
 
 my $cipclear = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',

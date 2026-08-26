@@ -532,6 +532,7 @@ sub reachability {
         my ( @via, @shut );
         for my $ch (qw(api mcp)) {
             next unless ref $u->{$ch} eq 'ARRAY' && @{ $u->{$ch} };
+
             if   ( $settings->{$ch} ) { push @via,  $ch }
             else                      { push @shut, $ch }
         }

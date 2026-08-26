@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM612 resolved (PENDING) **the manager cannot be switched off by a token
+  client, a dead transport says so, and whoami names the build.** Three
+  findings from the capability campaign. `config-set` admitted `manager` and
+  `manager_path`, and capabilities can be revoked only in the manager UI over
+  a cookie session - so a token grant holding `manage_config` could remove the
+  one surface on which its own capability could be taken away. Those two keys
+  are now cookie-only, and the refusal says where they *are* set; the four
+  transport switches stay settable because the manager survives them and an
+  operator can undo them. `whoami` reported a capability as held while its
+  transport was switched off instance-wide - `reachability` consulted the
+  grant alone and now takes the service state from the same predicate the
+  request gate uses. And `whoami` carries `engine_version`: no token-readable
+  signal reported the running build, and a correct field finding was withdrawn
+  on the strength of that gap.
+
 - SM607 resolved (PENDING) **the data reference said `live` is never cached,
   and it is not.** A `db:` binding withdraws the *mtime* proof of freshness -
   a table has no timestamp that could establish it - and never touched the

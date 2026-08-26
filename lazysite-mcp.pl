@@ -342,6 +342,18 @@ sub verify_bearer {
 }
 
 # Set the per-request module context once the caller is known.
+# SM612: the installed build, from the install state the installer writes -
+# not from a rendered page, which reports whatever built that page.
+sub _engine_version {
+    my $path = "$LAZYSITE_DIR/.install-state.json";
+    return undef unless -f $path;
+    open my $fh, '<', $path or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $d = eval { decode_json($raw) } || {};
+    return $d->{version};
+}
+
 sub setup_context {
     my ($user) = @_;
     $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
@@ -438,10 +450,29 @@ my %TOOLS = (
             # call (the connector loads tools a few at a time, which can hide
             # some). SM525: filtered to this session's grant, as tools/list is.
             return { ok => 1, user => $user, capabilities => $caps,
+                # SM612: THE BUILD THIS INSTANCE IS RUNNING. An agent asked to
+                # re-check a previous release's finding is in the one case
+                # where the build IS the question, and no token-readable
+                # signal reported it: `version` is refused to token clients,
+                # and the generator meta names the build that rendered a PAGE,
+                # which on a cached page can be arbitrarily stale. A field
+                # correction was withdrawn on the strength of that gap.
+                engine_version => _engine_version(),
                 # SM491: the same reachability block the API whoami carries,
                 # from the same derivation - so the two surfaces cannot
                 # disagree about which door is open (SM288).
-                reachable     => Lazysite::Capabilities::reachability($caps),
+                reachable => Lazysite::Capabilities::reachability($caps),
+                # SM612: the twin of the API whoami's block - which transports
+                # this INSTANCE has switched on, beside what the grant holds.
+                services => {
+                    map {
+                        $_->[0] => (
+                            Lazysite::Util::service_enabled( $DOCROOT, $_->[1] )
+                            ? JSON::PP::true
+                            : JSON::PP::false )
+                    } ( [ api => 'control_api_enabled' ], [ mcp => 'mcp_enabled' ],
+                        [ webdav => 'webdav_enabled' ], [ oauth => 'oauth_enabled' ] )
+                },
                 active_layout => $layout, active_theme => $theme,
                 tools         => _tool_names($caps),
                 # How this session authenticated + when the credential expires

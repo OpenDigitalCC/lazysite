@@ -30,7 +30,7 @@ my $install = \&Lazysite::Manager::Layouts::_install_layout_from_dir;
 # Installed layout (content A) with a theme.
 my $tgt = "$docroot/lazysite/layouts/foo";
 make_path("$tgt/themes/foo");
-open my $a, '>', "$tgt/layout.tt" or die $!; print $a "AAA\n"; close $a;
+open my $a,  '>', "$tgt/layout.tt"             or die $!; print $a "AAA\n"; close $a;
 open my $tj, '>', "$tgt/themes/foo/theme.json" or die $!; print $tj "{}\n"; close $tj;
 
 # Release source with different content B.
@@ -50,8 +50,8 @@ subtest 'refuses to overwrite a differing layout without update' => sub {
 subtest 'update=force overwrites, snapshots, keeps themes' => sub {
     my $r = $install->( $src, 'foo', 'test', 'u', 1 );
     ok( $r->{ok}, 'ok' ) or diag explain $r;
-    is( $r->{action}, 'updated', 'reports updated' );
-    is( slurp("$tgt/layout.tt"), "BBB\n", 'layout overwritten with new content' );
+    is( $r->{action},            'updated', 'reports updated' );
+    is( slurp("$tgt/layout.tt"), "BBB\n",   'layout overwritten with new content' );
     ok( -f "$tgt/themes/foo/theme.json", 'themes/ left intact' );
     opendir my $dh, "$docroot/lazysite/layouts" or die $!;
     my @bk = grep { /^foo-backup-/ } readdir $dh;

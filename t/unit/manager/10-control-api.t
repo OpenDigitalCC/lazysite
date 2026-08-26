@@ -428,7 +428,7 @@ my $bw   = mapi( $d, QUERY_STRING => 'action=whoami',
 {
     my @p = @{ $bw->{plugins} || [] };
     my ($briefs) = grep { ( $_->{id} // '' ) eq 'briefs' } @p;
-    SKIP: {
+SKIP: {
         skip 'no briefs plugin in this tree', 2 unless $briefs;
         ok( exists $briefs->{_enabled},
             'SM589: a manage_briefs holder is told the briefs plugin state' );
@@ -519,5 +519,86 @@ my $now = mapi( $d, QUERY_STRING => 'action=acl-get&path=/index.md',
     HTTP_AUTHORIZATION => basic( 'themer', $ttok ) );
 ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     or diag explain $now;
+
+# --- SM612: the surface switches, the dead transport, and the build --------
+{
+    # A token grant holding manage_config may set ordinary config, and may NOT
+    # switch off the manager - which is the only surface on which a capability
+    # can be revoked, so a token that could disable it could not be disabled.
+    uapi( $d, { action => 'add', username => 'cfg', password => 'x' } );
+    grant_caps( $d, 'cfg', 'manage_config', 'api' );
+    my $ctok = uapi( $d, { action => 'token', username => 'cfg' } )->{token};
+    my $auth = basic( 'cfg', $ctok );
+
+    my $ok = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=config-set',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { key => 'site_name', value => 'Renamed' } ) );
+    ok( $ok->{ok}, 'a manage_config token still sets ordinary config' );
+
+    for my $k (qw(manager manager_path)) {
+        my $r = mapi( $d, REQUEST_METHOD => 'POST',
+            QUERY_STRING       => 'action=config-set',
+            HTTP_AUTHORIZATION => $auth,
+            body               => encode_json( { key => $k, value => 'disabled' } ) );
+        ok( !$r->{ok}, "a token client cannot set $k" );
+        like( $r->{error} // '', qr/cookie session/i,
+            "and is told $k is set from the manager UI, not merely refused" );
+    }
+
+    # The operator's own page must keep working - the toggle lives there.
+    my $ui = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING         => 'action=config-set',
+        HTTP_X_REMOTE_USER   => 'cfg',
+        HTTP_X_REMOTE_GROUPS => 'role-cfg',
+        HTTP_X_CSRF_TOKEN    => csrf('cfg'),
+        body => encode_json( { key => 'manager_path', value => '/manager' } ) );
+    ok( $ui->{ok}, 'the manager UI over a cookie session still sets it' )
+        or diag( 'cookie config-set said: ' . encode_json($ui) );
+
+    # SM612: the VALUE checks for these two keys moved here with them. They
+    # used to be asserted over a token in t/unit/manager/17, where the channel
+    # refusal now answers first - so asserting them there would have measured
+    # the new refusal and called it the old one.
+    my $badpath = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING         => 'action=config-set',
+        HTTP_X_REMOTE_USER   => 'cfg',
+        HTTP_X_REMOTE_GROUPS => 'role-cfg',
+        HTTP_X_CSRF_TOKEN    => csrf('cfg'),
+        body => encode_json( { key => 'manager_path', value => 'no-leading-slash' } ) );
+    ok( !$badpath->{ok}, 'a manager_path without a leading slash is still refused' );
+
+    my $badval = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING         => 'action=config-set',
+        HTTP_X_REMOTE_USER   => 'cfg',
+        HTTP_X_REMOTE_GROUPS => 'role-cfg',
+        HTTP_X_CSRF_TOKEN    => csrf('cfg'),
+        body                 => encode_json( { key => 'manager', value => 'maybe' } ) );
+    ok( !$badval->{ok},
+        'and an invalid manager value is still refused (enabled/disabled only)' );
+}
+
+{
+    # SM612: whoami carries the build. An agent re-checking a previous
+    # release's finding could not read which release it was testing.
+    my $w = mapi( $d, QUERY_STRING => 'action=whoami',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'lazysite-admins' );
+    ok( exists $w->{engine_version},
+        'whoami reports the engine build, so a caller can tell what it is testing' );
+
+    # SM612: which transports the INSTANCE has switched on, beside what the
+    # grant holds. Reported as its own block rather than folded into
+    # `reachable`: services are OPT-IN, so an absent key reads as off, and
+    # folding it in reported every api capability unreachable on any site that
+    # had not enabled the control API - which t/integration/69 caught. It also
+    # covers webdav, which `reachable` does not, and webdav is the case that
+    # prompted this: a grant holding it while PROPFIND answered 404.
+    ok( ref $w->{services} eq 'HASH', 'whoami reports the instance service state' );
+    ok( exists $w->{services}{webdav},
+        'including webdav, which the reachable block does not cover' );
+    for my $ch (qw(api mcp webdav oauth)) {
+        ok( exists $w->{services}{$ch}, "services names $ch" );
+    }
+}
 
 done_testing();
