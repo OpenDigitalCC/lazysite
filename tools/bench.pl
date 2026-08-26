@@ -22,7 +22,7 @@ use Sys::Hostname qw(hostname);
 use POSIX         qw(strftime);
 
 ( my $ROOT = $FindBin::Bin ) =~ s{/tools$}{};
-my $ITER      = 20;
+my $ITER = 20;
 # SM327: 1.25, and the figure is DELIBERATE rather than merely tighter.
 #
 # It was 2.0. Every operation had drifted 9-26% slower than the 2026-07-02
@@ -208,6 +208,24 @@ for my $w ( sort grep { /^work_/ } keys %result ) {
     printf "%-22s %8d\n", $w, $result{$w};
 }
 
+# SM601: THE LOAD AT CAPTURE, which the baseline has claimed to record since
+# 2026-08-15 and never could - the field was written into the encode and the
+# function was never defined, so `--baseline` died at the point of writing and
+# the mode has been dead ever since. Nobody noticed because re-capturing is the
+# only thing that calls it, and nothing re-captured until the 0.11.0 stable
+# prep.
+#
+# It exists because a run on a loaded host and a genuinely slower engine look
+# identical in the numbers - the comment beside the field says exactly that.
+sub _loadavg {
+    open my $fh, '<', '/proc/loadavg' or return undef;
+    my $l = <$fh>;
+    close $fh;
+    return undef unless defined $l;
+    my @f = split ' ', $l;
+    return @f >= 3 ? [ map { $_ + 0 } @f[ 0 .. 2 ] ] : undef;
+}
+
 if ( $mode eq 'baseline' ) {
 
     # SM327: RE-CAPTURING OVER A REGRESSION HAS TO BE SAID OUT LOUD.
@@ -258,7 +276,14 @@ if ( $mode eq 'baseline' ) {
         }
     }
 
-    open my $b, '>', $BASELINE or die "$BASELINE: $!\n";
+    # SM601: TEMP FILE AND RENAME, because `open '>'` truncates BEFORE the
+    # encode runs - so when the encode died on the missing _loadavg it left a
+    # zero-byte baseline behind. A failed capture destroyed the reference it was
+    # meant to replace, and outside a git checkout that reference is simply
+    # gone. The refusal path above is careful never to reach the write; this
+    # makes the write itself as careful.
+    my $tmp = "$BASELINE.tmp.$$";
+    open my $b, '>', $tmp or die "$tmp: $!\n";
     print $b JSON::PP->new->canonical->pretty->encode( {
             _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. Timings are REPORTED against tolerance, never failed on (SM342); work counters fail. A per-op override may live in tolerances{op}. Re-capturing over a regression requires --accept-regression (SM327).",
             tolerance => $TOLERANCE,
@@ -276,7 +301,8 @@ if ( $mode eq 'baseline' ) {
             captured_at => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
             ops => { map { $_ => 0 + sprintf( '%.1f', $result{$_} ) } keys %result },
     } );
-    close $b;
+    close $b or die "$tmp: $!\n";
+    rename $tmp, $BASELINE or die "$BASELINE: $!\n";
     print "wrote baseline: $BASELINE\n";
 }
 

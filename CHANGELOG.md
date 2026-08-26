@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM601 resolved (PENDING) **the bench baseline writer works, and stops
+  destroying the baseline when it fails.** `--baseline` encoded a `loadavg`
+  field whose function was never defined, so the mode died at the point of
+  writing and had done since 2026-08-15 - unnoticed because re-capturing is
+  the only thing that calls it. Worse, `open '>'` truncates before the encode
+  runs, so every failed attempt left a zero-byte baseline: a failed capture
+  destroyed the reference it was replacing, which on the CI or deploy host the
+  tool's own header names is not recoverable. `_loadavg` now reads
+  `/proc/loadavg`, and the write goes through a temp file and a rename.
+  `t/tools/65` pins both - there was no test for `bench.pl` at all.
+
 - SM600 resolved (PENDING) **the stats fixtures agree with themselves about
   which day they mean.** Five tests stamped their records 90 minutes back and
   derived the day they asked for from `$now`, so for the 90 minutes after UTC
