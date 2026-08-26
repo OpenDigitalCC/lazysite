@@ -30,14 +30,22 @@ appear here &mdash; it holds a key, not a browser session. See
 </div>
 
 <div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Active keys</span></div>
+<div class="mg-card-header"><span class="mg-card-title">Accounts that can reach this site</span></div>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 0.5rem">
-Access keys let AI agents and publishing tools reach this site without a browser
-&mdash; on the API, the MCP connector, or WebDAV. Each account below holds a live
-key. <strong>A key is not a browser session</strong>: an account marked
-<em>also signs in</em> reaches the manager through a session listed under
-<strong>Active sessions</strong> above, and revoking its key would not end that. <strong>Revoke key</strong> stops it working on the next request; the
+<!-- SM615: one place to answer "who could be active here, and when were they
+     last". Active sessions above shows who IS signed in right now; this shows
+     every account that COULD be - a key an agent holds, a password a person
+     signs in with, or both - and when each last used its credential. An
+     account that appears in neither card cannot reach the site at all. -->
+Every account that can reach this site, and when it last did. An <strong>access
+key</strong> lets an agent or publishing tool in without a browser &mdash; on
+the API, the MCP connector or WebDAV. An account marked <em>signs in</em>
+reaches the <strong>manager</strong> with a password instead, through a browser
+session listed under <strong>Active sessions</strong> above.
+<strong>A key is not a browser session</strong>, and revoking a key would not
+end one. <strong>Last used</strong> is the last time that account's credential
+was accepted, by either route. <strong>Revoke key</strong> stops it working on the next request; the
 account is left intact and can be issued a fresh key later from its card on the
 <a href="/manager/users">Users</a> page.
 </p>
@@ -201,9 +209,18 @@ function renderKeys(d) {
     '<th>Account</th><th>Key for</th><th>Issued</th><th>Status</th><th>Lifetime</th><th></th>' +
     '</tr></thead><tbody>';
   rows.forEach(function(k) {
+    // SM615: an account that only signs in has NO key channels, and an empty
+    // cell reads as missing data rather than as the answer. It says what the
+    // account does reach instead - the manager, by password - without listing
+    // that as something a key opens.
     var chans = (k.channels || []).map(function(c) {
       return '<span class="mg-tag mg-tag-auto">' + escHtml(c) + '</span>';
     }).join(' ');
+    if (!(k.channels || []).length) {
+      chans = k.signs_in
+        ? '<span class="mg-muted" style="font-size:0.85em">no key &mdash; signs in to the manager</span>'
+        : '<span class="mg-muted" style="font-size:0.85em">no key</span>';
+    }
     var when = k.issued_at ? new Date(k.issued_at * 1000).toLocaleString() : '<span class="mg-muted">unknown</span>';
     // Status. "in use" means the key has been used at least once SINCE issue -
     // a historical fact, not "live right now". For an EXPIRED token that use is

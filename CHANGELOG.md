@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM615 resolved (PENDING) **one page answers who could reach this site.** An
+  account holding only a password and the manager was hidden from both cards -
+  from Active sessions whenever no browser cookie happened to be live, and
+  from Active keys by its machine-channel filter. SM439 states the intent of
+  these pages as "no hidden case where access is active or potentially
+  active", met it for interactive accounts that also held a machine channel,
+  and left the commonest account on any site invisible. The listing now
+  includes them, with what each account reaches and when it last used its
+  credential; revocation is unchanged and still refused for an interactive
+  account, because listing is not offering.
+
 - SM613 resolved (PENDING) **an account that also signs in says so beside the
   account.** The Keys table carried `interactive` and rendered it only in the
   far-right action column, where it reads as a footnote about revocation

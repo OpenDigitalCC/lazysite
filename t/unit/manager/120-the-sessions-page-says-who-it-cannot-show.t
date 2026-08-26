@@ -56,7 +56,9 @@ renderKeys({ ok: true, keys: [
   { user: 'agent', channels: ['mcp'], issued_at: now - 7200,
     used_at: now - 120, in_use: true },
   { user: 'human', channels: ['webdav'], issued_at: now - 7200,
-    used_at: now - 60, in_use: true, interactive: true },
+    used_at: now - 60, in_use: true, interactive: true, signs_in: true },
+  { user: 'person', channels: [], issued_at: now - 86400,
+    used_at: now - 3600, in_use: true, interactive: true, signs_in: true },
   { user: 'fresh', channels: ['api'], issued_at: now - 60,
     used_at: 0, in_use: false }
 ] });
@@ -70,6 +72,15 @@ JS
     like( $got->{html}, qr/also signs in/,
         'SM613: an interactive account is marked as one BESIDE THE ACCOUNT, '
             . 'not only in the revoke column where it reads as a footnote' );
+    # SM615: an account that only signs in is LISTED - SM439's stated intent is
+    # that no case where access is active or potentially active be hidden, and
+    # a password-holding manager account was hidden from both cards whenever it
+    # happened not to be signed in.
+    like( $got->{html}, qr/person/,
+        'an account with no key but a password is listed - it could be active' );
+    like( $got->{html}, qr/no key &mdash; signs in to the manager/,
+        'and its empty channel cell says what it DOES reach, not nothing' );
+
     unlike( $got->{html}, qr/mg-tag-auto">manager</,
         'and no channel tag says `manager` - the key does not open the manager, '
             . 'and "Key for" stays strictly about what it does open' );

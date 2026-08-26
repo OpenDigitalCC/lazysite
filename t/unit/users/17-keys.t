@@ -8,7 +8,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
@@ -52,12 +52,12 @@ sub keymap {
 # human manager (interactive) with a password is NOT.
 {
     my $d = docroot();
-    cli( $d, 'add', 'boss', 'pw' );                    # human, has a password
-    cli( $d, 'group-add', 'boss', 'lazysite-admins' );
-    cli( $d, 'add', 'agent', 'x' );
-    cli( $d, 'group-add', 'agent', 'agent-ai' );       # grants api/mcp + content
-    cli( $d, 'set', 'agent', 'ui', 'off' );            # non-interactive
-    cli( $d, 'token', 'agent' );                       # mint its key (credential)
+    cli( $d, 'add',       'boss',  'pw' );                # human, has a password
+    cli( $d, 'group-add', 'boss',  'lazysite-admins' );
+    cli( $d, 'add',       'agent', 'x' );
+    cli( $d, 'group-add', 'agent', 'agent-ai' );          # grants api/mcp + content
+    cli( $d, 'set',       'agent', 'ui', 'off' );         # non-interactive
+    cli( $d, 'token',     'agent' );                      # mint its key (credential)
 
     my $k = keymap($d);
     ok( $k->{agent}, 'the non-interactive agent account is listed as a key' );
@@ -89,14 +89,14 @@ sub keymap {
 # disappears from the list. An interactive account is refused.
 {
     my $d = docroot();
-    cli( $d, 'add', 'deploy', 'x' );
+    cli( $d, 'add',       'deploy', 'x' );
     cli( $d, 'group-add', 'deploy', 'agent-ai' );
-    cli( $d, 'set', 'deploy', 'ui', 'off' );
-    cli( $d, 'token', 'deploy' );
+    cli( $d, 'set',       'deploy', 'ui', 'off' );
+    cli( $d, 'token',     'deploy' );
     ok( keymap($d)->{deploy}, 'deploy has a key before revoke' );
 
     my $r = api( $d, { action => 'key-revoke', username => 'deploy' } );
-    ok( $r->{ok}, 'key-revoke succeeds for a machine account' );
+    ok( $r->{ok},              'key-revoke succeeds for a machine account' );
     ok( !keymap($d)->{deploy}, 'the key is gone after revoke' );
     # The account itself is intact (still present, just credential-less).
     my $list = api( $d, { action => 'list' } );
@@ -104,7 +104,7 @@ sub keymap {
             || api( $d, { action => 'settings-get', username => 'deploy' } )->{ok},
         'the account still exists after its key is revoked' );
 
-    cli( $d, 'add', 'human', 'pw' );
+    cli( $d, 'add',       'human', 'pw' );
     cli( $d, 'group-add', 'human', 'lazysite-admins' );
     my $bad = api( $d, { action => 'key-revoke', username => 'human' } );
     ok( !$bad->{ok} && $bad->{error} =~ /interactive/i,
@@ -117,8 +117,8 @@ sub keymap {
 # cred_used_at >= cred_issued_at). Throttled so a hot key does not rewrite.
 {
     my $d = docroot();
-    cli( $d, 'add', 'kbot', 'x' );
-    cli( $d, 'group-add', 'kbot', 'agent-ai' );          # api/mcp machine account
+    cli( $d, 'add',       'kbot', 'x' );
+    cli( $d, 'group-add', 'kbot', 'agent-ai' );    # api/mcp machine account
     my $tok = api( $d, { action => 'token', username => 'kbot' } )->{token};
     ok( $tok, 'minted a key for kbot' );
 
@@ -148,7 +148,33 @@ sub read_kbot_settings {
     my ($d) = @_;
     open my $fh, '<', "$d/lazysite/auth/user-settings.json" or return {};
     my $all = eval { decode_json( do { local $/; <$fh> } ) } || {};
-    return $all->{kbot} || {};
+    return $all->{kbot}                                      || {};
+}
+
+# SM615: an interactive account holding NO machine channel is listed too, and
+# it was the last hidden case.
+#
+# SM439 widened this to an interactive account that ALSO held webdav, and
+# stopped there. A plain manager account - a password, the manager, nothing
+# else - remained absent from BOTH cards: from Active sessions whenever no
+# browser cookie happened to be live, and from here by the machine-channel
+# filter. "No hidden case where access is active or potentially active" was
+# not yet true of the commonest account on any site.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'plain', 'pw' );    # a password, and no group at all
+
+    my $k = keymap($d);
+    ok( $k->{plain}, 'an account with only a password and the manager is listed' )
+        or diag( 'listed: ' . join( ', ', sort keys %$k ) );
+    is_deeply( $k->{plain}{channels}, [],
+        'with NO key channels - the manager is not something a key opens' );
+    is( $k->{plain}{signs_in}, JSON::PP::true,
+        'and it is marked as an account that signs in' );
+
+    # Listing is still not offering.
+    my $r = api( $d, { action => 'key-revoke', username => 'plain' } );
+    ok( !$r->{ok}, 'and revoking it is still refused' );
 }
 
 done_testing();

@@ -2537,14 +2537,32 @@ sub cmd_keys_list {
         # Revocation is unchanged and still refuses: cmd_key_revoke has its own
         # guard on $eff->{ui}, which is where that decision belongs. Listing is
         # not offering.
-        next unless $eff->{api} || $eff->{mcp} || $eff->{webdav};    # a machine channel
+        # SM615: EVERY ACCOUNT THAT COULD BE ACTIVE, not only the machine ones.
+        #
+        # SM439 states the intent of these two pages: "there be no hidden case
+        # where access is active or potentially active". It then met that
+        # intent for an interactive account that ALSO holds a machine channel,
+        # and left the plain interactive account hidden from both - absent from
+        # Active sessions whenever no browser cookie happens to be live, and
+        # excluded here by this very line. An account holding a password and
+        # the manager is precisely a case where access is POTENTIALLY active.
+        #
+        # The filter was never about who could be active. It was about what
+        # could be REVOKED here, and cmd_key_revoke already refuses an
+        # interactive account on its own - "listing is not offering", as SM439
+        # put it. So the listing widens and the offer does not.
+        next unless $eff->{api} || $eff->{mcp} || $eff->{webdav} || $eff->{ui};
         my $s    = $settings->{$u}      || {};
         my $iss  = $s->{cred_issued_at} || 0;
         my $used = $s->{cred_used_at}   || 0;
         push @keys,
             {
-            user      => $u,
-            channels  => [ grep { $eff->{$_} } qw(api mcp webdav) ],
+            user     => $u,
+            channels => [ grep { $eff->{$_} } qw(api mcp webdav) ],
+            # SM615: `channels` is what a KEY opens and stays that way - it is
+            # empty for an account that only signs in, which is the honest
+            # answer rather than listing the manager as something a key reaches.
+            signs_in  => ( $eff->{ui} ? JSON::PP::true() : JSON::PP::false() ),
             issued_at => $iss,
             used_at   => $used,
             in_use => ( $used && $used >= $iss ) ? JSON::PP::true() : JSON::PP::false(),
