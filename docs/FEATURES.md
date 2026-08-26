@@ -1624,6 +1624,82 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.10.34** (2026-08-26, BETA) - **What a grant reaches, decided by the
+  grant.** The four site-package verbs shared one confinement rule instead of
+  four copies of it - `create` and `inspect` had been left open, so a token
+  partner with no domain scope could not download a package but could build one
+  for an unrelated domain on the same instance and read any manifest in full.
+  The MCP twin went with them, and there the rule is stricter by construction:
+  MCP has no cookie session, so there is no operator to exempt. A data table's
+  `domain` is checked against the domains the instance actually serves at save
+  time, and shows in both listings, so a migration of hand-typed hostnames
+  cannot silently bind a table to a domain that does not exist.
+- **0.10.33** (2026-08-25, EDGE) - **A grant decides what a partner reaches,
+  and every surface says so.** A data table can belong to a domain: a confined
+  caller reaches its own domain's tables and is not told the others exist, the
+  refusal being word-for-word the one a missing table gets, so an instance
+  cannot be enumerated by guessing names. A table naming no domain behaves
+  exactly as before, so an instance carrying live tables loses nothing on
+  upgrade. Package downloads are confined by the action rather than by whether
+  a scope happens to be set. The capability floor stops describing the
+  installation - internal paths withheld, plugin state answered only to a
+  caller who may configure the site or holds what that plugin governs. A
+  partner's brief is generated from its grant instead of typed, after one
+  named seven capabilities where the account held seventeen. Housekeeping
+  becomes a grant of its own in two tiers, `manage_briefs` is declared by the
+  plugin that owns it, and a group says whether it is a role or a backend
+  group.
+- **0.10.32** (2026-08-25, EDGE) - **The review answered - every defect filed,
+  fixed and tested.** Fifty-eight entries: the whole of a ten-part read-through
+  of the engine, filed one defect at a time and closed the same way. A form can
+  land in a data table. The link audit sees the root page. Cross-file seams
+  became helpers, dead code came out, and a per-visitor binding that cost 3 ms
+  came down to 0.8 ms. Eight of the review's own recommendations were refused
+  on measurement rather than taste - each one tried, and each one shown to
+  break something the reviewer had not run.
+- **0.10.31** (2026-08-24, EDGE) - **The editors are modal, and the tidy
+  tools.** The data manager's editors move into modals with the house frame,
+  the descriptor form gains a YAML tab, and the safety-export tooling gets its
+  tidy pass. Cut as the beta candidate.
+- **0.10.30** (2026-08-24, EDGE) - **The briefs ring, the cap that reached the
+  page, and the queue before the cut.** Briefs notify rather than wait to be
+  found. A capability that had been reaching the rendered page is confined to
+  the surfaces that own it.
+- **0.10.29** (2026-08-24, EDGE) - **The consent banner, briefs out of band,
+  and the twins agreeing.** A capability added after a group was seeded is
+  never granted silently - the Groups page asks, and records the answer, so an
+  upgrade cannot widen a grant on the operator's behalf. The brief store moves
+  out of the content tree entirely. The API and MCP twins are pinned to answer
+  alike.
+- **0.10.28** (2026-08-23, EDGE) - **The field reports answered - menu,
+  status, mirror, and the audit read.** Four things the field found: a menu
+  that could not see every capability it gated on, a status that did not say
+  what it had found, a theme mirror that went stale, and an audit read that
+  needed a capability nobody had.
+- **0.10.27** (2026-08-23, EDGE) - **The data manager, and a table that can
+  finally be removed.** Dropping a table takes a safety export with it, so the
+  irreversible verb stops being irreversible in practice.
+- **0.10.26** (2026-08-22, EDGE) - **The data plugin becomes usable, and its
+  second door gets a lock.** The direct data endpoint is gated the way the
+  manager surface already was.
+- **0.10.25** (2026-08-22, EDGE) - **A table can actually be declared.** The
+  descriptor path completes: declare, migrate, and read back what was
+  declared.
+- **0.10.24** (2026-08-21, EDGE) - **DP-1 completes, and the plugin can be
+  turned off.** A disabled plugin executes nothing - reads included, because a
+  read is execution.
+- **0.10.23** (2026-08-21, EDGE) - **The data plugin, end to end.** Typed data
+  arrives: a declared schema, one place that decides what a value means, and a
+  render path holding a handle it cannot write through.
+- **0.10.22** (2026-08-21, BETA) - **The second beta, built from what the
+  first one found.**
+- **0.10.21** (2026-08-21, BETA) - **The multi-site fixes, pulled forward
+  because edge could not test them.** Edge serves one domain; the defects were
+  in the many-domain path, so the fixes went to the channel that could
+  exercise them.
+- **0.10.20** (2026-08-21, EDGE) - **What a week of real multi-site use turned
+  up.** A page preview now knows which site it is previewing, and the rest of
+  the per-domain seams a week of live use exposed.
 - **0.10.19** (2026-08-20, BETA) - **The first promotion off the edge line.**
   Access rules now travel with content on every surface: deleting content
   drops its rules everywhere (previously only over WebDAV), and moving content

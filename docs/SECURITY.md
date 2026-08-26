@@ -750,6 +750,63 @@ verdict
   than a weakness in the model - but the condition is recorded here so that
   judgement is auditable rather than implied.
 
+### 2026-08-26 - SM570/SM578/SM577/SM593/SM589/SM592 (0.11.0): confinement stops being a property of how a partner was scoped
+
+what changed
+: The release assesses **twenty-five versions**, 0.10.10 to 0.11.0, because the
+  register's previous entry stopped at 0.10.9 - that gap is itself recorded
+  here rather than closed silently. Four changes move the security posture.
+  **SM570**: the `acl-get`/`acl-set`/`acl-remove` trio was gated on
+  `webdav || manage_content`, so a token holding neither - a zero-capability
+  grant - reached them; it is `manage_content` alone now. **SM578/SM577**: the
+  site-package verbs skipped their scope check entirely when a caller had no
+  `dav_scope`, on the reading that no scope means unconfined. That is true of a
+  cookie session and false of a token or MCP grant, so a partner holding
+  `manage_domains` and no scope reached every domain's package on the instance
+  - a package being a whole site. **SM593**: `manage_data` is an instance
+  capability and a table's ACL path carried no domain component, so on a shared
+  instance one client's grant read every other client's tables, and
+  `Data::Access::may_read` returns true for a `manage_data` caller, so the ACL
+  was bypassed rather than merely the listing. **SM589**: the capability floor
+  returned `_script` and `config_file` - internal paths - to a caller holding
+  nothing. **SM592**, found while writing coverage rather than by report: a
+  cross-device collection MOVE out of an unwritable parent emptied the source
+  and deleted the copy.
+
+threat delta
+: **Information disclosure moves most, and moves down.** Three separate routes
+  by which one tenant of a shared instance reached another tenant's material -
+  packages, data tables, and the ACL trio - are closed. **Elevation of
+  privilege** is unchanged in mechanism but the capability model gained
+  vocabulary: `manage_briefs`, `housekeeping` and `purge` as grants of their
+  own, an exposure axis distinct from destructiveness, and groups that declare
+  whether they are assignable. Each is a narrowing. **Loss of integrity**
+  improves by one measured case (SM592). **Denial of service** is unchanged; no
+  new long-lived execution path was added in this range.
+
+controls
+: Confinement is derived from the caller's own grant through one function per
+  surface rather than per verb - SM578's field pass found two of four package
+  verbs still carrying their own copy of the old test, which is why the four
+  now ask one. The refusal for another domain's table is byte-identical to the
+  refusal for a table that does not exist, so an instance cannot be enumerated
+  by guessing names. `t/lint/87` requires the four surfaces to agree on every
+  operation; `t/lint/86` refuses a channel used as an authority.
+
+residual risk
+: **SM593's central guarantee is not field-verified.** No control-API or MCP
+  action mints a scoped credential, so a partner cannot create the confined
+  grant the confinement is about, and the field pass could only exercise the
+  unconfined path. The mechanism is unit-tested and sabotage-verified; what is
+  outstanding is confirmation on a live instance with a real confined grant,
+  which requires the operator to issue one from the manager UI. **A table
+  naming no domain remains reachable by any `manage_data` holder** - deliberate,
+  so an instance carrying live tables loses nothing on upgrade, and it means
+  the protection is opt-in until an operator migrates. `lazysite-check` lists
+  what is unmigrated. **SM602** records that the full-system backup is written
+  inside the docroot it backs up, so the declared RPO does not hold for
+  docroot loss.
+
 ### 2026-08-14 - SM294/SM301 (0.10.9): a forked relay in the worker, and one more control-API action
 
 what changed
