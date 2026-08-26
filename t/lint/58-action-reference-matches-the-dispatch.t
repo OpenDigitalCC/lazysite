@@ -104,10 +104,23 @@ subtest 'and names the parameters each branch reads' => sub {
         next unless defined $b;
         my $spec = $Lazysite::ControlApi::Actions::ACTION{$a} or next;
 
+        # SM605: COLLECTED AS SETS, because a name may be read more than once
+        # from the SAME source. This built `query_or_body` from "have I seen
+        # this name before", so a parameter read twice out of the body - which
+        # is what a branch does when it tests a value and then passes it -
+        # was reported as also accepted from the query string. The reference
+        # would then have published a second source that does not exist, which
+        # is precisely the drift this lint is here to prevent.
+        my ( %from_query, %from_body );
+        $from_query{$_} = 1 for $b =~ /\$params\{(\w+)\}/g;
+        $from_body{$_}  = 1 for $b =~ /\$(?:req|in|payload)->\{(\w+)\}/g;
+
         my %want;
-        $want{$_} = 'query' for $b =~ /\$params\{(\w+)\}/g;
-        for my $p ( $b =~ /\$(?:req|in|payload)->\{(\w+)\}/g ) {
-            $want{$p} = exists $want{$p} ? 'query_or_body' : 'body';
+        for my $n ( keys %from_query, keys %from_body ) {
+            $want{$n}
+                = ( $from_query{$n} && $from_body{$n} ) ? 'query_or_body'
+                : $from_query{$n}                       ? 'query'
+                :                                         'body';
         }
         $want{path} //= 'query' if $b =~ /\$path\b/;
 

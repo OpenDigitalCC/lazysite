@@ -1459,7 +1459,19 @@ elsif ( $action eq 'data-table-drop' ) {
     # The body-only rule stays: a destructive confirmation in a URL is easier to
     # send by accident and ends up in logs and shell history. What changes is
     # that the silence does.
-    if ( !defined $req->{confirm} && defined $params{confirm} ) {
+    # Read from the RAW query string rather than %params, deliberately. This is
+    # not the action taking a second source for its confirmation - it is
+    # noticing one that went to the wrong place. Reading it from the params
+    # hash would make t/lint/58 extract it as a second ACCEPTED source and
+    # publish `confirm: query_or_body` in the action reference, telling every
+    # agent the query string works - which is the defect SM607 was filed for.
+    #
+    # The extraction reads the branch TEXT, comments included, so naming that
+    # hash in the ordinary code form here would be extracted as a read of it -
+    # which is how this comment first broke the lint it is explaining.
+    if ( !defined $req->{confirm}
+        && ( $ENV{QUERY_STRING} // '' ) =~ /(?:\A|&)confirm=/ )
+    {
         $result = { ok => 0, kind => 'invalid', field => 'confirm',
             error => 'the confirmation must be sent in the request body, not '
                 . 'the query string - {"table":"...","confirm":"..."}' };
