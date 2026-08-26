@@ -10,7 +10,7 @@ register:
      imported: 2026-08-26
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
-     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=f6d13d86a1643d27fe946f8982d40dd7012fa90e578bc7ed006e15ef5d1c7bfe modified=2026-08-26
+     source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=db19610f7fc649429f2509fc9750ea21f230603df84a97fb89db8a57ca276c41 modified=2026-08-26
      body-sha256: 8a71408070bf89b46dc3188d73b316aaa66c9a78eb3e4c01819549cc9037f66c
 -->
 
