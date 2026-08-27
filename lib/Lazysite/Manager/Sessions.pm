@@ -26,8 +26,16 @@ our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revok
 our $LAZYSITE_DIR = '';
 our $auth_user    = '';
 
-# Duplicate of the auth wrapper's $COOKIE_MAX (24 hours) - keep in step.
-my $COOKIE_MAX = 86400;
+# SM614: was a DUPLICATE of the auth wrapper's 24 hours, with a comment asking
+# that the two be kept in step - which is a request, not a mechanism, and the
+# operator found it by asking whether the lifetime could be changed at all. One
+# source now: Lazysite::Auth::Session::session_lifetime(), read from
+# lazysite.conf. This module sets the same $LAZYSITE_DIR that reader uses, so it
+# gets the same answer the wrapper does by construction rather than by promise.
+sub _cookie_max {
+    require Lazysite::Auth::Session;
+    return Lazysite::Auth::Session::session_lifetime($LAZYSITE_DIR);
+}
 
 sub _registry_path { return "$LAZYSITE_DIR/auth/sessions.jsonl" }
 sub _revoked_path  { return "$LAZYSITE_DIR/auth/revoked.json" }
@@ -57,7 +65,7 @@ sub _read_revoked {
 # never grows. Returns ( ok, error ).
 sub _write_revoked {
     my ($data) = @_;
-    my $cutoff = time() - $COOKIE_MAX;
+    my $cutoff = time() - _cookie_max();
     for my $bucket (qw(sids not_before)) {
         for my $k ( keys %{ $data->{$bucket} } ) {
             delete $data->{$bucket}{$k}
@@ -91,7 +99,7 @@ sub action_sessions_list {
             my $s = eval { decode_json($l) };
             next unless ref $s eq 'HASH' && defined $s->{sid} && defined $s->{user};
             my $t = ( $s->{t} || 0 ) + 0;
-            next unless $now - $t < $COOKIE_MAX;         # expired cookie
+            next unless $now - $t < _cookie_max();       # expired cookie
             next if exists $rev->{sids}{ $s->{sid} };    # session signed out
             my $nb = $rev->{not_before}{ $s->{user} };
             next if defined $nb && $t < $nb;             # user signed out everywhere

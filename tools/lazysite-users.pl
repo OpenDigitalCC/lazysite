@@ -1966,6 +1966,20 @@ sub cmd_token_exchange {
     write_users(%users);
     my $ttl = resolve_token_ttl( $all->{$user} );    # SM212: per-account TTL
     $all->{$user}{token_expires_at} = time() + $ttl;
+
+    # SM634: record WHEN, the same as every other minting path.
+    #
+    # cmd_token and cmd_connect_code set cred_issued_at; the two paths that mint
+    # a token programmatically did not - so Sessions & Keys read "Issued:
+    # unknown" for exactly the credentials an estate has most of, and it was
+    # right to: nothing had recorded it.
+    #
+    # cred_used_at is cleared for the same reason cmd_token clears it: this is a
+    # NEW credential, and a first-use mark left from the previous one would say
+    # it had already been used.
+    $all->{$user}{cred_issued_at} = time();
+    delete $all->{$user}{cred_used_at};
+
     write_settings($all);
     log_event( 'INFO', $user, 'access token issued via pairing exchange' );
     cli_audit( 'user-token-exchange', $user, 'access token issued' );
@@ -1994,6 +2008,20 @@ sub cmd_token_rotate {
     $all->{$user} ||= {};
     my $ttl = resolve_token_ttl( $all->{$user} );    # SM212: per-account TTL
     $all->{$user}{token_expires_at} = time() + $ttl;
+
+    # SM634: record WHEN, the same as every other minting path.
+    #
+    # cmd_token and cmd_connect_code set cred_issued_at; the two paths that mint
+    # a token programmatically did not - so Sessions & Keys read "Issued:
+    # unknown" for exactly the credentials an estate has most of, and it was
+    # right to: nothing had recorded it.
+    #
+    # cred_used_at is cleared for the same reason cmd_token clears it: this is a
+    # NEW credential, and a first-use mark left from the previous one would say
+    # it had already been used.
+    $all->{$user}{cred_issued_at} = time();
+    delete $all->{$user}{cred_used_at};
+
     write_settings($all);
     log_event( 'INFO', $user, 'access token rotated' );
     cli_audit( 'user-token-rotate', $user );
@@ -2145,6 +2173,18 @@ sub cmd_claim_redeem {
     else {    # mint-token
         my $token = generate_token();
         $users{$user} = hash_token($token);
+
+        # SM634: a redeemed claim mints a real credential, so it records when -
+        # the same as every other minting path. Found by making the test DISCOVER
+        # minting paths rather than name the ones I knew: this is a fourth, and
+        # the account most likely to hold a claim-minted key is a brand-new one,
+        # where "when was this issued" is exactly the question being asked.
+        #
+        # The PASSWORD branch above is deliberately untouched: a password is not
+        # a key, and the Issued column on Sessions & Keys reports on the key.
+        $all->{$user}{cred_issued_at} = time();
+        delete $all->{$user}{cred_used_at};
+
         $result = { ok => 1, purpose => $purpose, token => $token };
     }
     write_users(%users);

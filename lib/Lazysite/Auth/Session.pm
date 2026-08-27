@@ -37,9 +37,68 @@ our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
 # `use constant` (PBP p.55), and a nullary sub inlines identically while
 # staying exportable.
 sub SESSION_COOKIE_NAME { return 'lazysite_auth' }
-sub SESSION_COOKIE_MAX  { return 86400 }             # 24 hours
 
 our $LAZYSITE_DIR;    # "$DOCROOT/lazysite", set by the script
+
+# SM614: the session lifetime is a SETTING, and this is the one place it is
+# read. It was a constant here and a second constant in Manager/Sessions.pm,
+# with a comment asking that the two be kept in step - which is a request, not a
+# mechanism. The operator asked whether the lifetime could be set for one user
+# or all; the answer is now yes, for all, in lazysite.conf.
+#
+# The default is the 24 hours it has always been, so an instance that sets
+# nothing behaves exactly as before.
+#
+# Read once per process: this is on the request path and lazysite.conf does not
+# change under a running request.
+# Keyed by DIRECTORY, not a single scalar. One process normally serves one site
+# and a bare cache would be correct - but Manager::Sessions localises
+# $LAZYSITE_DIR to ask on another site's behalf, and a global cache would have
+# answered for whichever site asked first. That is the sort of thing that is
+# right in every test and wrong on a multi-site instance.
+our %LIFETIME_CACHE;
+
+sub session_lifetime {
+
+    # The directory may be passed IN. verify_session_cookie takes no arguments
+    # and uses the module's own $LAZYSITE_DIR, which is why this defaults to it
+    # - but a caller asking on another site's behalf should say so plainly
+    # rather than localise a global in another package. Manager::Sessions does
+    # exactly that, and reaching into $Lazysite::Auth::Session::LAZYSITE_DIR
+    # from outside earned a used-only-once warning that t/lint/04 refuses:
+    # a variable mentioned once in a file is indistinguishable from a typo.
+    my ($dir) = @_;
+    local $LAZYSITE_DIR = $dir if defined $dir && length $dir;
+    my $key = $LAZYSITE_DIR // '';
+    return $LIFETIME_CACHE{$key} if defined $LIFETIME_CACHE{$key};
+    my $v;
+
+    # $LAZYSITE_DIR is what this module already has - the scripts set it - so
+    # this needs no argument threaded through verify_session_cookie, which takes
+    # none by design.
+    if ( defined $LAZYSITE_DIR && length $LAZYSITE_DIR
+        && open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" )
+    {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^\s*session_lifetime\s*:\s*(\d+)\s*$/;
+            $v = $1 + 0;
+            last;
+        }
+        close $fh;
+    }
+
+    # A zero or a nonsense value is not "never expires": it is a typo, and a
+    # session store that honoured it would hand an operator an immortal cookie
+    # for a missing digit. Out-of-range falls back to the default and says
+    # nothing - this is the request path, not a config linter.
+    $v = undef unless defined $v && $v >= 300 && $v <= 31_536_000;
+    return $LIFETIME_CACHE{$key} = ( $v // 86400 );
+}
+
+# Kept for callers that have no docroot to hand, and as the default. NOT the
+# source of truth any more - session_lifetime() is.
+sub SESSION_COOKIE_MAX { return 86400 }    # 24 hours, the default
+
 
 sub _csrf_secret {
 
@@ -229,7 +288,29 @@ sub verify_session_cookie {
     # plus the sid shape check disambiguates.
     my @f = split /:/, $payload, 4;
     my ( $user, $ts, $sid );
-    if ( @f == 4 && defined $f[2] && $f[2] =~ /\A[0-9a-f]{16}\z/ ) {
+    # SM614: THE READER UNDERSTANDS THREE SHAPES, and only two are ever issued
+    # today. This is deliberate groundwork, not speculation.
+    #
+    #   user|ts             legacy, pre-sid
+    #   user|ts|sid|sig     what is issued now
+    #   user|ts|seen|sid|sig  what SLIDING will issue
+    #
+    # Sliding expiry needs a last-seen time that MOVES while `ts` stays put -
+    # `ts` is the issue time, and session_revoked compares it against
+    # not_before, so overwriting it would silently defeat "sign out everywhere".
+    # Teaching the reader the five-field shape NOW means the day sliding is
+    # switched on there is no flag day: every running instance already accepts
+    # the cookie the new writer will produce. Readers before writers.
+    #
+    # Nothing issues five fields yet. Until the writer exists this branch is
+    # unreachable in production and exercised only by t/unit/auth/... - which is
+    # the point: the migration is proved before it is needed rather than during.
+    my $seen;
+    if ( @f == 5 && defined $f[3] && $f[3] =~ /\A[0-9a-f]{16}\z/ ) {
+        ( $user, $ts, $seen, $sid ) = @f[ 0, 1, 2, 3 ];
+        undef $seen unless defined $seen && $seen =~ /^\d+$/;
+    }
+    elsif ( @f == 4 && defined $f[2] && $f[2] =~ /\A[0-9a-f]{16}\z/ ) {
         ( $user, $ts, $sid ) = @f[ 0, 1, 2 ];
     }
     else {
@@ -238,9 +319,16 @@ sub verify_session_cookie {
     }
 
     return ( undef, 'expired', ts => $ts // 'undef' )
-        unless defined $ts
-        && $ts =~ /^\d+$/
-        && ( time() - $ts ) < SESSION_COOKIE_MAX;
+        unless defined $ts && $ts =~ /^\d+$/;
+
+    # A cookie carrying no last-seen time is its own last-seen time - which is
+    # exactly today's behaviour, so a four-field cookie expires when it always
+    # did. One expression answers for both shapes rather than two branches that
+    # can drift.
+    $seen = $ts unless defined $seen;
+
+    return ( undef, 'expired', ts => $ts )
+        if ( time() - $seen ) >= session_lifetime();
 
     # SM071: an existing cookie for a now-disabled account is not an identity.
     return ( undef, 'disabled', user => $user ) if account_disabled($user);

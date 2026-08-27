@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM614 part one / SM634 resolved (PENDING) **the session lifetime is a setting,
+  and a credential records when it was issued.** **SM614**: the lifetime was a
+  constant in `Auth::Session` and a second constant in `Manager::Sessions`,
+  the latter carrying a comment asking that the two be kept in step - a request,
+  not a mechanism. It is `session_lifetime` in `lazysite.conf` now, read from one
+  place, default the 24 hours it always was; the cookie's `Max-Age` follows the
+  same number. A zero falls back to the default, because zero is a typo rather
+  than "never expires". The SLIDING half waits for **SM297**: it needs a
+  last-seen time that moves while `ts` stays put, `ts` is what `not_before` is
+  compared against, and the wrapper `exec`s the processor so it cannot add a
+  `Set-Cookie` to a response it no longer owns. The reader already accepts the
+  five-field cookie sliding will issue, so switching it on later needs no flag
+  day. **SM634**: `cmd_token_exchange` - the pairing-key path an agent brief
+  sends a partner through - minted a credential and never recorded
+  `cred_issued_at`, so Sessions & Keys said "Issued: unknown" for the
+  credentials an estate has most of. It records it now; older ones keep saying
+  unknown, which is true.
+
 - SM598/SM606/SM608 resolved (PENDING) **three answers that were confidently
   wrong, or confidently silent.** **SM598**: `lazysite_dir` returns undef for an
   unset docroot and `_handlers_conf_path` concatenated it anyway, yielding

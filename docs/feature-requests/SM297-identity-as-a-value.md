@@ -3,7 +3,7 @@ title: "SM297 - Identity as a value, not a header"
 subtitle: "The auth wrapper hands identity across an exec() as X-Remote-* headers. In one process there is no boundary to cross, and a dispatcher that sets those headers for itself has invented a forgeable channel inside its own address space."
 brand: plain
 status: candidate
-status-note: "FILED 2026-08-14 as the item SM294 deliberately did not take. Nothing started. This is the change that makes the pooled front door fully in-process, and it is a rewrite of the auth spine on the surface where being wrong is an authentication bypass - so it wants its own security review and its own release, not a corner of a performance filing."
+status-note: "BLOCKS SM614's sliding half (recorded 2026-08-27): sliding session expiry needs the auth wrapper to put a re-signed cookie on a response the PROCESSOR emits, and the wrapper execs it - so there is no way to add the header without a channel across that boundary. Building one for that purpose alone would be inventing what this filing exists to remove, so SM614 shipped its settable-lifetime half and waits here. FILED 2026-08-14 as the item SM294 deliberately did not take. Nothing started. This is the change that makes the pooled front door fully in-process, and it is a rewrite of the auth spine on the surface where being wrong is an authentication bypass - so it wants its own security review and its own release, not a corner of a performance filing."
 ---
 
 # SM297 - the last exec in the request path

@@ -157,7 +157,11 @@ sub _bad_url_deny {
 # SM411: the name and lifetime live in Lazysite::Auth::Session, beside the
 # verifier that depends on them - this script mints with the same pair.
 my $COOKIE_NAME = SESSION_COOKIE_NAME;
-my $COOKIE_MAX  = SESSION_COOKIE_MAX;
+# SM614: the cookie's Max-Age must match what the verifier will accept, or the
+# browser discards a cookie the server would still have honoured (or keeps one
+# it will not). Read from the same single source rather than the constant, so
+# raising session_lifetime in lazysite.conf raises both halves together.
+my $COOKIE_MAX = Lazysite::Auth::Session::session_lifetime();
 
 # H-3: login rate limiting (per-IP, sliding window)
 my $LOGIN_RATE_DB = "$AUTH_DIR/.login-rate.db";

@@ -65,9 +65,14 @@ is( sanitise_next('javascript:void'), '/', 'javascript: scheme rejected' );
     ok( -f $auth_src, 'lazysite-auth.pl exists' );
     open my $fh, '<', $auth_src; my $src = do { local $/; <$fh> }; close $fh;
     like( $src, qr/sub sanitise_next/, 'sanitise_next defined in source' );
-    # SM411: the lifetime constant lives in Lazysite::Auth::Session now,
-    # beside the verifier that depends on it; the script assigns from it.
-    like( $src, qr/COOKIE_MAX\s*=\s*SESSION_COOKIE_MAX/,
+    # SM411 put the lifetime CONSTANT in Lazysite::Auth::Session, beside the
+    # verifier that depends on it, and this pinned the script to it. SM614 made
+    # the lifetime a SETTING - one source still, and now a settable one - so the
+    # assertion follows the same intent to its new home. The property that
+    # matters is unchanged and is the reason it was written: the Max-Age the
+    # browser is given must be the number the verifier will accept, or a browser
+    # discards a cookie the server would still honour.
+    like( $src, qr/COOKIE_MAX\s*=\s*Lazysite::Auth::Session::session_lifetime\(\)/,
         'the script takes its max-age from the one definition' );
     my $mod_src = do {
         open my $mh, '<', "$FindBin::Bin/../../../lib/Lazysite/Auth/Session.pm"
