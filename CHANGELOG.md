@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM655 fixed / SM657 partial (PENDING) **the sanctioned tool shipped dead, and
+  a brief could always describe more than a page.** **SM655**: `create_form`
+  saved the caller's path verbatim while its neighbour `_create_page`
+  normalised, so the idiomatic call - an extensionless page path, which is what
+  every other tool on this surface takes and what `create_form`'s own schema
+  describes - wrote a file with no extension and the public URL 404'd. THREE
+  checks reported success: `ok:true`, `page_status exists:true`, and
+  `read_file` returning valid page source. Only fetching the URL revealed it,
+  which is why the test is the fetch. The irony was exact: the tool exists so
+  agents stop hand-writing `<form>` HTML because that "ships dead", and called
+  the way the surface teaches, it shipped dead too. The reply now names the
+  page that exists rather than the argument it was handed. **SM657 part 1**:
+  the publishing briefing records what already worked and was never written
+  down - a brief may describe a folder, an asset, a layout, a theme, the nav or
+  the site root, not only a page. The typed key (`type=row`) is not built; its
+  prerequisite, SM508's listing and orphan-clearing, has since shipped, so it
+  is schedulable rather than held.
+
 - SM658 shipped (PENDING) **the filings are two directories and one corpus.**
   544 feature-request filings sat in one flat directory, 90% of them terminal,
   indexed by a hand-written `BACKLOG.md` last updated seven weeks earlier that

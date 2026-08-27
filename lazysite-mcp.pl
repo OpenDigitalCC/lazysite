@@ -3094,11 +3094,28 @@ sub _create_form {
         $content = "---\ntitle: $title\nform: $name\n---\n\n$block";
     }
 
-    my $save = action_save( $a->{path}, $user, $content, undef );
+    # SM655: RESOLVE THE PATH, as _create_page does three subs below.
+    #
+    # This saved $a->{path} verbatim, so the idiomatic call - an extensionless
+    # page path, which is what every other tool on this surface takes and what
+    # this tool's own schema describes ("Page to add the form to") - wrote a
+    # file with NO extension. The site then 404s it, and nothing else says so:
+    # ok:true, page_status exists:true and read_file returning valid page source
+    # all report success. Only fetching the URL reveals it.
+    #
+    # The irony is exact: this tool exists so agents stop hand-writing <form>
+    # HTML, because that "has no delivery handler and ships dead". Called the
+    # way the surface teaches, the sanctioned tool shipped dead too.
+    my $slug = _norm_slug( $a->{path}, dots => 1, md => 1, trail => 1 );
+    return { ok => 0, error => 'a page path is required' } unless length $slug;
+    my $save = action_save( "/$slug.md", $user, $content, undef );
     return $save unless ref $save eq 'HASH' && $save->{ok};
     return {
-        ok       => 1,
-        path     => $a->{path},
+        ok => 1,
+        # SM655: the path it actually wrote, not the one it was handed. A caller
+        # that echoes this back - or fetches it - should get the page that
+        # exists, and the two differed whenever the caller used the idiom.
+        path     => "/$slug",
         form     => $name,
         delivers => JSON::PP::false,
         next     => "Form scaffolded but NOT delivering yet. Call list_form_handlers, "

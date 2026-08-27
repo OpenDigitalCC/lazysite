@@ -330,6 +330,13 @@ the content path it describes. Briefs are private at every layer - never
 served, never in `sitemap.xml` or `llms.txt` - and readable only through
 the tools below and the operator's manager.
 
+**A brief may describe any content object, not only a page.** The key is a
+content path, so a folder, an asset, a layout, a theme, the nav, or the site
+root can each carry one. This already works and was simply never written
+down, so agents recorded intent for pages and had nowhere to put it for
+everything else. A data ROW cannot carry one yet - it has no path - which is
+recorded as SM657.
+
 How to work with briefs:
 
 - **Over MCP**: `read_brief { path }` and `append_brief { path, entry }`.
