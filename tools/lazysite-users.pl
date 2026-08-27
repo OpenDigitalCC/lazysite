@@ -1483,6 +1483,10 @@ sub effective_settings {
         # SM212: operator-set machine-token lifetime (seconds; null = the 24h
         # default). When set, the token also renews on use (sliding).
         token_ttl => $s->{token_ttl},
+        # SM642: the name a person is shown by, where a surface has adopted it.
+        # Display only - the login remains the identity everywhere that matters,
+        # and a surface that has not adopted this is plainer, not wrong.
+        display_name => $s->{display_name},
         # Free-text operator annotation (what this account is for).
         comment => $s->{comment},
         # SM072: an outstanding setup/reset claim (the hash is never exposed).
@@ -1582,6 +1586,30 @@ sub cmd_set {
             . "locked to a domain is confined to that domain's content root on "
             . "every channel.\n";
     }
+    elsif ( $key eq 'display_name' ) {
+        # SM642: DISPLAY ONLY. The login stays the identity - the audit actor,
+        # the subject of a grant, the name a credential is minted against, the
+        # value the API takes and returns. This is a label rendered over the
+        # top of it at the point of display and nowhere else, which is what
+        # lets it be adopted one surface at a time without any surface that has
+        # not adopted it being WRONG, only plainer.
+        #
+        # Nothing looks an account up by this, two accounts may share one, and
+        # no grant, credential or audit entry references it. If any of that
+        # changed, "display only" would stop being true and the gradual rollout
+        # would stop being safe.
+        #
+        # Same treatment as `comment` below: one line so it cannot break a row
+        # it is rendered into, length-capped so it cannot push the login out of
+        # view, empty clears so removing it is the same gesture as never
+        # setting it.
+        my $n = defined $value ? "$value" : '';
+        $n =~ s/[\r\n\t]+/ /g;
+        $n =~ s/^\s+|\s+$//g;
+        $n = substr( $n, 0, 64 ) if length($n) > 64;
+        if ( length $n ) { $all->{$user}{display_name} = $n }
+        else             { delete $all->{$user}{display_name} }
+    }
     elsif ( $key eq 'comment' ) {
         # Free-text operator annotation (single line, length-capped).
         my $c = defined $value ? "$value" : '';
@@ -1623,9 +1651,9 @@ sub cmd_set {
         else { delete $all->{$user}{email} }
     }
     else {
-        die "Unknown setting '$key' (expected ui, comment, email, "
-            . "expires_at, or token_ttl; dav_scope/home_domain were retired in "
-            . "0.7.26 - confinement lives on the domain)\n";
+        die "Unknown setting '$key' (expected ui, display_name, comment, "
+            . "email, expires_at, or token_ttl; dav_scope/home_domain were "
+            . "retired in 0.7.26 - confinement lives on the domain)\n";
     }
 
     write_settings($all);

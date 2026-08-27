@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM642 shipped (PENDING) **a person has a name, and an account has a login.**
+  Accounts had no display name, so every surface showed the login. Groups DID
+  have one - `group-settings-set` has accepted `label` since SM195 and the pages
+  render it - and nothing in the UI offered a way to change it, so an operator
+  read a display name they could not edit and a group they made themselves
+  showed its bare name for ever. Accounts gain `display_name` (one line, capped,
+  empty clears); the Users and Groups lists render **Display Name (login)**, and
+  both have editors. DISPLAY ONLY: two accounts may share one, nothing resolves
+  an account by it, and the login is never hidden from the person administering
+  access - they are deciding who may do what, and the name in the audit trail
+  must be in front of them while they decide. Other surfaces still show logins,
+  deliberately - a gradual rollout, as asked.
+
 - SM638 shipped (PENDING) **the folder you are standing in says what governs
   it.** SM635 put protection into the LISTING, which is visible from the
   parent - so an operator who had clicked into a protected folder was looking

@@ -407,7 +407,16 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   // editor is ONLY the Configure button; the name no longer doubles as it (field
   // report: name-opens-modal was confusing). Configure stopPropagation keeps its
   // click from also toggling a parent's subtree.
-  var nameEl = '<span class="mg-acc-name" title="' + ue + '">' + ue + '</span>';
+  // SM642: DISPLAY NAME (login). The login is never hidden from the person
+  // administering access - they are deciding who may do what, and the name that
+  // appears in the audit trail must be in front of them while they decide. An
+  // account with no display name shows the login alone rather than an empty
+  // bracket.
+  var dn     = s.display_name || '';
+  var nameEl = dn
+    ? '<span class="mg-acc-name" title="' + escHtml(dn) + ' (' + ue + ')">'
+      + escHtml(dn) + ' <span class="mg-muted">(' + ue + ')</span></span>'
+    : '<span class="mg-acc-name" title="' + ue + '">' + ue + '</span>';
   var line =
     nameEl + recentDot(u) + roleTag + lineChip + note +
     '<span class="mg-acc-spacer"></span>' + flags +
@@ -497,6 +506,14 @@ function accountSettingsHtml(row) {
     '<option value="human"' + (ui ? ' selected' : '') + '>Human (interactive login)</option>' +
     '<option value="ai"' + (ui ? '' : ' selected') + '>AI / backend (token)</option>' +
     '</select></div>';
+  // SM642: the name this person is shown by. Display only - the login stays the
+  // identity on every surface, in the audit trail and in every grant, so an
+  // account with no display name is plainer here and nowhere is wrong.
+  gen += '<div class="mg-line"><span class="mg-line-lbl">Display name</span>' +
+    '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="dn-' + ue + '" value="' + escHtml(s.display_name || '') +
+    '" placeholder="' + ue + ' (shown in place of the login; the login is still listed beside it)">' +
+    '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDisplayName(\'' + ue + '\')">Save</button>' +
+    '<span class="mg-inline-msg" id="dnmsg-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
@@ -1280,6 +1297,22 @@ function deleteUser(user) {
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
   });
+}
+
+// SM642: display only. Nothing looks an account up by this, and no grant,
+// credential or audit entry references it - which is what lets surfaces adopt
+// it one at a time without any un-adopted surface being wrong.
+function saveDisplayName(user) {
+  var inp = document.getElementById('dn-' + user);
+  var msg = document.getElementById('dnmsg-' + user);
+  apiCall({ action: 'settings-set', username: user, key: 'display_name', value: (inp && inp.value) || '' })
+    .then(function(d) {
+      if (!d.ok) { if (msg) msg.textContent = d.error || 'Failed.'; return; }
+      if (msg) msg.textContent = 'Saved.';
+      if (rowsByUser[user]) rowsByUser[user].settings.display_name = (inp && inp.value) || '';
+      loadUsers();
+    })
+    .catch(function(e) { if (msg) msg.textContent = 'Error: ' + e.message; });
 }
 
 // Save the free-text annotation (comment) for an account.

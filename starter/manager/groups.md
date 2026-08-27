@@ -187,7 +187,17 @@ function groupSummaryInner(g) {
     ? ' <span class="mg-badge mg-badge-muted" title="Shipped with the engine. Renaming or deleting it may break something lazysite expects to find.">system</span>'
     : ' <span class="mg-badge mg-badge-muted" title="Created on this instance. Renaming or deleting it affects only what was built here.">yours</span>';
 
-  return '<span class="mg-acc-name">' + ge + '</span>' + recentDot(g) +
+  // SM642: DISPLAY NAME (group name). Every seeded group already carries a
+  // `label` and the page has always shown the bare name instead, so an operator
+  // read `cap-content` where the store said "Capability: content". The group
+  // NAME is never hidden - it is what every other surface, the CLI and the
+  // audit trail use, and the person reading this list is administering access.
+  var lbl  = info.label && info.label !== g ? info.label : '';
+  var name = lbl
+    ? escHtml(lbl) + ' <span class="mg-muted">(' + ge + ')</span>'
+    : ge;
+
+  return '<span class="mg-acc-name">' + name + '</span>' + recentDot(g) +
     (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
     backend + origin + inert +
     '<span class="mg-acc-spacer"></span>' +
@@ -271,6 +281,15 @@ function renderGroups() {
     var h = '<details class="mg-acc" data-group="' + ge + '"><summary class="mg-acc-line" id="gsum-' + ge + '">' +
             groupSummaryInner(g) + '</summary>';
     h += '<div class="mg-acc-body">';
+    // SM642: the label was readable, displayed and unsettable - group-settings-set
+    // has accepted it since SM195, and nothing in the UI offered it. So an
+    // operator saw a display name they could not change, and a group they made
+    // themselves showed its bare name for ever.
+    h += '<div class="mg-line"><label style="min-width:5.5rem">Display name</label>'
+       + '<input type="text" class="mg-inp" style="flex:1" value="'
+       + escHtml( info.label && info.label !== g ? info.label : '' ) + '" '
+       + 'onchange="setLabel(\'' + ge + '\', this.value)" '
+       + 'placeholder="' + ge + '"></div>';
     h += '<div class="mg-line"><label style="min-width:5.5rem">Description</label>'
        + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.description || '') + '" '
        + 'onchange="setDescription(\'' + ge + '\', this.value)" placeholder="what this role is for"></div>';
@@ -416,6 +435,20 @@ function setAssignable(group, on) {
       showStatus(on ? '@' + group + ' can be given to people.' : '@' + group + ' is now a backend group.');
     })
     .catch(function(e) { showStatus('Failed: ' + e.message, true); });
+}
+
+// SM642: display only. It changes nothing about what the group grants or who
+// is in it - the group NAME remains the identity on every other surface.
+function setLabel(group, value) {
+  apiCall({ action: 'group-settings-set', group: group, key: 'label', value: value })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      if (allGroups[group]) allGroups[group].label = value;
+      var sum = document.getElementById('gsum-' + group);
+      if (sum) sum.innerHTML = groupSummaryInner(group);
+      showStatus('Display name saved.');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function setDescription(group, value) {
