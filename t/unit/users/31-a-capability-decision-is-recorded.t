@@ -42,13 +42,34 @@ api( action => 'group-add',          group => 'ops' );
 api( action => 'group-settings-set', group => 'ops', key => 'manager', value => 'on' );
 api( action => 'group-settings-set', group => 'ops', key => 'manage_content', value => 'on' );
 
-subtest 'absent means undecided: pending lists what no one has decided' => sub {
+subtest 'SM645 CHANGED WHAT A MANAGER GROUP HAS LEFT TO DECIDE' => sub {
+    # SM496 built `pending` so an operator DECIDES about a capability a release
+    # added. It is computed for MANAGER GROUPS ONLY - see the guard in the view
+    # - and SM645 now fills a manager group's never-decided keys automatically,
+    # at the release manager's direction, so that population has nothing left
+    # to decide. The banner is inert for manager groups by design rather than
+    # by accident, and this says so instead of the file quietly losing an
+    # assertion.
+    #
+    # SM496's MECHANISM IS NOT REMOVED and its other properties still hold
+    # below: off is a decision rather than a deletion, and a dismissal is not a
+    # lock. If the decision surface is ever wanted back, the natural population
+    # is delegate groups, which have never had it.
     my $g       = view();
     my %pending = map { $_ => 1 } @{ $g->{pending} || [] };
-    ok( $pending{feedback},        'a capability the store has never seen is pending' );
-    ok( !$pending{manage_content}, 'a granted one is not' );
+    ok( !$pending{feedback},
+        'a manager group has no undecided capability - SM645 fills them' );
+    ok( !$pending{manage_content}, 'a granted one is not pending either' );
     ok( !$pending{api} && !$pending{mcp},
-        'the remote channels are never offered to a manager group (SM127)' );
+        'the remote channels are never offered to a manager group (SM127) - '
+            . 'and SM645 does not grant them, so that rule is intact' );
+
+    # The one that matters after an auto-grant: the channels must NOT have been
+    # swept in with everything else, or a manager group becomes remotely
+    # reachable and SM127 is undone by a migration.
+    my $s = ( api( action => 'group-settings-get' )->{groups} || {} )->{ops} || {};
+    ok( !$s->{api} && !$s->{mcp},
+        'and the top-up did not grant them either' );
 };
 
 subtest 'off is a DECISION now, not a deletion' => sub {

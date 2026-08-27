@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM645 fixed (PENDING) **an upgraded site can adopt a capability a later
+  release added.** `_ensure_manager_group_caps` returned early for any group
+  with a record, so it reached FRESH sites only - and `housekeeping`/`purge`,
+  which arrived with SM591, were absent from every manager group that already
+  existed. Nobody on those sites held them, and the SM195 ceiling applies to
+  GRANTING a capability as well as to conferring it, so the Groups page listed
+  the new capability as a pending decision and then refused to let the operator
+  make it. An existing manager group is now topped up: capabilities it never
+  decided on are granted, and grant authority widened to the full set. AN
+  EXPLICIT DECLINE IS NEVER OVERWRITTEN - absent, 0 and 1 are three states
+  (SM496), and a top-up that confused the first two would silently undo an
+  operator's decision on upgrade day. Delegate groups are untouched: they are
+  the population the ceiling bounds. THE MISSING PIECE WAS A TRIGGER - the
+  healer was only reached from `setup-manager`, so fixing it alone changed
+  nothing on any site that already existed; it is now called from the seeding
+  that the manager's own reads run. The four refusals that told an app
+  administrator to run `group-set` now name the Groups page first, with the CLI
+  as a fallback using SM643's `grantable-add`.
+
 - SM655 fixed / SM657 partial (PENDING) **the sanctioned tool shipped dead, and
   a brief could always describe more than a page.** **SM655**: `create_form`
   saved the caller's path verbatim while its neighbour `_create_page`

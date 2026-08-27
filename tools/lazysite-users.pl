@@ -874,9 +874,15 @@ sub cmd_group_add {
         # has said "an operator can add it with: group-set ..." since SM195;
         # this path named the capability and stopped, so the reader had no way
         # to learn that grant authority exists or how it is set.
+        # SM645: NAME A REMEDY THE READER CAN PERFORM. SM467 added a remedy
+        # here, correctly, and named a shell command - and the reader is an app
+        # administrator who by policy has no shell. t/unit/tools/41 already
+        # states the rule this broke: the UI is the remedy, the CLI the
+        # fallback. Said in that order now.
         die "You cannot add anyone to '$group': it grants '$c', which you may "
-            . "not confer. An operator can allow it with: "
-            . "group-set <your-group> grantable $c\n";
+            . "not confer. An operator can allow it on the Groups page: open "
+            . "your group and add '$c' to the capabilities it may confer. "
+            . "(CLI fallback: group-set <your-group> grantable-add $c)\n";
     }
     # Ensure the default role groups (and their capabilities) exist, so adding a
     # user to e.g. user-managers actually confers that group's caps via caps_for.
@@ -1035,7 +1041,60 @@ sub _ensure_manager_group_caps {
     my ($group) = @_;
     # Module read directly - the seeding wrapper calls back into the healer.
     my $gs = Lazysite::Auth::Settings::read_group_settings();
-    return if ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} };
+
+    # SM645: AN EXISTING MANAGER GROUP IS TOPPED UP, NOT SKIPPED.
+    #
+    # This returned here for any group with a record, so it reached fresh sites
+    # only. A capability added by a later release - housekeeping and purge came
+    # with SM591 - was therefore absent from every manager group that already
+    # existed, and nobody on that site HELD it. The SM195 ceiling lets a
+    # non-'local' actor confer only what they hold or have grant authority for,
+    # and it applies to GRANTING a capability as well as to conferring it. So
+    # the Groups page listed the new capability as a pending decision and then
+    # refused to let the operator make it: they could not grant it because they
+    # did not hold it, because it had never been granted. The only escape was
+    # the CLI as `local`, which is the sysadmin side of a line this product
+    # keeps deliberately.
+    #
+    # ABSENT ONLY, NEVER AN EXPLICIT DECLINE. SM496 distinguishes three states:
+    # absent means never decided, 0 means declined, 1 means granted. A top-up
+    # that overwrote a 0 would undo an operator's deliberate decision, silently,
+    # on upgrade - so only the never-decided keys are filled.
+    #
+    # MANAGER GROUPS ONLY. A manager group holds everything but the two remote
+    # channels by design, so filling its gaps confers nothing the design did not
+    # already intend. A delegate group is exactly the population the ceiling
+    # exists to bound and is untouched.
+    #
+    # The release manager ruled on 2026-08-27 that the capability itself is
+    # granted rather than merely offered, having been shown that this widens
+    # live grants across the fleet without anybody accepting them. Recorded
+    # because SM633 declined to do this for manage_services on the opposite
+    # reasoning, and the difference is deliberate: there it was every group,
+    # here it is the group that already holds everything.
+    if ( ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} } ) {
+        return unless $gs->{$group}{manager};
+        my $cfg     = $gs->{$group};
+        my $changed = 0;
+        for my $c ( grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS ) {
+            next if exists $cfg->{$c};    # decided already, either way
+            $cfg->{$c} = 1;
+            $changed++;
+        }
+        my %have = map  { $_ => 1 } @{ $cfg->{grantable} || [] };
+        my @want = grep { !$have{$_} } @CAP_KEYS;
+        if (@want) {
+            $have{$_} = 1 for @want;
+            $cfg->{grantable} = [ sort keys %have ];
+            $changed++;
+        }
+        if ($changed) {
+            write_group_settings($gs);
+            log_event( 'INFO', $group, 'manager group topped up for this release' );
+        }
+        return;
+    }
+
     my %caps = map { $_ => 1 } grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
 
     # SM467: HOLDING is not CONFERRING, and SM127 only bounds the first.
@@ -1592,8 +1651,10 @@ sub cmd_token {
     if ( my $c = _exceeds_authority( $actor, _caps_held_by($user) ) ) {
         # SM467: name the remedy here too - see cmd_group_add.
         die "You cannot issue a credential for '$user': that account holds "
-            . "'$c', which you may not confer. An operator can allow it with: "
-            . "group-set <your-group> grantable $c\n";
+            . "'$c', which you may not confer. An operator can allow it on the "
+            . "Groups page: open your group and add '$c' to the capabilities it "
+            . "may confer. (CLI fallback: group-set <your-group> "
+            . "grantable-add $c)\n";
     }
 
     my $token = generate_token();
@@ -2083,8 +2144,10 @@ sub cmd_claim_create {
         if ( my $c = _exceeds_authority( $actor, _caps_held_by($user) ) ) {
             # SM467: name the remedy here too - see cmd_group_add.
             die "You cannot create a setup link for '$user': that account holds "
-                . "'$c', which you may not confer. An operator can allow it "
-                . "with: group-set <your-group> grantable $c\n";
+                . "'$c', which you may not confer. An operator can allow it on "
+                . "the Groups page: open your group and add '$c' to the "
+                . "capabilities it may confer. (CLI fallback: group-set "
+                . "<your-group> grantable-add $c)\n";
         }
     }
 
@@ -3398,6 +3461,25 @@ sub _conf_manager_groups {
 sub _ensure_groups_seeded {
     if ( -f $GROUP_SETTINGS_FILE ) {
         _migrate_conf_manager_groups();
+
+        # SM645: THE TOP-UP NEEDS A TRIGGER, and it did not have one.
+        #
+        # _ensure_manager_group_caps is only reached from cmd_setup_manager -
+        # the first-run command - so an upgraded site never called it again and
+        # a capability added by a later release stayed absent for ever. Healing
+        # the healer without this changes nothing on any site that already
+        # exists, which is every site the defect affects.
+        #
+        # Called here because this sub already runs on ordinary use (add,
+        # group-add, the API's read paths), so a site adopts the release the
+        # next time anybody touches it rather than on a command nobody runs
+        # twice. Every manager group is topped up, not only the one setup-manager
+        # happened to name: an operator may have made a second one.
+        my $gs = Lazysite::Auth::Settings::read_group_settings();
+        for my $g ( sort keys %{ $gs || {} } ) {
+            next unless ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
+            _ensure_manager_group_caps($g);
+        }
         return;
     }
     my $seed = _default_group_seed();
@@ -4143,8 +4225,10 @@ sub cmd_group_settings_set {
     if ( $on && $key ne 'manager' && !_may_confer( $actor, $key ) ) {
         return { ok => 0, kind => 'forbidden',
             error => "You cannot grant '$key' - you do not hold it, and it is not "
-                . 'in your groups\' grant authority. An operator can add it with: '
-                . "group-set <your-group> grantable $key" };
+                . 'in your groups\' grant authority. An operator can add it on '
+                . "the Groups page: open your group and add '$key' to the "
+                . 'capabilities it may confer. (CLI fallback: group-set '
+                . "<your-group> grantable-add $key)" };
     }
     # `manager` is the group flag that makes a group a manager group, not a
     # capability; conferring it is operator-only by the same argument as

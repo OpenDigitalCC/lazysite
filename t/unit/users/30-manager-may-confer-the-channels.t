@@ -120,12 +120,23 @@ subtest 'a delegate outside the manager group still cannot confer' => sub {
     my $out = run_cli( $d, 'group-add', 'target', 'agent-ai', 'delegate' );
     like( $out, qr/which you may not confer/,
         'a manage_users delegate is still refused' );
-    # Not `grantable api` - _caps_granted_by_group reports whichever capability
-    # it reaches first, so pinning one pins hash order rather than behaviour.
-    like( $out, qr/group-set <your-group> grantable \w+/,
-        'and the refusal now names the remedy' )
+    # Not a specific capability - _caps_granted_by_group reports whichever it
+    # reaches first, so pinning one pins hash order rather than behaviour.
+    #
+    # SM645 CHANGED WHICH REMEDY COMES FIRST, and SM467's requirement is
+    # unchanged: the refusal must name a remedy rather than stopping at the
+    # capability, so the reader learns that grant authority exists. What moved
+    # is that the remedy named first is one the reader can actually perform -
+    # they are an app administrator who by policy has no shell, and this named
+    # a shell command. t/unit/tools/41 already states that rule for
+    # lazysite-check; this said the opposite.
+    like( $out, qr/Groups page/,
+        'the refusal names a remedy the reader can perform' )
         or diag( 'The old message named the capability and stopped, so the '
-            . 'reader had no way to learn that grant authority exists.' );
+            . 'reader had no way to learn that grant authority exists. Naming '
+            . 'a shell command instead is the same failure one step on.' );
+    like( $out, qr/grantable-add \w+/,
+        'and keeps the CLI as a stated fallback, using SM643\'s single verb' );
 };
 
 done_testing();
