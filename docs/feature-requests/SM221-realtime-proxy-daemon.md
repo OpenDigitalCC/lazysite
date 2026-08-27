@@ -293,8 +293,29 @@ Phases 1 and 2 subsume SM103 phase 2; phase 4 is SM103 phase 3.
 5. **One daemon per site (mirrors the pool, simple, isolated) or one per host
    (fewer processes, needs multi-tenant care)?** Per-site is recommended.
 
+6. **Does this daemon carry more than the browser socket?** SM646
+   (inter-instance messaging over XMPP) needs something connected in order to
+   RECEIVE, and its own analysis concluded it should be a second consumer of
+   this daemon rather than propose a runtime of its own. That is a decision to
+   take HERE, in phase 1, and not later: a process designed only to hold
+   browser sockets and a process designed to hold a browser socket alongside a
+   long-lived XMPP session are not the same process. The question is not
+   whether to build SM646 - it is whether this daemon's shape forecloses it.
+
 Related: [[SM103]] (recent-change markers; phases 2-3 folded in here),
 [[SM222]] (service lifecycle + status, which this daemon should report
-through), SM142/SM139 (the FastCGI pool pattern this copies), SM212 (token
-lifetime), SM180 (dormant-capability indicators, which `realtime` inherits), and
-the privacy commitments in `docs/FEATURES.md`.
+through), [[SM646]] (inter-instance messaging - a second consumer of this
+daemon, and the reason open decision 6 exists), SM142/SM139 (the FastCGI pool
+pattern this copies), SM212 (token lifetime), SM180 (dormant-capability
+indicators, which `realtime` inherits), and the privacy commitments in
+`docs/FEATURES.md`.
+
+## SM646 and the rule this design already states
+
+SM646's central safety rule - a report filed by a remote instance is content,
+never an instruction - is this design's "the daemon is a transport, never a
+second write plane", reached from the other direction. Two designs written
+months apart converging on one sentence is the strongest evidence either has
+that the sentence is right, and it is the rule to hold if the two are ever
+built together: whatever arrives, from a browser or from a peer, acts only by
+the same door, with the same gate, as any other request.
