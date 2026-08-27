@@ -2858,7 +2858,18 @@ sub action_channel_services {
     # page can say which capability each switch governs without a second copy of
     # the mapping in JavaScript. Lazysite::Capabilities stays the one source.
     my %by_key = reverse %$map;
-    return { ok => 1, services => \%svc, channel_for_key => \%by_key };
+
+    # SM427: the plain-sentence statement of what each capability hands over,
+    # served rather than restated. SM277 set this precedent in this same
+    # function and for the same reason - the Groups page must not carry a
+    # second copy of capability metadata in JavaScript, and here the copy at
+    # risk is the SENTENCES, which are the part that has to be right.
+    my $desc   = Lazysite::Capabilities::describe()->{capabilities} || {};
+    my %grants = map { $_ => ( $desc->{$_}{grants} // '' ) }
+        grep { length( $desc->{$_}{grants} // '' ) } keys %$desc;
+
+    return { ok => 1, services => \%svc, channel_for_key => \%by_key,
+        grants => \%grants };
 }
 
 # Audit target for an action that carries no file PATH of its own - so the audit

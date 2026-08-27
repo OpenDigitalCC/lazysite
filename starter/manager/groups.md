@@ -32,6 +32,7 @@ the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var allGroups = {};   // {group: {label, manager, assignable, caps:{}, members:[]}}
 var allUsers  = [];   // [username]
+var CAP_GRANTS = {};        // SM427: {capability: plain sentence}, served
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
 
 // The capability bools a group can carry (must match @CAP_KEYS in the users tool).
@@ -96,8 +97,15 @@ function loadGroups() {
   // SM180: which channel services are enabled site-wide, so a granted channel
   // whose service is OFF can be flagged dormant. Top-level action (not a users
   // sub-action), fetched alongside; a failure just yields no hints.
+  // SM427: the same call already carries the channel->setting map (SM277) so
+  // this page need not restate it; the grant SENTENCES ride with it for the
+  // same reason - they are the part that must be right, and a copy here would
+  // drift from the one in Capabilities.pm the moment either changed.
   var cs = fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
-    .then(function(d) { return (d.ok && d.services) ? d.services : {}; })
+    .then(function(d) {
+      if (d.ok && d.grants) CAP_GRANTS = d.grants;
+      return (d.ok && d.services) ? d.services : {};
+    })
     .catch(function() { return {}; });
   // SM103: recent-change markers - a change to a group's settings/capabilities
   // audits under the group name (a membership change audits as user@group and
@@ -151,9 +159,21 @@ function groupSummaryInner(g) {
   // it is not something to give a person. Said on the summary line so the
   // distinction is visible without opening the card, which is where an operator
   // picks a group to put somebody in.
+  // SM636: an ICON for BOTH states, not a badge for one.
+  //
+  // SM576 marked the backend groups and left the assignable ones bare, so the
+  // list read as "some groups are special" rather than "every group is one of
+  // two kinds". With SM631 seeding ten backend bundles beside nine roles, the
+  // absence of a mark stopped meaning anything - a bare row could be a role or
+  // a group listed before the flag existed.
+  //
+  // A person for "you can give this to somebody", a box for "this only holds
+  // things". The word stays beside the icon: an icon alone is a guess for
+  // anyone meeting the page for the first time, and this is the distinction
+  // that decides whether an operator can act on the row at all.
   var backend = (info.assignable === false)
-    ? ' <span class="mg-badge mg-badge-muted" title="A backend group: it aggregates capabilities and other groups. People are not added to it - they are added to a role that is nested inside it.">backend</span>'
-    : '';
+    ? ' <span class="mg-badge mg-badge-muted" title="A backend group: it aggregates capabilities and other groups. People are not added to it - they are added to a role that is nested inside it.">&#128230; backend</span>'
+    : ' <span class="mg-badge mg-badge-muted" title="A role: this is the kind of group you give to a person. Assign it from an account\'s card on the Users page.">&#128100; role</span>';
   // SM608: shipped with the engine, or made here? The two carry different risk
   // on rename and delete - a shipped group is something the engine expects to
   // find, an operator's own is not - and the list gave no way to tell. A
@@ -279,8 +299,31 @@ function renderGroups() {
       // On the label rather than the input, so hovering the row works. The
       // dormant-channel warning keeps its own title, which is more specific
       // and correctly wins on that icon.
+      // SM427: WHAT THIS ACTUALLY HANDS OVER, in a sentence, on the row where
+      // the decision is made.
+      //
+      // SM421 ruled that permission is the control - where a capability is
+      // granted, every surface delivers it in full - which makes the GRANT the
+      // decision point. That only works if the person granting knows what they
+      // are granting, and the grid gave them a two-word label.
+      //
+      // FACTS, NOT WARNINGS, per the filing: "manage_forms lets this group
+      // choose where a form's submissions are delivered, including to an
+      // address or URL you have not pre-defined" is something an operator can
+      // weigh. "Warning: dangerous!" is not, and it teaches people to click
+      // past. The sentences live in Capabilities.pm beside the title, so this
+      // page, describe_capabilities and the generated map say the same words.
+      var grants = (CAP_GRANTS && CAP_GRANTS[c[0]]) || '';
+      var info = grants
+        ? ' <span class="mg-cap-what" title="' + escHtml(grants) + '">?</span>'
+        : '';
+
+      // The technical name stays on the LABEL (SM617) and the sentence gets its
+      // own marker: one hover answers "what is this called elsewhere", the
+      // other "what does it do", and merging them would make a tooltip nobody
+      // reads to the end.
       return '<label class="mg-chk" title="' + escHtml(c[0]) + '"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
-        ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + warn + '</label>';
+        ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + warn + info + '</label>';
     };
     // SM496: capabilities this release has that this manager group has never
     // decided on - server-derived (info.pending). The decision is offered at

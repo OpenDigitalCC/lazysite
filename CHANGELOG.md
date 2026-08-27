@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM427/SM636 resolved (PENDING) **a permission says what it grants, and the
+  group list says which groups can be given to a person.** **SM427**: SM421
+  ruled that permission is the control - where a capability is granted, every
+  surface delivers it in full - which makes the grant the decision point, and
+  the Groups grid gave the person granting a two-word label. Each capability
+  now carries a plain sentence saying what it reaches and what follows, in
+  `Capabilities.pm` beside the title, served to the page rather than restated
+  there. Facts, not warnings: `audit` says the trail is instance-wide and
+  carries source IPs, `manage_forms` says delivery can go somewhere nobody
+  pre-defined - and nothing shouts, because a warning teaches people to click
+  past. **SM636**: the list badged backend groups and left roles bare, which
+  stopped meaning anything once ten bundles shipped beside nine roles. Both
+  states carry an icon now, and the role badge says where assignment actually
+  happens.
+
 - SM635 resolved (PENDING) **a held-back row says so where the operator is
   looking.** A protected FOLDER rendered an empty Access cell by construction,
   so the row that most needed to say "held back" said nothing; and the lookup

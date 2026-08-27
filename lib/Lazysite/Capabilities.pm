@@ -63,7 +63,8 @@ sub channel_service { return {%CHANNEL_SERVICE} }
 # consistency test keeps the tool/action names honest against the live maps.
 my %ACTION_INFO = (
     manage_content => {
-        title   => 'Read and write site content (pages, assets).',
+        title => 'Read and write site content (pages, assets).',
+        grants => 'Create, edit, move and delete pages and assets, and set who may read them. Over WebDAV it is direct file access to the content tree.',
         unlocks => {
             api => [ qw(aliases-list git-status git-history git-history-summary
                     git-show git-restore lang-status site-export-primary
@@ -84,6 +85,7 @@ my %ACTION_INFO = (
     },
     manage_nav => {
         title => 'Edit site navigation.',
+        grants => 'Edit the site\'s navigation - what appears in the menu, and in what order.',
         # SM568: nav-read and pages are reads a content author needs as much
         # as a nav editor, so manage_content admits them too (the MCP twins
         # read_nav and list_pages sit under manage_content). Listed under
@@ -128,6 +130,7 @@ my %ACTION_INFO = (
         # of them real, four of them snake_case guesses at a kebab-case
         # surface and two of them MCP tool names aimed at the API.
         #
+        grants => 'Choose where a form\'s submissions are delivered - including to an address or URL nobody has pre-defined - and read what has been submitted: whatever each form collects, together with the submitter\'s IP address.',
         # SM435 was this defect pointed the other way: the descriptor CLAIMED
         # a path enforcement refused. Under-claiming is the quieter failure -
         # nothing 403s, nothing errors, the agent simply cannot find a door it
@@ -143,7 +146,8 @@ my %ACTION_INFO = (
         },
     },
     manage_themes => {
-        title   => 'Install and activate themes.',
+        title => 'Install and activate themes.',
+        grants => 'Install, author and activate themes, which decide how every page on the site looks.',
         unlocks => {
             # SM457: these are gated on [manage_themes, manage_layouts] -
             # EITHER admits - so both must name them. A partner holding only
@@ -156,7 +160,8 @@ my %ACTION_INFO = (
         },
     },
     manage_layouts => {
-        title   => 'Install, author and activate layouts.',
+        title => 'Install, author and activate layouts.',
+        grants => 'Install, author and activate layouts, which decide the shape of every page on the site.',
         unlocks => {
             # SM457: as above - cross-gated actions belong on both lists.
             api => [ qw(layout-activate layout-install layout-delete layouts-available
@@ -168,7 +173,8 @@ my %ACTION_INFO = (
         },
     },
     manage_domains => {
-        title   => 'Manage the domains this instance serves, and portable site packages.',
+        title => 'Manage the domains this instance serves, and portable site packages.',
+        grants => 'Add and remove the domains this instance serves, and export or apply a whole site as a package.',
         unlocks => {
             api => [ qw(domains-list domain-add domain-set domain-remove
                     domain-preview domain-check
@@ -188,7 +194,8 @@ my %ACTION_INFO = (
     # do not exist, which is SM457's defect pointed the other way and the one
     # t/lint/71 exists to catch.
     manage_data => {
-        title   => 'Read and write the site\'s data tables.',
+        title => 'Read and write the site\'s data tables.',
+        grants => 'Read and write every data table on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here.',
         unlocks => {
             api => [
                 qw(data-tables data-table data-table-save data-rows
@@ -231,6 +238,7 @@ my %ACTION_INFO = (
             . 'Reading a brief is also admitted by manage_content; creating, appending to '
             . 'and DELETING one needs this. Declared by the briefs plugin, so it is '
             . 'grantable only where that plugin is installed.',
+        grants => 'Read and write authoring briefs - the record of WHY a page is as it is. Does not reach the page itself.',
         unlocks => {
             api => [qw(brief-read brief-append briefs-migrate briefs-list)],
             mcp => [qw(read_brief append_brief list_briefs)],
@@ -255,6 +263,7 @@ my %ACTION_INFO = (
             . 'anything goes, so the object is gone and the data is not. Granting a '
             . 'module capability lets a partner USE that module; this is what lets them '
             . 'destroy inside it, which are two different decisions.',
+        grants => 'Delete things the engine keeps a copy of - drop a data table, clear an old backup. Recoverable: the safety export survives a table drop. Deleting that export is `purge`, which is a separate grant.',
         unlocks => { api => [qw(data-table-drop)], mcp => [qw(drop_data_table)] },
     },
     purge => {
@@ -265,6 +274,7 @@ my %ACTION_INFO = (
             . 'INSTANCE-WIDE - one instance serves many domains from one backups '
             . 'directory, so this reaches archives of OTHER sites on the same instance '
             . 'and a deletion is NOT scoped by the site whose grant authorised it.',
+        grants => 'Destroy things NO copy survives: a safety export, a brief, a backup. The backup store is instance-wide, so this reaches other sites\' archives on the same instance.',
         unlocks => {
             api => [qw(brief-delete data-safety-export-delete artifact-backups-delete)],
             mcp => [qw(delete_brief delete_data_safety_export)],
@@ -276,6 +286,7 @@ my %ACTION_INFO = (
     },
     manage_config => {
         title => 'Read and set safe site configuration.',
+        grants => 'Read and change site settings - and that includes the five service switches deciding whether WebDAV, MCP, OAuth, the control API and the pairing-key exchange answer at all.',
         # SM435: this listed lazysite/nav.conf and lazysite/forms/<name>.conf
         # over WebDAV, which 0.8.1 moved to manage_nav and manage_forms
         # respectively - see authorise() in lazysite-dav.pl, which admits
@@ -292,11 +303,13 @@ my %ACTION_INFO = (
         },
     },
     manage_users => {
-        title   => 'Manage user accounts and group membership.',
+        title => 'Manage user accounts and group membership.',
+        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. Manager UI only: no remote surface offers it.',
         unlocks => { ui => ['the manager Users and Groups pages'] },
     },
     analytics => {
-        title   => 'Read sanitised, IP-anonymised visitor analytics.',
+        title => 'Read sanitised, IP-anonymised visitor analytics.',
+        grants => 'Read this site\'s visitor figures. They are sanitised and IP-anonymised before this capability sees them, so they cannot identify an individual visitor.',
         unlocks => { api => [qw(analyse_visitors)], mcp => [qw(analyse_visitors)] },
     },
     audit => {
@@ -323,10 +336,12 @@ my %ACTION_INFO = (
             . 'instance-wide for the same reason as `purge`. Its sibling '
             . '`analytics` is the sanitised, anonymised read; this one is '
             . 'neither, and the two sit together deliberately.',
+        grants => 'Read the WHOLE INSTANCE\'s audit trail - every action, the account behind it, and the raw source IP it came from, including your own manager, command-line and install sessions. It is not scoped to one site.',
         unlocks => { api => [qw(audit)] },
     },
     notifications => {
         title => 'See operator notifications (the manager bell: new form submissions, requests awaiting a response).',
+        grants => 'See the operator bell - new submissions and requests awaiting an answer. It names the form and the time, never the content.',
         # SM281 item 3: it unlocked a manager page and nothing else - a
         # capability with no remote surface, which is an SM239 parity gap and
         # the reason remote agents had been editing a shared briefing document
@@ -338,18 +353,22 @@ my %ACTION_INFO = (
     },
     feedback => {
         title => 'Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator.',
+        grants => 'Write files into lazysite/feedback/ and raise an operator notification. Off unless an operator opts the group in.',
         unlocks => { mcp => [qw(submit_feedback)] },
     },
     read_submissions => {
         title => 'Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default.',
+        grants => 'Read what visitors have submitted through forms - whatever each form collects, with the submitter\'s IP address. Read-only: it cannot change where submissions go.',
         unlocks => { api => [qw(form-submissions form-list)], mcp => [qw(read_form_submissions form_list)] },
     },
     create_sub_users => {
-        title   => 'Create sub-accounts under your own account.',
+        title => 'Create sub-accounts under your own account.',
+        grants => 'Create accounts beneath this one. A sub-account cannot be given capabilities its creator does not hold, or reach further than its creator reaches.',
         unlocks => { ui => ['sub-user creation'] },
     },
     delegate_sub_user_creation => {
-        title   => 'Grant sub-accounts the ability to create their own sub-users.',
+        title => 'Grant sub-accounts the ability to create their own sub-users.',
+        grants => 'Let the accounts this group creates make sub-accounts of their own, so delegation continues one level further without an operator.',
         unlocks => { ui => ['onward delegation of sub-user creation'] },
     },
 );
@@ -632,7 +651,16 @@ sub describe {
     my %capabilities;
     for my $a ( action_keys() ) {
         my $info = $ACTION_INFO{$a} || { title => $a, unlocks => {} };
-        $capabilities{$a} = { title => $info->{title}, unlocks => $info->{unlocks} };
+        # SM427: `grants` is the plain-sentence answer to "what am I handing
+        # over?" - carried beside the title so the Groups page, describe_
+        # capabilities and the generated capability map all get the same
+        # words. A second copy written for the UI alone would be the shape of
+        # defect this project keeps filing.
+        $capabilities{$a} = {
+            title   => $info->{title},
+            grants  => ( $info->{grants} // '' ),
+            unlocks => $info->{unlocks},
+        };
     }
 
     my %map = (

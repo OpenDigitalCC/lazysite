@@ -41,6 +41,10 @@ open my $js, '>', "$dir/row.js" or die $!;
 print {$js} <<"JS";
 function escHtml(x) { return String(x == null ? '' : x); }
 var caps = { manage_content: 1 }, channelServices = {}, ge = 'ops';
+// SM427 added a per-capability sentence to the row. This test is about the
+// TECHNICAL NAME on the label; an empty map renders the row without the
+// sentence marker, which is the case it means to examine.
+var CAP_GRANTS = {};
 $row
 console.log(JSON.stringify({ html: row(['manage_content', 'Create and edit pages'], false) }));
 JS
