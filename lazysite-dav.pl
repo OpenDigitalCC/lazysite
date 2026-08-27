@@ -15,7 +15,7 @@
 # never reads cookies or X-Remote-* headers. Credentials are verified
 # against lazysite/auth/users; access is governed by per-user
 # settings in lazysite/auth/user-settings.json (webdav flag, dav_scope
-# path restriction). See docs/feature-requests/SM070-webdav-publishing.md.
+# path restriction). See docs/feature-requests/archive/SM070-webdav-publishing.md.
 use strict;
 use warnings;
 use MIME::Base64   qw(decode_base64);

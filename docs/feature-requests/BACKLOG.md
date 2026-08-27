@@ -1,12 +1,28 @@
 ---
-title: "Feature-request backlog (index)"
-subtitle: "Status at a glance; see each SMxxx doc for detail"
+title: "Feature-request wishlist (unscoped ideas)"
+subtitle: "The ideas that have no SM filing yet. For the status of everything that does, run tools/backlog.pl"
 brand: plain
 ---
 
-One-line status for every feature request. Updated 2026-07-10. Status derived
-from the CHANGELOG (shipped releases) and corroborating code, not the per-doc
-text.
+# What this file is, and what it stopped being
+
+SM658: this was a hand-maintained status line for every feature request,
+last updated 2026-07-10, deriving status "from the CHANGELOG ... not the
+per-doc text". That made it a second source of truth about 500+ documents
+that each already carry their own `status:` header, and it drifted - which
+is the same defect SM654 filed against the hand-kept `unlocks` map.
+
+**The status list is gone.** It is derived now:
+
+```
+perl tools/backlog.pl          # open work
+perl tools/backlog.pl --all    # everything, including the archive
+perl tools/backlog.pl --json   # the same, for tooling, with a relation graph
+```
+
+What remains below is the part no filing holds: **raw ideas that have never
+been scoped into an SM document.** An idea that graduates gets a filing and
+leaves this list.
 
 
 ## Ideas - not yet scoped
@@ -155,187 +171,6 @@ before work starts.
       request/approve/reject, and a clear default-off posture. Relates to the
       existing pairing-key onboarding (SM124) and multi-tenant work (SM075).
 
-
-## Open - actionable
-
-- **apt-repo publication (SM139 residue)** - the debs exist
-  (the repo dist/); publishing them from an apt repo (candidate:
-  the Forgejo instance; suites stable/edge, signing key management) turns
-  the dpkg step into `apt upgrade`. Scope when Forgejo is ready.
-- **2026-07-10 review - deferred items** *(tracked in
-  docs/review/2026-07-10-eight-dimension/01-resolution.md)* - (a) BOOK THE
-  PENTEST ENGAGEMENT before the ADR 0007 waiver expires 2026-12-31 (hard
-  date); (b) docs/MONITORS.md register + the dev-server operational exemplar
-  (D5); (c) release signing (.sig + release.sh step), VEX, OpenChain
-  5230/18974, CRA Annex VII technical file (D8 beyond the unconditional
-  items); (d) bench breadth: manager-API users-page op, DAV PROPFIND/PUT op,
-  scan-heavy render variant (D4); (e) a test pinning the 0.6.6 install.pl
-  ownership repair (D3); (f) threat-model currency rows for the 0.6.x
-  surface (D6 residual); (g) repeat a timed restore rehearsal each stable
-  cycle (RELIABILITY.md commitment).
-- **Eight-dimension review follow-up (2026-07-01, v0.5.35)** - full review at
-  `docs/review/2026-07-01-eight-dimension/` (verdicts: D1-D4 + D7-D8 WARN,
-  D5 + D6 REFUSE). Application-side actions proceed in the current cycle;
-  **operational items are HELD for pre-launch** and documented with owners and
-  triggers in `docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md`
-  (SLO/RTO/RPO declaration, snapshot crons, logrotate, monitoring/alerting,
-  debsecan + gitleaks installs, pentest gate + engagement, support period,
-  signing/DoC/VEX/technical-file set). **Ownership (2026-07-04):** the operational
-  review is a HOSTING concern owned **per implementation** - each operator runs it
-  for their own deployment; the project ships the mechanism + a worked dev-server
-  exemplar (`tools/lazysite-server.pl`), not a one-time central sign-off. See the
-  Status section of the holds doc.
-- **Remote-layout content components** *(DEFERRED 2026-07-03 - speculative)* -
-  `install_layout` + fenced/sections components are local-layout only; remote
-  (URL) layouts fetch just `layout.tt`, so their `components/` are not fetched or
-  resolved. Current behaviour degrades gracefully (a `:::name` in content rendered
-  with a remote layout falls through to a generic fenced div - no error). A real
-  fix needs a design fork (on-demand guarded fetch of `<base>/components/<name>.tt`
-  with per-component caching, vs a declared component bundle/manifest) and is a
-  sizeable, SSRF-touching build - disproportionate until remote layouts are
-  actually used with components. Revisit then.
-- **Visitor statistics - performance** *(largely superseded by SM140,
-  2026-07-10)* - visualisations shipped 2026-07-03; the performance concern is
-  mostly gone: the page scan now reads dated first-party day files (bounded by
-  the window, not the log's lifetime) and the AI export is incremental via
-  per-file byte offsets. Residual: a very-high-traffic site might want
-  scan_stats given per-file offsets too; revisit only if a real site's window
-  scan bites.
-
-## Done
-
-- **SM070** WebDAV publishing endpoint + per-user ACLs.
-- **SM071** WebDAV theme/layout management; self-service activation.
-- **SM072** Self-service credentials + MFA-ready auth.
-- **SM073** Per-file `.brief` sidecars.
-- **SM074** Per-file ownership + ACLs.
-- **SM076** MCP server for site management + OAuth (Claude.ai / ChatGPT / Code).
-- **SM077** File-manager UI overhaul (permissions, rename/move, rights editor).
-- **SM078** Audit trail records the target + origin.
-- **SM079** Modular refactor (standalone processor + `Lazysite::*` modules); **SM079a** action-handler decomposition.
-- **SM080** Reconcile partner docs with field reports (+ activation asset mirror).
-- **SM081** Form targets: mixed handler/type read fixed (single-pass parse).
-- **SM082** Content vs theme/layout write capability (`manage_content`).
-- **SM083** Access-log stats plugin (domain-qualified auto-detect, autoconfig);
-  v2 (0.4.62) adds a traffic classifier (people / AI assistants / bots / noise /
-  logged-in operator), internal/external/direct referrer split, and log-path
-  privacy. Later hardened: headless/agent UA detection + self-identify marker
-  (0.5.23); the error surface is synthesised and the raw log download removed
-  (0.5.29).
-- **SM084** Non-destructive overlay install + content backups; in-manager
-  restore (overlay semantics, prerestore safety snapshot, cache clear) shipped
-  2026-07-02 with the eight-dimension follow-up.
-- **SM087** Connector editing ergonomics - full tool set (patch edit, search, preview, validate, `set_nav`, copy, permissions, audit, manifest, error kinds, nav-cache).
-- **SM088** Form-to-transport binding (`list_form_handlers` / `bind_form`).
-- **SM091** Dev-server auto-index (`tools/lazysite-server.pl --auto-index`).
-- **SM093** One-command manager bootstrap.
-- **SM094** Users-page permission clarity.
-- **SM095** Group-based capabilities - a channel × action model resolved through
-  one central resolver that every surface consults (manager UI / control API /
-  MCP / WebDAV). Manager-UI access and operator status became the `ui` /
-  `manage_users` capabilities (manager_groups retired to a non-breaking fallback);
-  capabilities incl. `create_sub_users` are explicit per-group grants; audit split
-  into its own `audit` capability. Shipped 0.5.15-0.5.25.
-- **SM097** Nav-editor page autocomplete.
-- **SM099** Client-side auth button (`data-ls-auth-*` sync before `</body>`).
-- **SM100** One-connect flow (connector onboarding).
-- **SM101** Agent stop-retrying signal.
-- **SM102** Agent feedback endpoint.
-- **SM104** Top-level vs sub-user clarity.
-- **SM105** Per-section `nav` own-capability; **SM106** `forms` own-capability.
-- **SM107** Manager access-groups picker (delivered under SM114).
-- **SM108** AI form-building docs.
-- **SM109** Manager UI modernization (shell + sidebar, palette, toasts, dark mode).
-- **SM111** Files list sortable + paginated.
-- **SM112** Generated-site `<meta name="generator">`.
-- **SM113** Operator notifications + submission alerts.
-- **SM114** Manager UI polish round 2 (incl. access-groups picker).
-- **SM115** Submissions UX + safety (append-only data read-only).
-- **SM116** Dark editor colour scheme (WCAG-tuned CodeMirror).
-- **SM117** Audit install/upgrade events.
-- **SM118** Settings unsaved-changes reminder.
-- **SM119** Audit filter dropdowns + date-range search.
-- **SM120** Per-page `theme:` override.
-- **SM121** WebDAV provisioning.
-- **SM122** Token config self-service.
-- **SM123** Theme discovery.
-- **SM124** Connector onboarding alignment.
-- **SM125** Scan front-matter passthrough.
-- **SM133** Static-HTML migration fallback - a clean URL with no Markdown source
-  but a static sibling is served (processor verbatim; Hestia vhost prefers `.shtml`
-  so SSI still expands), until the page is converted to Markdown (0.5.26).
-- **SM134** Page alias redirects - a page's `aliases:` front matter (old/alternate
-  URLs) 301s to its canonical URL; map maintained in `lazysite/aliases.json` by
-  `Lazysite::Aliases` on manager/WebDAV save+delete; processor enforces on the 404
-  path only; target is always the page's own URL (not an open redirect) (0.6.1).
-- **SM134 follow-ups** - `aliases_temp:` front matter for per-alias 302s
-  (map schema stays backward compatible: string = 301, `{target, code}` = 302);
-  manager move/copy/migrate + WebDAV MOVE/COPY reindex the affected page(s) so a
-  rename re-keys aliases without a save; read-only Aliases card on the Files page
-  backed by the `aliases-list` action (`manage_content` for token clients)
-  (2026-07-10).
-- **SM096** "Migrate to local" - a `.url` page fetched (guarded `Lazysite::Fetch`)
-  and written as a sibling `.md` (2026-07-03).
-- **SM098** Multi-page / wizard forms - `--- step ---` delimiters render linear
-  wizard steps; delivery unchanged (2026-07-04).
-- **SM103** Recent-change markers, Phase 1 - `recent-changes` from the audit tail;
-  dots on Files/Users rows (0.6.1). Phases 2-3 (SSE, presence) remain a separate
-  real-time programme.
-- **SM126** Partner-agent onboarding & capability discoverability - the
-  machine-parseable capability map (`describe_capabilities` MCP tool +
-  control-API action), quickstarts, generated capability docs with drift test,
-  transport gating, unified denial language, host-deps list (2026-07-04).
-- **SM128** Bad-URL auto-blocker plugin (default on) - probe detection + rolling
-  per-IP threshold, enforced in the auth wrapper; blocked-IP view/unblock on the
-  Stats page. Known limitation: a no-auth basic site is not covered (2026-07-03).
-- **SM136** notify-xmpp plugin - operator notices (form fills, reset requests,
-  agent feedback) over XMPP; one client config per site, individual or room
-  recipient (0.6.3).
-- **SM138** manager_groups retired - manager access granted by groups only
-  (`ui` / `manage_users`); automatic conf migration (0.6.5).
-- **SM085** Content history (git backend) + git-sync - every content write a
-  commit (GIT_DIR inside lazysite/, secrets never versioned - pushable-safe by
-  construction); Files-app per-file history/View/Diff/Restore; on-demand
-  remote push/pull with plain-language conflict choices, token never on a
-  command line (0.7.4). Phase 2 (agent changesets begin/diff/commit/rollback)
-  remains future.
-- **SM110** Domain aliases - alias_hosts + whitelisted per-host overrides
-  (site_name/theme/layout/nav/search), host-keyed cache slots with exhaustive
-  invalidation; security keys never vary by Host (0.7.3).
-- **SM141** Sessions - live-session listing + per-session/per-user revocation
-  on signed cookies (registry + revocation list, single enforcement point);
-  legacy cookies honoured until expiry (0.7.3).
-- **SM139** Packaged distribution - lazysite-common.deb (engine payload,
-  lazysite CLI with no-root provisioning, FCGI pool unit, site registry) +
-  lazysite-hestia.deb (one-command domain onboarding, cgi/fcgi vhost
-  templates); fleet upgrade --all with channel/policy + --force-security;
-  hardened lazysite-check (post-fix re-report, CGI-identity checks) (0.7.2).
-- **SM142** Persistent runtime - dual-mode FastCGI accept loop, prefork
-  pools, 147x on cache hits (62.2ms -> 0.4ms); plain CGI unchanged (0.7.1).
-- **SM140** First-party analytics - the processor records its own traffic
-  (anonymised at write, daily rotation, retention prune); the stats page AND the
-  analyse_visitors AI export read it first, so analytics work with zero
-  web-server setup; server log demoted to fallback/tier-2 diagnostics
-  (0.6.8-0.6.9).
-- **Manager UX / ops small items** (2026-07-03/04) - manager log-out control
-  (with SM109), audit local-time timestamps, Files "Duplicate…", backups
-  consolidated into one typed tab (+ cross-domain `--restore-full --domain`
-  migration; per-section capability gating waits on external-auth),
-  theme_assets default-theme fallback, audit in-page view on the incremental
-  cache (was already present), `install.pl --channel`, manager-api branch
-  coverage floor 55 -> 60.
-
-## Candidates - research / future
-
-- **SM075** Wildcard multi-tenant hosting.
-- **SM086** Pandoc-wrapper construct renderers (datatable, charts, `:::` boxes,
-  citations) - one source → branded PDF + web.
-- **SM090** Social syndication / POSSE (ActivityPub + AT Proto, Slice 1).
-- **SM092** Gopher and Gemini services - stays here: a protocol *transport* over
-  the shared content core (like WebDAV / MCP), not a visual layout.
-
-*(SM089 3D-rendered layout moved to `lazysite-layouts` - it is a layout/theme
-category. Proposal now at `lazysite-layouts/docs/proposals/3d-layout.md`.)*
 
 ## Notes
 

@@ -6,7 +6,7 @@
 #               partner; mints a PKCE-bound authorization code
 #   token     - authorization_code (+ PKCE verifier) / refresh_token exchange
 # The discovery metadata are api pages under /.well-known/. Store + crypto live
-# in Lazysite::Auth::OAuth. See docs/feature-requests/SM076-oauth.md.
+# in Lazysite::Auth::OAuth. See docs/feature-requests/archive/SM076-oauth.md.
 use strict;
 use warnings;
 use JSON::PP       qw(encode_json decode_json);

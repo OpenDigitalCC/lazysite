@@ -14,7 +14,14 @@ use TestHelper qw(repo_root);
 my %ALLOWED    = map { $_ => 1 } qw(shipped partial parked candidate superseded);
 my %NEEDS_NOTE = map { $_ => 1 } qw(partial superseded);
 
-my @files = sort glob( repo_root() . '/docs/feature-requests/SM*.md' );
+# SM658: the archive is checked too. A settled filing keeps its status
+# vocabulary - archiving is a change of location, not of standard, and a
+# glob that stopped at the top level would silently drop 489 documents from
+# this gate on the day they moved.
+my @files = sort(
+    glob( repo_root() . '/docs/feature-requests/SM*.md' ),
+    glob( repo_root() . '/docs/feature-requests/archive/SM*.md' ),
+);
 cmp_ok( scalar @files, '>=', 60, 'the feature-request corpus is present' );
 
 for my $f (@files) {

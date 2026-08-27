@@ -2256,7 +2256,7 @@ sub main {
         # SM110: alias-host cache handling happens where $html_path is
         # computed below - phase 2 gives each alias host its own cache slot
         # (phase 1's blanket NOCACHE is retired). See
-        # docs/feature-requests/SM110-domain-aliases.md.
+        # docs/feature-requests/archive/SM110-domain-aliases.md.
     }
 
     # Trust gate: strip HTTP_X_REMOTE_* / HTTP_X_PAYMENT_* unless

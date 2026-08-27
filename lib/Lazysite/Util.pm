@@ -2,7 +2,7 @@ package Lazysite::Util;
 
 # Shared helpers for the modular lazysite scripts (auth, dav, manager-api, the
 # users tool). The processor stays self-contained and does NOT use this module -
-# see docs/feature-requests/SM079-modular-refactor.md.
+# see docs/feature-requests/archive/SM079-modular-refactor.md.
 #
 # Each script sets $Lazysite::Util::COMPONENT after `use`, so log lines are
 # attributed to the right component.

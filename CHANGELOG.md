@@ -44,6 +44,30 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM658 shipped (PENDING) **the filings are two directories and one corpus.**
+  544 feature-request filings sat in one flat directory, 90% of them terminal,
+  indexed by a hand-written `BACKLOG.md` last updated seven weeks earlier that
+  derived status "from the CHANGELOG - not the per-doc text": a second source
+  of truth about 500+ documents that each already carry their own `status:`
+  header. The 489 terminal filings move to `docs/feature-requests/archive/`, so
+  the top level is the 35 open items. Three readers globbed that directory
+  NON-RECURSIVELY and each had to learn about both: `t/lint/09` would have
+  stopped checking 489 filings' status vocabulary silently, `t/lint/26` would
+  have reported every released CHANGELOG entry's filing as missing, and
+  `backlog.pl --all` would have shown 35 and called it everything.
+  `backlog.pl` gains `--json` and a RELATION GRAPH - derived, never stored: 543
+  of 544 filings already name another SM in their prose, 3,572 references in
+  all, so the graph existed and was simply not machine-readable. Writing a
+  `relates:` field into each file would have made a second copy of what the
+  body says and drifted from it, which is the defect SM654 filed against the
+  hand-kept `unlocks` map one day earlier. 993 edges after dropping
+  self-references and refs to numbers never filed. Two numbers carry two
+  documents each (SM076, SM270), which a hash keyed by number silently
+  collapsed; keyed by path now, both indexed, the collision reported. The
+  `area:` grouping field is deliberately NOT built - it needs a closed
+  vocabulary, and guessing one across 544 files produces a confidently wrong
+  index.
+
 - SM633 resolved (PENDING) **the switches that decide whether anyone can reach
   the instance are their own grant.** `manage_config` governed both the site's
   title and its cache lifetime AND the five service killswitches, under a

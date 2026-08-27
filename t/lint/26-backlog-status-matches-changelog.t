@@ -118,7 +118,12 @@ my %TERMINAL = map { $_ => 1 } qw(shipped partial superseded);
 my @wrong;
 my @missing;
 for my $sm ( sort { $a <=> $b } keys %claimed ) {
-    my ($file) = glob "$root/docs/feature-requests/SM$sm-*.md";
+    # SM658: a shipped filing lives in archive/, which is where a CHANGELOG
+    # ref most often points - every entry in a released section names an item
+    # that is by definition terminal. Looking in one directory only would
+    # report all of them as missing.
+    my ($file) = ( glob("$root/docs/feature-requests/SM$sm-*.md"),
+        glob("$root/docs/feature-requests/archive/SM$sm-*.md") );
     unless ( defined $file && -f $file ) {
         push @missing, "SM$sm (released in $claimed{$sm}{release})";
         next;
