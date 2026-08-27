@@ -268,6 +268,11 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_create              => 'user-group-create',
     cmd_group_delete              => 'user-group-delete',
     cmd_group_nest                => 'user-group-nest',
+    # SM644: writes the group store wholesale, so it is emphatically mutating.
+    # The audit line names how many groups were restored and how many were left
+    # alone, because "reset the groups" without those two numbers does not say
+    # what happened on the site it happened to.
+    cmd_reset_groups   => 'user-groups-reset',
     cmd_partner_create            => 'user-partner-create',    # + a pairing-key entry
     cmd_onboarding                => 'user-onboarding',
     cmd_key_revoke                => 'user-key-revoke',
@@ -667,6 +672,7 @@ elsif ( $cmd eq 'group-remove' )              { cmd_group_remove(@args) }
 elsif ( $cmd eq 'group-set' )                 { cmd_group_set_cli(@args) }
 elsif ( $cmd eq 'groups' )                    { cmd_groups() }
 elsif ( $cmd eq 'group-reach' )               { cmd_group_reach(@args) }
+elsif ( $cmd eq 'reset-groups' )              { cmd_reset_groups(@args) }
 elsif ( $cmd eq 'setup-manager' )             { cmd_setup_manager(@args) }
 elsif ( $cmd eq 'settings' )                  { cmd_settings(@args) }
 elsif ( $cmd eq 'set' )                       { cmd_set_cli(@args) }
@@ -4377,6 +4383,119 @@ sub cmd_group_set_cli {
     return $r;
 }
 
+# SM644: PUT THE SEEDED GROUPS BACK, and leave everything else alone.
+#
+# When access does not work, the fix under time pressure is to grant something,
+# and the grant outlives the problem. Nothing records WHY a capability was
+# granted, so the drift is monotonic - towards over-granting - and
+# reconciliation is not available as an option: you would have to know which
+# grants were deliberate, and nothing knows. A reset is the only operation that
+# reaches a known state.
+#
+# WHAT IT TOUCHES, and the `seeded` marker (SM608) is what makes this safe to
+# state rather than to judge:
+#
+#   seeded groups     capability rows, grantable, nesting and MEMBERSHIP back
+#                     to the shipped defaults
+#   operator-made     UNTOUCHED - name, members, capabilities, everything. A
+#                     group named in a protected area's ACL keeps working,
+#                     because it is organisational rather than shipped
+#   accounts          NEVER touched. Not renamed, not removed, not disabled
+#
+# THE MANAGER GROUP'S MEMBERSHIP IS PRESERVED, at the release manager's
+# direction: membership of the full-access group is what IDENTIFIES the
+# administrators, so the answer to "who can still get in afterwards" is already
+# in the store and needs no flag. That is also the whole lockout defence - the
+# admins never leave, so there is no state in which nobody can reach the
+# manager. A reset that could produce one would be an outage the manager itself
+# cannot repair (SM651 is the same failure by another route).
+#
+# DRY RUN IS THE DEFAULT. --apply is required to write. "Likely over-granting"
+# is a belief until an operator reads what would actually change, and this is
+# the operation where reading first matters most.
+sub cmd_reset_groups {
+    my (@a) = @_;
+    my $apply = grep { $_ eq '--apply' } @a;
+
+    my $gs      = read_group_settings();
+    my %members = read_groups();
+    my $seed    = _default_group_seed();
+    my $nesting = _default_group_nesting();
+
+    # Which manager groups exist, so their membership can be carried across.
+    my %is_manager = map { $_ => 1 }
+        grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} } keys %{$gs};
+
+    # THE UNION, not just the settings file. A group can exist with MEMBERS and
+    # no settings record - `group-create` followed by `group-add` produces
+    # exactly that - and the first version of this walked %$gs alone. It
+    # behaved correctly (such a group is untouched) and REPORTED "0 operator
+    # groups untouched" while one sat there with a member in it. The dry run is
+    # the safety mechanism for this command; a dry run that omits what it is
+    # not touching cannot be trusted to be complete about what it is.
+    my %all_groups = map { $_ => 1 } ( keys %{$gs}, keys %members );
+
+    my ( @restored, @cleared, @kept, @members_kept );
+    for my $g ( sort keys %all_groups ) {
+        my $cfg = $gs->{$g} || {};
+        unless ( ref $cfg eq 'HASH' && $cfg->{seeded} ) { push @kept, $g; next }
+        # `seeded` absent means operator-made (SM608): every group that predates
+        # the marker was on an instance an operator had already shaped, and
+        # claiming those shipped would be the confident wrong answer.
+        push @restored, $g;
+        if    ( $is_manager{$g} )         { push @members_kept, $g }
+        elsif ( @{ $members{$g} || [] } ) { push @cleared,      $g }
+    }
+
+    unless ($apply) {
+        print "reset-groups: DRY RUN. Nothing is written without --apply.\n\n";
+        printf "  %-28s %s\n", 'seeded groups to restore:', scalar @restored;
+        print "    $_\n" for @restored;
+        printf "  %-28s %s\n", 'membership to clear:', scalar @cleared;
+        for my $g (@cleared) {
+            print "    $g (" . join( ', ', @{ $members{$g} || [] } ) . ")\n";
+        }
+        printf "  %-28s %s\n", 'manager membership KEPT:', scalar @members_kept;
+        for my $g (@members_kept) {
+            print "    $g (" . join( ', ', @{ $members{$g} || [] } ) . ")\n";
+        }
+        printf "  %-28s %s\n", 'operator groups untouched:', scalar @kept;
+        print "    $_\n" for @kept;
+        print "\nAccounts are never touched. Re-run with --apply to write.\n";
+        return;
+    }
+
+    for my $g (@restored) {
+        my $was_manager = $is_manager{$g};
+        my $keep        = $was_manager ? ( $members{$g} || [] ) : [];
+        if ( $seed->{$g} ) {
+            $gs->{$g} = { %{ $seed->{$g} }, seeded => 1 };
+        }
+        # A seeded group with no seed entry any more (retired by a release):
+        # leave its record rather than invent one.
+        $gs->{$g}{manager} = 1 if $was_manager;
+        $members{$g} = $keep;
+    }
+    # Nesting back to the shipped shape, for the seeded groups only.
+    for my $parent ( sort keys %{$nesting} ) {
+        next unless $gs->{$parent} && $gs->{$parent}{seeded};
+        for my $child ( @{ $nesting->{$parent} } ) {
+            next if grep { $_ eq $child } @{ $members{$parent} || [] };
+            push @{ $members{$parent} }, $child;
+        }
+    }
+
+    write_group_settings($gs);
+    write_groups(%members);
+    log_event( 'INFO', 'groups', 'reset to shipped defaults',
+        restored => scalar @restored, kept => scalar @kept );
+    cli_audit( 'user-groups-reset', 'groups',
+        'restored=' . scalar(@restored) . ' kept=' . scalar(@kept) );
+    print "Restored " . scalar(@restored) . " seeded group(s). "
+        . scalar(@kept) . " operator group(s) untouched. Accounts unchanged.\n";
+    return;
+}
+
 sub cmd_group_create {
     my ($group) = @_;
     return { ok => 0, error => 'Group required' } unless defined $group && length $group;
@@ -4503,6 +4622,13 @@ Commands:
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
+  reset-groups [--apply]      Restore the SEEDED groups - capability rows,
+                              grantable, nesting and membership - to the shipped
+                              defaults. Groups an operator MADE are untouched
+                              (the `seeded` marker decides), and ACCOUNTS are
+                              never touched. The manager group keeps its members,
+                              because membership of it is what identifies the
+                              administrators. DRY RUN unless --apply.
   group-reach [GROUP]         What a group's members can actually CALL on each
                               surface (ui, webdav, api, mcp), derived from the
                               live capability tables through the nesting closure

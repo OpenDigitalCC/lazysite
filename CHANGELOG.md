@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM644 shipped (PENDING) **the groups can be put back.** When access does not
+  work the fix under pressure is to grant something, and the grant outlives the
+  problem; nothing records WHY a capability was granted, so the drift is
+  monotonic towards over-granting and reconciliation is not available - you
+  would have to know which grants were deliberate, and nothing knows.
+  `lazysite-users.pl reset-groups [--apply]` restores the SEEDED groups -
+  capability rows, grantable, nesting and membership - to the shipped defaults.
+  Groups an operator MADE are untouched, record and members, so an
+  organisational group named in a protected area's ACL keeps working; the
+  `seeded` marker (SM608) decides. ACCOUNTS are never touched. The manager group
+  keeps its members, because membership of it identifies the administrators -
+  so there is no state in which nobody can reach the manager, and no `--admin`
+  argument is needed. DRY RUN is the default.
+
 - SM648 fixed (PENDING) **a scopeless grant reaches no domain's table, and the
   CLI still reaches every one.** A grant with no `dav_scopes` read every table
   on the instance while the same absence of scope reached no site package -
