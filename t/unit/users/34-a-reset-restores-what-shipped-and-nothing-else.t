@@ -62,7 +62,7 @@ sub members_of {
     return $l[0] // '';
 }
 
-run('setup-manager pw123456789');
+run('setup-sysop --user sjm pw123456789');    # SM659: named, not a role account
 run('group-create family-admins');       # organisational: an ACL may name it
 run('add alice pw');
 run('add bob pw');
@@ -120,8 +120,8 @@ ok( gs()->{'family-admins'}{manage_content},
 # can reach the manager.
 like( members_of('recordless'), qr/alice/,
     'and it is genuinely untouched by the apply' );
-like( members_of('lazysite-admins'), qr/manager/,
-    'the manager group keeps its members - the administrators never leave' );
+like( members_of('sysops'), qr/sjm/,
+    'the sysops group keeps its members - the administrators never leave' );
 
 # --- other seeded membership is cleared ------------------------------------
 unlike( members_of('content-editors'), qr/bob/,

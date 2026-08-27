@@ -19,8 +19,8 @@
 # that protects nothing costs a process start that the web server would not have
 # charged. The shipped templates therefore remain - as PERFORMANCE options whose
 # absence costs speed and never correctness, which is the acceptance criterion
-# SM286 set for this direction. An operator who wants the speed keeps the
-# template; an operator who wants one line they can reason about uses this.
+# SM286 set for this direction. A sysop who wants the speed keeps the
+# template; a sysop who wants one line they can reason about uses this.
 #
 # CGI, not the FastCGI pool, and that is deliberate for now. Dispatch here ends
 # in exec(), which is exactly right for a one-shot CGI and fatal inside a

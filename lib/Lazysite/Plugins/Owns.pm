@@ -46,7 +46,7 @@ sub _err {
 # Returns a LIST of problems - empty when the declaration is sound.
 #
 # A list rather than the first failure, because the caller is either a lint
-# reporting to a developer or a manager page reporting to an operator, and both
+# reporting to a developer or a manager page reporting to a sysop, and both
 # want every problem at once. Stopping at the first turns one fix into four
 # round trips.
 sub validate_owns {

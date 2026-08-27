@@ -109,7 +109,7 @@ my %ACTION_INFO = (
         # read_submissions on both channels; the measurement below is what that
         # capability now hands over, not this one. Measured on edge
         # 2026-08-26: name, email, phone, message and the submitter's IP, under
-        # a capability an operator grants to let an agent wire up a form.
+        # a capability a sysop grants to let an agent wire up a form.
         title => 'Wire forms to delivery handlers - AND read what has been '
             . 'submitted through them. SM618: `form-submissions` admits either '
             . 'this or `read_submissions`, so this grant returns live '
@@ -118,7 +118,7 @@ my %ACTION_INFO = (
             . 'IP. Grant `read_submissions` instead where an agent only needs '
             . 'to process leads, and this one where it must also change how '
             . 'forms are wired. A submitted form also raises an '
-            . 'operator notification of its own accord (the manager bell, plus chat '
+            . 'sysop notification of its own accord (the manager bell, plus chat '
             . 'where notify-xmpp is configured) naming the form and the time but '
             . 'never the content - so nothing needs to poll to learn that something '
             . 'arrived. See /docs/forms.',
@@ -273,7 +273,7 @@ my %ACTION_INFO = (
     # and preview-clear stay under manage_content / manage_themes /
     # manage_layouts, carrying SM587's `changes_access` flag. Folding them in
     # here would mean whoever may clear old backups may also un-gate content -
-    # an operator who wanted a housekeeper handing over the permission surface.
+    # a sysop who wanted a housekeeper handing over the permission surface.
     # Housekeeping and permission management are different jobs.
     housekeeping => {
         title => 'Destroy things the engine keeps a copy of. The RECOVERABLE tier of '
@@ -369,7 +369,7 @@ my %ACTION_INFO = (
             . 'INSTANCE-WIDE and is NOT scoped by the grant that authorised the '
             . 'read - one instance serves many domains into one trail, so this '
             . 'reaches entries for OTHER sites, and every entry names the actor '
-            . 'and carries a RAW source IP, the operator\'s own manager, '
+            . 'and carries a RAW source IP, the sysop\'s own manager, '
             . 'command-line and install sessions among them. Sanctioned '
             . 'instance-wide for the same reason as `purge`. Its sibling '
             . '`analytics` is the sanitised, anonymised read; this one is '
@@ -378,8 +378,8 @@ my %ACTION_INFO = (
         unlocks => { api => [qw(audit)] },
     },
     notifications => {
-        title => 'See operator notifications (the manager bell: new form submissions, requests awaiting a response).',
-        grants => 'See the operator bell - new submissions and requests awaiting an answer. It names the form and the time, never the content.',
+        title => 'See sysop notifications (the manager bell: new form submissions, requests awaiting a response).',
+        grants => 'See the sysop bell - new submissions and requests awaiting an answer. It names the form and the time, never the content.',
         # SM281 item 3: it unlocked a manager page and nothing else - a
         # capability with no remote surface, which is an SM239 parity gap and
         # the reason remote agents had been editing a shared briefing document
@@ -406,7 +406,7 @@ my %ACTION_INFO = (
     },
     delegate_sub_user_creation => {
         title => 'Grant sub-accounts the ability to create their own sub-users.',
-        grants => 'Let the accounts this group creates make sub-accounts of their own, so delegation continues one level further without an operator.',
+        grants => 'Let the accounts this group creates make sub-accounts of their own, so delegation continues one level further without a sysop.',
         unlocks => { ui => ['onward delegation of sub-user creation'] },
     },
 );
@@ -499,7 +499,7 @@ my @TASKS = (
     { id => 'wire-form', title => 'Wire a form to a handler',
         requires => ['manage_forms'],
         steps    => [
-            'call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming an operator-defined handler',
+            'call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming a sysop-defined handler',
         ],
     },
     { id => 'migrate-site', title => 'Migrate a site (package one domain and apply it elsewhere)',
@@ -590,7 +590,7 @@ sub _holds_why {
     for my $k (@CAP_KEYS) {
         if ( !$caps->{$k} ) {
             $why{$k} = 'not granted to this account. The capability exists in '
-                . 'lazysite - ask the operator to grant it.';
+                . 'lazysite - ask the sysop to grant it.';
             next;
         }
         next unless $IS_CHANNEL{$k};
@@ -614,7 +614,7 @@ sub _holds_why {
 # A capability is a permission; a channel is a door. An account can hold a
 # capability whose every door is shut on a different switch - analytics:true
 # with mcp:false was the field case - and whoami reported a bare `true`,
-# which is not operationally true. The operator saw the grant applied, the
+# which is not operationally true. The sysop saw the grant applied, the
 # agent saw the capability held, and neither could use it.
 #
 # Derived from the `unlocks` map rather than declared, so a capability that
@@ -724,7 +724,7 @@ sub describe {
             scope =>
                 'What THIS account has been granted. A false value means "not '
                 . 'granted to this account", never "not available in lazysite" - see '
-                . '"capabilities" for what the platform offers, and ask the operator '
+                . '"capabilities" for what the platform offers, and ask the sysop '
                 . 'for a grant. See "why" for the reason each false is false.',
             capabilities => { map { $_ => ( $caps->{$_} ? $T : $F ) } @CAP_KEYS },
             why          => _holds_why( $caps, $opt{docroot} ),

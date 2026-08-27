@@ -16,7 +16,7 @@ package Lazysite::Data::Connect;
 #   even when a check is.
 #
 #   SQLite gives it to us honestly: sqlite_open_flags => SQLITE_OPEN_READONLY
-#   is refused by the driver, not by us. On a server engine the operator SHOULD
+#   is refused by the driver, not by us. On a server engine the sysop SHOULD
 #   supply a read-only role in the URI - that is documented rather than
 #   pretended, because we cannot enforce it from here and saying otherwise
 #   would be the worse failure.
@@ -119,7 +119,7 @@ sub _connect {
     # defect class this codebase spends most of its time removing.
     #
     # So the answer is not a deployment note. It is store_diagnosis() below,
-    # which the read path consults when something fails, so an operator is told
+    # which the read path consults when something fails, so a sysop is told
     # the directory is not writable rather than being told their table is
     # empty. Read-only deployment may be a legitimate choice; being unable to
     # tell it apart from an empty table is not.
@@ -132,7 +132,7 @@ sub _connect {
     return $dbh;
 }
 
-# WHY A READ FAILED, in terms an operator can act on.
+# WHY A READ FAILED, in terms a sysop can act on.
 #
 # Called when something on the read path has already gone wrong. It does not
 # guess: each branch below is a condition that has been checked, and the last

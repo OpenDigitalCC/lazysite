@@ -28,8 +28,8 @@ our $DOCROOT;    # set by the script
 # code path and a site migrates by moving the directory.
 sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 
-# Manager auth-state, set per request by the dispatcher (the operator-bypass
-# decision). A token client is never an operator; otherwise group-granted
+# Manager auth-state, set per request by the dispatcher (the sysop-bypass
+# decision). A token client is never a sysop; otherwise group-granted
 # capabilities decide (SM138: the conf manager_groups fallback is retired).
 our $auth_user  = '';
 our $token_auth = 0;
@@ -305,7 +305,7 @@ sub _to_list {
 # Folder scope was implemented only in the processor's module-free copy, so a
 # "protected section" was protected on the anonymous read path and nowhere else:
 # Acl::_acl_allows matched the exact key only, and the manager, MCP and WebDAV
-# therefore granted full READ AND WRITE inside a section the operator had gated.
+# therefore granted full READ AND WRITE inside a section the sysop had gated.
 # An adversarial review demonstrated it. One store answering two different
 # questions depending on which surface asks is precisely what SM223 chose a
 # single store to avoid.
@@ -397,9 +397,9 @@ sub _acl_allows {
 }
 
 # Operator bypass (manager-only). A token (control-API) client is NEVER an
-# operator - per-file ACL ownership applies to it like any WebDAV partner. An
-# unsecured site (no manager_groups) treats cookie clients as operators; the
-# 'local' user is always operator; else manager-group membership decides. The
+# sysop - per-file ACL ownership applies to it like any WebDAV partner. An
+# unsecured site (no manager_groups) treats cookie clients as sysops; the
+# 'local' user is always sysop; else manager-group membership decides. The
 # token path never consults the client-influenceable X-Remote-Groups.
 # SM095: does any of these groups carry capability $cap? Routed through the
 # shared resolver helper (ADR 0001) - AUTH_DIR localised from this module's

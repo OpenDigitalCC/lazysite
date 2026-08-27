@@ -416,7 +416,7 @@ sub cmd_remove {
                 . 'nothing removed' );
     }
     # The docroot is deliberately untouched: removal takes the domain off
-    # lazysite's fleet tooling, it does not destroy the operator's site.
+    # lazysite's fleet tooling, it does not destroy the sysop's site.
     print "\nSite files under the docroot were NOT touched. To take the domain\n"
         . "off lazysite entirely, switch its web template back in Hestia:\n"
         . "    v-change-web-domain-tpl USER $domain default\n";
@@ -486,7 +486,7 @@ persistent FastCGI pool on F</run/lazysite/DOMAIN.sock>.
 It finishes by printing the two template-application commands
 (C<v-change-web-domain-tpl USER DOMAIN lazysite-cgi|lazysite-fcgi yes>
 and C<v-change-web-domain-proxy-tpl USER DOMAIN lazysite-proxy>);
-applying them is deliberately left to the operator because each forces
+applying them is deliberately left to the sysop because each forces
 a Hestia vhost rebuild.
 
 Both are needed, and the second is the one that is easy to skip. On

@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.11.2
-     imported: 2026-08-26
+     engine-version: 0.11.3
+     imported: 2026-08-27
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=db19610f7fc649429f2509fc9750ea21f230603df84a97fb89db8a57ca276c41 modified=2026-08-26
-     body-sha256: 8a71408070bf89b46dc3188d73b316aaa66c9a78eb3e4c01819549cc9037f66c
+     body-sha256: 11c9e083851c6900645866cf364cb23389ba24a727ebbeb1f41d63e0b5b3920a
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.11.2**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.11.3**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1340,13 +1340,13 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-08-26** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-08-27** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md` | sites and content | 2026-08-25 |
 | `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-26 |
 
-Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; an operator can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
+Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
-If you have found something durable that is missing - a mechanism worth reaching for, a trap worth naming, a measurement worth keeping - send it to the operator for the source files rather than adding it to the site.
+If you have found something durable that is missing - a mechanism worth reaching for, a trap worth naming, a measurement worth keeping - send it to the sysop for the source files rather than adding it to the site.

@@ -88,7 +88,7 @@ sub _ident {
     # quoting or escaping in any dialect we generate for". That is true of
     # every CHARACTER and false of a whole class of WORDS: `table`, `key`,
     # `order`, `group`, `index`, `from` all match the pattern and are reserved.
-    # `CREATE TABLE seating (table TEXT)` is a syntax error, and the operator's
+    # `CREATE TABLE seating (table TEXT)` is a syntax error, and the sysop's
     # column was a perfectly ordinary one - a seating plan has tables, a parts
     # list has keys.
     #

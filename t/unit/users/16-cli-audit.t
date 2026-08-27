@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Audit-completeness round: every state-mutating users-tool command run from
 # the CLI writes ONE audit entry (origin 'cli', user = the invoking OS
-# identity), setup-manager writes exactly its two summary entries, secrets
+# identity), setup-sysop writes exactly its two summary entries, secrets
 # never land in the trail, and --api mode writes NO tool-side entry (the
 # calling web surface audits - one entry per operation from either path).
 use strict;
@@ -52,8 +52,16 @@ sub audit_lines {
 run_cli( 'add', 'alice', 'pw-alpha-1' );
 my @l = audit_lines();
 is( scalar @l, 1, 'add writes exactly one audit entry' );
-like( $l[0], qr/\Q| $me | user-add | alice |\E\s*\| ok \| cli$/,
-    'user-add: cli origin, OS identity, target user' );
+# SM659: `system:` PREFIXED. This asserted the BARE Unix name, which was the
+# defect: account names are stripped to [a-zA-Z0-9_.-], so a lazysite account
+# called `sysadmin` and the Unix user `sysadmin` were the same string in the
+# actor column - and because that string IS an account, SM641's reader rendered
+# it as a live link to that person's user page. `:` can never appear in an
+# account name, so the prefix makes a CLI actor unresolvable by construction.
+like( $l[0], qr/\Q| system:$me | user-add | alice |\E\s*\| ok \| cli$/,
+    'user-add: cli origin, SYSADMIN identity (system:<unix name>), target user' );
+unlike( $l[0], qr/\|\s*\Q$me\E\s*\|/,
+    'and never the bare name, which an account could collide with' );
 unlike( $l[0], qr/pw-alpha-1/, 'password never appears in the trail' );
 
 # --- passwd / group ops / settings ---
@@ -86,15 +94,17 @@ else {
     pass('token not parsed from output; leak check via format assertions above');
 }
 
-# --- setup-manager: exactly TWO entries (summary + credential issue) ---
+# --- setup-sysop: exactly TWO entries (summary + credential issue) ---
 my $before = scalar @l;
-run_cli( 'setup-manager', 'mgr-secret-9' );
+run_cli( 'setup-sysop', '--user', 'sjm', 'mgr-secret-9' );
 @l = audit_lines();
-is( scalar @l, $before + 2, 'setup-manager writes exactly two entries' );
-like( $l[-2], qr/\| setup-manager \| lazysite-admins \|.*manager account 'manager'/,
-    'setup-manager entry targets the admin group and names the account' );
-like( $l[-1], qr/\| user-passwd \| manager \|.*password set/,
-    'credential issue for the manager account audited' );
+is( scalar @l, $before + 2, 'setup-sysop writes exactly two entries' );
+# SM659: the account is NAMED now - there is no default `manager` account, so
+# the trail says who was actually created rather than a role nobody owns.
+like( $l[-2], qr/\| setup-sysop \| sysops \|.*'sjm'/,
+    'setup-sysop entry targets the sysops group and names the ACCOUNT created' );
+like( $l[-1], qr/\| user-passwd \| sjm \|.*password set/,
+    'and the credential issue is audited against that named account' );
 unlike( join( "\n", @l ), qr/mgr-secret-9/, 'manager password not in the trail' );
 
 # --- disable / enable ---

@@ -28,10 +28,10 @@ plan skip_all => "no $tool" unless -f $tool;
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite");
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$c} "manager_groups: lazysite-admins\n";
+print {$c} "manager_groups: sysops\n";
 close $c;
-system( $^X, $tool, '--docroot', $d, 'setup-manager' ) == 0
-    or plan skip_all => 'setup-manager failed';
+system( $^X, $tool, '--docroot', $d, 'setup-sysop', '--user', 'sjm' ) == 0
+    or plan skip_all => 'setup-sysop failed';
 
 require JSON::PP;
 my $gs = JSON::PP::decode_json(
@@ -46,7 +46,7 @@ my $gs = JSON::PP::decode_json(
 
     # Including the manager group, which is HEALED rather than seeded - a
     # different code path, and the group whose deletion would break the most.
-    ok( $gs->{'lazysite-admins'}{seeded},
+    ok( $gs->{'sysops'}{seeded},
         'the manager group is marked too, though it is created by another path' );
 }
 

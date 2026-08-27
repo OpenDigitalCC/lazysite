@@ -47,12 +47,12 @@ print {$pg} "---\ntitle: Probe\n---\n\nSecret-ish.\n";
 close $pg;
 
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-manager pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
 
 sub cgi_env {
     return ( env_passthrough(),
         DOCUMENT_ROOT         => $docroot,
-        HTTP_X_REMOTE_USER    => 'setup-manager',
+        HTTP_X_REMOTE_USER    => 'setup-sysop', '--user', 'sjm',
         LAZYSITE_AUTH_TRUSTED => 1,
     );
 }
@@ -144,7 +144,7 @@ subtest 'A RULE THAT RESTRICTS NO READS SAYS SO' => sub {
     # An owner and no read list is legitimate - it governs writes. What made it
     # dangerous was the reply: ok:1, an acl object, and a note about content
     # leaving the document root, with nothing saying reading was still open.
-    my $d = api( 'action=acl-set&path=/probe', { owner => 'setup-manager' } );
+    my $d = api( 'action=acl-set&path=/probe', { owner => 'setup-sysop', '--user', 'sjm' } );
     ok( $d->{ok}, 'the rule is accepted - it is a legitimate rule' );
     ok( $d->{reads_unrestricted}, 'and the reply says reads are NOT restricted' )
         or diag( 'Without this the caller sees ok:1, an acl, and "content '

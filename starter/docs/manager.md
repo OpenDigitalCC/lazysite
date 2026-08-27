@@ -24,18 +24,18 @@ manager_path: /manager
 ```
 
 The manager is disabled by default. Access is the **`ui` capability**,
-granted through a group on the Groups page (the seeded `lazysite-admins`
+granted through a group on the Groups page (the seeded `sysops`
 group carries it). Bootstrap in one command:
 
 ```bash
-perl tools/lazysite-users.pl --docroot /path/to/public_html setup-manager
+perl tools/lazysite-users.pl --docroot /path/to/public_html setup-sysop --user NAME
 ```
 
 or add a user to the admin group:
 
 ```bash
 perl tools/lazysite-users.pl --docroot /path/to/public_html \
-  group-add alice lazysite-admins
+  group-add alice sysops
 ```
 
 (Capabilities on groups are the mechanism of record; the legacy
@@ -247,7 +247,7 @@ on the Appearance page.
 config/theme changes, denied attempts) with who/what/when/where and the
 outcome. Filter by user, target, or a From/To date range; each row records
 the action's target (the page, the plugin, `nav`, etc.). Operations run on
-the shell with the users tool (setup-manager, account and credential
+the shell with the users tool (setup-sysop, account and credential
 changes) appear here too, with origin `cli` and the invoking system user;
 installs and upgrades appear with origin `install`. Browsing analytics
 live separately in Visitor statistics, not here. Viewing the audit trail

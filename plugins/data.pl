@@ -33,7 +33,7 @@ BEGIN {
     # tar and Hestia installs), falling back to the system @INC (package
     # installs). Deferred, because --describe must answer even where the tree
     # is not found - a plugin that cannot describe itself cannot be listed,
-    # and an operator would see it missing rather than broken.
+    # and a sysop would see it missing rather than broken.
     require Cwd;
     require File::Basename;
     my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );

@@ -109,7 +109,7 @@ Optional:
                       lazysite.conf) and exit - no install. 'auto' lets
                       `lazysite upgrade --all` (cron-driven fleet upgrades)
                       touch this site; 'manual' (the default) leaves it to
-                      the operator.
+                      the sysop.
   --restore-full FILE Restore a full-system backup (manager "full" backup) into
                       --docroot, optionally rewriting the site domain with
                       --domain NAME. The temp -> final domain migration path.
@@ -146,7 +146,7 @@ USAGE
 
 # A mistake in the INVOCATION. Named after the program, and exit 2 - the code
 # every other lazysite tool uses for "you typed it wrong", where a die would
-# have exited 255 and told the operator perl had aborted.
+# have exited 255 and told the sysop perl had aborted.
 sub _usage_error {
     my ($msg) = @_;
     print {*STDERR} "install.pl: $msg\n";
@@ -608,14 +608,14 @@ sub cmd_install {
    # accepts on the edge < beta < stable < certified ladder - a 'stable' site refuses beta
    # and edge UPGRADES, a 'beta' site refuses edge ones. This is how a
    # not-yet-bedded-in build is kept off customer sites. Fresh installs and
-   # reinstalls are the operator's explicit choice and are never gated. The
+   # reinstalls are the sysop's explicit choice and are never gated. The
    # skip is a clean no-op (exit 3, not an error) and is recorded in the
    # site's audit log.
     if ( $mode eq 'upgrade' && !$o->{force} ) {
         # SM356: a value nobody recognised used to become the most permissive
         # setting in silence. It now becomes the most restrictive one and SAYS
         # SO (channel_verdict reports it) - a typo corrected to something safe
-        # is still a setting that does not do what the operator wrote.
+        # is still a setting that does not do what the sysop wrote.
         my ( $site_channel, $release_channel, $refuses )
             = channel_verdict( $o->{docroot}, $manifest );
         if ($refuses) {
@@ -635,7 +635,7 @@ sub cmd_install {
         my ( $site, $rel, $refuses ) = channel_verdict( $o->{docroot}, $manifest );
         if ($refuses) {
             info( "--force: installing '$rel' build $manifest->{version} over the "
-                    . "site's '$site' channel policy (operator override)." );
+                    . "site's '$site' channel policy (sysop override)." );
             audit_channel_outcome( $o->{docroot}, 'upgrade-forced',
                 $state->{version}, $manifest->{version}, $rel, $site,
                 '; --force override' );
@@ -753,7 +753,7 @@ sub cmd_install {
 # Verify every code-bucket file is present at its install_to destination with the
 # manifest's sha256 - i.e. the running code really IS this manifest's version.
 # Returns a list of human-readable mismatches (empty = all good). Only code files
-# (content/config are operator-editable and legitimately differ).
+# (content/config are sysop-editable and legitimately differ).
 sub verify_code_files {
     my ( $manifest, $subs ) = @_;
     my @bad;
@@ -807,8 +807,8 @@ sub compute_plan {
 
         if ( !exists $stored_files->{$dest} ) {
             # Not tracked in prior state. If the destination already EXISTS on disk
-            # and this is an operator-editable (non-code) file, treat it as
-            # pre-existing operator content and PRESERVE it - never clobber a
+            # and this is a sysop-editable (non-code) file, treat it as
+            # pre-existing sysop content and PRESERVE it - never clobber a
             # homepage/page created or edited outside the installer's state tracking
             # (e.g. seeded by a different install path, authored via the manager /
             # WebDAV, or written before this file became manifest-tracked). Only
@@ -1122,7 +1122,7 @@ sub make_declared_path {
         # opposite responses and the old message only described one of them.
         #
         # A path INSIDE the site is the installer's own: the model must gain an
-        # entry. A path ABOVE the site is the operator's - the installer will
+        # entry. A path ABOVE the site is the sysop's - the installer will
         # not guess a mode for a directory it does not own, and telling them to
         # edit classification.json for their own parent directory sends them
         # somewhere that cannot help. That was the reported complaint: the entry
@@ -1225,7 +1225,7 @@ sub _is_symlink {
 
 # Die on a symlinked path, naming it. Loud rather than skipped: a symlink where
 # the installer expects a real file is either an attack or a broken tree, and
-# both want an operator to look.
+# both want a sysop to look.
 sub _refuse_symlink {
     my ( $path, $what ) = @_;
     return unless _is_symlink($path);
@@ -1321,7 +1321,7 @@ sub post_install_steps {
     # --- auth users/groups: seed from .example on fresh install ---
     #
     # Runtime state. Not tracked in .install-state.json. On upgrade
-    # the live files are left alone (operator-edited); we do nothing.
+    # the live files are left alone (sysop-edited); we do nothing.
     if ( $mode eq 'fresh' ) {
         for my $f (qw(users groups)) {
             my $src = lazysite_dir_for($docroot) . "/auth/$f.example";
@@ -1448,7 +1448,7 @@ sub post_install_steps {
 # install writes as root, and without a wrapper chown pass those files are
 # unreadable/unwritable by the web-server CGI. Scope is deliberately narrow -
 # ONLY files currently owned by root are touched (the CGI legitimately owns its
-# runtime files as www-data, and the operator owns content; both are left
+# runtime files as www-data, and the sysop owns content; both are left
 # alone - a broader "align everything" pass in 0.6.5 stripped www-data's access
 # on a site whose docroot group was not www-data, 500ing the auth wrapper).
 # Owner becomes the docroot's owner; group becomes the WEB-SERVER group
@@ -1528,19 +1528,19 @@ sub create_runtime_paths {
             # auth/*.example), in which case it carries a default mode, not the
             # declared one - so apply the runtime mode (these dirs must be
             # group-writable + setgid for the www-data CGI to write them). On an
-            # UPGRADE, leave an existing directory alone: the operator may have
+            # UPGRADE, leave an existing directory alone: the sysop may have
             # tightened it deliberately.
             # SM246 (deliverable 3): the fresh-versus-upgrade policy is now
             # DECLARED per path rather than implied by one branch.
             #
             #   repair - the engine owns this absolutely and re-applies the mode
             #            on every run. These are the directories the CGI MUST be
-            #            able to write; an operator who "tightens" lazysite/cache
+            #            able to write; a sysop who "tightens" lazysite/cache
             #            breaks their own site, silently, and the failure looks
             #            like a rendering fault rather than a permission one.
             #   leave  - set on creation, never touched again. ../plugins is
             #            EXECUTED, not written, so 0755 is right and hardening it
-            #            further is a legitimate operator choice.
+            #            further is a legitimate sysop choice.
             #
             # Absent means leave, so an entry predating the field keeps the old
             # upgrade behaviour. Note this only ever widens a mode toward what the

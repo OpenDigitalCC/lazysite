@@ -38,7 +38,7 @@ plan skip_all => "no $tool" unless -f $tool;
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite");
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$c} "manager_groups: lazysite-admins\n";
+print {$c} "manager_groups: sysops\n";
 close $c;
 
 sub users {
@@ -50,14 +50,14 @@ sub users {
 }
 
 # Bootstrap exactly as an operator does: one command.
-users('setup-manager');
+users('setup-sysop', '--user', 'sjm');
 
 my $gs = "$d/lazysite/auth/groups-settings.json";
-ok( -f $gs, 'setup-manager seeded the group settings' ) or do { done_testing(); exit };
+ok( -f $gs, 'setup-sysop seeded the group settings' ) or do { done_testing(); exit };
 
 require JSON::PP;
 my $j = JSON::PP::decode_json( do { open my $fh, '<', $gs or die $!; local $/; <$fh> } );
-my $rec = $j->{'lazysite-admins'};
+my $rec = $j->{'sysops'};
 ok( $rec, 'the manager group exists' ) or do { done_testing(); exit };
 
 # --- 1. grant authority covers every capability -----------------------------
@@ -89,10 +89,10 @@ for my $ch (qw(api mcp)) {
 # still be able to confer it - that is the whole point of grant authority being
 # separate from holding.
 {
-    users( 'group-set', 'lazysite-admins', 'purge', 'off' );
+    users( 'group-set', 'sysops', 'purge', 'off' );
     my $after = JSON::PP::decode_json(
         do { open my $fh, '<', $gs or die $!; local $/; <$fh> } );
-    my $r = $after->{'lazysite-admins'};
+    my $r = $after->{'sysops'};
     ok( !$r->{purge}, 'the group no longer HOLDS purge' );
     ok( ( grep { $_ eq 'purge' } @{ $r->{grantable} || [] } ),
         'and still has the authority to CONFER it - least privilege on your own '

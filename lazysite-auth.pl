@@ -116,7 +116,7 @@ sub _conf_lines {
 # that runs precisely because it does not, so a string of the caller's choosing
 # was written into the actor column, listed as a distinct actor in the Audit
 # page's filter, rendered as a link to an account that never existed, and
-# forwarded to the operator's syslog.
+# forwarded to the sysop's syslog.
 #
 # WHY HERE AND NOT AT THE THIRTEEN CALL SITES: this is the only function in the
 # product that ever holds a name nobody has proved, and it is the single writer
@@ -738,7 +738,7 @@ sub handle_rotate {
                     ok     => 0,
                     reason => 'expired',
                     error  => 'Your access token has expired and cannot be rotated. '
-                        . 'Ask the operator for a new pairing key and exchange it '
+                        . 'Ask the sysop for a new pairing key and exchange it '
                         . '(POST action=exchange with the pairing key).',
             }, 401 );
             return;
@@ -798,7 +798,7 @@ sub _forgot_dispatch {
                     target => $user,
                     url    => "/manager/users?user=$user",
             } );
-            _audit_auth( $user, 'forgot', 'ok', 'reset requested; no SMTP - operators notified', 'ui' );
+            _audit_auth( $user, 'forgot', 'ok', 'reset requested; no SMTP - sysops notified', 'ui' );
         }
         return;
     }
@@ -998,7 +998,7 @@ sub load_users {
 # SM070: per-user `ui` access mechanism. Defaults to on (accounts with
 # no settings row behave exactly as before SM070). A corrupt settings
 # file fails open for ui - matching pre-SM070 behaviour so a damaged
-# file cannot lock the operator out of the manager - and the WARN
+# file cannot lock the sysop out of the manager - and the WARN
 # surfaces the problem. The settings file is written only by
 # tools/lazysite-users.pl; this is a read-only consumer.
 #

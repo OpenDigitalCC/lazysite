@@ -387,7 +387,7 @@ sub setup_context {
         # here exactly as it already did over WebDAV. This line used to be `= ()`
         # with the comment "token carries no groups - the safe default". It was not
         # a safe default, it was a THIRD answer: the same account in the same group
-        # was allowed over WebDAV and refused here. Being an operator is still
+        # was allowed over WebDAV and refused here. Being a sysop is still
         # refused above - that is a capability question, and this is not.
     @Lazysite::Auth::Acl::user_groups = Lazysite::Auth::Acl::groups_for_user($user);
     return;
@@ -491,7 +491,7 @@ my %TOOLS = (
             . 'then READ THE BRIEFINGS listed under docs.briefings before designing '
             . 'anything: "capabilities" is what lazysite offers and "holds" is only '
             . 'what you were granted, so a capability you lack is a grant to ask the '
-            . 'operator for, never a feature that is missing.',
+            . 'sysop for, never a feature that is missing.',
         cap => undef,    # introspection: exempt from the mcp channel gate
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
@@ -558,7 +558,7 @@ my %TOOLS = (
         run => sub { _upload_file( $_[0], $_[1] ) },
     },
     write_file => {
-        description => 'Create or overwrite a text file with the given content. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no operator-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
+        description => 'Create or overwrite a text file with the given content. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no sysop-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' }, content => { type => 'string' } },
@@ -673,7 +673,7 @@ my %TOOLS = (
         },
     },
     migrate_data_table => {
-        description => 'Bring the stored table into line with its descriptor, as far as is SAFE. Adding a field is applied, and a field with a default is filled in on the rows that predate it. Changing a field\'s type, tightening it to required, or removing it are REPORTED AND REFUSED, not performed - each of those rewrites the table and an operator decides it. Returns both what was applied and what was blocked, and the blocked list is the half that explains why a column is not there yet. Safe to run repeatedly: a table already in line is a no-op.',
+        description => 'Bring the stored table into line with its descriptor, as far as is SAFE. Adding a field is applied, and a field with a default is filled in on the rows that predate it. Changing a field\'s type, tightening it to required, or removing it are REPORTED AND REFUSED, not performed - each of those rewrites the table and a sysop decides it. Returns both what was applied and what was blocked, and the blocked list is the half that explains why a column is not there yet. Safe to run repeatedly: a table already in line is a no-op.',
         cap         => 'manage_data',
         inputSchema => { type => 'object',
             properties => {
@@ -841,7 +841,7 @@ my %TOOLS = (
         },
     },
     delete_data_row => {
-        description => 'Delete one row by its key. Deleting a row that is not there is REFUSED rather than reported as success, so a mistaken key does not read as a completed deletion. There is no bulk delete and no delete-by-filter: removing many rows is a decision an operator makes, not one an agent reaches by accident.',
+        description => 'Delete one row by its key. Deleting a row that is not there is REFUSED rather than reported as success, so a mistaken key does not read as a completed deletion. There is no bulk delete and no delete-by-filter: removing many rows is a decision a sysop makes, not one an agent reaches by accident.',
         cap         => 'manage_data',
         inputSchema => { type => 'object',
             properties => {
@@ -952,7 +952,7 @@ my %TOOLS = (
         },
     },
     site_apply => {
-        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_domains + access to the target. A safety snapshot of the docroot IS taken before anything is written, and its name is returned as `safety`, so an apply is always reversible - tell the operator that name if they need to roll back. If the snapshot cannot be taken the apply is refused rather than proceeding without one.',
+        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_domains + access to the target. A safety snapshot of the docroot IS taken before anything is written, and its name is returned as `safety`, so an apply is always reversible - tell the sysop that name if they need to roll back. If the snapshot cannot be taken the apply is refused rather than proceeding without one.',
         cap         => 'manage_domains',
         inputSchema => {
             type       => 'object',
@@ -1207,7 +1207,7 @@ my %TOOLS = (
         },
     },
     list_form_handlers => {
-        description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are operator-only and never returned.',
+        description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are sysop-only and never returned.',
         cap => 'manage_forms',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _list_form_handlers() },
@@ -1286,14 +1286,14 @@ my %TOOLS = (
         },
     },
     bind_form => {
-        description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. PREFER A HANDLER: it is operator-vetted and holds any credentials. If your grant needs to deliver somewhere the operator has not pre-defined, pass `target` instead - {type: webhook|api, url: https://...} or {type: file, path: relative/dir} - which writes the delivery target directly into the form config. That is the same thing this capability can already do over WebDAV and the control API; it is offered here so the three surfaces agree rather than one being quietly weaker. NOT AN INLINE TARGET TYPE: delivery into a declared DATA TABLE is handler-only, and deliberately so. The inline route exists to reach somewhere the operator has not pre-defined; a form writing rows into a declared table is precisely what the operator should vet, and an inline table target would let any declared table be named as a destination without them wiring it. Ask the operator for a handler. Writes lazysite/forms/<form>.conf.',
+        description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the sysop-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. PREFER A HANDLER: it is sysop-vetted and holds any credentials. If your grant needs to deliver somewhere the sysop has not pre-defined, pass `target` instead - {type: webhook|api, url: https://...} or {type: file, path: relative/dir} - which writes the delivery target directly into the form config. That is the same thing this capability can already do over WebDAV and the control API; it is offered here so the three surfaces agree rather than one being quietly weaker. NOT AN INLINE TARGET TYPE: delivery into a declared DATA TABLE is handler-only, and deliberately so. The inline route exists to reach somewhere the sysop has not pre-defined; a form writing rows into a declared table is precisely what the sysop should vet, and an inline table target would let any declared table be named as a destination without them wiring it. Ask the sysop for a handler. Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {
                 form => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
                 handler => { type => 'string', description => 'an existing handler id from list_form_handlers (preferred)' },
                 target => { type => 'object',
-                    description => 'an inline delivery target, INSTEAD of handler: {type: webhook|api, url} or {type: file, path}. No credentials - those live in operator-defined handlers.',
+                    description => 'an inline delivery target, INSTEAD of handler: {type: webhook|api, url} or {type: file, path}. No credentials - those live in sysop-defined handlers.',
                     properties => {
                         type   => { type => 'string' },
                         url    => { type => 'string' },
@@ -1312,7 +1312,7 @@ my %TOOLS = (
         run => sub { _audit_site() },
     },
     analyse_visitors => {
-        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day and per-month totals, a people/AI-assistant/bot/noise/scanner traffic breakdown (scanner = a visitor that probed a non-existent path, so its whole session - including a spoofed referrer - is excluded from people), top pages, referrers, status codes, a not_found split (plausible missing pages vs a junk scanner-chorus count), auth_refused (paths a visitor was TURNED AWAY from rather than paths that were missing - a file here that should be public means an access rule is refusing it, which is how a mis-scoped ACL surfaces), a device breakdown, and - ONLY where the operator has switched it on - the top internal SEARCH TERMS visitors typed, which are people\'s own words rather than facts about a page and are held to terms used by at least three separate visits, and a bounded recent event SAMPLE - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). The aggregates are complete over data_from..window.to and durably stored one file per day (SM213); "events"/"sample" is a recent sample, not the dataset - use data_from and the sample.{from,to,count} fields to tell them apart. Selectors: index (the days+months index, plus trail_days - which days have trails), day=YYYY-MM-DD (one day\'s rollup), month=YYYY-MM (one month\'s rollup), trails=YYYY-MM-DD (one day\'s recorded visit trails - the ORDERED page sequence per visit, which the aggregates above cannot answer); otherwise a windowed view. Read /docs/ai-briefing-stats to interpret the fields, then answer the operator\'s question (trends, month-on-month, rising/falling pages, AI-crawler share). Heuristic and not authenticated.',
+        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day and per-month totals, a people/AI-assistant/bot/noise/scanner traffic breakdown (scanner = a visitor that probed a non-existent path, so its whole session - including a spoofed referrer - is excluded from people), top pages, referrers, status codes, a not_found split (plausible missing pages vs a junk scanner-chorus count), auth_refused (paths a visitor was TURNED AWAY from rather than paths that were missing - a file here that should be public means an access rule is refusing it, which is how a mis-scoped ACL surfaces), a device breakdown, and - ONLY where the sysop has switched it on - the top internal SEARCH TERMS visitors typed, which are people\'s own words rather than facts about a page and are held to terms used by at least three separate visits, and a bounded recent event SAMPLE - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). The aggregates are complete over data_from..window.to and durably stored one file per day (SM213); "events"/"sample" is a recent sample, not the dataset - use data_from and the sample.{from,to,count} fields to tell them apart. Selectors: index (the days+months index, plus trail_days - which days have trails), day=YYYY-MM-DD (one day\'s rollup), month=YYYY-MM (one month\'s rollup), trails=YYYY-MM-DD (one day\'s recorded visit trails - the ORDERED page sequence per visit, which the aggregates above cannot answer); otherwise a windowed view. Read /docs/ai-briefing-stats to interpret the fields, then answer the sysop\'s question (trends, month-on-month, rising/falling pages, AI-crawler share). Heuristic and not authenticated.',
         cap         => 'analytics',
         inputSchema => { type => 'object',
             properties => {
@@ -1377,7 +1377,7 @@ my %TOOLS = (
             },
             required => ['summary'], additionalProperties => JSON::PP::false },
         # Opt-in: feedback is OFF by default (no capability), so an agent cannot
-        # write to lazysite/feedback/ or ping the operator until the operator
+        # write to lazysite/feedback/ or ping the sysop until the sysop
         # grants the `feedback` capability to the agent's group - transparency +
         # operator control, rather than default-on-and-invisible. The write path
         # itself is safe (server-generated .json filename, JSON-encoded content -
@@ -1509,7 +1509,7 @@ my %TOOLS = (
     # and undo content changes. Available when the site's Content history
     # plugin is enabled; list_versions says so honestly when it is not.
     list_versions => {
-        description => 'List a file\'s recorded versions (content history): newest first, each with a version id, author, date and message. Works when the site\'s Content history plugin is enabled - if the result says enabled:false, versions are not being recorded and there is nothing to restore (ask the operator to enable the plugin).',
+        description => 'List a file\'s recorded versions (content history): newest first, each with a version id, author, date and message. Works when the site\'s Content history plugin is enabled - if the result says enabled:false, versions are not being recorded and there is nothing to restore (ask the sysop to enable the plugin).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -2190,7 +2190,7 @@ sub _check_html_in_page {
 
 sub _check_form_delivery {
     my ( $warnings, $content, $body, $h, $path ) = @_;
-    # SM161: forms must be native (a :::form block bound to an operator-vetted
+    # SM161: forms must be native (a :::form block bound to a sysop-vetted
     # handler), never hand-written HTML or a third-party form service.
     my $has_fenced_form = $content =~ /^:::[ \t]*form\b/m;
     if ( $body =~ /<form\b/i || $body =~ /<input\b/i || $body =~ /<textarea\b/i ) {
@@ -2202,7 +2202,7 @@ sub _check_form_delivery {
     if ( $body =~ /action\s*=\s*["']\s*mailto:/i ) {
         push @$warnings, { kind => 'form-mailto',
             message => 'a mailto: form action exposes an address and routes visitor '
-                . 'data around the operator-vetted handlers - use a :::form + bind_form.' };
+                . 'data around the sysop-vetted handlers - use a :::form + bind_form.' };
     }
     if ( $body =~ m{
             action \s* = \s* ["'] \s* https?://
@@ -2397,7 +2397,7 @@ sub _audit_collect {
             }
             # SM228: a raw/api page with a script-capable content_type serves as
             # plain text and always will. Surfacing it in the site audit is how an
-            # operator finds the ones written before the write-time refusal, and
+            # sysop finds the ones written before the write-time refusal, and
             # how they find them all at once rather than a page at a time.
             if ( Lazysite::Manager::Common::raw_html_page_refusal($c) ) {
                 push @rawpages, { page => $slug,
@@ -2464,7 +2464,7 @@ sub _audit_hidden_by_script {
     # successive visual checks looked fine.
     #
     # Detection is deliberately rough. The pattern is distinctive, and a false
-    # positive costs an operator ten seconds while a false negative costs a live
+    # positive costs a sysop ten seconds while a false negative costs a live
     # site its content. A rule inside prefers-reduced-motion does NOT count as a
     # fallback - it reaches only visitors who asked for reduced motion, and
     # reading it as a neutraliser is exactly what caused the incident.
@@ -2507,7 +2507,7 @@ sub _audit_hidden_by_script {
 
         # SM358: A MECHANISM IS NOT A FINDING. Up to here the check has
         # established that a stylesheet CAN hide content behind a script. It
-        # used to report that, which put an item an operator cannot clear on
+        # used to report that, which put an item a sysop cannot clear on
         # a list they are expected to clear: the theme is shipped, so editing
         # it is overwritten on upgrade, and on the reporting instance no page
         # used the class at all. "Learn to ignore the audit" was the only
@@ -2578,7 +2578,7 @@ sub _audit_hidden_by_script {
                 #
                 # This is the loaded-gun case answered rather than dropped:
                 # the finding now appears the moment a page starts using the
-                # component, which is the moment an operator can act on it.
+                # component, which is the moment a sysop can act on it.
                 if ( my ($comp) = $file =~ m{\Acomponents/([A-Za-z][\w-]*)\z} ) {
                     next unless defined $component_used->{$comp};
                     push @where, "$layout/$file (used by $component_used->{$comp})";
@@ -2626,14 +2626,14 @@ sub _audit_static_exposure {
     # anyone who knows the path. A file with no .md source is never evaluated
     # against auth_default - on Apache the [L] rewrite means the processor never
     # runs at all, and on the engine's own path check_auth sits inside a
-    # source-file test - so an operator can set auth_default: required, watch
+    # source-file test - so a sysop can set auth_default: required, watch
     # every page bounce to the login form, reasonably conclude the site is
     # closed, and be publishing private assets to the open internet. Nothing in
     # the manager, the config or the logs contradicts them.
     #
     # Closing that gap is a behavioural change on upgrade and carries four open
     # decisions (SM223). The DETECTOR does not: it needs no reload, breaks
-    # nothing, and is what tells an operator their configuration and their
+    # nothing, and is what tells a sysop their configuration and their
     # content disagree. Detect before enforce.
     my $auth_default = '';
     for my $l ( split /\n/, _read_conf_text() ) {
@@ -2689,7 +2689,7 @@ sub _audit_acl_keys {
     #
     # A key matching no existing path is the classic symptom, and it is cheap to
     # check. Where a content root would make it match, say so - that is the
-    # actual repair, and an operator who has just read "protects nothing" needs
+    # actual repair, and a sysop who has just read "protects nothing" needs
     # to be told what to write instead.
     my @acl_unmatched;
     if ( open my $afh, '<:raw', "$LAZYSITE_DIR/auth/acls.json" ) {
@@ -2771,9 +2771,9 @@ sub _audit_site {
 }
 
 
-# --- SM088: bind a form to an operator-vetted delivery handler ------------
+# --- SM088: bind a form to a sysop-vetted delivery handler ------------
 # Handlers (with their destinations + credentials) live in handlers.conf and
-# are operator-only. The connector may only REFERENCE an existing handler by id;
+# are sysop-only. The connector may only REFERENCE an existing handler by id;
 # it never sees or sets a destination or secret.
 sub _list_form_handlers {
     my $f = "$LAZYSITE_DIR/forms/handlers.conf";
@@ -2806,7 +2806,7 @@ sub _list_form_handlers {
 # where it is granted, the surface delivers it in full. So the fix is to add
 # the ability here rather than remove it there.
 #
-# A handler stays PREFERRED and the description says so - it is operator-vetted
+# A handler stays PREFERRED and the description says so - it is sysop-vetted
 # and holds credentials. An inline target carries no credential (the legacy
 # parser reads only type/url/format/path), so this cannot exfiltrate an SMTP
 # password; what it can do is name a destination, which is exactly what
@@ -2845,7 +2845,7 @@ sub _bind_form {
 
 # Validate an inline target and render its config block. Returns {ok=>1,block}
 # or an error hash. Deliberately strict about the SHAPE while saying nothing
-# about the destination: which URL a form may deliver to is the operator's
+# about the destination: which URL a form may deliver to is the sysop's
 # decision, expressed by whether they granted manage_forms.
 sub _inline_target_block {
     my ($t) = @_;
@@ -2973,7 +2973,7 @@ sub _submit_feedback {
     print {$fh} encode_json($report);
     close $fh;
 
-    # SM136: feedback is written to be read - tell the operators (bell + XMPP).
+    # SM136: feedback is written to be read - tell the sysops (bell + XMPP).
     eval {
         require Lazysite::Notify;
         my $short = length($summary) > 120 ? substr( $summary, 0, 117 ) . '...' : $summary;
@@ -3470,11 +3470,11 @@ sub tool_list {
 
 # --- request handling -----------------------------------------------------
 
-# Service killswitch (0.9.0): the MCP surface is OFF unless the operator enables
+# Service killswitch (0.9.0): the MCP surface is OFF unless the sysop enables
 # it in lazysite.conf (mcp_enabled: true), mirroring webdav_enabled. This runs
 # BEFORE any handling - including the unauthenticated discovery (GET,
 # initialize, tools/list) - so a disabled instance discloses nothing. Default
-# off; the operator opts it in from the Services page.
+# off; the sysop opts it in from the Services page.
 unless ( Lazysite::Util::service_enabled( $DOCROOT, 'mcp_enabled' ) ) {
     if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         my $b   = '';
@@ -3532,10 +3532,10 @@ sub _mcp_language_note {
         . 'to see exactly which files are missing or stale, and re-translate that set. '
         . 'Do NOT hand-build a language switcher or hreflang tags: the layout receives '
         . 'the language set from the engine and renders them itself. You translate into '
-        . 'the EXISTING sibling roots only - creating a NEW language is an operator act '
+        . 'the EXISTING sibling roots only - creating a NEW language is a sysop act '
         . '(it needs a domain configured with its own content_root plus DNS/TLS for the '
         . 'host, which are outside this tool surface), so if a target language has no '
-        . 'sibling root yet, ask the operator to add the domain rather than trying to '
+        . 'sibling root yet, ask the sysop to add the domain rather than trying to '
         . 'create the language plane yourself.';
 }
 
@@ -3550,7 +3550,7 @@ if ( $method eq 'initialize' ) {
                 . '/docs/ai-briefing-building-sites: keep content (Markdown), layout and '
                 . 'theme separate, and never put ordinary pages in raw mode (api:true / '
                 . 'raw:true) or hand-author HTML into /lazysite-assets/. Forms are native: '
-                . 'use the create_form tool (or a :::form block bound to an operator-vetted '
+                . 'use the create_form tool (or a :::form block bound to a sysop-vetted '
                 . 'handler via bind_form) - never hand-written form HTML or a third-party '
                 . 'form service for CONTENT. (SM361: the shipped system pages that post to '
                 . 'the auth CGI, such as /forgot, are the one exception and say so where '
@@ -3575,7 +3575,7 @@ if ( $method eq 'initialize' ) {
                 . 'When you screenshot or QA the live site, set '
                 . 'your User-Agent to lazysite-agent/<partner-id>. That keeps your '
                 . 'hits out of the HUMAN visitor counts - they are recorded as '
-                . 'bot traffic rather than dropped, so an operator can still see '
+                . 'bot traffic rather than dropped, so a sysop can still see '
                 . 'what their tooling did.'
                 . _mcp_language_note(),
     } );
@@ -3643,7 +3643,7 @@ elsif ( $method eq 'tools/call' ) {
             'fail', 'mcp', 'denied: mcp channel capability' );
         rpc_error( $id, -32002,
             "The 'mcp' capability is required to use this connector. Ask the "
-                . "operator to grant the mcp capability to your account's group. Do not retry." );
+                . "sysop to grant the mcp capability to your account's group. Do not retry." );
     }
 
     # Compute the capability this call requires. File tools are path-aware (SM082):
@@ -3690,7 +3690,7 @@ elsif ( $method eq 'tools/call' ) {
             $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $need" );
         # SM101: a missing capability is permanent - tell the agent to stop, not retry.
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $need). "
-                . "Do not retry; ask the operator to grant it. Call describe_capabilities "
+                . "Do not retry; ask the sysop to grant it. Call describe_capabilities "
                 . "to see what your account currently holds and what each capability unlocks." );
     }
 
@@ -3715,7 +3715,7 @@ elsif ( $method eq 'tools/call' ) {
             audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
                 'fail', 'mcp', 'denied: carve-out capability' );
             rpc_error( $id, -32002,
-                "$refusal Do not retry; ask the operator to grant it." );
+                "$refusal Do not retry; ask the sysop to grant it." );
         }
     }
 
@@ -3809,7 +3809,7 @@ elsif ( $method eq 'tools/call' ) {
         my $retry = $TRANSIENT{ $out->{kind} // '' } ? 1 : 0;
         $out->{retryable} = $retry ? JSON::PP::true : JSON::PP::false;
         $out->{hint} = 'Do not retry - this will not succeed unless the request changes '
-            . 'or the operator grants access.'
+            . 'or the sysop grants access.'
             if !$retry && !defined $out->{hint};
     }
 

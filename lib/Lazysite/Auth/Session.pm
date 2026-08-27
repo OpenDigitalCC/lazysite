@@ -43,7 +43,7 @@ our $LAZYSITE_DIR;    # "$DOCROOT/lazysite", set by the script
 # SM614: the session lifetime is a SETTING, and this is the one place it is
 # read. It was a constant here and a second constant in Manager/Sessions.pm,
 # with a comment asking that the two be kept in step - which is a request, not a
-# mechanism. The operator asked whether the lifetime could be set for one user
+# mechanism. The sysop asked whether the lifetime could be set for one user
 # or all; the answer is now yes, for all, in lazysite.conf.
 #
 # The default is the 24 hours it has always been, so an instance that sets
@@ -192,7 +192,7 @@ sub _uri_decode {
 #
 # Returns the hashref or undef. Undef covers absent, unreadable, unparseable
 # and not-an-object alike; each caller keeps its own default and its own log
-# line, because those differ and are what an operator reads.
+# line, because those differ and are what a sysop reads.
 sub _read_json_hash {
     my ($path) = @_;
     return undef unless -f $path;
@@ -333,7 +333,7 @@ sub verify_session_cookie {
     # SM071: an existing cookie for a now-disabled account is not an identity.
     return ( undef, 'disabled', user => $user ) if account_disabled($user);
 
-    # SM141: an operator signed this session out (revoked sid) or signed the
+    # SM141: a sysop signed this session out (revoked sid) or signed the
     # user out everywhere (not_before). Legacy cookies carry no sid but do
     # carry ts, so not_before kills them too.
     return ( undef, 'revoked', user => $user )

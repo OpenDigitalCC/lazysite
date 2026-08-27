@@ -139,7 +139,7 @@ sub _gate_execution {
     log_event( 'WARN', 'plugin-gate', 'disabled plugin refused execution',
         plugin => $script );
     return { ok => 0,
-        error => 'This plugin is disabled. An operator can enable it on the '
+        error => 'This plugin is disabled. A sysop can enable it on the '
             . 'Plugin Manager page.' };
 }
 
@@ -186,7 +186,7 @@ sub action_plugin_list {
 
         # A PLUGIN THAT OVERRUNS IS DROPPED, AND IT USED TO BE DROPPED IN
         # SILENCE. `next if $@` removed it from the Plugin Manager with nothing
-        # written anywhere - so on a loaded host an operator watches a plugin
+        # written anywhere - so on a loaded host a sysop watches a plugin
         # disappear from the list and has no way at all to find out why. Two
         # seconds is a generous budget for a --describe and a mean one for a
         # host under load.
@@ -1019,7 +1019,7 @@ sub _submissions_path {
     # and the action is absent from %SCOPED_ACTION, so neither the reserved-area
     # guard nor dav_scope applied.
     #
-    # The store directory is operator-configurable (the file handler's `path`,
+    # The store directory is sysop-configurable (the file handler's `path`,
     # default lazysite/forms/submissions), so this admits the configured
     # directories rather than one hard-coded string - anything else would break
     # a site that moved its store. A file OUTSIDE every configured store is

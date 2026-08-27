@@ -66,7 +66,7 @@ Key operational points (full detail in `docs/architecture/security.md`):
   members to the manager UI, and `manage_users` carries the
   operator powers. Both are grants in
   `lazysite/auth/groups-settings.json`, edited on the manager
-  Groups page (`perl tools/lazysite-users.pl setup-manager` seeds a
+  Groups page (`perl tools/lazysite-users.pl setup-sysop --user NAME` seeds a
   correctly-granted admin group). When **no** group grants manager
   access, the site is in unsecured/dev mode and any authenticated
   user is treated as a manager (a DEBUG-level log line is emitted

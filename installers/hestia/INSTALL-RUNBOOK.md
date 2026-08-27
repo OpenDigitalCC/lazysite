@@ -134,7 +134,7 @@ domain cannot route `/cgi-bin/` or `/dav`.
 First-run site steps (unchanged from the tarball era):
 
 - Set the manager password:
-  `sudo -u <user> lazysite users --docroot <docroot> setup-manager`
+  `sudo -u <user> lazysite users --docroot <docroot> setup-sysop --user <name>`
   (prints a generated password once; the seeded `manager` account is
   otherwise empty-password = localhost-only).
 - WebDAV publishing needs BOTH gates on: `webdav_enabled: yes` in

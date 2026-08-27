@@ -36,7 +36,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 { key => 'username', label => 'SMTP username', type => 'text',
                     show_when => { key => 'auth', value => [ 'true', '1' ] } },
                 { key => 'password', label => 'SMTP password', type => 'password',
-                    note => 'Stored in the operator-only smtp.conf; never shown again. Leave blank to keep the current one.',
+                    note => 'Stored in the sysop-only smtp.conf; never shown again. Leave blank to keep the current one.',
                     show_when => { key => 'auth', value => [ 'true', '1' ] } },
                 { key => 'password_file', label => 'Password file (alternative to the password field)', type => 'path',
                     show_when => { key => 'auth', value => [ 'true', '1' ] } },

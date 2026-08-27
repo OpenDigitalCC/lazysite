@@ -23,7 +23,7 @@ package Lazysite::FrontDoor;
 # and returns a decision; it opens no sockets, execs nothing and prints nothing.
 # That is what lets the whole routing table be tested directly - which the vhost
 # templates never could be, because testing them means installing them on the
-# web server the operator actually runs.
+# web server the sysop actually runs.
 #
 # THE ORDER BELOW IS THE VHOST'S ORDER, and it is load-bearing. The templates are
 # the authority for what lazysite does today; t/lint/39 asserts that this module

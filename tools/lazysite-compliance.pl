@@ -102,7 +102,7 @@ my $SIGNOFF = _signoff_required();
 # The channel IS the statement that the records were walked - a certified
 # build whose person-only findings were masked by a switch left at 'no' would
 # be the label-lie class this project keeps burning down. Below certified the
-# switch keeps its meaning: an operator may voluntarily demand the records on
+# switch keeps its meaning: a sysop may voluntarily demand the records on
 # any cut, and a release manager may defer them on any cut that is not
 # claiming certification.
 if ( $CHANNEL eq 'certified' && !$SIGNOFF ) {

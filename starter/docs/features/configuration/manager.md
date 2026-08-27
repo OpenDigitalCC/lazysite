@@ -24,7 +24,7 @@ Add to `lazysite/lazysite.conf`:
 - `manager: enabled` - enable the manager (default: disabled)
 - `manager_path` - URL prefix for manager pages (default: `/manager`)
 - manager access itself is granted by groups: any group with the `ui`
-  capability (see the Groups page; `setup-manager` creates one)
+  capability (see the Groups page; `setup-sysop` creates one)
 
 ### Features
 

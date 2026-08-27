@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM659 partial (PENDING) **sysop is the app, sysadmin is the host, manager is
+  the surface.** Three principals shared two ambiguous words: a lazysite account
+  with full capabilities (inside the capability model), a Unix account at the
+  shell (exempt from it by construction), and no principal at all. `operator`
+  was used for the first two, which are not different privilege LEVELS but
+  different KINDS of principal. **A CLI actor is now `system:<unix name>`**,
+  which fixes a real collision - account names are stripped to
+  `[a-zA-Z0-9_.-]`, so a lazysite account called `sysadmin` and the Unix user
+  `sysadmin` were the same string in the actor column, and SM641's reader
+  rendered it as a live link to that person. `:` can never appear in an account
+  name, so the prefix makes it unresolvable by construction.
+  **`lazysite-admins` renames to `sysops`** in place on upgrade, carrying
+  members, capabilities, grantable and nesting - no lockout risk, because
+  manager access is decided by flags and the old name had exactly one functional
+  use. **`setup-sysop` replaces `setup-manager`, with no alias**: a username is
+  REQUIRED (there is no default `manager` role account) and `--link` is the
+  default, so a first run hands over no password. A deployed site with no
+  accounts is a valid state, and re-running makes another sysop. The sweep
+  covers 410 string-literal uses, the `local` identity messages, ten operational
+  documents and 25 test fixtures; 322 code comments and ~2,079 documentation
+  uses are STAGED, because `operator` means sysadmin in some and sysop in others
+  and a batch replace would encode the wrong principal.
+
 - SM652 fixed (PENDING) **one capability reads a submission, on every channel.**
   The control API served live submissions to `manage_forms` OR
   `read_submissions`; MCP required `read_submissions`. Both registries were

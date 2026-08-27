@@ -236,7 +236,7 @@ sub cmd_add {
     print "==> wrote $out (pattern: $pattern)\n\n";
 
     # Enablement is printed, never run: linking sites-enabled and
-    # reloading nginx are host-wide actions the operator should see and
+    # reloading nginx are host-wide actions the sysop should see and
     # choose. Both patterns need fcgiwrap - it runs the CGI path
     # (/manager, /login, /dav, plugin endpoints) even when the pool
     # serves the visitor pages.

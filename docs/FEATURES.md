@@ -566,7 +566,7 @@ invoking OS identity), and `install`; `save` is recorded as `create` or `edit`;
 failures record the reason. One entry per operation: each web surface audits its
 own requests, and the users tool audits only when NOT driven through `--api`
 (where the calling surface has already recorded the actor). Shell user management
-(setup-manager, add/remove/rename, credential and claim issue, group and
+(setup-sysop, add/remove/rename, credential and claim issue, group and
 capability changes) is fully on the trail - secrets themselves never are. This is
 deliberately **non-overlapping with the access log** - it answers *who changed
 what, to what, when, from where, and the outcome*. The manager audit viewer
@@ -2132,7 +2132,7 @@ Newest first; releases are git tags.
   retired with an automatic migration (SM138). Robustness round: installer
   ownership repair scoped to root-owned files (0.6.6); TT compile-cache immunity
   with a loud manager-layout failure banner and a `lazysite-check` cache/tt probe
-  (0.6.7); fresh-install self-heal (`setup-manager` guarantees the admin group's
+  (0.6.7); fresh-install self-heal (`setup-sysop` guarantees the admin group's
   capabilities) and manager UI field fixes (autofill, bell states).
 - **0.6.2-0.6.4** (2026-07-08) - Notifications (SM136): the `notifications`
   capability, the manager bell, XMPP delivery via the notify-xmpp plugin, and

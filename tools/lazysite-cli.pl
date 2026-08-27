@@ -54,7 +54,7 @@ elsif ( $verb eq 'probe' )  { cmd_probe() }
 elsif ( $verb eq 'users' ) {
 
     # SM625: `users` was the last verb with no fleet addressing. SM321 gave
-    # --domain/--all to `check` and `acl` because an operator holds a site's
+    # --domain/--all to `check` and `acl` because a sysop holds a site's
     # NAME, not its docroot; `repair`, `probe` and `migrate-engine-tree` have it
     # too. This one was left a pure pass-through - and it is the verb that
     # settles a capability decision, which is exactly the thing that arrives
@@ -306,13 +306,13 @@ sub _no_sites_registered {
     return 0;
 }
 
-# SM321: address a site by the one token the operator holds - its NAME.
+# SM321: address a site by the one token the sysop holds - its NAME.
 #
 # `lazysite check` and `lazysite acl` were pure pass-throughs, so they never saw
-# the registry and the operator had to supply a docroot and a cgibin. On the
+# the registry and the sysop had to supply a docroot and a cgibin. On the
 # Hestia layout that means knowing the site user too, and reconstructing
 # /home/<user>/web/<domain>/public_html by hand - four things the system already
-# knows, to name one thing the operator does.
+# knows, to name one thing the sysop does.
 #
 # The registry has held docroot and cgibin per site all along; `upgrade --all`
 # and `migrate-engine-tree --all` already read it. This is those verbs'
@@ -964,7 +964,7 @@ sub cmd_probe {
         # this summary went on recommending a repair that fixes nothing,
         # directly under a line stating the real cause.
         #
-        # Sending an operator after the wrong thing is the defect SM368 is
+        # Sending a sysop after the wrong thing is the defect SM368 is
         # about, and it is worse in a summary than in a detail line, because the
         # summary is what a deploy log reader sees.
         if (@skip_reasons) {
@@ -1287,7 +1287,7 @@ to run as root. C<--domain> seeds the site URL and names the registry
 entry; C<--channel> pins the site's C<update_channel> after the install;
 C<--policy> sets the site's C<update_policy> (C<auto> opts the site in to
 fleet-wide C<upgrade --all> runs; C<manual>, the default, leaves upgrades
-to the operator). On success the site is recorded in the registry (see
+to the sysop). On success the site is recorded in the registry (see
 L</REGISTRY>).
 
 =item B<upgrade> --docroot D [--cgibin C] [--force]

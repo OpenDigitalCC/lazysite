@@ -18,7 +18,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         {
             id          => 'notify-xmpp',
             name        => 'XMPP notifications',
-            description => 'Deliver operator notifications (new form submissions, '
+            description => 'Deliver sysop notifications (new form submissions, '
                 . 'requests awaiting a response) to an XMPP address or group chat. '
                 . 'One client account per site, like SMTP delivery.',
             version       => '1.0',
@@ -36,7 +36,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     key   => 'password',
                     label => 'Client password',
                     type  => 'password',
-                    note  => 'Stored in the operator-only notify-xmpp.conf; never '
+                    note  => 'Stored in the sysop-only notify-xmpp.conf; never '
                         . 'shown again. Leave blank to keep the current one.',
                 },
                 {

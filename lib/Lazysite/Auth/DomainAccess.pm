@@ -101,7 +101,7 @@ sub read_domains {
 
 # effective_scopes(\%domains, $user, \@groups) -> the content-root scope list.
 #   allowed(U)   : domains whose allowed_groups intersect U's (compound) groups.
-#                  A NON-DEFAULT domain with an EMPTY allow-list is operator-only
+#                  A NON-DEFAULT domain with an EMPTY allow-list is sysop-only
 #                  (no group reaches it). The default site ('') needs no allow.
 #   locked(U)    : domains whose locked_users include U.
 #   effective(U) : allowed, narrowed to locked when U is locked anywhere.

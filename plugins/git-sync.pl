@@ -7,7 +7,7 @@
 # local history to the remote branch) and PULL (fetch and apply the remote's
 # changes) - plus a Test connection probe (--scan). Collision handling
 # without git vocabulary: a pull that fast-forwards just applies; when both
-# sides changed, the operator sees the plain-language conflict list ("These
+# sides changed, the sysop sees the plain-language conflict list ("These
 # pages changed in both places: ...") and re-runs pull with keep_mine or
 # take_theirs (merge -X ours/theirs under the hood). A content safety
 # snapshot (Backups machinery, prerestore kind) is taken before ANY apply
@@ -308,7 +308,7 @@ sub _run_git_capture {
     return ( $ok, $out, $err );
 }
 
-# Map git's stderr onto the operator's vocabulary. Never echoes the raw text -
+# Map git's stderr onto the sysop's vocabulary. Never echoes the raw text -
 # it may contain URLs; the full detail is in the server log.
 sub _explain_failure {
     my ($err) = @_;

@@ -762,9 +762,9 @@ subtest 'untracked pre-existing seed file preserved (not clobbered) on upgrade' 
 # www-data CGI could never append, and every subsequent event vanished
 # silently. Pin: mode 0664 with the group-write bit (the "second identity can
 # append" contract, asserted via mode+group bits since tests are not root),
-# the install event present WITH the seeded-channel detail, and setup-manager
+# the install event present WITH the seeded-channel detail, and setup-sysop
 # appending its TWO events with cli origin + real attribution.
-subtest 'fresh install: audit.log 0664, install event + channel, setup-manager events' => sub {
+subtest 'fresh install: audit.log 0664, install event + channel, setup-sysop events' => sub {
     my ( $docroot, $cgibin ) = fresh_docroot();
     my $old = umask 0022;    # the field umask that produced 0644
     my ( $rc, $out ) = run_install(
@@ -783,19 +783,23 @@ subtest 'fresh install: audit.log 0664, install event + channel, setup-manager e
     like( $audit, qr/\| system \| installed \| .* \| ok \| install \| update_channel: stable/,
         'install event present, carrying the seeded channel as detail' );
 
-    # setup-manager through the users tool (the provisioning path runs exactly
+    # setup-sysop through the users tool (the provisioning path runs exactly
     # this): exactly two more events, origin cli, attributed to the real user.
     my @before = split /\n/, $audit;
     my $users  = "$FindBin::Bin/../../tools/lazysite-users.pl";
-    my $sout   = qx{$^X "$users" --docroot "$docroot" setup-manager pw-test-1 2>&1};
+    my $sout   = qx{$^X "$users" --docroot "$docroot" setup-sysop --user sjm pw-test-1 2>&1};
     my @after  = split /\n/, slurp($log);
     is( scalar @after, scalar(@before) + 2,
-        'setup-manager appended exactly TWO events' ) or diag $sout;
-    my $me = getpwuid($<) // "uid:$<";
-    like( $after[-2], qr/\| \Q$me\E \| setup-manager \| lazysite-admins \| .* \| ok \| cli/,
-        'setup-manager event: cli origin, invoking-user attribution, group target' );
-    like( $after[-1], qr/\| \Q$me\E \| user-passwd \| manager \| .* \| ok \| cli/,
-        'credential-issue event for the manager account' );
+        'setup-sysop appended exactly TWO events' ) or diag $sout;
+    # SM659: the CLI actor is `system:<unix name>` - a bare name could collide
+    # with a lazysite account of the same name, and SM641's reader would then
+    # render it as a link to that person. And the account is NAMED now; there
+    # is no default `manager` login for the credential event to be about.
+    my $me = 'system:' . ( getpwuid($<) // "uid:$<" );
+    like( $after[-2], qr/\| \Q$me\E \| setup-sysop \| sysops \| .* \| ok \| cli/,
+        'setup-sysop event: cli origin, SYSADMIN attribution, group target' );
+    like( $after[-1], qr/\| \Q$me\E \| user-passwd \| sjm \| .* \| ok \| cli/,
+        'credential-issue event for the NAMED account' );
     unlike( slurp($log), qr/pw-test-1/, 'the password itself is not in the trail' );
 
     # Split-identity invariant: any secret minted so far is exactly 0660

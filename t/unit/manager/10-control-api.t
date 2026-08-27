@@ -582,7 +582,7 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     # SM612: whoami carries the build. An agent re-checking a previous
     # release's finding could not read which release it was testing.
     my $w = mapi( $d, QUERY_STRING => 'action=whoami',
-        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'lazysite-admins' );
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'sysops' );
     ok( exists $w->{engine_version},
         'whoami reports the engine build, so a caller can tell what it is testing' );
 

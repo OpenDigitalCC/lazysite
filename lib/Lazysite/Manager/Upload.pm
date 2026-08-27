@@ -520,7 +520,7 @@ sub action_file_zip_download {
             next;
         }
         # SEC-2026-07 (F2 audit): the read ACL and dav_scope confinement that
-        # action_read applies were skipped here, so a non-operator (or a
+        # action_read applies were skipped here, so a non-sysop (or a
         # scope-confined editor) could bulk-download files they may not read.
         # Skip any path the caller cannot read, or that lies outside their scope.
         if ( _acl_denied( $vr->{rel}, 'read', $auth_user ) ) {

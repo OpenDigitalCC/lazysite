@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM467: a manager group may CONFER api/mcp without HOLDING them.
 #
-# THE FIELD REPORT: on a new site, the setup-manager admin could not add anyone
+# THE FIELD REPORT: on a new site, the setup-sysop admin could not add anyone
 # to `agent-ai`. "You cannot add anyone to 'agent-ai': it grants 'api', which
 # you may not confer."
 #
@@ -23,7 +23,7 @@
 # must confer NO ability to use the channel. If `grantable: api` leaked into
 # caps_for, this would have quietly handed every manager group the remote API
 # access SM127 exists to deny - the exact opposite of the intent, on every site
-# that runs setup-manager.
+# that runs setup-sysop.
 use strict;
 use warnings;
 use Test::More;
@@ -55,7 +55,10 @@ sub fresh_site {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
     close $cf;
-    run_cli( $d, 'setup-manager', 'secretpw123' );
+    # SM659: setup-sysop, and a NAME is required - there is no default account.
+    # The password stays positional here so this fixture keeps testing the
+    # capability question rather than the registration-link flow.
+    run_cli( $d, 'setup-sysop', '--user', 'sjm', 'secretpw123' );
     return $d;
 }
 
@@ -64,7 +67,7 @@ my $d = fresh_site();
 # --- the reported case ------------------------------------------------------
 subtest 'the manager can add an account to a group granting api' => sub {
     run_cli( $d, 'add', 'aiagent', 'pw12345678' );
-    my $out = run_cli( $d, 'group-add', 'aiagent', 'agent-ai', 'manager' );
+    my $out = run_cli( $d, 'group-add', 'aiagent', 'agent-ai', 'sjm' );
     unlike( $out, qr/which you may not confer/,
         'no confer refusal for the bootstrap admin' )
         or diag( 'This is the field report verbatim: the only account on a '
@@ -82,7 +85,7 @@ subtest 'grant authority confers NO ability to use the channel (SM127)' => sub {
         open my $fh, '<', "$d/lazysite/auth/groups-settings.json" or die $!;
         local $/; <$fh>;
     } );
-    my $admin = $gs->{'lazysite-admins'};
+    my $admin = $gs->{sysops};    # SM659: renamed from sysops
     # SM630 widened this from exactly ['api','mcp'] to every capability. The
     # INTENT this subtest protects is unchanged and is now stronger: the admin
     # group may CONFER the channels it does not hold. Pinning the exact pair
@@ -101,7 +104,7 @@ subtest 'grant authority confers NO ability to use the channel (SM127)' => sub {
     require Lazysite::Auth::Settings;
     our $AUTH_DIR;    # declared so the local() below is not a lone-name warning
     local $Lazysite::Auth::Settings::AUTH_DIR = "$d/lazysite/auth";
-    my $caps = Lazysite::Auth::Settings::caps_for('manager');
+    my $caps = Lazysite::Auth::Settings::caps_for('sjm');
     ok( !$caps->{api}, 'caps_for says the manager may NOT use api' )
         or diag( 'If grant authority leaked into caps_for, this change would '
             . 'hand every manager group the remote access SM127 denies.' );

@@ -363,12 +363,12 @@ sub package_create {
     #
     # The store is a sibling of the docroot, so the copy above already misses it
     # without trying. That is exactly the danger: the omission is correct and
-    # completely silent. Count it and report it - in the result to the operator
-    # building the package, and in the manifest so the receiving operator learns
+    # completely silent. Count it and report it - in the result to the sysop
+    # building the package, and in the manifest so the receiving sysop learns
     # it from the package itself rather than from a gap they may not notice.
     # SM484: what the copy could not read reaches both the manifest (a
     # COUNT, never paths - it travels) and the returned result (site-relative
-    # paths, for the operator building the package). SM559: the layout's
+    # paths, for the sysop building the package). SM559: the layout's
     # failures are reported as the layout's, under their own tree.
     my $private_omitted =
         Lazysite::Private::count_private( $DOCROOT, $primary_base ? '' : $croot );
@@ -391,7 +391,7 @@ sub package_create {
 
         # DP-6. `data_omitted` is the number of DECLARED tables this package
         # does not carry - the same shape as private_omitted, and there for the
-        # same reason: a receiving operator learns from the package itself that
+        # same reason: a receiving sysop learns from the package itself that
         # data exists, rather than from a gap they may never notice.
         data         => \@data_carried,
         data_omitted => $data_omitted,
@@ -415,7 +415,7 @@ sub package_create {
 
     # SM183: a site package is the artefact that TRAVELS - between organisations,
     # by whatever channel is to hand - and applying it overwrites a site. Write
-    # the digest beside it so the receiving operator can verify it arrived
+    # the digest beside it so the receiving sysop can verify it arrived
     # intact, with sha256sum -c and no lazysite tooling at all.
     my $sha = Lazysite::Manager::Backups::write_sha256($out);
 
@@ -445,7 +445,7 @@ sub package_create {
         manifest => $manifest,
 
         # SM286: surfaced at the top level, not only inside the manifest, because
-        # the operator reads the result and a UI shows what it is handed. A
+        # the sysop reads the result and a UI shows what it is handed. A
         # package that quietly contains less of the site than its builder assumes
         # is discovered by the person applying it, in front of their client.
         private_omitted => $private_omitted,
@@ -617,7 +617,7 @@ sub package_apply {
     # SM268 03-F10: verify the digest BEFORE overwriting a site.
     #
     # The sidecar existed and nothing ever checked it: it was written, listed,
-    # and read as assurance by an operator who had no way to know it was only
+    # and read as assurance by a sysop who had no way to know it was only
     # "a digest was recorded at some point". Apply is where that assurance is
     # actually spent - it overwrites a live site - so it is where the check has
     # to happen.
@@ -626,7 +626,7 @@ sub package_apply {
     # recorded, and the recorded digest is the only claim about it we have. An
     # ABSENT sidecar does not refuse - packages built before this existed have
     # none, and turning them into un-appliable files would break restore for
-    # exactly the operators most likely to need it. The response says which it
+    # exactly the sysops most likely to need it. The response says which it
     # was, so a caller can tell "verified" from "unverified".
     my $verified = Lazysite::Manager::Backups::verify_sha256($pkg);
     if ( $verified eq 'mismatch' ) {
@@ -676,7 +676,7 @@ sub package_apply {
     # how somebody re-applies one onto an instance already in use. The second
     # case is the dangerous one: restoring over a populated table would replace
     # a live product list with a snapshot from whenever the package was built,
-    # and the operator would have asked for a site, not for that.
+    # and the sysop would have asked for a site, not for that.
     #
     # So an occupied table is REFUSED and reported. Migrating first is
     # deliberate too - the descriptor travels with the export, and rows cannot
@@ -928,7 +928,7 @@ sub apply_and_configure {
     # SM255: applying a package sets several presentation keys, each of which is
     # its own conf write. Batched so the history records ONE act - "apply site
     # package" - rather than half a dozen consecutive edits that read as separate
-    # operator decisions. The batch commits at the end; it cannot skip.
+    # sysop decisions. The batch commits at the end; it cannot skip.
     Lazysite::Manager::Common::conf_batch(
         'apply site package to ' . ( length $host ? $host : 'the default site' ),
         sub {

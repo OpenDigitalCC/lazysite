@@ -177,7 +177,7 @@ sub list_tables {
 sub read_rows {
     my ( $docroot, $name, %opt ) = @_;
     my $as = delete $opt{as};
-    die 'read_rows needs to know who is asking: pass as => "operator" for a '
+    die 'read_rows needs to know who is asking: pass as => "sysop" for a '
         . 'manage_data-gated surface, or as => { user, groups } for a visitor'
         unless defined $as;
 
@@ -221,7 +221,7 @@ sub _read_rows_loaded {
     # connecting. A read-only handle cannot open a file that does not exist, so
     # going through Connect first turns the ordinary state - a site that has
     # declared tables and not yet migrated - into "the data store cannot be
-    # opened", which reads as a broken installation and sends an operator
+    # opened", which reads as a broken installation and sends a sysop
     # looking for a fault that is not there.
     #
     # The distinction is worth keeping: "not created yet" is a next step, and
@@ -244,7 +244,7 @@ sub _read_rows_loaded {
     # store directory is not writable and a WAL reader cannot open its `-shm`
     # file - came back as "the table has not been created yet". SQLite reported
     # the fault accurately and we discarded it, which is worse than the fault:
-    # an operator was told their table was empty.
+    # a sysop was told their table was empty.
     #
     # Now a failure is diagnosed and named. Read-only deployment may be a
     # legitimate choice; being unable to tell it apart from an empty table is
@@ -289,7 +289,7 @@ sub _read_rows_loaded {
 # Bring the store into line with the descriptor, as far as is safe.
 #
 # Returns what it DID and what it REFUSED, both, because the refused list is
-# the useful half: it is the operator's account of why their column is not
+# the useful half: it is the sysop's account of why their column is not
 # there yet, and DP-5 is the flow that resolves it.
 # SM468: what the shape used to be, and who changed it. Derivation answers
 # NOW perfectly and BEFORE not at all - so the three operations that change
@@ -524,7 +524,7 @@ sub resolve_binding {
     return $q unless $q->{ok};
 
     # DAO-1: no `as` here any more. It said 'operator' only to satisfy
-    # read_rows' SM476 die, and may_read answers 'operator' by short-circuit,
+    # read_rows' SM476 die, and may_read answers 'sysop' by short-circuit,
     # so the second gate decided nothing. The rows now come from
     # _read_rows_loaded, beneath the gate that ran nine lines above.
     my %opt;

@@ -3,7 +3,7 @@
 # DP-3: the data endpoint - a page's own JavaScript reading a table.
 #
 # WHY THIS EXISTS SEPARATELY FROM THE CONTROL API. The control API is the
-# operator's and the agent's door: it is capability-gated, CSRF-gated on the
+# sysop's and the agent's door: it is capability-gated, CSRF-gated on the
 # cookie path, and every action is audited. A rendered PAGE asking for rows is
 # a different question with a different answer - it is a visitor, usually
 # anonymous.
@@ -91,7 +91,7 @@ sub main {
     local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
     return reply( 403,
         { ok => 0,
-            error => 'The data plugin is disabled. An operator can enable it '
+            error => 'The data plugin is disabled. A sysop can enable it '
                 . 'on the Plugin Manager page.' } )
         unless Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl');
 
@@ -203,7 +203,7 @@ sub main {
 
         # `writable_by` NARROWS, and only narrows. The descriptor has carried
         # it since DP-1 - validated, exported, named in the MCP tool's own
-        # documentation - and NOTHING HAS EVER ENFORCED IT. An operator writing
+        # documentation - and NOTHING HAS EVER ENFORCED IT. A sysop writing
         # `writable_by: [editors]` was given a promise no code kept, which is
         # worse than the key not existing: they would have stopped looking for
         # another way to say it.
@@ -294,9 +294,9 @@ sub main {
     my %READS   = map       { $_ => 1 } qw(table order_by order limit offset csrf);
     my @ignored = sort grep { !$READS{$_} } keys %q;
 
-    # THE VISITOR (SM476), with no operator bypass. This endpoint is the page's
+    # THE VISITOR (SM476), with no sysop bypass. This endpoint is the page's
     # data source, so it must answer exactly what the page's own binding would
-    # - an operator who saw more here than their site's visitors do would be
+    # - a sysop who saw more here than their site's visitors do would be
     # testing a different site.
     # A BAD BINDING IS A 400, NOT A 404. "no such table" for a limit that is
     # not a number would send a caller looking for a table that is right there.

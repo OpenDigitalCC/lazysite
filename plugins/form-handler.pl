@@ -228,7 +228,7 @@ eval {
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
     _audit_submission( $name, '', $ENV{REMOTE_ADDR} // '' );    # SM402: no verified actor
         # SM216: a quarantined (suspect) submission is stored but does NOT ring the
-        # bell - the operator finds it under the Submissions Quarantine filter.
+        # bell - the sysop finds it under the Submissions Quarantine filter.
     _notify_submission( $name, $conf->{notify_off} )
         unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
@@ -455,7 +455,7 @@ sub dispatch {
 #
 # SO THE OPERATOR'S HANDLER DECIDES EVERYTHING STRUCTURAL, and the visitor
 # decides only values. The table and the column names come from handlers.conf,
-# which is operator-only; the form supplies values and nothing else. A form
+# which is sysop-only; the form supplies values and nothing else. A form
 # that grows a field cannot grow a column, and a field nobody mapped is
 # DROPPED rather than guessed at.
 #
@@ -568,7 +568,7 @@ sub dispatch_db {
 
 # SM569: a `table` handler is DP-4's db insert AND the JSONL submissions
 # store, together. The row goes through dispatch_db unchanged - the same
-# operator-only mapping, the same plugin-enabled gate, the same insert_row
+# sysop-only mapping, the same plugin-enabled gate, the same insert_row
 # coercion as a live write - and the JSONL copy that the Submissions page,
 # the audit trail and SM187's bulk delete depend on is written alongside.
 # When the row is REFUSED (a value the declared types will not take), the
@@ -640,7 +640,7 @@ sub _record_form_event {
     return;
 }
 
-# SM113: raise an operator notification for a new submission. Append-only store
+# SM113: raise a sysop notification for a new submission. Append-only store
 # the manager reads for its unread badge. Best-effort (never blocks delivery).
 sub _notify_submission {
     my ( $form, $notify_off ) = @_;
@@ -883,7 +883,7 @@ sub find_script {
     my ($name) = @_;
     # D022: $DOCROOT/../plugins/ is now the canonical home.
     # The other paths stay as fallbacks so 0.1.0 installs
-    # still work during the upgrade transition, and operators
+    # still work during the upgrade transition, and sysops
     # who choose a system-wide install layout keep working.
     for my $path (
         "$DOCROOT/../plugins/$name",
@@ -1202,7 +1202,7 @@ sub log_event {
 # diagnostics as the docs promise. The module tree is located at runtime (the
 # SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the
-# operator a syslog copy, never a submission - STDERR has the line either way.
+# sysop a syslog copy, never a submission - STDERR has the line either way.
 sub _forward_diag {
     my ( $level, $line ) = @_;
     my %prio = ( DEBUG => 'debug', INFO => 'info', WARN => 'warning', ERROR => 'err' );

@@ -54,7 +54,7 @@ while (@ARGV) {
 
 # SM126 D: host-dependency query. A standalone check of the OS-level Perl
 # modules lazysite needs (from dist/config/sbom-deps.json) - no docroot needed,
-# so it runs before the docroot validation below. An operator (or an onboarding
+# so it runs before the docroot validation below. A sysop (or an onboarding
 # agent) can ask "what must I install here" and get the missing-package line.
 run_dependency_check() if $opt{dependencies};    # exits
 
@@ -372,7 +372,7 @@ sub run_checks {
     # ON CREATION and never corrects an existing directory.
     #
     # Reported, not repaired, and deliberately so. These are content directories
-    # on a live site; an operator who tightened one on purpose should not have it
+    # on a live site; a sysop who tightened one on purpose should not have it
     # widened by a tool they ran to ask a question. --fix stays on the CGI
     # writability set above, where the mode is a functional requirement rather
     # than a default. The suggested command is printed so the repair is one
@@ -394,7 +394,7 @@ sub run_checks {
         # docroot: its mode is a functional requirement, not a preference - the
         # CGI writes every authoring surface through it. A live 0.10.5 upgrade
         # then proved the point. Hestia's v-rebuild-web-domain reset public_html
-        # to 2751 (setgid, no group write), the operator followed the release
+        # to 2751 (setgid, no group write), the sysop followed the release
         # notes' instruction to re-render vhosts, and this tool reported the site
         # healthy while the manager could not save a file.
         #
@@ -451,7 +451,7 @@ sub run_checks {
             #
             # SM246's design says "install applies, check verifies, --fix
             # repairs", and the repair third was held because these are content
-            # directories on a live site: an operator who tightened one on
+            # directories on a live site: a sysop who tightened one on
             # purpose must not have it widened by a tool they ran to ask a
             # question. That reasoning is right about the WHOLE mode and wrong
             # about one bit of it.
@@ -466,7 +466,7 @@ sub run_checks {
             # their own site on purpose.
             #
             # So --fix ADDS the group-write bit and nothing else, leaving an
-            # operator's own choices about world and owner bits exactly as they
+            # sysop's own choices about world and owner bits exactly as they
             # made them. A mode that differs in any other way is still reported
             # and still not touched.
             if ( !( $mode & 0020 ) ) {
@@ -672,11 +672,11 @@ sub run_checks {
     #
     # SM165 moved confinement to the domain-owned model in 0.7.26. The group
     # `dav_scope` field kept being accepted and stored for every release after,
-    # and enforced nowhere - so an operator who set one between 0.7.26 and 0.10.6
+    # and enforced nowhere - so a sysop who set one between 0.7.26 and 0.10.6
     # has an account they believe is confined and which is not.
     #
     # FAIL, not WARN, and deliberately so: every other finding in this tool is
-    # about a permission being wrong. This one is about a permission the operator
+    # about a permission being wrong. This one is about a permission the sysop
     # thinks exists. There is no repair to apply - the fix is to confine the group
     # through its domain - so it is reported and never touched by --fix.
     {
@@ -699,7 +699,7 @@ sub run_checks {
         }
     }
 
-    # --- 6c. SM335: a retired anonymise_ip is a choice the operator no longer has
+    # --- 6c. SM335: a retired anonymise_ip is a choice the sysop no longer has
     #
     # The manager Stats page used to count visitors itself, and honoured
     # `anonymise_ip: false` by keying them on the raw address. Both readers now
@@ -1082,7 +1082,7 @@ sub run_checks {
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
-    # versus operator-authored - the "is this likely ours?" test behind the upgrade-
+    # versus sysop-authored - the "is this likely ours?" test behind the upgrade-
     # safety work. Informational (always OK); never a FAIL.
     {
         require Digest::SHA;
@@ -1099,7 +1099,7 @@ sub run_checks {
             return 'sha256:' . $d->hexdigest;
         };
 
-        my ( @operator, @customised );
+        my ( @sysop, @customised );
         my $unmodified = 0;
         File::Find::find(
             { no_chdir => 1,
@@ -1119,7 +1119,7 @@ sub run_checks {
                     close $fh;
                     ( my $rel = $p ) =~ s/\A\Q$DOC\E\/?//;
                     if ( $head !~ /^provenance\s*:\s*lazysite-starter\s*$/m ) {
-                        push @operator, $rel;
+                        push @sysop, $rel;
                         return;
                     }
                     # Ours: unmodified vs customised, via the recorded install-state sha.
@@ -1133,12 +1133,12 @@ sub run_checks {
 
         report( 'OK', sprintf(
                 'content provenance: %d lazysite page(s) [%d unmodified, %d customised], %d operator-authored',
-                $unmodified + scalar @customised, $unmodified, scalar @customised, scalar @operator ) );
+                $unmodified + scalar @customised, $unmodified, scalar @customised, scalar @sysop ) );
         my $cap = sub { my @l = @_; @l > 10 ? ( @l[ 0 .. 9 ], '...' ) : @l };
         report( 'OK', '  customised (edited from a lazysite page): ' . join( ', ', $cap->(@customised) ) )
             if @customised;
-        report( 'OK', '  operator-authored (not ours, never touched by upgrades): ' . join( ', ', $cap->(@operator) ) )
-            if @operator;
+        report( 'OK', '  operator-authored (not ours, never touched by upgrades): ' . join( ', ', $cap->(@sysop) ) )
+            if @sysop;
     }
 
     # --- 10. system pages resolve (SM201) ----------------------------------------
@@ -1518,7 +1518,7 @@ sub report_unscoped_data_tables {
     # allowed_groups, and resolve_user_scopes derives every scope from exactly
     # that - so with no domain declaring allowed_groups, no caller holds a
     # scope, none is confined, and an unscoped table is reachable by the
-    # operator alone. Warning there is a finding about nothing, repeated on
+    # sysop alone. Warning there is a finding about nothing, repeated on
     # every deploy of an instance whose domains are all one person's - and a
     # finding that is always present and never actionable is how a real one
     # gets scrolled past.
@@ -1600,7 +1600,7 @@ sub report_group_acl_reach {
     # Enumerating top-level folders is a legitimate choice and nagging about it
     # would teach the reader to skip this section. But it fails OPEN as content
     # grows - a file added at the docroot root next month is public, with
-    # nothing else in this tool to say so - and an operator who believes the
+    # nothing else in this tool to say so - and a sysop who believes the
     # site is closed should be able to see which of the two shapes they have.
     my $has_root = grep { exists $map->{$_} } ( '/', '', '.', './' );
     report( 'OK',
@@ -1631,7 +1631,7 @@ sub report_group_acl_reach {
     # The honest options were: duplicate the closure logic (a fourth answer to
     # "which groups is this account in", which is the defect SM288 exists to
     # remove, so no), report DIRECT membership only (which omits anyone in a
-    # nested group and would tell an operator that somebody does not gain access
+    # nested group and would tell a sysop that somebody does not gain access
     # when they do), or name the entries and point at the tool that knows. This
     # file is core-Perl by design and cannot load Lazysite::Auth::Settings.
     #
@@ -1701,7 +1701,7 @@ sub _probe_exts { return qw(png pdf txt css gz dat) }
 # of the upgrade, quietly, is the failure mode.
 #
 # WARN, not FAIL: a stale sitemap is an SEO problem, not a disclosure. And the
-# operator may have authored their own on purpose, which the engine deliberately
+# sysop may have authored their own on purpose, which the engine deliberately
 # yields to - so this names the files and explains, rather than deleting them.
 sub report_stale_registries {
     my $d = $opt{docroot};
@@ -1723,7 +1723,7 @@ sub report_stale_registries {
     # not be cleared by any repair, so `repair --all` reported every site as
     # needing a human forever. It is determinable - the file must not stay where
     # it is, or it is served stale for good - but the ACTION is not simply
-    # "delete", because the engine deliberately yields to an operator's own
+    # "delete", because the engine deliberately yields to a sysop's own
     # sitemap or llms.txt and nothing in the file says which it is: the shipped
     # templates emit no generator marker, so a generated registry and a
     # hand-written one are indistinguishable on disk.
@@ -1807,12 +1807,12 @@ sub report_engine_tree {
 # It cannot arise from a completed move (move_in renames, and refuses when the
 # destination is already occupied rather than overwriting). It arises from a
 # move interrupted mid-copy on a cross-device fallback, from a restore of an
-# archive written before the content was protected, and from an operator putting
+# archive written before the content was protected, and from a sysop putting
 # a file back by hand - none of which anything else would notice.
 #
 # FAIL, not WARN. The site is serving content it has been told to protect. And
 # reported rather than repaired: which copy to delete is a content decision, and
-# a tool that silently removes an operator's file to fix a permission problem is
+# a tool that silently removes a sysop's file to fix a permission problem is
 # a worse tool than one that tells them.
 # SM296: can the engine put protected content where it belongs?
 #
@@ -1898,7 +1898,7 @@ sub report_front_door_mode {
     }
     else {
         # The pool now refuses to start on this (SM309), so a site in this state
-        # has a stopped pool - which the operator will meet as an outage with no
+        # has a stopped pool - which the sysop will meet as an outage with no
         # obvious cause unless something names the line.
         report( 'FAIL', "FRONT_DOOR=$raw in $mine is not a yes/no value",
             'The pool refuses to start rather than guess, so this site is not '
@@ -2013,7 +2013,7 @@ sub report_private_store_usable {
             #
             # SM313 taught --fix to CREATE a missing store and stopped there, so
             # a store that exists and is unusable was reported on every run and
-            # repaired by nothing. That is the state edge reached: the operator
+            # repaired by nothing. That is the state edge reached: the sysop
             # sweep runs as the SITE USER and creates the store through
             # Private::_mkpath, which sets no ownership and no mode - so the
             # store ends up owned by the site user with a umask default, and the
@@ -2180,7 +2180,7 @@ sub _acl_write {
 }
 
 # Remove the probe's file tree and its ACL entry. RE-READS the store rather than
-# restoring a copy taken earlier, so a rule the operator added while the probe
+# restoring a copy taken earlier, so a rule the sysop added while the probe
 # was running is not silently reverted.
 sub _acl_probe_cleanup {
     if ( defined $PROBE_KEY ) {
@@ -2640,7 +2640,7 @@ sub run_acl_probe {
     # look identical from here:
     #
     #   SM283  the front end serves a static list by EXTENSION, straight off
-    #          the docroot, without consulting the engine. An operator task.
+    #          the docroot, without consulting the engine. A sysop task.
     #   SM331  the front end still holds a descriptor for a file it fetched
     #          while the folder was public. Clears itself. Nobody's task.
     #
@@ -2692,7 +2692,7 @@ sub run_acl_probe {
     _acl_probe_cleanup();
 
     # The verdicts. Note what is NOT said: never the filesystem path, and never
-    # the name of a real file - the operator is told which EXTENSIONS leaked,
+    # the name of a real file - the sysop is told which EXTENSIONS leaked,
     # because that is what identifies the layer at fault.
     if (@leaked) {
         my $l = join ', ', map { ".$_" } @leaked;
@@ -2710,7 +2710,7 @@ sub run_acl_probe {
         #   warmed served / never GATED    residue. Bounded, self-clearing, and
         #                                  nobody's task (SM331)
         #   warmed served / never SERVED   a genuine bypass. Protected content
-        #                                  is being served. An operator's task
+        #                                  is being served. A sysop's task
         #   neither served                 gated, nothing to report
         #
         # Those have opposite consequences, and the old probe collapsed them.

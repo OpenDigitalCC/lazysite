@@ -63,7 +63,7 @@ sub path_is_reserved {
     # "lazysite/" - they simply passed. An adversarial review used that to set a
     # domain's content_root to `./lazysite`, export the site, and download a
     # package advertised as carrying NO secrets that contained the account store,
-    # the per-file ACLs and the session HMAC secret - which forges operator
+    # the per-file ACLs and the session HMAC secret - which forges sysop
     # sessions.
     #
     # Collapse duplicate separators and drop `.` segments, so every spelling of
@@ -507,7 +507,7 @@ sub carveout_refusal {
     return "'$rel' is not $req->{mode}able by path: $req->{why}. $needs";
 }
 
-# A permission failure is server-truthful but operator-opaque ("Permission
+# A permission failure is server-truthful but sysop-opaque ("Permission
 # denied" told the field nothing actionable) - name the likely cause and the
 # fix. Appended only for EACCES/EPERM, at this layer because it is the one
 # that still has the errno.
@@ -783,7 +783,7 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 # The api/raw/content_type matching mirrors the processor's front-matter parse and
 # peek_content_type, so write-refusal and serve-time downgrade agree.
 # SM504: once the briefs plugin is enabled on a site, a .brief WRITE is
-# refused - the operator's instruction, relayed with the field agent's
+# refused - the sysop's instruction, relayed with the field agent's
 # argument verbatim: a brief is the record of WHY something was done, often
 # the channel between two agents who never speak, so its failure mode is
 # not a broken page anyone notices - it is a note nobody reads, found
@@ -856,7 +856,7 @@ sub raw_html_page_refusal {
 # =========================================================================
 #
 # The commit is a property of WRITING THIS FILE, not of the action that happened
-# to do it. An operator does not know or care whether a change arrived through
+# to do it. A sysop does not know or care whether a change arrived through
 # config-set, domain-set or the CLI - they know the file changed, and it should
 # be recorded once, the same way, every time. Before this, config-set committed
 # and the domain verbs did not, on the same file.

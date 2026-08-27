@@ -226,7 +226,7 @@ elsif ( $action eq 'authorize' ) {
         audit_log( '', 'oauth-authorize', $p{client_id} // '', $ENV{REMOTE_ADDR} // '',
             'fail', 'mcp', 'invalid-connect-code' );
         $p{client_name} = $client->{client_name};
-        consent_page( \%p, 'That connect code is not valid (check it, or ask your operator for a fresh one).' );
+        consent_page( \%p, 'That connect code is not valid (check it, or ask your sysop for a fresh one).' );
     }
     my $code = mint_code( $p{client_id}, $r->{username}, $p{code_challenge}, $redirect_uri );
     log_event( 'INFO', 'oauth', 'authorization code issued', partner => $r->{username} );

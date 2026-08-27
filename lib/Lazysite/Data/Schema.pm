@@ -73,7 +73,7 @@ sub _index_name {
 #   additive  [ { sql, binds, why }, ]  safe on a populated table
 #   blocked   [ { field, why }, ... ]   needs the DP-5 destructive flow
 #
-# `blocked` being non-empty does NOT invalidate the additive list: an operator
+# `blocked` being non-empty does NOT invalidate the additive list: a sysop
 # can apply what is safe now and decide about the rest. Returning all-or-
 # nothing would make one awkward column freeze every other change, and the
 # usual response to that is to edit the store by hand.
@@ -311,7 +311,7 @@ sub plan_rebuild {
     # ... SELECT; the first row that cannot satisfy a tightened constraint
     # fails the whole statement, and the error named an internal table and no
     # row. A confirmation that names a risk which is not the one that will
-    # bite trains an operator to confirm without reading.
+    # bite trains a sysop to confirm without reading.
     #
     # So for every carried column, ask what the EXISTING rows would do against
     # the NEW constraint, and report it with a count - "2 rows have no `when`"

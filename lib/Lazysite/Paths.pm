@@ -121,7 +121,7 @@ sub stray_lazysite {
 # which half the config, or half the account store, is in each place. Across
 # filesystems it fails with EXDEV and this REFUSES rather than falling back to a
 # copy - a half-copied auth store is the worst outcome available here, and the
-# operator can move it themselves and re-run the check.
+# sysop can move it themselves and re-run the check.
 #
 # Idempotent: a site already migrated returns ok with a note, so "migrate
 # everything" is safe to run repeatedly and safe to run on a mixed fleet.
@@ -155,7 +155,7 @@ sub migrate_out {
     return ( 1, 'migrated' );
 }
 
-# And back, for an operator who wants to undo it. Same contract reversed.
+# And back, for a sysop who wants to undo it. Same contract reversed.
 #
 # Reversibility is not politeness. It is what lets a site be migrated on edge,
 # watched, and put back without a release if anything about the deployment turns

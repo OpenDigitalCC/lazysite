@@ -36,7 +36,7 @@ sub _blocked_path { return "$_[0]/lazysite/cache/bad-url-blocked.json" }
 sub _hits_path    { return "$_[0]/lazysite/cache/bad-url-hits.json" }
 
 # Does this request path look like a scanner probe? $extra is an optional arrayref
-# of operator-added substrings.
+# of sysop-added substrings.
 sub is_bad_url {
     my ( $path, $extra ) = @_;
     return 0 unless defined $path && length $path;

@@ -849,7 +849,7 @@ sub _acl_allows_read {
     # through the closure - so `Editors` was refused where `editors` was
     # allowed, and membership of a group NESTED in the granted one did not
     # count. It failed closed, so it was a correctness defect rather than an
-    # exposure, but an operator meeting it reads it as "the ACL is broken" and
+    # exposure, but a sysop meeting it reads it as "the ACL is broken" and
     # the obvious repair is to widen the rule.
     my %grp = map { lc($_) => 1 } _group_closure(@groups);
     for my $e (@$list) {
@@ -978,7 +978,7 @@ sub _acl_refused {
     # here, ahead of the store, and covers all four callers of this sub.
     #
     # NOT a rule about the path `/` specifically: a rule at any depth that
-    # governs the login page has the same effect, and an operator who names
+    # governs the login page has the same effect, and a sysop who names
     # /login explicitly has still not asked to be locked out.
     # SM651: is_auth_surface() already answers "is this the way in", follows
     # auth_redirect and covers logout; it has been the cache-protection
@@ -1227,7 +1227,7 @@ sub _is_manager {
 # reaches /manager/ gets this terminal 403 - a clear explanation instead of a
 # redirect back to /login (which, seeing the valid session, would loop). Names
 # the likely cause (an API/MCP-only account) and the remedy (the connector, or an
-# operator granting `ui`). Self-contained so it renders even if a layout/theme is
+# sysop granting `ui`). Self-contained so it renders even if a layout/theme is
 # broken.
 sub _serve_manager_forbidden {
     my ( $sv, $auth_user ) = @_;
@@ -1245,7 +1245,7 @@ sub _serve_manager_forbidden {
 permitted to use the manager interface.</p>
 <p>This is normal for an API / MCP account: connect your AI assistant through the
 <em>connector</em> rather than the browser manager.</p>
-<p>If you should have manager access, ask an operator to grant your group the
+<p>If you should have manager access, ask a sysop to grant your group the
 <strong>ui</strong> capability on the Groups page. You can
 <a href="/logout">sign out</a> in the meantime.</p>
 </body></html>
@@ -1598,15 +1598,15 @@ sub _read_request_body {
 #
 # THIS IS A MEMORY BACKSTOP, NOT A POLICY GATE. Policy lives downstream - the
 # manager's manager_upload_max_mb, the form handler's upload_max_kb, WebDAV's
-# own limit - and each refuses with an error that names the setting the operator
+# own limit - and each refuses with an error that names the setting the sysop
 # can change. The relay must never be the thing that quietly refuses a body
 # those layers would have accepted.
 #
-# So it follows the upload limit UP. An operator who raises
+# So it follows the upload limit UP. A sysop who raises
 # manager_upload_max_mb is entitled to have uploads work; a fixed ceiling
 # underneath it would present as "uploads broke after a config change" with
 # nothing pointing at this function. front_max_body_mb overrides both, for the
-# operator who wants the backstop somewhere else entirely.
+# sysop who wants the backstop somewhere else entirely.
 sub _front_body_cap {
     my $mb = 64;                                                # generous default ceiling
     my $up = ( _conf_value('manager_upload_max_mb') || 0 ) + 0;
@@ -1675,7 +1675,7 @@ sub _front_relay {
     #
     # SM389: BOUNDED, both ways. A declared CONTENT_LENGTH was trusted whatever
     # it said, and a request with no CONTENT_LENGTH at all - chunked transfer
-    # encoding, which a client chooses, not the operator - was slurped whole
+    # encoding, which a client chooses, not the sysop - was slurped whole
     # under `local $/`. Either one sizes this worker to the body, and the worker
     # PERSISTS: the memory does not come back when the request ends.
     my ( $body, $too_big ) = _read_request_body( _front_body_cap() );
@@ -2203,7 +2203,7 @@ sub main {
         # describing itself.
         #
         # The misreading was durable because an upgrade re-renders every
-        # SHIPPED page while PRESERVING the operator's own index.md - so the
+        # SHIPPED page while PRESERVING the sysop's own index.md - so the
         # one page keeping an old render is the homepage, which is also the
         # first page anyone checks after an upgrade.
         #
@@ -2388,7 +2388,7 @@ sub main {
     # was never gated, and neither was its render cache. SM181's claim is "every
     # page under /upcoming/ requires an editor"; a .url page under that prefix was
     # public. `.url` pages have never been coverable by `auth:` either, for the
-    # same structural reason, so an operator had no way at all to protect one.
+    # same structural reason, so a sysop had no way at all to protect one.
     #
     # Gate on the source that actually exists, so the decision is made once for
     # whatever the request resolves to.
@@ -2409,7 +2409,7 @@ sub main {
         # SM181: a folder ACL entry gates the whole section, PAGES included.
         #
         # Access control was per-page or whole-site with nothing in between: to
-        # hold back an unfinished section an operator had to stamp `auth:` on
+        # hold back an unfinished section a sysop had to stamp `auth:` on
         # every page in it, and to release it, unstamp every page. There was no
         # atomic "publish the section now".
         #
@@ -3123,9 +3123,9 @@ sub _serve_content_static {
         #
         # SO THE TEN-YEAR CACHE IS A PROPERTY OF THE FRONT-END FAST PATH, not of
         # lazysite: a site with no ACL store keeps it, because nothing there can
-        # become protected without an operator noticing. The docs say so now
+        # become protected without a sysop noticing. The docs say so now
         # rather than describing the stock template as though it were the rule.
-    print _static_cache_control($real) . "\n";    # SM416: operator-set max-age
+    print _static_cache_control($real) . "\n";    # SM416: sysop-set max-age
                                                   # or the revalidation default
     print "ETag: $etag\n" if defined $etag;       # SM388
     print "\n";
@@ -4957,8 +4957,8 @@ sub resolve_db {
     my ($table) = split /[\s(.]/, $spec;
     $table = '' unless defined $table;
 
-    # THE VISITOR, and never an operator (SM476). A page renders the same rows
-    # for whoever is looking at it: an operator seeing rows a visitor cannot is
+    # THE VISITOR, and never a sysop (SM476). A page renders the same rows
+    # for whoever is looking at it: a sysop seeing rows a visitor cannot is
     # a preview that means nothing, which is the fault SM466 fixed for layouts
     # and themes. So the identity here is the request's, whatever it is.
     my $r = Lazysite::Data::Tables::resolve_binding(
@@ -6099,7 +6099,7 @@ sub _serve_registry {
         $root = $c if defined $c;
     }
 
-    # An operator who wrote their OWN sitemap.xml as content keeps it. In
+    # A sysop who wrote their OWN sitemap.xml as content keeps it. In
     # production the front end serves that file and the engine never sees the
     # request, but the guarantee must not depend on which route the request
     # took - the dev server and any ACL-store site come through here.
@@ -6116,7 +6116,7 @@ sub _serve_registry {
     # SM389: and it is a served request, so it goes in the access log. Registry
     # hits were the one served path that recorded nothing at all - a crawler
     # fetching sitemap.xml every few hours was invisible, which is exactly the
-    # traffic an operator would want to see. Its own channel rather than 'page':
+    # traffic a sysop would want to see. Its own channel rather than 'page':
     # a sitemap fetch is not a page view and must not inflate one.
     $ACCESS_REC{s}  = 200;
     $ACCESS_REC{ch} = 'registry';
@@ -6142,7 +6142,7 @@ sub _serve_registry {
 #
 # A non-blocking lock picks ONE. The losers do not wait and do not regenerate:
 # they serve the stale file, which is the entire premise of a TTL cache and is
-# what the operator accepted by setting a TTL at all. A few more seconds of
+# what the sysop accepted by setting a TTL at all. A few more seconds of
 # staleness on a sitemap is not a defect; N concurrent site scans is.
 #
 # The one case a loser cannot serve through is no file at all - a cold start, or
@@ -6357,7 +6357,7 @@ sub render_content {
     my ( $scope_root, $home_domain ) = ( '', '' );
     my @my_scopes;
     if ( length $mgr_user ) {
-        # An operator (unsecured/dev fallback: no group grants manager) implicitly
+        # A sysop (unsecured/dev fallback: no group grants manager) implicitly
         # holds every cap; otherwise resolve the nav-gating caps from the groups.
         # SM160: the Domains page is gated by manage_domains (carved out of
         # manage_config); both are surfaced so the manager UI can gate each area.
@@ -7406,7 +7406,7 @@ sub _inject_admin_bar_live {
     #
     # The existing control is the `ui` capability - a property of the person,
     # and the only lever. It works while every page is a content page. On a
-    # site carrying an application it stops working: the operator who both
+    # site carrying an application it stops working: the sysop who both
     # administers the site and USES the application must see the bar on every
     # page or none, and the documented way to remove it is to take `ui` away,
     # which removes the manager UI with it. That is not a trade anyone should
@@ -7771,7 +7771,7 @@ sub _security_headers {
         # A CSP hash covers a <script> BLOCK and not an inline event-handler
         # ATTRIBUTE. The manager's pages carry 186 of them - 59 in static markup
         # and 127 generated inside JS strings with interpolated arguments - so
-        # enforcing there would silently stop an operator's controls firing.
+        # enforcing there would silently stop a sysop's controls firing.
         #
         # Report-only rather than a looser manager policy: 'unsafe-inline' would
         # break nothing either, and would weaken the ONE surface where an
@@ -7922,7 +7922,7 @@ sub _ai_partner_doc {
             # a capability-gated carve-out, reachable to a grant holding
             # read_submissions or manage_forms. That is deliberate (it is what
             # the read_submissions capability and the read_form_submissions
-            # tool are FOR), but an operator reading a flat deny list - or
+            # tool are FOR), but a sysop reading a flat deny list - or
             # testing it by listing the directory, which is refused - concludes
             # the store is unreachable to partners. That conclusion is wrong,
             # and the list is what made it.
@@ -8252,7 +8252,7 @@ sub _access_record {
         # ACL's `read` list to the public path means an entry written to keep
         # other EDITORS out now also refuses anonymous visitors, and a public
         # asset can go dark without anyone being told. A per-path refusal report
-        # makes that visible whenever it happens, rather than only to operators
+        # makes that visible whenever it happens, rather than only to sysops
         # who read one particular release's notes in one particular week.
         $line .= ',"ar":1'                        if $ACCESS_REC{ar};
         $line .= ',"b":' . ( $ACCESS_REC{b} + 0 ) if defined $ACCESS_REC{b};

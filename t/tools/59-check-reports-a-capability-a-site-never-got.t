@@ -39,7 +39,7 @@ sub site {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
     close $cf;
-    qx($^X \Q$users\E --docroot \Q$d\E setup-manager pw123456789 2>/dev/null);
+    qx($^X \Q$users\E --docroot \Q$d\E setup-sysop --user sjm pw123456789 2>/dev/null);
     return $d;
 }
 sub run_check { return qx($^X \Q$check\E --docroot \Q$_[0]\E 2>&1) }
@@ -50,7 +50,7 @@ sub drop_cap {
     open my $fh, '<', $p or die $!;
     my $g = decode_json( do { local $/; <$fh> } );
     close $fh;
-    delete $g->{'lazysite-admins'}{$cap};
+    delete $g->{'sysops'}{$cap};
     open my $out, '>', $p or die $!;
     print {$out} JSON::PP->new->canonical->encode($g);
     close $out;
@@ -77,14 +77,14 @@ subtest 'a site missing one is told, and told what to run' => sub {
     like( $out, qr/have not decided on capabilities this release has/, 'the check warns' )
         or diag( 'This is the whole finding: the operator otherwise meets it '
             . 'as a refusal about a capability their role should hold.' );
-    like( $out, qr/lazysite-admins\/manage_data/, 'naming the group and the capability' );
+    like( $out, qr/sysops\/manage_data/, 'naming the group and the capability' );
     like( $out, qr/added after the group was seeded/,
         'and saying WHY it is absent' )
         or diag( 'Without that, an operator reads it as their configuration '
             . 'being wrong rather than as a seed that predates the feature.' );
     like( $out, qr/Groups -> the group -> the "new\s+capabilities" banner/,
         'the remedy is the UI first (SM496: app support needs no shell)' );
-    like( $out, qr/group-set lazysite-admins manage_data on/,
+    like( $out, qr/group-set sysops manage_data on/,
         'with the exact command as the shell fallback' );
 };
 
@@ -94,7 +94,7 @@ subtest 'the remote channels are not reported as missing' => sub {
     # operator to skip the one time it is real.
     my $d   = site();
     my $out = run_check($d);
-    unlike( $out, qr{lazysite-admins/(?:api|mcp)},
+    unlike( $out, qr{sysops/(?:api|mcp)},
         'their absence is the design, not drift' );
 };
 

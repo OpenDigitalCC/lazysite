@@ -496,7 +496,7 @@ sub provenance_section {
         '',
         'Those paths are on the site agent\'s own machine and are **not** part of'
             . ' this engine. **Updates come from re-running the import**, which'
-            . ' happens when a release is cut; an operator can also run it between'
+            . ' happens when a release is cut; a sysop can also run it between'
             . ' releases. Nothing you edit on this page survives the next import,'
             . ' and the engine\'s own test suite fails the build if this copy stops'
             . ' matching its sources - so a correction belongs in the source files,'
@@ -504,7 +504,7 @@ sub provenance_section {
         '',
         'If you have found something durable that is missing - a mechanism worth'
             . ' reaching for, a trap worth naming, a measurement worth keeping -'
-            . ' send it to the operator for the source files rather than adding it'
+            . ' send it to the sysop for the source files rather than adding it'
             . ' to the site.',
         '',
     );

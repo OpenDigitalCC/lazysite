@@ -62,11 +62,11 @@ sub setup {
     my ($d) = @_;
     cli( $d, 'add',       'boss',            'pw' );
     cli( $d, 'add',       'subadmin',        'pw' );
-    cli( $d, 'group-add', 'boss',            'lazysite-admins' );
+    cli( $d, 'group-add', 'boss',            'sysops' );
     cli( $d, 'group-add', 'subadmin',        'useradmins' );
-    cli( $d, 'group-set', 'lazysite-admins', 'manage_users', 'on' );
-    cli( $d, 'group-set', 'lazysite-admins', 'ui',           'on' );
-    cli( $d, 'group-set', 'lazysite-admins', 'manager',      'on' );
+    cli( $d, 'group-set', 'sysops', 'manage_users', 'on' );
+    cli( $d, 'group-set', 'sysops', 'ui',           'on' );
+    cli( $d, 'group-set', 'sysops', 'manager',      'on' );
     cli( $d, 'group-set', 'useradmins',      'manage_users', 'on' );
     cli( $d, 'group-set', 'useradmins',      'ui',           'on' );
     # The prize: a group carrying a capability the delegate cannot confer, and
@@ -203,7 +203,7 @@ subtest 'the last group granting manager access cannot be stripped' => sub {
 subtest 'the guard does not block an ordinary removal' => sub {
     my $d = fixture();
     setup($d);
-    # useradmins is not the last: lazysite-admins still grants.
+    # useradmins is not the last: sysops still grants.
     my $r = api( $d, action => 'group-settings-set', group => 'useradmins',
         key => 'ui', value => 'off' );
     ok( $r->{ok},

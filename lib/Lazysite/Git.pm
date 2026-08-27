@@ -376,7 +376,7 @@ sub file_log {
         #
         # A binary file reports "-\t-", which stays undef rather than being
         # counted as zero: "no lines changed" and "not countable in lines" are
-        # different answers and an operator cannot tell them apart from a 0.
+        # different answers and a sysop cannot tell them apart from a 0.
         my ( $lok, $lout ) = run_git( $docroot, 'log', '--numstat',
             '--format=%H%x09%at%x09%an%x09%s', $start, '--', $cur );
         last unless $lok && defined $lout;

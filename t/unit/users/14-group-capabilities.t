@@ -18,7 +18,7 @@ sub docroot {
     my $d = tempdir( CLEANUP => 1 );
     mkdir "$d/lazysite"; mkdir "$d/lazysite/auth";
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf "manager_groups: lazysite-admins\n";
+    print $cf "manager_groups: sysops\n";
     close $cf;
     return $d;
 }
@@ -79,12 +79,12 @@ sub caps {
     ok( $s->{webdav},    'agent-ai grants webdav' );
 }
 
-# lazysite-admins is seeded as a MANAGER group with full capabilities (so the
+# sysops is seeded as a MANAGER group with full capabilities (so the
 # operator keeps manager + partner access after the clean cut).
 {
     my $d = docroot();
     cli( $d, 'add', 'boss', 'pw' );
-    cli( $d, 'group-add', 'boss', 'lazysite-admins' );
+    cli( $d, 'group-add', 'boss', 'sysops' );
     my $s = caps( $d, 'boss' );
     ok( $s->{manage_config}, 'admins group grants manage_config' );
     ok( $s->{analytics},     'admins group grants analytics' );
@@ -93,7 +93,7 @@ sub caps {
     open my $gf, '<', "$d/lazysite/auth/groups-settings.json" or die $!;
     my $gs = decode_json( do { local $/; <$gf> } );
     close $gf;
-    ok( $gs->{'lazysite-admins'}{manager}, 'lazysite-admins flagged as a manager group' );
+    ok( $gs->{'sysops'}{manager}, 'sysops flagged as a manager group' );
     ok( exists $gs->{'user-managers'}, 'default role groups were seeded' );
 }
 
@@ -121,9 +121,9 @@ sub api {
         'created group shows in the unified view' );
     is( api( $d, { action => 'group-delete', group => 'editors' } )->{ok}, 1, 'delete a group' );
 
-    my $bad = api( $d, { action => 'group-delete', group => 'lazysite-admins' } );
+    my $bad = api( $d, { action => 'group-delete', group => 'sysops' } );
     ok( !$bad->{ok}, 'cannot delete the only manager group (lockout guard)' );
-    my $bad2 = api( $d, { action => 'group-settings-set', group => 'lazysite-admins', key => 'manager', value => 'off' } );
+    my $bad2 = api( $d, { action => 'group-settings-set', group => 'sysops', key => 'manager', value => 'off' } );
     ok( !$bad2->{ok}, 'cannot clear manager from the only manager group' );
 
     # SM127: a group must not combine manager UI access (ui) with a remote channel.

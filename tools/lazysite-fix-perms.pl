@@ -41,7 +41,7 @@ sub _usage {
 die "--docroot is required\n" . _usage() unless defined $docroot && length $docroot;
 
 # SM624: this tool works and is not being retired - it is the SINGLE-SITE door,
-# and `lazysite repair` is the one that also addresses a fleet. An operator who
+# and `lazysite repair` is the one that also addresses a fleet. A sysop who
 # found this one first had no way to know the other existed, which is how four
 # different invocations ended up in use for one job. Say it once, on stderr, so
 # it never pollutes output a script is parsing.

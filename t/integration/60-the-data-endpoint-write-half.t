@@ -56,7 +56,7 @@ apply_schema( $docroot, 'minutes' );
 
 # An account with manage_data, and one without.
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-manager pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E add writer pw123456789 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set data-people manage_data on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-add writer data-people 2>/dev/null);

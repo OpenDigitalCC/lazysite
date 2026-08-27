@@ -42,7 +42,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
     is_private move_in move_out stray_public count_private);
 
-# The store's directory name. A leading dot would hide it from an operator
+# The store's directory name. A leading dot would hide it from a sysop
 # looking at the tree, and the point is that they can see where their private
 # content went.
 our $DIRNAME = 'lazysite-private';
@@ -303,7 +303,7 @@ sub _within {
 # away in the same codebase - the WebDAV layer, on the same docroot, minutes
 # apart, said "the target directory is not writable by the server. This is a
 # server configuration fault, rather than a permission decision about your
-# request - the operator must fix the directory permissions", which was exactly
+# request - the sysop must fix the directory permissions", which was exactly
 # right. The ACL path said "cannot move a folder across filesystems".
 #
 # The old comment was honest about the uncertainty - "Cross-device, or a rename
@@ -311,7 +311,7 @@ sub _within {
 # stated the first as fact. rename() sets $!, so the distinction the comment
 # already drew was one branch away from being made.
 #
-# The wrong diagnosis is expensive: mount layout is not something an operator
+# The wrong diagnosis is expensive: mount layout is not something a sysop
 # changes casually, and on the Hestia layout the store sits in the domain folder
 # beside public_html, which looks like somewhere a separate mount could
 # plausibly be. The suggested cause is credible enough to be investigated, and
@@ -321,7 +321,7 @@ sub _within {
 # `lazysite check` report on whether the store exists, is writable, or could be
 # created, naming the directory, its owner and its mode. On a host where the
 # docroot is not writable that check answers correctly while this blamed the
-# filesystem layout - two parts of one release giving an operator different
+# filesystem layout - two parts of one release giving a sysop different
 # accounts of one fault, and the wrong one returned at the moment they act.
 #
 # Both directions share this so a single condition cannot be described two ways
@@ -331,7 +331,7 @@ sub _move_failure {
     my $errno = $!;
 
     # A genuine cross-device move of a DIRECTORY is the one case the original
-    # message described correctly. Name both locations, because the operator's
+    # message described correctly. Name both locations, because the sysop's
     # next question is which two filesystems.
     if ( $errno == EXDEV && $is_dir ) {
         return "cannot move a folder across filesystems: \"$src\" and \"$dst\" "

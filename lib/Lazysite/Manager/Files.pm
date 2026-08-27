@@ -308,7 +308,7 @@ sub action_list {
         #
         # A LABEL, never a path. The standing rule is that filesystem paths are
         # never exposed through any surface, and the store's location is a
-        # filesystem fact; 'private' tells the operator what they need to act on
+        # filesystem fact; 'private' tells the sysop what they need to act on
         # and discloses nothing about the layout of the host.
         $entry->{store} =
             ( defined $priv_root
@@ -605,7 +605,7 @@ sub action_save {
         };
     }
 
-    # SM074: per-file ACL write gate (operators bypass).
+    # SM074: per-file ACL write gate (sysops bypass).
     if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
 
     # Create parent directories
@@ -670,7 +670,7 @@ sub action_delete {
     return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
 
-    # SM074: per-file ACL write gate (operators bypass).
+    # SM074: per-file ACL write gate (sysops bypass).
     if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
 
     my $full = $result->{full};
@@ -1151,7 +1151,7 @@ sub action_regenerate_registries {
                 . 'sit in the document root and are served in preference to the '
                 . 'generated ones - so regenerating will not change what a '
                 . 'visitor sees until they are removed or renamed. They are not '
-                . 'deleted here: an operator may have written them deliberately.'
+                . 'deleted here: a sysop may have written them deliberately.'
             : 'The registries are cleared and rebuild on the next '
                 . 'request for one. Fetch /sitemap.xml (or the registry you care '
                 . 'about) to force it, then verify.'
@@ -1308,10 +1308,10 @@ sub action_aliases_list {
     }
     my $rows = Lazysite::Aliases::list_aliases( $DOCROOT, $key );
 
-    # SM447-adjacent (operator): SCOPE THE LIST TO THE FOLDER BEING BROWSED.
+    # SM447-adjacent (sysop): SCOPE THE LIST TO THE FOLDER BEING BROWSED.
     #
     # The Files page showed every alias on the site regardless of where the
-    # operator was standing, so a site with a hundred redirects answered
+    # sysop was standing, so a site with a hundred redirects answered
     # "which of these belong to the folder I am looking at?" by making them
     # read all hundred. The card sits under a directory listing; it should
     # describe that directory.
@@ -1542,7 +1542,7 @@ sub action_acl_get {
         my $acls    = load_acls();
         my $present = _present_root_key($acls);
         my $a       = defined $present ? $acls->{$present} : undef;
-        # SM464: reading is the audit half - manage_users (or an operator, or a
+        # SM464: reading is the audit half - manage_users (or a sysop, or a
         # token grant carrying manage_users) may read ANY rule. Modifying stays
         # owner-only; the split is the point.
         unless ( may_read_any_rule() ) {
@@ -1643,7 +1643,7 @@ sub _acl_gates_public {
 #     disclosure in either direction.
 #
 # What must never happen is silence, because either state is invisible from the
-# outside: the operator sees the permission they asked for either way.
+# outside: the sysop sees the permission they asked for either way.
 # SM313: set to 0 by _sync_private_store when the content could NOT be moved.
 # Package-level rather than an extra return value because the helper's return is
 # a LIST of warnings that three call sites splice into their own - threading a
@@ -1672,7 +1672,7 @@ sub _sync_private_store {
     #
     # Said out loud rather than skipped quietly: this is the one scope where the
     # SM283 class of exposure is still reachable if a front end serves files
-    # from the docroot without asking the engine, and an operator choosing to
+    # from the docroot without asking the engine, and a sysop choosing to
     # make a whole site private deserves to know that.
     if ( $rel eq '/' ) {
         push @warnings,
@@ -1807,7 +1807,7 @@ sub action_acl_set {
         }
     }
 
-    # Keep an existing owner; otherwise an operator may name one, and a
+    # Keep an existing owner; otherwise a sysop may name one, and a
     # normal user always becomes the owner of what they claim.
     my $owner =
         $existing ? $existing->{owner}
@@ -2078,7 +2078,7 @@ sub action_protected_sections {
         #
         # This filtered on the trailing slash alone, and validate_path derives
         # `rel` from realpath, which has no trailing slash. So every rule an
-        # operator created through the manager or MCP was stored as `members`
+        # sysop created through the manager or MCP was stored as `members`
         # and this panel skipped all of them. It listed only hand-edited keys.
         #
         # That is precisely the failure SM267 built this screen to prevent: "the
@@ -2154,7 +2154,7 @@ sub action_protected_sections {
     # SM462: scope to the folder being browsed, when one is given.
     #
     # The panel sits under a directory listing and listed every rule on the
-    # site, so an operator standing in one folder read the whole estate's
+    # site, so a sysop standing in one folder read the whole estate's
     # protection to find their own. It is also a small disclosure: the names
     # of protected sections elsewhere are not what this screen is for.
     #

@@ -43,7 +43,7 @@ our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
 # SM593: the caller's own dav_scopes, set by whichever surface is answering.
-# EMPTY MEANS UNCONFINED, which is the operator - never "no domains". The CLI
+# EMPTY MEANS UNCONFINED, which is the sysop - never "no domains". The CLI
 # and the processor's render path leave it empty and are unaffected.
 our @CALLER_SCOPES;
 
@@ -146,6 +146,8 @@ sub _may_reach {
     my ($table) = @_;
     # SM648: a caller whose scopes were resolved is CONFINED, even when the
     # resolution came back empty - that is "no domains", not "no confinement".
+    # SM659: the unconfined caller here is the SYSOP (or the CLI / render path),
+    # never "the operator" - which meant both and so meant neither.
     return 1 unless $CALLER_CONFINED || @CALLER_SCOPES;
     my $dom = _table_domain($table);
     return 1 unless length $dom;       # unscoped - as it always was
@@ -329,7 +331,7 @@ sub action_data_table_save {
     # SM593 follow-up: A DOMAIN IS CHECKED AGAINST THE ONES THIS INSTANCE
     # SERVES, at save time.
     #
-    # The migration asks an operator to hand-write `domain:` onto every table
+    # The migration asks a sysop to hand-write `domain:` onto every table
     # that names none - a hostname typed by a person, once per descriptor. The
     # parser validates the SHAPE of that string and nothing checked the value,
     # so `shop.exmaple.com` stored with ok:true and produced a table bound to a
@@ -466,7 +468,7 @@ sub action_data_migrate_plan {
 # Bring the store into line with the descriptor, as far as is safe.
 #
 # Returns `blocked` as well as `applied`, and the caller must show both: the
-# blocked list is the operator's account of why their column is not there yet,
+# blocked list is the sysop's account of why their column is not there yet,
 # and dropping it would leave them believing the migration succeeded.
 sub action_data_migrate {
     my ($table) = @_;
@@ -584,7 +586,7 @@ sub action_data_export {
 
 # DM-4: a CSV import, staged. `apply` false plans and writes nothing; true
 # commits in one transaction. Both parse the same file the same way, so what
-# the operator was shown is what is applied - or refused again, if the store
+# the sysop was shown is what is applied - or refused again, if the store
 # moved in between.
 sub action_data_import {
     my ( $table, $body, $content_type, $apply ) = @_;
@@ -636,7 +638,7 @@ sub action_data_table_drop {
 
 # SM512: the safety exports a drop or a rebuild writes, listed and cleared.
 # They live under lazysite/db/rebuilds/, denied to every write channel -
-# correctly - which made each one permanent until an operator's filesystem
+# correctly - which made each one permanent until a sysop's filesystem
 # trip. The name is validated to the EXACT shape the engine mints, so no
 # path separator can reach the unlink.
 my $EXPORT_NAME = qr/\A([a-z][a-z0-9_]*)-(dropped-)?(\d{8}T\d{6}Z)\.json\z/;

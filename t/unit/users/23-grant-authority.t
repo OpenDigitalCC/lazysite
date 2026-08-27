@@ -63,8 +63,8 @@ sub setup_subadmin {
     cli( $d, 'group-set', 'useradmins', 'manage_users', 'on' );
     # A second manager group, so the lockout guard never interferes.
     cli( $d, 'add',       'boss', 'pw' );
-    cli( $d, 'group-add', 'boss', 'lazysite-admins' );
-    cli( $d, 'group-set', 'lazysite-admins', 'manage_users', 'on' );
+    cli( $d, 'group-add', 'boss', 'sysops' );
+    cli( $d, 'group-set', 'sysops', 'manage_users', 'on' );
     return;
 }
 

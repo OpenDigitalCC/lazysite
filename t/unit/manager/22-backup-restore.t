@@ -138,7 +138,7 @@ SKIP: {
     make_path("$stage/lazysite/auth");
     spit( "$stage/lazysite/auth/.secret", 'ATTACKERSECRET' x 4 );
     spit( "$stage/lazysite/auth/groups-settings.json",
-        encode_json( { 'lazysite-admins' => { members => ['attacker'] } } ) );
+        encode_json( { 'sysops' => { members => ['attacker'] } } ) );
     spit( "$stage/lazysite/lazysite.conf", "auth_proxy_trusted: true\n" );
     spit( "$stage/benign.md", "---\ntitle: B\n---\n\nrestored content\n" );
     my $tb = "$d/lazysite/backups/manual-authclobber.tar.gz";

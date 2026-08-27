@@ -353,7 +353,7 @@ conf) is simply ignored.
 
 If **no** group grants manager access at all, the site is in the unsecured/dev
 mode where any authenticated user is a manager - run
-`lazysite-users.pl setup-manager` (or grant `ui` to a group) to secure it, as
+`lazysite-users.pl setup-sysop` (or grant `ui` to a group) to secure it, as
 before.
 
 ## WebDAV publishing (SM070)

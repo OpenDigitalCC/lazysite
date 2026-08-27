@@ -24,12 +24,12 @@ package Lazysite::Data::Export;
 #
 # CANONICAL, so two exports of the same data are byte-identical: sorted keys,
 # and rows ordered by their key. A backup nobody can diff is a backup nobody
-# checks, and "did anything change" is the question an operator actually asks.
+# checks, and "did anything change" is the question a sysop actually asks.
 #
 # THE SHAPE TRAVELS WITH THE DATA. The export carries the field types as they
 # were at export time, and an import REFUSES a file whose shape differs from
 # the descriptor it is being restored into. Coercing across a shape change
-# would be a migration performed silently, by the one operation an operator
+# would be a migration performed silently, by the one operation a sysop
 # runs when something has already gone wrong.
 
 use strict;

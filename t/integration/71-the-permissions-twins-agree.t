@@ -30,7 +30,7 @@ close $pf;
 # manager (the unsecured-site guard reads groups-settings.json itself; the
 # stub only answers verify-credential for the Bearer). Bootstrap through
 # the real writer, as the tools tests do.
-qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-manager pw123456789 2>/dev/null);
+qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
 
 sub stub_with {
     my (%caps) = @_;

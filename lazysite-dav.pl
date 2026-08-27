@@ -937,7 +937,7 @@ sub do_copy_move {
     # destination; a MOVE also has to remove the source, so an unwritable SOURCE
     # parent fails it while the destination is perfectly fine. Naming which side
     # is the whole value of the message - "Operation failed" left an agent with
-    # nowhere to go, and the operator with nothing to fix.
+    # nowhere to go, and the sysop with nothing to fix.
     unless ($ok) {
         return _write_failure(
             'complete the move', $!,
@@ -1406,7 +1406,7 @@ sub authorise {
     # The set comes from lazysite.conf and is shape-checked when it is read
     # (see read_conf): lazysite/<name>.conf only. A path that is not CONFIGURED
     # as somebody's nav_file is not admitted here, so this widens the carve-out
-    # to the files the operator has already declared and no further.
+    # to the files the sysop has already declared and no further.
     # The DEFAULT nav file keeps its own branch and its literal deny reason.
     # That is not duplication for its own sake: t/lint/68 reads these strings as
     # enforcement's own statement of the rule and checks them against the

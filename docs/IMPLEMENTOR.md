@@ -71,7 +71,8 @@ and kept only for existing deployments (runbook appendix).
 In `lazysite/lazysite.conf` (or the manager Config page):
 
 - Manager access is the `ui` **capability on a group** (SM095): bootstrap with
-  `lazysite-users.pl setup-manager`, which creates the admin group + user; grant
+  `lazysite-users.pl setup-sysop --user NAME`, which creates the sysops group and a
+  NAMED account in it (there is no default account); grant
   `ui` to further groups on the manager Groups page. (SM138: the legacy
   `manager_groups:` conf key is retired - on upgrade any group it named receives
   its capabilities explicitly and the conf line is removed. When NO group grants

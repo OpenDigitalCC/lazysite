@@ -54,7 +54,7 @@ sub _conf_path { return _lz() . "/lazysite.conf" }
 # matched \S+ and then stripped the capture to [A-Za-z0-9_-]; _parse below took
 # the whole trimmed line. So `layout: my layout` was `my` to the active-pointer
 # reader and `my layout` to every domain surface - one line, two answers, and
-# neither of them what the operator wrote. The SM516 review proposed folding one
+# neither of them what the sysop wrote. The SM516 review proposed folding one
 # reader onto the other as duplicate conf reading; the row was refused and filed
 # instead, because unifying them without deciding this would have picked a
 # winner silently.
@@ -64,7 +64,7 @@ sub _conf_path { return _lz() . "/lazysite.conf" }
 # exist on this instance, and the reader handed it back as the ACTIVE layout -
 # indistinguishable from a working answer. Rejection says the site has no layout
 # configured, which is true, which every caller already handles because it is
-# the fresh-install state, and which leaves the operator's own text in the conf
+# the fresh-install state, and which leaves the sysop's own text in the conf
 # where they can see and correct it.
 #
 # [A-Za-z0-9_-]+ is not a new rule. It is the one theme_config_issues,
@@ -388,11 +388,11 @@ sub host_for_path {
 # SM593/SM578: which domains a CONFINED caller may act on, derived from the
 # grant rather than from anything the caller says.
 #
-# A grant with no dav_scopes is UNCONFINED - that is the operator, and the
+# A grant with no dav_scopes is UNCONFINED - that is the sysop, and the
 # empty list means "no restriction", never "no domains". Callers must treat an
 # empty return as "ask no further", which is why this returns a list and the
 # confinement decision is made by whoever called it: a function that answered
-# "these domains" for the operator would have to enumerate every domain, and a
+# "these domains" for the sysop would have to enumerate every domain, and a
 # bug in the caller would then read as a narrow answer rather than a wide one.
 #
 # A scope and a content_root match if either contains the other. A partner
@@ -536,7 +536,7 @@ sub _anonymous_env {
 # the identical refusal it would apply to a visitor, because it is not told who
 # is asking. So a 404 or a redirect to /login is the CORRECT answer for a gated
 # path and is reported as the finding rather than as an error - which is the
-# whole reason an operator would run this.
+# whole reason a sysop would run this.
 sub preview_public {
     my ($rel) = @_;
     $rel = '/'     unless defined $rel && length $rel;
@@ -584,7 +584,7 @@ sub preview_public {
     $code //= 200;
     my ($location) = ( $head // '' ) =~ /^Location:\s*(\S+)/m;
 
-    # The VERDICT, in the operator's terms rather than HTTP's. "404" is a fact
+    # The VERDICT, in the sysop's terms rather than HTTP's. "404" is a fact
     # about a response; "a visitor does not see this page" is the answer to the
     # question they asked.
     my $visible
@@ -1329,7 +1329,7 @@ sub domain_check {
 
     # The server's own PUBLIC address(es). A list, because behind a proxy / NAT
     # the private SERVER_ADDR is useless - the caller self-discovers the public
-    # IP(s) (operator canonical_ip, or resolving the install's own domain) and
+    # IP(s) (sysop canonical_ip, or resolving the install's own domain) and
     # passes them here. self_ip (scalar) is still accepted for a simple caller.
     my @self_ips
         = $opt{self_ips} ? grep { length } @{ $opt{self_ips} }

@@ -339,7 +339,7 @@ sub action_layouts_install {
     my $layouts_installed = scalar grep { $_->{ok} } @layout_results;
 
     # SM068: auto-set layout:/theme: in lazysite.conf on a fresh
-    # site so the operator isn't left at an empty config after a
+    # site so the sysop isn't left at an empty config after a
     # successful install. Never overwrite an operator-set value —
     # only populate when the key is currently unset or empty. If
     # the install had zero layout successes, no auto-set happens
@@ -625,7 +625,7 @@ sub action_layout_delete {
 # Delete layout/theme BACKUP snapshots. With a path: that one backup (validated to
 # be a -backup-<ts> directory inside layouts/). Without (or '*'): purge them all -
 # both top-level layout backups and per-layout theme backups. Never touches the
-# active layout. Frees the operator from the backup clutter the lists accumulate.
+# active layout. Frees the sysop from the backup clutter the lists accumulate.
 sub action_artifact_backups_delete {
     my ($rel) = @_;
     my $layouts_dir = _lz() . "/layouts";
@@ -920,7 +920,7 @@ sub action_layout_install {
     my $all    = $req->{all}    ? 1 : 0;
     my $update = $req->{update} ? 1 : 0;
     # SM176: install NEVER auto-activates - not even on a fresh site. Activation
-    # is a separate, explicit operator choice (the Activate button), so installing
+    # is a separate, explicit sysop choice (the Activate button), so installing
     # a layout/theme never switches away from the one currently in use. Only an
     # explicit activate:true opts in.
     my $activate = $req->{activate} ? 1 : 0;

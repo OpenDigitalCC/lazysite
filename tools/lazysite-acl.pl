@@ -19,7 +19,7 @@
 #
 # THE ACTOR IS MANDATORY, and this is the security-critical part of the file.
 # Every other surface resolves an authenticated identity and applies the grant
-# ceiling; there is no session behind a shell. Defaulting to an operator identity
+# ceiling; there is no session behind a shell. Defaulting to a SYSADMIN identity
 # would turn a convenience into a privilege-escalation path on the one surface
 # with nothing checking it - a user who cannot grant themselves access in the
 # manager could simply run this instead. So --actor is required, its groups are
@@ -114,7 +114,7 @@ $Lazysite::Manager::Files::LOCK_DIR =
 $Lazysite::Manager::Common::DOCROOT = $docroot;
 $Lazysite::Auth::Acl::DOCROOT       = $docroot;
 
-# A CLI caller is never a token client. token_auth suppresses the operator
+# A CLI caller is never a token client. token_auth suppresses the sysop
 # bypass, and setting it here would make --actor local behave differently from
 # the same person in the manager - which is the opposite of the point.
 $Lazysite::Auth::Acl::token_auth = 0;
@@ -156,7 +156,7 @@ sub require_actor {
             . 'that account has in the manager.' )
         unless defined $actor && length $actor;
 
-    # `local` is the documented always-operator identity. Allowed, because
+    # `local` is the documented always-unconfined SYSADMIN identity. Allowed, because
     # break-glass recovery is the reason this tool exists - but only when asked
     # for by name. It is never a default.
     return $actor if $actor eq 'local';
@@ -219,14 +219,14 @@ sub subjects {
 #
 # SM288 made every channel honour an account's real groups. On MCP and the
 # control API those @group entries had been silently inert, so the fix WIDENS
-# effective access on live sites - intended, and still a change an operator is
+# effective access on live sites - intended, and still a change a sysop is
 # entitled to see before they meet it.
 #
 # lazysite-check names the entries and stops there, deliberately: it is
 # core-Perl by design and resolving membership itself would be a fourth answer
 # to "which groups is this account in", which is the defect SM288 removes.
 # Reporting DIRECT membership only would be worse still - it would tell an
-# operator that somebody does not gain access when they do.
+# sysop that somebody does not gain access when they do.
 #
 # So the report lives here, where groups_for_user() - the one resolver every
 # channel now uses - is already loaded. Nested groups are included because that
@@ -395,7 +395,7 @@ sub cmd_set {
 # rule it started with. What changes is where the bytes are.
 #
 # Dry-run by default, like `lazysite migrate-engine-tree`: a sweep that moves
-# content on a live site should be something the operator asked for twice.
+# content on a live site should be something the sysop asked for twice.
 sub cmd_reapply {
     my $actor = require_actor();
 
@@ -593,7 +593,7 @@ Options:
   --docroot D    the site's document root (required)
   --actor USER   the account the change is made AS (required for set/remove).
                  The rule is subject to exactly the authority that account has
-                 in the manager. Use `local` for break-glass operator access.
+                 in the manager. Use `local` for break-glass sysop access.
   --read  LIST   comma-separated: usernames and @groups. Omit to leave
                  unchanged; an EMPTY list means anyone may read.
   --write LIST   likewise, for editing.

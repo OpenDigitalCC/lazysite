@@ -2,7 +2,7 @@
 # SM464: reading a rule is the audit half, split from the right to modify.
 #
 # The filing measured "Not the owner of this file" for every token caller,
-# lazysite-admins member or not - because _is_operator refuses every token by
+# sysops member or not - because _is_operator refuses every token by
 # design, and ownership was checked with no read-side override. The remedy is
 # the filing's own sketch: manage_users may READ any rule; modifying stays
 # owner-only for everyone. The token override keys on the token's OWN grant

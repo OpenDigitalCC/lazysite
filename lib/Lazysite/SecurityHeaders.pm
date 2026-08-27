@@ -64,7 +64,7 @@ use MIME::Base64 qw(encode_base64);
 # plain HTTP to the host for max-age seconds, and there is no way to reach a
 # visitor who has already been told. Starting at five minutes means a mistake
 # expires before it can be reported, and raising it later is one edit. The usual
-# advice - ramp to a year once you are sure - is right, and is an operator
+# advice - ramp to a year once you are sure - is right, and is a sysop
 # decision made against a running fleet rather than a default shipped blind.
 #
 # includeSubDomains and preload are BOTH absent on purpose. includeSubDomains
@@ -253,7 +253,7 @@ sub security_headers {
     # wrong for a reason the tests could not see: a CSP hash covers a <script>
     # BLOCK and does not cover an inline event-handler ATTRIBUTE. The manager's
     # own pages are built on onclick= - cache invalidation, audit, sessions,
-    # plugins - so an enforcing policy silently stops the operator's controls
+    # plugins - so an enforcing policy silently stops the sysop's controls
     # firing. Nothing in a processor-driven test notices, because the failure
     # happens in a browser.
     #

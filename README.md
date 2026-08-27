@@ -102,11 +102,14 @@ server serves ahead of your lazysite homepage; `/manager` always works regardles
 your homepage shows that placeholder, remove the stray file:
 `rm -f /path/to/public_html/index.html`.
 
-Get the manager password with `setup-manager`, which creates the `manager` account,
+Create the first administrator with `setup-sysop`, which makes a NAMED account,
+puts it in the `sysops` group and issues a single-use registration link (so no
+password is handed over). A site may be deployed with no accounts at all - run
+this when the person is ready to collect the link.
 puts it in the admin group, enables the manager in `lazysite.conf`, and prints a
 generated password if you don't supply one:
 
-    perl tools/lazysite-users.pl --docroot /path/to/public_html setup-manager
+    perl tools/lazysite-users.pl --docroot /path/to/public_html setup-sysop --user NAME
 
 (The HestiaCP deploy runs this for you on a fresh install and prints the password in
 its output.) Pass a password as a final argument to set your own.

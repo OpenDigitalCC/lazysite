@@ -101,12 +101,23 @@ is( $before->{'lazysite-admins'}{audit}, 0, 'and has explicitly DECLINED audit' 
 # site adopts the release the next time somebody opens the Users page rather
 # than on a command nobody runs twice.
 uapi( $d, { action => 'add', username => 'someone', password => 'pw' } );
-uapi( $d, { action => 'group-add', username => 'someone',
-        group => 'lazysite-admins' } );
+# Membership written DIRECTLY, as an upgraded site has it. Using group-add
+# would run the healing pass first - which renames the group - and then add the
+# account to a freshly created, powerless group of the old name.
+{
+    open my $mf, '>', "$d/lazysite/auth/groups" or die $!;
+    print {$mf} "lazysite-admins: someone\n";
+    close $mf;
+}
 uapi( $d, { action => 'users-page', me => 'someone' } );
 
 my $after = groups_file($d);
-my $adm   = $after->{'lazysite-admins'} || {};
+# SM659 renames this group in the same healing pass, so the fixture writes the
+# name an upgraded site HAS and the assertions read the name it now has. Both
+# migrations run on one ordinary manager read, which is the point - a site
+# adopts the release once, not once per change.
+ok( !$after->{'lazysite-admins'}, 'SM659 renamed the group in the same pass' );
+my $adm = $after->{sysops} || {};
 
 # --- the never-decided keys are filled -------------------------------------
 is( $adm->{housekeeping}, 1, 'the manager group now holds housekeeping' );

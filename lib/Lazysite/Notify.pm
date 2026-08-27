@@ -42,13 +42,13 @@ our $XMPP_SENDER = \&_xmpp_send;
 
 # --- the type registry -------------------------------------------------------
 #
-# Each type declares a title (what an operator sees in a routing UI) and the
+# Each type declares a title (what a sysop sees in a routing UI) and the
 # variables its templates may use beyond the universal ones. `default_route` is
 # where it goes when the site says nothing.
 #
 # An UNREGISTERED type is still delivered, on the generic template and the
 # default route, with a WARN. Refusing it would lose an event because someone
-# added a caller before an entry here, and losing operator notifications to
+# added a caller before an entry here, and losing sysop notifications to
 # enforce a registry is the wrong trade.
 my %TYPES = (
     submission => {

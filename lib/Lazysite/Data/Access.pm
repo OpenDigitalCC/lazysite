@@ -67,7 +67,7 @@ our @EXPORT_OK = qw(may_read acl_key);
 
 sub acl_key { return "lazysite/db/tables/$_[0]" }
 
-# $as is either the string 'operator' - a caller that has already been gated by
+# $as is either the string 'sysop' - a caller that has already been gated by
 # manage_data - or a hashref { user, groups }. Anything else is a caller that
 # has not said who is asking, and the answer to that is no.
 sub may_read {

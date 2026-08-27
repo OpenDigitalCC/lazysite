@@ -27,7 +27,7 @@ our $ACCESS_TOKEN_TTL_DEFAULT = 86_400;         # 24h - default when no token_tt
 our $TOKEN_TTL_MIN            = 3_600;          # 1h floor for an operator-set TTL
 our $TOKEN_TTL_MAX            = 30 * 86_400;    # 30d hard ceiling (OAuth refresh horizon)
 
-# The effective TTL (seconds) for an account's settings hashref: the operator-set
+# The effective TTL (seconds) for an account's settings hashref: the sysop-set
 # token_ttl clamped to the ceiling, else the default. Never returns > the ceiling,
 # so even a hand-edited/legacy record cannot mint a longer-lived token.
 sub resolve_token_ttl {
@@ -52,7 +52,7 @@ our @CAP_KEYS = qw(
     housekeeping purge);
 
 # SM591: the LATERAL grants. Deletion and tidying are the same job wherever they
-# happen, and they are the operations an operator most often reserves to one
+# happen, and they are the operations a sysop most often reserves to one
 # person - so they answer a grant of their own instead of each module's, and
 # "may use this module" stops meaning "may destroy inside it".
 #
@@ -63,7 +63,7 @@ our @CAP_KEYS = qw(
 #   purge         no copy survives (brief-delete, data-safety-export-delete,
 #                 backup-delete, artefact backups)
 #
-# They are INDEPENDENT. `purge` does not imply `housekeeping`; an operator who
+# They are INDEPENDENT. `purge` does not imply `housekeeping`; a sysop who
 # wants a housekeeper grants both. A tier that silently contained the other
 # would be a rule nobody can read off the table.
 #
@@ -179,7 +179,7 @@ sub group_closure { return _group_closure(@_) }
 # the scope list; empty = unconfined, a DENY_ALL_SCOPE element = confined to
 # nothing.
 #
-# SM194 (scope emancipation): an operator may set `scope_independent: 1` on an
+# SM194 (scope emancipation): a sysop may set `scope_independent: 1` on an
 # account to genuinely unconfine it from its CREATOR. Management promotion
 # (managed_by = none) alone does NOT do this - the walk below follows created_by,
 # not managed_by, so a promoted user stays scope-capped by whoever created them
@@ -327,7 +327,7 @@ sub group_is_assignable {
 #
 # Returns ( 1, '' ) or ( 0, 'open' | 'rename' ). The STAGE is returned rather
 # than one boolean because write_settings dies with a different sentence for
-# each, and an operator reads that sentence.
+# each, and a sysop reads that sentence.
 sub _write_json_atomic {
     my ( $file, $ref ) = @_;
     my $json = JSON::PP->new->canonical->pretty->encode($ref);

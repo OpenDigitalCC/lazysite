@@ -300,7 +300,7 @@ sub _is_probe {
 # SM332: the behavioural sweep thresholds. Settings rather than constants,
 # because the false-positive case is a real person - somebody working through a
 # set of stale bookmarks, or a broken navigation menu - and how many 404s that
-# produces depends on the site. `noise_paths` is the precedent for an operator
+# produces depends on the site. `noise_paths` is the precedent for a sysop
 # escape hatch on this classification.
 #
 # Five distinct missing paths inside five minutes. Distinct is what separates a
@@ -385,7 +385,7 @@ my $AI_RE = qr{
 #   A BROKEN FILE MUST NOT DISARM THE CLASSIFIER. An unreadable or malformed
 #   ruleset falls back to the built-ins entirely. The alternative - classifying
 #   nothing, or classifying everything as human - is a silent, total failure of
-#   the thing an operator reads numbers from.
+#   the thing a sysop reads numbers from.
 #
 #   A BAD PATTERN MUST NOT TAKE THE REST WITH IT. Each is compiled on its own;
 #   one that will not compile is skipped and reported, and the others still
@@ -1335,7 +1335,7 @@ sub _save_export_cache {
 # The aggregates live long-term as one small JSON file per day under
 # lazysite/stats/ (NOT the clearable cache), plus monthly rollups and an index -
 # so the data is durable, per-day addressable and downloadable, with no cap to hit
-# and nothing for an operator to configure. The day-buckets in the cache remain the
+# and nothing for a sysop to configure. The day-buckets in the cache remain the
 # working aggregate; this mirrors them to disk. Past days are immutable once closed,
 # so a historical file is written once and only today's is refreshed each call.
 sub _stats_dir   { return "$DOCROOT/lazysite/stats" }
@@ -1348,7 +1348,7 @@ sub _monthly_dir { return _stats_dir() . '/monthly' }
 # process - so writing the same content twice produces different bytes. That
 # cost nothing while a day file was written once and never rewritten. It costs
 # something now: SM343 rewrites a day when it closes and `--recount` rewrites
-# it deliberately, so an operator auditing a repair with `diff` would see every
+# it deliberately, so a sysop auditing a repair with `diff` would see every
 # line move and have no way to tell a reordering from a change.
 #
 # Canonical ordering makes these files comparable by anybody, with no tooling -
@@ -1464,7 +1464,7 @@ sub _day_rollup {
 
         # SM389: generated registries. Reported beside pageviews and NOT folded
         # into them, for the SM329 reason - a sitemap fetch is not a page view,
-        # and the figure an operator reads as "people" must not quietly include
+        # and the figure a sysop reads as "people" must not quietly include
         # crawlers collecting a file the engine generated for them.
         registry_hits => ( $bucket->{registry_hits} // 0 ),
         registry_by   => ( $bucket->{registry_by}   // {} ),
@@ -1741,7 +1741,7 @@ sub _trail_days {
     return \@d;
 }
 
-# SM399: the operator-facing view of one day's trails.
+# SM399: the sysop-facing view of one day's trails.
 #
 # IT SHOWS ONLY WHAT TRAILS UNIQUELY ANSWER. Entry pages, exit pages and depth
 # are already on the Stats page, computed by SM363 from the aggregates over
@@ -2956,7 +2956,7 @@ sub _export_assemble {
         $uips{$_} = 1 for keys %{ $b->{ips} };
 
         # SM336 items 6 and 7. Both projections carry them, or an agent reading
-        # the export and an operator reading the page would answer the same
+        # the export and a sysop reading the page would answer the same
         # question differently - which is the whole of SM335.
         $devices{$_}  += $b->{device}{$_}  for keys %{ $b->{device} || {} };
         $terms{$_}    += $b->{sq}{$_}      for keys %{ $b->{sq}     || {} };

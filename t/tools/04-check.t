@@ -37,11 +37,11 @@ chmod 0644, "$doc/lazysite/manager/layout.tt";
 open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nmanager: enabled\n";
 open my $gsf, '>', "$doc/lazysite/auth/groups-settings.json" or die $!;
-print {$gsf} '{"lazysite-admins":{"label":"Admins","manager":1,"ui":1}}';
+print {$gsf} '{"sysops":{"label":"Admins","manager":1,"ui":1}}';
 close $gsf;
 close $cf;
 open my $gf, '>', "$doc/lazysite/auth/groups" or die $!;
-print {$gf} "lazysite-admins: manager\n"; close $gf;
+print {$gf} "sysops: manager\n"; close $gf;
 open my $uf, '>', "$doc/lazysite/auth/users" or die $!;
 print {$uf} "manager:sha256iter:aa:1:bb\n"; close $uf;
 

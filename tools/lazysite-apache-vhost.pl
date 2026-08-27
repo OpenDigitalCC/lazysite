@@ -236,7 +236,7 @@ sub cmd_add {
     print "==> wrote $out (pattern: $pattern)\n\n";
 
     # Modules and enablement are printed, never run: they are host-wide
-    # actions the operator should see and choose.
+    # actions the sysop should see and choose.
     my $mods = $o{fcgi} ? 'cgid headers rewrite proxy proxy_fcgi' : 'cgid headers rewrite';
     print "Enable the Apache modules this vhost needs (once per host):\n"
         . "    a2enmod $mods\n"
@@ -316,7 +316,7 @@ the site's docroot/cgi-bin paths. It is a host integrator in the
 C<lazysite-hestia-domain> mould: root-run (it writes F</etc>), but it
 B<never writes into a site tree> and B<never runs> C<a2enmod>,
 C<a2ensite> or a reload for you - the exact commands are printed so the
-host-wide actions stay visible operator choices.
+host-wide actions stay visible sysop choices.
 
 Provision the site first, as the site user (see lazysite(1)); then wire
 the vhost; then enable it. The full multi-server wiring reference is

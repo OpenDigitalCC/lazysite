@@ -38,17 +38,17 @@ sub _valid_name { return $_[0] =~ /\A[A-Za-z0-9._-]+\.tar\.gz\z/ && $_[0] !~ /[.
 #
 # A site package is made to TRAVEL - an agency builds a demo and hands it to the
 # client's own instance, often across organisations and by whatever channel is to
-# hand. The receiving operator has no way to tell an altered package from an
+# hand. The receiving sysop has no way to tell an altered package from an
 # intact one, and "apply" overwrites a site. The release tarballs have carried a
 # .sha256 sidecar for exactly this reason since long before site packages
 # existed; this gives packages and backups the same.
 #
 # A sidecar file rather than a manifest field, deliberately: it is verifiable
 # with sha256sum -c and no lazysite tooling at all, which is the situation the
-# receiving operator is actually in.
+# receiving sysop is actually in.
 #
 # Failure to write it is NOT fatal. The artefact is valid without it; a digest
-# that cannot be stored should not lose an operator their backup - but it must
+# that cannot be stored should not lose a sysop their backup - but it must
 # be REPORTED as absent, which is the SM268 03-F10 half below.
 #
 # SM268 03-F10: write it atomically, and never report a digest that was not
@@ -235,7 +235,7 @@ sub _claim_name {
 # hosted site down and corrupts in-flight writes.
 #
 # Per KIND, because the kinds are not interchangeable: ten manual snapshots and
-# ten prerestore snapshots are ten of each, and expiring an operator's deliberate
+# ten prerestore snapshots are ten of each, and expiring a sysop's deliberate
 # snapshot because a plugin took twenty automatic ones would be the wrong
 # trade. `backup_retention: 0` means unlimited, matching install.pl.
 #
@@ -512,7 +512,7 @@ sub action_backup_create {
 
     # SM381: CHECKED. An unchecked make_path meant a permissions failure here
     # surfaced two frames later as "could not claim a filename", which names the
-    # wrong thing entirely - the directory could not be made, and the operator
+    # wrong thing entirely - the directory could not be made, and the sysop
     # was sent to look at filenames.
     unless ( -d $dir ) {
         make_path($dir);

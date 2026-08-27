@@ -56,8 +56,13 @@ my $docroot = $opt{docroot} // '';
 die "lazysite-site: --docroot DIR is required\n"   unless length $docroot;
 die "lazysite-site: docroot not found: $docroot\n" unless -d $docroot;
 $Lazysite::Manager::SitePackage::DOCROOT = $docroot;
+# SM659: the same collision cli_audit had. A bare Unix name in the actor column
+# is indistinguishable from a lazysite account of that name - and SM641's reader
+# would render it as a link to that person. `:` cannot appear in an account
+# name, so the prefix makes it unresolvable by construction. An --actor given
+# explicitly is a real principal and is left alone.
 $Lazysite::Manager::SitePackage::auth_user
-    = $opt{actor} // ( getpwuid($<) )[0] // 'cli';
+    = $opt{actor} // ( 'system:' . ( ( getpwuid($<) )[0] // 'cli' ) );
 
 my $result;
 if ( $cmd eq 'backup' ) {

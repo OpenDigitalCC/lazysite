@@ -46,12 +46,12 @@ print {$pg} "---\ntitle: Probe\n---\n\nSecret-ish.\n";
 close $pg;
 
 my $users = "$root/tools/lazysite-users.pl";
-qx($^X \Q$users\E --docroot \Q$docroot\E setup-manager pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
 
 sub cgi_env {
     return ( env_passthrough(),
         DOCUMENT_ROOT         => $docroot,
-        HTTP_X_REMOTE_USER    => 'setup-manager',
+        HTTP_X_REMOTE_USER    => 'setup-sysop', '--user', 'sjm',
         LAZYSITE_AUTH_TRUSTED => 1,
     );
 }
@@ -105,7 +105,7 @@ my $priv = dirname($docroot) . '/' . basename($docroot) . '-lazysite-private';
 make_path($priv);
 chmod 0500, $priv;
 
-my $half = api( 'action=acl-set&path=/probe', { read => ['setup-manager'] } );
+my $half = api( 'action=acl-set&path=/probe', { read => ['setup-sysop', '--user', 'sjm'] } );
 
 SKIP: {
     skip 'the move succeeded - cannot simulate the host fault as this user', 5
@@ -134,7 +134,7 @@ chmod 0700, $priv;
 # --- and a clean apply is still a success ----------------------------------
 # Without this the fix could be "always refuse", which would pass everything
 # above and break every ordinary call.
-my $clean = api( 'action=acl-set&path=/probe', { read => ['setup-manager'] } );
+my $clean = api( 'action=acl-set&path=/probe', { read => ['setup-sysop', '--user', 'sjm'] } );
 ok( $clean->{ok}, 'a rule that applies cleanly is still ok:true' )
     or diag( $clean->{error} // 'no error' );
 ok( !$clean->{content_move_failed}, 'and reports no failed move' );

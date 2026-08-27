@@ -123,9 +123,9 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 # proxy that forwards them), so - exactly as lazysite-processor.pl's
 # apply_trust_gate does - the manager-API (the most sensitive endpoint: user
 # management, config, file read/write) deletes any client-supplied X-Remote-*
-# unless the wrapper vouched for them (LAZYSITE_AUTH_TRUSTED=1) or the operator
+# unless the wrapper vouched for them (LAZYSITE_AUTH_TRUSTED=1) or the sysop
 # opted into a trusted reverse proxy (auth_proxy_trusted: true). A forged header
-# is thus ignored - and logged - rather than granting operator access.
+# is thus ignored - and logged - rather than granting sysop access.
 {
     my $trusted = ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
     my $proxy   = 'false';
@@ -232,7 +232,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
         { ok => JSON::PP::false,    # SM353
             error => 'The control API is not callable from a browser page. It '
                 . 'serves agents, scripts and the manager, which hold '
-                . 'operator-issued credentials; a page cannot hold one safely. To '
+                . 'sysop-issued credentials; a page cannot hold one safely. To '
                 . 'send something from a browser, use a form POST (same-origin, '
                 . 'validated, stored, and it raises a notification). To do '
                 . 'privileged work, call this API from somewhere that holds a '
@@ -252,7 +252,7 @@ my %token_caps;
 my $REQUEST_CONFINED = 0;    # SM648: were this caller's scopes RESOLVED?
 my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
                        # per-domain content-access checks in actions like
-                       # site-backup-create/apply. Empty => unconfined operator.
+                             # site-backup-create/apply. Empty => unconfined sysop.
 {
     my $hdr = $ENV{HTTP_AUTHORIZATION} // '';
     if ( $hdr =~ /^Basic\s+(\S+)/ ) {
@@ -266,7 +266,7 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
                 _bail( { ok => 0, error => 'Do not combine cookie and token auth' } );
             }
             # Service killswitch (0.9.0): the control-API token surface is OFF
-            # unless the operator enables it in lazysite.conf
+            # unless the sysop enables it in lazysite.conf
             # (control_api_enabled: true), mirroring webdav_enabled. Checked as
             # soon as a token is presented - before verification - so a disabled
             # instance does no token processing at all. The cookie manager UI
@@ -297,10 +297,10 @@ unless ($token_auth) {
     # SM268 H9: an unauthenticated request is REFUSED. Always.
     #
     # This used to fall through to `$auth_user ||= 'local'` whenever no group
-    # granted manager access - and `local` is the operator sentinel, so an
+    # granted manager access - and `local` is the sysop sentinel, so an
     # "unsecured" site was not "any authenticated user is a manager" (as
     # security.md claimed) but "no credential required, and you are the
-    # operator". Two ways to be there:
+    # sysop". Two ways to be there:
     #
     #   * a fresh install, before setup-manager has run. The window had no lower
     #     bound on a manual install.
@@ -361,7 +361,7 @@ $Lazysite::Manager::Domains::auth_user  = $auth_user;    # SM154
 $Lazysite::Auth::Acl::auth_user         = $auth_user;
 $Lazysite::Auth::Acl::token_auth        = $token_auth;
 # SM464: the token's own grant, so may_read_any_rule can key the audit-read
-# override on what the operator explicitly granted THIS token.
+# override on what the sysop explicitly granted THIS token.
 %Lazysite::Auth::Acl::token_caps = %token_caps;
 # SM077 / SM288: the requester's groups, for @group ACL entries.
 #
@@ -538,7 +538,7 @@ my %MUTATING = map { $_ => 1 } qw(
 #                     boundary between who can see a thing and who cannot, in
 #                     EITHER direction, it is flagged.
 #
-# Both questions are answered by reading the code, which is why the operator
+# Both questions are answered by reading the code, which is why the sysop
 # took Option A on 2026-08-25 rather than "can the world be put back as it
 # was": under that reading publishing a page is destructive, and a flag true of
 # most writes tells a caller nothing.
@@ -914,9 +914,9 @@ if ($token_auth) {
         'site-backup-download' => sub { $_[0]->{manage_domains} },    # SM193
         'site-export-primary'  => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
-            # cap OR the operator's manage_forms - parity with the cookie channel.
-            # SM652: see the declaration table above - read_submissions only, on both
-            # channels. manage_forms becomes genuinely definition-only.
+            # SM652: read_submissions ONLY, on both channels - see the
+            # declaration table above. manage_forms is definition-only now, so
+            # the sysop parity note that stood here no longer applies.
         'form-submissions' => sub { $_[0]->{read_submissions} },
         'form-list'        => sub { $_[0]->{read_submissions} },
         'form-delete' => sub { $_[0]->{manage_forms} },  # SM632: the inverse of bind_form
@@ -1187,7 +1187,7 @@ my %uskip = map { $_ => 1 } qw(
 # needs the resolved scopes - and they are resolved by AUTH, which runs after
 # the block of package-variable assignments above. Set here, immediately before
 # dispatch, where @REQUEST_SCOPES is final for this request. Empty stays empty:
-# an unconfined grant is the operator and the data surface behaves as it always
+# an unconfined grant is the sysop and the data surface behaves as it always
 # did.
 @Lazysite::Manager::Data::CALLER_SCOPES   = @REQUEST_SCOPES;
 $Lazysite::Manager::Data::CALLER_CONFINED = $REQUEST_CONFINED;
@@ -1224,7 +1224,7 @@ elsif ( $action eq 'acl-set' ) {
     #
     # An empty path= counts as absent. It is a spelling SM287 accepts elsewhere
     # and still holds there; here it is overwhelmingly a form or client sending
-    # a blank field rather than an operator asking for the site.
+    # a blank field rather than a sysop asking for the site.
     unless ( defined $params{path} && length $params{path} ) {
         $result = { ok => 0,
             error => 'acl-set needs an explicit path. To govern the whole '
@@ -1541,7 +1541,7 @@ elsif ( $action eq 'data-import' ) {
 }
 elsif ( $action eq 'data-export' ) {
     # DM-2: STREAMED, not returned. The action hands back the bytes and the
-    # headers they need; sending them as a JSON field would make the operator
+    # headers they need; sending them as a JSON field would make the sysop
     # extract their own download from a response body.
     $result = Lazysite::Manager::Data::action_data_export( $params{table},
         $params{format} );
@@ -1628,7 +1628,7 @@ elsif ( $action eq 'lang-status' ) {
 }
 elsif ( $action eq 'site-backup-create' ) {
     my $req = _json_body();
-    # DP-6: `data_tables` is a LIST the operator names, not a boolean. The
+    # DP-6: `data_tables` is a LIST the sysop names, not a boolean. The
     # data store is instance-wide, so "this domain's data" does not exist and a
     # flag would sweep another domain's tables into an artefact that travels
     # between organisations.
@@ -1970,7 +1970,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
     # SM503: a data action's material object is the TABLE, not the dispatcher
-    # path - the operator's trail showed data-import and data-row-save rows
+    # path - the sysop's trail showed data-import and data-row-save rows
     # all targeting "/", which answers none of the questions a trail exists
     # for. The name rides the query for the migrate family and the body for
     # the row/import family, so both are consulted.
@@ -2145,7 +2145,7 @@ sub _package_scope_refusal {
     # a package is a whole site: pages, assets, theme, layout, configuration.
     #
     # So the confinement is a property of THIS ACTION now. A cookie session is
-    # exempt because it is the operator; every token grant must name a scope the
+    # exempt because it is the sysop; every token grant must name a scope the
     # package's content root falls inside, and one that names none reaches no
     # package at all rather than all of them. The operator ACCEPTED that
     # behaviour change knowing existing partners must be re-scoped.
@@ -2447,7 +2447,7 @@ sub action_preview {
     local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
 
     # SM441: render under the Host of the domain that OWNS this path. Without
-    # it the preview inherited the Host of whatever the operator was browsing
+    # it the preview inherited the Host of whatever the sysop was browsing
     # the manager on - normally the primary - so SM151's per-Host routing never
     # fired and a domain's page came back with the BASE layout, theme and nav.
     # The content was right and the presentation was another site's, which
@@ -2498,13 +2498,13 @@ sub action_domain_check {
         unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
             (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
 
-    # Bound the outbound probe to operator-declared hosts (no SSRF to arbitrary
+    # Bound the outbound probe to sysop-declared hosts (no SSRF to arbitrary
     # targets): only a configured domain or the primary site's own host.
     return { ok => 0, error => "Not a configured domain: $host" }
         unless known_domain_host($host);
 
     # Self-discover this install's PUBLIC address(es): SERVER_ADDR is the private
-    # inbound IP behind a proxy/NAT, so instance_public_ips prefers the operator's
+    # inbound IP behind a proxy/NAT, so instance_public_ips prefers the sysop's
     # canonical_ip config, then the install's own domain, then a public
     # SERVER_ADDR. An empty list makes the "points here" check indeterminate
     # rather than a false failure.
@@ -2522,7 +2522,7 @@ sub action_domain_check {
 # manifest) into a portable .tar.gz alongside the backups, downloadable via
 # backup-download. manage_content-gated (above); additionally the caller must
 # have ACCESS to that domain's content root - a scope-confined editor can only
-# package a domain within their dav_scope union (operators are unconfined).
+# package a domain within their dav_scope union (sysops are unconfined).
 sub action_site_backup_create {
     my ( $host, $data_tables ) = @_;
     $host = lc( $host // '' );
@@ -2794,7 +2794,7 @@ sub action_site_backup_apply {
         # SM193: keep the TARGET domain's site_url/site_name by default; opt into
         # taking the package's identity with adopt_identity (a migration vs handoff).
         adopt_identity => ( $req->{adopt_identity} ? 1 : 0 ),
-        # SM266: presentation keys the operator chose to KEEP on the target -
+        # SM266: presentation keys the sysop chose to KEEP on the target -
         # take the package's content without taking its look. Filtered against
         # the portable set so a caller cannot use this to skip a key the apply
         # depends on (content_root above all, which is what makes the write land
@@ -2832,8 +2832,8 @@ sub action_site_backup_apply {
     };
 }
 
-# SM113: operator notifications. A small append-only store (logs/notices.jsonl)
-# that producers (the first is form submissions) append to, plus a per-operator
+# SM113: sysop notifications. A small append-only store (logs/notices.jsonl)
+# that producers (the first is form submissions) append to, plus a per-sysop
 # last-seen marker (logs/notices-seen.json) so the manager can show an unread
 # count. Operator-only (not in the token %need set); poll-based for v1.
 sub _notices_path      { return "$LAZYSITE_DIR/logs/notices.jsonl" }
@@ -3070,7 +3070,7 @@ sub action_config_read {
 # SM151: read-only view of the domains this instance serves - the primary host
 # plus each declared alias, with the presentation/routing keys that vary per
 # host (an alias inherits the base value where it has no override). Parsed
-# straight from lazysite.conf; aliases are operator conf-file territory, so the
+# straight from lazysite.conf; aliases are sysop conf-file territory, so the
 # manager only displays them, never edits them.
 sub action_domains_list {
     my @keys = qw(site_name site_url content_root theme layout nav_file search_default
@@ -3146,14 +3146,14 @@ sub action_config_set {
     # Capabilities can be revoked in ONE place: the manager UI, over a cookie
     # session. The `users` action is refused to token clients outright, so no
     # API or MCP call writes a group's capabilities. That makes the manager the
-    # recovery surface for every other mistake an operator can make with a
+    # recovery surface for every other mistake a sysop can make with a
     # grant.
     #
     # So a token grant holding manage_config could switch off - or relocate -
     # the only surface on which its own manage_config could be taken away.
     # That is not an escalation: the account was trusted with the capability.
     # It is a LOSS OF CONTROL, and the thing being switched off is the
-    # operator's ability to correct the decision. Recovery was editing
+    # sysop's ability to correct the decision. Recovery was editing
     # lazysite.conf on the host.
     #
     # THE TRANSPORT SWITCHES STAY, deliberately, and the difference is
@@ -3374,7 +3374,7 @@ sub action_whoami {
         # surface gets a different answer about the same instance.
         engine_version => ( action_version() || {} )->{version},
         # SM094: the site's manager groups, so the Users UI can tell which accounts
-        # are operators (full access) vs partners gated by the capability toggles.
+        # are sysops (full access) vs partners gated by the capability toggles.
         # SM138: derived from group settings (ui / manage_users / the manager
         # flag) - the conf manager_groups key is retired.
         # SM565: the group names are returned only to a caller who may manage
@@ -3820,7 +3820,7 @@ sub action_users {
     # link / Reset credential) we inject actor=$auth_user so the users tool
     # confines a DELEGATED sub-manager to its own sub-tree.
     #
-    # A manager-group operator (and 'local') is unrestricted and must get NO
+    # A manager-group sysop (and 'local', the sysadmin) is unrestricted and gets NO
     # actor, or it can only manage accounts it personally created - the cause
     # of "Not authorised to manage 'X'" when an operator generates a setup
     # link for a user it owns through the tree but did not directly create.
@@ -3866,19 +3866,19 @@ sub action_users {
             # NOT gated on _is_operator(). That returns TRUE for anyone holding
             # manage_users (Acl.pm:116), which is exactly the population the
             # ceiling exists to bound - so gating on it meant no actor was passed
-            # for a delegate, the tool saw an operator, and the ceiling never ran.
+            # for a delegate, the tool saw a sysop, and the ceiling never ran.
             # An adversarial review found that; the first cut of SM195 was inert
             # through the manager while its unit test passed, because the test
             # supplied the actor this line did not.
             #
-            # The tool decides. `local` is the CLI/operator sentinel and is the
+            # The tool decides. `local` is the CLI/sysop sentinel and is the
             # only exemption here; the unsecured-site exemption lives in
             # _may_confer, where it can be stated once for every caller.
             # SM268 H8: the ceiling now covers every verb that can RAISE
             # privilege, not just the one that declares a capability - joining a
             # capable group, nesting one, and minting a credential all acquire
             # capabilities by another route. Each needs the actor, or the tool
-            # sees an operator and the ceiling does not run.
+            # sees a sysop and the ceiling does not run.
             if ( $auth_user ne 'local'
                 && $act =~ /\A(?:group-settings-set|group-add|group-nest|token)\z/ )
             {
@@ -3887,14 +3887,14 @@ sub action_users {
             }
 
             # SM346: the Users page needs to know WHO IS ASKING to decide which
-            # operator-only controls to show. Its single consolidated call
+            # sysop-only controls to show. Its single consolidated call
             # replaced three - one of which was whoami - and carried forward the
-            # data and not the identity, so the page computed "am I an operator"
+            # data and not the identity, so the page computed "am I a sysop"
             # against an empty username and got false for everybody.
             #
             # A separate key from `actor` on purpose: `actor` is an
             # authorisation signal (the users tool refuses privileged verbs when
-            # it names a non-operator), and this is a read-only call that just
+            # it names a non-sysop), and this is a read-only call that just
             # needs a name to match against group membership.
             if ( $auth_user ne 'local' && $act eq 'users-page' ) {
                 $parsed->{me} = $auth_user;
@@ -3925,7 +3925,7 @@ sub action_users {
     waitpid $pid, 0;
 
     my $result = eval { decode_json( $output // '{}' ) } // { ok => 0, error => "Invalid response" };
-    # The combined Users-page call folds in the current operator's identity so the
+    # The combined Users-page call folds in the current sysop's identity so the
     # browser needs no separate whoami round-trip (its shape carries users+groups).
     if ( ref $result eq 'HASH' && $result->{ok}
         && exists $result->{users} && exists $result->{groups} ) {
@@ -3976,7 +3976,7 @@ sub action_rotate_auth_secret {
 
     # Also clear the CSRF secret cache file (if dedicated one exists).
     # The CSRF helper falls back to .secret, so the new .secret
-    # becomes the new CSRF secret too - but the operator's next POST
+    # becomes the new CSRF secret too - but the sysop's next POST
     # will race with their about-to-expire session cookie, so bail
     # out cleanly by cycling them through /login.
     my $csrf_secret = "$LAZYSITE_DIR/manager/.csrf-secret";

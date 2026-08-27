@@ -20,7 +20,7 @@ sub docroot {
     my $d = tempdir( CLEANUP => 1 );
     mkdir "$d/lazysite"; mkdir "$d/lazysite/auth";
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf "manager_groups: lazysite-admins\n";
+    print $cf "manager_groups: sysops\n";
     close $cf;
     return $d;
 }
@@ -53,7 +53,7 @@ sub keymap {
 {
     my $d = docroot();
     cli( $d, 'add',       'boss',  'pw' );                # human, has a password
-    cli( $d, 'group-add', 'boss',  'lazysite-admins' );
+    cli( $d, 'group-add', 'boss',  'sysops' );
     cli( $d, 'add',       'agent', 'x' );
     cli( $d, 'group-add', 'agent', 'agent-ai' );          # grants api/mcp + content
     cli( $d, 'set',       'agent', 'ui', 'off' );         # non-interactive
@@ -105,7 +105,7 @@ sub keymap {
         'the account still exists after its key is revoked' );
 
     cli( $d, 'add',       'human', 'pw' );
-    cli( $d, 'group-add', 'human', 'lazysite-admins' );
+    cli( $d, 'group-add', 'human', 'sysops' );
     my $bad = api( $d, { action => 'key-revoke', username => 'human' } );
     ok( !$bad->{ok} && $bad->{error} =~ /interactive/i,
         'key-revoke refuses an interactive account (would be a lockout, not a key revoke)' );

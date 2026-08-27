@@ -126,7 +126,7 @@ Users in `lazysite/auth/users`:
 Groups in `lazysite/auth/groups`:
 
     admins: alice
-    lazysite-admins: alice
+    sysops: alice
     editors: alice, bob
 
 Manage with the CLI:
@@ -328,7 +328,7 @@ Or use Manager > Cache > Clear all. For the full layout/theme model, see
    [Authentication](/docs/auth). Do not tell an operator their site is closed on
    the strength of `auth_default` alone - check what static files it publishes.
 4. If the manager is enabled, make sure a group grants the `ui`
-   capability (setup-manager does this; further grants on the Groups page).
+   capability (setup-sysop does this; further grants on the Groups page).
 
 ### Configuring a contact form
 
@@ -362,10 +362,10 @@ manager: enabled
 manager_path: /manager
 ```
 
-2. Create the `lazysite-admins` group with at least one user:
+2. Create the `sysops` group with at least one user:
 
 ```bash
-perl tools/lazysite-users.pl --docroot DOCROOT group-add alice lazysite-admins
+perl tools/lazysite-users.pl --docroot DOCROOT group-add alice sysops
 ```
 
 3. Visit `/manager` and sign in.

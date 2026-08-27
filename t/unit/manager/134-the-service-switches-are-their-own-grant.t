@@ -195,9 +195,9 @@ sub fresh {
     my $d = tempdir( CLEANUP => 1 );
     make_path("$d/lazysite");
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$c} "manager_groups: lazysite-admins\n";
+    print {$c} "manager_groups: sysops\n";
     close $c;
-    system( $^X, $tool, '--docroot', $d, 'setup-manager' ) == 0 or return undef;
+    system( $^X, $tool, '--docroot', $d, 'setup-sysop', '--user', 'sjm' ) == 0 or return undef;
     return $d;
 }
 sub settings {
@@ -207,14 +207,14 @@ sub settings {
         do { open my $fh, '<', "$d/lazysite/auth/groups-settings.json" or die $!; local $/; <$fh> } );
 }
 
-my $d = fresh() or plan skip_all => 'setup-manager failed';
+my $d = fresh() or plan skip_all => 'setup-sysop failed';
 {
     my $gs = settings($d);
-    ok( $gs->{'lazysite-admins'}{manage_services},
+    ok( $gs->{'sysops'}{manage_services},
         'a fresh install gives the admin group the new capability - it holds '
             . 'everything else, and withholding this one would break a working '
             . 'site on nothing but a version change' );
-    ok( ( grep { $_ eq 'manage_services' } @{ $gs->{'lazysite-admins'}{grantable} || [] } ),
+    ok( ( grep { $_ eq 'manage_services' } @{ $gs->{'sysops'}{grantable} || [] } ),
         'and the authority to confer it (SM630)' );
 }
 
@@ -224,7 +224,7 @@ my $d = fresh() or plan skip_all => 'setup-manager failed';
 # narrows one. The project already has the answer - SM496's pending decision.
 {
     my $gs = settings($d);
-    delete $gs->{'lazysite-admins'}{manage_services};    # a site upgraded from before
+    delete $gs->{'sysops'}{manage_services};    # a site upgraded from before
     open my $fh, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
     require JSON::PP;
     print {$fh} JSON::PP->new->encode($gs);
@@ -237,7 +237,7 @@ my $d = fresh() or plan skip_all => 'setup-manager failed';
     my $view = `printf '%s' '{"action":"group-settings-get"}' | $^X \Q$tool\E --docroot \Q$d\E --api 2>/dev/null`;
     my $d2 = eval { JSON::PP::decode_json($view) };
     ok( $d2 && $d2->{groups}, 'the settings view loads' ) or do { done_testing(); exit };
-    my $pending = $d2->{groups}{'lazysite-admins'}{pending} || [];
+    my $pending = $d2->{groups}{'sysops'}{pending} || [];
     ok( ( grep { $_ eq 'manage_services' } @$pending ),
         'an upgraded site OFFERS the decision rather than making it - granting '
             . 'silently would widen a live grant, removing silently would narrow '

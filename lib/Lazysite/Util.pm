@@ -315,7 +315,7 @@ sub forward_line {
 # unlink_host_copies($docroot, $abs_html): given the SIBLING cache path
 # ($docroot/<rel>.html), unlink <rel>.html under every host slot. Returns the
 # number removed. Guards against traversal in the rel path (callers pass
-# operator/user-derived paths).
+# sysop/user-derived paths).
 sub unlink_host_copies {
     my ( $docroot, $abs_html ) = @_;
     return 0 unless defined $docroot && length $docroot && defined $abs_html;

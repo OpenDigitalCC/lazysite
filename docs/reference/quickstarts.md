@@ -62,7 +62,7 @@ Requires: `manage_themes`, `manage_layouts`, `manage_content`
 
 Requires: `manage_forms`
 
-1. call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming an operator-defined handler
+1. call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming a sysop-defined handler
 
 ## Migrate a site (package one domain and apply it elsewhere)
 

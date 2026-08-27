@@ -95,7 +95,7 @@ sub _read_active_layout_and_theme {
 # SM234: which domains resolve to each theme/layout. The delete guard already
 # consults this (a theme a configured domain depends on cannot be removed) but the
 # LISTING did not, so a theme pinned only by a sub-domain showed a Delete button
-# and the operator learned it was protected from the error that followed. One
+# and the sysop learned it was protected from the error that followed. One
 # parse for the whole listing - see Domains::domain_usage.
 sub _usage {
     local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
@@ -666,7 +666,7 @@ sub action_create_theme {
             push @warnings,
                 'this theme hides the layout\'s header or footer. If the page '
                 . 'content carries its own, the site navigation becomes '
-                . 'unreachable - an operator can set nav items that never appear '
+                . 'unreachable - a sysop can set nav items that never appear '
                 . 'anywhere. Remove the chrome from the content instead.';
         }
         # opacity:0 (or visibility:hidden) revealed by a class a script adds. A
@@ -1566,7 +1566,7 @@ sub _install_theme_from_dir {
 
     # Resolve the on-disk install name once, using the first layout
     # to detect collisions. The same $install_name is reused across
-    # every layout so operators can refer to the theme by a single
+    # every layout so sysops can refer to the theme by a single
     # name in lazysite.conf's theme: key.
     my $install_name = $theme_name;
     my $first_dest   = "$lz/layouts/$clean_layouts[0]/themes/$theme_name";
@@ -1696,7 +1696,7 @@ sub action_cache_list {
     # (lazysite/cache/hosts/<host>/<page>.html), NOT beside the .md, so the walk
     # above never sees them and the reserved-/lazysite/ skip excludes them. List
     # them too, tagged with their host, so a sub-domain's cached pages are visible
-    # and clearable here (rather than an operator resorting to a Files delete under
+    # and clearable here (rather than a sysop resorting to a Files delete under
     # the reserved lazysite/ tree, which is correctly blocked).
     my $cache_base = $ENV{LAZYSITE_CACHE_DIR} || _lz() . "/cache";
     my $hosts_dir  = "$cache_base/hosts";

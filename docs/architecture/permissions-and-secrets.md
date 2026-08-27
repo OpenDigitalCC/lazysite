@@ -208,7 +208,7 @@ Three properties worth stating because defects have turned on them:
 The intended first-run flow is the **CLI**:
 
 ```bash
-perl tools/lazysite-users.pl --docroot <docroot> setup-manager
+perl tools/lazysite-users.pl --docroot <docroot> setup-sysop
 ```
 
 That creates a `manager` account in a manager group (or issues a self-service
@@ -234,7 +234,7 @@ all**, as the operator. That is a materially different statement from the one in
 
 Two consequences follow:
 
-1. The window between install and `setup-manager` is an open manager. In the
+1. The window between install and `setup-sysop` is an open manager. In the
    packaged flow it is momentary; in a manual install it lasts until the operator
    runs the command.
 2. The state is recomputed per request from group settings, so a site that has

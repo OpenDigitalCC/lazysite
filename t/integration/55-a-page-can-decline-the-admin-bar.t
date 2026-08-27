@@ -51,7 +51,7 @@ sub as_manager {
     return run_processor( $docroot, "/$_[0]",
         LAZYSITE_AUTH_TRUSTED => '1',
         HTTP_X_REMOTE_USER    => 'sjm',
-        HTTP_X_REMOTE_GROUPS  => 'lazysite-admins' );
+        HTTP_X_REMOTE_GROUPS  => 'sysops' );
 }
 # THE ADMIN BAR'S OWN LINK, and getting this right took two attempts. The
 # chrome stylesheet is on every page; and `id="site-bar"` is the SITE's

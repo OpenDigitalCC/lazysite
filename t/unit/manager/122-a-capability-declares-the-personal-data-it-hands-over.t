@@ -54,8 +54,14 @@ my $caps = $map->{capabilities};
     # A-6 was the part that mattered most in the field report: `ui`, `cli` and
     # `install` are not partner traffic. A partner token holding one capability
     # reads the OPERATOR's own sessions, with the IP each came from.
-    like( $t, qr/operator/i,
-        'and that the operator\'s own sessions are among them' );
+    # SM659: the word changed, and that this test broke on it is the argument
+    # for changing it. `operator` meant the app's full-access person HERE and
+    # the shell user elsewhere, and an assertion on the bare word could not
+    # tell which - so it passed while the ambiguity it was pinning was the
+    # thing SM618 was trying to describe.
+    like( $t, qr/sysop/i,
+        'and that the SYSOP\'s own sessions are among them - named as the '
+            . 'app principal, not as whoever happens to be at a shell' );
 }
 
 # --- 2. the pair no longer makes opposite promises in silence ----------------

@@ -85,7 +85,7 @@ sub coerce_field {
     return "field '$name': a value cannot be a list or mapping" if ref $v;
 
     # An empty string is ABSENCE, not a value, for every type except text.
-    # A number field given "" means the operator cleared it; storing 0 there
+    # A number field given "" means the sysop cleared it; storing 0 there
     # would be inventing data, and storing "" would break the type's own
     # round-trip. text keeps it, because an empty string is a legitimate
     # thing to write into a text column and is distinguishable from NULL.
@@ -205,7 +205,7 @@ sub coerce_row {
     # An auto key is not listed in `fields` - it is implicit - so the unknown-
     # field loop below reaches it first and says "'id' is not a field of
     # 'notes'". That is refused for the right reason and reported for the
-    # wrong one: `id` IS the key, and an operator told it does not exist will
+    # wrong one: `id` IS the key, and a sysop told it does not exist will
     # go looking for what they mis-spelled instead of learning that the store
     # assigns it.
     if ( $d->{auto_key} && exists $input->{ $d->{key} } && !$partial ) {
@@ -236,7 +236,7 @@ sub coerce_row {
 
     # UNKNOWN FIELDS ARE REFUSED, matching Descriptor.pm's stance. Ignoring
     # them would let a typo in a column name look like a successful write and
-    # lose the value - the operator sees "saved" and the data is not there.
+    # lose the value - the sysop sees "saved" and the data is not there.
     for my $f ( sort keys %{$input} ) {
         return _err( "'$f' is maintained by the plugin and cannot be written",
             field => $f, rule => 'reserved' )

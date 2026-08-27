@@ -125,22 +125,27 @@ sub run_cli {
     unlike( $list, qr/^tokonly\b/m, 'passwordless account gone from the list' );
 }
 
-# --- setup-manager: one-command first-run bootstrap ---
+# --- setup-sysop: one-command first-run bootstrap ---
 {
     open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: Test\n"; close $cf;
 
-    my $out = run_cli('setup-manager');
-    like( $out, qr/Manager ready/,            'setup-manager reports ready' );
-    like( $out, qr/Password:\s*[0-9a-f]{24}/, 'generates a strong password' );
-
-    open my $u, '<', "$docroot/lazysite/auth/users" or die $!;
-    my $users = do { local $/; <$u> }; close $u;
-    like( $users, qr/^manager:sha256iter:/m, 'manager account created with a password' );
+    # SM659: --link is the DEFAULT now, so a first run hands over NO password -
+    # it issues a single-use registration link for the named person to collect.
+    # This asserted a generated password, which is the shared-secret path the
+    # change removes.
+    my $out = run_cli( 'setup-sysop', '--user', 'sjm' );
+    like( $out, qr/single-use self-service link/,
+        'a first run issues a registration link, not a password' );
+    unlike( $out, qr/Password:/,
+        'and hands over no password at all - nothing to share' );
 
     open my $g, '<', "$docroot/lazysite/auth/groups" or die $!;
     my $groups = do { local $/; <$g> }; close $g;
-    like( $groups, qr/^lazysite-admins:.*\bmanager\b/m, 'manager added to the admin group' );
+    like( $groups, qr/^sysops:.*\bsjm\b/m,
+        'the NAMED account is in sysops - there is no `manager` account' );
+    unlike( $groups, qr/\bmanager\b/,
+        'and no role account was created' );
 
     open my $c, '<', "$docroot/lazysite/lazysite.conf" or die $!;
     my $conf = do { local $/; <$c> }; close $c;
@@ -149,8 +154,11 @@ sub run_cli {
         'SM138: the retired manager_groups key is not written' );
 
     # idempotent + explicit password
-    my $out2 = run_cli( 'setup-manager', 'chosenpass' );
-    like( $out2, qr/Password:\s*chosenpass/, 'honours an explicit password' );
+    # A password given positionally opts OUT of the link - a scripted first run
+    # on a host nobody will reach interactively.
+    my $out2 = run_cli( 'setup-sysop', '--user', 'sjm', 'chosenpass' );
+    like( $out2, qr/Password:\s*chosenpass/,
+        'an explicit password still opts out of the link' );
     open my $c2, '<', "$docroot/lazysite/lazysite.conf" or die $!;
     my $conf2 = do { local $/; <$c2> }; close $c2;
     my $count = () = $conf2 =~ /^manager:/mg;
