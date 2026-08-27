@@ -12,6 +12,12 @@ search: false
 
 <div class="mg-breadcrumb" id="breadcrumb"></div>
 
+<!-- SM638: what governs the folder you are STANDING IN. The listing shows
+     protection per row, which is visible from the PARENT - so an operator who
+     has clicked into a protected folder is looking at its contents while the
+     row carrying its controls is on the screen they just left. -->
+<div id="here-protection" hidden></div>
+
 <div class="mg-file-filter-row">
 <input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="applyFilters()">
 <select id="type-filter" class="mg-file-typefilter" onchange="applyFilters()" title="Filter by file type">
@@ -186,6 +192,60 @@ function buildBreadcrumb(dirPath, linkFn) {
     items.push(linkFn(accumulated + '/', parts[i]));
   }
   return items.join(' &rsaquo; ');
+}
+
+// SM638: THE FOLDER YOU ARE IN, and its controls, without going up for them.
+//
+// SM635 deliberately put Remove-protection only on the row that OWNS the rule,
+// so a button never acts somewhere other than where it appears. A banner is not
+// on a row at all, so it answers the same question its own way: it names the
+// path it acts on, in the label and in the confirmation, and it offers the
+// controls ONLY when the rule belongs to this folder. When the rule is
+// inherited it says which ancestor carries it and offers nothing - because
+// removing it from here would act somewhere else, which is the defect SM635's
+// placement rule exists to prevent.
+function updateHereProtection() {
+  var el = document.getElementById('here-protection');
+  if (!el) return;
+  var rel = String(currentDir || '').replace(/^\/+/, '');
+  if (!rel) { el.hidden = true; el.innerHTML = ''; return; }
+
+  // Reuse the listing's own resolver, so the banner and the padlocks cannot
+  // disagree about what governs this path.
+  var p = protectionFor({ path: rel, type: 'dir' });
+  if (!p) { el.hidden = true; el.innerHTML = ''; return; }
+
+  var draft = p.rule.policy === 'draft';
+  var what  = draft
+    ? 'Hidden outright: a visitor gets 404, and it is absent from the sitemap, feeds and every listing.'
+    : 'Visible only to the people named in the read list; everyone else is sent to sign in.';
+
+  var h = '<div class="mg-protect-here">'
+        + '<span class="mg-protect-lock">&#128274;</span> ';
+  if (p.via === '') {
+    h += '<strong>This folder is protected.</strong> ' + escHtml(what);
+    // Its own rule, so the controls act here and say so.
+    h += ' <button class="mg-btn mg-btn-sm" onclick="publishSection('
+       + escHtml(JSON.stringify(rel)) + ', true); return false;">Publish /'
+       + escHtml(rel) + '</button>';
+    h += ' <button class="mg-btn mg-btn-sm" onclick="publishSection('
+       + escHtml(JSON.stringify(rel)) + ', false); return false;">Remove protection from /'
+       + escHtml(rel) + '</button>';
+  }
+  else if (p.via === 'site') {
+    h += '<strong>Covered by the site-wide rule.</strong> ' + escHtml(what)
+       + ' The rule is not on this folder, so it cannot be changed from here.';
+  }
+  else {
+    h += '<strong>Covered by the rule on /' + escHtml(p.via) + '.</strong> '
+       + escHtml(what)
+       + ' Change it where it lives: <a href="#" onclick="loadDir('
+       + escHtml(JSON.stringify('/' + p.via.split('/').slice(0, -1).join('/')))
+       + '); return false;">open the folder that carries it</a>.';
+  }
+  h += '</div>';
+  el.innerHTML = h;
+  el.hidden = false;
 }
 
 function updateBreadcrumb() {
@@ -1135,6 +1195,7 @@ function loadProtectedSections() {
         else { PROTECTED_BY_PREFIX[rows[k].prefix] = rows[k]; }
       }
       paintFiles();   // re-render so rows show what they now know
+      updateHereProtection();   // SM638: and so does the folder itself
     })
     .catch(function() {
       // A failed load must not read as "nothing is protected". Clear the map so
@@ -1144,6 +1205,7 @@ function loadProtectedSections() {
       SITE_WIDE_RULE = null;
       PROTECTION_UNKNOWN = true;
       paintFiles();
+      updateHereProtection();   // clears the banner: a stale one would be worse
     });
 }
 

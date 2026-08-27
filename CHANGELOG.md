@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM638 shipped (PENDING) **the folder you are standing in says what governs
+  it.** SM635 put protection into the LISTING, which is visible from the
+  parent - so an operator who had clicked into a protected folder was looking
+  at its contents while the row carrying its controls sat on the screen they
+  had just left, and 'up' is where they lose their place. A banner under the
+  breadcrumb now names what governs this folder. THE PLACEMENT RULE IS
+  ANSWERED, not sidestepped: SM635 kept Remove-protection on the row that OWNS
+  the rule so a button never acts somewhere other than where it appears, and a
+  banner is not on a row - so it names the path it acts on in the label and the
+  confirmation, and offers controls ONLY for this folder's own rule. An
+  inherited rule gets none, says which ancestor carries it and links there. It
+  reuses `protectionFor()` so the banner and the padlocks cannot disagree, and
+  clears when the sections load fails.
+
 - SM656 partial (PENDING) **a page can decline the admin bar.** The bar is
   injected for a signed-in user holding `ui` - a property of the PERSON, and
   the only lever. That works while every page is a content page; on a site

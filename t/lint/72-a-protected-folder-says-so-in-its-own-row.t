@@ -105,4 +105,50 @@ like( $src, qr/paintFiles\(\);\s*\/\/ re-render/,
     or diag( 'The sections fetch and the file listing race; without a repaint '
         . 'the folder rows show nothing until the operator navigates.' );
 
+# --- SM638: and the folder you are STANDING IN says so too ------------------
+#
+# SM635 put the protection into the listing, which is visible from the PARENT.
+# An operator who has clicked into a protected folder is looking at its
+# contents while the row carrying its controls is on the screen they just left,
+# and 'up' is exactly where they lose their place.
+#
+# THE PLACEMENT RULE IS THE POINT, and a banner is not on a row - so it has to
+# answer SM635's question its own way rather than being the same control moved.
+{
+    my ($banner) = $src =~ /(function updateHereProtection\(\).*?\n\})/s;
+    ok( length( $banner // '' ), 'the here-banner can be isolated' )
+        or BAIL_OUT('no updateHereProtection - the assertions below are vacuous');
+
+    like( $banner, qr/protectionFor\(/,
+        'it reuses the listing\'s own resolver, so the banner and the padlocks '
+            . 'cannot disagree about what governs this path' );
+
+    # Its OWN rule: controls, naming the path they act on.
+    like( $banner, qr/Remove protection from/,
+        'when the rule is this folder\'s own, the control names what it removes' );
+    like( $banner, qr/escHtml\(rel\)/,
+        'and interpolates THIS folder into the label - a banner is not on a '
+            . 'row, so the words carry what the row position used to' );
+
+    # An INHERITED rule: no controls at all.
+    my ($inherited) = $banner =~ /else \{(.*?)\}\s*h \+= '<\/div>'/s;
+    $inherited //= '';
+    unlike( $inherited, qr/publishSection/,
+        'an INHERITED rule offers no control here - removing it from this '
+            . 'folder would act somewhere else, which is the defect SM635\'s '
+            . 'placement rule exists to prevent' );
+    like( $banner, qr/Change it where it lives/,
+        'it points at the folder that carries the rule instead' );
+
+    # A site-wide rule likewise.
+    like( $banner, qr/cannot be changed from here/,
+        'and the site-wide rule says plainly that it is not this folder\'s' );
+}
+
+like( $src, qr/updateHereProtection\(\);\s*\/\/ SM638/,
+    'the banner is refreshed when the sections load' );
+like( $src, qr/updateHereProtection\(\);\s*\/\/ clears the banner/,
+    'and cleared when that load fails - a stale banner about protection is '
+        . 'worse than none' );
+
 done_testing();

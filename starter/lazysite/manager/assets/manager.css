@@ -1869,6 +1869,20 @@ body.mg-sheet-open { overflow:hidden; }
 .mg-stat-block > summary { cursor: pointer; list-style: revert; }
 .mg-stat-block > summary:hover { text-decoration: underline; }
 
+/* SM638: what governs the folder you are standing in. Sits under the
+   breadcrumb, above the listing, because that is where an operator looks to
+   answer "where am I" - and "is this protected" is the same question. */
+.mg-protect-here {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: var(--mg-warn-bg, #faf3e0);
+    color: var(--mg-fg, #333);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.mg-protect-here .mg-btn { margin-left: 6px; }
+
 .mg-alias-302 { background: var(--mg-warn-bg, #faf3e0); color: var(--mg-warn, #b07d1a); }
 
 /* SM629: the size of one revision's change, in the history row. Tabular
