@@ -56,23 +56,6 @@ search: false
 </table>
 <div id="file-pager" class="mg-pager"></div>
 
-<div class="mg-card" id="protected-card">
-<div class="mg-card-header"><span class="mg-card-title">Protected sections</span>
-<button class="mg-btn mg-btn-sm" onclick="loadProtectedSections()">Refresh</button></div>
-<div class="mg-card-body">
-<p class="mg-muted">Whole folders held back from the public. A <b>gated</b> section is
-visible only to the people named on it; a <b>draft</b> section does not exist as far as
-a visitor is concerned - it returns 404 and stays out of the sitemap, the feeds and
-every listing, while a signed-in editor can still preview it.</p>
-<table class="mg-file-table" id="protected-table" style="display:none">
-<thead><tr><th>Section</th><th>Policy</th><th>Readable by</th><th>Contents</th><th></th></tr></thead>
-<tbody id="protected-rows"></tbody>
-</table>
-<p class="mg-muted" id="protected-empty" style="display:none">Nothing is held back &mdash;
-every folder on this site is public.</p>
-</div>
-</div>
-
 </div>
 
 <script>
@@ -421,27 +404,89 @@ function viewBrief(btn) {
 // see its protection in the folder's own expansion.
 var PROTECTED_BY_PREFIX = {};
 var SITE_WIDE_RULE = null;
+var PROTECTION_UNKNOWN = false;
 
-// The section rule covering a listing row, or null. Prefixes are
-// docroot-relative without a leading slash; row paths carry one.
+// SM635: the rule covering a listing row - FOLDER OR FILE - and how it got
+// there. Prefixes are docroot-relative without a leading slash; row paths carry
+// one.
+//
+// This used to answer only for directories, and only on an exact prefix match.
+// So a protected FOLDER showed its rule and everything inside it showed
+// nothing - while the whole point of a section rule is that it covers what is
+// beneath it. An operator standing on a gated page was told nothing, which
+// reads as "this page is public".
+//
+// Returns { rule, via } where `via` is '' for the row's own rule, the covering
+// prefix when it is inherited, and 'site' for the site-wide rule. The caller
+// needs to say WHICH, because "this folder is gated" and "everything here is
+// gated" are different facts and one of them cannot be changed from this row.
 function protectionFor(f) {
-  if (!f || f.type !== 'dir') return null;
-  var rel = String(f.path || '').replace(/^\/+/, '');
-  return PROTECTED_BY_PREFIX[rel] || null;
+  if (!f || !f.path) return null;
+  var rel = String(f.path).replace(/^\/+/, '');
+
+  if (f.type === 'dir' && PROTECTED_BY_PREFIX[rel]) {
+    return { rule: PROTECTED_BY_PREFIX[rel], via: '' };
+  }
+
+  // The nearest ANCESTOR that carries a rule. Longest match wins: a rule on
+  // /intranet/private is the one in force for a page inside it, not the wider
+  // rule on /intranet, and reporting the wider one would understate the gate.
+  var parts = rel.split('/');
+  for (var i = parts.length - 1; i > 0; i--) {
+    var anc = parts.slice(0, i).join('/');
+    if (PROTECTED_BY_PREFIX[anc]) return { rule: PROTECTED_BY_PREFIX[anc], via: anc };
+  }
+
+  if (SITE_WIDE_RULE) return { rule: SITE_WIDE_RULE, via: 'site' };
+  return null;
+}
+
+// SM635: the padlock in the listing. A row that is held back says so where an
+// operator is already looking, instead of only in a card at the foot of the
+// page that they had to scroll to and match paths by eye.
+//
+// NOTE the OTHER padlock: lockGlyph() marks a WebDAV EDIT lock, in the actions
+// column. Same glyph, different question - one is "who may read this", the
+// other "who is editing it right now" - so each carries a tooltip that names
+// its own subject rather than relying on the reader to know which column means
+// what.
+function protectionGlyph(f) {
+  var p = protectionFor(f);
+  if (!p) return '';
+  var draft = p.rule.policy === 'draft';
+  var what  = draft
+    ? 'Hidden outright: a visitor gets 404, and it is absent from the sitemap, feeds and every listing.'
+    : 'Visible only to the people named in the read list; everyone else is sent to sign in.';
+  var where = p.via === ''     ? 'Protected by its own rule. '
+            : p.via === 'site' ? 'Covered by the site-wide rule. '
+            :                    'Covered by the rule on /' + p.via + '. ';
+  return '<span class="mg-protect-lock" title="' + escHtml(where + what)
+       + ' Expand the row to see who may read it.">&#128274;</span>';
 }
 
 function protectionBlock(f) {
-  var s = protectionFor(f);
-  if (!s) {
-    // Say nothing for an unprotected folder EXCEPT where a site-wide rule
-    // covers it - otherwise the expansion would imply "open" on a site where
-    // everything is gated, which is the wrong answer confidently given.
-    if (!SITE_WIDE_RULE) return '';
-    return '<div class="mg-perms-hint" style="margin-top:8px;">'
-      + 'Covered by the site-wide rule (' + escHtml(SITE_WIDE_RULE.policy) + ') '
-      + '- every page and asset on this site is held back.</div>';
+  var p = protectionFor(f);
+
+  // Nothing covers this row. Say so plainly rather than saying nothing: an
+  // empty expansion is indistinguishable from one that failed to load, and the
+  // question "is this protected?" deserves an answer either way.
+  if (!p) {
+    return '<div class="mg-perms-rights-label" style="margin-top:10px;">Protection</div>'
+      + '<div class="mg-perms-hint mg-muted">Not held back - anyone can read this.</div>';
   }
+  var s = p.rule;
   var draft = s.policy === 'draft';
+
+  // WHERE the rule lives, because it decides what the operator can do from
+  // here. A row covered by an ancestor cannot be un-gated on its own, and an
+  // expansion that did not say so would invite the attempt.
+  var origin = p.via === ''
+    ? ''
+    : ( p.via === 'site'
+        ? '<div class="mg-perms-hint mg-muted">Inherited from the <strong>site-wide</strong> rule - '
+          + 'every page and asset on this site is held back. Change it where it was set, not here.</div>'
+        : '<div class="mg-perms-hint mg-muted">Inherited from <code>/' + escHtml(p.via) + '</code> - '
+          + 'this row is covered because that folder is. Change it there, not here.</div>' );
   var badge = draft
     ? '<span class="mg-alias-badge mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
     : '<span class="mg-alias-badge" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
@@ -452,14 +497,28 @@ function protectionBlock(f) {
     ? (s.pages + ' page' + (s.pages === 1 ? '' : 's')
        + (s.assets ? ', ' + s.assets + ' asset' + (s.assets === 1 ? '' : 's') : ''))
     : '<span class="mg-cap-dormant" title="The rule still gates this path, but there is no such folder.">no such folder</span>';
+  // SM635: the card carried the only Publish / Remove-protection controls on the
+  // page. They move here rather than vanish - and ONLY onto the row that OWNS
+  // the rule, because an inherited one cannot be removed from the row it
+  // covers, and offering a button that would act somewhere else is worse than
+  // offering none.
+  var acts = p.via !== '' ? '' :
+      '<div style="margin-top:8px;">'
+    + ( draft
+        ? '<button class="mg-btn mg-btn-sm" onclick="publishSection(\'' + escHtml(s.prefix) + '\',true)">Publish</button> '
+        : '' )
+    + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="publishSection(\'' + escHtml(s.prefix) + '\',false)">Remove protection</button>'
+    + '</div>';
+
   return '<div class="mg-perms-rights-label" style="margin-top:10px;">Protection</div>'
+    + origin
     + '<div class="mg-perms-hint">' + badge
     + ' &middot; readable by ' + who
     + ' &middot; ' + contents
     + ( draft
         ? ' &middot; hidden outright: a visitor gets 404, and it is absent from the sitemap, feeds and every listing.'
         : ' &middot; a visitor who is not listed is sent to sign in.' )
-    + '</div>';
+    + '</div>' + acts;
 }
 
 // The per-file config card (collapsed by default; one open at a time).
@@ -579,7 +638,11 @@ function rowHtml(f) {
       : escHtml(f.name);
   }
   html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + recentDot(f.path) + '</td>';
-  html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
+  // SM635: the padlock rides beside the access rights. A FOLDER used to render
+  // an empty cell here - so the one row that most needs to say "held back" was
+  // the one that said nothing, which is how a protected folder read as open.
+  html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f))
+        + protectionGlyph(f) + '</td>';
   html += '<td class="mg-col-mod">' + modifiedCell(f) + '</td>';
   if (f.type === 'file' || (isDir && f.empty)) {
     html += '<td class="mg-col-check"><input type="checkbox" class="mg-file-select" data-kind="' + (isDir ? 'dir' : 'file') + '" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
@@ -1056,70 +1119,32 @@ function updateSelection() {
 // well, which on a gated section is a wider act than it looks - so it is named
 // for what it does and confirmed separately.
 function loadProtectedSections() {
-  // Scoped to the folder being browsed. The panel sits under a directory
-  // listing; listing every rule on the site made an operator read the whole
-  // estate to find their own, and showed them section names that are not what
-  // this screen is for. A rule COVERING this folder is kept as well as rules
-  // inside it - /intranet governs /intranet/team, and hiding that would answer
-  // "is this protected?" with silence when the answer is yes.
+  // SM635: this no longer paints a card - it loads the map the LISTING reads.
+  //
+  // Scoped to the folder being browsed. A rule COVERING this folder is kept as
+  // well as rules inside it - /intranet governs /intranet/team, and dropping
+  // that would answer "is this protected?" with silence when the answer is yes.
   fetch(API + '?action=protected-sections&path=' + encodeURIComponent(currentDir))
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      var table = document.getElementById('protected-table');
-      var empty = document.getElementById('protected-empty');
-      if (!table || !empty) return;
       var rows = (d && d.ok && d.sections) || [];
-      // Keyed for the FOLDER ROWS to read. The card at the foot of the page
-      // answers "what is protected on this site"; a folder's own expansion has
-      // to answer "is THIS protected", and the operator should not have to
-      // scroll to a different card and match paths by eye to find out.
       PROTECTED_BY_PREFIX = {};
-      for (var k = 0; k < rows.length; k++) {
-        if (!rows[k].site_wide) PROTECTED_BY_PREFIX[rows[k].prefix] = rows[k];
-      }
       SITE_WIDE_RULE = null;
-      for (var j = 0; j < rows.length; j++) { if (rows[j].site_wide) SITE_WIDE_RULE = rows[j]; }
-      paintFiles();   // re-render so folder rows can show what they now know
-      if (!rows.length) { table.style.display = 'none'; empty.style.display = ''; return; }
-      var html = '';
-      for (var i = 0; i < rows.length; i++) {
-        var s = rows[i], p = escHtml(s.prefix);
-        var draft = s.policy === 'draft';
-        // SM287: the site-wide rule is a section like any other and covers
-        // everything, so it must not read as a folder called "/". Named, not
-        // just styled - somebody scanning this list for what is protected
-        // should not have to interpret a slash.
-        var label = s.site_wide
-          ? '<strong>The whole site</strong> <span class="mg-muted">(every page and asset)</span>'
-          : '<code>' + p + '</code>';
-        var badge = draft
-          ? '<span class="mg-alias-badge mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
-          : '<span class="mg-alias-badge" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
-        var who = (s.read && s.read.length) ? escHtml(s.read.join(', '))
-          : '<span class="mg-muted">nobody but the owner</span>';
-        // An entry whose folder has gone still gates the path. Say so rather
-        // than drop the row - an orphaned rule is exactly what this screen is
-        // for.
-        var contents = s.exists
-          ? (s.pages + ' page' + (s.pages === 1 ? '' : 's')
-             + (s.assets ? ', ' + s.assets + ' asset' + (s.assets === 1 ? '' : 's') : ''))
-          : '<span class="mg-cap-dormant" title="The rule still gates this path, but there is no such folder.">no such folder</span>';
-        html += '<tr><td>' + label + '</td>'
-              + '<td>' + badge + '</td>'
-              + '<td>' + who + '</td>'
-              + '<td>' + contents + '</td>'
-              + '<td class="mg-file-actions">'
-              + (draft
-                  ? '<button class="mg-btn mg-btn-sm" onclick="publishSection(\'' + p + '\',true)">Publish</button> '
-                  : '')
-              + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="publishSection(\'' + p + '\',false)">Remove protection</button>'
-              + '</td></tr>';
+      for (var k = 0; k < rows.length; k++) {
+        if (rows[k].site_wide) { SITE_WIDE_RULE = rows[k]; }
+        else { PROTECTED_BY_PREFIX[rows[k].prefix] = rows[k]; }
       }
-      document.getElementById('protected-rows').innerHTML = html;
-      table.style.display = '';
-      empty.style.display = 'none';
+      paintFiles();   // re-render so rows show what they now know
     })
-    .catch(function() { /* card stays empty */ });
+    .catch(function() {
+      // A failed load must not read as "nothing is protected". Clear the map so
+      // no stale padlock survives, and let the expansion say it could not tell -
+      // silence here is the confident wrong answer this whole change is about.
+      PROTECTED_BY_PREFIX = {};
+      SITE_WIDE_RULE = null;
+      PROTECTION_UNKNOWN = true;
+      paintFiles();
+    });
 }
 
 // draftOnly: clear the draft flag and keep the read list (the section becomes

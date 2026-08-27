@@ -45,8 +45,21 @@ like( $perms, qr/\+\s+protectionBlock\(f\)/,
 like( $src, qr/PROTECTED_BY_PREFIX\[rows\[k\]\.prefix\]/,
     'sections are indexed by prefix for the rows to read' );
 
-like( $src, qr/f\.type !== 'dir'/,
-    'only folders are considered - a section gates a path, not a file' );
+# SM635 REVERSED THIS, on the operator's report and on the reasoning being
+# wrong. "A section gates a path, not a file" describes where the rule is
+# ATTACHED and not what it AFFECTS: a section rule gates a path PREFIX, so
+# every file beneath it is gated too. Excluding files meant an operator
+# standing on a gated page was told nothing, which reads as "public" - a
+# confident wrong answer about access, which is the worst kind this project
+# files.
+#
+# What the row must now say is WHICH rule covers it and WHERE that rule lives,
+# because a row covered by an ancestor cannot be un-gated from itself.
+like( $src, qr/protectionFor\(f\) \{[^}]*if \(!f \|\| !f\.path\) return null;/s,
+    'ANY row is considered - a section gates a prefix, so what is beneath it '
+        . 'is gated too' );
+like( $src, qr/return \{ rule: PROTECTED_BY_PREFIX\[anc\], via: anc \}/,
+    'and an inherited rule is reported with the folder it came from' );
 
 # The site-wide case. Saying nothing there would imply "not protected" on a
 # site where everything is.
@@ -57,12 +70,16 @@ like( $src, qr/f\.type !== 'dir'/,
 my ($block) = $src =~ /function protectionBlock\(f\)\s*\{(.*?)\n\}/s;
 ok( defined $block, 'protectionBlock is present' )
     or BAIL_OUT('cannot find protectionBlock');
-like( $block, qr/if \(!SITE_WIDE_RULE\) return '';/,
+# SM635: it no longer returns early at all - an uncovered row is TOLD it is
+# open, because an empty expansion is indistinguishable from one that failed to
+# load. The intent this asserted (never imply "open" on a site where everything
+# is gated) is unchanged and now covered from both directions.
+like( $block, qr/Not held back - anyone can read this/,
     'an unprotected folder returns early ONLY when no site-wide rule applies' )
     or diag( 'Returning unconditionally leaves the site-wide message in the '
         . 'source and unreachable - silence on a site-wide-gated site reads '
         . 'as "this folder is open", a confident wrong answer.' );
-like( $block, qr/Covered by the site-wide rule/,
+like( $block, qr/Inherited from the <strong>site-wide<\/strong> rule/,
     'and says so when one does' );
 
 # The two policies must be distinguishable by someone who has not memorised
@@ -71,7 +88,12 @@ like( $src, qr/hidden outright/,  'draft is explained, not just named' );
 like( $src, qr/sent to sign in/,  'and so is gated' );
 
 # The card at the foot is NOT removed - it answers a different question.
-like( $src, qr/id="protected-card"/,
+# SM635: the card is GONE, on the operator's instruction - the padlock in the
+# listing answers "is this protected?" where they are already looking, and the
+# card's Publish / Remove-protection controls moved into the expansion rather
+# than vanishing with it. What this assertion protected - that those controls
+# exist SOMEWHERE - is asserted here in its new home.
+like( $src, qr/Remove protection/,
     'the site-wide Protected sections card is still there' )
     or diag( '"What is protected on this site" and "is this folder protected" '
         . 'are different questions; this change answers the second without '

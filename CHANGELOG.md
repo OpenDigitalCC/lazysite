@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM635 resolved (PENDING) **a held-back row says so where the operator is
+  looking.** A protected FOLDER rendered an empty Access cell by construction,
+  so the row that most needed to say "held back" said nothing; and the lookup
+  answered only for directories on an exact prefix match, so everything INSIDE
+  a protected folder reported nothing - while the point of a section rule is
+  that it covers what is beneath it. A padlock now sits beside the access
+  rights on any covered row, and the expansion says whether the rule is the
+  row's own, an ancestor's or the site-wide one, because only the first can be
+  changed from there. The Protected sections card is removed as asked; its
+  Publish / Remove-protection controls move into the expansion on the owning
+  row, and the fetch that filled it - which also fills the map every padlock
+  reads - no longer returns early on elements it no longer has.
+
 - SM614 part one / SM634 resolved (PENDING) **the session lifetime is a setting,
   and a credential records when it was issued.** **SM614**: the lifetime was a
   constant in `Auth::Session` and a second constant in `Manager::Sessions`,
