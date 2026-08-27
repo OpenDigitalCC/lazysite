@@ -4015,7 +4015,21 @@ sub cmd_group_settings_set {
     # own `grantable` set, the ceiling below would be decorative, because the
     # first thing an attacker with manage_users would do is grant themselves the
     # authority to grant everything.
-    if ( defined $key && $key eq 'grantable' ) {
+    # SM643: ADD AND REMOVE ACT ON WHAT THEY ARE GIVEN.
+    #
+    # `grantable` is a whole-list REPLACE: anything not named is removed. So
+    # adding one capability meant reading the current set, retyping it in full,
+    # and appending - a read-modify-write performed by hand against a live
+    # access-control list, usually while something is already broken. Mistype
+    # one existing entry and that authority disappears with no warning, because
+    # a replace cannot tell an intentional removal from a forgotten one.
+    #
+    # The replace form STAYS. "Exactly these and nothing else" is a legitimate
+    # intent that add/remove cannot express, and this is the one list where an
+    # operator sometimes means precisely that. It simply stops being the only
+    # form available.
+    if ( defined $key && $key =~ /\Agrantable(?:-(add|remove))?\z/ ) {
+        my $mode = $1 // 'set';
         return { ok => 0, kind => 'forbidden',
             error => 'Only an operator may set a group\'s grant authority. '
                 . 'grantable is what lets a delegate confer a capability it does '
@@ -4025,21 +4039,58 @@ sub cmd_group_settings_set {
 
         my $gs = read_group_settings();
         $gs->{$group} ||= _new_group_record($group);
-        my @caps  = grep { length } split /[,\s]+/, ( $value // '' );
+        my @named = grep { length } split /[,\s]+/, ( $value // '' );
         my %known = map  { $_ => 1 } @CAP_KEYS;
-        my @bad   = grep { !$known{$_} } @caps;
+        my @bad   = grep { !$known{$_} } @named;
         return { ok => 0, error => 'unknown capability: ' . join( ', ', @bad ) } if @bad;
 
-        my %uniq;
-        $uniq{$_} = 1 for @caps;
-        if (@caps) { $gs->{$group}{grantable} = [ sort keys %uniq ] }
+        # An add or a remove with nothing named is refused rather than treated
+        # as a clear. `grantable ''` clears deliberately; `grantable-add ''`
+        # is a mistake, and silently clearing the list on it would be the
+        # sharpest possible version of the defect this closes.
+        return { ok => 0,
+            error => "$key needs at least one capability. To clear the whole "
+                . "list, use: group-set $group grantable ''" }
+            if $mode ne 'set' && !@named;
+
+        my @before = @{ $gs->{$group}{grantable} || [] };
+        my %have   = map { $_ => 1 } @before;
+        my ( @added, @removed );
+        if ( $mode eq 'add' ) {
+            for my $c (@named) { push @added, $c unless $have{$c}++ }
+        }
+        elsif ( $mode eq 'remove' ) {
+            # Removing what is not there is a no-op, not an error, so a script
+            # can converge on a desired state without first asking what the
+            # state is - which is the whole point of the verb.
+            for my $c (@named) { push @removed, $c if delete $have{$c} }
+        }
+        else {
+            %have = map { $_ => 1 } @named;
+            my %was = map { $_ => 1 } @before;
+            @added   = grep { !$was{$_} } sort keys %have;
+            @removed = grep { !$have{$_} } @before;
+        }
+
+        my @caps = sort keys %have;
+        if (@caps) { $gs->{$group}{grantable} = \@caps }
         else       { delete $gs->{$group}{grantable} }
         write_group_settings($gs);
+
+        # WHAT CHANGED, not just the resulting list. An operator reading the
+        # trail should see that one capability was added without diffing two
+        # full lists against each other.
+        my $delta = join ' ',
+            ( @added   ? ( '+' . join( ',', @added ) )   : () ),
+            ( @removed ? ( '-' . join( ',', @removed ) ) : () );
+        $delta = '(no change)' unless length $delta;
         log_event( 'INFO', $group, 'group grant authority set',
-            grantable => join( ',', @caps ) );
+            grantable => join( ',', @caps ), change => $delta );
         cli_audit( 'user-group-settings-set', $group,
-            'grantable=' . ( @caps ? join( ',', @caps ) : '(cleared)' ) );
-        return { ok => 1, grantable => \@caps };
+            "$key $delta; now="
+                . ( @caps ? join( ',', @caps ) : '(cleared)' ) );
+        return { ok => 1, grantable => \@caps,
+            added => \@added, removed => \@removed };
     }
 
     # SM576 part 3: `assignable` - may this group be given to a PERSON, or does
@@ -4338,7 +4389,10 @@ Commands:
                               delegate_sub_user_creation. Also takes the
                               non-capability keys grantable (a comma list of
                               capabilities this group's members may confer),
-                              label and description.
+                              grantable-add / grantable-remove (SM643: act on
+                              the capabilities named and leave the rest alone,
+                              so adding one needs no knowledge of the others),
+                              and assignable.
   permissions USERNAME        Print the channel x capability grid for a user
                               (resolved from groups; debug user access issues)
   audit-registry              Dump the CLI audit classification as JSON (used

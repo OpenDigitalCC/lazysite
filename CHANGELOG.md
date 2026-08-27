@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM643 fixed (PENDING) **grant authority is editable in place.** `group-set
+  GROUP grantable a,b,c` is a whole-list REPLACE - anything not named is
+  removed - so adding one capability meant reading the current set, retyping it
+  in full and appending. A read-modify-write performed by hand, against a live
+  access-control list, usually while something is already broken: mistype one
+  existing entry and that authority disappears, with no warning, because a
+  replace cannot tell an intentional removal from a forgotten one. The operator
+  reported it as blocking. `grantable-add` and `grantable-remove` now act on
+  the capabilities named and leave the rest alone, so adding one needs no
+  knowledge of the others. Removing one that is not held is a no-op rather than
+  an error, so a script can converge without first asking what the state is.
+  The replace form is unchanged - "exactly these and nothing else" is a real
+  intent that add and remove cannot express - but an empty value is REFUSED on
+  the new verbs, and the refusal names `grantable ''` as the way to clear,
+  because silently clearing on `grantable-add ''` would be the sharpest version
+  of the defect being closed. Both are operator-only like the verb they
+  supplement, and the audit entry carries the delta (`+x -y`) alongside the
+  resulting list.
+
 - SM641 fixed (PENDING) **an actor is an account.** A login attempt is
   unauthenticated by definition, so the name it carries is a claim - and the
   auth surface wrote that claim into the audit trail's actor column, including
