@@ -1862,6 +1862,13 @@ body.mg-sheet-open { overflow:hidden; }
 .mg-alias-badge { display: inline-block; padding: 0 0.45em; border-radius: 0.7em;
   font-size: 0.75em; font-weight: 700; line-height: 1.5;
   background: var(--mg-accent-bg, #e8f0fa); color: var(--mg-accent, #3a7bd5); }
+/* SM424: one stats block at a time. <details> gives the behaviour; this gives
+   the summary a pointer and keeps the .mg-sec heading style, so a collapsed
+   block reads as a heading rather than as a broken one. */
+.mg-stat-block { margin: 0 0 10px; }
+.mg-stat-block > summary { cursor: pointer; list-style: revert; }
+.mg-stat-block > summary:hover { text-decoration: underline; }
+
 .mg-alias-302 { background: var(--mg-warn-bg, #faf3e0); color: var(--mg-warn, #b07d1a); }
 
 /* SM629: the size of one revision's change, in the history row. Tabular

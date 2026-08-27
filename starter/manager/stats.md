@@ -17,8 +17,10 @@ search: false
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Visitor journeys</span>
+<button class="mg-btn mg-btn-sm" id="card-trails-toggle" aria-controls="trails-card-body"
+        aria-expanded="false">Show</button>
 </div>
-<div class="mg-card-body">
+<div class="mg-card-body" id="trails-card-body" hidden>
 <div class="mg-line">
   <label for="trail-day">Day</label>
   <select id="trail-day" class="mg-inp" style="max-width:12rem"></select>
@@ -30,9 +32,11 @@ search: false
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Blocked IPs (auto-blocker)</span>
+<button class="mg-btn mg-btn-sm" id="card-blocked-toggle" aria-controls="blocked-body"
+        aria-expanded="false">Show</button>
 <button class="mg-btn mg-btn-sm" onclick="loadBlocked()">Refresh</button>
 </div>
-<div class="mg-card-body" id="blocked-body">Loading&hellip;</div>
+<div class="mg-card-body" id="blocked-body" hidden>Loading&hellip;</div>
 </div>
 
 <script>
@@ -108,55 +112,66 @@ function renderStats(d) {
   if (d.classes) {
     var defs = [['human', 'People'], ['logged_in', 'Logged-in'], ['ai', 'AI assistants'],
                 ['bot', 'Bots'], ['noise', 'Noise / probes']];
-    h += '<div class="mg-sec">Who&rsquo;s calling</div><div class="mg-stat-tiles">';
+    // SM424: OPEN by default. This and Hits per day are the two an operator
+    // opens the page for, so collapsing them by default would trade one
+    // annoyance for another - the block exists so they CAN be shut, not so
+    // that the answer starts hidden.
+    var au = '<div class="mg-stat-tiles">';
     defs.forEach(function (p) {
       var c = d.classes[p[0]] || { hits: 0, visitors: 0 };
-      h += '<div class="mg-stat-tile"><div class="mg-stat-value">' + fmtNum(c.hits) + '</div>'
-         + '<div class="mg-stat-label">' + sesc(p[1])
-         + ' <span class="mg-muted">(' + fmtNum(c.visitors) + ' IP' + (c.visitors === 1 ? '' : 's') + ')</span>'
-         + '</div></div>';
+      au += '<div class="mg-stat-tile"><div class="mg-stat-value">' + fmtNum(c.hits) + '</div>'
+          + '<div class="mg-stat-label">' + sesc(p[1])
+          + ' <span class="mg-muted">(' + fmtNum(c.visitors) + ' IP' + (c.visitors === 1 ? '' : 's') + ')</span>'
+          + '</div></div>';
     });
-    h += '</div>';
+    au += '</div>';
     // Proportional split bar - a visual quick-read of the audience mix.
     var mix = [['human','#2e8b57'],['logged_in','#3a7bd5'],['ai','#8e44ad'],['bot','#d98a1f'],['noise','#b03a3a']];
     var mixTotal = mix.reduce(function (s, p) { return s + ((d.classes[p[0]] || {}).hits || 0); }, 0);
     if (mixTotal > 0) {
-      h += '<div class="mg-split-bar" style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:0.4rem 0">';
+      au += '<div class="mg-split-bar" style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:0.4rem 0">';
       mix.forEach(function (p) {
         var hits = (d.classes[p[0]] || {}).hits || 0;
         if (hits <= 0) return;
         var pct = (hits / mixTotal * 100);
         var lbl = (defs.filter(function (x) { return x[0] === p[0]; })[0] || [p[0], p[0]])[1];
-        h += '<span style="width:' + pct.toFixed(2) + '%;background:' + p[1] + '" '
-           + 'title="' + sesc(lbl) + ': ' + fmtNum(hits) + ' (' + pct.toFixed(1) + '%)"></span>';
+        au += '<span style="width:' + pct.toFixed(2) + '%;background:' + p[1] + '" '
+            + 'title="' + sesc(lbl) + ': ' + fmtNum(hits) + ' (' + pct.toFixed(1) + '%)"></span>';
       });
-      h += '</div>';
+      au += '</div>';
     }
-    h += '<p class="mg-muted">Classified from the log alone (user-agent + path) - an estimate, not '
-       + 'authenticated. &ldquo;Logged-in&rdquo; and &ldquo;AI&rdquo; are attributed per request, not per session.</p>';
+    au += '<p class="mg-muted">Classified from the log alone (user-agent + path) - an estimate, not '
+        + 'authenticated. &ldquo;Logged-in&rdquo; and &ldquo;AI&rdquo; are attributed per request, not per session.</p>';
+    h += block( 'audience', 'Who\u2019s calling', au, 1 );
   }
   if (d.anonymised) h += '<p class="mg-muted">* visitor IPs are anonymised (last octet zeroed) before counting.</p>';
 
   // Per-day bar chart
   if (d.per_day && d.per_day.length) {
     var max = d.per_day.reduce(function (m, x) { return x.count > m ? x.count : m; }, 0) || 1;
-    h += '<div class="mg-sec">Hits per day</div><div class="mg-bars">';
+    var pd = '<div class="mg-bars">';
     d.per_day.forEach(function (x) {
       var pct = Math.round(x.count / max * 100);
-      h += '<div class="mg-bar-row"><span class="mg-bar-label">' + sesc(x.day) + '</span>'
-         + '<span class="mg-bar"><span class="mg-bar-fill" style="width:' + pct + '%"></span></span>'
-         + '<span class="mg-bar-val">' + fmtNum(x.count) + '</span></div>';
+      pd += '<div class="mg-bar-row"><span class="mg-bar-label">' + sesc(x.day) + '</span>'
+          + '<span class="mg-bar"><span class="mg-bar-fill" style="width:' + pct + '%"></span></span>'
+          + '<span class="mg-bar-val">' + fmtNum(x.count) + '</span></div>';
     });
-    h += '</div>';
+    h += block( 'perday', 'Hits per day', pd + '</div>', 1 );
   }
 
   // SM213: month-on-month trend (filled async from the durable stats index).
-  h += '<div id="mom-block"></div>';
+  // SM424: MONTH ON MONTH IS A SECOND ROUND TRIP. `analyse_visitors&index=1`
+  // ran on every page load whether anyone looked at the deltas or not. It is
+  // now a block like the rest, and blockLoaders fetches it the first time it
+  // is opened.
+  h += block( 'monthly', 'Month on month',
+      '<div id="mom-block"><p class="mg-muted">Loading&hellip;</p></div>', 0 );
 
-  h += '<div class="mg-stat-cols">';
-  h += pageTable('Top pages', d.top_pages);
-  h += refBlock(d.referrers);
-  h += '</div>';
+  h += block( 'pages', 'Top pages and referrers',
+      '<div class="mg-stat-cols">'
+    + pageTable('Top pages', d.top_pages)
+    + refBlock(d.referrers)
+    + '</div>', 1 );   // open by default: the one most operators come for
 
   // SM363: how people MOVED, which SM336 computed and nothing displayed.
   // `exit` is the most actionable field a content owner can have - it names
@@ -166,21 +181,24 @@ function renderStats(d) {
     var j = d.journeys;
     var depthKeys = Object.keys(j.depth || {});
     if (d.sessions || depthKeys.length || (j.entry || []).length) {
-      h += '<div class="mg-sec">Visits</div>';
-      h += '<div class="mg-checks"><span class="mg-tag mg-tag-auto">visits: '
-         + fmtNum(d.sessions) + '</span>';
+      // SM424: ONE block for the whole subject rather than a bare heading
+      // followed by a second collapsible. Depth, entry and exit answer the
+      // same question - what a visit looked like - so an operator who does
+      // not want that question does not want any of it.
+      var vis = '<div class="mg-checks"><span class="mg-tag mg-tag-auto">visits: '
+              + fmtNum(d.sessions) + '</span>';
       // A visit ends on thirty minutes of silence or a day change, so the ones
       // still open are not counted yet. Said here rather than left to look
       // like an undercount.
       depthKeys.sort().forEach(function (k) {
-        h += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ' page(s): '
-           + fmtNum(j.depth[k]) + '</span>';
+        vis += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ' page(s): '
+             + fmtNum(j.depth[k]) + '</span>';
       });
-      h += '</div>';
-      h += '<div class="mg-stat-cols">';
-      h += pageTable('Where visits started', j.entry);
-      h += pageTable('Where visits ended', j.exit);
-      h += '</div>';
+      vis += '</div><div class="mg-stat-cols">'
+           + pageTable('Where visits started', j.entry)
+           + pageTable('Where visits ended', j.exit)
+           + '</div>';
+      h += block( 'visits', 'Visits', vis, 0 );
     }
   }
 
@@ -189,12 +207,12 @@ function renderStats(d) {
   // this payload while the page rendered neither, so an operator who enabled
   // search terms saw nothing happen and reasonably concluded it did not work.
   if (d.devices && Object.keys(d.devices).length) {
-    h += '<div class="mg-sec">Devices</div><div class="mg-checks">';
+    var dev = '<div class="mg-checks">';
     Object.keys(d.devices).sort(function (a, b) { return d.devices[b] - d.devices[a]; })
       .forEach(function (k) {
-        h += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ': ' + fmtNum(d.devices[k]) + '</span>';
+        dev += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ': ' + fmtNum(d.devices[k]) + '</span>';
       });
-    h += '</div>';
+    h += block( 'devices', 'Devices', dev + '</div>', 0 );
   }
 
   // ABSENT, not empty, when the switch is off - an empty list reads as "nobody
@@ -205,47 +223,48 @@ function renderStats(d) {
   // the first field the manager renders whose content a stranger chooses. They
   // are NOT put in an href - a search term is not a URL.
   if (d.search_terms && d.search_terms.length) {
-    h += '<div class="mg-sec">What visitors searched for</div>';
-    h += '<table class="mg-table"><thead><tr><th>Term</th><th>Searches</th></tr>'
-       + '</thead><tbody>';
+    var st = '<table class="mg-table"><thead><tr><th>Term</th><th>Searches</th></tr>'
+           + '</thead><tbody>';
     d.search_terms.forEach(function (t) {
-      h += '<tr><td style="word-break:break-all">' + sesc(t.key) + '</td><td>'
-         + fmtNum(t.count) + '</td></tr>';
+      st += '<tr><td style="word-break:break-all">' + sesc(t.key) + '</td><td>'
+          + fmtNum(t.count) + '</td></tr>';
     });
-    h += '</tbody></table>';
-    h += '<p class="mg-muted">A term is only recorded once ' + fmtNum(3)
-       + ' separate visits have used it, so a one-off is never stored.</p>';
+    st += '</tbody></table>';
+    st += '<p class="mg-muted">A term is only recorded once ' + fmtNum(3)
+        + ' separate visits have used it, so a one-off is never stored.</p>';
+    h += block( 'search', 'What visitors searched for', st, 0 );
   }
 
   // Status codes
   if (d.status) {
     var codes = Object.keys(d.status).sort();
-    h += '<div class="mg-sec">Status codes</div><div class="mg-checks">';
-    codes.forEach(function (c) { h += '<span class="mg-tag mg-tag-auto">' + sesc(c) + ': ' + fmtNum(d.status[c]) + '</span>'; });
-    h += '</div>';
+    var sc = '<div class="mg-checks">';
+    codes.forEach(function (c) { sc += '<span class="mg-tag mg-tag-auto">' + sesc(c) + ': ' + fmtNum(d.status[c]) + '</span>'; });
+    h += block( 'status', 'Status codes', sc + '</div>', 0 );
   }
 
   // Recent server errors - synthesised categories + counts only (no raw lines,
   // addresses or paths).
   if (d.errors && d.errors.available) {
-    h += '<div class="mg-sec">Recent server errors</div>';
     var cats = d.errors.categories || [];
+    var er = '';
     if (!cats.length) {
-      h += '<p class="mg-muted">No recent errors.</p>';
+      er = '<p class="mg-muted">No recent errors.</p>';
     } else {
-      h += '<div class="mg-checks">';
+      er = '<div class="mg-checks">';
       cats.forEach(function (c) {
-        h += '<span class="mg-tag mg-tag-auto">' + sesc(c.label) + ': ' + fmtNum(c.count) + '</span>';
+        er += '<span class="mg-tag mg-tag-auto">' + sesc(c.label) + ': ' + fmtNum(c.count) + '</span>';
       });
-      h += '</div>';
+      er += '</div>';
     }
+    h += block( 'errors', 'Recent server errors', er, 0 );
   }
 
   // Source - the disk path is never shown, and the raw log is never downloadable.
   h += '<p class="mg-muted" style="margin-top:1rem">' + fmtNum(d.scanned_lines)
      + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.</p>';
   body.innerHTML = h;
-  loadMonthly();
+  bindBlocks();
 }
 
 // SM213: best-effort month-on-month indicator from the durable per-day store's
@@ -285,6 +304,104 @@ function tile(label, value) {
   return '<div class="mg-stat-tile"><div class="mg-stat-value">' + sesc(value)
        + '</div><div class="mg-stat-label">' + sesc(label) + '</div></div>';
 }
+// SM424: ONE BLOCK AT A TIME. The operator's report was that this page renders
+// every block at once, so somebody looking for one of them scrolls past all of
+// them - and the page grows with each block added.
+//
+// <details> rather than a JS accordion: it is keyboard-operable and readable by
+// a screen reader without anything written here, and a block that fails to
+// render leaves the rest of the page intact rather than taking the accordion
+// with it.
+//
+// The open set is remembered per viewer, because an operator who checks
+// Referrers every morning should not reopen it every morning. localStorage can
+// throw outright (a private window, site data blocked), so every read and write
+// is guarded and the page renders correctly with no stored value at all.
+// NEVER STORED means the default applies, which is not the same as SHUT - a
+// first visit must show what the page is for. The distinction lives here so
+// the blocks inside the report and the two whole cards below cannot disagree
+// about it.
+function blockOpen(key, openByDefault) {
+  try {
+    var v = localStorage.getItem('lzs-stats-' + key);
+    return (v === null) ? !!openByDefault : (v === 'open');
+  } catch (e) { return !!openByDefault; }
+}
+function statsToggle(key, isOpen) {
+  try { localStorage.setItem('lzs-stats-' + key, isOpen ? 'open' : 'shut'); }
+  catch (e) { /* nothing to remember with - the block still opens */ }
+}
+function block(key, title, inner, openByDefault) {
+  var isOpen = blockOpen(key, openByDefault);
+  // The key travels in data-block; the listener is bound by bindBlocks below.
+  return '<details class="mg-stat-block" data-block="' + sesc(key) + '"'
+       + (isOpen ? ' open' : '')
+       + '><summary class="mg-sec">' + sesc(title) + '</summary>'
+       + inner + '</details>';
+}
+
+// INLINE HANDLERS ARE THE MANAGER'S CSP DEBT - a nonce does not reach an
+// attribute, so anything bound that way breaks the moment the policy is
+// enforced. These blocks are rebuilt on every render, so the binding happens
+// after the write rather than once at load.
+// A block whose contents cost a request of their own. The report itself is one
+// payload assembled from buckets the ingest has already parsed, so splitting
+// THAT would multiply the ingest rather than divide it - but these are separate
+// calls, and they should follow the operator rather than run regardless.
+var blockLoaders = { monthly: loadMonthly };
+var blockLoaded  = {};
+function blockMaybeLoad(key, isOpen) {
+  if (!isOpen || blockLoaded[key] || !blockLoaders[key]) return;
+  blockLoaded[key] = 1;
+  blockLoaders[key]();
+}
+function bindBlocks() {
+  var els = document.querySelectorAll('details[data-block]');
+  Array.prototype.forEach.call(els, function (el) {
+    var key = el.getAttribute('data-block');
+    el.addEventListener('toggle', function () {
+      statsToggle(key, el.open);
+      blockMaybeLoad(key, el.open);
+    });
+    // A block this viewer left open is open on arrival, and no toggle event
+    // fires for that - so it would sit on "Loading..." for ever.
+    blockMaybeLoad(key, el.open);
+  });
+}
+
+function bindCard(key, bodyId, load) {
+  var btn = document.getElementById(key + '-toggle');
+  if (btn) {
+    btn.addEventListener('click', function () { cardToggle(key, bodyId, load); });
+  }
+}
+
+// SM424: the same rule for a WHOLE CARD. Trails and the blocked-address list
+// are their own cards below the report, and an operator who came for hits per
+// day scrolls past both. They collapse the same way and remember the same way,
+// and the fetch is DEFERRED to the first open - a card nobody expands costs no
+// request at all, which the previous unconditional loadBlocked() did on every
+// page load whether anyone looked or not.
+var cardLoaded = {};
+function cardSet(key, bodyId, open, load) {
+  var el = document.getElementById(bodyId);
+  if (!el) return;
+  var btn = document.getElementById(key + '-toggle');
+  el.hidden = !open;
+  if (btn) {
+    btn.textContent = open ? 'Hide' : 'Show';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (open && !cardLoaded[key]) { cardLoaded[key] = 1; load(); }
+}
+function cardToggle(key, bodyId, load) {
+  var el = document.getElementById(bodyId);
+  if (!el) return;
+  var open = el.hidden;    // hidden now means this click opens it
+  statsToggle(key, open);
+  cardSet(key, bodyId, open, load);
+}
+
 function pageTable(title, rows) {
   var h = '<div class="mg-stat-col"><div class="mg-sec">' + sesc(title) + '</div>';
   if (!rows || !rows.length) { return h + '<p class="mg-muted">None.</p></div>'; }
@@ -379,13 +496,23 @@ function initTrails(plugin) {
       + 'finish - a visit ends on thirty minutes of silence - so a day appears here shortly after '
       + 'its first completed visit.</p>';
     sel.innerHTML = '';
-    return;
+  } else {
+    sel.innerHTML = trailDays.map(function (d) {
+      return '<option value="' + sesc(d) + '">' + sesc(d) + '</option>';
+    }).join('');
+    sel.addEventListener('change', function () { loadTrails(sel.value); });
   }
-  sel.innerHTML = trailDays.map(function (d) {
-    return '<option value="' + sesc(d) + '">' + sesc(d) + '</option>';
-  }).join('');
-  sel.addEventListener('change', function () { loadTrails(sel.value); });
-  loadTrails(trailDays[0]);
+  // SM424: the day LIST rides along on the descriptor the summary already
+  // fetched, so filling the select costs nothing and is done either way. The
+  // day's journeys are a second round trip, and that one waits until somebody
+  // opens the card.
+  cardSet( 'card-trails', 'trails-card-body',
+      blockOpen( 'card-trails', 0 ), trailsLoadCurrent );
+}
+
+function trailsLoadCurrent() {
+  var sel = document.getElementById('trail-day');
+  if (sel && sel.value) loadTrails(sel.value);
 }
 
 function loadTrails(day) {
@@ -455,5 +582,9 @@ function renderTrails(d) {
 }
 
 loadStats();
-loadBlocked();
+// Both cards honour what this viewer last chose; neither fetches until it is
+// actually open.
+bindCard( 'card-blocked', 'blocked-body', loadBlocked );
+bindCard( 'card-trails',  'trails-card-body', trailsLoadCurrent );
+cardSet( 'card-blocked', 'blocked-body', blockOpen( 'card-blocked', 0 ), loadBlocked );
 </script>

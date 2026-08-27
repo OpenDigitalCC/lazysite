@@ -44,6 +44,33 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM424 partial (PENDING) **the stats page opens one block at a time.** One
+  page rendered every block - visits, depth, entry and exit pages, devices,
+  search terms, status codes, server errors, journeys and the blocked-address
+  list - and an operator looking for one of them scrolled past all of them.
+  Every section of the report is now a collapsible block and the open set is
+  remembered per viewer, so somebody who checks Referrers each morning does not
+  reopen it each morning. Native `<details>`, so it is keyboard- and
+  screen-reader-correct with no script, and a block that fails to render leaves
+  the rest of the page standing rather than taking an accordion with it. The
+  two whole cards below the report - Visitor journeys and Blocked IPs -
+  collapse the same way and DO NOT FETCH until they are opened: the page called
+  `loadBlocked()` on every load whether anyone looked or not, and
+  `analyse_visitors&index=1` for the month-on-month deltas on every load
+  too - three server calls where one was needed. The report itself stays
+  ONE payload deliberately: the ingest is incremental and every section is
+  assembled from buckets it has already parsed, so a per-section fetch
+  would repeat the ingest rather than divide it. Who's calling,
+  Hits per day and Top pages stay open, because collapsing the answer to the
+  common question trades one annoyance for another. `localStorage` is reached
+  only through two guarded helpers - it throws on the accessor itself in a
+  private window - and a never-stored key falls back to the default rather than
+  to shut, so a first visit shows figures. No new inline event handlers: the
+  toggles bind through `addEventListener`, because a nonce does not reach an
+  attribute and that is the whole of the manager's CSP debt. NOT the brief's
+  three-page split, and NOT P4 (the blocked list moving to Plugin Config) -
+  both recorded on the filing, the second now entangled with SM640.
+
 - SM427/SM636 resolved (PENDING) **a permission says what it grants, and the
   group list says which groups can be given to a person.** **SM427**: SM421
   ruled that permission is the control - where a capability is granted, every
