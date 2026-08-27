@@ -1307,7 +1307,7 @@ my %TOOLS = (
     },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
-        cap => 'manage_content', path_aware => 1,
+        cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
     },
@@ -1346,7 +1346,7 @@ my %TOOLS = (
         # already did; only the MCP READ undershot. Low sensitivity - nav is
         # public - but the engine's own rule about who owns nav.conf was not
         # upheld on one surface out of three.
-        cap         => 'manage_nav', path_aware => 1,
+        cap         => 'manage_nav',
         inputSchema => { type => 'object',
             properties => {
                 host => { type => 'string', description => 'configured domain to read; omit for the primary site' },
@@ -1426,7 +1426,7 @@ my %TOOLS = (
     },
     list_pages => {
         description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
-        cap => 'manage_content', path_aware => 1,
+        cap => 'manage_content',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _list_pages() },
     },
@@ -1473,7 +1473,7 @@ my %TOOLS = (
     },
     regenerate_registries => {
         description => 'Clear the generated registries - sitemap.xml, llms.txt, robots.txt and the feeds - so they rebuild from current content on the next request. Use after deleting or renaming a page when you want to VERIFY the result: a delete removes the page immediately but the registries are rebuilt asynchronously, so checking the sitemap straight afterwards can still show the old URL. Clears every content root, so a multi-domain instance is handled in one call. Fetch the registry afterwards to force the rebuild.',
-        cap         => 'manage_content', path_aware => 1,
+        cap         => 'manage_content',
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },
         run => sub {
@@ -3669,7 +3669,14 @@ elsif ( $method eq 'tools/call' ) {
         $need .= " or $tool->{cap_also}" if defined $tool->{cap_also};
         if ( $tool->{path_aware} ) {
             my $a = $params->{arguments} || {};
-            my $p = $a->{path} // $a->{to} // $a->{from} // '';
+            # SM661: the same list again, so the override and the confinement
+            # cannot disagree about which argument carries the path.
+            my $p = '';
+            for my $pk (@Lazysite::Manager::Common::PATH_ARGS) {
+                next unless defined $a->{$pk} && length $a->{$pk};
+                $p = $a->{$pk};
+                last;
+            }
             if ( $p =~ m{^/?lazysite/layouts/} ) {
                 $need   = 'manage_themes or manage_layouts';
                 $cap_ok = ( $caps->{manage_themes} || $caps->{manage_layouts} ) ? 1 : 0;
@@ -3696,7 +3703,10 @@ elsif ( $method eq 'tools/call' ) {
     if ( $tool->{path_aware} ) {
         my $a = $params->{arguments} || {};
         my $w = ( $name =~ /^(?:read|list|search|preview|view)/ ) ? 'read' : 'write';
-        for my $pk (qw(path to from)) {
+        # SM661: every argument that carries a path, from the one list in
+        # Manager::Common - not a hardcoded three. create_page's `slug` and
+        # rename_page's `old`/`new` were not inspected here either.
+        for my $pk (@Lazysite::Manager::Common::PATH_ARGS) {
             my $p = $a->{$pk};
             next unless defined $p && length $p;
             my $refusal
@@ -3717,7 +3727,11 @@ elsif ( $method eq 'tools/call' ) {
     my $scopes = $caps->{dav_scopes};
     if ( ref $scopes eq 'ARRAY' && @$scopes ) {
         my $a = $params->{arguments} || {};
-        for my $pk (qw(path to from)) {
+        # SM661: the same list. A grant scoped to one domain created a page in
+        # another through create_page, because `slug` was not among the three
+        # names this loop knew about - a well-formed call the confinement never
+        # looked at.
+        for my $pk (@Lazysite::Manager::Common::PATH_ARGS) {
             my $p = $a->{$pk};
             next unless defined $p && length $p;
             next if $p =~ m{^/?lazysite/};

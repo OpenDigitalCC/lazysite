@@ -270,6 +270,25 @@ sub path_out_of_scope {
     return ( $rel eq $s || index( $rel, "$s/" ) == 0 ) ? 0 : 1;
 }
 
+# SM661: EVERY ARGUMENT NAME THAT CARRIES A CONTENT PATH.
+#
+# The MCP dispatcher's two confinement passes - the SM155 scope check and the
+# SM268 H4 carve-out check - iterated a hardcoded qw(path to from). create_page
+# declares `slug`; rename_page declares `old` and `new`. Neither name was
+# inspected, so neither call was confined, and a grant scoped to one domain
+# created and moved content in another. Nothing was malformed: the calls were
+# well-formed and the tools did exactly what they advertise.
+#
+# Named ONCE here, read by both passes, and pinned by t/lint/91 - which refuses
+# a path_aware tool that declares a property this list does not know about. A
+# longer hardcoded list would be the same defect in a year; the lint is what
+# makes the next differently-named path argument a decision rather than a
+# discovery.
+#
+# `host` is deliberately absent: it is a domain name, not a content path, and
+# read_nav resolves it through the domain registry rather than as a path.
+our @PATH_ARGS = qw(path to from slug old new);
+
 # SM155: a user may be confined by SEVERAL groups' content roots (the union -
 # an editor of clienta AND clientb). Returns 1 iff the set is non-empty AND the
 # path lies outside EVERY scope (i.e. deny); an empty set confines nothing

@@ -58,6 +58,25 @@ has; listing them plainly is what happens now.
 
 One of the first two, plus the third.
 
+# The audit ran, and found a scope escape
+
+**Done 2026-08-27, and it was not the listing problem it was scoped as.** Six
+`path_aware` tools declared no `path`/`to`/`from` argument. Four of them
+(`audit_site`, `read_nav`, `list_pages`, `regenerate_registries`) genuinely
+take no path, and their flag has been removed - it could never fire at call
+time and made them visible to a themes-only grant at listing time. That is
+27 tools down to 23, so the over-listing this filing is about is smaller.
+
+The other two were the finding. `create_page` takes `slug`; `rename_page`
+takes `old` and `new` - real paths, under names the confinement passes did not
+inspect. A grant scoped to one domain created and moved content in another.
+Fixed as **SM661**, which also names every path-carrying argument once and
+lints against the list drifting again.
+
+So the remaining scope of THIS filing is the original one: 23 tools are offered
+to a themes-only grant that can call them only on theme and layout paths, and
+the listing has no vocabulary for "on some paths". Enforcement is correct.
+
 # A sharper form of the same gap, found building SM654's lint
 
 Several tools carry `path_aware => 1` and appear to accept no path at all -

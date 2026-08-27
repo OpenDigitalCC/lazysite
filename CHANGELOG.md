@@ -44,6 +44,26 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM661 fixed (PENDING) **a scoped partner is confined whatever the argument is
+  called.** SECURITY. A grant with `dav_scopes: ['/sites/alpha']` was correctly
+  refused `write_file` to `/sites/beta` - and in the same session CREATED a page
+  there through `create_page` and MOVED one there through `rename_page`. Both
+  confinement passes in the MCP dispatcher iterated a hardcoded
+  `qw(path to from)`; `create_page` declares `slug` and `rename_page` declares
+  `old`/`new`, so neither call was inspected by the SM155 scope pass or the
+  SM268 H4 carve-out pass. Nothing was malformed - the calls were well-formed
+  and the tools did exactly what they advertise. SEC-2026-07 (M2)/SM155 requires
+  a scoped partner to be confined on every channel, and this bypassed it by
+  parameter naming alone. The control API does not share it. Every
+  path-carrying argument is now named once in
+  `Lazysite::Manager::Common::@PATH_ARGS` and read by all three places that
+  inspect one, and `t/lint/91` refuses a `path_aware` tool declaring a property
+  the list has no answer for - so the next differently-named path argument is a
+  decision rather than a discovery. Also from the same audit: `path_aware` is
+  removed from `audit_site`, `read_nav`, `list_pages` and
+  `regenerate_registries`, which declare no path argument at all (27 tools down
+  to 23). Found while auditing the flag for SM653.
+
 - SM645 fixed (PENDING) **an upgraded site can adopt a capability a later
   release added.** `_ensure_manager_group_caps` returned early for any group
   with a record, so it reached FRESH sites only - and `housekeeping`/`purge`,
