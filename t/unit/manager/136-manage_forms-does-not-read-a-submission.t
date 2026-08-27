@@ -1,0 +1,87 @@
+#!/usr/bin/perl
+# SM652: the control API served live submissions to `manage_forms`; MCP
+# required `read_submissions` for the same data.
+#
+# Measured by the site agent 2026-08-26: the same token, in the same minute,
+# read submissions over one channel while `tools/list` did not even offer the
+# tool on the other. Both registries were internally consistent; they simply
+# gave different answers to "who may read a form submission", and a submission
+# is personal data.
+#
+# THE DIVERGENCE WAS DOCUMENTED IN THE WRONG PLACE. form_list's description
+# said "Needs read_submissions (a least-privilege read; the control API also
+# accepts manage_forms)" - documenting the control API's rule, on MCP, in the
+# description of a tool the caller was not offered. An operator granting
+# manage_forms and reading MCP concluded the capability was definition-only;
+# the same operator reading the control API found it read live submissions.
+# Neither was wrong about the surface they read.
+#
+# The release manager chose to narrow the API, so manage_forms is genuinely
+# definition-only and reading a submission always needs the least-privilege
+# capability built for it.
+#
+# form-list is narrowed too, because it returns row_count - whether a form has
+# submissions and how many - which is a read of submission EXISTENCE even
+# though it carries no content. MCP has always treated it that way.
+#
+# THE CREDENTIAL IS THE POINT: manage_forms WITHOUT read_submissions. A test
+# using a grant that holds both proves nothing about which one opened the door.
+use strict;
+use warnings;
+use Test::More;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(repo_root);
+
+my $root = repo_root();
+my $api  = do {
+    open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+    local $/;
+    <$fh>;
+};
+my $mcp = do {
+    open my $fh, '<', "$root/lazysite-mcp.pl" or die $!;
+    local $/;
+    <$fh>;
+};
+
+# The gate predicates, read from the table rather than from prose about it.
+my ($need) = $api =~ /\n( *my %need = \(.*?\n *\);)/s;
+ok( $need, 'the token gate table was found' )
+    or BAIL_OUT('no %need - nothing below compares anything');
+my ($cookie) = $api =~ /\n( *my %COOKIE_CAP = \(.*?\n *\);)/s;
+ok( $cookie, 'the cookie gate table was found' ) or BAIL_OUT('no %COOKIE_CAP');
+
+for my $t ( [ 'token', $need ], [ 'cookie', $cookie ] ) {
+    my ( $which, $tbl ) = @{$t};
+    for my $act (qw(form-submissions form-list)) {
+        my ($line) = $tbl =~ /^\s*'\Q$act\E'\s*=>\s*(.+)$/m;
+        ok( defined $line, "$which gate names $act" ) or next;
+        like( $line, qr/read_submissions/,
+            "$which: $act needs read_submissions" );
+        unlike( $line, qr/manage_forms/,
+            "$which: $act does NOT accept manage_forms - the capability is "
+                . "definition-only now" );
+    }
+}
+
+# --- and MCP is unchanged, because it was already right ---------------------
+# If this had drifted the other way the channels would agree at the wrong
+# value, and every assertion above would still pass.
+for my $tool (qw(form_list read_form_submissions)) {
+    my ($body) = $mcp =~ /^\s{4}\Q$tool\E\s*=>\s*\{(.*?)^\s{4}\},/ms;
+    ok( defined $body, "MCP declares $tool" ) or next;
+    like( $body, qr/cap\s*=>\s*'read_submissions'/,
+        "MCP: $tool still requires read_submissions" );
+}
+
+# --- the description that documented the divergence -------------------------
+# It described the control API's rule on the surface that did not implement
+# it. With the rule gone, the sentence is not merely stale - it tells a reader
+# the opposite of what both channels now do.
+my ($fl) = $mcp =~ /^\s{4}form_list\s*=>\s*\{(.*?)^\s{4}\},/ms;
+unlike( $fl // '', qr/control API also accepts manage_forms/,
+    'the note describing the divergence is gone - the channels agree, and a '
+        . 'stale sentence about the old rule would now be actively wrong' );
+
+done_testing();

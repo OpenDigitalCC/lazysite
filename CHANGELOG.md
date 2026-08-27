@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM652 fixed (PENDING) **one capability reads a submission, on every channel.**
+  The control API served live submissions to `manage_forms` OR
+  `read_submissions`; MCP required `read_submissions`. Both registries were
+  internally consistent and gave different answers to "who may read a form
+  submission", and a submission is personal data - so an operator's
+  expectation was set by whichever surface they happened to read. Worse, the
+  divergence was documented on the surface that did NOT implement it, in the
+  description of the other tool. **The control API is narrowed**:
+  `form-submissions` and `form-list` need `read_submissions` on both the token
+  and cookie gates, and `manage_forms` is genuinely definition-only.
+  `form-list` is included because it returns `row_count` - whether a form has
+  submissions and how many - which is a read of submission existence even
+  without content. **BREAKING**: an integration holding only `manage_forms`
+  loses both reads. Exposed and deliberately not fixed here: `manage_forms`
+  can still DELETE a submission it may not read, filed as SM660.
+
 - SM644 shipped (PENDING) **the groups can be put back.** When access does not
   work the fix under pressure is to grant something, and the grant outlives the
   problem; nothing records WHY a capability was granted, so the drift is

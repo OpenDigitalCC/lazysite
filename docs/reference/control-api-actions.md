@@ -99,10 +99,10 @@ tone: medium
 `file-upload` | cookie only | path (query)
 `file-zip-download` | cookie only |  
 `form-delete` | manage_forms | form (query_or_body), confirm (body)
-`form-list` | manage_forms / read_submissions |  
+`form-list` | read_submissions |  
 `form-submission-confirm` | cookie only | file (query_or_body), id (body)
 `form-submission-delete` | cookie only | file (query_or_body), id (body)
-`form-submissions` | manage_forms / read_submissions | file (query)
+`form-submissions` | read_submissions | file (query)
 `form-submissions-delete-bulk` | cookie only | file (query_or_body), ids (body)
 `form-targets-read` | cookie only | form (query)
 `form-targets-save` | cookie only | form (query), targets (body)

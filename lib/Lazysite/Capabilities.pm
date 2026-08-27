@@ -104,8 +104,10 @@ my %ACTION_INFO = (
         # silent on what it READS, while the sentence it did spend words on -
         # that the notification never carries content - reads as a reassurance
         # about the grant. It is a statement about the BELL. `form-submissions`
-        # is gated on [manage_forms, read_submissions] and EITHER admits, so
-        # this grant returns live submission bodies. Measured on edge
+        # WAS gated on [manage_forms, read_submissions], either admitting - so
+        # this grant returned live submission bodies. SM652 narrowed it to
+        # read_submissions on both channels; the measurement below is what that
+        # capability now hands over, not this one. Measured on edge
         # 2026-08-26: name, email, phone, message and the submitter's IP, under
         # a capability an operator grants to let an agent wire up a form.
         title => 'Wire forms to delivery handlers - AND read what has been '
@@ -123,9 +125,10 @@ my %ACTION_INFO = (
         # SM457: the API list was MISSING, and its absence sent a real
         # operator's agent guessing.
         #
-        # form-submissions is gated on [manage_forms, read_submissions] -
-        # either capability admits it. read_submissions advertises it
-        # correctly; this one advertised no api key at all, so a partner
+        # form-submissions needs read_submissions (SM652 narrowed it from
+        # [manage_forms, read_submissions], where either admitted).
+        # read_submissions advertises it correctly; this one advertised no api
+        # key at all, so a partner
         # holding manage_forms was told about MCP tools and a WebDAV path and
         # nothing about the control API, while enforcement let them straight
         # in. They tried describe_capabilities, list_form_handlers, forms,
@@ -143,7 +146,12 @@ my %ACTION_INFO = (
             # Declared on both surfaces at the same time, because a capability
             # that advertises the create and not the destroy is how an agent
             # concludes the object is permanent (t/lint/71, t/lint/23).
-            api    => [qw(form-submissions form-list form-delete)],
+            # SM652: form-submissions and form-list are GONE from here - they
+            # need read_submissions on both channels now, and a map that still
+            # advertised them would tell a holder it can do something the gate
+            # refuses. That is the same stale claim SM652's own test caught in
+            # form_list's MCP description.
+            api    => [qw(form-delete)],
             mcp    => [qw(list_form_handlers bind_form delete_form)],
             webdav => ['lazysite/forms/<name>.conf (not smtp.conf / handlers.conf)'],
         },

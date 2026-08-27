@@ -129,10 +129,14 @@ our %ACTION = (
     'file-download' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'file-upload'   => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'file-zip-download' => { caps => undef, params => [] },
-    'form-list' => { caps => [ 'manage_forms', 'read_submissions' ], params => [] },
+    # SM652: read_submissions ONLY, on both channels - form-list returns
+    # row_count, which is a read of submission EXISTENCE.
+    'form-list' => { caps => ['read_submissions'], params => [] },
     'form-submission-confirm' => { caps => undef, params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
     'form-submission-delete' => { caps => undef, params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
-    'form-submissions' => { caps => [ 'manage_forms', 'read_submissions' ], params => [ { name => 'file', in => 'query' } ] },
+    # SM652: manage_forms is definition-only now; reading a submission needs
+    # the least-privilege capability built for it.
+    'form-submissions' => { caps => ['read_submissions'], params => [ { name => 'file', in => 'query' } ] },
     'form-submissions-delete-bulk' => { caps => undef, params => [ { name => 'file', in => 'query_or_body' }, { name => 'ids', in => 'body' } ] },
     'form-targets-read' => { caps => undef, params => [ { name => 'form', in => 'query' } ] },
     'form-targets-save' => { caps => undef, params => [ { name => 'form', in => 'query' }, { name => 'targets', in => 'body' } ] },

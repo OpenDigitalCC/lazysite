@@ -91,9 +91,17 @@ my $caps = $map->{capabilities};
     for my $c ( Lazysite::Capabilities::action_keys() ) {
         push @{ $under{$_} }, $c for @{ $caps->{$c}{unlocks}{api} || [] };
     }
+    # SM652 NARROWED THIS, and SM618's requirement survives the change. SM618's
+    # point was that a capability must DECLARE the personal data it hands over;
+    # it asserted both capabilities admitted the read because both did. Only
+    # read_submissions does now - manage_forms is definition-only - so the
+    # declaration is simpler rather than weaker, and the map must not advertise
+    # a read manage_forms can no longer perform.
     my @admit = sort @{ $under{'form-submissions'} || [] };
-    is_deeply( \@admit, [qw(manage_forms read_submissions)],
-        'form-submissions is admitted by both capabilities, as both titles now say' )
+    is_deeply( \@admit, ['read_submissions'],
+        'form-submissions is admitted by read_submissions ALONE, and the map '
+            . 'says so - manage_forms advertising it would be a claim the gate '
+            . 'refuses' )
         or diag( explain $under{'form-submissions'} );
 }
 

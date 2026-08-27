@@ -716,8 +716,19 @@ if ( !$token_auth ) {
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
         'form-delete'             => 'manage_forms',
-        'form-submissions' => 'manage_forms|read_submissions', # SM182/SM187: read PII submissions (GET)
-        'form-list' => 'manage_forms|read_submissions',   # SM214: PII-free form discovery
+        # SM652: read_submissions ONLY, so the two channels agree about who may
+        # read a submission. MCP has required it for both since it was written;
+        # the control API also accepted manage_forms, and the divergence was
+        # documented on the surface that does NOT implement it, in the
+        # description of the other tool. An operator's expectation was set by
+        # whichever surface they happened to read.
+        #
+        # form-list is included because it returns row_count - whether a form
+        # has submissions and how many - which is a read of submission
+        # EXISTENCE even though it carries no content. MCP treats it that way
+        # and always has.
+        'form-submissions' => 'read_submissions',    # SM182/SM187: PII submissions (GET)
+        'form-list'        => 'read_submissions',    # SM214: names + submission COUNTS
         'form-submission-delete' => 'manage_forms', # SM187: remove a handled submission row
         'form-submission-confirm' => 'manage_forms', # SM216: clear a row's quarantine flag
         'form-submissions-delete-bulk' => 'manage_forms', # SM187: delete several rows at once
@@ -904,8 +915,10 @@ if ($token_auth) {
         'site-export-primary'  => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
-        'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
-        'form-list' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} }, # SM214: read-only, PII-free
+            # SM652: see the declaration table above - read_submissions only, on both
+            # channels. manage_forms becomes genuinely definition-only.
+        'form-submissions' => sub { $_[0]->{read_submissions} },
+        'form-list'        => sub { $_[0]->{read_submissions} },
         'form-delete' => sub { $_[0]->{manage_forms} },  # SM632: the inverse of bind_form
         'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
         'bad-url-unblock' => sub { $_[0]->{manage_config} },
