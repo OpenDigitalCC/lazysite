@@ -55,6 +55,77 @@ The second is cheap and honest. The first is safer and is not free. This filing
 does not choose; it records that the choice is currently being made by accident,
 differently, in two places.
 
+# Worked examples, and why "flip the default" is the wrong instrument
+
+Requested by the operator 2026-08-27, who could not direct the decision from
+the filing as written. Reading the code changes the shape of it.
+
+## The rule, in full
+
+    sub _may_reach {
+        my ($table) = @_;
+        return 1 unless @CALLER_SCOPES;   # unconfined - the operator
+        my $dom = _table_domain($table);
+        return 1 unless length $dom;      # unscoped - as it always was
+        return ( grep { $_ eq $dom } _caller_domains() ) ? 1 : 0;
+    }
+
+There are TWO escapes, and only the second is the migration story this filing
+and SM593 discuss.
+
+The first is the finding. `@CALLER_SCOPES` empty means *unconfined*, and the
+source says why: **"EMPTY MEANS UNCONFINED, which is the operator - never 'no
+domains'. The CLI and the processor's render path leave it empty and are
+unaffected."**
+
+## An overloaded sentinel, not a chosen default
+
+Three different callers arrive as the same value:
+
+| Caller | `@CALLER_SCOPES` | What it means |
+|---|---|---|
+| The CLI | empty | no confinement applies |
+| The processor's render path | empty | no confinement applies |
+| **A token grant with no domain access** | **empty** | **confined to nothing** |
+
+Only two callers set it at all - `lazysite-manager-api.pl` and
+`lazysite-mcp.pl`. Everything else leaves it alone and is unconfined by
+construction.
+
+## The three options, against one instance
+
+Two domains, three tables: `contacts` (domain alpha), `stock` (domain beta),
+`settings` (no domain).
+
+| Caller | Today | Flip the default | Distinguish the sentinel |
+|---|---|---|---|
+| CLI / render path | all three | **breaks - reaches none** | all three |
+| Grant scoped to alpha | contacts + settings | unchanged | unchanged |
+| **Scopeless token grant** | **all three** | none | **settings only** |
+
+**Flipping the default is not available.** It would confine the CLI and the
+render path, and a render path that reaches no table serves a page with its
+data missing - on every site, not only multi-domain ones. That is almost
+certainly why packages could fail closed (SM578) and tables could not: packages
+have no render path and no CLI reading them through the same predicate.
+
+## What the fix actually is
+
+A third state, not a different default:
+
+- `undef` - unconfined. The CLI, the render path.
+- `[]` - confined, to nothing. A token grant with no domain access.
+- `[...]` - confined to these.
+
+Two call sites set the value, so the change is small and localised, and the CLI
+keeps working because it is genuinely unconfined rather than accidentally so.
+
+**This also settles part of SM611.** "An instance-wide table as the deliberate
+exception" is already implemented, as the SECOND escape - a table naming no
+domain is reachable by anyone, which is the upgrade-day promise SM593 made and
+should keep. The defect is only in the first escape, and only for callers that
+are confined but have nothing to be confined to.
+
 # Where the decision belongs
 
 SM611 asks whether a data table should belong to a site, with an instance-wide
