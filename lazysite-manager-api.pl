@@ -249,6 +249,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
 my $auth_user;
 my $token_auth = 0;
 my %token_caps;
+my $REQUEST_CONFINED = 0;    # SM648: were this caller's scopes RESOLVED?
 my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
                        # per-domain content-access checks in actions like
                        # site-backup-create/apply. Empty => unconfined operator.
@@ -765,6 +766,10 @@ if ( !$token_auth ) {
         # another domain's content through the manager UI.
         _confine_scope( $caps->{dav_scopes}, 'ui' );
         @REQUEST_SCOPES = @{ $caps->{dav_scopes} || [] };
+        # SM648: resolved, therefore CONFINED - even if the resolution is empty.
+        # This block is inside !_operator(), so an operator never reaches it and
+        # stays unconfined, which is the distinction the flag exists to carry.
+        $REQUEST_CONFINED = 1;
     }
 }
 
@@ -1044,6 +1049,9 @@ if ($token_auth) {
     # content subtree(s) over WebDAV and must be here as well.
     _confine_scope( $token_caps{dav_scopes}, 'api' );
     @REQUEST_SCOPES = @{ $token_caps{dav_scopes} || [] };
+    # SM648: a token client is always a confined principal - it holds a grant,
+    # and an empty scope set means it reaches no domain rather than every one.
+    $REQUEST_CONFINED = 1;
 
     # SM071 Phase 3 (P3.6): per-token volume throttle. 429 + Retry-After
     # so the client can back off per the documented retry contract.
@@ -1168,7 +1176,8 @@ my %uskip = map { $_ => 1 } qw(
 # dispatch, where @REQUEST_SCOPES is final for this request. Empty stays empty:
 # an unconfined grant is the operator and the data surface behaves as it always
 # did.
-@Lazysite::Manager::Data::CALLER_SCOPES = @REQUEST_SCOPES;
+@Lazysite::Manager::Data::CALLER_SCOPES   = @REQUEST_SCOPES;
+$Lazysite::Manager::Data::CALLER_CONFINED = $REQUEST_CONFINED;
 
 # --- Dispatch ---
 

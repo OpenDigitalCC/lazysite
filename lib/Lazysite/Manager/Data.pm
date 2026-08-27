@@ -46,6 +46,24 @@ our $DOCROOT;    # set by the caller (manager-api or the CLI)
 # EMPTY MEANS UNCONFINED, which is the operator - never "no domains". The CLI
 # and the processor's render path leave it empty and are unaffected.
 our @CALLER_SCOPES;
+
+# SM648: THE THIRD STATE. Empty @CALLER_SCOPES meant two opposite things - "no
+# confinement applies" for the CLI and the render path, and "confined to
+# nothing" for a grant with no domain access - and the second was reading every
+# table on the instance because it presented as the first.
+#
+# Flipping the default was never available: failing closed on empty would have
+# confined the CLI and the render path too, and a render path that reaches no
+# table serves a page with its data missing, on every site rather than only
+# multi-domain ones. That is very likely why packages could fail closed under
+# SM578 and tables could not - packages have no render path and no CLI reading
+# them through the same predicate.
+#
+# So the fix is a flag, not a different default. Set by the two surfaces that
+# serve a principal whose scopes were RESOLVED; the CLI, the render path and a
+# cookie operator (who skips resolution entirely, by !_operator()) leave it
+# alone and stay unconfined, which they genuinely are rather than accidentally.
+our $CALLER_CONFINED = 0;
 our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
 
 # SM469: OFF MEANS OFF, on this path too.
@@ -126,7 +144,9 @@ sub _table_domain {
 
 sub _may_reach {
     my ($table) = @_;
-    return 1 unless @CALLER_SCOPES;    # unconfined - the operator
+    # SM648: a caller whose scopes were resolved is CONFINED, even when the
+    # resolution came back empty - that is "no domains", not "no confinement".
+    return 1 unless $CALLER_CONFINED || @CALLER_SCOPES;
     my $dom = _table_domain($table);
     return 1 unless length $dom;       # unscoped - as it always was
     return ( grep { $_ eq $dom } _caller_domains() ) ? 1 : 0;

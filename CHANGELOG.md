@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM648 fixed (PENDING) **a scopeless grant reaches no domain's table, and the
+  CLI still reaches every one.** A grant with no `dav_scopes` read every table
+  on the instance while the same absence of scope reached no site package -
+  one instance, one request, opposite defaults. It was not a default anybody
+  chose: empty `@CALLER_SCOPES` meant "no confinement applies" for the CLI and
+  the processor's render path, and "confined to nothing" for a token grant with
+  no domain access, and the second presented as the first. FLIPPING THE DEFAULT
+  WAS NEVER AVAILABLE - failing closed on empty would confine the CLI and the
+  render path too, and a render path that reaches no table serves a page with
+  its data silently missing, on every site rather than only multi-domain ones.
+  So it is a third state: `$CALLER_CONFINED`, set by the two surfaces that
+  serve a principal whose scopes were RESOLVED. A cookie operator never reaches
+  that code (the block sits inside `!_operator()`), so operators, the CLI and
+  the render path stay unconfined - which they genuinely are rather than
+  accidentally. SM593's upgrade-day promise is kept: a table naming no domain
+  is still reachable by everyone.
+
 - SM642 shipped (PENDING) **a person has a name, and an account has a login.**
   Accounts had no display name, so every surface showed the login. Groups DID
   have one - `group-settings-set` has accepted `label` since SM195 and the pages

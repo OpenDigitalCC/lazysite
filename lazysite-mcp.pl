@@ -3753,6 +3753,9 @@ elsif ( $method eq 'tools/call' ) {
     # API and MCP cannot disagree about which domain's tables a partner reaches.
     @Lazysite::Manager::Data::CALLER_SCOPES
         = ( ref $scopes eq 'ARRAY' ) ? @{$scopes} : ();
+    # SM648: every MCP caller is a token, so it is a confined principal. An
+    # empty scope set means it reaches no domain, not every one.
+    $Lazysite::Manager::Data::CALLER_CONFINED = 1;
     # SM464: the grant's own settings, for the acl audit-read override - same
     # line the control API sets, so the two token surfaces cannot disagree.
     %Lazysite::Auth::Acl::token_caps = %{ $caps || {} };
