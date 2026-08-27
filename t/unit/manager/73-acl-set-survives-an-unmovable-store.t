@@ -86,7 +86,17 @@ my $lived = eval {
 subtest 'the call survives' => sub {
     ok( $lived, 'action_acl_set did not die' )
         or diag("died: $@");
-    ok( $r && $r->{ok}, 'and reports success - the rule IS in force' );
+    # SM650 CHANGED WHICH FIELD CARRIES THIS, and SM296's requirement is
+    # unchanged: a move that cannot happen must WARN, not kill the request.
+    # It does not die, the warnings are returned, the rule is stored and
+    # honoured - every assertion in this file still holds. What moved is `ok`,
+    # because ok:true was indistinguishable from a clean apply to every caller
+    # that reads it, and a half-applied ACL is a security control in a state
+    # nobody was told about.
+    ok( $r && !$r->{ok}, 'a half-applied rule does not report plain success' );
+    is( ( $r || {} )->{kind}, 'partial', 'it names the state' );
+    like( ( $r || {} )->{error} // '', qr/IN FORCE/,
+        'and still says the rule IS in force - which is SM296\'s point, kept' );
 };
 
 subtest 'and says what did not happen' => sub {

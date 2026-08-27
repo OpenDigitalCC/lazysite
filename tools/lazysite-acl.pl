@@ -455,7 +455,12 @@ sub cmd_reapply {
                 );
         } );
 
-        if ( $r && $r->{ok} ) {
+        # SM650: a half-applied rule now answers ok:0 / kind:partial, because
+        # `ok` is the field every other caller reads. This tool already keyed on
+        # content_move_failed and reported it correctly, so it is admitted here
+        # rather than falling into the hard-failure branch below and losing the
+        # reporting it has had since SM313.
+        if ( $r && ( $r->{ok} || ( $r->{kind} // '' ) eq 'partial' ) ) {
             my @w = @{ $r->{warnings} || [] };
 
             # SM313: ok:1 is not success here.

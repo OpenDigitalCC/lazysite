@@ -2005,6 +2005,40 @@ sub action_acl_set {
     # written under, two paragraphs up.
     my $reads_open = !( ref $rec{read} eq 'ARRAY' && @{ $rec{read} } );
 
+    # SM650: A HALF-APPLIED ACL IS NOT ok:true.
+    #
+    # The rule is saved and the engine honours it, but the content never left
+    # the document root - so a front end that serves those files without asking
+    # the engine is not covered. Both facts were in the reply: the first in
+    # `ok`, the second in `content_move_failed` and a warning. A caller reads
+    # `ok`. `ok` said true, and a security control that is half-applied was
+    # indistinguishable from one that is not.
+    #
+    # `content_move_failed` was already there as a machine-readable count, so a
+    # caller COULD have checked it. Nothing documented that they should, and a
+    # second field callers must learn about is not a substitute for the first
+    # field being right.
+    #
+    # THE REFUSAL SAYS THE RULE IS IN FORCE, because it is, and a caller that
+    # backed the change out on a false would otherwise remove a rule that is
+    # working. Retrying is harmless - acl-set rewrites the same rule.
+    #
+    # The warning text is unchanged: it names the fault as server configuration
+    # rather than a permission decision, names the diagnostic and names the
+    # repair. It needed a STATUS that makes a script look at it, not new words.
+    if ($CONTENT_MOVE_FAILED) {
+        return { ok => 0, kind => 'partial', path => $rel, acl => \%rec,
+            content_moved       => ( $CONTENT_MOVED ? 1 : 0 ),
+            content_move_failed => 1,
+            error               => "the rule for '$rel' IS IN FORCE - the engine "
+                . 'honours it - but the content could not be moved out of the '
+                . 'document root, so a front end that serves these files without '
+                . 'asking the engine would not be covered. This is a server '
+                . 'configuration fault, not a decision about your request. See '
+                . 'the warnings for the diagnostic and the repair.',
+            ( @warnings ? ( warnings => \@warnings ) : () ) };
+    }
+
     return { ok => 1, path => $rel, acl => \%rec,
         content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
         content_move_failed => ( $CONTENT_MOVE_FAILED ? 1 : 0 ),

@@ -93,7 +93,12 @@ SKIP: {
         my $r = action_acl_set( '/section/', 'operator', ['alice'], ['alice'],
             undef, undef );
 
-        ok( $r->{ok}, 'the call still succeeds - the RULE is stored and honoured' );
+        # SM650: the rule is still stored and honoured - that is unchanged and
+        # is what the rest of this subtest checks. It is no longer reported as
+        # plain success, because `ok` is the field every caller reads and a
+        # half-applied rule read as a clean one.
+        ok( !$r->{ok}, 'a half-applied rule is not reported as plain success' );
+        is( $r->{kind}, 'partial', 'the state is named' );
         is( $r->{content_moved}, 0,
             'and content_moved says plainly that the files did not move' )
             or diag( "Without this flag the sweep counts the call as a success\n"

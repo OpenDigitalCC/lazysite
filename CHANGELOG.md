@@ -44,6 +44,30 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM651/SM650/SM649/SM647 fixed (PENDING) **the way in, a half-applied rule,
+  and one table read in both directions.** **SM651**: a site-wide ACL protected
+  the login page against itself - an anonymous visitor redirected to /login,
+  which is anonymous, refused, and redirected to itself, four deep and still
+  302, with the chrome stylesheet gone too. Signing in is the only way to undo
+  it, so a site protected this way from the manager UI took its operator's own
+  access with it. `is_auth_surface()` - which already existed, already followed
+  `auth_redirect` and had been the cache-protection predicate since SM071 - is
+  now consulted in `_acl_refused` ahead of the store, covering all four callers;
+  a second predicate would have been two answers to one question. **SM650**: an
+  ACL saved but unable to move its content reported `ok: true`, and `ok` is the
+  field every caller reads. Now `ok: 0` / `kind: partial`, with the error saying
+  the rule IS in force - because it is, and backing out on a false would remove
+  a working rule. `tools/lazysite-acl.pl` reported this correctly since SM313
+  but from inside `if ($r->{ok})`, so it had to move with it. **SM649**: a
+  preview cookie bypasses no gate, and nothing asserted it - the property held
+  by call ordering in one sub. Now proved with a properly minted cookie that is
+  first shown to have been honoured, so a refusal cannot be a rejected cookie.
+  **SM647**: that test settled the flag. `%CHANGES_ACCESS` was wrong in both
+  directions - `domain-set` absent while writing `allowed_groups`,
+  `preview-grant`/`preview-clear` present on the strength of an inaccurate
+  comment. Corrected both ways, on both channels. The scope-guard half of SM647
+  remains open and unproved.
+
 - SM424 partial (PENDING) **the stats page opens one block at a time.** One
   page rendered every block - visits, depth, entry and exit pages, devices,
   search terms, status codes, server errors, journeys and the blocked-address

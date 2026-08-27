@@ -117,12 +117,29 @@ ok( !( $eff->{'brief-delete'} || {} )->{changes_access},
 is( ( $eff->{'acl-remove'} || {} )->{changes_access},
     JSON::PP::true, 'describe-capabilities agrees with actions-list' );
 
-# preview-grant is outside this partner's grant, so actions-list omits it;
-# describe-capabilities is the map and carries every registered action.
-is( ( $eff->{'preview-grant'} || {} )->{changes_access},
-    JSON::PP::true, 'preview-grant changes who may read' );
-is( ( $eff->{'preview-clear'} || {} )->{changes_access},
-    JSON::PP::true, 'and preview-clear does too - the flag is direction-blind' );
+# SM649 REVERSED THIS PAIR, on evidence rather than on argument.
+#
+# They were flagged on the strength of a comment saying a preview "lets
+# somebody read a page". It does not: check_preview() returns { layout, theme }
+# and overrides how a page RENDERS. t/integration/52 mints a real preview
+# cookie - true HMAC, against the site's own secret - proves it is honoured,
+# and then shows it opens NONE of the three gates: `auth: required`, an ACL
+# rule, or a draft section. The draft case is the one a preview is most
+# plausibly about, and it is refused like the rest.
+#
+# The direction-blindness this pair was testing is intact and is now tested by
+# a pair that really does move the boundary: acl-set and acl-remove, above and
+# below. SM647 added domain-set for the same reason - it writes allowed_groups.
+#
+# Over-flagging is not harmless: it points a reviewer at a door that is not
+# there and spends the credibility of the flag, which is part of why
+# domain-set's absence went unnoticed while this pair did not.
+ok( !( $eff->{'preview-grant'} || {} )->{changes_access},
+    'preview-grant moves no read boundary - it overrides layout and theme' );
+ok( !( $eff->{'preview-clear'} || {} )->{changes_access},
+    'and neither does preview-clear' );
+is( ( $eff->{'domain-set'} || {} )->{changes_access},
+    JSON::PP::true, 'domain-set DOES - it writes the domain access model' );
 ok( !( $eff->{'acl-get'} || {} )->{changes_access},
     'acl-get READS the rule and moves nothing' );
 

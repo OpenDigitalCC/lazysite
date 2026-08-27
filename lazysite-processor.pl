@@ -951,6 +951,37 @@ sub _acl_refused {
     my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 0 unless -f $f;    # no store, no cost
 
+    # SM651: THE WAY IN IS NEVER GATED BY THE THING IT IS THE WAY IN TO.
+    #
+    # A rule at `/` governs every path, including the login page. An anonymous
+    # visitor is redirected to /login; /login is anonymous; it is refused and
+    # redirected to itself. Measured: four redirects deep and still 302. The
+    # chrome stylesheet went with it, so even a reachable login page would have
+    # rendered unstyled.
+    #
+    # WORSE THAN AN ORDINARY MISCONFIGURATION, because signing in is the only
+    # way to get an interactive session to undo it: a site protected this way
+    # FROM THE MANAGER UI takes its operator's own access with it. The test
+    # instance recovered only because the rule was set over a partner token,
+    # which still reaches acl-remove - a route a browser user does not have.
+    #
+    # check_auth has carried exactly this carve-out for auth_default since it
+    # was written; the ACL path never had it. The same question asked by a
+    # different caller should not get a different answer, so it is asked once
+    # here, ahead of the store, and covers all four callers of this sub.
+    #
+    # NOT a rule about the path `/` specifically: a rule at any depth that
+    # governs the login page has the same effect, and an operator who names
+    # /login explicitly has still not asked to be locked out.
+    # SM651: is_auth_surface() already answers "is this the way in", follows
+    # auth_redirect and covers logout; it has been the cache-protection
+    # predicate since SM071. Reusing it rather than writing a second one is the
+    # point - two predicates for one question is how the two halves of a rule
+    # start disagreeing, which is the defect SM654 filed against a hand-kept
+    # copy of the same fact. The engine's own chrome is added because a login
+    # page that renders unstyled is not a usable way in.
+    return 0 if is_auth_surface($uri) || _is_engine_asset($uri);
+
     my $real = realpath($abs);
     return 0 unless defined $real;
     my $rel = _content_rel($real);

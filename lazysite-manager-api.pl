@@ -586,13 +586,27 @@ my %DESTRUCTIVE = map { $_ => 1 } qw(
 #                          filing names - there is no separate publish verb;
 #                          setting `draft` gates the path and clearing it
 #                          publishes, so one action carries both directions.
-#   preview-grant          mints a signed link that lets somebody read a page
-#   preview-clear          withdraws it
+#   domain-set             writes a domain's `allowed_groups` - the domain
+#                          access model itself, which is what decides which
+#                          groups reach that domain's content. SM647: it was
+#                          absent, so the one flag a caller can consult said
+#                          `false` about the action in this group that moves
+#                          the broadest boundary.
+#
+# SM649: preview-grant and preview-clear are NOT here, and were. The comment
+# that justified them said a preview "lets somebody read a page"; it does not.
+# check_preview() returns { layout, theme } and overrides how a page is
+# RENDERED - a preview cookie does not bypass `auth: required`, an ACL or a
+# draft, which t/integration/52 now proves rather than asserts. Over-flagging
+# points a reviewer at a door that is not there and spends the credibility of
+# the flag, which is part of why domain-set's absence was easy to miss: the
+# same table was wrong in both directions at once.
+#
 # acl-get and get_permissions READ the rule and move nothing, so they are not
 # here. NOTE: no comments inside the qw() below - the lint parses it as words.
 my %CHANGES_ACCESS = map { $_ => 1 } qw(
     acl-set acl-remove
-    preview-grant preview-clear
+    domain-set
 );
 
 if ( $MUTATING{$action} && $method ne 'POST' ) {

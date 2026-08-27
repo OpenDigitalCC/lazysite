@@ -3314,7 +3314,10 @@ my %ANNOTATE = (
     save_data_row         => [ 0, 0, 1 ],
     delete_data_row       => [ 0, 1, 1 ],
     list_domains          => [ 1, 0, 0 ],
-    domain_set            => [ 0, 0, 1 ],
+    # SM647: the fourth slot. domain_set writes allowed_groups - the domain
+    # access model - so it moves the read boundary as surely as set_permissions
+    # does, and the twin table on the control API says so now too.
+    domain_set            => [ 0, 0, 1, 1 ],
     preview_public_page   => [ 1, 0, 0 ],
     preview_domain        => [ 1, 0, 0 ],
     site_backup           => [ 0, 0, 0 ],  # writes an archive; changes nothing live
