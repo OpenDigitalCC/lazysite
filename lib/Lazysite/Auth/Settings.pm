@@ -93,6 +93,35 @@ our @CAP_KEYS = qw(
 sub _settings_file       { "$AUTH_DIR/user-settings.json" }
 sub _group_settings_file { "$AUTH_DIR/groups-settings.json" }
 sub _groups_file         { "$AUTH_DIR/groups" }
+sub _users_file          { "$AUTH_DIR/users" }
+
+# SM641: ONE ANSWER TO "is this name an account".
+#
+# Two surfaces need it and they must not disagree. lazysite-auth.pl asks before
+# writing a name into the audit trail's actor column; the manager API asks
+# before offering that actor as a link to the Users page. If those two answers
+# could differ, the trail would either link something that is not there or
+# refuse to link something that is - and the second is worse, because it makes
+# a real account look invented.
+#
+# Names only. The credential half is deliberately not returned: nothing that
+# asks this question needs it, and a hash that never leaves this sub cannot be
+# logged by accident.
+sub account_names {
+    my $path = _users_file();
+    return {} unless defined $AUTH_DIR && -f $path;
+    open my $fh, '<:utf8', $path or return {};
+    my %names;
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        $line =~ s/^\s+|\s+$//g;
+        next if !length $line || $line =~ /^#/;
+        my ($u) = split /:/, $line, 2;
+        $names{$u} = 1 if defined $u && length $u;
+    }
+    close $fh;
+    return \%names;
+}
 
 # SM121 (compound groups): a group may list ANOTHER GROUP among its members, so
 # that group's members inherit the parent's capabilities and scope. Given a set

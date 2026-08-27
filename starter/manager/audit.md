@@ -87,7 +87,18 @@ function fillAuditSelect(id, values, label) {
   sel.innerHTML = opts;
   sel.value = cur;
 }
+// SM641: which actors in the current response are real accounts. Declared
+// here rather than beside its reader below, because populateAuditFilters sets
+// it and runs first - var hoisting would have made the other order work and
+// read like a mistake.
+var auditAccounts = null;
 function populateAuditFilters(d) {
+  // SM641: before any row is rendered, so the first paint links correctly.
+  auditAccounts = null;
+  if (d.accounts) {
+    auditAccounts = {};
+    d.accounts.forEach(function (n) { auditAccounts[n] = 1; });
+  }
   fillAuditSelect('audit-user', d.users, 'user');
   fillAuditSelect('audit-target-f', d.targets, 'target');
 }
@@ -104,8 +115,23 @@ function goAuditPage(n) { auditPage = n; loadAudit(); }
 
 // Click-through: a username -> the Users page with that user expanded; a page
 // target -> the rendered public page; a file/config target stays plain text.
+//
+// SM641: ONLY IF IT IS AN ACCOUNT. This linked every actor unconditionally,
+// so a failed login for a name nobody ever had was rendered as a live link to
+// a user page that does not exist - and 'system', the pseudo-actor this trail
+// has written since SM128, was linked the same way. The server now says which
+// of the actors in this response are real accounts; anything else is the
+// record of a claim, and reads as plain text.
+//
+// UNKNOWN IS NOT THE SAME AS NONE: if the field is missing (an older engine
+// answering a newer page), linking everything as before is the safe fallback -
+// the page must not silently stop linking real accounts.
 function auditUserLink(u) {
   if (!u) return '';
+  if (auditAccounts && !auditAccounts[u]) {
+    return '<span class="mg-muted" title="not an account - the name a request '
+         + 'claimed, kept as evidence">' + aesc(u) + '</span>';
+  }
   return '<a href="/manager/users?user=' + encodeURIComponent(u) + '">' + aesc(u) + '</a>';
 }
 function auditTargetLink(e) {

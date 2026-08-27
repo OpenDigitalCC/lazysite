@@ -105,15 +105,72 @@ sub _conf_lines {
 # Record a material authentication event in the audit trail (login/logout, claim,
 # token exchange/rotate), in addition to the application log. Origin defaults to
 # 'ui' (interactive browser); credential-API flows pass 'api'.
+# SM641: AN ACTOR IS AN ACCOUNT, and a login attempt has not proved it is one.
+#
+# The trail's first field after the timestamp answers WHO. Every other surface
+# fills it from an identity already established - the manager API from
+# $auth_user, MCP from the bearer's resolved user, the users tool from the
+# account it is acting as - and lazysite-oauth.pl passes an empty string on the
+# paths where nobody has authenticated yet. This file did not: it audits a
+# login failure BEFORE it knows the account exists, including on the branch
+# that runs precisely because it does not, so a string of the caller's choosing
+# was written into the actor column, listed as a distinct actor in the Audit
+# page's filter, rendered as a link to an account that never existed, and
+# forwarded to the operator's syslog.
+#
+# WHY HERE AND NOT AT THE THIRTEEN CALL SITES: this is the only function in the
+# product that ever holds a name nobody has proved, and it is the single writer
+# for every auth event in this file. A rule at the call sites is a rule the
+# fourteenth caller forgets.
+#
+# The attempted name is KEPT - a run against `admin`, `root` and `test` is
+# worth seeing - but it moves from the field that asserts identity to the field
+# that reports what was claimed.
+sub _actor_or_system {
+    my ( $name, $detail ) = @_;
+    $name   = '' unless defined $name;
+    $detail = '' unless defined $detail;
+
+    # 'system' is this file's existing pseudo-actor (ip-auto-blocked). Passing
+    # it through untouched matters: rewriting it would append a note about
+    # itself to every entry it already writes.
+    return ( $name, $detail ) if $name eq 'system';
+
+    return ( $name, $detail )
+        if length $name
+        && exists Lazysite::Auth::Settings::account_names()->{$name};
+
+    my $note = length $name
+        ? 'attempted username: ' . _safe_attempt($name)
+        : 'no username supplied';
+    return ( 'system', ( length $detail ? "$detail; $note" : $note ) );
+}
+
+# SANITISED MEANS BOUNDED, not merely escaped. audit_log already strips pipes
+# and newlines, which protects the record FORMAT; this protects what a person
+# reads. Characters an account name cannot contain are replaced ONE FOR ONE
+# rather than dropped, so the length of what was tried survives - a 400-byte
+# probe should not read as a short name - and the whole thing is capped.
+sub _safe_attempt {
+    my ($n) = @_;
+    $n = '' unless defined $n;
+    my $over = length($n) > 64;
+    $n = substr( $n, 0, 64 ) if $over;
+    $n =~ s/[^A-Za-z0-9._\@-]/?/g;
+    $n .= '...' if $over;
+    return $n;
+}
+
 sub _audit_auth {
     my ( $user, $act, $status, $detail, $origin ) = @_;
+    ( $user, $detail ) = _actor_or_system( $user, $detail );
     # Record WHICH site (Host) the auth event happened on, so the audit says
     # where a login/logout/claim occurred rather than a bare blank target.
     my $host = lc( $ENV{HTTP_HOST} // '' );
     $host =~ s/:\d+\z//;          # strip port
     $host =~ s/[^a-z0-9.-]//g;    # keep it audit-safe
     audit_log( $user, $act, $host, $ENV{REMOTE_ADDR} // '', $status,
-        $origin // 'ui', $detail // '' );
+        $origin // 'ui', $detail );
 }
 
 # SM128: the bad-URL auto-blocker enforcement. One pass over lazysite.conf for

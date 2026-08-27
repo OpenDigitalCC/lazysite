@@ -3628,11 +3628,28 @@ sub action_audit {
     $pg_end = $#entries if $pg_end > $#entries;
     my @slice = $total ? @entries[ $pg_start .. $pg_end ] : ();
 
+    # SM641: WHICH OF THESE ACTORS IS ACTUALLY AN ACCOUNT.
+    #
+    # The Audit page links every actor to /manager/users?user=<name>, and until
+    # SM641 a failed login wrote whatever name it was given, so the trail
+    # offered links to accounts that never existed. The writer no longer does
+    # that - but the entries already on disk still say it, and no writer-side
+    # change can reach them.
+    #
+    # This is the INTERSECTION of the facet list with the real accounts, which
+    # discloses nothing: every name in it is already in `users` above, and a
+    # scoped (sub-user-manager) view has already been narrowed. 'system' is
+    # absent by construction, which is correct - it is a pseudo-actor, not a
+    # person, and it has been linked as one since SM128.
+    my $accounts = Lazysite::Auth::Settings::account_names();
+    my @real     = sort grep { length && $accounts->{$_} } keys %fusers;
+
     return { ok => 1, entries => \@slice,
-        total   => $total, page => $page, per_page => $per, pages => $pages,
-        scoped  => ( $scope ? JSON::PP::true() : JSON::PP::false() ),    # SM173
-        users   => [ sort keys %fusers ],       # SM119: filter dropdown options
-        targets => [ sort keys %ftargets ] };
+        total    => $total, page => $page, per_page => $per, pages => $pages,
+        scoped   => ( $scope ? JSON::PP::true() : JSON::PP::false() ),    # SM173
+        users    => [ sort keys %fusers ],       # SM119: filter dropdown options
+        accounts => \@real,                      # SM641: of those, the linkable ones
+        targets  => [ sort keys %ftargets ] };
 }
 
 # The visitor-stats plugin. LAZYSITE_STATS_TOOL wins.

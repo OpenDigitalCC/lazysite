@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM641 fixed (PENDING) **an actor is an account.** A login attempt is
+  unauthenticated by definition, so the name it carries is a claim - and the
+  auth surface wrote that claim into the audit trail's actor column, including
+  on the branch that runs precisely because the account does not exist. Anyone
+  who could reach the login form could put a string of their choosing in the
+  operator's trail, have it listed as a distinct actor in the Audit page's
+  filter, have it rendered as a live link to a user page for an account that
+  never existed, and have it forwarded to syslog. The check now lives in
+  `_audit_auth`, the single writer for every auth event in that file and the
+  only place in the product that holds an unproven name - a rule at the
+  thirteen call sites is a rule the fourteenth forgets. A name that is not an
+  account is recorded against `system`, this file's existing pseudo-actor, with
+  the attempted name kept in the detail field, where it reports a claim rather
+  than asserting an identity. A REAL account's failed login still names that
+  account, because those are the attempts worth seeing. Reader side: the Audit
+  page linked every actor unconditionally - `system` included, since SM128 - so
+  the API now returns which of the actors in its answer are real accounts and
+  the page renders anything else as plain text. That reaches the entries
+  already on disk, which no writer-side change can. Both halves ask one shared
+  reader, `Lazysite::Auth::Settings::account_names`, so they cannot disagree
+  about what an account is.
+
 - SM654 partial (PENDING) **the unlocks map is linted against the gate it
   describes.** `describe-capabilities` publishes an `unlocks` map per
   capability - what the briefing tells an agent to read and what an operator
