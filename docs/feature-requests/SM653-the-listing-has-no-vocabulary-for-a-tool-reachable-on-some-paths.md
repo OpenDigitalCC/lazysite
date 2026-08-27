@@ -58,6 +58,23 @@ has; listing them plainly is what happens now.
 
 One of the first two, plus the third.
 
+# A sharper form of the same gap, found building SM654's lint
+
+Several tools carry `path_aware => 1` and appear to accept no path at all -
+`read_nav`'s own comment says so outright: *"its run passes only `host` and no
+path - so the dispatcher's carve-out pass had nothing to inspect"*.
+
+On such a tool the flag is not merely imprecise, it is meaningless: there is
+nothing for the path rule to test, so the override applies unconditionally at
+call time as well as at listing time. That is this filing's problem in its
+strongest form.
+
+It is NOT acted on here, deliberately. Telling "takes a path under another
+name" (`move_file` takes `from` and `to`) from "takes no path" needs more than
+a regex over the tool table, and `path_aware` decides who reaches what. Worth a
+deliberate audit of the flag as part of whatever fix this filing takes, rather
+than a guess.
+
 # Two incidental observations, recorded so they are not re-found
 
 `theme-upload` is declared in no capability's `unlocks` and is a CHANNEL

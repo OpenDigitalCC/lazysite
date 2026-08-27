@@ -44,6 +44,26 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM654 partial (PENDING) **the unlocks map is linted against the gate it
+  describes.** `describe-capabilities` publishes an `unlocks` map per
+  capability - what the briefing tells an agent to read and what an operator
+  reads before granting - and the site agent found it wrong three times in one
+  afternoon, in three different fields. Understating in one place and omitting
+  in another is what made it unreliable rather than merely wrong: neither an
+  upper nor a lower bound on what a capability reaches. TWO MEASURED ERRORS
+  FIXED: `read_nav` declares `cap => 'manage_nav'`, the gate admits it and it
+  returns the nav, while `manage_nav`'s `unlocks.mcp` said `set_nav` only; and
+  `manage_briefs`' TITLE claimed deletion, which needs `purge` (SM591), while
+  the map beside it was already correct. `t/lint/90` now compares every MCP
+  tool's declared `cap`/`cap_also` against that capability's `unlocks.mcp` in
+  both directions. GENERATING the map - the filing's preferred fix - is NOT
+  done: `%need` holds predicates, so the control-API half cannot be extracted
+  without restructuring a security-critical gate table, and the
+  themes/layouts rows cannot be linted until SM653 gives the listing a way to
+  say "callable on some paths". A fourth finding, that several `path_aware`
+  tools appear to accept no path at all, is recorded on SM653 rather than
+  guessed at.
+
 - SM651/SM650/SM649/SM647 fixed (PENDING) **the way in, a half-applied rule,
   and one table read in both directions.** **SM651**: a site-wide ACL protected
   the login page against itself - an anonymous visitor redirected to /login,

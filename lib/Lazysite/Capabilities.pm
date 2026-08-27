@@ -92,7 +92,10 @@ my %ACTION_INFO = (
         # both, as form-submissions is under manage_forms and read_submissions.
         unlocks => {
             api    => [qw(nav-read nav-save pages)],
-            mcp    => [qw(set_nav)],
+            # SM654 (U-3): read_nav declares cap => 'manage_nav' in %TOOLS, the
+            # gate admits it, and it returns the nav - and this said set_nav
+            # only. Measured by the site agent; t/lint/90 now refuses the shape.
+            mcp    => [qw(set_nav read_nav)],
             webdav => ['lazysite/nav.conf'],
         },
     },
@@ -235,9 +238,16 @@ my %ACTION_INFO = (
     # manage_forms' form-submissions are listed twice for the same reason).
     manage_briefs => {
         title => 'Write authoring briefs - the "why" record kept beside a content file. '
-            . 'Reading a brief is also admitted by manage_content; creating, appending to '
-            . 'and DELETING one needs this. Declared by the briefs plugin, so it is '
-            . 'grantable only where that plugin is installed.',
+            # SM654 (R-18): this said DELETING needs manage_briefs. It needs
+            # `purge` - brief-delete is gated on it because no copy survives
+            # (SM591), and the map immediately below says so correctly. A title
+            # contradicting the map beside it is the same hand-kept drift as the
+            # unlocks omissions, in prose rather than in data.
+            . 'Reading a brief is also admitted by manage_content; creating and '
+            . 'appending to one needs this. DELETING a brief needs `purge`, not '
+            . 'this capability, because no copy survives it. Declared by the '
+            . 'briefs plugin, so it is grantable only where that plugin is '
+            . 'installed.',
         grants => 'Read and write authoring briefs - the record of WHY a page is as it is. Does not reach the page itself.',
         unlocks => {
             api => [qw(brief-read brief-append briefs-migrate briefs-list)],
