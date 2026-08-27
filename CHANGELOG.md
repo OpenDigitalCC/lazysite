@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM633 resolved (PENDING) **the switches that decide whether anyone can reach
+  the instance are their own grant.** `manage_config` governed both the site's
+  title and its cache lifetime AND the five service killswitches, under a
+  capability whose own title says "safe site configuration". `manage_services`
+  carries the switches now; `manage_config` keeps the ordinary settings and
+  says so. The check sits at the KEY rather than in the action gate, because
+  `config-set` is one door onto settings that are not all alike - the same
+  shape as SM612's channel check beside it. A fresh site grants the admin group
+  the new capability; an EXISTING site is OFFERED it through the pending-decision
+  banner, because granting silently would widen a live grant and removing
+  silently would narrow one.
+
 - SM643 fixed (PENDING) **grant authority is editable in place.** `group-set
   GROUP grantable a,b,c` is a whole-list REPLACE - anything not named is
   removed - so adding one capability meant reading the current set, retyping it

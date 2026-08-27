@@ -296,7 +296,7 @@ my %ACTION_INFO = (
     },
     manage_config => {
         title => 'Read and set safe site configuration.',
-        grants => 'Read and change site settings - and that includes the five service switches deciding whether WebDAV, MCP, OAuth, the control API and the pairing-key exchange answer at all.',
+        grants => 'Read and change ordinary site settings - title, cache lifetime, search defaults, the active layout and theme. The switches that decide whether the remote surfaces answer at all are `manage_services`, held separately.',
         # SM435: this listed lazysite/nav.conf and lazysite/forms/<name>.conf
         # over WebDAV, which 0.8.1 moved to manage_nav and manage_forms
         # respectively - see authorise() in lazysite-dav.pl, which admits
@@ -311,6 +311,26 @@ my %ACTION_INFO = (
         unlocks => {
             api => [qw(config-read config-set git-init bad-url-blocks bad-url-unblock)],
         },
+    },
+
+    # SM633: the switches that decide whether anyone can reach the instance at
+    # all are a different size of decision from the site's title and its cache
+    # lifetime, and they sat under one capability whose own name says "SAFE".
+    #
+    # SM612 closed the sharpest edge - a token can no longer switch off the
+    # manager surface that would revoke it - by restricting `manager` and
+    # `manager_path` to the cookie channel. That was a fix at the KEY level.
+    # This is the LOCK being the right shape: an operator can now hand a partner
+    # the ability to tune caching without handing it the ability to turn WebDAV
+    # off for everyone.
+    manage_services => {
+        title => 'Switch the remote surfaces on and off (WebDAV, MCP, OAuth, '
+            . 'the control API, the pairing-key exchange).',
+        grants => 'Turn the site\'s remote surfaces on or off. Switching one '
+            . 'off does not narrow a grant - it stops the surface answering for '
+            . 'EVERYONE, including partners and agents already using it, and the '
+            . 'manager UI is unaffected.',
+        unlocks => { api => [qw(config-set)] },
     },
     manage_users => {
         title => 'Manage user accounts and group membership.',

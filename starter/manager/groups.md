@@ -55,6 +55,10 @@ var ACTIONS = [
   ['purge', 'Purge — destroy what no copy survives'],
   ['manage_domains', 'Domains & site packages'],
   ['manage_config', 'Site config (+ plugins)'],
+  // SM633: the five switches that decide whether the remote surfaces answer
+  // at all. Beside site config in the grid because that is where an operator
+  // looks for them, and a separate row because they are a separate grant.
+  ['manage_services', 'Services (WebDAV/MCP/OAuth switches)'],
   ['manage_users', 'Users & groups'],
   ['analytics', 'Analytics (visitor stats)'],
   ['audit', 'Audit trail'],

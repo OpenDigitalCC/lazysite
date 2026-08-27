@@ -83,7 +83,7 @@ subtest 'every declared capability is grantable' => sub {
 my %CORE = map { $_ => 1 } qw(
     ui webdav api mcp
     manage_content manage_nav manage_forms manage_themes manage_layouts
-    manage_domains manage_config manage_users
+    manage_domains manage_config manage_services manage_users
     analytics audit notifications feedback read_submissions
     housekeeping purge
     create_sub_users delegate_sub_user_creation);

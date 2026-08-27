@@ -220,6 +220,7 @@ var PERM_LABELS = {
   manage_themes: 'Themes', manage_layouts: 'Layouts', manage_data: 'Data tables', manage_briefs: 'Authoring briefs',
   housekeeping: 'Housekeeping (recoverable)', purge: 'Purge (irreversible)',
   manage_domains: 'Domains & site packages', manage_config: 'Config + plugins',
+  manage_services: 'Services (WebDAV/MCP/OAuth switches)',
   manage_users: 'Users & groups', analytics: 'Analytics', audit: 'Audit trail',
   notifications: 'Notifications', feedback: 'Agent feedback',
   read_submissions: 'Read submissions',

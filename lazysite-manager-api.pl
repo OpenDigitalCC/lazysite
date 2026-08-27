@@ -3139,6 +3139,14 @@ sub action_config_set {
     # is instance-wide and unpleasant, and the manager UI survives it - so an
     # operator can undo it from inside the product. Disabling the manager is
     # the one that removes the undo.
+    # SM633: the five that turn a SURFACE on or off, as opposed to the ones that
+    # change what the site looks like or is called. Named once, here, and read
+    # by the capability check below - a second list would be the way the two
+    # halves of this rule start disagreeing.
+    my %SERVICE_KEY = map { $_ => 1 }
+        qw(webdav_enabled mcp_enabled oauth_enabled control_api_enabled
+        token_exchange_enabled);
+
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
         update_channel canonical_ip manager manager_path asset_max_age
@@ -3159,6 +3167,26 @@ sub action_config_set {
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
+
+    # SM633: THE SERVICE SWITCHES ARE A DIFFERENT GRANT.
+    #
+    # These five decide whether the remote surfaces answer AT ALL - for
+    # everyone, including partners already connected. They sat under a
+    # capability whose own title says "safe site configuration", beside the
+    # site's name and its cache lifetime. Those are not the same size of
+    # decision, and one name covered both.
+    #
+    # Checked HERE rather than in the %need table because %need gates the
+    # ACTION and this is a rule about one of its KEYS - the same shape as the
+    # SM612 channel check immediately above, and for the same reason: config-set
+    # is one door onto settings that are not all alike.
+    if ( $SERVICE_KEY{$key} && !_user_caps($auth_user)->{manage_services} ) {
+        return { ok => 0, kind => 'forbidden',
+            error => "Setting '$key' needs the 'Services' capability "
+                . "(manage_services), which decides whether the remote surfaces "
+                . "answer at all. 'manage_config' covers ordinary site settings "
+                . "and no longer covers these." };
+    }
     # 0.9.0 service killswitches + the manager toggle: enabled/disabled, same
     # shape as webdav_enabled (SM042: the whole site-settings page now saves via
     # config-set, not the lazysite pseudo-plugin, so config-set owns their rules).

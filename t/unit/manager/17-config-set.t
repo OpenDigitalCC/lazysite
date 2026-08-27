@@ -108,7 +108,15 @@ my $cipbad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-
 ok( !$cipbad->{ok}, 'a hostname is refused as canonical_ip (IP literals only)' );
 
 # 0.9.0 service killswitches are settable from the Services section of the
-# config page (config-set, manage_config) and surfaced by config-read.
+# config page (config-set) and surfaced by config-read.
+#
+# SM633 CHANGED WHICH GRANT THIS TAKES. These five switches decide whether the
+# remote surfaces answer at all, for everyone already connected, so they moved
+# off manage_config onto manage_services. The token here is widened to match -
+# the refusal that manage_config alone now gets is proved in
+# t/unit/manager/134, which is where that rule belongs.
+grant_caps( $d, 'p', 'manage_config', 'api', 'manage_services' );
+$tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 {
     my $svc = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
         HTTP_AUTHORIZATION => basic( 'p', $tok ),

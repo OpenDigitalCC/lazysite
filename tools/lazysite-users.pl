@@ -1395,6 +1395,10 @@ sub effective_settings {
         housekeeping  => $caps->{housekeeping}  ? JSON::PP::true() : JSON::PP::false(),
         purge         => $caps->{purge}         ? JSON::PP::true() : JSON::PP::false(),
         manage_config => $caps->{manage_config} ? JSON::PP::true() : JSON::PP::false(),
+        # SM633: the service switches, here in the same commit as @CAP_KEYS for
+        # the reason every neighbour above gives - t/unit/users/21 is what
+        # caught this one missing, which is the test doing its job.
+        manage_services => $caps->{manage_services} ? JSON::PP::true() : JSON::PP::false(),
         # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
         # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained
         # list - so those grants were dormant on every surface that reads
@@ -3233,6 +3237,17 @@ sub _default_group_seed {
             description => 'Domains, site packages, configuration and plugins. '
                 . 'Changes what the whole site is, not what is on it.',
             manage_domains => 1, manage_config => 1 },
+        # SM633: SEPARATE FROM cap-site ON PURPOSE. Putting it beside
+        # manage_config would leave the split cosmetic - the whole finding is
+        # that "turn the remote surfaces off for everyone" and "rename the
+        # site" arrived under one grant. A bundle of its own is what lets an
+        # operator delegate the second without the first.
+        'cap-services' => {
+            label       => 'Capability: services', assignable => 0,
+            description => 'The WebDAV, MCP, OAuth, control-API and '
+                . 'token-exchange switches. Decides whether the remote '
+                . 'surfaces answer at all, for everyone already connected.',
+            manage_services => 1 },
         'cap-people' => {
             label       => 'Capability: people', assignable => 0,
             description => 'Accounts, groups and sub-users, plus the operator '
@@ -3351,7 +3366,8 @@ sub _default_group_nesting {
         'cap-design'  => [qw(design-team agent-ai mcp-ai site-admins)],
         'cap-data'    => [qw(app-developers)],
         'cap-site'    => [qw(site-admins)],
-        'cap-people'  => [qw(user-managers)],
+        'cap-services'  => [qw(site-admins)],
+        'cap-people'    => [qw(user-managers)],
         'cap-analytics' => [qw(analysts agent-ai mcp-ai)],
         'cap-audit'     => [qw(analysts)],
         'cap-tidy'      => [qw(site-admins)],
@@ -4383,7 +4399,8 @@ Commands:
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
                               manage_forms, manage_themes, manage_layouts,
-                              manage_domains, manage_config, manage_users,
+                              manage_domains, manage_config, manage_services,
+                              manage_users,
                               analytics, audit, notifications, feedback,
                               read_submissions, manage_data, create_sub_users,
                               delegate_sub_user_creation. Also takes the

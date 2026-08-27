@@ -11,6 +11,7 @@ use File::Temp qw(tempdir);
 use JSON::PP   qw(encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use Lazysite::Auth::Settings ();
 use TestHelper qw(repo_root);
 
 my $check = repo_root() . '/tools/lazysite-check.pl';
@@ -39,10 +40,15 @@ sub site_with {
 }
 
 # Every capability the check expects, granted - the clean baseline.
-my @all = qw(ui webdav manage_content manage_nav manage_forms manage_themes
-    manage_layouts manage_domains manage_config manage_users analytics audit
-    notifications feedback read_submissions create_sub_users
-    delegate_sub_user_creation manage_data manage_briefs housekeeping purge);
+#
+# SM633: DERIVED, not copied. This was a hand-maintained second list, so the
+# release that added a capability made the clean baseline incomplete and this
+# whole file failed on the CORRECT behaviour - the check correctly reporting
+# an undecided capability that the fixture had simply never granted. The two
+# remote channels are excluded for the same reason lazysite-check.pl excludes
+# them: they are doors, not decisions a group makes here.
+my @all = grep { $_ ne 'api' && $_ ne 'mcp' } @Lazysite::Auth::Settings::CAP_KEYS;
+cmp_ok( scalar @all, '>', 5, 'the capability list is real (fixture not vacuous)' );
 my %granted = ( manager => 1, map { $_ => 1 } @all );
 
 subtest 'all decided: no warning' => sub {
