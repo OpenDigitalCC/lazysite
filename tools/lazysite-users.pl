@@ -1083,6 +1083,9 @@ sub _ensure_manager_group_caps {
     # widening t/unit/users/38 to cover assignable groups rather than only the
     # seeded bundles.
     $gs->{$group} = {
+        # SM608: this one ships too - it is created by setup-manager, not by an
+        # operator, and it is the group whose deletion would break the most.
+        seeded      => 1,
         label       => $group,
         description => 'The site owner. Holds every capability except the remote '
             . 'api/mcp channels (manager groups are interactive-only), and may '
@@ -3342,6 +3345,15 @@ sub _ensure_groups_seeded {
         return;
     }
     my $seed = _default_group_seed();
+
+    # SM608: mark what SHIPPED. The Groups page listed what an install came with
+    # and what an operator built in one undifferentiated list, and the two carry
+    # different risk on exactly the operations that are hardest to reverse:
+    # renaming or deleting a shipped group breaks something the engine expects,
+    # while renaming one an operator built breaks only what that operator built.
+    # Written at seed time, which is the only moment the answer is known for
+    # certain - inferring it later from the name would be a guess that gets more
+    # wrong as an estate ages.
     for my $g ( _conf_manager_groups() ) {
         $seed->{$g}{manager} = 1;
         $seed->{$g}{label} //= $g;
@@ -3382,6 +3394,13 @@ sub _ensure_groups_seeded {
         # a bootstrap decision and belongs with the rest of the seed.
         $seed->{$g}{grantable} = [ sort @CAP_KEYS ];
     }
+    # SM608: marked AFTER the manager groups are folded in, not before. The loop
+    # above ADDS them to the seed, so setting the flag first missed precisely
+    # the group whose deletion would break the most - caught by
+    # t/unit/users/39, which asserted "everything a fresh install created" and
+    # meant it.
+    $seed->{$_}{seeded} = 1 for keys %$seed;
+
     write_group_settings($seed);
 
     # SM631: the nesting is what makes a role a role. Written only here, where
@@ -3722,6 +3741,11 @@ sub _group_settings_view {
             # SM576 part 3: is this a role to give a person, or a backend group
             # that only aggregates? Resolved through the shared helper so the
             # page and the gate cannot answer differently.
+            # SM608: did this group ship with the engine, or did somebody here
+            # make it? Absent means operator-made: every group that predates
+            # the marker was on an instance an operator had already shaped, and
+            # claiming those shipped would be the confident wrong answer.
+            seeded     => ( $cfg->{seeded} ? JSON::PP::true() : JSON::PP::false() ),
             assignable => (
                 Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
                 ? JSON::PP::true()

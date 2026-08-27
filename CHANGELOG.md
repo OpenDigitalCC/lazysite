@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM598/SM606/SM608 resolved (PENDING) **three answers that were confidently
+  wrong, or confidently silent.** **SM598**: `lazysite_dir` returns undef for an
+  unset docroot and `_handlers_conf_path` concatenated it anyway, yielding
+  `/forms/handlers.conf` - an absolute path at the filesystem root. The reader
+  found nothing there and treated that as "no handlers configured"; the WRITER
+  tried to `make_path("/forms")` and write a config into it, which failed only
+  for want of permission. Both callers check now, and "no docroot" is
+  distinguishable from "no handlers". **SM606**: `?table=t&chunk=AAA` returned
+  every row in a reply shaped exactly like a filtered one - a bad *value* was a
+  400, an unknown *parameter* was silence. The reply names what it ignored
+  rather than refusing it, because refusing would break any caller passing a
+  cache-buster. **SM608**: a group says whether it shipped with the engine or
+  was made here, written at seed time and shown as a tooltip that names what
+  changing it risks.
+
 ## 0.11.2 - EDGE: roles an operator recognises, permission drift made visible, and bind_form finally has an inverse (2026-08-26)
 
 - SM632 resolved (98ad467e) **`bind_form` has an inverse.** It wrote

@@ -154,9 +154,18 @@ function groupSummaryInner(g) {
   var backend = (info.assignable === false)
     ? ' <span class="mg-badge mg-badge-muted" title="A backend group: it aggregates capabilities and other groups. People are not added to it - they are added to a role that is nested inside it.">backend</span>'
     : '';
+  // SM608: shipped with the engine, or made here? The two carry different risk
+  // on rename and delete - a shipped group is something the engine expects to
+  // find, an operator's own is not - and the list gave no way to tell. A
+  // TOOLTIP rather than a column, as the operator asked: it is a fact you want
+  // when you are about to change something, not one you read every time.
+  var origin = info.seeded
+    ? ' <span class="mg-badge mg-badge-muted" title="Shipped with the engine. Renaming or deleting it may break something lazysite expects to find.">system</span>'
+    : ' <span class="mg-badge mg-badge-muted" title="Created on this instance. Renaming or deleting it affects only what was built here.">yours</span>';
+
   return '<span class="mg-acc-name">' + ge + '</span>' + recentDot(g) +
     (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
-    backend + inert +
+    backend + origin + inert +
     '<span class="mg-acc-spacer"></span>' +
     '<span class="mg-acc-tags">' +
     nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +

@@ -113,7 +113,7 @@ sub main {
         unless length $table || ( $q{csrf} // '' ) eq '1';
 
     no warnings 'once';    # SM557
-    # THE IDENTITY, verified here rather than taken from a header.
+                           # THE IDENTITY, verified here rather than taken from a header.
     require Lazysite::Auth::Session;
     local $Lazysite::Auth::Session::LAZYSITE_DIR = "$docroot/lazysite";
     # IT RETURNS A SESSION, NOT A NAME. verify_session_cookie answers
@@ -277,6 +277,23 @@ sub main {
     }
     my $binding = $table . ( @args ? '(' . join( ',', @args ) . ')' : '' );
 
+    # SM606: say what was IGNORED, rather than refusing it or staying silent.
+    #
+    # This endpoint assembles its binding from order_by, order, limit and offset
+    # and reads nothing else, so `?table=t&chunk=AAA` returned every row - in a
+    # reply shaped EXACTLY like a filtered one. A bad VALUE is a 400; an unknown
+    # PARAMETER was silence, and the caller could not tell the two apart. The
+    # site agent had written it up as a hazard to work around, which is the
+    # right instinct and the wrong resting place.
+    #
+    # REFUSING would have been the obvious fix and is the wrong one: any caller
+    # passing a harmless extra - a cache-buster is the ordinary case - would
+    # break, and that is a behaviour change deserving its own decision rather
+    # than arriving inside a defect fix. Naming them costs nothing, breaks
+    # nobody, and closes the silence, which was the whole complaint.
+    my %READS   = map       { $_ => 1 } qw(table order_by order limit offset csrf);
+    my @ignored = sort grep { !$READS{$_} } keys %q;
+
     # THE VISITOR (SM476), with no operator bypass. This endpoint is the page's
     # data source, so it must answer exactly what the page's own binding would
     # - an operator who saw more here than their site's visitors do would be
@@ -310,9 +327,28 @@ sub main {
             # SM511: the endpoint answers exactly what the page's binding
             # does - the true count beside the (possibly capped) rows, and
             # any clamp warning said rather than swallowed.
-            ( defined $r->{total}  ? ( total          => 0 + $r->{total} ) : () ),
-            ( $r->{warnings}       ? ( warnings       => $r->{warnings} )  : () ),
-            ( $r->{pending_schema} ? ( pending_schema => JSON::PP::true )  : () ),
+            ( defined $r->{total} ? ( total => 0 + $r->{total} ) : () ),
+
+            # SM606: both, deliberately. `ignored` is the machine-readable
+            # answer; the warning rides the EXISTING channel so a client that
+            # already surfaces warnings shows this one without being changed -
+            # and the caller who needs to see it most is the one who wrote
+            # `chunk=` expecting it to filter and got every row back.
+            ( @ignored ? ( ignored => \@ignored ) : () ),
+            ( ( $r->{warnings} || @ignored )
+                ? ( warnings => [
+                        @{ $r->{warnings} || [] },
+                        ( @ignored
+                            ? ( 'ignored parameter'
+                                    . ( @ignored == 1 ? '' : 's' ) . ': '
+                                    . join( ', ', @ignored )
+                                    . ' - this endpoint reads table, order_by, '
+                                    . 'order, limit and offset' )
+                            : () ),
+                ] )
+                : ()
+            ),
+            ( $r->{pending_schema} ? ( pending_schema => JSON::PP::true ) : () ),
         } );
 }
 

@@ -663,12 +663,37 @@ sub action_plugin_action {
     return $result;
 }
 
+# SM598: undef is an ANSWER here, and the callers must hear it.
+#
+# _lz is Lazysite::Paths::lazysite_dir($DOCROOT), which returns undef for an
+# undefined or empty docroot - a deliberate guard. This concatenated it anyway,
+# so the result was "/forms/handlers.conf": an absolute path at the FILESYSTEM
+# ROOT rather than anywhere inside a site. It surfaced as a Perl warning in the
+# 0.10.33 release run ("uninitialized value in concatenation"), and the tests
+# passed either way because nothing exists at that path, so the read found
+# nothing and the code around it treated that as "no handlers" - the wrong
+# answer, arriving indistinguishably from the right one.
+#
+# The WRITER is the sharper half: it does make_path(dirname($path)), which with
+# no docroot is an attempt to create /forms at the root of the filesystem. It
+# fails for want of permission on any sane host, which is luck rather than
+# design.
 sub _handlers_conf_path {
-    return _lz() . "/forms/handlers.conf";
+    my $lz = _lz();
+    return undef unless defined $lz && length $lz;
+    return "$lz/forms/handlers.conf";
 }
 
 sub _parse_handlers_conf {
     my $path = _handlers_conf_path();
+
+    # SM598: no docroot is not "no handlers". Both return an empty list, and one
+    # of them is a fault - so the fault says so once, in the log, rather than
+    # being read as an ordinary empty site.
+    unless ( defined $path ) {
+        log_event( 'WARN', 'handlers', 'no docroot: cannot locate handlers.conf' );
+        return [];
+    }
     return [] unless -f $path;
 
     open my $fh, '<:utf8', $path or return [];
@@ -692,6 +717,15 @@ sub _parse_handlers_conf {
 sub _write_handlers_conf {
     my ($handlers) = @_;
     my $path = _handlers_conf_path();
+
+    # SM598: refuse rather than write. Without a docroot this used to
+    # make_path("/forms") and then write handlers.conf at the filesystem root -
+    # a config file, outside every site, in a place nothing would ever read it
+    # back from.
+    unless ( defined $path ) {
+        log_event( 'ERROR', 'handlers', 'no docroot: refusing to write handlers.conf' );
+        return 0;
+    }
 
     my $dir = dirname($path);
     make_path($dir) unless -d $dir;
