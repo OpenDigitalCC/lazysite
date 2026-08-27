@@ -122,6 +122,14 @@ when you write it, and downgraded to `text/plain` if one already exists.
 `auth_groups`
 : Group names; the user must be signed in and in at least one to view the page.
 
+`admin_bar`
+: Set to `none` to stop the engine injecting the manager's admin bar on this
+  page. The bar is normally shown to a signed-in user holding the `ui`
+  capability, and its Edit link opens the page's Markdown - which is right for
+  a document and wrong for an application page, where editing the source is the
+  fastest way to break it. Display only: it changes nothing about who may read
+  or edit the page.
+
 `payment`
 : Payment requirement for the x402 flow. See [Payment](/docs/payment).
 

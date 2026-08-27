@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM656 partial (PENDING) **a page can decline the admin bar.** The bar is
+  injected for a signed-in user holding `ui` - a property of the PERSON, and
+  the only lever. That works while every page is a content page; on a site
+  carrying an application the bar's Edit link opens the Markdown of a page
+  whose body is a script, so the fastest way to break the application is the
+  most prominent action offered to the person most likely to click it. An
+  operator who both administers the site and USES the application had to see
+  the bar everywhere or take `ui` away, which removes the manager UI too.
+  `admin_bar: none` in front matter now suppresses it per page, documented in
+  `/docs/frontmatter`. Display only. The filing's `api:`/`raw:` default was
+  DELIBERATELY NOT BUILT: an `api:` page renders no `<body>`, so the injector
+  already returns before anything is added and the branch could never fire -
+  caught because its tests passed with the code removed. Honouring the key on
+  a section is not built.
+
 - SM661 fixed (PENDING) **a scoped partner is confined whatever the argument is
   called.** SECURITY. A grant with `dav_scopes: ['/sites/alpha']` was correctly
   refused `write_file` to `/sites/beta` - and in the same session CREATED a page

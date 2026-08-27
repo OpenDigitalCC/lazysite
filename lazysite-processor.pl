@@ -398,6 +398,13 @@ my %STATIC_CT = (
             elsif ( $line =~ /^api\s*:\s*true/i )     { $m{api}     = 1 }
             elsif ( $line =~ /^nocache\s*:\s*true/i ) { $m{nocache} = 1 }
             elsif ( $line =~ /^raw\s*:\s*true/i )     { $m{raw}     = 1 }
+            # SM656: the page says what KIND of page it is. The admin bar is
+            # injected for anyone holding `ui`, which is a property of the
+            # PERSON - and on an application page the bar's Edit link opens the
+            # Markdown of a page whose body is a script, which is the fastest
+            # way to break the application and the most prominent action
+            # offered to the person most likely to click it.
+            elsif ( $line =~ /^admin_bar\s*:\s*(\w+)/i ) { $m{admin_bar} = lc $1 }
             elsif ( $line =~ /^content_type\s*:\s*(.+)/ ) {
                 ( my $v = $1 ) =~ s/^\s+|\s+$//g;
                 $m{content_type} = $v;
@@ -7393,6 +7400,29 @@ sub _inject_admin_bar_live {
     return $html unless defined $html && $html =~ /<body/i;
     my %sv = resolve_site_vars();
     return $html unless ( $sv{manager} // '' ) eq 'enabled';
+
+    # SM656: a page may decline the bar, and a page that has already declared
+    # itself not-a-document declines it by default.
+    #
+    # The existing control is the `ui` capability - a property of the person,
+    # and the only lever. It works while every page is a content page. On a
+    # site carrying an application it stops working: the operator who both
+    # administers the site and USES the application must see the bar on every
+    # page or none, and the documented way to remove it is to take `ui` away,
+    # which removes the manager UI with it. That is not a trade anyone should
+    # make to stop an Edit link appearing over a data-entry screen.
+    #
+    # NOT ALSO DEFAULTING api:/raw: PAGES TO none, though the filing suggested
+    # it and it sounds free. Measured: an api: page renders no <body> at all,
+    # so the guard at the top of this sub already returns before anything is
+    # injected - the branch could never fire, and its tests passed whether the
+    # code was there or not. The filing said as much in passing ("it would not
+    # have helped here"); shipping unreachable code with vacuous tests behind
+    # it is worse than not shipping it.
+    if ( defined $md_path && length $md_path ) {
+        my $want = _peek_md($md_path)->{admin_bar};
+        return $html if defined $want && $want eq 'none';
+    }
 
     my $page_source = $md_path // '';
     $page_source =~ s{^\Q$DOCROOT\E/}{};    # docroot-relative, for the Edit link
