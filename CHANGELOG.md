@@ -51,6 +51,15 @@ Naming the commit: AFTER it lands, never before
   only for a caller who may read one, and only while the briefs plugin is on; a
   caller who may read but not append gets a read-only button and is told which
   capability an entry would need, before typing it.
+- SM678 partial (PENDING) **a data table says who can read it.** A table's
+  access is an ACL keyed `lazysite/db/tables/<table>`, which the API could set
+  and the manager could not show - the rights editor is rendered inside a file's
+  expander, and a table is not a file. Since a table is where personal data
+  lives, the object whose access an operator would most want to audit was the
+  one with no surface. The Data page now shows the rule, on the same key the
+  data layer enforces on, distinguishing "no rule" from "a rule naming nobody".
+  Editing from that page still needs the rights editor extracted into the shared
+  helpers rather than copied.
 
 - SM667 shipped (PENDING) **a seeded group can be put back from its own row.**
   `reset-groups` restores every seeded group at once, from a shell - neither of

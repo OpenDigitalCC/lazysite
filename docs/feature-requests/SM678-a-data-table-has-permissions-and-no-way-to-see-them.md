@@ -3,7 +3,8 @@ title: "SM678: a data table's permissions are settable over the API and invisibl
 subtitle: "Release manager, 2026-08-28: 'data tables don't seem to have any ui in manager for permissions and owners, although the api seems to be able to set them'"
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL (PENDING). THE AUDIT HALF SHIPS: the Data page shows who may read a table, on the same ACL key the data layer enforces on (`lazysite/db/tables/<table>`, from Data::Access::acl_key - the test pins the two together, because a page reading a different key would show a rule that is not the one being enforced, which is worse than showing nothing). "No rule" and "a rule naming nobody" are distinguished, per SM635's argument for a protected file row. Read through mgJson, per SM461. NOT DONE: EDITING from this page. The rights editor - buildRights, addPrincipal, savePerms - lives inside files.md and is generic over an ACL path, so the correct fix is to extract it into the layout's shared helpers where mgConfirm and mgDirtyGuard already live, and have both pages use it. That is a refactor of a working page and was deliberately not attempted inside a batch of seven with a release pending; duplicating the chip rendering onto this page instead would have been the copy this project removes on sight."
 ---
 
 # The observation is exactly right

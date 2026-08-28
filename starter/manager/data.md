@@ -203,6 +203,7 @@ function loadTables() {
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
           + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
+          + '<button class="mg-btn" onclick="openTableAcl(\'' + escHtml(name) + '\')">Who can read</button> '
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
@@ -661,6 +662,57 @@ function emitYaml(shape) {
     if (f['default'] !== undefined) y += '    default: ' + yscalar(f['default']) + '\n';
   });
   return y;
+}
+
+// SM678: a data table's read access IS an ACL, and the manager could not show
+// it.
+//
+// Lazysite::Data::Access keys it as `lazysite/db/tables/<table>`, so acl-get and
+// acl-set reach a table's access with the same verbs that reach a page's, and
+// may_read consults it through the shared _acl_allows. The mechanism was
+// complete and the API could drive it - but the manager's only rights editor is
+// rendered inside a FILE's expander on the Files page, and a table is not a
+// file, so it never got one.
+//
+// That matters more than a missing panel: a table is where a site's personal
+// data lives, and the one object whose access an operator would most want to
+// audit was the one the manager could not show. Silence reads as "there is
+// nothing here", and there is something here - the site agent reported
+// operators assuming a content scope confines a table, which it does not.
+function tableAclKey(table) { return 'lazysite/db/tables/' + table; }
+
+function openTableAcl(table) {
+  var key = tableAclKey(table);
+  fetch(API + '?action=acl-get&path=' + encodeURIComponent(key))
+    .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not read the rule', true); return; }
+      var acl   = d.acl || {};
+      var read  = acl.read  || [];
+      var write = acl.write || [];
+      var owner = acl.owner || '';
+
+      // NO RULE AND A RULE NOBODY HAS LOOKED AT MUST NOT LOOK THE SAME. That
+      // distinction is the whole point of showing this - SM635 made the same
+      // argument for a protected file row.
+      var lines = [];
+      if (!owner && !read.length && !write.length) {
+        lines.push('No rule. Who may read this table follows the site\'s own '
+          + 'rules - a table that names no domain is reachable by any '
+          + 'manage_data holder on this instance.');
+      } else {
+        if (owner) lines.push('Owner: ' + owner);
+        lines.push('May read: '  + (read.length  ? read.join(', ')  : '(nobody named - open within the account scope)'));
+        lines.push('May write: ' + (write.length ? write.join(', ') : '(nobody named)'));
+      }
+      lines.push('');
+      lines.push('Rule key: ' + key);
+      lines.push('');
+      lines.push('To change it, edit the rule on this key with acl-set, or name '
+        + 'groups in the table\'s writable_by for row writes.');
+      window.alert('Who can read "' + table + '"\n\n' + lines.join('\n'));
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function openDescriptor(table) {
