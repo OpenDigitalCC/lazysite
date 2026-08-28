@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM653 partial (PENDING) **the tool listing says "callable on some paths".**
+  `tools/list` offered every `path_aware` tool to a themes-only grant, because
+  the shared callability rule is asked without a path at listing time and the
+  theme/layout override then applies unconditionally. Enforcement was never
+  wrong - `tools/call` refused them - but the grant was told it could do more
+  than it could. The listing could answer "yes" or "no" and the truth was "yes,
+  on some paths", so the description now says so, naming the capability that
+  would widen it. Derived from the same rule that decides callability, so it
+  cannot drift from it.
+
 - SM660 shipped (PENDING) **a destructive verb needs the read it destroys.**
   SM652 narrowed the submission reads to `read_submissions` and left three
   destructive verbs on `manage_forms` alone, so a grant could delete a

@@ -3412,6 +3412,24 @@ sub _tool_names { my ($caps) = @_; return [ map { $_->{name} } @{ tool_list($cap
 # tools/call.
 my %INTROSPECTION_TOOLS = ( whoami => 1, describe_capabilities => 1 );
 
+# SM653: is this tool offered ONLY because of the path-aware theme/layout
+# override? If so the caller may call it on theme and layout paths and nowhere
+# else, and the listing has no vocabulary for that - so the description says it.
+#
+# DERIVED FROM THE SAME RULE rather than a second list of tool names. A hand-kept
+# list of "the path-only ones" is a sixth place to update when the rule changes
+# (SM662), and it would be wrong the first time a tool gained a capability.
+sub _path_only_for {
+    my ( $name, $tool, $caps ) = @_;
+    return 0 unless $tool->{path_aware};
+    return 0 unless $caps->{manage_themes} || $caps->{manage_layouts};
+    # Offered on its own merits? Then it is not path-only, whatever the flag.
+    return 0 if !defined $tool->{cap};
+    return 0 if $caps->{ $tool->{cap} };
+    return 0 if defined $tool->{cap_also} && $caps->{ $tool->{cap_also} };
+    return 1;
+}
+
 sub _tool_callable {
     my ( $name, $tool, $caps ) = @_;
     return 1 if $INTROSPECTION_TOOLS{$name};
@@ -3445,9 +3463,22 @@ sub tool_list {
             next unless $INTROSPECTION_TOOLS{$name};
         }
         my $a = $ANNOTATE{$name} || [ 0, 0, 1, 0 ];
+
+        # SM653: the listing could say "yes" or "no" and the truth was
+        # "yes, on some paths". It is said in the DESCRIPTION rather than as a
+        # new annotation: a client that does not know a new hint ignores it
+        # silently, and the caller this is for is a language model reading the
+        # description. One place, not two.
+        my $desc = $TOOLS{$name}{description};
+        if ( defined $caps && _path_only_for( $name, $TOOLS{$name}, $caps ) ) {
+            $desc .= ' NOTE: with your current grant this tool is callable only'
+                . ' on theme and layout paths; elsewhere it will be refused.'
+                . " Reaching other paths needs the $TOOLS{$name}{cap} capability.";
+        }
+
         push @list, {
             name         => $name,
-            description  => $TOOLS{$name}{description},
+            description  => $desc,
             inputSchema  => $TOOLS{$name}{inputSchema},
             outputSchema => { type => 'object' },
             annotations  => {
