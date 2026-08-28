@@ -4,7 +4,7 @@ subtitle: "Release manager, 2026-08-28: 'sub sub sub folders that are protected 
 brand: plain
 standard-margins: true
 status: partial
-status-note: "PARTIAL (PENDING). THE MESSAGE IS FIXED: a protected file no longer reports that recording may be failing and sends the operator to a diagnostic that reports health. The generic message survives for an unprotected file, where an empty history really is a fault. THE VERSIONING IS DECIDED AND NOT BUILT - the release manager ruled 2026-08-28 that protected content MUST be versioned, being the most important content, which turns the filing into a design: a second repository beside the private store and outside the docroot (never inside it - that would put a copy of every protected file in the served tree), with the store's own 02770 permissions, and two object stores rather than one repository with two work trees. THE ORDER IS NOT NEGOTIABLE: git-history, git-show and git-restore are gated on manage_content and apply NO ACL, which is harmless only while protected content is absent from the repository - gate the reader FIRST, or the migration opens a hole and closes it afterwards. A third step nobody would think of: the public repository already holds orphaned history for paths since protected, and that becomes a copy of protected content in the public store the moment history is taken seriously."
+status-note: "PARTIAL (PENDING). THE MESSAGE IS FIXED: a protected file no longer reports that recording may be failing and sends the operator to a diagnostic that reports health. The generic message survives for an unprotected file, where an empty history really is a fault. THE VERSIONING IS DECIDED AND NOT BUILT - the release manager ruled 2026-08-28 that protected content MUST be versioned, being the most important content, which turns the filing into a design: a second repository beside the private store and outside the docroot (never inside it - that would put a copy of every protected file in the served tree), with the store's own 02770 permissions, and two object stores rather than one repository with two work trees. THE ORDER IS NOT NEGOTIABLE: the per-file readers (git-history, git-show, git-restore) already apply the file's read ACL through _git_target, correcting an earlier claim in this filing that they do not; the gap is action_git_history_summary, which filters by scope and blocked paths and by no ACL, on a WIDER gate (manage_content|manage_config) than the readers it summarises - close that FIRST, or the migration publishes the path and revision count of every protected file. A third step nobody would think of: the public repository already holds orphaned history for paths since protected, and that becomes a copy of protected content in the public store the moment history is taken seriously."
 ---
 
 # It is not depth, and it is not a fault
@@ -47,27 +47,51 @@ content. the question is then, how to protect the versioned content."*
 That settles the first question and replaces it with a harder one. What follows
 is the answer to the second, and the ORDER matters more than either half.
 
-## The reader is the hole, and it must be closed first
+## The per-file readers are already safe. The SUMMARY is not
 
-`git-history`, `git-show` and `git-restore` are gated on `manage_content` and
-nothing else. They apply no ACL.
+An earlier draft of this filing said `git-history`, `git-show` and
+`git-restore` apply no ACL and would each become a way around it. **That was
+wrong, and the correction narrows the work considerably.** All three resolve
+their target through `_git_target` in `Lazysite::Manager::Files`, and that
+helper ends with `_acl_denied( $r->{rel}, 'read', $username )`. A file's read
+rule already governs its history, its diffs and its restores. Versioning
+protected content does not open that door.
 
-Today that is harmless: protected content is not in the repository, so there is
-nothing for the reader to hand over. **The moment protected content is
-versioned, that reader becomes a way around the ACL** - any `manage_content`
-holder could read the history of a file the ACL says they may not open, and
-`git-restore` could write it back into the world.
+`action_git_history_summary` is the one that does not. It filters the file list
+by `is_blocked_path`, `is_blocked_config` and `outside_all_scopes` - and by no
+ACL at all - then recounts the totals so they describe the filtered set. It is
+gated on `manage_content|manage_config` (SM664), which is a WIDER gate than the
+per-file readers, applied to the one reader with a NARROWER filter.
+
+Today that is harmless for the same reason as before: protected content is not
+in the repository, so it cannot appear in the summary. The moment it is
+versioned, a `manage_config` holder inside the right scope learns the path and
+the revision count of every protected file - the existence and the edit rhythm,
+not the bytes. For content whose protection is the point, a list of what exists
+and how often it changes is not a small leak.
+
+That is a smaller hole than the one this filing first claimed, and it is a real
+one. It also cannot be reached from the manager UI today: SM664 removed the
+history overview from the Files page. The action survives, so the API is the
+surface.
 
 So the sequence is not negotiable:
 
-1. Gate the history verbs on the same ACL as the file. `Data::Access::may_read`
-   and `Auth::Acl::_acl_allows` already answer this question for a path; the
-   history reader must ask it too, per commit path, not once for the request.
+1. Give `action_git_history_summary` the ACL filter its per-file siblings
+   already have - `_acl_denied( $path, 'read', $username )` per entry, before
+   the recount, so the totals keep describing the set the caller can see. That
+   is the rule the summary's own comment already states ("a number that
+   disagrees with its own list is its own disclosure"); it simply applies it to
+   scope and not to the ACL.
 2. Only then move protected content into version control.
 
-Doing them the other way round opens the hole and closes it afterwards, and
-between the two the repository is a copy of every protected file readable by a
-grant that was never meant to see it.
+Doing them the other way round publishes, to any `manage_config` holder in
+scope, the path and revision count of every protected file - between the two
+steps, a directory of what is protected and how often it changes.
+
+Worth noting what step 1 is NOT: the per-file readers need no change. Checking
+this properly is what corrected the claim above, and it is the difference
+between a day's work on one function and an audit of four.
 
 ## Where the history lives
 
