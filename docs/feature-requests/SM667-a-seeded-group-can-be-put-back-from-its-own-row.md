@@ -3,7 +3,8 @@ title: "SM667: a seeded group can be put back to its shipped permissions from it
 subtitle: "Release manager, 2026-08-28: 'working with groups, what would be really useful in the groups panel, for seeded groups, is set permissions to default'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). A seeded group has a Restore defaults control on its own row, and the control is offered ONLY on a seeded group - one made here has no shipped default to return to, and offering it would imply there was. THE DIFF IS THE CONFIRMATION: the dry run runs first and its answer is the question, so an operator sees "Turn OFF: housekeeping" rather than "Reset this group?" - the second is what sends somebody away to ask. MEMBERSHIP IS KEPT (SM644's decision, and more pointed here: membership of the manager group identifies the administrators). THE HALF THAT NEEDED DESIGNING was that a reset is a CONFERRAL - it turns capabilities on, so it passes SM195's ceiling exactly as editing the row by hand does, and refuses WHOLESALE rather than applying the half it is allowed to: a partial reset leaves a row that is neither the default nor what the operator had. All four properties sabotage-verified. The open question about a panel-level reset-all is answered by leaving it in the CLI, where its blast radius is visible."
 ---
 
 # What is missing

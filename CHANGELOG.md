@@ -44,6 +44,47 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM667 shipped (PENDING) **a seeded group can be put back from its own row.**
+  `reset-groups` restores every seeded group at once, from a shell - neither of
+  which suits an operator looking at one drifted row. The Groups panel now
+  offers Restore defaults on a group that shipped with the engine, and the DIFF
+  is the confirmation: "Turn OFF: housekeeping" rather than "Reset this group?".
+  Members are kept. A reset is a CONFERRAL - it turns capabilities on - so it
+  passes SM195's ceiling as editing the row by hand does, and refuses wholesale
+  rather than applying the half it is allowed to.
+
+- SM678/SM679/SM680 filed (PENDING) **three things the Data page cannot say or
+  does not show.** A table's read access IS an ACL (`lazysite/db/tables/<name>`)
+  that the API can set and the manager has no surface for - the rights editor
+  exists but is rendered inside a FILE's expander. The table listing carries no
+  row count. And the Rows panel opens below the fold: a watched user pressed it
+  and did not see it happen, which is the same objection SM640 answered on the
+  plugin page with a modal.
+
+- SM676/SM677 filed (PENDING) **two things the field found.** The Brief button
+  in the Files expander renders unconditionally, while `brief-append` needs
+  `manage_briefs` that `brief-read` does not - so the panel reads the brief,
+  prompts for an entry, and then refuses the save. And every row save writes an
+  audit line carrying its key, which on a big table is the log: that reverses a
+  decision SM505 and SM465 each made deliberately, so the filing names what the
+  decision was protecting rather than treating it as a tidy-up.
+
+- SM675 filed (PENDING) **a capability backed by a plugin should say so.**
+  `manage_data` grants nothing while the data plugin is off, and the Groups
+  panel offers it as an ordinary checkbox. The engine already knows the mapping
+  - plugins declare `owns.capabilities` and ADR 0009 validates it - and SM180
+  already marks a granted channel dormant when its service is off. Recommends
+  marking dormant rather than hiding: a group that already holds the capability
+  keeps holding it, and hiding the row would hide a grant that is still in the
+  store.
+
+- SM673/SM674 filed (PENDING) **how a visitor gets an account.** Registration is
+  invitation-only and nothing answers `register`. SM673 proposes: a visitor
+  asks, an operator approves, the engine issues the claim link - built on the
+  forms pipeline so it inherits the honeypot, signed timestamp, rate limit and
+  quarantine that any public write endpoint needs. SM674 records unattended
+  self-registration and what it additionally costs.
+
 - SM662 partial (PENDING) **what every capability gate decides, as a
   fingerprint.** A capability's reach is described in up to six places and
   changing one is never enough - SM633, SM652 and SM664 each needed six edits,

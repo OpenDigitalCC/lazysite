@@ -423,6 +423,7 @@ function renderGroups() {
          ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
          '<span style="flex:1;"></span>' +
          '<span id="gd-' + ge + '">' + deleteControlHtml(members, ge) + '</span>' +
+         resetControlHtml(g, ge) +
          '</div>';
 
     h += '</div></details>';
@@ -509,6 +510,62 @@ function memberPillsHtml(members, ge) {
       '<button type="button" class="mg-token-x" title="Remove ' + escHtml(m) + '" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\')">&times;</button></span>';
   }).join('');
 }
+// SM667: put a SEEDED group back to what it shipped with, from its own row.
+//
+// reset-groups restores every seeded group at once, from a shell. An operator
+// looking at one drifted row needs neither: not a shell they may not have, and
+// not nine groups reset to fix one.
+//
+// OFFERED ONLY ON A SEEDED GROUP. A group made here has no shipped default to
+// return to, and offering the control would imply there was one.
+function resetControlHtml(g, ge) {
+  var info = allGroups[g] || {};
+  if (!info.seeded) return '';
+  return ' <button class="mg-btn mg-btn-sm" onclick="resetGroup(\'' + ge + '\')"'
+    + ' title="Restore this group\'s capabilities, grant authority and nesting to'
+    + ' what shipped with the engine. Members are kept.">Restore defaults</button>';
+}
+
+// THE DIFF IS THE CONFIRMATION, not a generic warning. An operator shown
+// "Reset this group?" will not press it and will go and ask; one shown that the
+// only change is `housekeeping` going off will press it. So the dry run runs
+// first and its answer IS the question.
+//
+// Written in this page's own idiom - apiCall, showStatus, loadGroups, and
+// mgConfirm as a PROMISE. The first version used fetch, mgShowWarning, loadAll
+// and a callback: it passed a JS syntax check and would have thrown
+// ReferenceError on the first click, because three of those four do not exist
+// here.
+function resetGroup(group) {
+  apiCall({ action: 'group-reset', group: group })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not read the defaults.', true); return; }
+      var on    = d.capabilities_on  || [];
+      var off   = d.capabilities_off || [];
+      var other = d.settings || [];
+      if (!on.length && !off.length && !other.length) {
+        showStatus('"' + group + '" already matches its shipped defaults.');
+        return;
+      }
+      var lines = [];
+      if (on.length)  lines.push('Turn ON: '  + on.map(capLabel).join(', '));
+      if (off.length) lines.push('Turn OFF: ' + off.map(capLabel).join(', '));
+      other.forEach(function(o) { lines.push(o.key + ': "' + o.from + '" to "' + o.to + '"'); });
+      lines.push(d.members_kept + ' member' + (d.members_kept === 1 ? '' : 's') + ' kept.');
+      return mgConfirm('Restore "' + group + '" to its shipped defaults?\n\n' + lines.join('\n'),
+        { ok: 'Restore' }).then(function(okd) {
+        if (!okd) return;
+        return apiCall({ action: 'group-reset', group: group, apply: 1 })
+          .then(function(a) {
+            if (!a.ok) { showStatus(a.error || 'Reset refused.', true); return; }
+            showStatus('"' + group + '" restored to its shipped defaults.');
+            loadGroups();
+          });
+      });
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
 // Delete only when empty - removing a group with members strips their permissions.
 function deleteControlHtml(members, ge) {
   return members.length

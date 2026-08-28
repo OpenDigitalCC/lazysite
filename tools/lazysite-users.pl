@@ -249,6 +249,7 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_remove   => 'user-group-remove',
     cmd_set            => 'user-settings-set',
     cmd_token          => 'user-token',
+    cmd_group_reset    => 'user-group-reset',
     cmd_setup_sysop    => 'setup-sysop',           # + a credential entry (see sub)
     cmd_account_create => 'user-account-create',
     cmd_account_set_disabled      => 'user-account-disable|user-account-enable',
@@ -480,6 +481,13 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'capability-holders' ) {
             $result = cmd_capability_holders();
+        }
+        elsif ( $action eq 'group-reset' ) {
+            # SM667: dry run unless the caller asks to apply, matching
+            # reset-groups. The panel opens with the diff and the operator
+            # confirms THAT, not a generic warning.
+            $result = cmd_group_reset( $req->{group},
+                actor => $req->{actor}, apply => ( $req->{apply} ? 1 : 0 ) );
         }
         elsif ( $action eq 'group-settings-set' ) {
             $result = cmd_group_settings_set( $req->{group}, $req->{key}, $req->{value},
@@ -4580,6 +4588,107 @@ sub cmd_group_set_cli {
 # DRY RUN IS THE DEFAULT. --apply is required to write. "Likely over-granting"
 # is a belief until an operator reads what would actually change, and this is
 # the operation where reading first matters most.
+# SM667: put ONE seeded group back, from its own row.
+#
+# reset-groups (SM644) restores every seeded group at once, from a shell. Both
+# halves are wrong for the case an operator actually hits: they are looking at
+# one group in the Groups panel, they can see its row has drifted, and the
+# remedy is a shell they may not have on a host they may not reach - and when
+# they get there it resets nine groups to fix one.
+#
+# A RESET IS A CONFERRAL. It turns capabilities ON, so it passes SM195's ceiling
+# exactly as editing the row by hand would. Bypassing _may_confer because it is
+# "only restoring the default" would be a privilege escalation with a reassuring
+# name: the shipped default is not automatically within the resetting actor's
+# authority.
+#
+# AND IT REFUSES WHOLESALE. A partial application would leave a row that is
+# neither the default nor what the operator had, and they would have to work out
+# which half happened. Every capability the reset would turn on is checked
+# BEFORE anything is written.
+sub cmd_group_reset {
+    my ( $group, %opt ) = @_;
+    my $actor = $opt{actor};
+    return { ok => 0, error => 'Group required' }
+        unless defined $group && length $group;
+
+    my $gs  = read_group_settings();
+    my $cfg = ( ref $gs eq 'HASH' ? $gs->{$group} : undef );
+    return { ok => 0, kind => 'not-found', error => "No such group: $group" }
+        unless ref $cfg eq 'HASH';
+
+    # `seeded` absent means operator-made (SM608). There is no shipped default
+    # to return such a group to, and offering the action would imply there was.
+    return { ok => 0, kind => 'invalid',
+        error => "'$group' was created on this instance, so it has no shipped "
+            . 'defaults to restore. Only groups that came with the engine can '
+            . 'be reset.' }
+        unless $cfg->{seeded};
+
+    my $seed = _default_group_seed();
+    my $want = $seed->{$group};
+    return { ok => 0, kind => 'invalid',
+        error => "'$group' is marked as shipped but this release seeds no such "
+            . 'group. It was probably renamed; reset-groups reports the whole '
+            . 'picture.' }
+        unless ref $want eq 'HASH';
+
+    # The diff, both directions, so the caller can show it before deciding.
+    my ( @on, @off, @other );
+    my %capkey = map { $_ => 1 } @CAP_KEYS;
+    for my $k ( sort keys %capkey ) {
+        my $now = $cfg->{$k}  ? 1 : 0;
+        my $tgt = $want->{$k} ? 1 : 0;
+        next if $now == $tgt;
+        $tgt ? push @on, $k : push @off, $k;
+    }
+    for my $k (qw(grantable assignable manager label description)) {
+        my $now = defined $cfg->{$k} ? join( ',', ref $cfg->{$k} eq 'ARRAY' ? @{ $cfg->{$k} } : $cfg->{$k} ) : '';
+        my $tgt = defined $want->{$k} ? join( ',', ref $want->{$k} eq 'ARRAY' ? @{ $want->{$k} } : $want->{$k} ) : '';
+        push @other, { key => $k, from => $now, to => $tgt } if $now ne $tgt;
+    }
+
+    # THE CEILING, before any write. Only capabilities being turned ON need
+    # authority: taking one away is de-escalation (SM195's own rule).
+    if ( my $c = _exceeds_authority( $actor, @on ) ) {
+        return { ok => 0, kind => 'forbidden',
+            error => "Resetting '$group' would grant '$c', which you may not "
+                . 'confer - you do not hold it, and it is not in your groups\' '
+                . 'grant authority. Nothing has been changed. A sysop can reset '
+                . 'this group, or add that capability to yours.' };
+    }
+
+    my %members = read_groups();
+    my $kept    = $members{$group} || [];
+
+    return { ok => 1, group => $group, applied => 0,
+        capabilities_on => \@on,    capabilities_off => \@off,
+        settings        => \@other, members_kept     => scalar @{$kept} }
+        unless $opt{apply};
+
+    # MEMBERSHIP IS PRESERVED, always (SM644's decision, and more pointed here:
+    # membership of the manager group is what identifies the administrators, and
+    # a reset that emptied it could lock every human out of the instance).
+    $gs->{$group} = { %{$want}, seeded => 1 };
+    write_group_settings($gs);
+
+    # cli_audit as well as log_event: t/unit/lib/16 requires every registered
+    # MUTATING cmd_* to audit, and this one rewrites a group's whole capability
+    # row. log_event alone is the operational log, not the audit trail - which
+    # is the record that answers "who changed this group's permissions".
+    cli_audit( 'user-group-reset', $group,
+        'restored to shipped defaults'
+            . ( @on  ? '; granted ' . join( ',', @on )  : '' )
+            . ( @off ? '; revoked ' . join( ',', @off ) : '' ) );
+    log_event( 'WARN', $group, 'group reset to shipped defaults',
+        actor   => ( defined $actor && length $actor ? $actor : 'local' ),
+        granted => join( ',', @on ), revoked => join( ',', @off ) );
+
+    return { ok => 1, group => $group, applied => 1,
+        capabilities_on => \@on,    capabilities_off => \@off,
+        settings        => \@other, members_kept     => scalar @{$kept} };
+}
+
 sub cmd_reset_groups {
     my (@a) = @_;
     my $apply = grep { $_ eq '--apply' } @a;

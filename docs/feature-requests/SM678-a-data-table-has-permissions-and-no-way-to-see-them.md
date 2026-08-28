@@ -1,0 +1,61 @@
+---
+title: "SM678: a data table's permissions are settable over the API and invisible in the manager"
+subtitle: "Release manager, 2026-08-28: 'data tables don't seem to have any ui in manager for permissions and owners, although the api seems to be able to set them'"
+brand: plain
+standard-margins: true
+status: candidate
+---
+
+# The observation is exactly right
+
+A data table's read access is an ACL entry like any other. `Data::Access`:
+
+    sub acl_key { return "lazysite/db/tables/$_[0]" }
+
+so `acl-set` and `acl-get` reach a table's access with the same verbs that reach
+a page's, and `may_read` consults it through the shared `_acl_allows`. The
+mechanism is complete and the API can drive it.
+
+The manager cannot. Its only ACL editor - the rights grid, the add-principal
+picker, the owner row - is rendered inside a FILE's expander on the Files page.
+A table is not a file, never appears in that listing, and so never gets the
+editor. The Data page has no permissions UI at all.
+
+# Why this matters more than a missing panel
+
+A table is where a site's personal data lives. The one object whose access an
+operator would most want to see is the one the manager cannot show them, so:
+
+- an operator cannot AUDIT who may read a table without reading `acls.json` or
+  calling the API
+- an ACL set by an agent or a script is invisible to the person accountable for
+  it
+- an operator who assumes "no UI means no setting" concludes tables are
+  unprotected, or that content scope confines them - which the site agent
+  already reported as a false assumption on 0.11.3 (a scope over content paths
+  does not confine a domain-less table)
+
+That last one is the shape of the problem: silence reads as "there is nothing
+here", and there is something here.
+
+# What it needs
+
+The rights editor already exists and is generic over an ACL key - it is the
+`buildRights` / `addPrincipal` / `savePerms` set in `files.md`, which acts on a
+path. A table's key is a path-shaped string. So the work is to make that editor
+reusable outside the Files row and render it on the Data page for
+`lazysite/db/tables/<table>`, rather than to build a permissions UI.
+
+Worth doing at the same time: say on the table listing whether a table HAS an
+ACL, the way the Files listing marks a protected row (SM635). "No rule" and "a
+rule nobody has looked at" should not look the same.
+
+# Related
+
+[[SM635]] (a protected row says so where the operator is looking - the same
+argument for files), SM611 (a data table should belong to a site - the other
+half of "who can reach this table"), [[SM679]] (the row count on the same
+listing), the site agent's 0.11.3 finding that content scope is not data
+isolation.
+
+# Not started
