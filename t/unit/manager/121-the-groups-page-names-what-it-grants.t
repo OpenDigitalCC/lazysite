@@ -45,6 +45,13 @@ var caps = { manage_content: 1 }, channelServices = {}, ge = 'ops';
 // TECHNICAL NAME on the label; an empty map renders the row without the
 // sentence marker, which is the case it means to examine.
 var CAP_GRANTS = {};
+// SM675 added a second dormant marker to the row - a capability whose owning
+// PLUGIN is off, beside SM180's channel-service one. The row builder reads
+// `capabilityPlugin`, which the page defines at the top; this stub has to
+// mirror the page's environment or the extracted function throws before it
+// renders anything. Empty here: this test is about the technical name on the
+// label, and no plugin state is the case it means to examine.
+var capabilityPlugin = {};
 $row
 console.log(JSON.stringify({ html: row(['manage_content', 'Create and edit pages'], false) }));
 JS

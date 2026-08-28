@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM675 shipped (PENDING) **a capability whose plugin is off says so.**
+  `manage_data` grants no table access while the data plugin is disabled, and
+  `manage_briefs` no brief action - every one refuses before it looks at
+  capabilities at all. The Groups grid offered both as ordinary checkboxes, so a
+  grant showed as held and the surface refused. It is now marked dormant beside
+  SM180's marker for a channel whose service is off, derived from each plugin's
+  own `owns.capabilities` declaration rather than a list in the page. Marked
+  rather than hidden: a group already holding it keeps holding it, and hiding
+  the row would hide a grant still recorded in the store.
+
 - SM676 shipped (PENDING) **the Brief button offers only what it can deliver.**
   It rendered unconditionally, while `brief-append` needs `manage_briefs` that
   `brief-read` does not - so the panel read the brief, prompted for an entry and
@@ -71,14 +81,6 @@ Naming the commit: AFTER it lands, never before
 ## 0.11.4 - EDGE: access control that was measured rather than reasoned about, and the instruments that did the measuring (2026-08-28)
 
 - SM667 shipped (a1a7f855) **a seeded group can be put back from its own row.**
-  `reset-groups` restores every seeded group at once, from a shell - neither of
-  which suits an operator looking at one drifted row. The Groups panel now
-  offers Restore defaults on a group that shipped with the engine, and the DIFF
-  is the confirmation: "Turn OFF: housekeeping" rather than "Reset this group?".
-  Members are kept. A reset is a CONFERRAL - it turns capabilities on - so it
-  passes SM195's ceiling as editing the row by hand does, and refuses wholesale
-  rather than applying the half it is allowed to.
-
 - SM679/SM681 shipped (3c5060a9) **two things the manager could not say.** The
   table listing carries a row count - the first thing anybody wants from a list
   of tables - counted in the pass that already reads each descriptor. A table

@@ -3,7 +3,8 @@ title: "SM675: a capability that only works while a plugin is enabled should say
 subtitle: "Release manager, 2026-08-28: 'groups that require modules should say so - if switching on data tables, it should check that the plugin is enabled ... whichever policy fits best with the proposed cleaner plugin infrastructure'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). The Groups grid marks a capability whose owning PLUGIN is switched off, beside SM180's existing marker for a channel whose service is off - the same statement about a different switch. DERIVED from each plugin's own `owns.capabilities` declaration (ADR 0009) and served on the existing channel-services call, where SM277 and SM427 already put their maps for the same reason: the Groups page must not carry a second copy of capability metadata in JavaScript. A capability added later appears without any list changing - the test asserts that derivation rather than a roll-call of names. MARKED, NOT HIDDEN, per the release manager's question: a group already holding the capability keeps holding it when the plugin goes off, so hiding the row would hide a grant still in the store that the operator could then neither see, audit nor revoke - the shape SM439, SM615 and SM668 each closed. Hiding would also make the grid depend on plugin state, so two instances with identical groups would show different rows. Sabotage-verified three ways."
 ---
 
 # The gap

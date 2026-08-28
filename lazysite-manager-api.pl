@@ -2997,8 +2997,37 @@ sub action_channel_services {
     my %grants = map { $_ => ( $desc->{$_}{grants} // '' ) }
         grep { length( $desc->{$_}{grants} // '' ) } keys %$desc;
 
+    # SM675: which capabilities are owned by a PLUGIN, and whether that plugin
+    # is on. `manage_data` grants nothing while the data plugin is disabled;
+    # `manage_briefs` grants nothing while briefs is - every brief action
+    # returns "the briefs plugin is disabled" before it looks at capabilities at
+    # all. The Groups grid offered both as ordinary checkboxes, so an operator
+    # granted one, the grid showed it on, whoami reported it held, and the
+    # surface refused.
+    #
+    # DERIVED FROM THE PLUGIN'S OWN DECLARATION (`owns.capabilities`, ADR 0009),
+    # not from a list here. A hand-kept map would be another copy of a fact the
+    # plugins already state, and wrong the first time one changed.
+    #
+    # Served alongside the channel services for the same reason SM277 and SM427
+    # put their maps here: the Groups page must not carry a second copy of
+    # capability metadata in JavaScript.
+    my %cap_plugin;
+    for my $p ( @{ ( action_plugin_list() || {} )->{plugins} || [] } ) {
+        my $owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
+            ? $p->{owns}{capabilities}
+            : [];
+        for my $c ( @{$owns} ) {
+            $cap_plugin{$c} = {
+                plugin  => $p->{id},
+                name    => ( $p->{name} // $p->{id} ),
+                enabled => ( $p->{_enabled} ? JSON::PP::true : JSON::PP::false ),
+            };
+        }
+    }
+
     return { ok => 1, services => \%svc, channel_for_key => \%by_key,
-        grants => \%grants };
+        grants => \%grants, capability_plugin => \%cap_plugin };
 }
 
 # Audit target for an action that carries no file PATH of its own - so the audit
