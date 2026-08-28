@@ -302,6 +302,13 @@ Phases 1 and 2 subsume SM103 phase 2; phase 4 is SM103 phase 3.
    long-lived XMPP session are not the same process. The question is not
    whether to build SM646 - it is whether this daemon's shape forecloses it.
 
+   **ANSWERED 2026-08-28 by [[SM666]], and not in either of the two directions
+   this decision offered.** The runtime is standalone and owns no protocol;
+   WebSocket and XMPP are both plugins against a supervisor contract, joined by
+   a scheduler. This daemon's shape cannot foreclose SM646 because SM646 is
+   another plugin. What changes here is build ORDER - the supervisor and its
+   contract first, with WebSocket as the first plugin proving the contract.
+
 Related: [[SM103]] (recent-change markers; phases 2-3 folded in here),
 [[SM222]] (service lifecycle + status, which this daemon should report
 through), [[SM646]] (inter-instance messaging - a second consumer of this
