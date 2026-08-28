@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.11.4
+     engine-version: 0.11.5
      imported: 2026-08-28
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=b0e4732904a8309c6aa860966197d3a521d6b7a78be50ccf68921b4914fc3acd modified=2026-08-25
+     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=612f4930eadb91340533fd320a4ab0376cb61106e9a7ee28b8fc76d8721d9b21 modified=2026-08-28
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=8a0249245da56abbf75c7438122b8d15c1eafb5854653d202b57982c77d7eccc modified=2026-08-28
-     body-sha256: 396f5e50fcf14a9e8a17a598279cd1e89b69acc9693a030e59bc7648c2270aec
+     body-sha256: 061adeeca2db0ad891fcdefbfd7e53f248c4184f0e1649924193209695155440
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.11.4**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.11.5**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -105,6 +105,30 @@ iterates and dispatches to the same components.
 Colours, type and spacing belong in `theme.json` as tokens, emitted as CSS
 custom properties. A component or layout should reference tokens, never literal
 colours. This is what makes a restyle a one-file change.
+
+### The style guide is the design contract
+
+When the look is produced by a separate process - a design agent, a themer, a
+later you - the style guide is the contract between that process and the content,
+and it is the primary artefact. The rule runs both ways:
+
+- **Every component the pages emit is registered in the style guide**, in each of
+  its states, with test content. A component is not finished until it has an entry
+  there. Register it the moment a page starts emitting its class, so the design
+  side has something to style against; the structural class can carry a neutral
+  token-based default in the meantime.
+- **The theme's job is to deliver everything the guide names.** The design process
+  reads the style guide and ensures each component in it is styled - nothing the
+  pages use is left to render unstyled. The guide is the checklist the theme is
+  measured against: a component present in the guide but missing from the theme is
+  a gap in delivery, not a licence to hand-style a page.
+
+Because the contract is explicit the two sides do not collide - the content side
+names and demonstrates what it needs, the theme side styles what is named, and
+neither edits the other's files to get its way. When the theme is updated
+underneath you, sync to it and re-register anything it has not yet caught up with,
+rather than overwriting it. The revision history on the theme and the guide is how
+each side sees what the other changed.
 
 ### Other things worth remembering
 
@@ -1357,7 +1381,7 @@ Imported on **2026-08-28** by `tools/import-field-practice.pl`, for the engine v
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
-| `/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md` | sites and content | 2026-08-25 |
+| `/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md` | sites and content | 2026-08-28 |
 | `/srv/projects/lazysite-apps/APP-PRACTICE.md` | apps and data | 2026-08-28 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
