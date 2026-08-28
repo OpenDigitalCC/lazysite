@@ -2748,9 +2748,37 @@ sub cmd_credential_status {
 sub cmd_keys_list {
     my %users    = read_users();
     my $settings = read_settings();
+
+    # SM668: the OAuth grants, read before the loop so an account holding one
+    # is listed even when it holds no stored credential - which is exactly an
+    # OAuth-only partner, and exactly the case that appeared on neither page.
+    # Best-effort: a store that cannot be read must not turn the Keys page into
+    # an error, because everything else on it is still true.
+    my $oauth = {};
+    {
+        local $@;
+        eval {
+            require Lazysite::Auth::OAuth;
+            no warnings 'once';
+            local $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
+            $oauth = Lazysite::Auth::OAuth::partner_grants() || {};
+            1;
+        } or $oauth = {};
+    }
+
     my @keys;
     for my $u ( sort keys %users ) {
-        next unless defined $users{$u} && length $users{$u};    # holds a credential
+        # SM668: an account with a LIVE OAUTH GRANT is listed whether or not it
+        # holds a stored credential. SM439 and SM615 both widened these pages on
+        # the principle "there be no hidden case where access is active or
+        # potentially active", and both quoted it at this very line. An OAuth
+        # grant is not potentially active; it is active now.
+        #
+        # "Listing is not offering" still holds: cmd_key_revoke keeps its own
+        # guard, and it already drops OAuth grants (revoke_partner) for any
+        # account that exists - so this lists exactly what can already be
+        # revoked.
+        next unless ( defined $users{$u} && length $users{$u} ) || $oauth->{$u};
         my $eff = effective_settings($u);
         # SM439: an interactive account that ALSO holds a machine channel is
         # LISTED, and was not.
@@ -2808,6 +2836,15 @@ sub cmd_keys_list {
             expires_at       => $s->{expires_at},
             disabled         => $eff->{disabled} ? JSON::PP::true() : JSON::PP::false(),
             interactive      => $eff->{ui}       ? JSON::PP::true() : JSON::PP::false(),
+
+            # SM668: refresh expiry as well as access expiry. An access token
+            # expiring in an hour is not "disconnected" when a refresh good for
+            # weeks sits behind it.
+            ( $oauth->{$u}
+                ? ( oauth_grants => $oauth->{$u}{grants} + 0,
+                    oauth_expires_at => $oauth->{$u}{exp} + 0,
+                    oauth_refresh_at => $oauth->{$u}{refresh_exp} + 0 )
+                : () ),
             };
     }
     return { ok => 1, keys => \@keys };
@@ -2829,6 +2866,39 @@ sub cmd_key_revoke {
     # a key revocation. Password/credential changes for a human account go
     # through the Users page.
     if ( effective_settings($user)->{ui} ) {
+        # SM668: the password is protected; the OAUTH GRANT is not the password.
+        #
+        # This used to refuse outright, which was right about the credential and
+        # wrong about everything else the account might hold. An interactive
+        # account can also be an OAuth partner, and once SM668 lists that grant
+        # on the Keys page the operator must be able to act on it there - a row
+        # showing access nobody can revoke from the page it appears on is worse
+        # than not showing it.
+        #
+        # So the grants go and the password stays, and the reply says exactly
+        # which of the two happened rather than reporting a flat refusal.
+        my $dropped = 0;
+        {
+            local $@;
+            eval {
+                require Lazysite::Auth::OAuth;
+                no warnings 'once';
+                local $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
+                $dropped = Lazysite::Auth::OAuth::revoke_partner($user);
+                1;
+            } or $dropped = 0;
+        }
+        if ($dropped) {
+            log_event( 'WARN', $user,
+                'OAuth grants revoked; login password left in place (SM668)',
+                grants => $dropped );
+            return { ok => 1, oauth_dropped => $dropped,
+                message => "Revoked $dropped OAuth grant"
+                    . ( $dropped == 1 ? '' : 's' ) . " for '$user'. Its LOGIN "
+                    . 'PASSWORD is unchanged - that is managed on the Users '
+                    . 'page, and clearing it here would be a lockout rather '
+                    . 'than a key revocation.' };
+        }
         return { ok => 0,
             error => "'$user' is an interactive account - its credential is a login "
                 . "password, not an access key. Manage it on the Users page." };

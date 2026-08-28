@@ -217,6 +217,39 @@ sub refresh_access {
 #
 # Both halves of the record go: the access token and the refresh token that
 # would replace it. Deleting one and not the other leaves the grant alive.
+# SM668: the live grants, per partner, for the Keys page.
+#
+# An MCP client authorised over OAuth authenticates per request with a bearer
+# token from THIS store. It creates no cookie, so Sessions cannot show it by
+# construction, and keys-list skipped any account holding no stored credential -
+# which is exactly an OAuth-only partner. The one live connection an operator
+# most wants to see was the one neither page could show, and the only lever they
+# could find was disabling the account.
+#
+# REFRESH EXPIRY IS REPORTED, not just access expiry. An access token expiring
+# in an hour is not "disconnected" when a refresh token good for weeks sits
+# behind it, and a page showing only the first would answer the operator's
+# question reassuringly and wrongly.
+sub partner_grants {
+    my $m   = load_store();
+    my $now = _now();
+    my %by;
+    for my $rec ( values %{ $m->{tokens} || {} } ) {
+        my $p = $rec->{partner} // '';
+        next unless length $p;
+        # Expired but not yet collected is not a live grant. _gc prunes on
+        # write, so the store can hold one; reporting it would name a
+        # connection that cannot authenticate.
+        next if ( $rec->{exp} || 0 ) < $now && ( $rec->{refresh_exp} || 0 ) < $now;
+        $by{$p} ||= { grants => 0, exp => 0, refresh_exp => 0 };
+        $by{$p}{grants}++;
+        for my $k (qw(exp refresh_exp)) {
+            $by{$p}{$k} = $rec->{$k} if ( $rec->{$k} || 0 ) > $by{$p}{$k};
+        }
+    }
+    return \%by;
+}
+
 sub revoke_partner {
     my ($partner) = @_;
     return 0 unless defined $partner && length $partner;

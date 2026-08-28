@@ -3,7 +3,8 @@ title: "SM668: an MCP agent connected over OAuth appears on neither Sessions nor
 subtitle: "Release manager, 2026-08-28: 'an ai agent is connecting via an mcp user. i want to disconnect this but there is no listing in sessions/keys for this agent, so only option is disable account'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). keys-list now lists any account holding a LIVE OAuth grant, whether or not it holds a stored credential - which is exactly the OAuth-only partner the filter hid - and reports the grant count, the access expiry and the REFRESH expiry, because an access token expiring in an hour is not 'disconnected' when a refresh good for weeks sits behind it. CORRECTION TO THIS FILING AS ORIGINALLY WRITTEN: it said the mechanism was already right and only the listing was missing. That was true only for a NON-interactive account. cmd_key_revoke refused an interactive one outright to protect its login password - so listing an interactive partner's grant would have shown access nobody could revoke from the page it appeared on, which is worse than not showing it. key-revoke now drops the OAuth grants and leaves the password alone, reporting which of the two happened. The operator confirmed separately that account-disable does sever the connector, so the heavier lever always worked; this is the proportionate one. t/unit/users/41 covers all three behaviours and is sabotage-verified - an earlier version was NOT, because its fixture account held a password (so the OAuth-only case was never exercised) and it asserted on a listing row rather than on what key-revoke returned."
 ---
 
 # Three stores, two pages

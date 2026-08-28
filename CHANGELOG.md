@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM668 shipped (PENDING) **an OAuth grant appears where it can be revoked.**
+  An MCP agent authorised over OAuth appeared on neither Sessions nor Keys - it
+  creates no cookie, and the Keys listing skipped any account with no stored
+  credential, which is exactly an OAuth-only partner. The only lever an operator
+  could find was disabling the account. Keys now lists any account holding a
+  live grant, with the access AND refresh expiries, because a short access token
+  is not "disconnected" when a long refresh sits behind it. `key-revoke` on an
+  interactive account no longer refuses outright: it drops the OAuth grants and
+  leaves the login password alone, saying which of the two it did - refusing
+  would have listed access nobody could act on from the page it appears on.
+
 - SM672 shipped (PENDING) **a refused domain host says which thing was wrong.**
   `Invalid domain host` answered two different problems - no host supplied, and
   a malformed one - and stated neither the rule nor which had happened.
