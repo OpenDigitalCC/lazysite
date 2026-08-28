@@ -125,6 +125,8 @@ my %EXEMPT = (
     'Domains::domain_check'   => 'read-only - probes DNS/TLS and reports; writes nothing',
     'Domains::domain_preview' => 'read-only - renders a host as a visitor would see it',
     'Domains::domain_usage' => 'read-only - inverts the conf into a layout/theme usage map',
+    'Domains::domain_content_root' =>
+        'read-only - resolves the content root a host serves from, for SM647\'s scope check',
     # --- Files ---
     'Files::action_list'                => 'read-only',
     'Files::action_read'                => 'read-only',

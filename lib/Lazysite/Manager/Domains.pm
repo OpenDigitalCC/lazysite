@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -306,6 +306,23 @@ sub domains_list {
         push @domains, \%row;
     }
     return { ok => 1, domains => \@domains, keys => \@DOMAIN_KEYS };
+}
+
+# SM647: the content root a host serves from, or undef for a host that is not
+# configured. A domain's reach IS its content root, and domain-set is addressed
+# by host - so a scope check on this action has nothing to compare until it can
+# resolve one. Derived from domains_list rather than re-parsing, so it inherits
+# the primary's value exactly as the served row does.
+sub domain_content_root {
+    my ($host) = @_;
+    return undef unless defined $host && length $host;
+    $host = lc $host;
+    my $list = domains_list();
+    for my $d ( @{ $list->{domains} || [] } ) {
+        next unless lc( $d->{host} // '' ) eq $host;
+        return $d->{content_root} // '';
+    }
+    return undef;
 }
 
 # SM238 follow-up: shared by domain_preview here and action_domain_check in the

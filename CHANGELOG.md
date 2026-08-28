@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM647 fixed (PENDING) **a domain's access keys are a conferral, and a domain
+  is reached by its content root.** Measured OPEN on edge 0.11.3 by the site
+  agent, both claims, with a credential holding `manage_domains` and NOT
+  `manage_users`: it rewrote `allowed_groups` on a domain outside its own scope,
+  and it named a group it had no authority over. `allowed_groups` was validated
+  for shape only, and SM195's conferral ceiling governs the users tool and never
+  reached this path. Now `allowed_groups` and `locked_users` require
+  `manage_users` as well, and every `domain-set` is checked against the target
+  domain's content root - which `_confine_scope` never did, because it inspects
+  paths and this action is addressed by host. Other keys keep `manage_domains`
+  alone: setting a theme is not a conferral.
+
 - SM668 shipped (PENDING) **an OAuth grant appears where it can be revoked.**
   An MCP agent authorised over OAuth appeared on neither Sessions nor Keys - it
   creates no cookie, and the Keys listing skipped any account with no stored

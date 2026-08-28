@@ -63,7 +63,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root);
 use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
@@ -1395,6 +1395,64 @@ elsif ( $action eq 'domain-add' ) {
 }
 elsif ( $action eq 'domain-set' ) {
     my $req = _json_body();
+
+    # SM647: writing a domain's ACCESS keys is a conferral and a reach.
+    #
+    # Measured on edge 0.11.3 by the site agent, both claims proved with a
+    # credential holding manage_domains and NOT manage_users, scoped to one
+    # content root: it rewrote allowed_groups on a domain OUTSIDE its scope, and
+    # it named a group it had no authority over. SM195's ceiling governs group
+    # conferral in the users tool and never reached this path - allowed_groups
+    # was validated for SHAPE only.
+    #
+    # Release manager's decision, 2026-08-28: both halves close.
+    #
+    #   allowed_groups / locked_users  ->  manage_domains AND manage_users
+    #   every key                      ->  the host must be within the caller's
+    #                                      content scope, when it has one
+    #
+    # Other keys keep manage_domains alone: setting a theme or a nav file is not
+    # a conferral, and widening this would break domain management for a grant
+    # that never touches access.
+    {
+        my $caps       = $token_auth ? \%token_caps : _user_caps($auth_user);
+        my %ACCESS_KEY = ( allowed_groups => 1, locked_users => 1 );
+        my $key        = $req->{key} // '';
+
+        if ( $ACCESS_KEY{$key} && !$caps->{manage_users} ) {
+            _refuse(
+                { ok => 0, kind => 'forbidden',
+                    error => "Setting '$key' decides WHO may reach this "
+                        . "domain's content, so it requires the 'Users & "
+                        . "groups' permission as well as domain management. "
+                        . 'An administrator can grant it on the Groups page.' },
+                ( $token_auth ? 'api' : 'ui' ), 'denied: capability' );
+        }
+
+        # The reach: a domain's content_root is the thing a scope confines, and
+        # this action is addressed by HOST, so _confine_scope (which inspects
+        # paths) never saw it.
+        my @scopes = $token_auth
+            ? @{ $token_caps{dav_scopes} || [] }
+            : @REQUEST_SCOPES;
+        if (@scopes) {
+            my $root = domain_content_root( $req->{host} );
+            if ( defined $root
+                && length $root
+                && Lazysite::Manager::Common::outside_all_scopes( \@scopes, $root ) )
+            {
+                my $names = join ', ',
+                    map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @scopes;
+                _refuse(
+                    { ok => 0, kind => 'forbidden',
+                        error => "Domain '" . ( $req->{host} // '' )
+                            . "' serves content from '$root', which is outside "
+                            . "your assigned scope ($names)." },
+                    ( $token_auth ? 'api' : 'ui' ), 'denied: outside dav_scope' );
+            }
+        }
+    }
+
     $result = domain_set( $req->{host}, $req->{key}, $req->{value} );
 }
 elsif ( $action eq 'domain-remove' ) {
