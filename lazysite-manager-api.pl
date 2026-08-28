@@ -1472,28 +1472,37 @@ elsif ( $action eq 'brief-read' ) {
     # caller's mistake. Same reasoning as acl-set's SM306 guard, and the
     # explicit check is what t/lint/52 requires of a paired action whose MCP
     # twin declares the argument required.
-    if ( !( defined $params{path} && length $params{path} ) ) {
+    # SM657: `type=row` addresses an object with no path, so the path
+    # requirement applies only when no typed reference was given.
+    my %typed = map { $_ => $params{$_} }
+        grep { defined $params{$_} && length $params{$_} } qw(type table key);
+    if ( !$typed{type} && !( defined $params{path} && length $params{path} ) ) {
         $result = { ok => 0,
             error => 'brief-read needs an explicit path - the content file '
-                . 'the brief is about.' };
+                . 'the brief is about - or a typed reference '
+                . '(type=row&table=NAME&key=KEY).' };
     }
     else {
         _briefs();
-        $result = Lazysite::Manager::Briefs::action_brief_read($path);
+        $result = Lazysite::Manager::Briefs::action_brief_read( $path, %typed );
     }
 }
 elsif ( $action eq 'brief-append' ) {
 
     # SM245: as brief-read - an appended entry must name its file explicitly.
-    if ( !( defined $params{path} && length $params{path} ) ) {
+    _briefs();
+    my $req   = _json_body();
+    my %typed = map { $_ => ( $params{$_} // $req->{$_} ) }
+        grep { length( $params{$_} // $req->{$_} // '' ) } qw(type table key);
+    if ( !$typed{type} && !( defined $params{path} && length $params{path} ) ) {
         $result = { ok => 0,
             error => 'brief-append needs an explicit path - the content file '
-                . 'the entry is about.' };
+                . 'the entry is about - or a typed reference '
+                . '(type=row&table=NAME&key=KEY).' };
     }
     else {
-        _briefs();
-        my $req = _json_body();
-        $result = Lazysite::Manager::Briefs::action_brief_append( $path, $req->{entry} );
+        $result = Lazysite::Manager::Briefs::action_brief_append(
+            $path, $req->{entry}, %typed );
     }
 }
 elsif ( $action eq 'briefs-migrate' ) {

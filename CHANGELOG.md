@@ -103,6 +103,19 @@ Naming the commit: AFTER it lands, never before
   domain row has an arrow that opens the live domain in a new tab, built from
   the host rather than `site_url`, which can carry an unexpanded
   `${REQUEST_SCHEME}` the manager has no way to resolve.
+- SM657 partial (PENDING) **a data row can carry a brief.** A row had no path,
+  no descriptor and no comment field - the only content object with nowhere to
+  record why it is as it is, on sites where a row IS the content.
+  `brief-read` and `brief-append` now take a typed reference (`type=row`,
+  `table`, `key`) in place of `path`. Typed entries live in the same store under
+  a reserved prefix, so `briefs-list` and `brief-delete` cover them from the
+  first day - which was the filing's condition for widening the key space at
+  all, since rows are deleted constantly and an unlistable brief would leave one
+  orphan per deletion. A typed entry reports its liveness as unknown rather than
+  guessing from a file that was never going to exist. `type=table` is not built:
+  a table's intent already survives as descriptor comments. The practice
+  briefing is generated from another tree's source, so the wording is filed to
+  that tree rather than edited here.
 
 - SM662 partial (PENDING) **what every capability gate decides, as a
   fingerprint.** A capability's reach is described in up to six places and

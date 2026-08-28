@@ -72,9 +72,67 @@ sub _store_path {
     return "$DOCROOT/lazysite/briefs/$rel";
 }
 
+# SM657 part two: the typed key, `type=row` first.
+#
+# A data row is the one content object with nowhere to record WHY it is as it
+# is. A page has a brief; a table has comments in its descriptor that round-trip
+# verbatim; a folder, asset, layout, theme, nav and the site root all take a
+# brief already. A row has no path, no descriptor and no comment field, and on a
+# data-driven site it is the content object.
+#
+# STORED IN THE SAME TREE, under a reserved prefix, and that is the design
+# decision worth defending. A second store would need its own listing and its
+# own delete - and the ordering condition this filing set was precisely that
+# briefs must be listable and clearable BEFORE the key space widens, because
+# rows are deleted constantly (every withdrawal, every superseding import, every
+# correction) and each would otherwise leave an invisible orphan. Keeping typed
+# entries in the same tree means SM508's list and delete cover them the day they
+# exist, rather than being extended to cover them later and probably not.
+#
+# The prefix cannot collide with a content path: validate_path resolves a
+# content rel against the docroot, and no content file is addressed as
+# `.typed/...` - the leading dot is reserved here for exactly this.
+our $TYPED_PREFIX = '.typed';
+
+# A typed key is (type, table, key). Returned as the store-relative path, or
+# undef when the arguments are not a typed reference at all.
+sub typed_rel {
+    my (%o) = @_;
+    my $type = $o{type} // '';
+    return undef unless length $type;
+    return undef unless $type eq 'row';    # `type=table` is the second half
+
+    for my $k (qw(table key)) {
+        return { error => "type=$type needs a `$k`" }
+            unless defined $o{$k} && length $o{$k};
+        # One segment each: a table name and a row key are opaque identifiers,
+        # not paths, and letting either carry a slash would put a brief
+        # somewhere the key does not describe.
+        return { error => "invalid $k for type=$type" }
+            unless $o{$k} =~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
+    }
+    return { rel => "$TYPED_PREFIX/$type/$o{table}/$o{key}" };
+}
+
 sub action_brief_read {
-    my ($path) = @_;
+    my ( $path, %o ) = @_;
     if ( my $off = _gate() ) { return $off }
+
+    # SM657: a typed reference addresses an object with no path.
+    if ( my $t = typed_rel(%o) ) {
+        return { ok => 0, kind => 'invalid', error => $t->{error} } if $t->{error};
+        my $tf = _store_path( $t->{rel} );
+        return { ok => 1, path => "/$t->{rel}", type => $o{type},
+            table => $o{table}, key => $o{key}, brief => '', exists => 0 }
+            unless -f $tf;
+        open my $tfh, '<:utf8', $tf
+            or return { ok => 0, error => 'the brief store entry could not be read' };
+        my $tc = do { local $/; <$tfh> };
+        close $tfh;
+        return { ok => 1, path => "/$t->{rel}", type => $o{type},
+            table => $o{table}, key => $o{key}, brief => $tc, exists => 1 };
+    }
+
     my $r = validate_path($path);
     return $r unless $r->{ok};
     return { ok => 0, error => 'Path is blocked' } if is_blocked_path( $r->{rel} );
@@ -89,16 +147,30 @@ sub action_brief_read {
 }
 
 sub action_brief_append {
-    my ( $path, $entry ) = @_;
+    my ( $path, $entry, %o ) = @_;
     if ( my $off = _gate() ) { return $off }
     return { ok => 0, error => 'entry text required' }
         unless defined $entry && $entry =~ /\S/;
     return { ok => 0, error => 'entry too large (64KB cap per append)' }
         if length($entry) > 65536;
-    my $r = validate_path($path);
-    return $r unless $r->{ok};
-    return { ok => 0, error => 'Path is blocked' } if is_blocked_path( $r->{rel} );
-    my $f = _store_path( $r->{rel} );
+
+    # SM657: a typed reference skips validate_path, which is about content
+    # paths and would refuse a key that is deliberately not one. Every other
+    # protection still applies: the size cap above, the gate, and the stricter
+    # per-segment pattern typed_rel enforces.
+    my $rel;
+    if ( my $t = typed_rel(%o) ) {
+        return { ok => 0, kind => 'invalid', error => $t->{error} } if $t->{error};
+        $rel = $t->{rel};
+    }
+    else {
+        my $r = validate_path($path);
+        return $r unless $r->{ok};
+        return { ok => 0, error => 'Path is blocked' } if is_blocked_path( $r->{rel} );
+        $rel = $r->{rel};
+    }
+    my $r = { rel => $rel };
+    my $f = _store_path($rel);
     make_path( dirname($f) ) unless -d dirname($f);
     $entry =~ s/\s+\z//;
     my @t     = gmtime;
@@ -138,7 +210,16 @@ sub action_briefs_list {
                         { path => "/$rel",
                         size   => $st[7] // 0,
                         mtime  => $st[9] // 0,
-                        orphan => ( -e "$DOCROOT/$rel" ? 0 : 1 ),
+                        # SM657: a typed entry has no content FILE, so the
+                        # file test would call every one of them an orphan and
+                        # invite an operator to clear briefs that are doing
+                        # their job. Its liveness is a question about the row,
+                        # and until the data layer is asked here it is reported
+                        # as unknown rather than guessed at.
+                        ( $rel =~ m{\A\Q$TYPED_PREFIX\E/}
+                            ? ( type => ( split m{/}, $rel )[1],
+                                orphan => undef )
+                            : ( orphan => ( -e "$DOCROOT/$rel" ? 0 : 1 ) ) ),
                         };
                 },
             },
