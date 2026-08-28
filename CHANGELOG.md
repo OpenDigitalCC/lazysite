@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM675 shipped (PENDING) **a capability whose plugin is off says so.**
+## 0.11.5 - EDGE: an app's own users can write their own rows, a visitor can be approved into a group, and one rights editor serves both pages (2026-08-28)
+
+- SM675 shipped (90475e79) **a capability whose plugin is off says so.**
   `manage_data` grants no table access while the data plugin is disabled, and
   `manage_briefs` no brief action - every one refuses before it looks at
   capabilities at all. The Groups grid offered both as ordinary checkboxes, so a
@@ -53,7 +55,7 @@ Naming the commit: AFTER it lands, never before
   own `owns.capabilities` declaration rather than a list in the page. Marked
   rather than hidden: a group already holding it keeps holding it, and hiding
   the row would hide a grant still recorded in the store.
-- SM682 partial (PENDING) **an app's own users can write their own rows.**
+- SM682 partial (49421291) **an app's own users can write their own rows.**
   Writing a data table required `manage_data`, which also carries table create,
   alter and drop and read/write across every table on the instance - so an app
   with external users had to hand instance-wide data administration to its
@@ -68,7 +70,7 @@ Naming the commit: AFTER it lands, never before
   `manage_users` as well, which is SM647's ruling applied to the descriptor: an
   agent could otherwise widen a group the operator had already trusted with
   row-writes elsewhere. Only a change is gated, and a reorder is not a change.
-- SM673 partial (PENDING) **a registration can be approved in one step.**
+- SM673 partial (e206a4af) **a registration can be approved in one step.**
   Registration is invitation-only and stays so - nothing public creates an
   account. What changes is the operator's side: `account-approve` creates the
   account with no password, places it in every group flagged to take
@@ -82,7 +84,7 @@ Naming the commit: AFTER it lands, never before
   ticking a box must not route around it. Nothing flagged means an approved
   account joins nothing, which is deliberate - no shipped group grants only a
   login. Approving is not delegable: it creates a top-level account.
-- SM683 partial (PENDING) **protected content is not a broken recorder.** A
+- SM683 partial (ea9994fd) **protected content is not a broken recorder.** A
   protected file reported "No versions recorded ... version recording may be
   failing - run `lazysite check`", sending the operator to diagnose a fault that
   does not exist. Protecting a folder moves its content into the private store,
@@ -92,39 +94,46 @@ Naming the commit: AFTER it lands, never before
   is an open decision: its history would be a second copy of protected content,
   in a store with its own access rules.
 
-- SM676 shipped (PENDING) **the Brief button offers only what it can deliver.**
+- SM676 shipped (5f1afd03) **the Brief button offers only what it can deliver.**
   It rendered unconditionally, while `brief-append` needs `manage_briefs` that
   `brief-read` does not - so the panel read the brief, prompted for an entry and
   then refused the save, the refusal landing after the typing. It now appears
   only for a caller who may read one, and only while the briefs plugin is on; a
   caller who may read but not append gets a read-only button and is told which
   capability an entry would need, before typing it.
-- SM680 shipped (PENDING) **the rows panel opens where you are looking.** It
+- SM680 shipped (a370485d) **the rows panel opens where you are looking.** It
   was a block revealed below the table list, so a watched user pressed Rows and
   did not see anything happen - the control worked exactly as built and the
   person did not know it had. It is an overlay now, scrolling inside itself, and
   closing asks before discarding an unsaved row. The panel's content is
   unchanged: only its container moved.
 
-- SM678 partial (PENDING) **a data table says who can read it.** A table's
+- SM678 partial (2cdd79fd) **a data table says who can read it.** A table's
   access is an ACL keyed `lazysite/db/tables/<table>`, which the API could set
   and the manager could not show - the rights editor is rendered inside a file's
   expander, and a table is not a file. Since a table is where personal data
   lives, the object whose access an operator would most want to audit was the
   one with no surface. The Data page now shows the rule, on the same key the
   data layer enforces on, distinguishing "no rule" from "a rule naming nobody".
-  Editing from that page still needs the rights editor extracted into the shared
-  helpers rather than copied.
-- SM677 shipped (PENDING) **a table can quieten its row audit.** Every row
-  write records the row's key, so an auditor can tell which row changed - and on
-  a table with thousands of rows that is the log. `audit_rows: off` in a
-  descriptor turns the per-row lines off for that table only. Nothing changes by
-  default, and only an explicit `off` counts: a typo or an unreadable descriptor
-  leaves the table audited, because a misspelling must not become a quiet loss
-  of the trail. Declaring, altering, migrating, dropping and importing each
-  remain one audited event regardless.
+  The editor is now extracted (123e8dcf): it lives in the manager layout as
+  `window.mgRights`, beside `mgConfirm` and `mgDirtyGuard`, emitting the DOM the
+  Files page already produced so that page's markup, CSS and tests are
+  unchanged. The Data page uses it to EDIT the rule, replacing an alert box that
+  displayed the rule and then named the command-line verb for changing it. Two
+  things fell out of building it: the control was offered to holders of
+  `manage_data` while the ACL verbs need `manage_content`, so the button now
+  asks `whoami` first; and clearing a rule sends `acl-remove` rather than
+  storing empty lists, which already read as "open" on the read path. The
+  listing still does not say whether a table HAS a rule.
+- SM684 (a test that extracts a function by its signature stops testing when the
+  signature moves) recorded as a candidate. Landing SM683 added a third argument
+  to `renderHistory`; the regex that pulled it out of `files.md` stopped
+  matching, and the five assertions behind it were SKIPPED rather than failed -
+  the suite read sixteen tests with five skipped and looked healthy. Five
+  sibling tests use the same pattern. That one test is fixed here (d8b22c86,
+  sixteen tests to seventeen); the class is filed.
 
-- SM677 shipped (PENDING) **a table can quieten its row audit.** Every row
+- SM677 shipped (dec76026) **a table can quieten its row audit.** Every row
   write records the row's key, so an auditor can tell which row changed - and on
   a table with thousands of rows that is the log. `audit_rows: off` in a
   descriptor turns the per-row lines off for that table only. Nothing changes by
