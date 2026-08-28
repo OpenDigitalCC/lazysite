@@ -179,6 +179,35 @@ to hand over by any channel. The user opens it and the `/claim` page presents a
 - Disabled accounts and token-only (`ui` off) accounts cannot redeem a
   set-password claim.
 
+### Letting people ask for an account
+
+Registration is **by invitation**: nothing public creates an account. A site that
+wants visitors to ask puts a native form on a public page - the submission is
+stored, quarantined and rate-limited like any other, and raises the operator's
+usual notification.
+
+The operator then approves it. `account-approve` does in one step what would
+otherwise be three: it creates the account with **no password**, places it in
+the group named by `registration_group` in `lazysite.conf` if the site sets one,
+and mints the claim link to send back. The person sets their own credential at
+`/claim`, so the operator never sees, chooses or transmits a password.
+
+```yaml
+# lazysite.conf - optional; absent means an approved account joins no group
+registration_group: learners
+```
+
+Leaving it absent is the safe default: the account can sign in and sees exactly
+what an anonymous visitor sees until an operator places it. No shipped group
+grants only a login, so a site that wants approved registrations to be able to
+DO something should make a group for it - `write_data` plus membership of the
+relevant tables' `writable_by` is the shape for an app whose users write their
+own rows.
+
+Approving requires full user management. It creates a top-level account, so a
+delegated sub-manager (`create_sub_users` without `manage_users`) cannot call
+it.
+
 ### Forgot password (email, when SMTP is configured)
 
 Where the SMTP plugin is configured and the account has an `email`, `/login` shows

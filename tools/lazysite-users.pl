@@ -249,7 +249,8 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_remove   => 'user-group-remove',
     cmd_set            => 'user-settings-set',
     cmd_token          => 'user-token',
-    cmd_group_reset    => 'user-group-reset',
+    cmd_account_approve => 'user-account-approve',
+    cmd_group_reset     => 'user-group-reset',
     cmd_setup_sysop    => 'setup-sysop',           # + a credential entry (see sub)
     cmd_account_create => 'user-account-create',
     cmd_account_set_disabled      => 'user-account-disable|user-account-enable',
@@ -589,6 +590,12 @@ if ($API_MODE) {
         elsif ( $action eq 'token-rotate' ) {
             my $r = cmd_token_rotate( $req->{username} );
             $result = { ok => 1, %$r };
+        }
+        elsif ( $action eq 'account-approve' ) {
+            # SM673: approve a registration request. Gated like every other
+            # account-creating verb; the operator is the one calling it.
+            $result = cmd_account_approve( $req->{username},
+                group => $req->{group}, actor => $req->{actor} );
         }
         elsif ( $action eq 'claim-create' ) {
             my $r = cmd_claim_create( $req->{username},
@@ -2213,6 +2220,86 @@ sub _issue_claim {
 # the current credential is cleared first, so the account cannot
 # authenticate until the claim is redeemed. actor (when set and not the
 # unrestricted sysop 'local') must manage the target.
+# SM673: approve a registration request - create the account and hand back the
+# claim link in one step.
+#
+# Registration is invitation-only and stays that way: nothing public creates an
+# account. What this removes is the operator TRANSCRIBING a name and an address
+# out of a form submission into a CLI, which is where the current flow actually
+# costs something.
+#
+# THE OPERATOR STILL DECIDES. This is gated like every other account-creating
+# verb (manage_users), and it is called BY a person looking at a submission,
+# not by the submission arriving. SM268's ruling - that minting credentials is
+# a human-at-a-browser operation - is intact.
+#
+# THE TRAP THIS AVOIDS: the obvious pending state is "create the account
+# disabled, enable it on approval". cmd_claim_create refuses a disabled account
+# outright ("Account '$user' is disabled"), so that shape fails at the next
+# step. The pending state is the SUBMISSION, which the forms pipeline already
+# stores; nothing is created until approval, and what approval creates is a
+# live account with no password and a single-use link to set one.
+sub cmd_account_approve {
+    my ( $user, %opt ) = @_;
+    return { ok => 0, error => 'Username required' }
+        unless defined $user && length $user;
+
+    # NO PASSWORD IS EVER SET HERE. The account is created credential-less and
+    # the claim link is the only way in, so the operator never sees, chooses or
+    # transmits a password - which is the property /claim already has and the
+    # reason this does not simply call `add` with something generated.
+    my $created = eval { cmd_add( $user, '' ); 1 };
+    unless ($created) {
+        my $why = $@ // 'could not create the account';
+        chomp $why;
+        return { ok => 0, kind => 'invalid', error => $why };
+    }
+
+    # THE GROUP IS A SITE DECISION, not this verb's. `registration_group` in
+    # lazysite.conf names it; absent, the account joins nothing and can sign in
+    # to see exactly what an anonymous visitor sees until an operator places
+    # it. That default is deliberate: no shipped group grants only a login, so
+    # guessing one here would handnew accounts whatever that group carries.
+    my $group = $opt{group};
+    $group = _conf_registration_group() unless defined $group && length $group;
+    my @placed;
+    if ( defined $group && length $group ) {
+        my $g = eval { cmd_group_add( $user, $group, $opt{actor} ) };
+        push @placed, $group if $g && ( !ref $g || $g->{ok} );
+    }
+
+    my $claim = eval { cmd_claim_create( $user, actor => $opt{actor} ) };
+    unless ( ref $claim eq 'HASH' && $claim->{claim} ) {
+        my $why = $@ // 'the claim link could not be minted';
+        chomp $why;
+        return { ok => 0, error => "the account was created but $why",
+            user => $user, group => \@placed };
+    }
+
+    cli_audit( 'user-account-approve', $user,
+        'registration approved'
+            . ( @placed ? '; placed in ' . join( ',', @placed ) : '; no group' ) );
+
+    return { ok => 1, user => $user, group => \@placed,
+        claim => $claim->{claim}, url => _claim_url( $user, $claim->{claim} ) };
+}
+
+# The group an approved registration joins, or undef. Read from lazysite.conf so
+# it is a site's decision and visible where a site's other decisions are.
+sub _conf_registration_group {
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    return undef unless -f $conf;
+    open my $fh, '<', $conf or return undef;
+    my $g;
+    while (<$fh>) {
+        next unless /^\s*registration_group\s*:\s*(\S+)/;
+        $g = $1;
+        last;
+    }
+    close $fh;
+    return ( defined $g && $g =~ /^[A-Za-z0-9_-]+$/ ) ? $g : undef;
+}
+
 sub cmd_claim_create {
     my ( $user, %opt ) = @_;
     die "Username required\n" unless defined $user && length $user;
@@ -4960,6 +5047,12 @@ Commands:
   token-rotate USERNAME       Rotate the access token and reset its expiry
   brief USERNAME              Print the agent onboarding brief for a partner
                               (mints a fresh single-use pairing key each call)
+  account-approve USERNAME    Approve a registration request: create the account
+                              with NO password, place it in the site's
+                              `registration_group` if one is configured, and
+                              mint the single-use claim link in one step. The
+                              person sets their own credential; the operator
+                              never sees one. Requires full user management.
   claim-create USERNAME       Mint a single-use setup/reset claim link (24h)
   claim-redeem USER TOKEN NEWPASSWORD
                               Redeem a claim and set the account's password

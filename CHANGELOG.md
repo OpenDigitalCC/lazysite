@@ -113,6 +113,26 @@ Naming the commit: AFTER it lands, never before
 ## 0.11.4 - EDGE: access control that was measured rather than reasoned about, and the instruments that did the measuring (2026-08-28)
 
 - SM667 shipped (a1a7f855) **a seeded group can be put back from its own row.**
+- SM673 partial (PENDING) **a registration can be approved in one step.**
+  Registration is invitation-only and stays so - nothing public creates an
+  account. What changes is the operator's side: `account-approve` creates the
+  account with no password, places it in the site's `registration_group` if one
+  is configured, and mints the claim link, so a name and an address no longer
+  have to be transcribed out of a form submission into a CLI. The person sets
+  their own credential at `/claim`; the operator never sees one. Absent a
+  configured group the account joins nothing, which is deliberate: no shipped
+  group grants only a login. Approving is not delegable - it creates a
+  top-level account.
+
+- SM667 shipped (PENDING) **a seeded group can be put back from its own row.**
+  `reset-groups` restores every seeded group at once, from a shell - neither of
+  which suits an operator looking at one drifted row. The Groups panel now
+  offers Restore defaults on a group that shipped with the engine, and the DIFF
+  is the confirmation: "Turn OFF: housekeeping" rather than "Reset this group?".
+  Members are kept. A reset is a CONFERRAL - it turns capabilities on - so it
+  passes SM195's ceiling as editing the row by hand does, and refuses wholesale
+  rather than applying the half it is allowed to.
+
 - SM679/SM681 shipped (3c5060a9) **two things the manager could not say.** The
   table listing carries a row count - the first thing anybody wants from a list
   of tables - counted in the pass that already reads each descriptor. A table

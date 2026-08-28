@@ -3,7 +3,8 @@ title: "SM673: a visitor can ask for an account, and an operator approves it"
 subtitle: "Release manager, 2026-08-28: 'how might a user register for an account from a hosted site? this isn't a workflow that I had accounted for previously.'"
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL (PENDING). THE APPROVAL VERB SHIPS: `account-approve` creates the account with NO password, places it in the group named by `registration_group` in lazysite.conf if the site sets one, and mints the claim link - one step for what was three, and the operator never sees a password because the claim flow already avoids that. Registration stays INVITATION-ONLY: nothing public creates an account and SM268's ruling is intact, since this is called BY an operator looking at a submission. THE TRAP IS AVOIDED rather than hit: the pending state is the SUBMISSION the forms pipeline already stores, not a disabled account - cmd_claim_create refuses a disabled account outright, so that shape would have failed at the very next step. Absent registration_group the account joins nothing, which is the deliberate default: no shipped group grants only a login. Not delegable - it creates a top-level account, so a create_sub_users delegate is refused by omission from %DELEGABLE, asserted rather than assumed. Sabotage-verified three ways. REMAINING: the operator presses this from a CLI or the API, not from a button on the submission - the submissions viewer has no Approve control, and wiring one needs the form to say which fields are the username and address, or the operator to type them."
 ---
 
 # What exists today, and why it is invitation-only
