@@ -1426,14 +1426,46 @@ function toggleHistory(btn) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { panel.innerHTML = '<p class="mg-muted">' + escHtml(d.error || 'No history available') + '</p>'; return; }
-      renderHistory(panel, d.versions || []);
+      renderHistory(panel, d.versions || [], isProtectedPath(path));
     })
     .catch(function(e) { panel.innerHTML = '<p class="mg-muted">Error: ' + escHtml(e.message) + '</p>'; });
 }
 
-function renderHistory(panel, entries) {
+// SM683: is this path held back? The history panel has a path, not the row
+// object protectionFor() takes, so it asks the same source that function does
+// rather than a second copy of the rule.
+function isProtectedPath(path) {
+  // currentFiles is what renderFiles rendered - the same objects
+  // protectionFor() takes, so this cannot disagree with the padlock on the row.
+  var list = ( typeof currentFiles !== 'undefined' && currentFiles ) || [];
+  for ( var i = 0; i < list.length; i++ ) {
+    if ( list[i] && list[i].path === path ) return !!protectionFor( list[i] );
+  }
+  // Unknown row: say nothing rather than claim it is protected. The generic
+  // message is wrong for a protected file, but claiming protection for a file
+  // that has none would be wrong in the more misleading direction.
+  return false;
+}
+
+function renderHistory(panel, entries, protectedRow) {
   if (!entries.length) {
-    panel.innerHTML = '<p class="mg-muted">No versions recorded for this file. If it was changed after history was enabled, version recording may be failing &mdash; run <code>lazysite check</code>.</p>';
+    // SM683: PROTECTED CONTENT CANNOT HAVE HISTORY, and saying "recording may
+    // be failing" sends the operator to diagnose a fault that does not exist.
+    //
+    // Protecting a folder MOVES its content into the private store (SM286),
+    // which is a sibling of the docroot - and the content repository's work
+    // tree IS the docroot. So a protected file is not in the repository at all.
+    // It has never been committed and will not be, however often it is edited.
+    // `lazysite check` will report the repository healthy, because it is.
+    //
+    // Which of the two facts is the defect is an open decision (SM683). This
+    // only stops the page blaming the recorder for it.
+    panel.innerHTML = protectedRow
+      ? '<p class="mg-muted"><strong>Protected content is not versioned.</strong> '
+        + 'Holding a folder back moves its files out of the content repository, '
+        + 'so no versions are recorded for anything inside it. This is how it '
+        + 'works, not a fault &mdash; there is nothing to repair.</p>'
+      : '<p class="mg-muted">No versions recorded for this file. If it was changed after history was enabled, version recording may be failing &mdash; run <code>lazysite check</code>.</p>';
     return;
   }
   var html = '<table class="mg-file-table"><thead><tr>'

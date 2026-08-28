@@ -82,6 +82,15 @@ Naming the commit: AFTER it lands, never before
   ticking a box must not route around it. Nothing flagged means an approved
   account joins nothing, which is deliberate - no shipped group grants only a
   login. Approving is not delegable: it creates a top-level account.
+- SM683 partial (PENDING) **protected content is not a broken recorder.** A
+  protected file reported "No versions recorded ... version recording may be
+  failing - run `lazysite check`", sending the operator to diagnose a fault that
+  does not exist. Protecting a folder moves its content into the private store,
+  which is a sibling of the docroot - and the content repository's work tree IS
+  the docroot, so a protected file was never in the repository and cannot be.
+  The panel now says that plainly. Whether protected content SHOULD be versioned
+  is an open decision: its history would be a second copy of protected content,
+  in a store with its own access rules.
 
 - SM676 shipped (PENDING) **the Brief button offers only what it can deliver.**
   It rendered unconditionally, while `brief-append` needs `manage_briefs` that
