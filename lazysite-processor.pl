@@ -7395,6 +7395,60 @@ sub _inject_admin_bar {
 # from the live request: site config (manager on/off + manager_groups),
 # %AUTH_CONTEXT (the viewer), and the page's source path for the Edit link. No-op
 # on body-less / non-HTML output.
+# SM656 part two: a SECTION can decline the bar, by saying so once on its own
+# index page, and a page inside it may still say otherwise.
+#
+# The filing's second remedy: "these pages are already governed as a section by
+# one ACL entry. A section that is an application is an application throughout,
+# and saying it once beats saying it on every page." An application is rarely
+# one page, and requiring the key on each of them means the next page added is
+# the one that gets it wrong.
+#
+# NO NEW STORE AND NO NEW CONFIG FILE. The section's index page is where a
+# section already describes itself, so the key it already understands is read
+# from there. Walking up stops at the docroot.
+#
+# A PAGE STILL WINS over its section, in both directions: a page inside a
+# declining section may ask for the bar back with `admin_bar: bar`. Inheritance
+# that could only take the bar away would leave one page in an application
+# section - the section's own documentation, say - with no way to be a document
+# again.
+sub _admin_bar_choice {
+    my ($md_path) = @_;
+    return undef unless defined $md_path && length $md_path;
+
+    my $own = _peek_md($md_path)->{admin_bar};
+    return $own if defined $own;
+
+    # THE STARTUP-CAPTURED DOCROOT, not $ENV{DOCUMENT_ROOT}. Under the FastCGI
+    # pool a worker's environment is set once when it starts; reading it per
+    # request is the stale-value class t/lint/43 exists to refuse, and on a
+    # multi-site pool it is how one site's request resolves against another
+    # site's root.
+    my $docroot = $DOCROOT // '';
+    return undef unless length $docroot;
+    my $dir = $md_path;
+    $dir =~ s{/[^/]*\z}{};
+
+    # Bounded: stop at the docroot, and never walk above it even if the path is
+    # not under it (a symlinked or mis-rooted md_path must not send this up the
+    # filesystem).
+    # The loop condition is the ONLY bound, deliberately. Two further guards
+    # were written here first - skipping the page's own index, and breaking at
+    # the docroot - and sabotage showed neither could change the answer: a page
+    # carrying its own key has already returned above, and stripping past the
+    # docroot fails this regex on the next pass. Untested branches that cannot
+    # fire are what SM656 part one refused to ship, so they are gone rather than
+    # kept as reassurance.
+    my $guard = 0;
+    while ( length $dir && $dir =~ m{^\Q$docroot\E(?:/|\z)} && $guard++ < 32 ) {
+        my $want = _peek_md("$dir/index.md")->{admin_bar};
+        return $want if defined $want;
+        $dir =~ s{/[^/]*\z}{};
+    }
+    return undef;
+}
+
 sub _inject_admin_bar_live {
     my ( $html, $md_path ) = @_;
     return $html unless defined $html && $html =~ /<body/i;
@@ -7420,7 +7474,7 @@ sub _inject_admin_bar_live {
     # have helped here"); shipping unreachable code with vacuous tests behind
     # it is worse than not shipping it.
     if ( defined $md_path && length $md_path ) {
-        my $want = _peek_md($md_path)->{admin_bar};
+        my $want = _admin_bar_choice($md_path);
         return $html if defined $want && $want eq 'none';
     }
 

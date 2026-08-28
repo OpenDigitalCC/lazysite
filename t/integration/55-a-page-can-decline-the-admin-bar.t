@@ -47,6 +47,24 @@ page( 'apipage',    "api: true\n" );
 page( 'rawpage',    "raw: true\n" );
 page( 'apiwantsbar', "api: true\nadmin_bar: show\n" );
 
+# SM656 part two: a SECTION declines once, on its own index page.
+sub section_page {
+    my ( $rel, $fm ) = @_;
+    my $full = "$docroot/$rel.md";
+    ( my $dir = $full ) =~ s{/[^/]*\z}{};
+    make_path($dir) unless -d $dir;
+    open my $fh, '>', $full or die $!;
+    print {$fh} "---\ntitle: $rel\n" . ( $fm // '' ) . "---\n\nBody of $rel.\n";
+    close $fh;
+    return;
+}
+section_page( 'stock/index',   "admin_bar: none\n" );   # the section says so once
+section_page( 'stock/entry',   '' );                     # inherits
+section_page( 'stock/deep/row', '' );                    # inherits from two levels up
+section_page( 'stock/about',   "admin_bar: show\n" );    # opts back in
+section_page( 'docs/index',    '' );                     # a section that says nothing
+section_page( 'docs/guide',    '' );
+
 sub as_manager {
     return run_processor( $docroot, "/$_[0]",
         LAZYSITE_AUTH_TRUSTED => '1',
@@ -71,6 +89,42 @@ ok( has_bar($ord), 'an ordinary page still gets the admin bar' )
 my $app = as_manager('app');
 ok( !has_bar($app), 'admin_bar: none suppresses it on that page' );
 like( $app, qr/Body of app/, 'and the page itself still renders' );
+
+# --- SM656 part two: the section ------------------------------------------
+# An application is rarely one page, and requiring the key on every page means
+# the next page added is the one that gets it wrong. The section's index page is
+# where a section already describes itself.
+{
+    my $entry = as_manager('stock/entry');
+    ok( !has_bar($entry), 'a page inherits admin_bar: none from its section' )
+        or diag( 'The section said it once; this is the page that must not '
+            . 'have to repeat it.' );
+    like( $entry, qr/Body of stock/, 'and still renders' );
+
+    my $deep = as_manager('stock/deep/row');
+    ok( !has_bar($deep), 'and from two levels up' );
+
+    # THE PAGE STILL WINS, in both directions. Inheritance that could only take
+    # the bar away would leave a section's own documentation page with no way to
+    # be a document again.
+    my $about = as_manager('stock/about');
+    ok( has_bar($about), 'a page inside a declining section may ask for it back' )
+        or diag( 'One-way inheritance is a trap: the section README would be '
+            . 'stuck without an Edit link.' );
+
+    # AND NOTHING ELSE CHANGED. A section that says nothing must not acquire a
+    # rule, or this would silently suppress the bar across the whole site.
+    #
+    # ASSIGNED TO A SCALAR FIRST, and that is not a style preference:
+    # run_processor ends in `return qx(...)`, and qx in LIST context returns a
+    # list of LINES. Calling has_bar(as_manager(...)) hands it the first line
+    # only - "Status: 200 OK" - which never matches, so both of these failed
+    # while the feature worked perfectly.
+    my $guide = as_manager('docs/guide');
+    ok( has_bar($guide), 'a section that says nothing is unaffected' );
+    my $again = as_manager('ordinary');
+    ok( has_bar($again), 'and so is a page at the docroot' );
+}
 
 # --- api: and raw: need no rule, and this says why --------------------------
 # The filing suggested defaulting them to none as the cheap version. Measured

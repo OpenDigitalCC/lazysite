@@ -44,6 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM656 shipped (PENDING) **a section can decline the admin bar once.**
+  `admin_bar: none` on a folder's `index.md` is inherited by every page beneath
+  it, at any depth - an application is rarely one page, and requiring the key on
+  each of them means the next page added is the one that gets it wrong. A page
+  still decides for itself: `admin_bar: show` inside a declining section brings
+  the bar back, so a section's own documentation is not stuck without an Edit
+  link. No new store: the index page is where a section already describes
+  itself.
+
 - SM647 fixed (PENDING) **a domain's access keys are a conferral, and a domain
   is reached by its content root.** Measured OPEN on edge 0.11.3 by the site
   agent, both claims, with a credential holding `manage_domains` and NOT

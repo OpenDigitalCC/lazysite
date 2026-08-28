@@ -130,6 +130,13 @@ when you write it, and downgraded to `text/plain` if one already exists.
   fastest way to break it. Display only: it changes nothing about who may read
   or edit the page.
 
+  **A section can say it once.** Put `admin_bar: none` in a folder's
+  `index.md` and every page beneath it inherits the setting, however deep - an
+  application is rarely one page, and requiring the key on each of them means
+  the next page added is the one that gets it wrong. A page still decides for
+  itself: `admin_bar: show` inside a declining section brings the bar back, so
+  a section's own documentation page is not stuck without an Edit link.
+
 `payment`
 : Payment requirement for the x402 flow. See [Payment](/docs/payment).
 
