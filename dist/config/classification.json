@@ -171,6 +171,7 @@
     "^VERSION$",
     "^\\.git(/|$)",
     "^\\.github/",
+    "^tools/gate-fingerprint\\.pl$",
     "^tools/tidy-check\\.pl$",
     "^tools/backlog\\.pl$",
     "^tools/lazysite-deploy\\.sh$",

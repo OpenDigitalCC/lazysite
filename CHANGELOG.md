@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM662 partial (PENDING) **what every capability gate decides, as a
+  fingerprint.** A capability's reach is described in up to six places and
+  changing one is never enough - SM633, SM652 and SM664 each needed six edits,
+  and every instance past the second was caught by a gate rather than by
+  reading. The remedy is to make the gate table declarative so the other five
+  can be derived, and that is a restructure of the table deciding every
+  authorisation on this surface. `tools/gate-fingerprint.pl` executes each gate
+  against a fixed battery of capability sets and prints the resolved answers, so
+  the restructure can be proved to change nothing by an empty diff rather than
+  by review; `t/lint/92` takes the same fingerprint and refuses a gate that
+  ignores the capabilities it is given. The restructure itself is not done.
+
 - SM656 shipped (PENDING) **a section can decline the admin bar once.**
   `admin_bar: none` on a folder's `index.md` is inherited by every page beneath
   it, at any depth - an application is rarely one page, and requiring the key on
