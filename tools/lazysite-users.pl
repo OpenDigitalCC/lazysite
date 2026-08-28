@@ -2255,17 +2255,31 @@ sub cmd_account_approve {
         return { ok => 0, kind => 'invalid', error => $why };
     }
 
-    # THE GROUP IS A SITE DECISION, not this verb's. `registration_group` in
-    # lazysite.conf names it; absent, the account joins nothing and can sign in
-    # to see exactly what an anonymous visitor sees until an operator places
-    # it. That default is deliberate: no shipped group grants only a login, so
-    # guessing one here would handnew accounts whatever that group carries.
-    my $group = $opt{group};
-    $group = _conf_registration_group() unless defined $group && length $group;
+    # THE GROUP IS A SITE DECISION, not this verb's. A group carries the
+    # `registration` flag when an operator has ticked "add anonymous user
+    # registrations to this group" on the Groups page - where they can see what
+    # that group grants while deciding, which is the point of putting it there
+    # rather than in a config file.
+    #
+    # No flagged group means the account joins nothing and can sign in to see
+    # exactly what an anonymous visitor sees until an operator places it. That
+    # default is deliberate: no shipped group grants only a login, so guessing
+    # one here would hand new accounts whatever that group carries.
+    # THE GROUPS THAT SAY SO, rather than a name in a config file. A group
+    # carries `registration` when an operator has ticked "add anonymous user
+    # registrations to this group" on the Groups page, where they can see what
+    # that group grants while deciding.
+    #
+    # ALL of them, not the first: an operator composing a role out of two
+    # groups expects both, and picking one silently would be a rule nobody
+    # could discover.
+    my @want = ( defined $opt{group} && length $opt{group} )
+        ? ( $opt{group} )
+        : _registration_groups();
     my @placed;
-    if ( defined $group && length $group ) {
-        my $g = eval { cmd_group_add( $user, $group, $opt{actor} ) };
-        push @placed, $group if $g && ( !ref $g || $g->{ok} );
+    for my $g (@want) {
+        my $r = eval { cmd_group_add( $user, $g, $opt{actor} ) };
+        push @placed, $g if $r && ( !ref $r || $r->{ok} );
     }
 
     my $claim = eval { cmd_claim_create( $user, actor => $opt{actor} ) };
@@ -2284,20 +2298,14 @@ sub cmd_account_approve {
         claim => $claim->{claim}, url => _claim_url( $user, $claim->{claim} ) };
 }
 
-# The group an approved registration joins, or undef. Read from lazysite.conf so
-# it is a site's decision and visible where a site's other decisions are.
-sub _conf_registration_group {
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
-    return undef unless -f $conf;
-    open my $fh, '<', $conf or return undef;
-    my $g;
-    while (<$fh>) {
-        next unless /^\s*registration_group\s*:\s*(\S+)/;
-        $g = $1;
-        last;
-    }
-    close $fh;
-    return ( defined $g && $g =~ /^[A-Za-z0-9_-]+$/ ) ? $g : undef;
+# The groups an approved registration joins: those an operator has flagged.
+# Sorted, so the placement is deterministic and an audit line reads the same
+# way twice.
+sub _registration_groups {
+    my $gs = read_group_settings();
+    return () unless ref $gs eq 'HASH';
+    return sort grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{registration} }
+        keys %{$gs};
 }
 
 sub cmd_claim_create {
@@ -4185,6 +4193,11 @@ sub _group_settings_view {
             # the marker was on an instance an operator had already shaped, and
             # claiming those shipped would be the confident wrong answer.
             seeded     => ( $cfg->{seeded} ? JSON::PP::true() : JSON::PP::false() ),
+            # SM673 follow-up: does an approved registration land here? Served
+            # so the Groups page can offer the tick without a second copy of
+            # what the flag means.
+            registration =>
+                ( $cfg->{registration} ? JSON::PP::true() : JSON::PP::false() ),
             assignable => (
                 Lazysite::Auth::Settings::group_is_assignable( $g, $gs )
                 ? JSON::PP::true()
@@ -4512,6 +4525,49 @@ sub cmd_group_settings_set {
         log_event( 'INFO', $group, 'group assignable set', assignable => $on );
         cli_audit( 'user-group-settings-set', $group, "assignable=" . ( $on ? 'on' : 'off' ) );
         return { ok => 1, assignable => $on ? JSON::PP::true() : JSON::PP::false() };
+    }
+
+    # SM673 follow-up: 'Add anonymous user registrations to this group'.
+    #
+    # This began as a `registration_group` key in lazysite.conf. It belongs HERE
+    # instead: it is a fact about a group, it is set where an operator manages
+    # groups and can see what that group grants, and it appears in the grid
+    # beside `manager` and `assignable` rather than in a file they would have
+    # to be told about.
+    #
+    # SETTING IT IS A CONFERRAL, and the strongest one this system has: it
+    # decides what a person nobody has met holds on the day they are approved.
+    # So it passes the SAME ceiling as granting the group's capabilities one by
+    # one - an actor who could not confer `manage_content` must not be able to
+    # confer it to every future registrant by ticking a box on a group that has
+    # it. SM647 and SM682 answered the same question for a domain's
+    # allowed_groups and a table's writable_by; this is the third instance and
+    # the pattern is now explicit.
+    #
+    # MORE THAN ONE GROUP MAY CARRY IT. A registration joins all of them, which
+    # is what an operator composing a role out of two groups would expect, and
+    # refusing a second would be a rule nobody could discover.
+    if ( defined $key && $key eq 'registration' ) {
+        my $gs = read_group_settings();
+        $gs->{$group} ||= _new_group_record($group);
+        my $on = ( defined $value && $value =~ /^(?:on|1|true|yes)$/i ) ? 1 : 0;
+
+        if ($on) {
+            if ( my $c = _exceeds_authority( $actor, _caps_granted_by_group($group) ) ) {
+                return { ok => 0, kind => 'forbidden',
+                    error => "You cannot make '$group' a registration group: it "
+                        . "grants '$c', which you may not confer. Every account "
+                        . 'approved from a registration request would hold it.' };
+            }
+        }
+
+        $gs->{$group}{registration} = $on ? 1 : 0;
+        write_group_settings($gs);
+        log_event( 'WARN', $group, 'registration group flag set', registration => $on );
+        cli_audit( 'user-group-settings-set', $group,
+            'registration=' . ( $on ? 'on' : 'off' ) );
+        return { ok => 1,
+            registration => $on ? JSON::PP::true() : JSON::PP::false() };
     }
 
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
@@ -5049,7 +5105,7 @@ Commands:
                               (mints a fresh single-use pairing key each call)
   account-approve USERNAME    Approve a registration request: create the account
                               with NO password, place it in the site's
-                              `registration_group` if one is configured, and
+                              any group flagged to take registrations, and
                               mint the single-use claim link in one step. The
                               person sets their own credential; the operator
                               never sees one. Requires full user management.

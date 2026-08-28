@@ -188,21 +188,26 @@ usual notification.
 
 The operator then approves it. `account-approve` does in one step what would
 otherwise be three: it creates the account with **no password**, places it in
-the group named by `registration_group` in `lazysite.conf` if the site sets one,
-and mints the claim link to send back. The person sets their own credential at
-`/claim`, so the operator never sees, chooses or transmits a password.
+whichever groups are flagged to take registrations, and mints the claim link to
+send back. The person sets their own credential at `/claim`, so the operator
+never sees, chooses or transmits a password.
 
-```yaml
-# lazysite.conf - optional; absent means an approved account joins no group
-registration_group: learners
-```
+**Which group they land in is a group's own flag.** On the Groups page, a group
+can be marked *"add anonymous user registrations to this group"*. More than one
+group may carry it, and an approved account joins all of them.
 
-Leaving it absent is the safe default: the account can sign in and sees exactly
-what an anonymous visitor sees until an operator places it. No shipped group
-grants only a login, so a site that wants approved registrations to be able to
-DO something should make a group for it - `write_data` plus membership of the
-relevant tables' `writable_by` is the shape for an app whose users write their
-own rows.
+Setting that flag is the strongest conferral this system has - it decides what a
+person nobody has met holds on the day they are approved - so it passes the same
+authority check as granting that group's capabilities one at a time. An operator
+who could not confer `manage_content` cannot confer it to every future
+registrant by ticking a box on a group that has it.
+
+With no group flagged, an approved account joins nothing: it can sign in and
+sees exactly what an anonymous visitor sees until an operator places it. That is
+the safe default, because no shipped group grants only a login. A site that
+wants approved registrations to be able to DO something makes a group for it -
+`write_data` plus membership of the relevant tables' `writable_by` is the shape
+for an app whose users write their own rows.
 
 Approving requires full user management. It creates a top-level account, so a
 delegated sub-manager (`create_sub_users` without `manage_users`) cannot call

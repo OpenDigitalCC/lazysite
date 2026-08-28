@@ -313,6 +313,26 @@ function renderGroups() {
        + ' <span style="font-weight:400;color:#888">— unticked, it is a backend group that only aggregates capabilities and other groups</span>'
        + '</label></div>';
 
+    // SM673 follow-up: where an approved registration lands.
+    //
+    // Offered beside Kind because it is the same sort of statement - what the
+    // group IS, not what it grants - and offered HERE rather than as a setting
+    // in a config file because the operator deciding it needs to see the
+    // capability grid immediately below, which is what the group hands over.
+    //
+    // Only on a group people can be put in. Flagging a backend group would
+    // place accounts in something the picker will not offer, so the two would
+    // disagree about who is in it.
+    if (info.assignable !== false) {
+      h += '<div class="mg-line"><label style="min-width:5.5rem">Registration</label>'
+         + '<label class="mg-chk"><input type="checkbox"' + (info.registration ? ' checked' : '')
+         + ' onchange="setRegistration(\'' + ge + '\', this.checked)">'
+         + ' Add anonymous user registrations to this group'
+         + ' <span style="font-weight:400;color:#888">— an approved request joins every group ticked here,'
+         + ' and holds whatever they grant. Nothing ticked means an approved account joins nothing.</span>'
+         + '</label></div>';
+    }
+
     var row = function(c, isChannel) {
       // SM180: a channel that IS granted but whose SITE service is switched off
       // is dormant - it does nothing until an admin enables the service. Flag it
@@ -453,6 +473,23 @@ function renderGroups() {
     h += '</div></details>';
     return h;
   }).join('');
+}
+
+// SM673 follow-up: the flag that decides where an approved registration lands.
+// The server refuses it on a group whose capabilities this operator could not
+// confer - ticking a box must not be a way around the ceiling that granting
+// them one at a time obeys - so a refusal here is reported, not swallowed.
+function setRegistration(group, on) {
+  apiCall({ action: 'group-settings-set', group: group,
+            key: 'registration', value: on ? 'on' : 'off' })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not set it.', true); loadGroups(); return; }
+      showStatus(on
+        ? '"' + group + '" will take new registrations.'
+        : '"' + group + '" no longer takes new registrations.');
+      loadGroups();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function setAssignable(group, on) {
