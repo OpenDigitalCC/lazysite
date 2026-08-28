@@ -9,9 +9,9 @@ register:
      engine-version: 0.11.5
      imported: 2026-08-28
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=58fbc62167fe7787c14374c3ef9eb0bcb871f5ab5ce1472ed3960c72bede1e3d modified=2026-08-28
+     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=1d8e0dd07ccb7e6a487191eeacf132ece1dbabce9155ca19901cfdc8f9fbcf5d modified=2026-08-28
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=8a0249245da56abbf75c7438122b8d15c1eafb5854653d202b57982c77d7eccc modified=2026-08-28
-     body-sha256: 93643f56738a34aeb96637d81d79f404a2f813c4b7a513cf8e57f31da00ea602
+     body-sha256: ba19a5738dff17071af74d6a06f7db1fc8a16a96262e9456af666d98b1505be3
 -->
 
 ## What this is, and what it is not
@@ -140,6 +140,14 @@ the theme is updated underneath you, sync to it rather than overwriting it; the
 revision history on the theme and the guide is how each side sees what the other
 changed.
 
+Keep the style guide as a single **monolithic file** - every component and every
+state in one place - rather than composed from partials or `::: include`s. This is
+the deliberate exception to normal content composition: the whole point of the
+guide is discovery, and one file is the surface where an author or the design side
+finds everything at a glance. Splitting it across partials would scatter the
+components and defeat the contract. (It is still authored as one bare `.html` so
+indented markup is not mangled by the Markdown processor - monolith, not fragments.)
+
 ### Other things worth remembering
 
 - `aliases:` - every retired URL gets one on its successor at conversion
@@ -174,9 +182,24 @@ form submission store and **the site root** (`/`) are all accepted keys. So the
 place to record why a whole section exists is a brief on the folder, and the
 place to record what a site is for is a brief on `/`.
 
-Two things it will not key: anything under `lazysite/db/` (blocked), and a data
-table ROW (no path exists to name one). Whether to extend to those is an open
-decision with the operator, not settled practice.
+**A data ROW takes one too (SM657, 0.11.4).** A row has no path, so it is named
+rather than pathed: `type=row`, `table=NAME`, `key=KEY` in place of `path`, on
+`brief-read` and `brief-append` alike. That is the object that most needed it -
+on a data-driven site a row IS the content, and it was the only content object
+with nowhere to record why it is as it is. `table` and `key` are single opaque
+segments; neither may contain a slash.
+
+Typed entries list and delete exactly like any other brief - the condition for
+adding them at all, since rows are deleted constantly and a brief that could not
+be listed or cleared would leave one invisible orphan per deleted row. In
+`briefs-list` a typed entry carries its `type` and reports `orphan` as `null`
+(unknown) rather than guessing: the key is present with a null value, a third
+state distinct from `false` (a live file) and `true` (an orphan), because its
+liveness is a question about the row, not about a file on disk.
+
+Still not keyed: anything under `lazysite/db/` (blocked), and `type=table` - a
+table's intent already survives as comments in its descriptor, verbatim through a
+round trip, so it is the weaker half and is not built.
 
 **The trap:** writing a `.brief` over WebDAV still *works mechanically* after the
 change. It just writes an inert file - nothing lists it, nothing carries it, and
