@@ -81,6 +81,38 @@ search: false
  </div>
 </div>
 
+<!-- SM678: WHO CAN READ THIS TABLE, as an EDITOR rather than an alert box.
+     The alert box this replaces ended by naming the command-line verb that
+     would change the rule - a remedy that is not in front of the reader and,
+     on a hosted instance, not theirs to run. A panel that shows a rule and
+     cannot change it sends its reader somewhere else to finish the job.
+
+     The chips are window.mgRights, the same editor the Files page uses. A
+     table's access IS an ACL - Lazysite::Data::Access keys it as
+     lazysite/db/tables/<table> - so this reads and writes it with acl-get and
+     acl-set, the same verbs a page's rule takes. -->
+<div id="table-acl-panel" class="mg-rows-modal" style="display:none;">
+ <div class="mg-rows-sheet" style="max-width:40rem;">
+  <button class="mg-btn mg-btn-sm mg-rows-close" onclick="closeTableAcl()" title="Close">&times;</button>
+  <h2 style="font-size:1.05em;margin:0 0 4px;" id="table-acl-title"></h2>
+  <p style="font-size:0.85em;color:#888;margin:0 0 12px;" id="table-acl-note"></p>
+
+  <label style="display:block;font-size:0.85em;margin:0 0 4px;">Owner</label>
+  <input type="text" id="table-acl-owner" class="mg-inp" style="max-width:20rem;" placeholder="(nobody)">
+
+  <label style="display:block;font-size:0.85em;margin:12px 0 4px;">Who may read and write</label>
+  <div id="table-acl-rights" class="mg-rights"></div>
+  <div style="margin:8px 0 0;" id="table-acl-add"></div>
+
+  <p style="font-size:0.8em;color:#888;margin:12px 0 0;">Rule key: <code id="table-acl-key"></code></p>
+
+  <div style="margin-top:14px;display:flex;gap:8px;">
+    <button class="mg-btn mg-btn-primary" onclick="saveTableAcl()">Save</button>
+    <button class="mg-btn" onclick="closeTableAcl()">Cancel</button>
+  </div>
+ </div>
+</div>
+
 <!-- DM-5: THE DESCRIPTOR IS EDITED AS TEXT, on purpose. A descriptor is a
      thing an operator reads - their comments, their key order and their
      spacing are part of what they wrote, and a form that regenerated the file
@@ -230,7 +262,7 @@ function loadTables() {
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
           + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
-          + '<button class="mg-btn" onclick="openTableAcl(\'' + escHtml(name) + '\')">Who can read</button> '
+          + (CAN_ACL ? '<button class="mg-btn" onclick="openTableAcl(\'' + escHtml(name) + '\')">Who can read</button> ' : '')
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
@@ -706,6 +738,8 @@ function emitYaml(shape) {
 // audit was the one the manager could not show. Silence reads as "there is
 // nothing here", and there is something here - the site agent reported
 // operators assuming a content scope confines a table, which it does not.
+var CAN_ACL = false;
+
 function tableAclKey(table) { return 'lazysite/db/tables/' + table; }
 
 // SM680: closing the rows modal. The editor inside it can hold an unsaved row,
@@ -727,33 +761,95 @@ function openTableAcl(table) {
     .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Could not read the rule', true); return; }
-      var acl   = d.acl || {};
-      var read  = acl.read  || [];
-      var write = acl.write || [];
-      var owner = acl.owner || '';
+      var acl = d.acl || {};
 
-      // NO RULE AND A RULE NOBODY HAS LOOKED AT MUST NOT LOOK THE SAME. That
-      // distinction is the whole point of showing this - SM635 made the same
-      // argument for a protected file row.
-      var lines = [];
-      if (!owner && !read.length && !write.length) {
-        lines.push('No rule. Who may read this table follows the site\'s own '
-          + 'rules - a table that names no domain is reachable by any '
-          + 'manage_data holder on this instance.');
+      // SM678: the SHARED rights editor (window.mgRights), the same one the
+      // Files page uses on a file's ACL. A table's access is an ACL like any
+      // other - keyed lazysite/db/tables/<name> - so a second copy of this
+      // markup here would be two editors to keep in step, and they would
+      // diverge the first time either was touched.
+      var panel = document.getElementById('table-acl-panel');
+      document.getElementById('table-acl-title').textContent = 'Who can read "' + table + '"';
+      document.getElementById('table-acl-key').textContent = key;
+      document.getElementById('table-acl-owner').value = acl.owner || '';
+      document.getElementById('table-acl-rights').innerHTML = mgRights.build(acl);
+
+      // NO RULE AND AN EMPTY RULE MUST NOT LOOK THE SAME - SM635's argument for
+      // a protected file row. There are THREE states here, not two, and the
+      // middle one is the one that misleads: a rule that exists and names
+      // nobody looks like protection and is not.
+      var named = (acl.read || []).length || (acl.write || []).length;
+      var note;
+      if (!acl.owner && !named) {
+        note = 'No rule. Who may read this table follows the site\'s own rules'
+             + ' - a table that names no domain is reachable by any manage_data'
+             + ' holder on this instance.';
+      } else if (!named) {
+        note = 'This rule has an owner and nobody named. An empty list is not a'
+             + ' closed door: it reads as open within the account scope. Add a'
+             + ' person or @group below to narrow it.';
       } else {
-        if (owner) lines.push('Owner: ' + owner);
-        lines.push('May read: '  + (read.length  ? read.join(', ')  : '(nobody named - open within the account scope)'));
-        lines.push('May write: ' + (write.length ? write.join(', ') : '(nobody named)'));
+        note = 'Toggle r / w per person. Nobody named = open within the account'
+             + ' scope.';
       }
-      lines.push('');
-      lines.push('Rule key: ' + key);
-      lines.push('');
-      lines.push('To change it, edit the rule on this key with acl-set, or name '
-        + 'groups in the table\'s writable_by for row writes.');
-      window.alert('Who can read "' + table + '"\n\n' + lines.join('\n'));
+      document.getElementById('table-acl-note').textContent = note;
+
+      document.getElementById('table-acl-add').innerHTML = window.mgPrincipalSelect
+        ? mgPrincipalSelect({ onchange: 'addTableAclPrincipal(this)', groupPrefix: '@',
+                              cls: 'mg-rights-pick' })
+        : '';
+
+      panel.setAttribute('data-table', table);
+      panel.style.display = '';
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
+
+function addTableAclPrincipal(sel) {
+  var name = sel.value;
+  sel.selectedIndex = 0;
+  if (!name) return;
+  // SM462: a new principal gets BOTH rights. read-on/write-off stores an empty
+  // write list, and an empty list means no restriction - so the table would end
+  // up writable by more people than can read it.
+  document.getElementById('table-acl-rights').insertAdjacentHTML('beforeend',
+    mgRights.chip(name, 1, 1));
+}
+
+function saveTableAcl() {
+  var panel = document.getElementById('table-acl-panel');
+  var table = panel.getAttribute('data-table');
+  var key   = tableAclKey(table);
+  var owner = document.getElementById('table-acl-owner').value;
+  var got   = mgRights.collect(document.getElementById('table-acl-rights'));
+
+  // SM306's shape: no owner and nobody listed clears the rule rather than
+  // storing an empty one that reads as "open" on one surface and "named" on
+  // another.
+  var clearing = !owner && !got.read.length && !got.write.length;
+  var action = clearing ? 'acl-remove' : 'acl-set';
+  var body   = clearing ? {} : { owner: owner, read: got.read, write: got.write };
+
+  fetch(API + '?action=' + action + '&path=' + encodeURIComponent(key), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+    .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not save the rule', true); return; }
+      showStatus(clearing
+        ? 'Rule cleared for "' + table + '".'
+        : 'Who can read "' + table + '" updated.');
+      closeTableAcl();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function closeTableAcl() {
+  var p = document.getElementById('table-acl-panel');
+  if (p) p.style.display = 'none';
+}
+
 
 function openDescriptor(table) {
   DESC.table = table;
@@ -997,5 +1093,31 @@ function deleteRow(index) {
   .catch(function(e) { showStatus('Could not delete: ' + e, true); });
 }
 
-loadTables();
+// SM678: the ACL verbs this panel calls (acl-get, acl-set, acl-remove) are
+// gated on manage_content, and THIS PAGE is gated on manage_data. A person can
+// hold one without the other, so the "Who can read" control was on offer to
+// people every one of those calls would refuse. Ask first, and render the
+// button only for someone who can finish what it starts.
+function loadDataCaps() {
+  return fetch(API + '?action=whoami')
+    .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
+    .then(function(d) {
+      if (d && d.ok) CAN_ACL = !!(d.capabilities || {}).manage_content;
+    })
+    .catch(function() { /* leave it off: no button beats a button that refuses */ });
+}
+
+// SM077: the assignable names, from the one source every page that names a
+// principal already uses. Best-effort: a page that cannot list them still
+// edits the rights already on the rule.
+function loadDataPrincipals() {
+  return fetch(API + '?action=principals')
+    .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
+    .then(function(d) {
+      if (d && d.ok && window.mgSetPrincipals) mgSetPrincipals(d.users, d.groups);
+    })
+    .catch(function() { /* the editor still works on what is already there */ });
+}
+
+loadDataCaps().then(loadDataPrincipals).then(loadTables);
 </script>

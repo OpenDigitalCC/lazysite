@@ -426,6 +426,71 @@
       if (name.charAt(0) === '@') return GROUPS.indexOf(name.slice(1)) >= 0;
       return USERS.indexOf(name) >= 0 || GROUPS.indexOf(name) >= 0;
     };
+
+    /* SM678: the rights editor, shared.
+     *
+     * These were inside files.md, rendered into a FILE's expander. They are
+     * generic over an ACL - a set of principals with r/w - and a data table's
+     * access IS an ACL, keyed lazysite/db/tables/<name>. So the Data page could
+     * not offer an editor without a second copy of this markup, which is the
+     * duplication this project removes on sight.
+     *
+     * MOVED, NOT REWRITTEN. The DOM is byte-for-byte what files.md produced -
+     * same classes, same data attributes, same button order - so that page's
+     * markup, CSS and tests are untouched and this is a relocation rather than
+     * a redesign of a working editor.
+     */
+    window.mgRights = (function() {
+      function esc(x) {
+        return String(x == null ? '' : x)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      return {
+        chip: function(name, r, w) {
+          return '<span class="mg-chip" data-name="' + esc(name) + '">'
+               + '<span class="mg-chip-name">' + esc(name) + '</span>'
+               + '<button type="button" class="mg-chip-right ' + (r ? 'on' : 'off') + '" data-right="r" onclick="mgRights.toggle(this)" title="read">r</button>'
+               + '<button type="button" class="mg-chip-right ' + (w ? 'on' : 'off') + '" data-right="w" onclick="mgRights.toggle(this)" title="write">w</button>'
+               + '<button type="button" class="mg-chip-x" onclick="mgRights.remove(this)" title="remove">&times;</button>'
+               + '</span>';
+        },
+        /* The union of the two lists, each chip carrying which rights it holds
+         * and keeping the order they were first seen in. */
+        build: function(acl) {
+          var read = {}, write = {}, order = [];
+          ((acl && acl.read)  || []).forEach(function(p) { if (!read[p] && !write[p]) order.push(p); read[p] = 1; });
+          ((acl && acl.write) || []).forEach(function(p) { if (!read[p] && !write[p]) order.push(p); write[p] = 1; });
+          var self = this;
+          return order.map(function(p) { return self.chip(p, read[p], write[p]); }).join('');
+        },
+        toggle: function(btn) {
+          var on = btn.className.indexOf('on') >= 0;
+          btn.className = 'mg-chip-right ' + (on ? 'off' : 'on');
+        },
+        remove: function(btn) {
+          var chip = btn.parentNode;
+          chip.parentNode.removeChild(chip);
+        },
+        /* Read the chips back out of a container. Returns the two lists the
+         * acl-set action takes; the CALLER supplies the owner and the path,
+         * because those are properties of the thing being governed and not of
+         * the editor. */
+        collect: function(container) {
+          var read = [], write = [];
+          var chips = container.querySelectorAll('.mg-chip');
+          for (var i = 0; i < chips.length; i++) {
+            var name = chips[i].getAttribute('data-name');
+            var on   = chips[i].querySelectorAll('.mg-chip-right.on');
+            for (var j = 0; j < on.length; j++) {
+              if (on[j].getAttribute('data-right') === 'r') read.push(name);
+              if (on[j].getAttribute('data-right') === 'w') write.push(name);
+            }
+          }
+          return { read: read, write: write };
+        }
+      };
+    })();
   })();
   </script>
 </head>

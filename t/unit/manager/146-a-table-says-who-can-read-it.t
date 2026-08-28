@@ -57,8 +57,14 @@ subtest 'no rule and an empty rule do not read the same' => sub {
         'and a rule naming nobody says THAT instead' )
         or diag( 'SM635 made the same argument for a protected file row: "no '
             . 'rule" and "a rule nobody has looked at" must not look alike.' );
-    like( $fn, qr/Rule key:/,
-        'and the key is shown, so an operator can act on it' );
+    # SM678: the key is still shown, but the panel that replaced the alert box
+    # carries the label in its markup and fills it from here. Assert BOTH
+    # halves - a label with nothing written into it, or a write with no label,
+    # would each leave the operator without the key.
+    like( $page, qr/Rule key:.*id="table-acl-key"/s,
+        'the panel labels where the key goes' );
+    like( $fn, qr/getElementById\('table-acl-key'\)\.textContent = key/,
+        'and the key is written into it, so an operator can act on it' );
 };
 
 subtest 'it reads through the guarded parser' => sub {

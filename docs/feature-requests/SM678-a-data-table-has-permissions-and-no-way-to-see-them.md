@@ -59,4 +59,39 @@ half of "who can reach this table"), [[SM679]] (the row count on the same
 listing), the site agent's 0.11.3 finding that content scope is not data
 isolation.
 
-# Not started
+# Done in 0.11.5
+
+The editor was EXTRACTED, not copied. It now lives in the manager layout as
+`window.mgRights` - `chip`, `build`, `toggle`, `remove`, `collect` - beside
+`mgConfirm` and `mgDirtyGuard`, which is where the page-shared helpers already
+are. The DOM it emits is byte-for-byte what `files.md` produced, so that page's
+markup, CSS and tests were untouched; `chipHtml`, `buildRights`, `toggleRight`
+and `removeChip` survive there as one-line delegations, which keeps the call
+sites the rest of the page speaks in.
+
+`data.md` uses it on `lazysite/db/tables/<table>`, read with `acl-get` and
+written with `acl-set`. The panel replaces a `window.alert` that displayed the
+rule and then named the command-line verb for changing it - a remedy that is
+not in front of the reader and, on a hosted instance, not theirs to run.
+
+Two things the request did not ask for, found while building it:
+
+- **The control was offered to people every call behind it would refuse.** The
+  Data page is gated on `manage_data`; `acl-get`, `acl-set` and `acl-remove`
+  are gated on `manage_content`. Those do not have to travel together. The
+  button now renders only when `whoami` reports `manage_content`, which is the
+  same shape SM676 settled for the Briefs control on the Files page: ask what
+  the reader holds, and do not offer what the server will refuse.
+- **Clearing a rule and storing an empty one are different acts.** No owner and
+  nobody named sends `acl-remove` rather than an `acl-set` of empty lists,
+  because an empty list already means "no restriction" on the read path - so
+  storing one would leave a rule that reads as open on one surface and as named
+  on another.
+
+`t/unit/manager/100-one-rights-editor-serves-both-pages.t` counts the emitters
+of the chip markup and requires exactly one. That is the assertion that holds:
+appearance can be matched by a fork, a count cannot.
+
+**Still open:** the listing does not yet say whether a table HAS a rule - the
+second half of the request, and the SM635 argument. The panel answers it once
+opened, which leaves the operator opening tables to find out.

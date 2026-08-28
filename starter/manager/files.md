@@ -322,33 +322,21 @@ function addOptions() {
 }
 
 // One principal chip with r / w rights toggles and a remove control.
-function chipHtml(name, r, w) {
-  return '<span class="mg-chip" data-name="' + escHtml(name) + '">'
-       + '<span class="mg-chip-name">' + escHtml(name) + '</span>'
-       + '<button type="button" class="mg-chip-right ' + (r ? 'on' : 'off') + '" data-right="r" onclick="toggleRight(this)" title="read">r</button>'
-       + '<button type="button" class="mg-chip-right ' + (w ? 'on' : 'off') + '" data-right="w" onclick="toggleRight(this)" title="write">w</button>'
-       + '<button type="button" class="mg-chip-x" onclick="removeChip(this)" title="remove">&times;</button>'
-       + '</span>';
-}
+// SM678: the rights editor now lives in the manager layout as window.mgRights,
+// because it is generic over an ACL and a data table's access IS one - the Data
+// page could not offer an editor without a second copy of this markup.
+//
+// These stay as thin names so the rest of this page, and the tests that read
+// it, are unchanged: the extraction moved the implementation, not the calls.
+function chipHtml(name, r, w) { return mgRights.chip(name, r, w); }
 
 // Initial chips for a file: the union of its read + write lists, each chip
 // carrying which rights it holds.
-function buildRights(f) {
-  var read = {}, write = {}, order = [];
-  (f.read  || []).forEach(function(p) { if (!read[p] && !write[p]) order.push(p); read[p] = 1; });
-  (f.write || []).forEach(function(p) { if (!read[p] && !write[p]) order.push(p); write[p] = 1; });
-  return order.map(function(p) { return chipHtml(p, read[p], write[p]); }).join('');
-}
+function buildRights(f) { return mgRights.build(f); }
 
-function toggleRight(btn) {
-  var on = btn.className.indexOf('on') >= 0;
-  btn.className = 'mg-chip-right ' + (on ? 'off' : 'on');
-}
+function toggleRight(btn) { return mgRights.toggle(btn); }
 
-function removeChip(btn) {
-  var chip = btn.parentNode;
-  chip.parentNode.removeChild(chip);
-}
+function removeChip(btn) { return mgRights.remove(btn); }
 
 // SM462: add a principal with BOTH rights.
 //
