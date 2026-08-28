@@ -3,7 +3,8 @@ title: "SM669: the suite has no way to drive a cookie session through a mutating
 subtitle: "Found building SM660's test, 2026-08-28: the test was written, passed, and was deleted when sabotage showed it proved nothing"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). t/lib/ManagerSession.pm drives the manager API as a signed-in person, and t/unit/manager/138 is the first test to prove a cookie-side capability gate by BEHAVIOUR - SM660's `+` (both) and SM664's `|` (either) on the live evaluator, with the refusal naming the missing capabilities. Both sabotage-verified. THE CAUSE OF THE ORIGINAL DIFFICULTY, which is the finding worth keeping: the manager API DOES NOT READ A SESSION COOKIE. lazysite-auth.pl verifies the cookie and vouches for the user with X-Remote-User plus LAZYSITE_AUTH_TRUSTED=1; the CGI reads that header. A correctly signed cookie - one that verifies against Auth::Session in isolation - is simply not an input this program has, which is why every attempt got 'Authentication required' and read as a broken gate. The three fixture traps named in the filing were real but secondary. WHAT REMAINS: the harness stands in for the wrapper rather than driving it, so it tests the manager API's gates and not the wrapper's own cookie verification; a test of THAT needs to go through lazysite-auth.pl."
 ---
 
 # What happened

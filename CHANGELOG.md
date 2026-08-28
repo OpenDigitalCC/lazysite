@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM669 shipped (PENDING) **a cookie-side capability gate can now be proved by
+  behaviour.** `%COOKIE_CAP` was asserted only as source text because nothing
+  could reach it - SM660 shipped that way, its test deleted after sabotage
+  showed the fixture never got as far as the gate. The cause: the manager API
+  does not read a session cookie. `lazysite-auth.pl` verifies it and vouches for
+  the user with `X-Remote-User` and `LAZYSITE_AUTH_TRUSTED=1`, and the CGI reads
+  that - so a correctly signed cookie is not an input it has.
+  `t/lib/ManagerSession.pm` stands in for the wrapper and attaches the CSRF
+  token a cookie POST needs; `t/unit/manager/138` proves SM660's "both" and
+  SM664's "either" on the live evaluator, with the refusal naming the missing
+  capabilities.
+
 - SM653 partial (PENDING) **the tool listing says "callable on some paths".**
   `tools/list` offered every `path_aware` tool to a themes-only grant, because
   the shared callability rule is asked without a path at listing time and the
