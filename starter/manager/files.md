@@ -424,7 +424,18 @@ function ownerOptions(owner) {
 // button reads the store when asked. prompt() for the append is the interim
 // affordance; SM502's modal rework is where this gets a real editor.
 function briefButton(f) {
-  return '<button class="mg-btn" onclick="viewBrief(this)">&#128221; Brief</button>';
+  // Nothing to offer a caller who may neither read nor write one, and nothing
+  // to offer when the plugin that stores them is off.
+  if (!BRIEFS.read || !BRIEFS.plugin) return '';
+  // The label says which it is. A caller who may only READ gets a button that
+  // does exactly that, rather than one that prompts and then refuses.
+  var label = BRIEFS.append ? 'Brief' : 'Brief (read-only)';
+  var title = BRIEFS.append
+    ? 'Read this file\'s brief, and add an entry.'
+    : 'Read this file\'s brief. Adding an entry needs the \'Authoring briefs\' '
+      + 'permission, which this account does not hold.';
+  return '<button class="mg-btn" title="' + title + '" onclick="viewBrief(this)">'
+    + '&#128221; ' + label + '</button>';
 }
 function viewBrief(btn) {
   var card = btn.closest('tr');
@@ -435,6 +446,19 @@ function viewBrief(btn) {
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Could not read the brief', true); return; }
       var current = d.exists ? d.brief : '(no brief yet)';
+
+      // SM676: DO NOT PROMPT FOR SOMETHING THAT WILL BE REFUSED. brief-append
+      // needs manage_briefs, which brief-read does not - so a content editor
+      // used to be asked for an entry and told afterwards. Show them the brief,
+      // which they are entitled to, and say plainly why there is no entry box.
+      if (!BRIEFS.append) {
+        window.alert('Brief for ' + path + ':\n\n' + current
+          + '\n\nAdding an entry needs the \'Authoring briefs\' permission, '
+          + 'which this account does not hold. An administrator can grant it on '
+          + 'the Groups page.');
+        return;
+      }
+
       var entry = window.prompt(
         'Brief for ' + path + ':\n\n' + current +
         '\n\nAdd an entry (what changed and why), or Cancel:', '');
@@ -1342,6 +1366,41 @@ function loadAliasesInto() {
 // SM085: content history (git). The feature flag is fetched once at load;
 // the per-file History control renders only when the feature is enabled.
 var GIT = { enabled: false };
+
+// SM676: what this caller may do with a brief.
+//
+// The Brief button used to render unconditionally, and the two capabilities
+// behind it are NOT the same: brief-read admits manage_content OR
+// manage_briefs, while brief-append admits manage_briefs alone. So a content
+// editor could open the panel, read the brief, be prompted for an entry, and
+// only then be refused - the refusal landing after the typing, which is the
+// worst moment for it.
+//
+// Fetched ONCE at page init, not per directory: it is a property of the
+// session, and asking again on every navigation would be three requests where
+// one does.
+var BRIEFS = { read: false, append: false, plugin: true };
+function loadBriefCaps() {
+  return fetch(API + '?action=whoami')
+    .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      var c = d.capabilities || {};
+      BRIEFS.read   = !!(c.manage_content || c.manage_briefs);
+      BRIEFS.append = !!c.manage_briefs;
+      // The plugin's own state, where whoami is willing to say - it reports
+      // `_enabled` to a caller holding manage_config or a capability the plugin
+      // governs. When it does not say, the button still renders and the read
+      // reports the plugin being off, which is the behaviour that existed
+      // before and is no worse.
+      (d.plugins || []).forEach(function(p) {
+        if (p && p.id === 'briefs' && typeof p._enabled !== 'undefined') {
+          BRIEFS.plugin = !!p._enabled;
+        }
+      });
+    })
+    .catch(function() { /* leave the defaults: behave as before */ });
+}
 function loadGitStatus() {
   return fetch(API + '?action=git-status')
     .then(function(r) { return r.json(); })
@@ -1547,6 +1606,6 @@ function readInitDir() {
 }
 
 renderScopeSwitcher();
-loadPrincipals().then(loadGitStatus).then(function() { loadDir(readInitDir()); });
+loadPrincipals().then(loadGitStatus).then(loadBriefCaps).then(function() { loadDir(readInitDir()); });
 loadProtectedSections();
 </script>

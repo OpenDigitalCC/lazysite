@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM676 shipped (PENDING) **the Brief button offers only what it can deliver.**
+  It rendered unconditionally, while `brief-append` needs `manage_briefs` that
+  `brief-read` does not - so the panel read the brief, prompted for an entry and
+  then refused the save, the refusal landing after the typing. It now appears
+  only for a caller who may read one, and only while the briefs plugin is on; a
+  caller who may read but not append gets a read-only button and is told which
+  capability an entry would need, before typing it.
+
 - SM667 shipped (PENDING) **a seeded group can be put back from its own row.**
   `reset-groups` restores every seeded group at once, from a shell - neither of
   which suits an operator looking at one drifted row. The Groups panel now

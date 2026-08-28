@@ -3,7 +3,8 @@ title: "SM676: the Brief button is offered to everyone who can open a file's exp
 subtitle: "Release manager, 2026-08-28: 'i had brief option even though i didnt have briefs permission' - and the read genuinely does not need it, while the write does"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). The Brief button no longer renders unconditionally: it appears only for a caller who may READ a brief (manage_content OR manage_briefs, unchanged and deliberate) and only while the briefs plugin is on. A caller who may read but not append gets a button labelled read-only and a panel that SHOWS the brief and says which capability an entry would need - rather than prompting for text and refusing the save, which put the refusal after the typing. The asymmetry itself is unchanged and is asserted by the test, so that if brief-append is ever widened to manage_content this file is revisited rather than left asserting a distinction that has gone. The capabilities are fetched ONCE at page init, not per directory - a property of the session. Sabotage-verified three ways, including that the guard must come BEFORE the prompt, since checking after it is precisely the defect."
 ---
 
 # Three facts, and only one of them is a defect
