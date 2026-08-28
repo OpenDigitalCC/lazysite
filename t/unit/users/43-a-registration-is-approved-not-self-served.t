@@ -87,7 +87,7 @@ subtest 'the account is NOT created disabled' => sub {
             . 'this would have failed at the next step.' );
 };
 
-subtest 'with no registration_group it joins nothing' => sub {
+subtest 'with no group flagged for registrations it joins nothing' => sub {
     my $r = api( { action => 'account-approve', username => 'learner2' } );
     ok( $r->{ok}, 'approved' );
     is_deeply( $r->{group}, [], 'and is placed in no group' )
@@ -95,13 +95,43 @@ subtest 'with no registration_group it joins nothing' => sub {
             . 'would hand a new account whatever that group carries.' );
 };
 
-subtest 'registration_group places it, when the site names one' => sub {
-    conf("registration_group: learners\n");
+# WHERE THIS SETTING LIVES IS THE DESIGN. It began as a conf key naming one
+# group, and became a per-group flag - "add anonymous user registrations to this
+# group" - on the release manager's ruling. The flag is the better home for two
+# reasons the conf key could not reach: the operator sets it from the row of the
+# group it describes, where they can already see what that group carries, and
+# more than one group can take registrations without inventing a list syntax.
+subtest 'a group flagged for registrations takes the account' => sub {
     run( 'group-set', 'learners', 'ui', 'on' );
+    run( 'group-set', 'learners', 'registration', 'on' );
     my $r = api( { action => 'account-approve', username => 'learner3' } );
     ok( $r->{ok}, 'approved' ) or diag( $r->{error} // '' );
-    is_deeply( $r->{group}, ['learners'], 'placed in the configured group' );
+    is_deeply( $r->{group}, ['learners'], 'placed in the flagged group' );
     like( run( 'groups' ), qr/learners:.*learner3/, 'and the store agrees' );
+};
+
+# The flag is a SET, not a name. A conf key could only ever answer with one
+# group; nothing about the question requires that, and a site running two
+# intakes would otherwise need two instances.
+subtest 'every flagged group takes the account, in a stable order' => sub {
+    run( 'group-set', 'observers', 'ui', 'on' );
+    run( 'group-set', 'observers', 'registration', 'on' );
+    my $r = api( { action => 'account-approve', username => 'learner4' } );
+    ok( $r->{ok}, 'approved' ) or diag( $r->{error} // '' );
+    is_deeply( $r->{group}, [ 'learners', 'observers' ],
+        'placed in both, sorted so an audit line reads the same way twice' );
+};
+
+# Turning the flag OFF is what an operator does when an intake closes, and it
+# has to stop new arrivals without touching who is already there.
+subtest 'clearing the flag closes the intake' => sub {
+    run( 'group-set', 'learners',  'registration', 'off' );
+    run( 'group-set', 'observers', 'registration', 'off' );
+    my $r = api( { action => 'account-approve', username => 'learner5' } );
+    ok( $r->{ok}, 'approved' );
+    is_deeply( $r->{group}, [], 'joins nothing once no group is flagged' );
+    like( run( 'groups' ), qr/learners:.*learner3/,
+        'and the people already placed stay placed' );
 };
 
 subtest 'a name already taken is refused, and nothing is half-made' => sub {
