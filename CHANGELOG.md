@@ -79,48 +79,6 @@ Naming the commit: AFTER it lands, never before
   passes SM195's ceiling as editing the row by hand does, and refuses wholesale
   rather than applying the half it is allowed to.
 
-- SM678/SM679/SM680 filed (3c5060a9) **three things the Data page cannot say or
-  does not show.** A table's read access IS an ACL (`lazysite/db/tables/<name>`)
-  that the API can set and the manager has no surface for - the rights editor
-  exists but is rendered inside a FILE's expander. The table listing carries no
-  row count. And the Rows panel opens below the fold: a watched user pressed it
-  and did not see it happen, which is the same objection SM640 answered on the
-  plugin page with a modal.
-
-- SM676/SM677 filed (a1a7f855) **two things the field found.** The Brief button
-  in the Files expander renders unconditionally, while `brief-append` needs
-  `manage_briefs` that `brief-read` does not - so the panel reads the brief,
-  prompts for an entry, and then refuses the save. And every row save writes an
-  audit line carrying its key, which on a big table is the log: that reverses a
-  decision SM505 and SM465 each made deliberately, so the filing names what the
-  decision was protecting rather than treating it as a tidy-up.
-
-- SM675 filed (a1a7f855) **a capability backed by a plugin should say so.**
-  `manage_data` grants nothing while the data plugin is off, and the Groups
-  panel offers it as an ordinary checkbox. The engine already knows the mapping
-  - plugins declare `owns.capabilities` and ADR 0009 validates it - and SM180
-  already marks a granted channel dormant when its service is off. Recommends
-  marking dormant rather than hiding: a group that already holds the capability
-  keeps holding it, and hiding the row would hide a grant that is still in the
-  store.
-
-- SM673/SM674 filed (737a3860) **how a visitor gets an account.** Registration is
-  invitation-only and nothing answers `register`. SM673 proposes: a visitor
-  asks, an operator approves, the engine issues the claim link - built on the
-  forms pipeline so it inherits the honeypot, signed timestamp, rate limit and
-  quarantine that any public write endpoint needs. SM674 records unattended
-  self-registration and what it additionally costs.
-- The practice briefing is re-imported. `APP-PRACTICE.md` changed in the apps
-  tree, so the generated copy served by this engine was stale - `t/lint/89`
-  caught it on the source checksum, and `t/lint/27` then caught the imported
-  text naming `lzs-dav.sh`, a helper from the agent's own environment that this
-  repo does not contain. Exempted with that reason rather than by silencing the
-  check: an imported practice page describes how the field works, not what this
-  tree holds. The new material is one note on bulk-loading
-  a table with `data-import` rather than a `data-row-save` per row, which is the
-  same underlying behaviour SM677 records from the other side: a per-row loop is
-  slow for the apps agent and fills the audit log for the operator.
-
 - SM679/SM681 shipped (3c5060a9) **two things the manager could not say.** The
   table listing carries a row count - the first thing anybody wants from a list
   of tables - counted in the pass that already reads each descriptor. A table
