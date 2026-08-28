@@ -189,6 +189,13 @@ function loadTables() {
         var bits = [];
         if (t.title && t.title !== name) bits.push(escHtml(t.title));
         bits.push(t.public ? 'published' : 'not published');
+        // SM679: how many rows. `row_count` is ABSENT rather than 0 when the
+        // server could not count - a table awaiting migration, or one whose
+        // query failed - so the test is `typeof`, not truthiness: `0` is a real
+        // and useful answer and must not read as "unknown".
+        if (typeof t.row_count === 'number') {
+          bits.push(t.row_count + ' row' + (t.row_count === 1 ? '' : 's'));
+        }
         if (t.pending_schema) bits.push('needs migrating');
         var enc = encodeURIComponent(name);
         html += '<div class="mg-file-item">'

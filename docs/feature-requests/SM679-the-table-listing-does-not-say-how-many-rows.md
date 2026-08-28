@@ -3,7 +3,8 @@ title: "SM679: the table listing says what a table is called and not how big it 
 subtitle: "Release manager, 2026-08-28: 'data tables - on list of tables, add count of rows on the listing'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). The table listing carries `row_count`, counted in the pass that already opened the handle and read each descriptor. UNKNOWN IS NOT ZERO: a table awaiting migration, or one whose count fails, omits the field entirely rather than reporting 0 - an operator deciding whether an import worked reads 0 rows as failure, and the honest answer is that nobody could tell. The count uses SQLite::count_sql rather than a hand-built statement, because that owns identifier quoting for a table name. Sabotage-verified three ways."
 ---
 
 # What the listing carries

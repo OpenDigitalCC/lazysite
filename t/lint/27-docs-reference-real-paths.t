@@ -78,6 +78,14 @@ my %EXEMPT_TOKEN = map { $_ => 1 } ();
 # Each carries its reason: an unexplained exemption is how a lint stops meaning
 # anything.
 my %EXEMPT_SCRIPT = (
+    'lzs-dav.sh' =>
+        'the site agent\'s own token helper, named in ai-briefing-practice.md - '
+        . 'which is IMPORTED from that agent\'s working notes in another tree '
+        . '(tools/import-field-practice.pl) and legitimately describes tooling '
+        . 'from its environment rather than this repo\'s. The engine ships '
+        . 'bin/lzs-token.sh; this is a different script the agent drives WebDAV '
+        . 'with, and the practice page is a record of how the field works, not '
+        . 'an index of what this tree contains',
     'rehearsal.sh' =>
         'a one-off disaster-rehearsal script from the 0.7.0 cut, kept in the '
         . 'session records rather than the tree; RELIABILITY.md cites it as '

@@ -11,6 +11,11 @@ search: false
 .mg-dom-chip { display:inline-block; font-size:0.72em; padding:0.05em 0.5em; border-radius:999px;
   background:var(--mg-surface-alt,#f0f0f0); color:var(--mg-text-muted,#777); margin-left:6px; vertical-align:middle; }
 .mg-dom-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+/* SM681: the open-in-a-new-tab arrow beside a host. Muted until hovered, so
+   it does not compete with the host name it belongs to. */
+.mg-dom-open { margin-left:6px; text-decoration:none; color:var(--mg-text-muted,#999);
+  font-size:0.9em; vertical-align:middle; }
+.mg-dom-open:hover, .mg-dom-open:focus { color:var(--mg-link,#06c); }
 </style>
 
 <div id="status" class="mg-status"></div>
@@ -898,7 +903,26 @@ function loadDomains() {
         var chip = '';
         if (!row.content_root) chip += '<span class="mg-dom-chip" title="mirrors your default site">alias</span>';
         if (row.lang_group && !row.lang_group_inherited) chip += '<span class="mg-dom-chip" title="part of a language set">set: ' + esc(row.lang_group) + '</span>';
-        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>' + chip + '</td>';
+        // SM681: open the live domain in a new tab.
+        //
+        // BUILT FROM THE HOST, never from row.site_url. That field can carry
+        // unexpanded variables - install.pl writes
+        // `site_url: ${REQUEST_SCHEME}://<domain>`, resolved at render time by
+        // the processor, which has REQUEST_SCHEME and SERVER_NAME in its
+        // environment. The manager does not, so site_url in an href gives a
+        // link to a literal ${REQUEST_SCHEME} on some rows and a working link
+        // on others, depending on how the domain was created. previewDomain
+        // already builds from the host for the same reason.
+        //
+        // The primary row never reaches here (is_primary returns above), so
+        // there is no '(default)' case to handle - it is not a host.
+        var liveUrl = 'https://' + encodeURIComponent(row.host).replace(/%2F/gi, '/') + '/';
+        var openIcon = ' <a href="' + esc(liveUrl) + '" target="_blank" rel="noopener"'
+          + ' class="mg-dom-open" title="Open ' + esc(row.host) + ' in a new tab.'
+          + ' This is the LIVE address and will fail until DNS points here -'
+          + ' Configure &rarr; Preview renders the site as this instance would serve it now.'
+          + '" aria-label="Open ' + esc(row.host) + ' in a new tab">&#8599;</a>';
+        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>' + openIcon + chip + '</td>';
         DISPLAY_KEYS.forEach(function (k) {
           var v = row[k], inherited = row[k + '_inherited'], cell;
           if (k === 'content_root' && !v) {

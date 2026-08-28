@@ -3,7 +3,8 @@ title: "SM681: the domains list has no way to open the domain"
 subtitle: "Release manager, 2026-08-28: 'on domains list, add icon to click to open the site in new tab'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). Each domain row carries an external-link arrow opening https://<host>/ in a new tab. BUILT FROM THE HOST, never from site_url - that field can carry an unexpanded REQUEST_SCHEME variable which the processor resolves from a CGI environment the manager does not have, so in an href it works on some rows and not others; previewDomain already avoids it for the same reason. The default row does not arise: the listing returns early on is_primary. The title distinguishes it from Preview - this is the LIVE address and fails until DNS points here."
 ---
 
 # The link exists, in the wrong place

@@ -58,6 +58,29 @@ sub listing {
     return ( $r, { map { $_->{table} => $_ } @{ $r->{tables} || [] } } );
 }
 
+subtest 'SM679: the listing says how many rows, and says nothing when it cannot' => sub {
+    my ( undef, $by ) = listing();
+
+    is( $by->{notes}{row_count}, 1, 'a live table reports its row count' )
+        or diag( 'This is the first thing anybody wants from a list of tables: '
+            . 'which has anything in it, and did the import land.' );
+
+    insert_row( $docroot, 'notes', { code => 'N2' } );
+    ( undef, $by ) = listing();
+    is( $by->{notes}{row_count}, 2, 'and the count is read, not remembered' )
+        or diag( 'A cached or descriptor-derived number would not move here.' );
+
+    # UNKNOWN IS NOT ZERO. `draft` has no schema applied, so it cannot be
+    # counted - the field is ABSENT rather than 0. An operator deciding whether
+    # an import worked reads "0 rows" as "the import failed"; the honest answer
+    # is that nobody could tell.
+    ok( $by->{draft}{pending_schema}, 'the unmigrated table is still pending' );
+    ok( !exists $by->{draft}{row_count},
+        'and carries NO row_count rather than a zero' )
+        or diag( 'Reporting 0 for a table that could not be counted is the '
+            . 'confident wrong answer this project keeps filing against.' );
+};
+
 subtest 'a published table says so, and an unpublished one says so' => sub {
     my ( $r, $by ) = listing();
     ok( $r->{ok}, 'the listing answers' ) or diag( $r->{error} );

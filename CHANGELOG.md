@@ -84,6 +84,25 @@ Naming the commit: AFTER it lands, never before
   forms pipeline so it inherits the honeypot, signed timestamp, rate limit and
   quarantine that any public write endpoint needs. SM674 records unattended
   self-registration and what it additionally costs.
+- The practice briefing is re-imported. `APP-PRACTICE.md` changed in the apps
+  tree, so the generated copy served by this engine was stale - `t/lint/89`
+  caught it on the source checksum, and `t/lint/27` then caught the imported
+  text naming `lzs-dav.sh`, a helper from the agent's own environment that this
+  repo does not contain. Exempted with that reason rather than by silencing the
+  check: an imported practice page describes how the field works, not what this
+  tree holds. The new material is one note on bulk-loading
+  a table with `data-import` rather than a `data-row-save` per row, which is the
+  same underlying behaviour SM677 records from the other side: a per-row loop is
+  slow for the apps agent and fills the audit log for the operator.
+
+- SM679/SM681 shipped (PENDING) **two things the manager could not say.** The
+  table listing carries a row count - the first thing anybody wants from a list
+  of tables - counted in the pass that already reads each descriptor. A table
+  awaiting migration omits the field rather than reporting `0`, because "empty"
+  and "could not tell" are different answers to "did the import land". And each
+  domain row has an arrow that opens the live domain in a new tab, built from
+  the host rather than `site_url`, which can carry an unexpanded
+  `${REQUEST_SCHEME}` the manager has no way to resolve.
 
 - SM662 partial (PENDING) **what every capability gate decides, as a
   fingerprint.** A capability's reach is described in up to six places and

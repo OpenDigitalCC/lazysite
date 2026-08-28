@@ -67,6 +67,19 @@ requires every registered mutating action to audit. Making row saves silent
 means changing that registry deliberately, with the reason written down - not
 removing a call and letting the test be updated to match.
 
+# Corroborated independently, from the other side
+
+The apps agent added a note to `APP-PRACTICE.md` on 2026-08-28, arrived at
+without reference to this filing: seeding or importing many rows should be one
+`data-import`, not a `data-row-save` per row, because a per-row loop is one HTTP
+round trip each and crawls past a few hundred rows.
+
+So the per-row write loop is already known to be the wrong shape for bulk work
+on performance grounds, and this filing is the same loop seen from the audit
+log. That strengthens option 1 and option 2 below: the operator's volume problem
+and the agent's latency problem have one cause, and a fix that teaches the bulk
+path to be one event serves both.
+
 # Related
 
 [[SM505]] (row keys in the trail - the decision this reopens), SM465 (the same

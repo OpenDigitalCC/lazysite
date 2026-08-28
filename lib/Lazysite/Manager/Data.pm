@@ -185,6 +185,37 @@ sub _schema_pending {
     return ( $obs && $obs->{exists} ) ? 0 : 1;
 }
 
+# SM679: how many rows, for the listing.
+#
+# A count is the first thing anybody wants from a list of tables - which of
+# these has anything in it, which is the big one, did the import land - and the
+# listing could not answer it.
+#
+# UNKNOWN IS NOT ZERO. A table whose schema has not been applied yet, or whose
+# query fails, returns undef and the listing omits the field. Reporting 0 for a
+# table nobody could count would be a confident wrong answer, and "empty" and
+# "could not tell" are different things to an operator deciding whether an
+# import worked.
+#
+# Counted in the pass that already opened the handle and read the descriptor,
+# not in a second loop over the tables.
+sub _row_count {
+    my ( $dbh, $desc, $pending ) = @_;
+    return undef unless $dbh && !$pending && ref $desc eq 'HASH';
+    # SQLite::count_sql, not a hand-built statement: it owns identifier quoting
+    # for a table name, and writing `SELECT COUNT(*) FROM $table` here would be
+    # a second place that has to get that right.
+    my $n = eval {
+        require Lazysite::Data::SQLite;
+        my ($sql) = Lazysite::Data::SQLite::count_sql($desc);
+        my $q = $dbh->prepare($sql);
+        $q->execute;
+        my ($c) = $q->fetchrow_array;
+        $c;
+    };
+    return ( defined $n ) ? $n + 0 : undef;
+}
+
 # The tables this site declares, with the title each descriptor carries.
 #
 # Reports a table whose descriptor is BROKEN rather than omitting it. An
@@ -213,10 +244,13 @@ sub action_data_tables {
         }
 
         my $pending = _schema_pending( $dbh, $name );
+        my $rows    = _row_count( $dbh, $d->{desc} // $d, $pending );
 
         push @out,
             { table => $name,
             title => $d->{title},
+            # SM679: absent rather than 0 when it could not be counted.
+            ( defined $rows ? ( row_count => $rows ) : () ),
             # SM593 follow-up: part-way through the migration, "which of my
             # tables are bound, and to what" was answerable only by fetching
             # every descriptor's source one at a time.
