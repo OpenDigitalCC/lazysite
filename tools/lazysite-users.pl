@@ -2304,8 +2304,12 @@ sub cmd_account_approve {
 sub _registration_groups {
     my $gs = read_group_settings();
     return () unless ref $gs eq 'HASH';
-    return sort grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{registration} }
+    # Named, not returned straight from sort: `return sort ...` is undefined in
+    # scalar context, and a caller asking "how many groups take registrations?"
+    # is a reasonable thing to write.
+    my @on = sort grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{registration} }
         keys %{$gs};
+    return @on;
 }
 
 sub cmd_claim_create {
