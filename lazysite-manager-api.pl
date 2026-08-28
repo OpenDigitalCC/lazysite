@@ -63,7 +63,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal);
 use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
@@ -2519,9 +2519,10 @@ sub _instance_id {
 sub action_domain_check {
     my ($host) = @_;
     $host = lc( $host // '' );
-    return { ok => 0, error => 'Invalid domain host' }
-        unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
-            (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
+    # A THIRD copy of the host rule lived here and could answer differently
+    # from Domains.pm for the same host. It defers to the one rule now, and to
+    # the refusal that says which of "absent" and "malformed" happened.
+    return host_refusal($host) unless valid_host($host);
 
     # Bound the outbound probe to sysop-declared hosts (no SSRF to arbitrary
     # targets): only a configured domain or the primary site's own host.

@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -117,7 +117,30 @@ sub _warn_refused_value {
 # A host label is a lowercase DNS name: dot-separated labels of [a-z0-9-], no
 # leading/trailing hyphen, no traversal, no scheme/port/path. Kept strict so a
 # host can never be spelled to inject a conf line or escape a directory.
-sub _valid_host {
+# SM594/site-agent 2026-08-28: "Invalid domain host" was returned both when no
+# host arrived and when the host was malformed, and it never said what a valid
+# host looks like.
+#
+# It cost a real test run. domain-set and domain-add read `host` from the JSON
+# BODY only, so an agent sending it in the query string got a message blaming
+# the value it had carefully checked - and a fresh agent trying to add a domain
+# could not tell what shape was wanted, which blocked SM647's measurement
+# entirely. Same class as SM237: the message pointed at the wrong thing.
+sub host_refusal {
+    my ($h) = @_;
+    return { ok => 0, kind => 'invalid',
+        error => 'No domain host was supplied. Send `host` in the JSON body '
+            . '(domain-set and domain-add read it from the body, not the query '
+            . 'string).' }
+        unless defined $h && length $h;
+    return { ok => 0, kind => 'invalid',
+        error => "Invalid domain host '$h'. A host is dot-separated labels of "
+            . 'letters, digits and hyphens - no leading or trailing dot or '
+            . 'hyphen, no empty label, 253 characters at most. The primary '
+            . "site's own row is '(default)' and is not addressable here." };
+}
+
+sub valid_host {
     my ($h) = @_;
     return 0 unless defined $h && length $h && length $h <= 253;
     $h = lc $h;
@@ -305,7 +328,7 @@ sub known_domain_host {
 # SM436: does this value name a host that a public request could actually
 # carry, and does it agree with the site_url beside it?
 #
-# NOT folded into _valid_host, deliberately: that is shared with domain_remove
+# NOT folded into valid_host, deliberately: that is shared with domain_remove
 # and domain_set, and tightening it there would strand an already-configured
 # bad row - unremovable by the verb that exists to remove it. Registration is
 # the only moment this can be caught, and it is also the LAST moment: `host`
@@ -655,9 +678,9 @@ sub preview_public {
 sub domain_preview {
     my ($host) = @_;
     $host = lc( $host // '' );
-    return { ok => 0, error => 'Invalid domain host' }
-        unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
-            (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
+    # SM662-shaped: this had its OWN copy of the host rule, which could drift
+    # from valid_host and answer differently for the same host on two actions.
+    return host_refusal($host) unless valid_host($host);
 
     # Only a configured domain (or the primary site's own host) may be previewed.
     return { ok => 0, error => "Not a configured domain: $host" }
@@ -810,8 +833,7 @@ sub domains_using {
 sub domain_add {
     my ( $host, %opts ) = @_;
     $host = lc( $host // '' );
-    return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
-        unless _valid_host($host);
+    return host_refusal($host) unless valid_host($host);
 
     # SM436: refuse a name no request can carry, and a name that disagrees
     # with its own site_url. Both are unrecoverable after this call - `host`
@@ -917,8 +939,7 @@ sub domain_add {
 sub domain_set {
     my ( $host, $key, $value ) = @_;
     $host = lc( $host // '' );
-    return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
-        unless _valid_host($host);
+    return host_refusal($host) unless valid_host($host);
     return { ok => 0, kind => 'invalid', error => "Not a settable domain key: $key" }
         unless defined $key && $IS_KEY{$key};
     $value = '' unless defined $value;
@@ -1080,8 +1101,7 @@ sub _effective_presentation {
 sub domain_remove {
     my ( $host, %opts ) = @_;
     $host = lc( $host // '' );
-    return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
-        unless _valid_host($host);
+    return host_refusal($host) unless valid_host($host);
 
     my $content = _slurp();
     my ( undef, $ov, $hosts ) = _parse($content);
@@ -1149,7 +1169,7 @@ sub _resolve_ips {
 # connections to a caller-influenced host. A manage_domains delegate could point
 # that at the server's own internal network - loopback, RFC1918, the cloud
 # metadata endpoint (169.254.169.254), CGNAT, an IPv6 ULA/link-local - directly
-# (an IP-literal or 'localhost' host, both of which pass _valid_host) or via DNS
+# (an IP-literal or 'localhost' host, both of which pass valid_host) or via DNS
 # rebinding (a public name that resolves to an internal address). The connection
 # is refused unless every RESOLVED address is public, so the guard holds for the
 # rebinding case too (it keys on the resolved IPs, not the name). Returns 1 for a
@@ -1324,8 +1344,7 @@ sub instance_public_ips {
 sub domain_check {
     my ( $host, %opt ) = @_;
     $host = lc( $host // '' );
-    return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
-        unless _valid_host($host);
+    return host_refusal($host) unless valid_host($host);
 
     # The server's own PUBLIC address(es). A list, because behind a proxy / NAT
     # the private SERVER_ADDR is useless - the caller self-discovers the public

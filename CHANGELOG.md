@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM672 shipped (PENDING) **a refused domain host says which thing was wrong.**
+  `Invalid domain host` answered two different problems - no host supplied, and
+  a malformed one - and stated neither the rule nor which had happened.
+  `domain-set` and `domain-add` read `host` from the JSON body while
+  `domain-check` reads the query string, so an agent sending it the other way
+  was told its host was invalid and went looking at the host. It blocked a
+  security measurement: the site agent could not create a throwaway domain to
+  test SM647 with. The refusal now names the case, quotes the value, states the
+  rule and says where to send it. Three copies of the host pattern - in
+  `_valid_host`, in `domain_preview` and in the manager API - are one.
+
 - SM594/SM501 (PENDING) **a capability's description said it read submissions,
   and a form can widen its own submission window.** `manage_forms` still
   described itself as returning "live submission CONTENT" after SM652 removed
