@@ -94,7 +94,12 @@ SKIP: {
     my $page = "$root/starter/manager/files.md";
     skip "no $page", 6 unless -f $page;
     my $src = do { open my $fh, '<', $page or die $!; local $/; <$fh> };
-    my ($fn) = $src =~ /(function renderHistory\(panel, entries\).*?\n\})/s;
+    # The signature is matched loosely on purpose. SM683 added a third argument
+    # (whether the file is protected), and a regex pinned to the exact two-arg
+    # form stopped matching - which did not fail loudly, it SKIPPED the five
+    # assertions below. A test that quietly stops testing is worse than one
+    # that breaks, so this matches the name and lets the parameters move.
+    my ($fn) = $src =~ /(function renderHistory\(panel, entries[^)]*\).*?\n\})/s;
     ok( $fn, 'the history renderer is present' ) or skip 'no renderer', 5;
 
     my $dir = tempdir( CLEANUP => 1 );
