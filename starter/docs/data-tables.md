@@ -514,6 +514,34 @@ three:
 - the **`manage_data`** capability;
 - membership of a group in the table's **`writable_by`**, if it names any.
 
+### Quietening a table's row audit
+
+Every row write is recorded in the audit trail with the row's key, so an auditor
+can tell **which** row changed rather than only that the table did. On a table
+with thousands of rows that is thousands of lines.
+
+`audit_rows: off` in the descriptor turns the per-row lines off for that table
+only. Nothing else turns them off: an absent key, a typo, or any value other
+than `off` / `false` / `0` leaves the table audited, because a misspelling must
+not quietly stop recording who changed what.
+
+```yaml
+key: code
+audit_rows: off
+fields:
+  code:
+    type: text
+```
+
+**The table-level events are unaffected.** Declaring, altering, migrating,
+dropping and importing each remain one audited event whatever this says - so
+quietening a noisy table never silences the record that it was restructured,
+emptied or bulk-loaded.
+
+Before reaching for it: a bulk load belongs in `data-import`, which is already
+one event for the whole file. The volume this addresses is an application
+writing rows one at a time, where each really is a separate act.
+
 `writable_by` only ever **takes access away**. It cannot grant a write to an
 account without `manage_data`, because the descriptor is a file an agent can
 write -- if the list could widen, an agent could hand write access to a group

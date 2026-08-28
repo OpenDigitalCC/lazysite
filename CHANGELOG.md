@@ -77,6 +77,23 @@ Naming the commit: AFTER it lands, never before
   data layer enforces on, distinguishing "no rule" from "a rule naming nobody".
   Editing from that page still needs the rights editor extracted into the shared
   helpers rather than copied.
+- SM677 shipped (PENDING) **a table can quieten its row audit.** Every row
+  write records the row's key, so an auditor can tell which row changed - and on
+  a table with thousands of rows that is the log. `audit_rows: off` in a
+  descriptor turns the per-row lines off for that table only. Nothing changes by
+  default, and only an explicit `off` counts: a typo or an unreadable descriptor
+  leaves the table audited, because a misspelling must not become a quiet loss
+  of the trail. Declaring, altering, migrating, dropping and importing each
+  remain one audited event regardless.
+
+- SM677 shipped (PENDING) **a table can quieten its row audit.** Every row
+  write records the row's key, so an auditor can tell which row changed - and on
+  a table with thousands of rows that is the log. `audit_rows: off` in a
+  descriptor turns the per-row lines off for that table only. Nothing changes by
+  default, and only an explicit `off` counts: a typo or an unreadable descriptor
+  leaves the table audited, because a misspelling must not become a quiet loss
+  of the trail. Declaring, altering, migrating, dropping and importing each
+  remain one audited event regardless.
 
 ## 0.11.4 - EDGE: access control that was measured rather than reasoned about, and the instruments that did the measuring (2026-08-28)
 

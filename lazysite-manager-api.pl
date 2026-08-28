@@ -2168,8 +2168,31 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         {
             $detail = 'row=' . $result->{key};
         }
+
+        # SM677: a table may switch its ROW audit off.
+        #
+        # SM505 and SM465 both decided the row key belongs in the trail, and
+        # that stands as the default. What they could not weigh is volume: a
+        # table with thousands of rows produces thousands of lines, and the
+        # operator who has that table is the one who knows it. The switch is per
+        # table, in the descriptor, where the volume is visible.
+        #
+        # THE TABLE-LEVEL EVENTS ARE NOT AFFECTED. data-table-save,
+        # data-migrate, data-table-drop and data-import each remain one audited
+        # event - so switching this off loses the per-row detail and never the
+        # record that the table was restructured, emptied or bulk-loaded. That
+        # is the line worth holding: an operator silencing a noisy table must
+        # not thereby silence the events that matter most.
+        my $skip_audit = 0;
+        if ( $ok && $aud_action =~ /^data-row-/ ) {
+            my $t = $params{table} // ( eval { _json_body()->{table} } // '' );
+            if ( length $t && !_table_audits_rows($t) ) {
+                $skip_audit = 1;
+            }
+        }
         audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
-            ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ), $detail );
+            ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ), $detail )
+            unless $skip_audit;
     }
 }
 
@@ -3028,6 +3051,18 @@ sub action_channel_services {
 
     return { ok => 1, services => \%svc, channel_for_key => \%by_key,
         grants => \%grants, capability_plugin => \%cap_plugin };
+}
+
+# SM677: does this table audit its row writes? Default YES - only an explicit
+# `audit_rows: off` in the descriptor turns it off, and a descriptor that cannot
+# be read audits, because losing the trail must never be the failure mode of a
+# missing or broken file.
+sub _table_audits_rows {
+    my ($table) = @_;
+    return 1 unless defined $table && length $table;
+    my $d = eval { Lazysite::Manager::Data::load_table_for_audit($table) };
+    return 1 unless ref $d eq 'HASH' && $d->{ok};
+    return ( exists $d->{audit_rows} && !$d->{audit_rows} ) ? 0 : 1;
 }
 
 # Audit target for an action that carries no file PATH of its own - so the audit

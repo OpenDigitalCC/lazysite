@@ -3,7 +3,8 @@ title: "SM677: every row save writes an audit line, and on a big table that is t
 subtitle: "Release manager, 2026-08-28: 'data row save doesnt need to log, for big tables it fills the log' - which reopens a trade this project has now made twice"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING), the per-table switch with the default ON. `audit_rows: off` in a descriptor stops the per-row audit lines for that table only. NOTHING CHANGES BY DEFAULT: SM505 and SM465 both decided the row key belongs in the trail, and that remains the behaviour of every table that says nothing. Only an explicit off/false/0 counts - a typo, a stray value or an unreadable descriptor all leave the table AUDITED, because a misspelling must never become a quiet loss of the trail. THE TABLE-LEVEL EVENTS ARE UNTOUCHED: data-table-save, data-migrate, data-table-drop and data-import each remain one audited event, so quietening a noisy table never silences the record that it was restructured, emptied or bulk-loaded. Sabotage-verified three ways. The apps agent's independent finding stands beside it: bulk work belongs in data-import, which already audits once, so this valve is for an app that legitimately writes rows singly."
 ---
 
 # What happens now

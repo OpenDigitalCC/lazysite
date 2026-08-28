@@ -325,6 +325,19 @@ sub _check_default_order {
     return ( $do_field, $do_dir, undef );
 }
 
+# SM677: is row auditing switched OFF for this table?
+#
+# Only an explicit off counts. A typo, a missing key, a `true`, a number - all
+# leave the table AUDITED, because the failure this must not have is a
+# descriptor that silently stops recording who changed what. Defaulting the
+# other way would make a misspelling into a quiet loss of the audit trail.
+sub _audit_rows_off {
+    my ($raw) = @_;
+    my $v = $raw->{audit_rows};
+    return 0 unless defined $v;
+    return ( lc "$v" eq 'off' || lc "$v" eq 'false' || "$v" eq '0' ) ? 1 : 0;
+}
+
 sub _check_writable_by {
     my ( $name, $raw ) = @_;
     my $wb = $raw->{writable_by} // [];
@@ -432,6 +445,19 @@ sub load_descriptor {
         fields      => $fields,
         indexes     => $indexes,
         writable_by => $wb,
+        # SM677: whether a ROW WRITE on this table writes an audit line.
+        #
+        # SM505 and SM465 each decided deliberately that a row action's audit
+        # entry carries the row KEY - "someone edited that table" is half an
+        # answer when the question the trail gets asked is which row. That
+        # stands, and remains the DEFAULT: absent, undef, or anything other
+        # than an explicit off leaves the table audited.
+        #
+        # The switch exists because a table with thousands of rows produces
+        # thousands of lines, and the operator who has that table is the one
+        # who knows it. `audit_rows: off` is theirs to set, per table, where the
+        # volume is visible - rather than the engine guessing globally.
+        audit_rows => ( _audit_rows_off($raw) ? 0 : 1 ),
         public      => $public,
         ( defined $do_field
             ? ( default_order => $do_field, default_order_dir => $do_dir )

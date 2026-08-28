@@ -216,6 +216,16 @@ sub _row_count {
     return ( defined $n ) ? $n + 0 : undef;
 }
 
+# SM677: the descriptor, for the audit decision only. A thin named wrapper so
+# the manager API asks a question rather than reaching into this module's
+# internals - and so the audit path has one obvious place to look when somebody
+# asks why a row write was or was not recorded.
+sub load_table_for_audit {
+    my ($table) = @_;
+    return undef unless defined $table && length $table;
+    return eval { load_table( $DOCROOT, $table ) };
+}
+
 # The tables this site declares, with the title each descriptor carries.
 #
 # Reports a table whose descriptor is BROKEN rather than omitting it. An
