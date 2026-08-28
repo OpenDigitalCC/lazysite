@@ -9,9 +9,9 @@ register:
      engine-version: 0.11.5
      imported: 2026-08-28
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=612f4930eadb91340533fd320a4ab0376cb61106e9a7ee28b8fc76d8721d9b21 modified=2026-08-28
+     source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=58fbc62167fe7787c14374c3ef9eb0bcb871f5ab5ce1472ed3960c72bede1e3d modified=2026-08-28
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=8a0249245da56abbf75c7438122b8d15c1eafb5854653d202b57982c77d7eccc modified=2026-08-28
-     body-sha256: 061adeeca2db0ad891fcdefbfd7e53f248c4184f0e1649924193209695155440
+     body-sha256: 93643f56738a34aeb96637d81d79f404a2f813c4b7a513cf8e57f31da00ea602
 -->
 
 ## What this is, and what it is not
@@ -125,10 +125,20 @@ and it is the primary artefact. The rule runs both ways:
 
 Because the contract is explicit the two sides do not collide - the content side
 names and demonstrates what it needs, the theme side styles what is named, and
-neither edits the other's files to get its way. When the theme is updated
-underneath you, sync to it and re-register anything it has not yet caught up with,
-rather than overwriting it. The revision history on the theme and the guide is how
-each side sees what the other changed.
+neither edits the other's files to get its way. That separation is the whole point:
+the **design side READS the style guide and WRITES the theme** (`theme.json` and its
+CSS); the **content side WRITES the style guide and the pages** and only READS the
+theme, to reference its tokens and classes. Because the two sides write different
+files, their edits never conflict - the style guide is a one-way contract carrying
+intent from content to design, and the theme is design's alone to author.
+
+Where a new component must be usable before the design side has delivered its
+styling, the content side may seed a neutral, token-only structural default in the
+theme as a temporary bridge - flagged as such, and superseded the moment design
+styles it. The steady state is design owning the theme outright. Either way, when
+the theme is updated underneath you, sync to it rather than overwriting it; the
+revision history on the theme and the guide is how each side sees what the other
+changed.
 
 ### Other things worth remembering
 
