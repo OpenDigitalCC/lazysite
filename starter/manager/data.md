@@ -4,6 +4,19 @@ auth: manager
 search: false
 ---
 
+<style>
+/* SM680: the rows panel as an OVERLAY rather than a block below the listing.
+   Fixed and scrollable inside itself, so a long table scrolls within the sheet
+   instead of moving the page underneath - which is how a watched user pressed
+   Rows and did not see anything happen. */
+.mg-rows-modal { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;
+  display:flex; align-items:center; justify-content:center; }
+.mg-rows-sheet { position:relative; background:var(--mg-bg,#fff); color:var(--mg-text,inherit);
+  width:94%; max-width:1100px; max-height:88vh; overflow:auto; border-radius:8px;
+  padding:16px 18px; }
+.mg-rows-close { position:absolute; top:10px; right:12px; }
+</style>
+
 <div id="status" class="mg-status"></div>
 
 <p style="font-size:0.85em;color:#888;margin:0 0 12px;">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. A table is <strong>closed until it is published</strong>: until its descriptor says <code>public: true</code>, an anonymous visitor sees nothing, not even that it exists. What you see here is what the store holds, whoever may read it.</p>
@@ -20,7 +33,20 @@ search: false
 <div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
 </div>
 
-<div id="rows-panel" style="display:none;margin-top:18px;">
+<!-- SM680: the rows panel is a MODAL, not a block below the listing.
+     A watched user pressed Rows and did not see it happen: the panel opened
+     underneath what they were looking at, off-screen on a page with several
+     tables or a short window. The control worked exactly as built and the
+     person did not know it had.
+
+     It is the same objection SM640 answered on the Plugin Config page. A
+     table's rows are a DIFFERENT SUBJECT from the list of tables, not more
+     detail about one entry in it - and the panel has its own pager, its own
+     filter and its own editor, which is an application nested inside a
+     listing. -->
+<div id="rows-panel" class="mg-rows-modal" style="display:none;">
+ <div class="mg-rows-sheet">
+  <button class="mg-btn mg-btn-sm mg-rows-close" onclick="closeRows()" title="Close">&times;</button>
   <h2 style="font-size:1.05em;margin:0 0 4px;" id="rows-title"></h2>
   <p style="font-size:0.85em;color:#888;margin:0 0 10px;" id="rows-note"></p>
   <div style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -52,6 +78,7 @@ search: false
   <div style="overflow-x:auto;">
     <table class="mg-table" id="rows-table"><thead></thead><tbody></tbody></table>
   </div>
+ </div>
 </div>
 
 <!-- DM-5: THE DESCRIPTOR IS EDITED AS TEXT, on purpose. A descriptor is a
@@ -680,6 +707,19 @@ function emitYaml(shape) {
 // nothing here", and there is something here - the site agent reported
 // operators assuming a content scope confines a table, which it does not.
 function tableAclKey(table) { return 'lazysite/db/tables/' + table; }
+
+// SM680: closing the rows modal. The editor inside it can hold an unsaved row,
+// so a backdrop click must ask first - the same care the plugin modal takes,
+// and using mgDirtyGuard.isDirty, which is the real method name (a previous
+// page guessed isSet and the guard silently never fired).
+function closeRows() {
+  if (window.mgDirtyGuard && mgDirtyGuard.isDirty('data-row')
+      && !window.confirm('This row has unsaved changes. Close and lose them?')) {
+    return;
+  }
+  var p = document.getElementById('rows-panel');
+  if (p) p.style.display = 'none';
+}
 
 function openTableAcl(table) {
   var key = tableAclKey(table);

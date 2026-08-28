@@ -51,6 +51,13 @@ Naming the commit: AFTER it lands, never before
   only for a caller who may read one, and only while the briefs plugin is on; a
   caller who may read but not append gets a read-only button and is told which
   capability an entry would need, before typing it.
+- SM680 shipped (PENDING) **the rows panel opens where you are looking.** It
+  was a block revealed below the table list, so a watched user pressed Rows and
+  did not see anything happen - the control worked exactly as built and the
+  person did not know it had. It is an overlay now, scrolling inside itself, and
+  closing asks before discarding an unsaved row. The panel's content is
+  unchanged: only its container moved.
+
 - SM678 partial (PENDING) **a data table says who can read it.** A table's
   access is an ACL keyed `lazysite/db/tables/<table>`, which the API could set
   and the manager could not show - the rights editor is rendered inside a file's

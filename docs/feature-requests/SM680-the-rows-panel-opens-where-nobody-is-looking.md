@@ -3,7 +3,8 @@ title: "SM680: the Rows panel opens below the fold and a watched user did not se
 subtitle: "Release manager, 2026-08-28, from observation rather than inference: 'on watching user earlier, they didnt see it open up below'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). The rows panel is an overlay, fixed over the page and scrolling inside itself, rather than a block revealed below the table list. The panel CONTENT is untouched - the pager, the CSV import and the editor entry point are the same markup in a different container - so this moves where it renders without disturbing what it renders. Closing asks before discarding an unsaved row, via mgDirtyGuard.isDirty (the real method name; a page once guessed isSet and the guard silently never fired). It did NOT need the plugin page's modal shell shared across pages: the panel already existed and only its container changed, so no shell was duplicated to get here."
 ---
 
 # What was observed
