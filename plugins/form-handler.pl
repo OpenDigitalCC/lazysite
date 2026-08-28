@@ -145,7 +145,8 @@ eval {
     my %handlers = load_handlers();
 
     check_honeypot( $form{_hp} // '' );
-    check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret() );
+    check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret(),
+        $conf->{timestamp_window} );
 
     # SM425: a signed-in member is not the traffic the anonymous rate limit
     # exists to stop, and meeting it mid-form reads as the site being broken.
@@ -357,6 +358,20 @@ sub load_form_conf {
             :                      undef;
     }
 
+    # SM501: per-form validity window for the render timestamp, in seconds.
+    # Absent leaves the shipped 7200 (two hours). A long careful form crosses
+    # two hours as the ORDINARY case, and the refusal lands after the typing -
+    # which is the worst possible moment for it. `off` removes the age ceiling
+    # for a form whose access is controlled another way; the HMAC and the
+    # too-fast floor are unaffected either way, so this relaxes staleness and
+    # nothing else.
+    my $ts_window;
+    if ( my ($tw) = $text =~ /^\s*timestamp_window\s*:\s*(\S+)/m ) {
+        $ts_window = ( lc $tw eq 'off' || lc $tw eq 'none' ) ? 0
+            : ( $tw =~ /^\d+$/ ) ? $tw + 0
+            :                      undef;
+    }
+
     # SM216: per-form quarantine scoring config. quarantine defaults ON - a false
     # positive still arrives (just unannounced, under the Quarantine filter), so
     # cheap heuristics are safe on by default. spam_keywords is a comma-separated
@@ -373,6 +388,7 @@ sub load_form_conf {
         spam_keywords      => ( defined $kw ? $kw     : '' ),
         spam_url_threshold => ( defined $ut ? $ut + 0 : 2 ),
         rate_limit         => $rate_limit,    # SM401; undef = default
+        timestamp_window   => $ts_window,     # SM501; undef = default, 0 = off
     };
 }
 
@@ -1026,14 +1042,21 @@ sub check_honeypot {
 }
 
 sub check_timestamp {
-    my ( $ts, $tk, $secret ) = @_;
+    my ( $ts, $tk, $secret, $window ) = @_;
     reject('Invalid submission') unless $ts && $tk;
     reject('Invalid submission') unless $ts =~ /^\d+$/;
     my $expected = hmac_sha256_hex( $ts, $secret );
     reject('Invalid submission') unless $tk eq $expected;
     my $age = time() - $ts;
     reject('Submission too fast') if $age < 3;
-    reject('Submission expired')  if $age > 7200;
+
+    # SM501: per-form, defaulting to the shipped two hours. 0 disables the age
+    # ceiling only - the HMAC above still has to match, so a submission cannot
+    # be forged or replayed from another form, and the too-fast floor still
+    # applies. Undef is the default rather than "no limit", so a malformed value
+    # in a form conf tightens nothing and loosens nothing.
+    $window = 7200 unless defined $window;
+    reject('Submission expired') if $window && $age > $window;
 }
 
 # SM401: the limit is PER FORM, and the default is unchanged.

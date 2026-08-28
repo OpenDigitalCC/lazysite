@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM594/SM501 (PENDING) **a capability's description said it read submissions,
+  and a form can widen its own submission window.** `manage_forms` still
+  described itself as returning "live submission CONTENT" after SM652 removed
+  that reach - shipped that way in 0.11.3, in the sentence a sysop reads when
+  deciding whether to hand the grant over, overstating it in the direction that
+  causes over-granting. The structural lints compare `unlocks` against the gate
+  and had nothing to say about prose. Separately, the render timestamp's
+  two-hour validity window is now per form (`timestamp_window`), defaulting to
+  the shipped value: on a long careful form, crossing two hours is the ordinary
+  case and the refusal lands after the typing. `off` removes the age ceiling
+  only - the signature must still match and the too-fast floor still applies.
+
 - SM669 shipped (PENDING) **a cookie-side capability gate can now be proved by
   behaviour.** `%COOKIE_CAP` was asserted only as source text because nothing
   could reach it - SM660 shipped that way, its test deleted after sabotage

@@ -75,16 +75,34 @@ my $caps = $map->{capabilities};
         'and audit points at it, so the difference is not left to be inferred' );
 }
 
-# --- 3. manage_forms says it reads submissions, not just wires them ----------
-# The old title spent its words on the NOTIFICATION never carrying content,
-# which reads as a statement about the grant. It is a statement about the bell.
+# --- 3. the personal-data declaration sits on the capability that hands it over
+# SM618 required manage_forms to declare that it returned submission content and
+# the submitter's IP, because at the time it DID. SM652 narrowed the reads to
+# read_submissions on every channel, and SM594 corrected the description that
+# had been left behind claiming the old reach.
+#
+# So this section moved rather than being deleted: the rule is unchanged - a
+# capability declares the personal data it hands over - and the capability that
+# hands it over is now read_submissions. Section 4 below predicted this exactly:
+# "If the gate is ever narrowed to read_submissions alone, this fails and the
+# title above becomes wrong - deliberately coupled."
 {
-    my $t = $caps->{manage_forms}{title};
-    like( $t, qr/submitted|submission/i,
-        'manage_forms says it reads what was submitted' );
-    like( $t, qr/read_submissions/,
-        'and names the least-privilege alternative for an agent that only processes leads' );
-    like( $t, qr/\bIP\b/, 'and that a submission carries the submitter\'s IP' );
+    my $rs = ( $caps->{read_submissions}{grants} // '' )
+        . ' ' . ( $caps->{read_submissions}{title} // '' );
+    like( $rs, qr/submitted|submission/i,
+        'read_submissions says it reads what was submitted' );
+    like( $rs, qr/\bIP\b/,
+        'and that a submission carries the submitter\'s IP' )
+        or diag( 'This is the SM618 rule, on the capability that now returns '
+            . 'the data.' );
+
+    my $mf = $caps->{manage_forms}{title};
+    like( $mf, qr/read_submissions/,
+        'manage_forms names the capability that does read them' );
+    like( $mf, qr/does NOT read submissions/,
+        'and says plainly that it does not' )
+        or diag( 'It said it returned live submission CONTENT for one release '
+            . 'after that stopped being true (SM594).' );
 }
 
 # --- 4. the declaration matches the gate, which is why it had to change ------

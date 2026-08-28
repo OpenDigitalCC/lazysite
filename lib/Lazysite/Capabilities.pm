@@ -110,14 +110,23 @@ my %ACTION_INFO = (
         # capability now hands over, not this one. Measured on edge
         # 2026-08-26: name, email, phone, message and the submitter's IP, under
         # a capability a sysop grants to let an agent wire up a form.
-        title => 'Wire forms to delivery handlers - AND read what has been '
-            . 'submitted through them. SM618: `form-submissions` admits either '
-            . 'this or `read_submissions`, so this grant returns live '
-            . 'submission CONTENT: whatever a form collects, in practice name, '
-            . 'email, phone and message, together with the submitter\'s source '
-            . 'IP. Grant `read_submissions` instead where an agent only needs '
-            . 'to process leads, and this one where it must also change how '
-            . 'forms are wired. A submitted form also raises an '
+        # SM594/SM652: THIS TEXT WAS STALE AND OVERSTATED THE GRANT. SM652
+        # narrowed form-submissions to read_submissions on both channels and
+        # updated the comment above while leaving the title saying this
+        # capability "returns live submission CONTENT". It is the sentence an
+        # operator reads when deciding whether to hand this over, and it
+        # described a reach the grant had stopped having - the direction that
+        # causes over-granting, since a sysop reading it would reach for
+        # read_submissions when manage_forms would have done.
+        title => 'Wire forms to delivery handlers: which handler a form '
+            . 'delivers through, and the handler configuration itself. This '
+            . 'grant does NOT read submissions - SM652 narrowed '
+            . '`form-submissions` and `form-list` to `read_submissions` on '
+            . 'every channel, so an agent that processes leads needs that '
+            . 'capability and this one only changes how forms are wired. '
+            . 'SM660: deleting or confirming a submission needs BOTH, because '
+            . 'destroying what you may not read is not a coherent grant. '
+            . 'A submitted form also raises an '
             . 'sysop notification of its own accord (the manager bell, plus chat '
             . 'where notify-xmpp is configured) naming the form and the time but '
             . 'never the content - so nothing needs to poll to learn that something '

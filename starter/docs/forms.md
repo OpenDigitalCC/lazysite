@@ -339,6 +339,17 @@ and 2 hours after the form was rendered. Prevents replay attacks.
 
 The ceiling is per form: `rate_limit: 200` in the form's config raises it, and `rate_limit: off` removes it. Five an hour is right for a public contact form and wrong for an authenticated team working through a set of data-entry pages from one office address. Set it only on a form whose access is already controlled another way - the limit is what protects an open form from being used as a relay.
 
+**Submission validity window** - a form's page carries a timestamp signed at
+render, and a submission arriving more than two hours later is refused.
+
+The window is per form: `timestamp_window: 86400` in the form's config widens
+it, and `timestamp_window: off` removes the age ceiling. Two hours is right for
+a contact form and wrong for a long, careful one - crossing it is the ordinary
+case there, and the refusal lands after the typing rather than before it. `off`
+disables the age check ONLY: the signature must still match, so a timestamp
+cannot be forged or lifted from another form, and a submission arriving within
+three seconds of render is still refused as automated.
+
 **Header injection prevention** - CR/LF characters stripped from
 all fields.
 

@@ -95,6 +95,36 @@ for my $tool (qw(form_list read_form_submissions)) {
         "MCP: $tool still requires read_submissions" );
 }
 
+# --- SM594: and the capability's OWN description agrees with its gate --------
+# SM652 narrowed the gate and updated the comment ABOVE the description while
+# leaving the description itself saying this capability "returns live submission
+# CONTENT". It shipped in 0.11.3 that way. That sentence is what an operator
+# reads when deciding whether to hand the grant over, and it overstated the
+# reach - the direction that causes over-granting, because a sysop reading it
+# reaches for read_submissions when manage_forms would have done.
+#
+# Structural lints did not catch it: they compare `unlocks` against the gate,
+# and this is prose. So it is asserted here, on the claim specifically.
+{
+    my $caps = do {
+        open my $fh, '<', "$root/lib/Lazysite/Capabilities.pm" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($mf) = $caps =~ /^\s{4}manage_forms\s*=>\s*\{(.*?)^\s{4}\},/ms;
+    ok( defined $mf, 'manage_forms declares itself in Capabilities.pm' );
+    my ($title) = $mf =~ /title\s*=>\s*(.*?)(?:^\s+\w+\s*=>)/ms;
+    $title //= '';
+    unlike( $title, qr/returns live\s+.\s*.\s*submission CONTENT/s,
+        'the description no longer claims this grant returns submission content' );
+    unlike( $title, qr/AND read what has been/,
+        'nor that it reads what was submitted' )
+        or diag( 'SM652 removed that reach; a description that still promises '
+            . 'it tells a sysop the grant is wider than it is.' );
+    like( $title, qr/does NOT read submissions/,
+        'and says plainly that it does not' );
+}
+
 # --- the description that documented the divergence -------------------------
 # It described the control API's rule on the surface that did not implement
 # it. With the rule gone, the sentence is not merely stale - it tells a reader
