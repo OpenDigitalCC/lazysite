@@ -68,7 +68,9 @@ Naming the commit: AFTER it lands, never before
   Editing from that page still needs the rights editor extracted into the shared
   helpers rather than copied.
 
-- SM667 shipped (PENDING) **a seeded group can be put back from its own row.**
+## 0.11.4 - EDGE: access control that was measured rather than reasoned about, and the instruments that did the measuring (2026-08-28)
+
+- SM667 shipped (a1a7f855) **a seeded group can be put back from its own row.**
   `reset-groups` restores every seeded group at once, from a shell - neither of
   which suits an operator looking at one drifted row. The Groups panel now
   offers Restore defaults on a group that shipped with the engine, and the DIFF
@@ -77,7 +79,7 @@ Naming the commit: AFTER it lands, never before
   passes SM195's ceiling as editing the row by hand does, and refuses wholesale
   rather than applying the half it is allowed to.
 
-- SM678/SM679/SM680 filed (PENDING) **three things the Data page cannot say or
+- SM678/SM679/SM680 filed (3c5060a9) **three things the Data page cannot say or
   does not show.** A table's read access IS an ACL (`lazysite/db/tables/<name>`)
   that the API can set and the manager has no surface for - the rights editor
   exists but is rendered inside a FILE's expander. The table listing carries no
@@ -85,7 +87,7 @@ Naming the commit: AFTER it lands, never before
   and did not see it happen, which is the same objection SM640 answered on the
   plugin page with a modal.
 
-- SM676/SM677 filed (PENDING) **two things the field found.** The Brief button
+- SM676/SM677 filed (a1a7f855) **two things the field found.** The Brief button
   in the Files expander renders unconditionally, while `brief-append` needs
   `manage_briefs` that `brief-read` does not - so the panel reads the brief,
   prompts for an entry, and then refuses the save. And every row save writes an
@@ -93,7 +95,7 @@ Naming the commit: AFTER it lands, never before
   decision SM505 and SM465 each made deliberately, so the filing names what the
   decision was protecting rather than treating it as a tidy-up.
 
-- SM675 filed (PENDING) **a capability backed by a plugin should say so.**
+- SM675 filed (a1a7f855) **a capability backed by a plugin should say so.**
   `manage_data` grants nothing while the data plugin is off, and the Groups
   panel offers it as an ordinary checkbox. The engine already knows the mapping
   - plugins declare `owns.capabilities` and ADR 0009 validates it - and SM180
@@ -102,7 +104,7 @@ Naming the commit: AFTER it lands, never before
   keeps holding it, and hiding the row would hide a grant that is still in the
   store.
 
-- SM673/SM674 filed (PENDING) **how a visitor gets an account.** Registration is
+- SM673/SM674 filed (737a3860) **how a visitor gets an account.** Registration is
   invitation-only and nothing answers `register`. SM673 proposes: a visitor
   asks, an operator approves, the engine issues the claim link - built on the
   forms pipeline so it inherits the honeypot, signed timestamp, rate limit and
@@ -119,7 +121,7 @@ Naming the commit: AFTER it lands, never before
   same underlying behaviour SM677 records from the other side: a per-row loop is
   slow for the apps agent and fills the audit log for the operator.
 
-- SM679/SM681 shipped (PENDING) **two things the manager could not say.** The
+- SM679/SM681 shipped (3c5060a9) **two things the manager could not say.** The
   table listing carries a row count - the first thing anybody wants from a list
   of tables - counted in the pass that already reads each descriptor. A table
   awaiting migration omits the field rather than reporting `0`, because "empty"
@@ -127,7 +129,7 @@ Naming the commit: AFTER it lands, never before
   domain row has an arrow that opens the live domain in a new tab, built from
   the host rather than `site_url`, which can carry an unexpanded
   `${REQUEST_SCHEME}` the manager has no way to resolve.
-- SM657 partial (PENDING) **a data row can carry a brief.** A row had no path,
+- SM657 partial (d732dc7c) **a data row can carry a brief.** A row had no path,
   no descriptor and no comment field - the only content object with nowhere to
   record why it is as it is, on sites where a row IS the content.
   `brief-read` and `brief-append` now take a typed reference (`type=row`,
@@ -141,7 +143,7 @@ Naming the commit: AFTER it lands, never before
   briefing is generated from another tree's source, so the wording is filed to
   that tree rather than edited here.
 
-- SM662 partial (PENDING) **what every capability gate decides, as a
+- SM662 partial (c495c6d0) **what every capability gate decides, as a
   fingerprint.** A capability's reach is described in up to six places and
   changing one is never enough - SM633, SM652 and SM664 each needed six edits,
   and every instance past the second was caught by a gate rather than by
@@ -153,7 +155,7 @@ Naming the commit: AFTER it lands, never before
   by review; `t/lint/92` takes the same fingerprint and refuses a gate that
   ignores the capabilities it is given. The restructure itself is not done.
 
-- SM656 shipped (PENDING) **a section can decline the admin bar once.**
+- SM656 shipped (142ae7b9) **a section can decline the admin bar once.**
   `admin_bar: none` on a folder's `index.md` is inherited by every page beneath
   it, at any depth - an application is rarely one page, and requiring the key on
   each of them means the next page added is the one that gets it wrong. A page
@@ -162,7 +164,7 @@ Naming the commit: AFTER it lands, never before
   link. No new store: the index page is where a section already describes
   itself.
 
-- SM647 fixed (PENDING) **a domain's access keys are a conferral, and a domain
+- SM647 fixed (6118f3bb) **a domain's access keys are a conferral, and a domain
   is reached by its content root.** Measured OPEN on edge 0.11.3 by the site
   agent, both claims, with a credential holding `manage_domains` and NOT
   `manage_users`: it rewrote `allowed_groups` on a domain outside its own scope,
@@ -174,7 +176,7 @@ Naming the commit: AFTER it lands, never before
   paths and this action is addressed by host. Other keys keep `manage_domains`
   alone: setting a theme is not a conferral.
 
-- SM668 shipped (PENDING) **an OAuth grant appears where it can be revoked.**
+- SM668 shipped (5d7945f2) **an OAuth grant appears where it can be revoked.**
   An MCP agent authorised over OAuth appeared on neither Sessions nor Keys - it
   creates no cookie, and the Keys listing skipped any account with no stored
   credential, which is exactly an OAuth-only partner. The only lever an operator
@@ -185,7 +187,7 @@ Naming the commit: AFTER it lands, never before
   leaves the login password alone, saying which of the two it did - refusing
   would have listed access nobody could act on from the page it appears on.
 
-- SM672 shipped (PENDING) **a refused domain host says which thing was wrong.**
+- SM672 shipped (c390d0f4) **a refused domain host says which thing was wrong.**
   `Invalid domain host` answered two different problems - no host supplied, and
   a malformed one - and stated neither the rule nor which had happened.
   `domain-set` and `domain-add` read `host` from the JSON body while
@@ -196,7 +198,7 @@ Naming the commit: AFTER it lands, never before
   rule and says where to send it. Three copies of the host pattern - in
   `_valid_host`, in `domain_preview` and in the manager API - are one.
 
-- SM594/SM501 (PENDING) **a capability's description said it read submissions,
+- SM594/SM501 (6accc274) **a capability's description said it read submissions,
   and a form can widen its own submission window.** `manage_forms` still
   described itself as returning "live submission CONTENT" after SM652 removed
   that reach - shipped that way in 0.11.3, in the sentence a sysop reads when
@@ -208,7 +210,7 @@ Naming the commit: AFTER it lands, never before
   case and the refusal lands after the typing. `off` removes the age ceiling
   only - the signature must still match and the too-fast floor still applies.
 
-- SM669 shipped (PENDING) **a cookie-side capability gate can now be proved by
+- SM669 shipped (10ab2162) **a cookie-side capability gate can now be proved by
   behaviour.** `%COOKIE_CAP` was asserted only as source text because nothing
   could reach it - SM660 shipped that way, its test deleted after sabotage
   showed the fixture never got as far as the gate. The cause: the manager API
@@ -220,7 +222,7 @@ Naming the commit: AFTER it lands, never before
   SM664's "either" on the live evaluator, with the refusal naming the missing
   capabilities.
 
-- SM653 partial (PENDING) **the tool listing says "callable on some paths".**
+- SM653 partial (b9db7e89) **the tool listing says "callable on some paths".**
   `tools/list` offered every `path_aware` tool to a themes-only grant, because
   the shared callability rule is asked without a path at listing time and the
   theme/layout override then applies unconditionally. Enforcement was never
@@ -230,7 +232,7 @@ Naming the commit: AFTER it lands, never before
   would widen it. Derived from the same rule that decides callability, so it
   cannot drift from it.
 
-- SM660 shipped (PENDING) **a destructive verb needs the read it destroys.**
+- SM660 shipped (5b12a1a0) **a destructive verb needs the read it destroys.**
   SM652 narrowed the submission reads to `read_submissions` and left three
   destructive verbs on `manage_forms` alone, so a grant could delete a
   submission row and clear a quarantine flag while being unable to read either
@@ -243,7 +245,7 @@ Naming the commit: AFTER it lands, never before
   `a+b` meaning every capability named, beside the existing `a|b` meaning any,
   and a refusal names both.
 
-- SM640/SM639/SM664 partial (PENDING) **the plugin page is a line list, and a
+- SM640/SM639/SM664 partial (03561566) **the plugin page is a line list, and a
   configuration opens in a modal.** Every plugin's configuration rendered inline
   one after another, so the page grew with the number of plugins installed and
   saving any one of them reloaded the whole page. The page is now a line per
@@ -260,7 +262,7 @@ Naming the commit: AFTER it lands, never before
   what changed no longer needs the Files app - full read and write over content
   - to see it.
 
-- SM665 shipped (PENDING) **the groups page says each name once.** `Purge -
+- SM665 shipped (41cab140) **the groups page says each name once.** `Purge -
   destroy what no copy survives` and its housekeeping twin carried an
   explanation in the label while the `?` marker beside the checkbox already
   served a fuller sentence on hover; the labels are now `Purge` and
