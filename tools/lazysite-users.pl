@@ -1500,6 +1500,11 @@ sub effective_settings {
         # what happens when they do not, and t/unit/users/21 is what makes
         # sure they do.
         manage_data => $caps->{manage_data} ? JSON::PP::true() : JSON::PP::false(),
+        # SM682: the narrow row-write grant, added here in the same commit as
+        # @CAP_KEYS for the reason directly above. F3 is what happens otherwise:
+        # a grant that resolves and then does nothing on every surface reading
+        # this map.
+        write_data => $caps->{write_data} ? JSON::PP::true() : JSON::PP::false(),
         # SM576 part 1: the briefs plugin's capability, added here in the same
         # commit as @CAP_KEYS for the reason directly above - a capability that
         # reaches caps_for but not this map is a grant that resolves and then

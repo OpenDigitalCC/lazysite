@@ -60,6 +60,15 @@ qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/d
 qx($^X \Q$users\E --docroot \Q$docroot\E add writer pw123456789 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-set data-people manage_data on 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E group-add writer data-people 2>/dev/null);
+
+# SM682: a LEARNER - the external, semi-trusted user this capability exists for.
+# It holds write_data and NOT manage_data, and it is in `secretaries`, which is
+# the group `minutes` names in its writable_by. So it may write that table and
+# no other.
+qx($^X \Q$users\E --docroot \Q$docroot\E add learner pw123456789 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E group-set secretaries write_data on 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E group-set secretaries ui on 2>/dev/null);
+qx($^X \Q$users\E --docroot \Q$docroot\E group-add learner secretaries 2>/dev/null);
 qx($^X \Q$users\E --docroot \Q$docroot\E add reader pw123456789 2>/dev/null);
 
 # A session cookie the endpoint will verify, minted the way lazysite-auth does.
@@ -176,6 +185,60 @@ subtest 'with a token, the write goes through' => sub {
         body   => encode_json( { row => { body => 'no key' } } ),
     );
     ok( !$bd->{ok}, 'a row missing its required field is still refused' );
+};
+
+subtest 'SM682: write_data writes a NAMED table, and reaches nothing else' => sub {
+    # The capability exists because manage_data is all-or-nothing: it carries
+    # table create, alter and drop AND read/write across every table on the
+    # instance. Handing that to a group of external learners so they can submit
+    # their own work is the thing this avoids.
+    #
+    # THE CREDENTIAL IS THE POINT: write_data and NOT manage_data. A grant
+    # holding both would prove nothing about which one opened the door.
+    my $c = cookie_for('learner');
+    my ( undef, $cd ) = hit( qs => 'csrf=1', cookie => $c );
+
+    # `minutes` names `secretaries` in writable_by, and the learner is in it.
+    my ( $st, $d ) = hit(
+        method => 'POST',
+        qs     => 'table=minutes',
+        cookie => $c,
+        csrf   => $cd->{token},
+        body   => encode_json( { row => { code => 'L1' } } ),
+    );
+    is( $st, 200, 'a named table accepts the write' )
+        or diag( 'got: ' . ( $d->{error} // '(no error)' ) );
+    ok( ( grep { $_->{code} eq 'L1' } @{ read_rows( $docroot, 'minutes', as => 'operator' )->{rows} } ),
+        'and the row is stored' );
+
+    # `notes` names NOBODY. For manage_data an empty list means "no extra
+    # narrowing"; for write_data it is an ALLOW-LIST and an unnamed table is
+    # closed. Without this inversion write_data would be instance-wide write
+    # under a new name, which is the grant it exists to avoid.
+    my ( $st2, $d2 ) = hit(
+        method => 'POST',
+        qs     => 'table=notes',
+        cookie => $c,
+        csrf   => $cd->{token},
+        body   => encode_json( { row => { code => 'L2', body => 'x' } } ),
+    );
+    is( $st2, 403, 'a table naming nobody is CLOSED to write_data' )
+        or diag( 'An empty writable_by must not read as "anyone with '
+            . 'write_data" - that is instance-wide write with a new name.' );
+    like( $d2->{error}, qr/names no writable_by groups/,
+        'and the refusal says why, and what a sysop would change' );
+    ok( !( grep { $_->{code} eq 'L2' } @{ read_rows( $docroot, 'notes', as => 'operator' )->{rows} } ),
+        'nothing is stored' );
+};
+
+subtest 'SM682: write_data does not reach the schema verbs' => sub {
+    # The whole point is that this grant is NOT data administration. If it
+    # reached data-table-save it would be manage_data with extra steps.
+    my $caps = qx($^X \Q$users\E --docroot \Q$docroot\E permissions learner 2>&1);
+    like( $caps, qr/write_data\s+Y/, 'the learner holds write_data' );
+    unlike( $caps, qr/manage_data\s+Y/, 'and does NOT hold manage_data' )
+        or diag( 'If it did, every assertion above proves nothing about which '
+            . 'capability opened the door.' );
 };
 
 subtest 'writable_by narrows, and manage_data alone is not enough' => sub {

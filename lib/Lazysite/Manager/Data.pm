@@ -226,6 +226,44 @@ sub load_table_for_audit {
     return eval { load_table( $DOCROOT, $table ) };
 }
 
+# SM682: the two halves of "did this save change who may write the rows".
+#
+# Compared as a normalised STRING rather than as a list, so a reorder is not a
+# change - an author moving a name up the list has not altered who may write,
+# and refusing that would teach people the check is noise.
+sub _wb_key {
+    my ($list) = @_;
+    return '' unless ref $list eq 'ARRAY';
+    return join ',', sort grep { defined && length } @{$list};
+}
+
+# What the STORED descriptor says today. undef when there is no such table yet,
+# which makes a first save unconstrained - there is nothing to widen.
+sub writable_by_of {
+    my ($table) = @_;
+    return undef unless defined $table && length $table;
+    my $d = eval { load_table( $DOCROOT, $table ) };
+    return undef unless ref $d eq 'HASH' && $d->{ok};
+    return _wb_key( $d->{writable_by} );
+}
+
+# What the INCOMING descriptor text says. Parsed with the SAME loader the save
+# itself uses - YAML::PP->load_string - so this cannot disagree with what gets
+# stored. A hand-rolled scan of the YAML could, and any difference between the
+# two readings would be a way past the check.
+#
+# undef when the text is absent or unparseable: there is then no change to
+# assess, and the save's own parser will reject it a moment later with a better
+# message than this could give.
+sub writable_by_in {
+    my ($text) = @_;
+    return undef unless defined $text && length $text;
+    return undef unless eval { require YAML::PP; 1 };
+    my $raw = eval { YAML::PP->new->load_string($text) };
+    return undef unless ref $raw eq 'HASH';
+    return _wb_key( $raw->{writable_by} );
+}
+
 # The tables this site declares, with the title each descriptor carries.
 #
 # Reports a table whose descriptor is BROKEN rather than omitting it. An

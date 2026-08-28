@@ -65,6 +65,23 @@ already generated and gate-checked, so they are not the problem - they are the
 model. `t/tools/26` even names its own remedy in the failure message, which is
 why regenerating them costs seconds.
 
+# CORRECTION after first real use (SM682, 2026-08-28)
+
+The fingerprint printed a BITSTRING, one column per capability in @CAP_KEYS
+order. Its first real use - introducing `write_data` - reported all 140 gates as
+changed, because inserting a capability into the vocabulary lengthens every row.
+
+An instrument that cannot tell "a gate moved" from "the vocabulary grew" cannot
+answer the question it was built for, and the failure mode is the bad one: it
+cries wolf on exactly the change it was meant to make safe, and a reader learns
+to skim the diff.
+
+It is now keyed by NAME: per gate, whether no capability grants it, whether all
+together do, and which grant it on their own. Adding a capability then appears
+only on the gates that actually admit it. Re-run across SM682 the diff is four
+substantive lines - the two row verbs gaining `write_data`, and the three
+deliberately-constant introspection gates that admit anything.
+
 # The work this names
 
 **Restructure `%need` so a gate DECLARES its capability rather than testing it.**

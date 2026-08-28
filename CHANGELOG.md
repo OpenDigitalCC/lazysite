@@ -53,6 +53,21 @@ Naming the commit: AFTER it lands, never before
   own `owns.capabilities` declaration rather than a list in the page. Marked
   rather than hidden: a group already holding it keeps holding it, and hiding
   the row would hide a grant still recorded in the store.
+- SM682 partial (PENDING) **an app's own users can write their own rows.**
+  Writing a data table required `manage_data`, which also carries table create,
+  alter and drop and read/write across every table on the instance - so an app
+  with external users had to hand instance-wide data administration to its
+  least-trusted user class, or collect nothing. `write_data` permits row
+  insert, update and delete on tables whose `writable_by` names one of the
+  caller's groups, and nothing else. The list means two things now: for
+  `manage_data` it narrows, as before; for `write_data` it is an allow-list, and
+  a table naming nobody is closed. Without that inversion the new capability
+  would be instance-wide write under a new name. The descriptor is still not a
+  grant - an agent editing it cannot give write to an account that does not
+  already hold `write_data`. And changing `writable_by` now requires
+  `manage_users` as well, which is SM647's ruling applied to the descriptor: an
+  agent could otherwise widen a group the operator had already trusted with
+  row-writes elsewhere. Only a change is gated, and a reorder is not a change.
 
 - SM676 shipped (PENDING) **the Brief button offers only what it can deliver.**
   It rendered unconditionally, while `brief-append` needs `manage_briefs` that

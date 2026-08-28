@@ -118,7 +118,13 @@ sub describe {
             # reintroduced by specification.
             endpoints => ['lazysite-data.pl'],
 
-            capabilities => ['manage_data'],
+            # SM682: write_data is this plugin's too - a narrow row-write for
+            # an app's own users, where manage_data (every table plus schema
+            # control) is far too wide. Declared HERE because t/lint/76
+            # requires every capability to be core or plugin-owned, and
+            # because whoami reads this to decide who may see the plugin's
+            # state.
+            capabilities => [ 'manage_data', 'write_data' ],
 
             # SBOM gate keys. DBD::SQLite is the engine; DBI is the interface;
             # YAML::PP reads descriptors. JSON::PP and the File:: modules are

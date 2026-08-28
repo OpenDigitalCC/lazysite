@@ -54,6 +54,7 @@ var ACTIONS = [
   ['manage_themes', 'Themes'],
   ['manage_layouts', 'Layouts'],
   ['manage_data', 'Data tables'],
+  ['write_data', 'Data rows (named tables only)'],
   ['manage_briefs', 'Authoring briefs (write)'],
   ['housekeeping', 'Housekeeping'],
   ['purge', 'Purge'],

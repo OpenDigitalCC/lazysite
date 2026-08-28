@@ -196,10 +196,14 @@ sub main {
         require Lazysite::Auth::Settings;
         local $Lazysite::Auth::Settings::AUTH_DIR = "$docroot/lazysite/auth";
         my $caps = Lazysite::Auth::Settings::caps_for($user) || {};
+        # SM682: manage_data OR write_data reaches a row write. They differ in
+        # what `writable_by` then means - see below - so the check is here and
+        # the distinction is there, rather than one tangled condition.
         return reply( 403,
             { ok => 0, kind => 'forbidden',
-                error => 'this account does not hold manage_data' } )
-            unless $caps->{manage_data};
+                error => 'this account holds neither manage_data nor '
+                    . 'write_data, so it cannot write rows' } )
+            unless $caps->{manage_data} || $caps->{write_data};
 
         # `writable_by` NARROWS, and only narrows. The descriptor has carried
         # it since DP-1 - validated, exported, named in the MCP tool's own
@@ -222,15 +226,44 @@ sub main {
             = ( $desc->{ok} && ref $desc->{writable_by} eq 'ARRAY' )
             ? $desc->{writable_by}
             : [];
-        if ( @{$wb} ) {
-            my %in = map { $_ => 1 } @groups;
-            unless ( grep { $in{$_} } @{$wb} ) {
+        # SM682: THE LIST MEANS DIFFERENT THINGS TO THE TWO CAPABILITIES.
+        #
+        #   manage_data + empty -> writes (the historic behaviour, unchanged)
+        #   manage_data + list  -> writes only if named (narrowing, unchanged)
+        #   write_data  + empty -> REFUSED
+        #   write_data  + list  -> writes only if named
+        #
+        # For manage_data the list narrows. For write_data it is an ALLOW-LIST,
+        # and a table naming nobody is closed to it - otherwise write_data would
+        # be instance-wide write under a different name, which is precisely the
+        # grant it exists to avoid.
+        #
+        # This keeps the descriptor from being a grant: an agent editing
+        # `writable_by` cannot give write to anyone who does not already hold
+        # write_data, and that comes from the group store.
+        my %in    = map { $_ => 1 } @groups;
+        my $named = ( @{$wb} && grep { $in{$_} } @{$wb} ) ? 1 : 0;
+
+        if ( !$caps->{manage_data} ) {
+            unless ($named) {
                 return reply( 403,
                     { ok => 0, kind => 'forbidden',
-                        error => "table '$table' is writable by: "
-                            . join( ', ', @{$wb} )
-                            . ' - this account is in none of them' } );
+                        error => @{$wb}
+                        ? ( "table '$table' is writable by: "
+                                . join( ', ', @{$wb} )
+                                . ' - this account is in none of them' )
+                        : ( "table '$table' names no writable_by groups, so a "
+                                . 'write_data grant reaches no rows in it. A '
+                                . 'sysop can add your group to the table\'s '
+                                . 'writable_by.' ) } );
             }
+        }
+        elsif ( @{$wb} && !$named ) {
+            return reply( 403,
+                { ok => 0, kind => 'forbidden',
+                    error => "table '$table' is writable by: "
+                        . join( ', ', @{$wb} )
+                        . ' - this account is in none of them' } );
         }
 
         my $len = $ENV{CONTENT_LENGTH} || 0;

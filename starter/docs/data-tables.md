@@ -547,6 +547,33 @@ account without `manage_data`, because the descriptor is a file an agent can
 write -- if the list could widen, an agent could hand write access to a group
 it chose.
 
+`writable_by` means two different things, depending on which capability the
+caller holds.
+
+For **`manage_data`** it only ever **takes access away**: a holder writes every
+table, except those naming groups it is not in.
+
+For **`write_data`** it is an **allow-list**: a holder writes only the tables
+that name one of its groups, and a table naming nobody is closed to it entirely.
+
+| Caller holds | no `writable_by` | `writable_by: [secretaries]` |
+|---|---|---|
+| `manage_data` | writes | writes only if in `secretaries` |
+| `write_data` | **refused** | writes only if in `secretaries` |
+
+That asymmetry is what keeps the descriptor from being a grant. The file is
+writable by any agent holding `manage_data`, so if the list could hand write
+access to an account that had none, an agent could give it to a group it chose.
+It cannot: `write_data` comes from the group store, where an operator granted
+it, and the list only says which tables that grant reaches.
+
+`write_data` is the grant for an app's own users -- a learner writing their own
+submissions, a member updating their own record. It permits row insert, update
+and delete and nothing else: no declaring, altering, migrating or dropping a
+table, and no reach into a table that does not name them. Where `manage_data`
+would mean handing instance-wide data administration to your least-trusted user
+class, this is what to grant instead.
+
 ```yaml
 key: code
 writable_by:

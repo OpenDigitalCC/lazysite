@@ -649,7 +649,10 @@ if ( !$token_auth ) {
             # against, so the capability IS the gate.
         'data-tables'       => 'manage_data', 'data-table'      => 'manage_data',
         'data-rows'         => 'manage_data', 'data-migrate'    => 'manage_data',
-        'data-row-save'     => 'manage_data', 'data-row-delete' => 'manage_data',
+        # SM682: either capability reaches a ROW write; the descriptor's
+        # writable_by then decides, and means different things to the two.
+        'data-row-save'     => 'manage_data|write_data',
+        'data-row-delete'   => 'manage_data|write_data',
         'data-table-save'   => 'manage_data',
         'data-rebuild'      => 'manage_data',
         'data-export'       => 'manage_data',
@@ -881,7 +884,7 @@ if ($token_auth) {
         'data-table'                 => sub { $_[0]->{manage_data} },
         'data-rows'                  => sub { $_[0]->{manage_data} },
         'data-migrate'               => sub { $_[0]->{manage_data} },
-        'data-row-save'              => sub { $_[0]->{manage_data} },
+        'data-row-save'       => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
         'data-table-save'            => sub { $_[0]->{manage_data} },
         'data-rebuild'               => sub { $_[0]->{manage_data} },
         'data-export'                => sub { $_[0]->{manage_data} },
@@ -900,7 +903,7 @@ if ($token_auth) {
         'briefs-migrate'  => sub { $_[0]->{manage_briefs} },
         'briefs-list'     => sub { $_[0]->{manage_content} || $_[0]->{manage_briefs} },
         'brief-delete'    => sub { $_[0]->{purge} },
-        'data-row-delete' => sub { $_[0]->{manage_data} },
+        'data-row-delete' => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
         'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
         'domain-add'      => sub { $_[0]->{manage_domains} },
         'domain-set'      => sub { $_[0]->{manage_domains} },
@@ -1674,9 +1677,41 @@ elsif ( $action eq 'data-table-save' ) {
     # file on disk is YAML and a human may edit it, so text is what
     # round-trips: comments and ordering survive, and what the author wrote is
     # what is stored.
-    my $req = _json_body();
-    $result = Lazysite::Manager::Data::action_data_table_save(
-        $req->{table} // $params{table},
+    my $req   = _json_body();
+    my $table = $req->{table} // $params{table};
+
+    # SM682 second half: CHANGING `writable_by` decides who may write this
+    # table's rows, so it requires authority over groups as well as over data.
+    #
+    # SM647 answered the identical question for a domain's allowed_groups
+    # earlier today: writing an access list needs manage_users in addition to
+    # the capability that owns the object. Without this, an agent holding
+    # manage_data can widen a group the operator already trusted with
+    # write_data elsewhere - the residual escalation SM682 recorded.
+    #
+    # Only a CHANGE is gated. Saving a descriptor whose writable_by is
+    # untouched - which is most saves, since the field is rarely edited - is
+    # unaffected, so a data admin adding a column does not suddenly need
+    # manage_users.
+    {
+        my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+        unless ( $caps->{manage_users} ) {
+            my $before = Lazysite::Manager::Data::writable_by_of($table);
+            my $after  = Lazysite::Manager::Data::writable_by_in( $req->{descriptor} );
+            if ( defined $after && ( $before // '' ) ne $after ) {
+                _refuse(
+                    { ok => 0, kind => 'forbidden',
+                        error => "Changing 'writable_by' decides WHO may write "
+                            . "this table's rows, so it requires the 'Users & "
+                            . "groups' permission as well as data management. "
+                            . 'The rest of the descriptor can be saved without '
+                            . 'it.' },
+                    ( $token_auth ? 'api' : 'ui' ), 'denied: capability' );
+            }
+        }
+    }
+
+    $result = Lazysite::Manager::Data::action_data_table_save( $table,
         $req->{descriptor} );
 }
 elsif ( $action eq 'data-rebuild' ) {

@@ -213,6 +213,43 @@ my %ACTION_INFO = (
     # to nothing, which is honest - what it must never do is CLAIM actions that
     # do not exist, which is SM457's defect pointed the other way and the one
     # t/lint/71 exists to catch.
+    # SM682: row-write on NAMED tables, and nothing else.
+    #
+    # manage_data is all-or-nothing: it carries table create, alter and drop AND
+    # read/write across every table on the instance. An app with external,
+    # semi-trusted users - a learner submitting their own work - had two options
+    # and both were wrong: hand instance-wide data administration to the least
+    # trusted user class, or collect nothing.
+    #
+    # `writable_by` MEANS SOMETHING DIFFERENT FOR THIS CAPABILITY, and that is
+    # what makes it safe rather than a rename of the problem:
+    #
+    #   manage_data + empty list  -> may write (unchanged)
+    #   manage_data + a list      -> may write only if in it (unchanged, narrows)
+    #   write_data  + empty list  -> may NOT write
+    #   write_data  + a list      -> may write only if in it
+    #
+    # For manage_data the list NARROWS; for this one it is an ALLOW-LIST. A
+    # table naming nobody is closed to a write_data holder - otherwise this
+    # would be instance-wide write under a new name, which is the thing being
+    # fixed.
+    #
+    # The descriptor is still NOT a grant. `data-table-save` is gated on
+    # manage_data, so an agent holding it can edit the list - but it cannot
+    # invent write_data, which comes from the group store where an operator put
+    # it under SM195's ceiling. The most such an agent can do is widen a group
+    # the operator already trusted with row-writes elsewhere, and SM682 records
+    # the SM647 remedy for that residue.
+    write_data => {
+        title  => 'Write rows in data tables that name your group, and nothing else.',
+        grants =>
+            'Insert, update and delete ROWS in the data tables whose `writable_by` names one of your groups - and no others. It does NOT declare, alter, migrate or drop a table, and it reaches no table that does not name you. Grant this to an app\'s own users where `manage_data` (every table on the instance, plus schema control) would be far too wide.',
+        unlocks => {
+            api => [qw(data-row-save data-row-delete)],
+            mcp => [qw(save_data_row delete_data_row)],
+        },
+    },
+
     manage_data => {
         title => 'Read and write the site\'s data tables.',
         grants => 'Read and write every data table on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here.',

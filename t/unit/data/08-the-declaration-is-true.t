@@ -114,9 +114,19 @@ subtest 'storage names the directory the store actually lives in' => sub {
             . 'reintroduced.' );
 };
 
-subtest 'capabilities names one, and it is MIRRORED not duplicated' => sub {
+subtest 'what it declares is MIRRORED, not duplicated' => sub {
     my @caps = @{ $owns->{capabilities} || [] };
-    is_deeply( \@caps, ['manage_data'], 'exactly manage_data' );
+
+    # NOT A ROLL-CALL. This asserted `exactly manage_data`, which was a list of
+    # names rather than the property being protected - and it failed the moment
+    # SM682 gave the plugin a second capability (write_data, the narrow
+    # row-write grant), which is a legitimate thing for it to own.
+    #
+    # The property is that the plugin declares AT LEAST its own capability and
+    # that everything it declares is mirrored in @CAP_KEYS. Which capabilities
+    # those are is the plugin's business and changes as it grows.
+    ok( ( grep { $_ eq 'manage_data' } @caps ),
+        'the data plugin owns manage_data' );
 
     # THIS ASSERTION USED TO SAY THE OPPOSITE, and the change is deliberate.
     # It required manage_data NOT to be in @CAP_KEYS, on the reasoning that two
@@ -130,10 +140,12 @@ subtest 'capabilities names one, and it is MIRRORED not duplicated' => sub {
     # ambiguity is actually prevented.
     require "$root/lib/Lazysite/Auth/Settings.pm";
     my %key = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
-    ok( $key{'manage_data'},
-        'manage_data is grantable, so the declaration can take effect' )
+    my @unmirrored = grep { !$key{$_} } @caps;
+    is_deeply( \@unmirrored, [],
+        'and every capability it declares is grantable' )
         or diag( 'A capability nobody can be granted leaves the plugin\'s '
-            . 'actions unreachable, with nothing saying why.' );
+            . 'actions unreachable, with nothing saying why. Missing from '
+            . "\@CAP_KEYS: @unmirrored" );
 };
 
 subtest 'status reports and does not repair' => sub {

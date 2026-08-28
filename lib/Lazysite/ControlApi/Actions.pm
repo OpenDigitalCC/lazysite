@@ -103,8 +103,8 @@ our %ACTION = (
     # collide with the action's own parameters.
     'data-migrate' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-rebuild' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'confirm_lost', in => 'body' } ] },
-    'data-row-delete' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' } ] },
-    'data-row-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body' } ] },
+    'data-row-delete' => { caps => [ 'manage_data', 'write_data' ], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' } ] },
+    'data-row-save' => { caps => [ 'manage_data', 'write_data' ], params => [ { name => 'table', in => 'query_or_body' }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body' } ] },
     'data-rows' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
     'data-table' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-table-source' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },

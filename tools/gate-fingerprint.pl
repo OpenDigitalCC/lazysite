@@ -55,23 +55,41 @@ sub table {
     return %h;
 }
 
+# none / all / the capabilities that grant it alone. An AND-shaped gate shows
+# `none` for singles and `all=yes`, which is how it stays distinguishable from
+# an OR gate without a positional column to read.
+sub _describe {
+    my ($ask)   = @_;
+    my $none    = $ask->( {} )                        ? 1 : 0;
+    my $all     = $ask->( { map { $_ => 1 } @CAPS } ) ? 1 : 0;
+    my @singles = grep { $ask->( { $_ => 1 } ) } @CAPS;
+    return sprintf 'none=%d all=%d singles=%s', $none, $all,
+        ( @singles ? join( ',', @singles ) : '-' );
+}
+
 my %need   = table('need');
 my %cookie = table('COOKIE_CAP');
 
-print "# capability battery: none, all, then each of:\n";
-print "#   ", join( ' ', @CAPS ), "\n";
+# SM682 correction: the fingerprint is keyed by capability NAME, not by
+# position in a battery.
+#
+# The first version printed a bitstring, one column per capability in @CAP_KEYS
+# order. That is unreadable and, worse, WRONG for the job: adding a capability
+# lengthens every row, so the first real use of this tool - introducing
+# write_data - reported all 140 gates as changed. An instrument that cannot tell
+# "a gate moved" from "the vocabulary grew" cannot answer the question it was
+# built for.
+#
+# Naming the capabilities that grant each action is stable under vocabulary
+# growth: a new capability appears only on the gates that actually admit it.
+print "# per gate: whether NO capability grants it, whether ALL together do,\n";
+print "# and which capabilities grant it ON THEIR OWN.\n";
 
 print "\n## token gate (%need)\n";
 for my $a ( sort keys %need ) {
     my $p = $need{$a};
     next unless ref $p eq 'CODE';
-    my @row;
-    for my $set ( [], [@CAPS], map { [$_] } @CAPS ) {
-        my %c = map { $_ => 1 } @{$set};
-        my $r = eval { $p->( \%c, {} ) };
-        push @row, ( defined $r && $r ) ? 1 : 0;
-    }
-    printf "%-34s %s\n", $a, join( '', @row );
+    printf "%-34s %s\n", $a, _describe( sub { $p->( $_[0], {} ) } );
 }
 
 # The cookie table is capability NAMES with separators, not predicates: `a|b`
@@ -81,13 +99,11 @@ print "\n## cookie gate (%COOKIE_CAP)\n";
 for my $a ( sort keys %cookie ) {
     my $spec = $cookie{$a};
     next if ref $spec;
-    my @row;
-    for my $set ( [], [@CAPS], map { [$_] } @CAPS ) {
-        my %c = map { $_ => 1 } @{$set};
-        my $ok;
-        if ( $spec =~ /\+/ ) { $ok = 1; $ok &&= $c{$_} for split /\+/, $spec }
-        else                 { $ok = 0; $ok ||= $c{$_} for split /\|/, $spec }
-        push @row, $ok ? 1 : 0;
-    }
-    printf "%-34s %s\n", $a, join( '', @row );
+    printf "%-34s %s\n", $a, _describe( sub {
+            my ($c) = @_;
+            my $ok;
+            if ( $spec =~ /\+/ ) { $ok = 1; $ok &&= $c->{$_} for split /\+/, $spec }
+            else                 { $ok = 0; $ok ||= $c->{$_} for split /\|/, $spec }
+            return $ok;
+    } );
 }
