@@ -65,6 +65,26 @@ for my $t ( [ 'token', $need ], [ 'cookie', $cookie ] ) {
     }
 }
 
+# --- SM660: and the DESTRUCTIVE verbs need the read they destroy ------------
+# SM652 narrowed the reads above and left three verbs on manage_forms alone, so
+# a grant could delete a submission row and clear a quarantine flag while unable
+# to read either - destroying personal data it may not see, often the only copy.
+# The release manager's decision (2026-08-28): both capabilities.
+#
+# `a+b` in %COOKIE_CAP means BOTH, beside the existing `a|b` meaning either.
+# Asserted on the separator, because `manage_forms|read_submissions` would look
+# almost identical here and mean the opposite - either would do.
+for my $act (
+    qw(form-submission-delete form-submission-confirm form-submissions-delete-bulk) )
+{
+    my ($line) = $cookie =~ /^\s*'\Q$act\E'\s*=>\s*(.+)$/m;
+    ok( defined $line, "cookie gate names $act" ) or next;
+    like( $line, qr/manage_forms\+read_submissions/,
+        "$act needs manage_forms AND read_submissions" )
+        or diag( 'A `|` here would mean EITHER capability suffices, which is '
+            . 'the defect rather than the fix.' );
+}
+
 # --- and MCP is unchanged, because it was already right ---------------------
 # If this had drifted the other way the channels would agree at the wrong
 # value, and every assertion above would still pass.

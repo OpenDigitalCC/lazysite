@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM660 shipped (PENDING) **a destructive verb needs the read it destroys.**
+  SM652 narrowed the submission reads to `read_submissions` and left three
+  destructive verbs on `manage_forms` alone, so a grant could delete a
+  submission row and clear a quarantine flag while being unable to read either
+  - personal data, often the only copy. `form-submission-delete`,
+  `form-submission-confirm` and `form-submissions-delete-bulk` now require BOTH
+  capabilities. No control starts refusing: reaching them means opening the
+  submissions viewer, which needs `form-submissions`, which SM652 already gated
+  on `read_submissions` - so anyone who can see a row already holds it. Token
+  clients were refused all three outright already (SM214). `%COOKIE_CAP` gained
+  `a+b` meaning every capability named, beside the existing `a|b` meaning any,
+  and a refusal names both.
+
 - SM640/SM639/SM664 partial (PENDING) **the plugin page is a line list, and a
   configuration opens in a modal.** Every plugin's configuration rendered inline
   one after another, so the page grew with the number of plugins installed and

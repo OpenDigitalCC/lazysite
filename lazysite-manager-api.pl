@@ -715,7 +715,7 @@ if ( !$token_auth ) {
         'layouts-repo-set' => 'manage_layouts',
         'preview-grant'    => 'manage_themes|manage_layouts',
         'preview-clear'    => 'manage_themes|manage_layouts',
-        'artifact-backups-delete' => 'purge',                  # SM591: no copy survives
+        'artifact-backups-delete' => 'purge',        # SM591: no copy survives
         'nav-save'                => 'manage_nav',
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
@@ -733,9 +733,19 @@ if ( !$token_auth ) {
         # and always has.
         'form-submissions' => 'read_submissions',    # SM182/SM187: PII submissions (GET)
         'form-list'        => 'read_submissions',    # SM214: names + submission COUNTS
-        'form-submission-delete' => 'manage_forms', # SM187: remove a handled submission row
-        'form-submission-confirm' => 'manage_forms', # SM216: clear a row's quarantine flag
-        'form-submissions-delete-bulk' => 'manage_forms', # SM187: delete several rows at once
+            # SM660: BOTH capabilities. SM652 narrowed the submission READS to
+            # read_submissions and left these three behind, so a grant could delete
+            # a submission row and clear a quarantine flag while being unable to
+            # read either - destroying personal data it may not see, often the only
+            # copy. You may not destroy what you may not see.
+            #
+            # No control starts refusing: reaching these buttons means opening the
+            # submissions viewer, which needs form-submissions, which SM652 already
+            # gated on read_submissions. Anyone who can see a row holds it. What
+            # this closes is the direct call that never read anything.
+        'form-submission-delete'       => 'manage_forms+read_submissions',  # SM187, SM660
+        'form-submission-confirm'      => 'manage_forms+read_submissions',  # SM216, SM660
+        'form-submissions-delete-bulk' => 'manage_forms+read_submissions',  # SM187, SM660
         'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
         'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
         'plugin-action' => 'manage_config', 'analyse_visitors' => 'analytics',
@@ -763,10 +773,21 @@ if ( !$token_auth ) {
 
         # Capability gate (H1): the escalation-sensitive actions need their cap.
         if ( my $req_cap = $COOKIE_CAP{$action} ) {
-            my $ok = 0;
-            $ok ||= $caps->{$_} for split /\|/, $req_cap;
+            # `a|b` = EITHER will do. `a+b` = BOTH are required (SM660). A value
+            # uses one or the other, never both: a mixed expression would need
+            # precedence rules, and no action has yet wanted one.
+            my $ok;
+            if ( $req_cap =~ /\+/ ) {
+                $ok = 1;
+                $ok &&= $caps->{$_} for split /\+/, $req_cap;
+            }
+            else {
+                $ok = 0;
+                $ok ||= $caps->{$_} for split /\|/, $req_cap;
+            }
             unless ($ok) {
                 ( my $names = $req_cap ) =~ s/\|/ or /g;
+                $names =~ s/\+/ and /g;
                 _refuse(
                     { ok => 0, kind => 'forbidden',
                         error => "This action requires the '$names' permission. An "
