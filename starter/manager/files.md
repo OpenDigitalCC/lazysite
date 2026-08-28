@@ -34,16 +34,10 @@ search: false
 </div>
 <div class="mg-file-actions-right">
 <button class="mg-btn" id="alias-btn" onclick="openAliases()" title="Alternate URLs that redirect into this folder">Aliases</button>
-<button class="mg-btn" id="hist-overview-btn" style="display:none" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">&#128337; History overview</button>
 <button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
 <button class="mg-btn mg-btn-danger" id="del-btn" style="display:none" onclick="deleteSelected()">Delete selected</button>
 </div>
 
-<div id="hist-overview" class="mg-git-overview" style="display:none">
-<div class="mg-card-header"><span class="mg-card-title">Content history &mdash; all files</span>
-<button class="mg-btn mg-btn-sm" onclick="closeHistoryOverview()">Close</button></div>
-<div id="hist-overview-body" class="mg-card-body"><p class="mg-muted">Loading&hellip;</p></div>
-</div>
 </div>
 
 <table class="mg-file-table">
@@ -1353,118 +1347,24 @@ function loadGitStatus() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d && d.ok) GIT.enabled = !!d.enabled;
-      // SM461: the site-level History overview is HIDDEN for this release.
-      //
-      // It fails with "JSON.parse: unexpected character at line 1 column 1"
-      // while the data behind it is fine - git-history-summary returns valid
-      // JSON over the API - so the fault is in this page's request or its
-      // handling, and diagnosing it needs a browser nobody has pointed at it
-      // yet.
-      //
-      // Hidden rather than removed: one line, reversible, and the code stays
-      // present for the edge fix. The per-file History panel is UNAFFECTED and
-      // still appears beside each file - that one is a file operation and
-      // works.
-      //
-      // SM461 also argues the overview belongs in the content-history PLUGIN
-      // rather than here, because seeing it currently requires granting the
-      // Files app - full read and write over content - to somebody who only
-      // needs to know what changed. That move is an edge change; this is the
-      // beta-safe half.
-      // SM461: SHOWN AGAIN. It was hidden for the beta because it reported a
-      // JSON parse error against data that was fine, and an overview that
-      // blames the data teaches an operator to distrust the panel. The cause
-      // was this page reading any non-JSON body as malformed data; it now
-      // reports the status and what came back, so a 500 reads as a 500.
-      //
-      // The PLACEMENT half of SM461 is untouched and still open: seeing this
-      // requires the Files app, which is full read and write over content, and
-      // an auditor who needs to know what changed should not need permission
-      // to change it. That needs a capability decision.
-      var hb = document.getElementById('hist-overview-btn');
-      if (hb) hb.style.display = GIT.enabled ? '' : 'none';
+      // SM461/SM664: the site-level History overview is no longer on this page.
+      // It opens as a modal from the content-history plugin's own row on the
+      // Plugin Config page, which is where SM461 argued it belonged when it was
+      // filed on 2026-08-21. GIT.enabled still gates the PER-FILE History
+      // control below, which is the part that is a file operation.
     })
     .catch(function() { /* control stays hidden */ });
 }
 
-// SM199: the file-list / table-of-contents over the whole history. Fetches
-// per-file statistics (revisions, first + latest date, last author) and a
-// site-level summary, rendered as a table sortable by revisions and latest.
-var HIST_OVERVIEW = { rows: [], sort: 'latest', dir: -1 };
-function openHistoryOverview() {
-  var box = document.getElementById('hist-overview');
-  var body = document.getElementById('hist-overview-body');
-  if (!box || !body) return;
-  box.style.display = '';
-  body.innerHTML = '<p class="mg-muted">Loading&hellip;</p>';
-  // SM461: mgJson, not r.json(). Any non-JSON body - a 500, a die, a proxy
-  // timeout page - used to become "JSON.parse: unexpected character at line 1
-  // column 1", which reads as the HISTORY being corrupt. The data was always
-  // fine: git-history-summary returns valid JSON over the API. Now the message
-  // names the status and shows what came back.
-  fetch(API + '?action=git-history-summary')
-    .then(function(r) { return (window.mgJson ? window.mgJson(r) : r.json()); })
-    .then(function(d) {
-      if (!d.ok) { body.innerHTML = '<p class="mg-muted">' + escHtml(d.error || 'No history available') + '</p>'; return; }
-      if (!d.enabled) { body.innerHTML = '<p class="mg-muted">Content history is not enabled.</p>'; return; }
-      HIST_OVERVIEW.rows = d.files || [];
-      HIST_OVERVIEW.summary = d.summary || { files: 0, revisions: 0 };
-      renderHistoryOverview();
-    })
-    .catch(function(e) {
-      // The message now says what happened, so it is worth showing plainly
-      // rather than prefixed with a bare "Error:".
-      body.innerHTML = '<p class="mg-muted">The history overview could not be '
-        + 'loaded: ' + escHtml(e.message) + '</p>';
-    });
-}
-function closeHistoryOverview() {
-  var box = document.getElementById('hist-overview');
-  if (box) box.style.display = 'none';
-}
-function sortHistoryOverview(col) {
-  if (HIST_OVERVIEW.sort === col) { HIST_OVERVIEW.dir = -HIST_OVERVIEW.dir; }
-  else { HIST_OVERVIEW.sort = col; HIST_OVERVIEW.dir = (col === 'path') ? 1 : -1; }
-  renderHistoryOverview();
-}
-function renderHistoryOverview() {
-  var body = document.getElementById('hist-overview-body');
-  if (!body) return;
-  var rows = HIST_OVERVIEW.rows.slice();
-  var col = HIST_OVERVIEW.sort, dir = HIST_OVERVIEW.dir;
-  rows.sort(function(a, b) {
-    var av = a[col === 'first' ? 'first' : col === 'latest' ? 'latest' : col === 'revisions' ? 'revisions' : 'path'];
-    var bv = b[col === 'first' ? 'first' : col === 'latest' ? 'latest' : col === 'revisions' ? 'revisions' : 'path'];
-    if (col === 'path' || col === 'last_author') { av = String(a[col] || ''); bv = String(b[col] || ''); return av < bv ? -dir : av > bv ? dir : 0; }
-    return (av - bv) * dir;
-  });
-  var s = HIST_OVERVIEW.summary || { files: 0, revisions: 0 };
-  if (!rows.length) {
-    body.innerHTML = '<p class="mg-muted">No files under content history yet.</p>';
-    return;
-  }
-  var html = '<p class="mg-muted">' + s.files + ' file' + (s.files === 1 ? '' : 's')
-           + ' under history, ' + s.revisions + ' revision' + (s.revisions === 1 ? '' : 's') + ' in total.</p>'
-           + '<table class="mg-file-table"><thead><tr>'
-           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'path\')">Path</th>'
-           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'revisions\')">Revisions</th>'
-           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'first\')">First</th>'
-           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'latest\')">Latest</th>'
-           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'last_author\')">Last author</th>'
-           + '</tr></thead><tbody>';
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    html += '<tr>'
-          + '<td>' + escHtml(r.path) + '</td>'
-          + '<td>' + escHtml(String(r.revisions)) + '</td>'
-          + '<td>' + escHtml(absTime(r.first)) + '</td>'
-          + '<td>' + escHtml(absTime(r.latest)) + '</td>'
-          + '<td>' + escHtml(r.last_author || '') + '</td>'
-          + '</tr>';
-  }
-  html += '</tbody></table>';
-  body.innerHTML = html;
-}
+// SM199/SM664: the file-list over the whole history - per-file statistics and a
+// site-level summary, sortable - moved to the content-history plugin's
+// own row on the Plugin Config page, where it opens as a modal. It is a report
+// about the repository, and seeing it here required the Files app - full read
+// and write over content - for someone who only needed to know what changed.
+// The control-API action now accepts manage_content OR manage_config.
+//
+// What remains on this page is the per-file History panel below, which IS a
+// file operation and belongs beside the file.
 
 // Expand/collapse the per-file history panel; loads the commit list on open.
 function toggleHistory(btn) {

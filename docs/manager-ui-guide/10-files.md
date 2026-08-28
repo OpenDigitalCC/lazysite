@@ -105,7 +105,8 @@ Negative
 ## Content history
 
 Where
-: Content -> Files -> a file's History, and History overview
+: Content -> Files -> a file's History. The all-files History overview is on
+  Configuration -> Plugin Config -> Content history (SM664).
 
 Do
 : Edit a file three times, open its history, view an old revision, restore it.

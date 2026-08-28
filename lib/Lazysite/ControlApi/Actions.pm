@@ -141,7 +141,9 @@ our %ACTION = (
     'form-targets-read' => { caps => undef, params => [ { name => 'form', in => 'query' } ] },
     'form-targets-save' => { caps => undef, params => [ { name => 'form', in => 'query' }, { name => 'targets', in => 'body' } ] },
     'git-history' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'limit', in => 'query' } ] },
-    'git-history-summary' => { caps => ['manage_content'], params => [] },
+    # SM664: reachable with either - the overview sits on the Plugin Config
+    # page, whose audience holds manage_config, and is a reporting read.
+    'git-history-summary' => { caps => [ 'manage_content', 'manage_config' ], params => [] },
     'git-init'            => { caps => ['manage_config'],  params => [] },
     'git-restore' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-show' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },

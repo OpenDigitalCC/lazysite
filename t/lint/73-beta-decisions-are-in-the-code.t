@@ -24,8 +24,13 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $page = repo_root() . '/starter/manager/files.md';
-plan skip_all => 'files page missing' unless -f $page;
-my $src = do { open my $fh, '<', $page or die $!; local $/; <$fh> };
+# SM664: the all-files overview moved to the Plugin Config page, so the decision
+# recorded below is now held across two files - one that must NOT carry it, and
+# one that must.
+my $ppage = repo_root() . '/starter/manager/plugin-config.md';
+plan skip_all => 'manager pages missing' unless -f $page && -f $ppage;
+my $src  = do { open my $fh, '<', $page  or die $!; local $/; <$fh> };
+my $plug = do { open my $fh, '<', $ppage or die $!; local $/; <$fh> };
 
 subtest 'SM462: a new principal gets read AND write' => sub {
     my ($fn) = $src =~ /function addPrincipal\(sel\)\s*\{(.*?)\n\}/s;
@@ -38,7 +43,7 @@ subtest 'SM462: a new principal gets read AND write' => sub {
     unlike( $fn, qr/chipHtml\(name, 1, 0\)/, 'and not read-only' );
 };
 
-subtest 'SM461: the overview is BACK, because the fault it hid is fixed' => sub {
+subtest 'SM461/SM664: the overview was hidden, then shown, and has now moved' => sub {
     # THIS ASSERTION USED TO SAY THE OPPOSITE, and the reversal is the point of
     # keeping it rather than deleting it.
     #
@@ -49,16 +54,26 @@ subtest 'SM461: the overview is BACK, because the fault it hid is fixed' => sub 
     # back by accident.
     #
     # The cause is now fixed - the page read any non-JSON body as malformed
-    # data - so the decision has been SUPERSEDED rather than abandoned. What
-    # the test guards flips accordingly: the control must be offered again, and
-    # gated only on whether content history is enabled, because a site without
-    # it can only answer "not enabled".
-    my ($fn) = $src =~ /function loadGitStatus\(\)\s*\{(.*?)\n\}/s;
-    ok( defined $fn, 'loadGitStatus is present' );
-    unlike( $fn, qr/if \(hb\) hb\.style\.display = 'none';/,
-        'the beta hide is gone' );
-    like( $fn, qr/GIT\.enabled \? '' : 'none'/,
-        'and the control follows whether content history is enabled' );
+    # data - so the decision has been SUPERSEDED rather than abandoned.
+    #
+    # AND SUPERSEDED AGAIN, by SM664 on 2026-08-28: the overview is no longer on
+    # this page at all. It moved to the content-history plugin's own row, which
+    # is where SM461's placement half argued it belonged before that half was
+    # declined. So this assertion flips a THIRD time - hidden, then shown, now
+    # moved - and what it guards is that the move was complete: the Files page
+    # keeps no copy, and the control is offered where the plugin lives.
+    #
+    # The enabled-check that used to matter here is now structural rather than
+    # conditional: the Plugin Config page renders a row only for an ENABLED
+    # plugin, so there is no state in which the button appears and can only
+    # answer "not enabled".
+    unlike( $src, qr/hist-overview/,
+        'the Files page keeps no copy of the overview' )
+        or diag( 'Two copies drift, and only one of them gets fixed.' );
+    like( $plug, qr/openHistoryOverview\(\)/,
+        'and the Plugin Config page offers it' );
+    like( $plug, qr/plugin\.id === 'content-history'/,
+        'on the content-history row, which renders only when enabled' );
 
     # The per-file panel must survive, as it had to before. Hiding it would
     # remove something that works to fix something that did not.

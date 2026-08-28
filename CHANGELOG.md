@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM640/SM639/SM664 partial (PENDING) **the plugin page is a line list, and a
+  configuration opens in a modal.** Every plugin's configuration rendered inline
+  one after another, so the page grew with the number of plugins installed and
+  saving any one of them reloaded the whole page. The page is now a line per
+  enabled plugin, and its configuration opens in a shared modal that fetches its
+  own values on click and, on save, closes and re-reads only the list. Adopted
+  one plugin at a time by design: the forms plugin's handler list and
+  add-handler wizard stay on the row, because the wizard relocates DOM nodes
+  between containers and a modal destroyed on close would lose them.
+  The all-files **History overview** moves off the Files page onto the
+  content-history plugin's own row, which is where SM461 argued it belonged on
+  2026-08-21 before the placement half was declined; the per-file History panel
+  stays beside the file, being a file operation. `git-history-summary` now
+  accepts `manage_content` OR `manage_config`, so an auditor who needs to know
+  what changed no longer needs the Files app - full read and write over content
+  - to see it.
+
 - SM665 shipped (PENDING) **the groups page says each name once.** `Purge -
   destroy what no copy survives` and its housekeeping twin carried an
   explanation in the label while the `?` marker beside the checkbox already

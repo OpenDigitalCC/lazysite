@@ -3,7 +3,8 @@ title: "SM664: the all-files history belongs on the history plugin's own page, a
 subtitle: "Release manager, 2026-08-28: 'that list should be a modal from the plugin config page, on the history plugin, not on the files page'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED (PENDING). The overview opens as a modal from the content-history plugin's row and is gone from the Files page; the per-file History panel stays there, being a file operation. THE GATE, as decided: git-history-summary accepts manage_content OR manage_config, in %COOKIE_CAP and in %need. It also had to be added to manage_config's `unlocks` - listing it only under manage_content left the map UNDER-claiming, which no lint catches (they refuse over-claiming and say nothing about omission, which is SM654's point). SIX places for one capability change - %COOKIE_CAP, %need, ControlApi::Actions' registry, manage_config's unlocks, and two generated documents. I accounted for four; t/lint/86 and t/lint/73 found the other two. SM662 says every instance past the second is caught by a gate rather than by reading, and this is that, measured again on the filing that quotes it."
 ---
 
 # The instruction

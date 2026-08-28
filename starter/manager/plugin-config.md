@@ -38,6 +38,145 @@ function clearHandlerDirty(fid){ mgDirtyGuard.clear('handler-' + fid); }
 function markTargetsDirty(f)   { mgDirtyGuard.set('targets-' + f, 'targets-dirty-' + f); }
 function clearTargetsDirty(f)  { mgDirtyGuard.clear('targets-' + f); }
 
+// SM664: the all-files history overview, moved here from the Files page.
+//
+// It is a report ABOUT the repository, not a file operation, and on the Files
+// page seeing it required the Files app - full read and write over content -
+// for somebody who only needed to know what changed. SM461 argued that and was
+// declined in August; the release manager reversed it on 2026-08-28. The
+// control-API action now accepts manage_content OR manage_config, so the
+// audience of THIS page can read it.
+//
+// The per-file History panel stays on Files. That one IS a file operation and
+// belongs beside the file.
+var HIST_OVERVIEW = { rows: [], sort: 'latest', dir: -1 };
+
+// Ported with the overview: this page had neither helper, and moving the code
+// without them would have thrown at render time.
+function histEsc(s) { return esc(s); }
+function histTime(mtime) {
+  if (!mtime) return '';
+  var d = new Date(mtime * 1000);
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+       + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function openHistoryOverview() {
+  var body = mgPluginModal('Content history - all files');
+  body.innerHTML = '<p class="mg-muted">Loading&hellip;</p>';
+  // SM461: mgJson, not r.json(). Any non-JSON body - a 500, a die, a proxy
+  // timeout page - used to become "JSON.parse: unexpected character at line 1
+  // column 1", which reads as the HISTORY being corrupt while the data was
+  // always fine. Carried across with the code, because the fault it guards
+  // against is a property of the fetch, not of the page it sat on.
+  fetch(API + '?action=git-history-summary')
+    .then(function(r) { return (window.mgJson ? window.mgJson(r) : r.json()); })
+    .then(function(d) {
+      var b = document.getElementById('plugin-modal-body');
+      if (!b) return;
+      if (!d.ok) { b.innerHTML = '<p class="mg-muted">' + histEsc(d.error || 'No history available') + '</p>'; return; }
+      if (!d.enabled) { b.innerHTML = '<p class="mg-muted">Content history is not enabled.</p>'; return; }
+      HIST_OVERVIEW.rows = d.files || [];
+      HIST_OVERVIEW.summary = d.summary || { files: 0, revisions: 0 };
+      renderHistoryOverview();
+    })
+    .catch(function(e) {
+      var b = document.getElementById('plugin-modal-body');
+      if (b) b.innerHTML = '<p class="mg-muted">The history overview could not be '
+        + 'loaded: ' + histEsc(e.message) + '</p>';
+    });
+}
+
+function sortHistoryOverview(col) {
+  if (HIST_OVERVIEW.sort === col) { HIST_OVERVIEW.dir = -HIST_OVERVIEW.dir; }
+  else { HIST_OVERVIEW.sort = col; HIST_OVERVIEW.dir = (col === 'path') ? 1 : -1; }
+  renderHistoryOverview();
+}
+
+function renderHistoryOverview() {
+  var body = document.getElementById('plugin-modal-body');
+  if (!body) return;
+  var rows = HIST_OVERVIEW.rows.slice();
+  var col = HIST_OVERVIEW.sort, dir = HIST_OVERVIEW.dir;
+  rows.sort(function(a, b) {
+    if (col === 'path' || col === 'last_author') {
+      var as = String(a[col] || ''), bs = String(b[col] || '');
+      return as < bs ? -dir : as > bs ? dir : 0;
+    }
+    return ((a[col] || 0) - (b[col] || 0)) * dir;
+  });
+  var s = HIST_OVERVIEW.summary || { files: 0, revisions: 0 };
+  if (!rows.length) {
+    body.innerHTML = '<p class="mg-muted">No files under content history yet.</p>';
+    return;
+  }
+  var html = '<p class="mg-muted">' + s.files + ' file' + (s.files === 1 ? '' : 's')
+           + ' under history, ' + s.revisions + ' revision' + (s.revisions === 1 ? '' : 's') + ' in total.</p>'
+           + '<table class="mg-file-table"><thead><tr>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'path\')">Path</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'revisions\')">Revisions</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'first\')">First</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'latest\')">Latest</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'last_author\')">Last author</th>'
+           + '</tr></thead><tbody>';
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    html += '<tr>'
+          + '<td>' + histEsc(r.path) + '</td>'
+          + '<td>' + histEsc(String(r.revisions)) + '</td>'
+          + '<td>' + histEsc(histTime(r.first)) + '</td>'
+          + '<td>' + histEsc(histTime(r.latest)) + '</td>'
+          + '<td>' + histEsc(r.last_author || '') + '</td>'
+          + '</tr>';
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+// SM640: the plugin config modal. ONE shell, opened by any plugin that has been
+// converted to the mechanism, and it fetches its own data and owns its own
+// reload - which is the whole point: a change to one plugin no longer re-renders
+// every other plugin's configuration.
+//
+// Deliberately a SECOND shell rather than a generalisation of openSubsModal
+// (SM182/SM187) for now. That one carries a form selector in its header and is
+// driven by the submissions viewer's own state; merging them is a refactor with
+// no behaviour to show for it, and this page is being converted one plugin at a
+// time (SM640's own rule) rather than rewritten.
+function mgPluginModal(title) {
+  mgPluginModalClose(true);
+  var ov = document.createElement('div');
+  ov.id = 'plugin-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML =
+      '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:760px;max-height:86vh;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">'
+    + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--mg-border,#ddd);">'
+    + '<strong id="plugin-modal-title" style="flex:1"></strong>'
+    + '<button class="mg-btn mg-btn-sm" onclick="mgPluginModalClose()">Close</button></div>'
+    + '<div id="plugin-modal-body" style="flex:1;overflow:auto;padding:12px 14px;"></div></div>';
+  // Clicking the backdrop closes, and goes through the same unsaved-changes
+  // question as the button - an accidental click outside must not be a quieter
+  // way to lose an edit than pressing Close.
+  ov.addEventListener('click', function(e) { if (e.target === ov) mgPluginModalClose(); });
+  document.body.appendChild(ov);
+  document.getElementById('plugin-modal-title').textContent = title || 'Configuration';
+  return document.getElementById('plugin-modal-body');
+}
+
+// force: skip the unsaved-changes question (used when re-opening, and after a
+// successful save has already cleared the flag).
+function mgPluginModalClose(force) {
+  var ov = document.getElementById('plugin-modal');
+  if (!ov) return;
+  var id = ov.getAttribute('data-plugin') || '';
+  if (!force && id && mgDirtyGuard && mgDirtyGuard.isDirty('plugin-' + id)) {
+    if (!confirm('This configuration has unsaved changes. Close and lose them?')) return;
+  }
+  if (id) clearPluginDirty(id);
+  if (ov.parentNode) ov.parentNode.removeChild(ov);
+}
+
 function shouldRenderPlugin(plugin, allPlugins) {
   if (plugin.id === 'form-smtp') {
     return !allPlugins.some(function(p) { return p.id === 'form-handler' && p._enabled; });
@@ -89,8 +228,19 @@ function renderPlugins(plugins) {
   }
 }
 
+// SM640: a LINE per enabled plugin - name, state, and a way in - rather than
+// every plugin's whole configuration rendered inline one after another. The
+// page no longer grows with the number of plugins installed.
+//
+// What stays on the row: the plugin's own actions, and the containers for the
+// things that are NOT its config form - child configs (the forms plugin renders
+// its handler list into one), an action's choice prompt, and the status line.
+// Those keep their identity and their position, so nothing that moves DOM nodes
+// around - the add-handler wizard does - finds its container inside a modal
+// that has since been destroyed.
 function renderPluginCard(plugin) {
-  var html = '<div class="mg-plugin-card" id="plugin-' + esc(plugin.id) + '">';
+  var hasConfig = !!(plugin.config_schema && plugin.config_schema.length);
+  var html = '<div class="mg-plugin-card mg-plugin-row" id="plugin-' + esc(plugin.id) + '">';
   html += '<div class="mg-plugin-title">' + esc(plugin.name) + '</div>';
   html += '<div class="mg-plugin-desc">' + esc(plugin.description) + '</div>';
   if (plugin.actions && plugin.actions.length) {
@@ -113,9 +263,13 @@ function renderPluginCard(plugin) {
     });
     html += '</div>';
   }
-  if (plugin.config_schema && plugin.config_schema.length) {
-    html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Edit</button>';
-    html += '<div class="mg-card-body" id="config-' + plugin.id + '" style="display:none"></div>';
+  if (hasConfig) {
+    html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Configure</button>';
+  }
+  // SM664: content history's way in is a VIEW, not a config form - it declares
+  // an empty config_schema, so without this its row would offer nothing at all.
+  if (plugin.id === 'content-history') {
+    html += '<button class="mg-btn" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
   }
   if (plugin.child_configs) {
     html += '<div class="mg-card-body" id="children-' + plugin.id + '">Loading...</div>';
@@ -130,20 +284,30 @@ function renderPluginCard(plugin) {
 
 // --- Generic plugin config ---
 
+// SM639/SM640: the configuration opens in the modal and fetches its own values
+// on click, so opening one plugin's config neither renders nor re-reads any
+// other plugin's.
 function loadConfig(plugin) {
-  var fd = document.getElementById('config-' + plugin.id);
-  if (fd.style.display !== 'none') { fd.style.display = 'none'; return; }
-  fd.textContent = 'Loading...';
-  fd.style.display = 'block';
+  var body = mgPluginModal(plugin.name);
+  document.getElementById('plugin-modal').setAttribute('data-plugin', plugin.id);
+  body.textContent = 'Loading...';
   fetch(API + '?action=plugin-read&plugin=' + encodeURIComponent(plugin.id), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: plugin._script })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
   .then(function(data) {
-    if (!data.ok) { fd.textContent = data.error; return; }
-    fd.innerHTML = renderForm(plugin, data.values || {});
-    applyShowWhen(fd);
+    // The modal may have been closed while the request was in flight; writing
+    // into a detached node would silently do nothing, so check it is still ours.
+    var b = document.getElementById('plugin-modal-body');
+    if (!b) return;
+    if (!data.ok) { b.textContent = data.error || 'Could not read this plugin\'s configuration'; return; }
+    b.innerHTML = renderForm(plugin, data.values || {});
+    applyShowWhen(b);
+  })
+  .catch(function(e) {
+    var b = document.getElementById('plugin-modal-body');
+    if (b) b.textContent = 'Error: ' + e.message;
   });
 }
 
@@ -220,8 +384,14 @@ function saveConfig(e, pluginId, script) {
     if (data.ok) {
       mgClearWarning();
       clearPluginDirty(pluginId);
-      if (status) status.textContent = 'Saved. Reloading...';
-      setTimeout(function() { location.reload(); }, 1000);
+      // SM639: the page no longer reloads. The saved plugin closes its modal and
+      // the list re-reads itself, so a change to one plugin costs one request
+      // and leaves every other plugin's state - and the operator's scroll
+      // position - alone. The dirty flag is cleared BEFORE the close so the
+      // unsaved-changes question does not fire on a successful save.
+      mgPluginModalClose(true);
+      if (status) status.textContent = 'Saved';
+      loadPlugins();
     } else {
       mgShowWarning(data.error || 'Save failed', true);
       if (status) status.textContent = '';

@@ -317,7 +317,14 @@ my %ACTION_INFO = (
         # and then to trial and error - which is what RI-002's deny reasons
         # exist to end. t/lint/68 now checks the two against each other.
         unlocks => {
-            api => [qw(config-read config-set git-init bad-url-blocks bad-url-unblock)],
+            # SM664: git-history-summary is reachable with manage_content OR
+            # manage_config, so BOTH capabilities claim it. Listing it only
+            # under manage_content left this map under-claiming - a holder of
+            # this capability could call the action and nothing said so, which
+            # is the half of SM654 a lint does not catch (it refuses
+            # over-claiming, not silence).
+            api => [ qw(config-read config-set git-init bad-url-blocks bad-url-unblock
+                    git-history-summary) ],
         },
     },
 

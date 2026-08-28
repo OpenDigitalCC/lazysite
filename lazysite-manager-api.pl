@@ -635,9 +635,13 @@ if ( !$token_auth ) {
         # for the same reason (token clients write over WebDAV). So they are NOT
         # capability-gated here - only POST-gated below (CSRF). Content-history
         # reads/restore ARE gated (they mirror the token %need manage_content).
-        'git-restore'         => 'manage_content', 'git-status' => 'manage_content',
-        'git-history'         => 'manage_content', 'git-show'   => 'manage_content',
-        'git-history-summary' => 'manage_content',   # SM199: site-level file list + stats
+        'git-restore' => 'manage_content', 'git-status' => 'manage_content',
+        'git-history' => 'manage_content', 'git-show'   => 'manage_content',
+        # SM664: the overview moved to the content-history plugin's row on the
+        # Plugin Config page, whose audience holds manage_config. Either
+        # capability reads it - a reporting read reachable from either the app
+        # that writes the content or the page that configures the plugin.
+        'git-history-summary' => 'manage_content|manage_config',    # SM199, SM664
             # SM160: domains + the portable site-package family are their own
             # capability (manage_domains), carved out of the broad manage_config.
             # SM447: the data plugin's capability. Reads and writes alike -
@@ -957,9 +961,9 @@ if ($token_auth) {
         # SM085: content history. Reads and restore follow the content grant
         # (restore routes through the normal save path); enabling/initialising
         # the repo is a site-configuration act.
-        'git-status'          => sub { $_[0]->{manage_content} },
-        'git-history'         => sub { $_[0]->{manage_content} },
-        'git-history-summary' => sub { $_[0]->{manage_content} },    # SM199
+        'git-status'  => sub { $_[0]->{manage_content} },
+        'git-history' => sub { $_[0]->{manage_content} },
+        'git-history-summary' => sub { $_[0]->{manage_content} || $_[0]->{manage_config} }, # SM199, SM664
         'git-show'            => sub { $_[0]->{manage_content} },
         'git-restore'         => sub { $_[0]->{manage_content} },
         'git-init'            => sub { $_[0]->{manage_config} },

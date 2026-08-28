@@ -26,11 +26,18 @@ use TestHelper qw(repo_root);
 my $root   = repo_root();
 my $layout = "$root/starter/lazysite/manager/layout.tt";
 my $files  = "$root/starter/manager/files.md";
-plan skip_all => 'manager pages missing' unless -f $layout && -f $files;
+# SM664: the all-files overview moved to the content-history plugin's row on
+# the Plugin Config page. The per-file History control stays on Files, so both
+# pages are still read here - the guard being tested is a property of the
+# FETCH and has to hold wherever the fetch lives.
+my $plug   = "$root/starter/manager/plugin-config.md";
+plan skip_all => 'manager pages missing'
+    unless -f $layout && -f $files && -f $plug;
 
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
 my $lt = slurp($layout);
 my $fm = slurp($files);
+my $pc = slurp($plug);
 
 subtest 'the shared parser exists and checks before it parses' => sub {
     my ($fn) = $lt =~ /window\.mgJson = function \(r\) \{(.*?)\n    \};/s;
@@ -58,7 +65,7 @@ subtest 'the shared parser exists and checks before it parses' => sub {
 };
 
 subtest 'the overview uses it, and no longer blames the data' => sub {
-    my ($fn) = $fm =~ /function openHistoryOverview\(\) \{(.*?)\n\}/s;
+    my ($fn) = $pc =~ /function openHistoryOverview\(\) \{(.*?)\n\}/s;
     ok( defined $fn, 'openHistoryOverview is present' ) or return;
 
     like( $fn, qr/mgJson/, 'the overview parses through mgJson' )
@@ -69,22 +76,19 @@ subtest 'the overview uses it, and no longer blames the data' => sub {
         'the failure message describes the FETCH, not the data' );
 };
 
-subtest 'the control is shown again, and only when history is on' => sub {
-    my ($fn) = $fm =~ /function loadGitStatus\(\) \{(.*?)\n\}/s;
-    ok( defined $fn, 'loadGitStatus is present' ) or return;
-    unlike( $fn, qr/hb\.style\.display = 'none';\s*\n\s*\}\)/,
-        'the beta hide is gone' );
-    like( $fn, qr/GIT\.enabled \? '' : 'none'/,
-        'and the control follows whether content history is enabled' )
-        or diag( 'Showing it on a site with no history would offer a button '
-            . 'whose only possible answer is "not enabled".' );
-};
-
-subtest 'the placement half is recorded as still open' => sub {
-    # A fix that quietly answers half a filing and says nothing leaves the
-    # other half looking done.
-    like( $fm, qr/PLACEMENT half of SM461 is untouched and still open/,
-        'the code says which half was not addressed' );
+subtest 'the overview is offered from the plugin that owns it' => sub {
+    # SM664 closed SM461's placement half: the button is on the content-history
+    # plugin's row, not at the top of the file browser. This replaces the
+    # assertion that the placement half was still open - which was true, and
+    # stopped being true, and a test that outlived its filing would have made
+    # the fix look like a regression.
+    like( $pc, qr/openHistoryOverview\(\)/,
+        'the Plugin Config page offers the overview' );
+    like( $pc, qr/plugin\.id === 'content-history'/,
+        'on the content-history row specifically' );
+    unlike( $fm, qr/hist-overview/,
+        'and the Files page no longer carries it' )
+        or diag( 'Left behind, the two copies drift and only one gets fixed.' );
 };
 
 done_testing();

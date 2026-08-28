@@ -107,7 +107,7 @@ tone: medium
 `form-targets-read` | cookie only | form (query)
 `form-targets-save` | cookie only | form (query), targets (body)
 `git-history` | manage_content | path (query), limit (query)
-`git-history-summary` | manage_content |  
+`git-history-summary` | manage_content / manage_config |  
 `git-init` | manage_config |  
 `git-restore` | manage_content | path (query), sha (query)
 `git-show` | manage_content | path (query), sha (query)

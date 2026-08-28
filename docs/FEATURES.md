@@ -1162,9 +1162,12 @@ working history from one that is silently not recording.
 
 **File list + revision statistics** (SM199). Beyond a single file's panel, a
 **git-history-summary** action (and a `list_content_history` MCP tool) drive a
-Files-page **History overview**: per-file **revision count**, **first/last commit
-dates**, **last author**, and site totals across the tracked tree - a
-who-changed-what-and-how-often view of the whole site. It is rename-aware and
+**History overview**, on the content-history plugin's row on the Plugin Config
+page (SM664; it was on the Files page until 0.11.4): per-file **revision
+count**, **first/last commit dates**, **last author**, and site totals across
+the tracked tree - a who-changed-what-and-how-often view of the whole site.
+Reading it needs **manage_content OR manage_config**, so an auditor reaches it
+without being given the Files app. It is rename-aware and
 leak-safe by the same rules as the per-file history.
 
 **Remote sync (the git-sync plugin, opt-in).** With content history enabled, the
