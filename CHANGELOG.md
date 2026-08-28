@@ -44,7 +44,9 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM659 partial (PENDING) **sysop is the app, sysadmin is the host, manager is
+## 0.11.3 - EDGE: access control that is honest about itself, and one confinement gap closed (2026-08-27)
+
+- SM659 partial (dd1d0f17) **sysop is the app, sysadmin is the host, manager is
   the surface.** Three principals shared two ambiguous words: a lazysite account
   with full capabilities (inside the capability model), a Unix account at the
   shell (exempt from it by construction), and no principal at all. `operator`
@@ -67,7 +69,7 @@ Naming the commit: AFTER it lands, never before
   uses are STAGED, because `operator` means sysadmin in some and sysop in others
   and a batch replace would encode the wrong principal.
 
-- SM652 fixed (PENDING) **one capability reads a submission, on every channel.**
+- SM652 fixed (54bcee79) **one capability reads a submission, on every channel.**
   The control API served live submissions to `manage_forms` OR
   `read_submissions`; MCP required `read_submissions`. Both registries were
   internally consistent and gave different answers to "who may read a form
@@ -83,7 +85,7 @@ Naming the commit: AFTER it lands, never before
   loses both reads. Exposed and deliberately not fixed here: `manage_forms`
   can still DELETE a submission it may not read, filed as SM660.
 
-- SM644 shipped (PENDING) **the groups can be put back.** When access does not
+- SM644 shipped (ea0f9b49) **the groups can be put back.** When access does not
   work the fix under pressure is to grant something, and the grant outlives the
   problem; nothing records WHY a capability was granted, so the drift is
   monotonic towards over-granting and reconciliation is not available - you
@@ -97,7 +99,7 @@ Naming the commit: AFTER it lands, never before
   so there is no state in which nobody can reach the manager, and no `--admin`
   argument is needed. DRY RUN is the default.
 
-- SM648 fixed (PENDING) **a scopeless grant reaches no domain's table, and the
+- SM648 fixed (a7ca992b) **a scopeless grant reaches no domain's table, and the
   CLI still reaches every one.** A grant with no `dav_scopes` read every table
   on the instance while the same absence of scope reached no site package -
   one instance, one request, opposite defaults. It was not a default anybody
@@ -114,7 +116,7 @@ Naming the commit: AFTER it lands, never before
   accidentally. SM593's upgrade-day promise is kept: a table naming no domain
   is still reachable by everyone.
 
-- SM642 shipped (PENDING) **a person has a name, and an account has a login.**
+- SM642 shipped (02e64cd6) **a person has a name, and an account has a login.**
   Accounts had no display name, so every surface showed the login. Groups DID
   have one - `group-settings-set` has accepted `label` since SM195 and the pages
   render it - and nothing in the UI offered a way to change it, so an operator
@@ -127,7 +129,7 @@ Naming the commit: AFTER it lands, never before
   must be in front of them while they decide. Other surfaces still show logins,
   deliberately - a gradual rollout, as asked.
 
-- SM638 shipped (PENDING) **the folder you are standing in says what governs
+- SM638 shipped (38363609) **the folder you are standing in says what governs
   it.** SM635 put protection into the LISTING, which is visible from the
   parent - so an operator who had clicked into a protected folder was looking
   at its contents while the row carrying its controls sat on the screen they
@@ -141,7 +143,7 @@ Naming the commit: AFTER it lands, never before
   reuses `protectionFor()` so the banner and the padlocks cannot disagree, and
   clears when the sections load fails.
 
-- SM656 partial (PENDING) **a page can decline the admin bar.** The bar is
+- SM656 partial (4018de9a) **a page can decline the admin bar.** The bar is
   injected for a signed-in user holding `ui` - a property of the PERSON, and
   the only lever. That works while every page is a content page; on a site
   carrying an application the bar's Edit link opens the Markdown of a page
@@ -156,7 +158,7 @@ Naming the commit: AFTER it lands, never before
   caught because its tests passed with the code removed. Honouring the key on
   a section is not built.
 
-- SM661 fixed (PENDING) **a scoped partner is confined whatever the argument is
+- SM661 fixed (ff32e4b3) **a scoped partner is confined whatever the argument is
   called.** SECURITY. A grant with `dav_scopes: ['/sites/alpha']` was correctly
   refused `write_file` to `/sites/beta` - and in the same session CREATED a page
   there through `create_page` and MOVED one there through `rename_page`. Both
@@ -176,7 +178,7 @@ Naming the commit: AFTER it lands, never before
   `regenerate_registries`, which declare no path argument at all (27 tools down
   to 23). Found while auditing the flag for SM653.
 
-- SM645 fixed (PENDING) **an upgraded site can adopt a capability a later
+- SM645 fixed (a5151d71) **an upgraded site can adopt a capability a later
   release added.** `_ensure_manager_group_caps` returned early for any group
   with a record, so it reached FRESH sites only - and `housekeeping`/`purge`,
   which arrived with SM591, were absent from every manager group that already
@@ -195,7 +197,7 @@ Naming the commit: AFTER it lands, never before
   administrator to run `group-set` now name the Groups page first, with the CLI
   as a fallback using SM643's `grantable-add`.
 
-- SM655 fixed / SM657 partial (PENDING) **the sanctioned tool shipped dead, and
+- SM655 fixed / SM657 partial (3808c4d8) **the sanctioned tool shipped dead, and
   a brief could always describe more than a page.** **SM655**: `create_form`
   saved the caller's path verbatim while its neighbour `_create_page`
   normalised, so the idiomatic call - an extensionless page path, which is what
@@ -213,7 +215,7 @@ Naming the commit: AFTER it lands, never before
   prerequisite, SM508's listing and orphan-clearing, has since shipped, so it
   is schedulable rather than held.
 
-- SM658 shipped (PENDING) **the filings are two directories and one corpus.**
+- SM658 shipped (b111a4f9) **the filings are two directories and one corpus.**
   544 feature-request filings sat in one flat directory, 90% of them terminal,
   indexed by a hand-written `BACKLOG.md` last updated seven weeks earlier that
   derived status "from the CHANGELOG - not the per-doc text": a second source
@@ -237,7 +239,7 @@ Naming the commit: AFTER it lands, never before
   vocabulary, and guessing one across 544 files produces a confidently wrong
   index.
 
-- SM633 resolved (PENDING) **the switches that decide whether anyone can reach
+- SM633 resolved (6735f73f) **the switches that decide whether anyone can reach
   the instance are their own grant.** `manage_config` governed both the site's
   title and its cache lifetime AND the five service killswitches, under a
   capability whose own title says "safe site configuration". `manage_services`
@@ -249,7 +251,7 @@ Naming the commit: AFTER it lands, never before
   banner, because granting silently would widen a live grant and removing
   silently would narrow one.
 
-- SM643 fixed (PENDING) **grant authority is editable in place.** `group-set
+- SM643 fixed (c18da567) **grant authority is editable in place.** `group-set
   GROUP grantable a,b,c` is a whole-list REPLACE - anything not named is
   removed - so adding one capability meant reading the current set, retyping it
   in full and appending. A read-modify-write performed by hand, against a live
@@ -268,7 +270,7 @@ Naming the commit: AFTER it lands, never before
   supplement, and the audit entry carries the delta (`+x -y`) alongside the
   resulting list.
 
-- SM641 fixed (PENDING) **an actor is an account.** A login attempt is
+- SM641 fixed (f71d0917) **an actor is an account.** A login attempt is
   unauthenticated by definition, so the name it carries is a claim - and the
   auth surface wrote that claim into the audit trail's actor column, including
   on the branch that runs precisely because the account does not exist. Anyone
@@ -290,7 +292,7 @@ Naming the commit: AFTER it lands, never before
   reader, `Lazysite::Auth::Settings::account_names`, so they cannot disagree
   about what an account is.
 
-- SM654 partial (PENDING) **the unlocks map is linted against the gate it
+- SM654 partial (0c64f145) **the unlocks map is linted against the gate it
   describes.** `describe-capabilities` publishes an `unlocks` map per
   capability - what the briefing tells an agent to read and what an operator
   reads before granting - and the site agent found it wrong three times in one
@@ -310,7 +312,7 @@ Naming the commit: AFTER it lands, never before
   tools appear to accept no path at all, is recorded on SM653 rather than
   guessed at.
 
-- SM651/SM650/SM649/SM647 fixed (PENDING) **the way in, a half-applied rule,
+- SM651/SM650/SM649/SM647 fixed (03b8ffd2) **the way in, a half-applied rule,
   and one table read in both directions.** **SM651**: a site-wide ACL protected
   the login page against itself - an anonymous visitor redirected to /login,
   which is anonymous, refused, and redirected to itself, four deep and still
@@ -334,7 +336,7 @@ Naming the commit: AFTER it lands, never before
   comment. Corrected both ways, on both channels. The scope-guard half of SM647
   remains open and unproved.
 
-- SM424 partial (PENDING) **the stats page opens one block at a time.** One
+- SM424 partial (7c3ba7d3) **the stats page opens one block at a time.** One
   page rendered every block - visits, depth, entry and exit pages, devices,
   search terms, status codes, server errors, journeys and the blocked-address
   list - and an operator looking for one of them scrolled past all of them.
@@ -361,7 +363,7 @@ Naming the commit: AFTER it lands, never before
   three-page split, and NOT P4 (the blocked list moving to Plugin Config) -
   both recorded on the filing, the second now entangled with SM640.
 
-- SM427/SM636 resolved (PENDING) **a permission says what it grants, and the
+- SM427/SM636 resolved (0edac27b) **a permission says what it grants, and the
   group list says which groups can be given to a person.** **SM427**: SM421
   ruled that permission is the control - where a capability is granted, every
   surface delivers it in full - which makes the grant the decision point, and
@@ -376,7 +378,7 @@ Naming the commit: AFTER it lands, never before
   states carry an icon now, and the role badge says where assignment actually
   happens.
 
-- SM635 resolved (PENDING) **a held-back row says so where the operator is
+- SM635 resolved (f32e66ce) **a held-back row says so where the operator is
   looking.** A protected FOLDER rendered an empty Access cell by construction,
   so the row that most needed to say "held back" said nothing; and the lookup
   answered only for directories on an exact prefix match, so everything INSIDE
@@ -389,7 +391,7 @@ Naming the commit: AFTER it lands, never before
   row, and the fetch that filled it - which also fills the map every padlock
   reads - no longer returns early on elements it no longer has.
 
-- SM614 part one / SM634 resolved (PENDING) **the session lifetime is a setting,
+- SM614 part one / SM634 resolved (225b16c6) **the session lifetime is a setting,
   and a credential records when it was issued.** **SM614**: the lifetime was a
   constant in `Auth::Session` and a second constant in `Manager::Sessions`,
   the latter carrying a comment asking that the two be kept in step - a request,
@@ -407,7 +409,7 @@ Naming the commit: AFTER it lands, never before
   credentials an estate has most of. It records it now; older ones keep saying
   unknown, which is true.
 
-- SM598/SM606/SM608 resolved (PENDING) **three answers that were confidently
+- SM598/SM606/SM608 resolved (396af643) **three answers that were confidently
   wrong, or confidently silent.** **SM598**: `lazysite_dir` returns undef for an
   unset docroot and `_handlers_conf_path` concatenated it anyway, yielding
   `/forms/handlers.conf` - an absolute path at the filesystem root. The reader
