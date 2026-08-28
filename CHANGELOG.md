@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM665 shipped (PENDING) **the groups page says each name once.** `Purge -
+  destroy what no copy survives` and its housekeeping twin carried an
+  explanation in the label while the `?` marker beside the checkbox already
+  served a fuller sentence on hover; the labels are now `Purge` and
+  `Housekeeping`. The group heading and the Users page group chips rendered
+  `Agent AI (agent-ai)`, which in a list of groups is the same word twice on
+  every row - the technical name moves into the tooltip, where SM617 only ever
+  required it be discoverable. The Users page chip tooltip named the group only
+  when the group had no description, so it is now named in both cases rather
+  than lost for every group that has one. The CLI's bracketed form is
+  deliberate and unchanged: a terminal has no hover.
+
 ## 0.11.3 - EDGE: access control that is honest about itself, and one confinement gap closed (2026-08-27)
 
 - SM659 partial (dd1d0f17) **sysop is the app, sysadmin is the host, manager is

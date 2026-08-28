@@ -659,7 +659,11 @@ function accountSettingsHtml(row) {
     var m  = meta(g);
     // The description IS the tooltip - the point of naming a role is that an
     // operator knows what it hands over without decoding the capability grid.
-    var tip = m.description || ('Group "' + g + '"');
+    // SM665: the tooltip always names the group, because the bracketed name
+    // beside the label has gone. It was previously only named in the fallback,
+    // so a group WITH a description lost its technical name entirely.
+    var tip = m.description ? (m.description + ' (group "' + g + '")')
+                            : ('Group "' + g + '"');
     if (!m.assignable) {
       tip = 'Backend group - held, but not offered for new assignment. ' + tip;
     }
@@ -667,7 +671,6 @@ function accountSettingsHtml(row) {
       + '<input type="checkbox"' + (on ? ' checked' : '')
       + ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> '
       + escHtml(m.label)
-      + (m.label !== g ? ' <span class="mg-muted">(' + escHtml(g) + ')</span>' : '')
       + '</label>';
   }).join('') : '<span class="mg-empty">No groups yet.</span>';
   if (backend > 0) {

@@ -51,8 +51,8 @@ var ACTIONS = [
   ['manage_layouts', 'Layouts'],
   ['manage_data', 'Data tables'],
   ['manage_briefs', 'Authoring briefs (write)'],
-  ['housekeeping', 'Housekeeping — destroy what a copy survives'],
-  ['purge', 'Purge — destroy what no copy survives'],
+  ['housekeeping', 'Housekeeping'],
+  ['purge', 'Purge'],
   ['manage_domains', 'Domains & site packages'],
   ['manage_config', 'Site config (+ plugins)'],
   // SM633: the five switches that decide whether the remote surfaces answer
@@ -192,9 +192,14 @@ function groupSummaryInner(g) {
   // read `cap-content` where the store said "Capability: content". The group
   // NAME is never hidden - it is what every other surface, the CLI and the
   // audit trail use, and the person reading this list is administering access.
+  // SM665: the group NAME moves into the tooltip rather than sitting in
+  // brackets beside the label. SM642 put it in brackets so an operator could
+  // see what every other surface calls the group; in a list of groups that is
+  // the same word twice on every row. The requirement from SM617 is that the
+  // technical name stay discoverable, not that it stay visible.
   var lbl  = info.label && info.label !== g ? info.label : '';
   var name = lbl
-    ? escHtml(lbl) + ' <span class="mg-muted">(' + ge + ')</span>'
+    ? '<span title="' + escHtml('Group "' + g + '"') + '">' + escHtml(lbl) + '</span>'
     : ge;
 
   return '<span class="mg-acc-name">' + name + '</span>' + recentDot(g) +
