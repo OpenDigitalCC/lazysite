@@ -392,10 +392,21 @@ sub row_write_refusal {
         ? $d->{writable_by}
         : [];
 
-    my %in = map { $_ => 1 } @{$groups};
+    my %in    = map { $_ => 1 } @{$groups};
     my $named = ( @{$wb} && grep { $in{$_} } @{$wb} ) ? 1 : 0;
 
-    if ( !$caps->{manage_data} ) {
+    # WHOSE RULE IS THIS? The allow-list is a property of the `write_data`
+    # GRANT, so it binds a caller who holds write_data and does not hold
+    # manage_data. A caller holding NEITHER reached this action by some other
+    # authorisation - the trusted-header path, where _user_caps returns an
+    # empty set because there is no account to read - and inventing a
+    # restriction for them would refuse callers this rule was never about.
+    #
+    # My first version tested `!$caps->{manage_data}` alone and did exactly
+    # that: three integration suites failed because a trusted-header caller
+    # with an empty capability hash was refused as though it were a
+    # write_data-only partner.
+    if ( !$caps->{manage_data} && $caps->{write_data} ) {
         return undef if $named;
         return {
             ok    => 0,
