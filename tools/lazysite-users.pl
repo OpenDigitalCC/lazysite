@@ -136,9 +136,27 @@ $Lazysite::Util::COMPONENT = 'users';
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
 # exchanged for a short-lived access token that the client rotates before
 # it expires. TTLs in seconds.
-my $PAIRING_TTL      = 900;      # 15 minutes
-my $CONNECT_CODE_TTL = 1_800;    # SM200: 30 min (was 15) - the connect code often
-                                 # expired mid-authorise while the operator pasted it
+# SM691: CONFIGURABLE, because the failure was operational rather than a wrong
+# number. Three keys minted at 20:32 all returned 401 the next working window:
+# the key is single-use AND short-lived, so any gap between minting and
+# exchanging - a compaction, an overnight pause, an operator minting ahead of a
+# run - spends the window, and the only delivery that worked (pasting into a
+# transcript) is itself a spend.
+#
+# THE DEFAULT IS UNCHANGED AT 15 MINUTES, deliberately. Raising it loosens a
+# credential handover, and that is the operator's decision rather than mine to
+# take while fixing their report. `pairing_key_ttl` in lazysite.conf lets a site
+# choose; the exchanged token already carries the real session life, so this
+# value governs only the handover window.
+#
+# Bounded at both ends: below a minute is unusable, and a day is no longer a
+# handover - it is a standing credential in a file.
+my $PAIRING_TTL_DEFAULT = 900;       # 15 minutes
+my $PAIRING_TTL_MIN     = 60;        # a minute
+my $PAIRING_TTL_MAX     = 86_400;    # a day
+
+my $CONNECT_CODE_TTL = 1_800;        # SM200: 30 min (was 15) - the connect code often
+                                     # expired mid-authorise while the operator pasted it
 # SM212: the default machine-token lifetime and its operator-set cap live in
 # Lazysite::Auth::Settings (shared with the sliding renewer). resolve_token_ttl()
 # gives the effective per-account TTL; the floor/ceiling gate an operator's set.
@@ -241,18 +259,18 @@ my %STORE_READONLY = map { $_ => 1 } qw(
 # t/unit/lib/16-audit-guarantee.t cross-checks the two - so a new command
 # cannot ship unclassified (and therefore unaudited by omission).
 our %CLI_AUDIT_ACTION = (
-    cmd_add            => 'user-add',
-    cmd_passwd         => 'user-passwd',
-    cmd_remove         => 'user-remove',
-    cmd_rename         => 'user-rename',
-    cmd_group_add      => 'user-group-add',
-    cmd_group_remove   => 'user-group-remove',
-    cmd_set            => 'user-settings-set',
-    cmd_token          => 'user-token',
+    cmd_add             => 'user-add',
+    cmd_passwd          => 'user-passwd',
+    cmd_remove          => 'user-remove',
+    cmd_rename          => 'user-rename',
+    cmd_group_add       => 'user-group-add',
+    cmd_group_remove    => 'user-group-remove',
+    cmd_set             => 'user-settings-set',
+    cmd_token           => 'user-token',
     cmd_account_approve => 'user-account-approve',
     cmd_group_reset     => 'user-group-reset',
-    cmd_setup_sysop    => 'setup-sysop',           # + a credential entry (see sub)
-    cmd_account_create => 'user-account-create',
+    cmd_setup_sysop     => 'setup-sysop',            # + a credential entry (see sub)
+    cmd_account_create  => 'user-account-create',
     cmd_account_set_disabled      => 'user-account-disable|user-account-enable',
     cmd_account_reassign          => 'user-account-reassign',
     cmd_account_promote           => 'user-account-promote',
@@ -275,9 +293,9 @@ our %CLI_AUDIT_ACTION = (
     # alone, because "reset the groups" without those two numbers does not say
     # what happened on the site it happened to.
     cmd_reset_groups   => 'user-groups-reset',
-    cmd_partner_create            => 'user-partner-create',    # + a pairing-key entry
-    cmd_onboarding                => 'user-onboarding',
-    cmd_key_revoke                => 'user-key-revoke',
+    cmd_partner_create => 'user-partner-create',    # + a pairing-key entry
+    cmd_onboarding     => 'user-onboarding',
+    cmd_key_revoke     => 'user-key-revoke',
 );
 our %CLI_NO_DIRECT_AUDIT = (
     # read-only commands
@@ -691,17 +709,17 @@ my $cmd = shift @args // '';
 my $cli_store_lk;
 $cli_store_lk = _consume_lock() unless $STORE_READONLY{$cmd};
 
-if    ( $cmd eq 'add' )                       { cmd_add(@args) }
-elsif ( $cmd eq 'passwd' )                    { cmd_passwd(@args) }
-elsif ( $cmd eq 'remove' )                    { cmd_remove(@args) }
-elsif ( $cmd eq 'rename' )                    { cmd_rename(@args) }
-elsif ( $cmd eq 'list' )                      { cmd_list() }
-elsif ( $cmd eq 'group-add' )                 { cmd_group_add(@args) }
-elsif ( $cmd eq 'group-nest' )                { cmd_group_nest(@args) }
-elsif ( $cmd eq 'group-remove' )              { cmd_group_remove(@args) }
-elsif ( $cmd eq 'group-set' )                 { cmd_group_set_cli(@args) }
-elsif ( $cmd eq 'groups' )                    { cmd_groups() }
-elsif ( $cmd eq 'group-reach' )               { cmd_group_reach(@args) }
+if    ( $cmd eq 'add' )          { cmd_add(@args) }
+elsif ( $cmd eq 'passwd' )       { cmd_passwd(@args) }
+elsif ( $cmd eq 'remove' )       { cmd_remove(@args) }
+elsif ( $cmd eq 'rename' )       { cmd_rename(@args) }
+elsif ( $cmd eq 'list' )         { cmd_list() }
+elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
+elsif ( $cmd eq 'group-nest' )   { cmd_group_nest(@args) }
+elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
+elsif ( $cmd eq 'group-set' )    { cmd_group_set_cli(@args) }
+elsif ( $cmd eq 'groups' )       { cmd_groups() }
+elsif ( $cmd eq 'group-reach' )  { cmd_group_reach(@args) }
 elsif ( $cmd eq 'reset-groups' ) { cmd_reset_groups(@args) }
 # SM659: setup-sysop, and NO ALIAS for the old name. Keeping `setup-manager`
 # would only teach the way this replaces - and it created a role account by
@@ -986,6 +1004,26 @@ sub _cli_actor {
     return $ENV{LAZYSITE_ACTING_USER} if length( $ENV{LAZYSITE_ACTING_USER} // '' );
     return $ENV{SUDO_USER}            if length( $ENV{SUDO_USER}            // '' );
     return getpwuid($<) // 'cli';
+}
+
+sub _pairing_ttl {
+    # Read the conf directly: this runs before any manager context exists, and
+    # a missing or unreadable conf must answer with the default rather than
+    # die - minting a key is not the moment to fail on a config read.
+    my $v;
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
+    if ( -f $conf && open my $fh, '<', $conf ) {
+        while ( my $line = <$fh> ) {
+            next unless $line =~ /\A\s*pairing_key_ttl\s*:\s*(\S+)/;
+            $v = $1;
+            last;
+        }
+        close $fh;
+    }
+    return $PAIRING_TTL_DEFAULT unless defined $v && $v =~ /\A[0-9]+\z/;
+    return $PAIRING_TTL_MIN if $v < $PAIRING_TTL_MIN;
+    return $PAIRING_TTL_MAX if $v > $PAIRING_TTL_MAX;
+    return $v;
 }
 
 # Set "key: value" in lazysite.conf unless the key is already present
@@ -2078,7 +2116,7 @@ sub _issue_pairing_key {
     my $key = 'lzp_' . generate_random_hex(24);
     $all->{$user} ||= {};
     $all->{$user}{pairing_key_hash}       = hash_token($key);
-    $all->{$user}{pairing_key_expires_at} = time() + $PAIRING_TTL;
+    $all->{$user}{pairing_key_expires_at} = time() + _pairing_ttl();
     return $key;
 }
 
@@ -2096,7 +2134,7 @@ sub cmd_pairing_key {
 
     unless ($API_MODE) {
         print "Pairing key for '$user' (single use, expires in "
-            . int( $PAIRING_TTL / 60 ) . " min; shown once):\n$key\n";
+            . int( _pairing_ttl() / 60 ) . " min; shown once):\n$key\n";
     }
     return $key;
 }
@@ -2630,9 +2668,17 @@ sub _onboarding_brief {
         . 'enabled (control API: git-history / git-show / git-restore; MCP: '
         . 'list_versions / view_version / restore_version)'
         if $eff_content;
-    my $caps  = join "\n", map { "- $_" } @caps;
-    my @sc    = @{ $s->{dav_scopes} || [] };    # SM155: group-derived, may be several
-    my $scope = @sc ? join( ', ', @sc ) : 'whole docroot (minus denied paths)';
+    my $caps = join "\n", map { "- $_" } @caps;
+
+    # SM690: WHEN this was true. The brief is a static handout and a grant
+    # outlives it - the divergence the field measured was not a wrong
+    # derivation, it was a document describing a grant that had since changed.
+    # A date turns "the brief is wrong" into "the brief is old", which is the
+    # difference between distrusting the document and re-checking the account.
+    my @t       = gmtime(time);
+    my $stamped = sprintf '%04d-%02d-%02d', $t[5] + 1900, $t[4] + 1, $t[3];
+    my @sc      = @{ $s->{dav_scopes} || [] };    # SM155: group-derived, may be several
+    my $scope   = @sc ? join( ', ', @sc ) : 'whole docroot (minus denied paths)';
 
     # Machine-readable capability tokens - the snake_case names whoami returns.
     # nav editing is gated by manage_nav (SM105), which inherits manage_content
@@ -2730,6 +2776,12 @@ settings, out of band, so no secret travels through the conversation. A key
 that has appeared in any transcript should be treated as spent - regenerate it.
 
 ## Capabilities
+
+**This list is a SNAPSHOT taken when this brief was generated ($stamped).** A
+grant can be changed afterwards without reissuing the brief, so `whoami` is the
+authority and this is the introduction. Check it before you plan work: the field
+has lost a run to a brief that named a capability the account no longer held,
+and spent a single-use pairing key discovering it.
 
 $caps
 - Content scope: $scope
@@ -4196,7 +4248,7 @@ sub _group_settings_view {
             # make it? Absent means operator-made: every group that predates
             # the marker was on an instance an operator had already shaped, and
             # claiming those shipped would be the confident wrong answer.
-            seeded     => ( $cfg->{seeded} ? JSON::PP::true() : JSON::PP::false() ),
+            seeded => ( $cfg->{seeded} ? JSON::PP::true() : JSON::PP::false() ),
             # SM673 follow-up: does an approved registration land here? Served
             # so the Groups page can offer the tick without a second copy of
             # what the flag means.
