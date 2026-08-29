@@ -23,6 +23,8 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../lib";
+use PageScript ();
 use lib "$FindBin::Bin/../../../lib";
 
 my $root = "$FindBin::Bin/../../..";
@@ -99,7 +101,7 @@ SKIP: {
     # form stopped matching - which did not fail loudly, it SKIPPED the five
     # assertions below. A test that quietly stops testing is worse than one
     # that breaks, so this matches the name and lets the parameters move.
-    my ($fn) = $src =~ /(function renderHistory\(panel, entries[^)]*\).*?\n\})/s;
+    my $fn = PageScript::extract_function( $src, 'renderHistory', 'renderHistory in its page' );
     ok( $fn, 'the history renderer is present' ) or skip 'no renderer', 5;
 
     my $dir = tempdir( CLEANUP => 1 );

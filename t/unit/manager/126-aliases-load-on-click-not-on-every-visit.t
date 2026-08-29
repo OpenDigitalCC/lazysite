@@ -16,6 +16,8 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use PageScript ();
 
 my $page = "$FindBin::Bin/../../../starter/manager/files.md";
 plan skip_all => "no $page" unless -f $page;
@@ -37,7 +39,7 @@ my $src = do { open my $fh, '<', $page or die $!; local $/; <$fh> };
     # been broken in the opposite direction, forbidding the fix.
     unlike( $src, qr/^loadAliases(?:Into)?\(\);/m,
         'no alias fetch at page load, under either name' );
-    my ($nav) = $src =~ /(function loadDir\(dir\).*?\n\})/s;
+    my $nav = PageScript::extract_function( $src, 'loadDir', 'loadDir in files.md' );
     ok( $nav, 'loadDir is present' );
     unlike( $nav, qr/loadAliases|loadAliasesInto/,
         'and none on folder navigation' );

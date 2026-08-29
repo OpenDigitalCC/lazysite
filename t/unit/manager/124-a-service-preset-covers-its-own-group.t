@@ -24,6 +24,8 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use PageScript ();
 
 my $page = "$FindBin::Bin/../../../starter/manager/config.md";
 plan skip_all => "no $page" unless -f $page;
@@ -100,7 +102,7 @@ for my $name ( sort keys %$got ) {
 # Turning a remote surface on is exactly the change that should be looked at
 # once before it reaches a live site.
 {
-    my ($fn) = $src =~ /(function applyPreset\(name\).*?\n\})/s;
+    my $fn = PageScript::extract_function( $src, 'applyPreset', 'applyPreset in its page' );
     ok( $fn, 'applyPreset is present' );
     unlike( $fn, qr/saveSiteSettings|apiCall/,
         'applying a preset does not save by itself' );

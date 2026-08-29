@@ -26,6 +26,8 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use PageScript ();
 
 my $page = "$FindBin::Bin/../../../starter/manager/files.md";
 plan skip_all => "no $page" unless -f $page;
@@ -42,7 +44,7 @@ my $src = do { open my $fh, '<', $page or die $!; local $/; <$fh> };
 
     # The fetch must NOT be gated on the card it used to fill. This is the trap:
     # the data it loads is what every padlock on the page depends on.
-    my ($fn) = $src =~ /(function loadProtectedSections\(\).*?\n\})/s;
+    my $fn = PageScript::extract_function( $src, 'loadProtectedSections', 'loadProtectedSections in its page' );
     ok( $fn, 'the loader survives the card' );
     # THE PROPERTY, not the old bug's exact wording. The first version of this
     # matched `if (!table || !empty) return` and a sabotage inserting a

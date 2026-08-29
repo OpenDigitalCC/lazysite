@@ -26,6 +26,8 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
+use PageScript ();
 use TestHelper qw(repo_root);
 
 my $page = repo_root() . '/starter/manager/files.md';
@@ -115,7 +117,7 @@ like( $src, qr/paintFiles\(\);\s*\/\/ re-render/,
 # THE PLACEMENT RULE IS THE POINT, and a banner is not on a row - so it has to
 # answer SM635's question its own way rather than being the same control moved.
 {
-    my ($banner) = $src =~ /(function updateHereProtection\(\).*?\n\})/s;
+    my $banner = PageScript::extract_function( $src, 'updateHereProtection', 'updateHereProtection in its page' );
     ok( length( $banner // '' ), 'the here-banner can be isolated' )
         or BAIL_OUT('no updateHereProtection - the assertions below are vacuous');
 
