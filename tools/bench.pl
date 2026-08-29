@@ -180,6 +180,27 @@ my %result = (
 # defect returning, and it reads the same on any disk.
 #
 # Not timed. This is a property of the call, not of the clock.
+# Roughly, the lines perl must actually compile: everything that is not blank,
+# not a comment, and not POD. Approximate on purpose - it is an INDEX of compile
+# cost, not a measurement of it, and an index only has to move in the right
+# direction when the cause moves.
+sub _statement_count {
+    my ($file) = @_;
+    open my $fh, '<', $file or return 0;
+    my $n   = 0;
+    my $pod = 0;
+    while ( my $line = <$fh> ) {
+        if    ( $line =~ /\A=cut/ )       { $pod = 0; next }
+        elsif ( $line =~ /\A=[a-zA-Z]/ )  { $pod = 1; next }
+        next if $pod;
+        next if $line =~ /\A\s*\z/;
+        next if $line =~ /\A\s*#/;
+        $n++;
+    }
+    close $fh;
+    return $n;
+}
+
 sub work_of {
     local $ENV{DOCUMENT_ROOT} = $d;
     my $json = qx($^X \Q$stats\E --export --window 30 2>/dev/null);
@@ -196,7 +217,28 @@ my $warm = work_of();
     work_cold_log_files    => ( $cold->{log_files_read}    // 0 ),
     work_warm_log_bytes    => ( $warm->{log_bytes_read}    // 0 ),
     work_warm_log_files    => ( $warm->{log_files_read}    // 0 ),
-    work_warm_days_written => ( $warm->{day_files_written} // 0 )
+    work_warm_days_written => ( $warm->{day_files_written} // 0 ),
+
+    # SM685: THE COUNTER THAT CAN SEE THE verify_token DRIFT.
+    #
+    # verify_token_ms sat at 1.48x its baseline across two releases and nothing
+    # could fail a build for it, because bench gates on work counters and the
+    # WORK had not changed. Profiling said why: every credential check forks a
+    # fresh interpreter and compiles tools/lazysite-users.pl, and on this host
+    # that compile is ~47ms of a ~62ms verification - three quarters of it.
+    # Bare perl startup is under 2ms, so it is the SCRIPT, not the fork.
+    #
+    # So the drift was never a slower algorithm. It was ten commits of an
+    # honestly growing script, each adding compile time paid on every
+    # authenticated request. A timing gate would blame the machine; a work
+    # counter that measures the SIZE OF THE THING BEING COMPILED blames the
+    # cause, and moves only when somebody makes the script bigger.
+    #
+    # Statements rather than bytes or lines: comments and blank lines are free
+    # at run time, and this must not discourage the commentary that makes this
+    # codebase legible. A counter that punished explanation would be paid for
+    # in worse code.
+    work_users_tool_statements => _statement_count("$ROOT/tools/lazysite-users.pl"),
 );
 
 for my $op ( sort grep { !/^work_/ } keys %result ) {

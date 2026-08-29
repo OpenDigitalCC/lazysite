@@ -1,25 +1,26 @@
 {
-   "_doc" : "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. Timings are REPORTED against tolerance, never failed on (SM342); work counters fail. A per-op override may live in tolerances{op}. Re-capturing over a regression requires --accept-regression (SM327).",
-   "captured_at" : "2026-08-26T05:20:17Z",
-   "host" : "ai-dev",
-   "iterations" : 20,
-   "loadavg" : [
-      0.71,
-      0.94,
-      0.79
-   ],
-   "ops" : {
-      "render_cache_hit_ms" : 68.4,
-      "render_miss_ms" : 91.5,
-      "stats_export_ms" : 618.3,
-      "verify_password_ms" : 130.1,
-      "verify_token_ms" : 42.1,
-      "work_cold_log_bytes" : 524392,
-      "work_cold_log_files" : 30,
-      "work_warm_days_written" : 1,
-      "work_warm_log_bytes" : 0,
-      "work_warm_log_files" : 0
-   },
-   "perl" : "v5.40.1",
-   "tolerance" : 1.25
+  "_doc": "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. Timings are REPORTED against tolerance, never failed on (SM342); work counters fail. A per-op override may live in tolerances{op}. Re-capturing over a regression requires --accept-regression (SM327).",
+  "captured_at": "2026-08-26T05:20:17Z",
+  "host": "ai-dev",
+  "iterations": 20,
+  "loadavg": [
+    0.71,
+    0.94,
+    0.79
+  ],
+  "ops": {
+    "render_cache_hit_ms": 68.4,
+    "render_miss_ms": 91.5,
+    "stats_export_ms": 618.3,
+    "verify_password_ms": 130.1,
+    "verify_token_ms": 42.1,
+    "work_cold_log_bytes": 524392,
+    "work_cold_log_files": 30,
+    "work_warm_days_written": 1,
+    "work_warm_log_bytes": 0,
+    "work_warm_log_files": 0,
+    "work_users_tool_statements": 3276
+  },
+  "perl": "v5.40.1",
+  "tolerance": 1.25
 }
