@@ -4506,6 +4506,29 @@ sub convert_md {
         $placeholder
     }gsei;
 
+    # SM689: HTML COMMENTS TOO, and for the same reason as the block above.
+    #
+    # Text::MultiMarkdown pairs `<!--` with a LATER `-->` when hashing HTML
+    # blocks, and everything between the two is discarded - not escaped,
+    # DISCARDED. A page that explains itself in comments between its markup
+    # therefore loses the markup, silently, with no error anywhere.
+    #
+    # Measured on the Data page: twenty of its forty-six elements never reached
+    # the browser, including `rows-panel`. The symptom an operator saw was
+    # "Could not load rows: can't access property style, panel is null" - the
+    # script looking for markup that the markdown pass had eaten. The page's
+    # source was correct and every source-level test passed.
+    #
+    # Protecting comments the same way scripts and styles are protected removes
+    # the pairing opportunity entirely: the matcher never sees a `<!--` to pair.
+    # Comments survive into the output verbatim, which is what an HTML comment
+    # in a page is for.
+    $body =~ s{(<!--.*?-->)}{
+        my $placeholder = "RAWBLOCK_" . scalar(@rawblocks) . "_END";
+        push @rawblocks, "$1";
+        $placeholder
+    }gse;
+
     my $md = Text::MultiMarkdown->new(
         use_fenced_code_blocks => 1,
     );
