@@ -234,7 +234,10 @@ our %ACTION = (
     'user-revoke' => { caps => undef, params => [] },
     'users'       => { caps => undef, params => [] },
     'version'     => { caps => undef, params => [] },
-    'whoami'      => { caps => [],    params => [] },
+    # SM671: `plugins=0` omits the plugin catalogue, which is 82% of the answer
+    # on a bare site. Opt-out rather than opt-in, so an existing client reading
+    # `plugins` keeps seeing it.
+    'whoami' => { caps => [], params => [ { name => 'plugins', in => 'query' } ] },
 );
 
 # The actions this caller may use, in the shape describe_capabilities uses for

@@ -179,6 +179,6 @@ tone: medium
 `user-revoke` | cookie only |  
 `users` | cookie only |  
 `version` | cookie only |  
-`whoami` | any authenticated |  
+`whoami` | any authenticated | plugins (query)
 ---
 ```
