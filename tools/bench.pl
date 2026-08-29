@@ -190,8 +190,8 @@ sub _statement_count {
     my $n   = 0;
     my $pod = 0;
     while ( my $line = <$fh> ) {
-        if    ( $line =~ /\A=cut/ )       { $pod = 0; next }
-        elsif ( $line =~ /\A=[a-zA-Z]/ )  { $pod = 1; next }
+        if    ( $line =~ /\A=cut/ )      { $pod = 0; next }
+        elsif ( $line =~ /\A=[a-zA-Z]/ ) { $pod = 1; next }
         next if $pod;
         next if $line =~ /\A\s*\z/;
         next if $line =~ /\A\s*#/;
