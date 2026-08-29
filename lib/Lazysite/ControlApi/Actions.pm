@@ -109,6 +109,18 @@ our %ACTION = (
     'data-table' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-table-source' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
     'data-migrate-plan' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' } ] },
+    # SM687: a table's access rule. Gated on manage_content, matching a file's
+    # rule rather than inventing a separate policy for tables - reaching the
+    # Data page needs manage_data too, so in practice a person holds both.
+    'data-table-acl-get' => { caps => ['manage_content'],
+        params => [ { name => 'table', in => 'query_or_body' } ] },
+    'data-table-acl-set' => { caps => ['manage_content'],
+        params => [ { name => 'table', in => 'query_or_body' },
+            { name => 'owner', in => 'body' },
+            { name => 'read',  in => 'body' },
+            { name => 'write', in => 'body' } ] },
+    'data-table-acl-remove' => { caps => ['manage_content'],
+        params => [ { name => 'table', in => 'query_or_body' } ] },
     'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-import' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'apply', in => 'query' } ] },
     'data-export' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'format', in => 'query' } ] },
@@ -144,7 +156,7 @@ our %ACTION = (
     # SM664: reachable with either - the overview sits on the Plugin Config
     # page, whose audience holds manage_config, and is a reporting read.
     'git-history-summary' => { caps => [ 'manage_content', 'manage_config' ], params => [] },
-    'git-init'            => { caps => ['manage_config'],  params => [] },
+    'git-init'            => { caps => ['manage_config'], params => [] },
     'git-restore' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-show' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'sha', in => 'query' } ] },
     'git-status' => { caps => ['manage_content'], params => [] },

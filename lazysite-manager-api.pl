@@ -185,6 +185,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     config-read config-set copy csrf-token
     data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
     data-migrate-plan data-table data-table-drop data-table-save data-table-source data-tables
+    data-table-acl-get data-table-acl-set data-table-acl-remove
     data-safety-exports data-safety-export-delete data-safety-export-read data-safety-export-restore
     delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set preview-public
@@ -509,6 +510,7 @@ if ( $action eq 'csrf-token' ) {
 my %MUTATING = map { $_ => 1 } qw(
     form-delete
     data-migrate data-row-save data-row-delete data-table-save
+    data-table-acl-set data-table-acl-remove
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
     save delete mkdir move copy migrate-to-local file-upload git-restore
     git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock

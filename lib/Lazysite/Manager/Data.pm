@@ -32,8 +32,8 @@ use Lazysite::Data::Connect    ();
 use Lazysite::Data::Access     ();
 use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
     _acl_allows _is_operator);
-use File::Path                 ();
-use JSON::PP                   ();
+use File::Path ();
+use JSON::PP   ();
 
 our @EXPORT_OK = qw(action_table_acl_get action_table_acl_set
     action_table_acl_remove
@@ -69,7 +69,7 @@ our @CALLER_SCOPES;
 # cookie operator (who skips resolution entirely, by !_operator()) leave it
 # alone and stay unconfined, which they genuinely are rather than accidentally.
 our $CALLER_CONFINED = 0;
-our $auth_user = '';    # SM468: the actor for schema-history rows; set by each surface
+our $auth_user       = ''; # SM468: the actor for schema-history rows; set by each surface
 
 # SM469: OFF MEANS OFF, on this path too.
 #
@@ -181,13 +181,13 @@ sub action_table_acl_set {
     }
 
     my $owner =
-          $existing                                     ? $existing->{owner}
+        $existing                                                     ? $existing->{owner}
         : ( _is_operator() && defined $o{owner} && length $o{owner} ) ? $o{owner}
-        :                                                              $user;
+        :                                                               $user;
 
     my %rec = ( owner => $owner );
-    my $rl = _to_list( $o{read} );  $rec{read}  = $rl if defined $rl;
-    my $wl = _to_list( $o{write} ); $rec{write} = $wl if defined $wl;
+    my $rl  = _to_list( $o{read} );  $rec{read}  = $rl if defined $rl;
+    my $wl  = _to_list( $o{write} ); $rec{write} = $wl if defined $wl;
 
     $acls->{$norm} = \%rec;
     save_acls($acls);
@@ -281,7 +281,7 @@ sub _may_reach {
     # never "the operator" - which meant both and so meant neither.
     return 1 unless $CALLER_CONFINED || @CALLER_SCOPES;
     my $dom = _table_domain($table);
-    return 1 unless length $dom;       # unscoped - as it always was
+    return 1 unless length $dom;    # unscoped - as it always was
     return ( grep { $_ eq $dom } _caller_domains() ) ? 1 : 0;
 }
 

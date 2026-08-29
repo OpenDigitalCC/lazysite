@@ -192,6 +192,15 @@ my %API_ONLY = (
     # has no named twin because set_permissions with empty read/write lists
     # clears a rule - a twin would be a second spelling of the same operation.
     'acl-remove' => 'set_permissions with empty lists is the MCP spelling',
+    # SM687: a table's access rule. UNDECIDED for MCP, recorded rather than
+    # left silent. get_permissions/set_permissions take a PATH, and a table is
+    # addressed by NAME - so an MCP twin means either overloading those tools
+    # with a second address form or adding table-specific ones, and that choice
+    # belongs with SM611, which may change what a table's rule is keyed on
+    # altogether. Deciding now would likely be deciding twice.
+    'data-table-acl-get'    => 'undecided pending SM611: a table is addressed by name, not path',
+    'data-table-acl-set'    => 'undecided pending SM611: a table is addressed by name, not path',
+    'data-table-acl-remove' => 'undecided pending SM611: a table is addressed by name, not path',
     # SM245: the sidecar migration is an operator's one-shot, reached from the
     # Plugin Manager; an agent has no standing to run it.
     'briefs-migrate' => 'a one-shot operator migration, driven from the Plugin Manager',

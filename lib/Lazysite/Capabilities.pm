@@ -70,6 +70,7 @@ my %ACTION_INFO = (
                     git-show git-restore lang-status site-export-primary
                     regenerate-registries preview-public
                     acl-get acl-set acl-remove
+                    data-table-acl-get data-table-acl-set data-table-acl-remove
                     brief-read briefs-list
                     nav-read pages) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file

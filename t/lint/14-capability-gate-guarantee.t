@@ -178,6 +178,10 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # DM-5: two more reads. The descriptor's source text, and a migration
     # PLAN that applies nothing - a preview for a person deciding.
     data-table-source data-migrate-plan
+
+    # SM687: reading the rule that says who may read a table. A read, like
+    # acl-get which it mirrors; its two writers are in %MUTATING.
+    data-table-acl-get
 );
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed
