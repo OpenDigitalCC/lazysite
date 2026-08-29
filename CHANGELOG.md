@@ -44,6 +44,79 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.11.6 - BETA: two surfaces that disagreed about who may write, a page that never reached the browser, and a rule the overview did not apply (2026-08-29)
+
+- SM682 fixed (06a6f42a, 827f4fbf, e3650bd7) **`write_data` now honours
+  `writable_by` on every surface that writes a row.** The edge agent measured a
+  `write_data`-only partner token on the control API writing a table naming a
+  group it was not in, a table with an explicitly empty list, and a table with
+  no list - three cases that must refuse. The allow-list existed only in
+  `lazysite-data.pl`, the app-user endpoint; `data-row-save` on the control API
+  carried the capability gate and nothing else, so `write_data` was an
+  instance-wide table write there - the grant it exists to avoid. The rule now
+  lives in `Manager::Data::row_write_refusal` and both surfaces ask it (SM578:
+  a rule copied twice is a rule that will disagree with itself); the delete path
+  is gated too, since gating the save alone leaves `write_data` able to empty a
+  table it may not add to. Groups come from the account, not the
+  `X-Remote-Groups` header. The allow-list binds a caller who HOLDS
+  `write_data` - a caller holding neither capability was admitted by another
+  authorisation and is not this rule's subject.
+
+- SM687 shipped (27d8d828, bd625d07, f15487dd) **a table's access rule is
+  reachable.** "Who can read" answered `Path is blocked` for every table, in
+  every release: the ACL is keyed `lazysite/db/tables/<table>` and the generic
+  `acl-get`/`acl-set` refuse everything under `lazysite/`. The rule was enforced
+  and unreachable at the same time, because the enforcement side reads the store
+  directly. `data-table-acl-get`/`-set`/`-remove` address a TABLE rather than a
+  path, keyed through `Data::Access::acl_key` so the surface that sets a rule
+  and the surface that applies it cannot key it differently. The blocklist is
+  unchanged and still refuses that key to the file editor. The panel is now an
+  expander in the Files page's own style, using the shared `mgRights` editor.
+
+- SM689 shipped (3ffdef0b) **an HTML comment no longer discards the markup
+  around it.** `Text::MultiMarkdown` pairs `<!--` with a LATER `-->` when
+  hashing HTML blocks and discards everything between. The Data page lost 20 of
+  its 46 elements on the way to the browser, which reached the operator as
+  "Could not load rows: can't access property style, panel is null". Comments
+  are now protected from the markdown pass exactly as `<script>` and `<style>`
+  already were - the processor's own comment described this failure mode for
+  styles. It hit Data because Data is the page that explains itself most.
+
+- SM683 partial (8cbf2069) **the history overview applies the ACL.** Every
+  per-file reader resolves through `_git_target`, which ends in
+  `_acl_denied($rel, 'read', $username)`; `action_git_history_summary` filtered
+  by blocked paths and scope and by no ACL, while carrying a WIDER gate than the
+  readers it summarises. Harmless only while protected content stays out of the
+  repository - and the release manager has ruled it must go in. Closed first, so
+  the migration does not open a hole and close it afterwards. The recount
+  matters as much as the filter: nine revisions over one listed file announces
+  the second file as loudly as naming it would. The versioning itself is not
+  built.
+
+- SM684 shipped (22de94c5) **a test that extracts a page function by name, and
+  fails when it is absent.** Six tests pinned a regex to a function's exact
+  signature; SM683 added a parameter, the regex stopped matching, and five
+  assertions were SKIPPED rather than failed while the suite read "16 tests, 5
+  skipped" and looked healthy. `t/lib/PageScript.pm` matches the name, lets the
+  parameters move, and dies on absence; `t/lint/93` refuses a new signature-
+  pinned extraction, and found a seventh offender by hand-conversion had missed.
+
+- SM686 shipped (46ca7c4a) **the capability grid offers an answer instead of
+  asking a question.** Every capability ended with a bare `?` - a hover marker
+  rendered against a class with no CSS rule at all, so it sat in the label text
+  reading as punctuation. Now a circled `i`, focusable and named to a screen
+  reader.
+
+- SM692 shipped (63c21ce0) **the Migrate/Rebuild distinction is explained where
+  the choice is.** The panel opened with it unconditionally, so the commonest
+  case read as a policy lecture followed by "Nothing to do".
+
+- SM685, SM688, SM690, SM691, SM693 and SM694 recorded as candidates:
+  `verify_token` at 1.49x its baseline and why the gate cannot fail on it; named
+  navs with per-item visibility; a partner brief promising capabilities the
+  grant does not carry; a pairing key that expires before it can be delivered;
+  what the page cache actually buys, measured; and a pandoc-wrapper plugin.
+
 ## 0.11.5 - EDGE: an app's own users can write their own rows, a visitor can be approved into a group, and one rights editor serves both pages (2026-08-28)
 
 - SM675 shipped (90475e79) **a capability whose plugin is off says so.**

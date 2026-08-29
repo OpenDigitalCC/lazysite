@@ -4,8 +4,8 @@ title: A test that extracts a function by its signature stops testing when the s
 raised: 2026-08-28
 raised-by: engine agent
 area: testing
-status: candidate
-status-note: "OPEN. Found while landing SM683: t/unit/manager/127 pulls renderHistory out of files.md with a regex pinned to its exact two-argument signature, SM683 added a third argument, and the five assertions behind the extraction were SKIPPED rather than failed - the suite read 16 tests with 5 skipped and looked healthy. Five sibling tests use the same pattern. The fix is not to widen six regexes: it is to make a failed extraction a FAILURE everywhere, and ideally to extract through one shared helper that says which function it could not find."
+status: shipped
+status-note: "SHIPPED in 0.11.6 - t/lib/PageScript.pm matches the function NAME, lets the parameters move, and DIES when it is absent; all seven call sites converted (the lint found one I had missed by hand) and t/lint/93 refuses a new signature-pinned extraction. Verified both directions on the real page: adding a parameter keeps all seventeen assertions running, renaming the function fails loudly. ORIGINALLY: Found while landing SM683: t/unit/manager/127 pulls renderHistory out of files.md with a regex pinned to its exact two-argument signature, SM683 added a third argument, and the five assertions behind the extraction were SKIPPED rather than failed - the suite read 16 tests with 5 skipped and looked healthy. Five sibling tests use the same pattern. The fix is not to widen six regexes: it is to make a failed extraction a FAILURE everywhere, and ideally to extract through one shared helper that says which function it could not find."
 ---
 
 # What happened
