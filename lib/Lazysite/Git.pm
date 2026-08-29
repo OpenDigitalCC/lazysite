@@ -192,15 +192,15 @@ sub excluded_from_history {
     $rel =~ s{^/+}{};
     my $path = "/$rel";
     for my $e (@EXCLUDE) {
-        if ( $e =~ m{/\z} ) {                    # a directory prefix
+        if ( $e =~ m{/\z} ) {    # a directory prefix
             return 1 if index( $path, $e ) == 0;
         }
-        elsif ( $e =~ /\A\*(.+)\z/ ) {            # a suffix glob, e.g. *.html
+        elsif ( $e =~ /\A\*(.+)\z/ ) {    # a suffix glob, e.g. *.html
             my $suffix = $1;
             return 1 if length($path) >= length($suffix)
                 && substr( $path, -length($suffix) ) eq $suffix;
         }
-        elsif ( $e =~ /\A(.+)\*\z/ ) {            # a prefix glob
+        elsif ( $e =~ /\A(.+)\*\z/ ) {    # a prefix glob
             my $pre = "/$1";
             return 1 if index( $path, $pre ) == 0;
         }

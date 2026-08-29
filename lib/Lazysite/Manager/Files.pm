@@ -2342,7 +2342,7 @@ sub action_git_history {
             : [] ),
 
         versioned => _git_bool( $enabled && !$in_store && !$excluded ),
-        (   $in_store
+        ( $in_store
             ? ( notice => 'This content is protected, and protected content is'
                     . ' kept out of the version history - a history can be'
                     . ' pushed to a remote, and this content is not meant to'
