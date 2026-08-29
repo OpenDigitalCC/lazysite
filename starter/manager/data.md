@@ -928,7 +928,18 @@ function planMigration() {
     .then(function(d) {
       if (!d.ok) { body.textContent = d.error || 'could not plan'; return; }
       /* SM502 U-6: the contract, stated where the deciding happens. */
-      var html = '<p style="color:#888;font-size:0.95em;"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>';
+      // SM692: the difference between Migrate and Rebuild is explained WHERE THE
+      // CHOICE IS, not before it. This paragraph used to open the panel
+      // unconditionally, so the commonest case read:
+      //
+      //   "Migrate applies only changes that keep every row... Rebuild makes
+      //    the descriptor true whatever that costs..."
+      //   "The stored table already matches the descriptor. Nothing to do."
+      //
+      // - a policy lecture followed by the news that neither applies. The only
+      // time it was certain to be read was the one time it was irrelevant.
+      // Held back and prepended below, once we know a button will be offered.
+      var html = '';
       if (d.create) html += '<p>The stored table does not exist yet. <strong>Migrate</strong> creates it.</p>';
       if (d.additive && d.additive.length) {
         html += '<p>Migrate will apply, keeping every row:</p><ul>';
@@ -961,6 +972,14 @@ function planMigration() {
         html += '<p>The stored table already matches the descriptor. Nothing to do.</p>';
       } else if (d.create || (d.additive && d.additive.length)) {
         document.getElementById('plan-migrate-btn').style.display = '';
+      }
+
+      // The explainer earns its place only when one of the two is actually on
+      // offer - which is exactly when an operator has to tell them apart.
+      var offered = document.getElementById('plan-migrate-btn').style.display === ''
+                 || document.getElementById('plan-rebuild-btn').style.display === '';
+      if (offered) {
+        html = '<p style="color:#888;font-size:0.95em;"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>' + html;
       }
       body.innerHTML = html;
     })
