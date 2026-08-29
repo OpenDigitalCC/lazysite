@@ -43,3 +43,37 @@ The second is more defensible than it first looks, and if it is chosen the
 capability's description must say it plainly - which is the SM427 rule, and the
 reason this is worth deciding rather than leaving as an accident of two
 filings.
+
+# Why external evidence could not be obtained (measured 2026-08-29)
+
+I asked the edge agent for a behavioural measurement of this gate, saying it was
+the one item in the release I could not prove from inside. It cannot be proved
+from outside either, and the reason is structural rather than a gap in the
+attempt:
+
+- **Control API**: `form-submission-delete` answers
+  *"Action not available to token clients... served only to the manager UI over
+  a cookie session"* - SM214 keeps deleting stored personal data interactive,
+  because it is often the only copy and a human should confirm it.
+- **MCP**: `form_submission_delete` is not advertised; the call returns
+  `-32602 Unknown tool`. `read_form_submissions` is the only submission tool on
+  that surface.
+- **The capability map** lists no delete/confirm/bulk submission action on the
+  token path at all.
+
+So the gate lives only on the cookie-authenticated manager UI. A token-path
+agent cannot exercise it at ANY capability level, which is almost certainly why
+it could not be proved from inside the engine either - there is no token-side
+call path to instrument.
+
+**Status of the evidence: not proved behaviourally, and not provable by an
+API/DAV/MCP agent.** Proving it needs a UI-driving test against a cookie
+session, which is a different instrument from the one this project has. What
+the token surface DOES prove is the negative that matters operationally: no
+token client, at any capability, can delete a submission.
+
+This belongs in the record because the next person to ask for this measurement
+should not spend a run rediscovering it. See
+[[feedback_lazysite_manager_ui_only_actions]]: probe the capability map before
+designing a test around an action, because the map lists actions the server
+refuses to token clients by design.
