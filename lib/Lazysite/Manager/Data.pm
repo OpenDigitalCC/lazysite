@@ -400,6 +400,25 @@ sub groups_for {
     return [ Lazysite::Auth::Acl::groups_for_user($user) ];
 }
 
+# Whether a table carries an access rule at all. Keyed through the same
+# function the enforcement side uses, so a listing cannot disagree with the
+# panel about whether a rule is there.
+sub _table_has_acl {
+    my ($table) = @_;
+    return 0 unless defined $table && length $table;
+    my $key = Lazysite::Data::Access::acl_key($table);
+    my $a   = eval { load_acls()->{ _acl_norm($key) } };
+    return 0 unless ref $a eq 'HASH';
+
+    # An owner, or a named principal. An entry holding neither is not a rule
+    # governing anything - and SM635's three states apply here too: no rule at
+    # all and a rule naming nobody must not read the same.
+    return 1 if length( $a->{owner} // '' );
+    return 1 if ref $a->{read} eq 'ARRAY'  && @{ $a->{read} };
+    return 1 if ref $a->{write} eq 'ARRAY' && @{ $a->{write} };
+    return 0;
+}
+
 sub row_write_refusal {
     my ( $table, $caps, $groups ) = @_;
     $caps   = {} unless ref $caps eq 'HASH';
@@ -528,6 +547,21 @@ sub action_data_tables {
             # every descriptor's source one at a time.
             ( length( $d->{domain} // '' ) ? ( domain => $d->{domain} ) : () ),
             public => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
+
+            # SM678 remainder: DOES THIS TABLE HAVE AN ACCESS RULE?
+            #
+            # The rule was settable and invisible until SM687 gave it a panel,
+            # and the panel answers only once opened - so an operator with a
+            # dozen tables opened a dozen panels to learn which were governed.
+            # SM635 made the same argument for a protected file row: say it
+            # where the operator is looking.
+            #
+            # A BOOLEAN, not the rule. Who may read a table is the rule's own
+            # business and reading it is gated on manage_content; whether one
+            # EXISTS is what a listing needs to answer, and it discloses
+            # nothing a manage_data holder could not learn by opening the
+            # panel they can already open.
+            has_acl => ( _table_has_acl($name) ? JSON::PP::true : JSON::PP::false ),
             ( $pending ? ( pending_schema => JSON::PP::true ) : () ),
             ok => 1,
             };

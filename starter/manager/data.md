@@ -224,6 +224,11 @@ function loadTables() {
           bits.push(t.row_count + ' row' + (t.row_count === 1 ? '' : 's'));
         }
         if (t.pending_schema) bits.push('needs migrating');
+        // SM678 remainder: say whether a rule governs this table, where the
+        // operator is looking. "No rule" and "a rule nobody has opened" looked
+        // identical until now, so learning which tables were governed meant
+        // opening every one.
+        bits.push(t.has_acl ? 'access rule set' : 'no access rule');
         var enc = encodeURIComponent(name);
         html += '<div class="mg-file-item">'
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '

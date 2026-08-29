@@ -3,7 +3,7 @@ title: "SM678: a data table's permissions are settable over the API and invisibl
 subtitle: "Release manager, 2026-08-28: 'data tables don't seem to have any ui in manager for permissions and owners, although the api seems to be able to set them'"
 brand: plain
 standard-margins: true
-status: partial
+status: shipped
 status-note: "PARTIAL (PENDING). THE AUDIT HALF SHIPS: the Data page shows who may read a table, on the same ACL key the data layer enforces on (`lazysite/db/tables/<table>`, from Data::Access::acl_key - the test pins the two together, because a page reading a different key would show a rule that is not the one being enforced, which is worse than showing nothing). "No rule" and "a rule naming nobody" are distinguished, per SM635's argument for a protected file row. Read through mgJson, per SM461. NOT DONE: EDITING from this page. The rights editor - buildRights, addPrincipal, savePerms - lives inside files.md and is generic over an ACL path, so the correct fix is to extract it into the layout's shared helpers where mgConfirm and mgDirtyGuard already live, and have both pages use it. That is a refactor of a working page and was deliberately not attempted inside a batch of seven with a release pending; duplicating the chip rendering onto this page instead would have been the copy this project removes on sight."
 ---
 
@@ -92,6 +92,13 @@ Two things the request did not ask for, found while building it:
 of the chip markup and requires exactly one. That is the assertion that holds:
 appearance can be matched by a fork, a count cannot.
 
-**Still open:** the listing does not yet say whether a table HAS a rule - the
-second half of the request, and the SM635 argument. The panel answers it once
-opened, which leaves the operator opening tables to find out.
+**DONE in 0.11.7:** the listing carries `has_acl`, and the Data page shows
+"access rule set" or "no access rule" per table. A boolean, not the rule - who
+may read a table stays gated on `manage_content`; whether one EXISTS is what a
+listing needs, and it discloses nothing a `manage_data` holder could not learn
+by opening a panel they can already open.
+
+SM635's middle state is honoured: an entry that names nobody and owns nothing
+reports FALSE, because reporting it as a rule would tell an operator their table
+is governed when it is not - the direction that gets somebody hurt. An owner
+alone reports true, since an owner decides who may change the rest.
