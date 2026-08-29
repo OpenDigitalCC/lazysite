@@ -5,7 +5,7 @@ raised: 2026-08-29
 raised-by: release manager
 area: plugins
 status: candidate
-status-note: "OPEN. A plugin that, when enabled, exposes a function converting supplied Markdown to PDF through an installed pandoc wrapper, with brand files kept in the site's own files area. TWO THINGS DECIDE THE SHAPE: (1) it depends on software OUTSIDE the engine, which no shipped plugin currently does, so 'enabled' must mean 'enabled AND the wrapper is actually there' or the operator gets a button that fails at use; (2) it runs an external binary on operator-supplied input, which is a different risk class from every other plugin - the brand files and the Markdown are both inputs to a process, and pandoc's own feature surface includes reading files and running filters."
+status-note: "OPEN. A plugin that, when enabled, exposes a function converting supplied Markdown to PDF through an installed pandoc wrapper, with brand files kept in the site's own files area. THE DEPENDENCY QUESTION IS ALREADY ANSWERED: SM472 built `a plugin that cannot run is not enabled` - a plugin declares `deps`, enabling is REFUSED when one is missing, and the refusal names the module and its Debian package. This plugin uses that, and needs ONE contained extension to it: `_plugin_dep_refusal` checks deps by `require`-ing them as Perl modules, and pandoc is a BINARY, so the declaration needs a second form - an executable checked on PATH, refused and named the same way. WHAT STILL NEEDS DESIGN is the execution side: a bounded root for anything the Markdown may reference, a fixed argument list with nothing caller-supplied reaching pandoc, the read authority required to convert a page (or it is an ACL bypass with a nice output format), and whether conversion is synchronous or queued."
 ---
 
 # The request
@@ -18,32 +18,45 @@ So: an optional plugin; the heavy dependency stays outside the engine; the brand
 assets live where the operator already keeps files; and the capability it adds is
 one function - Markdown in, branded PDF out.
 
-# Why this one is different from every plugin shipped so far
+# The dependency, and the one thing that is new
 
-## It depends on something the engine cannot install
+## Its dependency is declared, and enabling is refused without it
 
-No shipped plugin needs software outside the install. This one is useless
-without a pandoc wrapper, and pandoc pulls a LaTeX toolchain behind it - which
-on this host is exactly the sort of thing the engine cannot put there itself.
+An earlier draft of this filing said no shipped plugin depends on software
+outside the engine, and proposed a three-state enabled/working/missing report.
+**Both were wrong.** The release manager corrected it: the data plugin already
+declares `deps => [qw(DBI DBD::SQLite YAML::PP)]`, and SM472 already built
+exactly the right behaviour around that - *a plugin that cannot run is not
+enabled*. Enabling is REFUSED, and the refusal names the missing module and its
+Debian package.
 
-That makes **"enabled" ambiguous**, and the ambiguity is the defect waiting to
-happen: an operator ticks the box, the button appears, and the first person to
-press it gets a failure that looks like a bug in the site. The plugin must
-report three states, not two:
+SM472's own record says why refusing beats warning, and it was learned
+expensively: the data plugin once enabled cleanly on a host without YAML::PP,
+listed its empty set of tables happily, and answered HTTP 500 to every attempt
+to declare one, because the parser is only reached once there is something to
+parse. The field bisected five variations of the request before anyone said the
+words "YAML::PP". Every signal was honest and none of them named the cause.
 
-| State | What the operator should see |
-| --- | --- |
-| Not enabled | The plugin is off |
-| Enabled, wrapper absent | **Enabled but not working**, naming the wrapper it looked for and where |
-| Enabled, wrapper present | The version it found |
+So this plugin declares its dependency and inherits that behaviour. No new
+state, no new report, no `lazysite check` probe.
 
-[[SM675]] just built the vocabulary for the analogous case - a capability whose
-plugin is off says so rather than offering a checkbox that grants nothing. The
-same argument applies one level out: a plugin whose dependency is missing should
-say so where the operator is looking, not at the moment of use.
+### The one real gap
 
-`lazysite check` is the natural second home for that probe, since it already
-reports health an operator can act on.
+`_plugin_dep_refusal` checks a dependency by `require`-ing it as a Perl module:
+
+```perl
+( my $file = "$m.pm" ) =~ s{::}{/}g;
+next if eval { require $file; 1 };
+```
+
+**Pandoc is a binary, not a module.** `deps` cannot express it today, so the
+extension this plugin needs is a second declaration - an executable, checked for
+on PATH and executable, refused the same way and named the same way, with the
+same Debian-package hint the module branch already produces.
+
+That is a small, contained change to one function, and it is the ONLY
+dependency work this plugin requires. It also pays for itself beyond pandoc:
+any future plugin wrapping an external tool gets it.
 
 ## It runs an external binary on supplied input
 
@@ -105,7 +118,8 @@ exist, the second is the one that needs the boundary work.
 
 # What to settle before building
 
-1. The three-state enabled/working/missing report, and where it surfaces.
+1. An executable form for a plugin's declared dependency (the only dependency
+   work needed - the refuse-and-name behaviour already exists).
 2. The bounded root for anything the Markdown may reference.
 3. The fixed argument list, with nothing caller-supplied reaching pandoc.
 4. Whether conversion is synchronous or queued, which depends on [[SM666]].
@@ -113,8 +127,8 @@ exist, the second is the one that needs the boundary work.
 
 # Related
 
-[[SM675]] (a capability whose plugin is off says so - the same argument one
-level out), [[SM666]] (a persistent runtime, if conversion is queued),
+SM472 (a plugin that cannot run is not enabled - the mechanism this uses),
+[[SM675]] (a capability whose plugin is off says so), [[SM666]] (a persistent runtime, if conversion is queued),
 [[SM693]] (the request-time floor this would sit on top of), the house
 diagram/document practice: SVG to PDF via inkscape, never ImageMagick - a
 reminder that this project already has opinions about how PDFs get made.
