@@ -789,6 +789,69 @@
     outline: none;
 }
 
+/* SM697: the Plugin Config page's forms and handlers section emitted EIGHT
+   classes the stylesheet had no rule for. An element carrying a class nothing
+   defines renders as unstyled inline content, so a list of forms ran together
+   as a paragraph, a submissions table had no table styling, and the panels that
+   open under a handler had no separation from what sits above them.
+
+   Same defect as SM686, where a hint marker with no rule read as punctuation in
+   a label. The class exists in the markup, the page looks written, and nothing
+   errors - which is why it survives review: the code is right and the page is
+   wrong, and only the rendered page says so. */
+.mg-form-entry {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--mg-border-light);
+}
+
+.mg-form-entry:last-child { border-bottom: none; }
+
+.mg-form-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.mg-form-name {
+    font-family: var(--mg-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 0.9em;
+    font-weight: 600;
+    margin-right: auto;
+}
+
+/* The two panels that open UNDER a handler row. Both were flush against the row
+   above, so an opened panel read as part of the previous handler rather than as
+   this one's detail - the same confusion SM680 fixed by making the rows panel a
+   modal. */
+.mg-handler-edit-form,
+.mg-submissions-panel {
+    margin: 0.5rem 0 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--mg-border);
+    border-radius: 4px;
+    background: var(--mg-surface-alt);
+}
+
+.mg-handler-submissions { font-size: 0.85em; }
+
+.mg-submissions-table { width: 100%; font-size: 0.85em; }
+
+.mg-submissions-table th,
+.mg-submissions-table td {
+    vertical-align: top;
+    max-width: 22rem;
+    overflow-wrap: anywhere;
+}
+
+/* A checkbox column should be as wide as a checkbox. Without this the select
+   column took an equal share of the table and pushed the content that matters
+   off the right-hand side. */
+.mg-submissions-table td:first-child,
+.mg-submissions-table th:first-child { width: 1.5rem; }
+
+.mg-sub-cb { margin: 0; }
+
 .mg-badge-muted {
     background: var(--mg-surface-alt);
     color: var(--mg-text-muted);
