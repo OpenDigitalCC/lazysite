@@ -4,8 +4,8 @@ title: A pairing key expires before it can be delivered, and the only delivery t
 raised: 2026-08-29
 raised-by: edge-testing agent
 area: auth
-status: candidate
-status-note: "OPEN. Onboarding three edge accounts over the control-API/WebDAV path hit three frictions at once: keys minted at 20:32 all returned 401 'Invalid or expired pairing key' the next working window; the agent could not be handed a key by file because the stubs it wrote were 0600 owned by the agent's user and the operator is a different user; and the fallback - pasting keys into chat - is marked spent by the brief's own rule. So the only delivery that worked also invalidated the keys. The exchanged token is fine (about 24h confined, about 30d full); the entire fragility is the pairing step. MINTING STAYS WITH THE OPERATOR - this is about TTL and delivery, which are engine concerns."
+status: shipped
+status-note: "SHIPPED in 0.11.7 - pairing_key_ttl is settable, floored at a minute and ceilinged at a day. THE DEFAULT IS UNCHANGED at fifteen minutes: raising it loosens a credential handover and that is the operator's decision, not something to change while fixing their report about delivery. The message quotes the value in force rather than the default. ORIGINALLY: OPEN. Onboarding three edge accounts over the control-API/WebDAV path hit three frictions at once: keys minted at 20:32 all returned 401 'Invalid or expired pairing key' the next working window; the agent could not be handed a key by file because the stubs it wrote were 0600 owned by the agent's user and the operator is a different user; and the fallback - pasting keys into chat - is marked spent by the brief's own rule. So the only delivery that worked also invalidated the keys. The exchanged token is fine (about 24h confined, about 30d full); the entire fragility is the pairing step. MINTING STAYS WITH THE OPERATOR - this is about TTL and delivery, which are engine concerns."
 ---
 
 # The three frictions, in one sitting

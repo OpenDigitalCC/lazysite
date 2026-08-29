@@ -44,6 +44,73 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.11.7 - STABLE: the feedback loop repaired, the gate taught to see a rendered page, and three answers that were confidently wrong (2026-08-29)
+
+**The first stable since 0.11.1.** A site upgrading from there crosses six
+releases; the notes for this one name what changes for an existing integration.
+
+- SM690/SM691 shipped (8e6c642e) **a brief says WHEN it was true, and a site can
+  set how long a pairing key lives.** The capability list in a partner brief is
+  already derived from `@CAP_KEYS` (SM573) and was right when written - the
+  grant changed afterwards and the static brief did not, which the field read as
+  the brief being wrong. It now declares itself a snapshot, carries the date it
+  was taken, and names `whoami` as the authority. Separately `pairing_key_ttl`
+  is settable, floored at a minute and ceilinged at a day; **the default is
+  unchanged at fifteen minutes**, because raising it loosens a credential
+  handover and that is an operator's decision.
+
+- SM689 remainder shipped (e88c47d2) **a lint renders every manager page and
+  checks the elements its own script fetches.** The comment-pairing bug fixed in
+  0.11.6 discarded 20 of the Data page's 46 elements, and every test of that page
+  read the source, which was correct throughout. The dependency list is derived
+  from each page's `getElementById` calls rather than maintained by hand.
+  Verified against the defect it exists for: removing the comment protection
+  makes it fail and name what the page loses.
+
+- SM695 shipped (21aeaa28) **an empty history says why it is empty.** SM286
+  already reported the private STORE correctly and said nothing for the paths the
+  REPOSITORY excludes - the auth and forms stores, runtime state, generated
+  `.html` - which equally can never hold a commit. `lazysite/forms/submissions/`
+  was answering `versioned:true` with an empty list. The two cases keep different
+  sentences: a protected file's history ran up to the point it was protected, an
+  excluded path was never recorded at all.
+
+- SM678 remainder shipped (f931ef32) **the table listing says whether a table is
+  governed.** `has_acl` per table, and "access rule set" / "no access rule" on
+  the Data page. A boolean, not the rule - who may read a table stays gated on
+  `manage_content`. An entry naming nobody and owning nothing reports FALSE:
+  reporting it as a rule would say a table is governed when it is not.
+
+- SM671 shipped (f5e35166, 5ee4cfa1) **`whoami` can answer without the plugin
+  catalogue.** Measured at 5865 bytes by default and 1026 with `plugins=0`, so
+  the inventory was 82% of an answer to "who am I and what may I do" - paid on
+  every preflight. **Opt-out, not opt-in**: omitting it by default would silently
+  hand an existing client an empty list rather than an error.
+
+- SM696 shipped (bf87c65b) **a typed brief is removed the way it was added.**
+  `brief-delete` accepts `type`/`table`/`key`, resolved through the same
+  function the append uses. The validation matters as much as the convenience:
+  the parts compose a path, so a delete accepting a slash where the append
+  refuses one would reach entries the append could never have written.
+
+- SM685 partial (c4fa0d61) **why `verify_token` drifted, and a counter that can
+  see it.** Every credential check forks a fresh interpreter and compiles
+  `tools/lazysite-users.pl`; that compile is 46.8ms of a ~62ms verification,
+  against 1.8ms of bare perl startup. The drift across ten commits was ten
+  commits of an honestly growing script, each adding compile time paid on every
+  authenticated request - invisible to a work counter because the WORK never
+  changed. `work_users_tool_statements` now fails the gate when the script
+  grows. **The fix itself is still open.**
+
+- SM694 groundwork shipped (7ddd3580) **a plugin may depend on a program, not
+  only a Perl module.** `bins` beside `deps`, refused and named the same way,
+  saying "a program, not a Perl module" so an operator is not sent to CPAN.
+
+- SM662, SM693 and SM694 recorded as candidates: one declaration for an action's
+  reach (planned for the next edge - SM687 needed NINE registration points and
+  SM671 a tenth); what the page cache actually buys, measured; and the
+  pandoc-wrapper plugin's remaining execution-boundary design.
+
 ## 0.11.6 - BETA: two surfaces that disagreed about who may write, a page that never reached the browser, and a rule the overview did not apply (2026-08-29)
 
 - SM682 fixed (06a6f42a, 827f4fbf, e3650bd7) **`write_data` now honours

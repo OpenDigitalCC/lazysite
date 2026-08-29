@@ -4,8 +4,8 @@ title: A partner brief promises capabilities the grant does not carry
 raised: 2026-08-29
 raised-by: edge-testing agent
 area: partners
-status: candidate
-status-note: "OPEN. Measured on 0.11.5: `claude-code-3`'s brief says it holds `manage_domains`; whoami said false. `claude-code-2`'s brief lists only `manage_users` + webdav while the account needed `manage_forms` and did not have it. A cold agent trusting the brief attempts the work, reads a CORRECT refusal as breakage, and may spend a single-use pairing key before discovering the grant is not what it was promised. The briefs already say the server is authoritative; the Capabilities section reads as a promise rather than a hint, which is where it misleads."
+status: shipped
+status-note: "SHIPPED in 0.11.7 - the Capabilities section declares itself a SNAPSHOT, carries the date it was taken, and names whoami as the authority. The list itself was already derived from @CAP_KEYS (SM573) and correct when written; the grant changed afterwards and a static document did not, so the fix is to say WHEN rather than to re-derive WHAT. ORIGINALLY: OPEN. Measured on 0.11.5: `claude-code-3`'s brief says it holds `manage_domains`; whoami said false. `claude-code-2`'s brief lists only `manage_users` + webdav while the account needed `manage_forms` and did not have it. A cold agent trusting the brief attempts the work, reads a CORRECT refusal as breakage, and may spend a single-use pairing key before discovering the grant is not what it was promised. The briefs already say the server is authoritative; the Capabilities section reads as a promise rather than a hint, which is where it misleads."
 ---
 
 # What was measured
