@@ -386,8 +386,16 @@ function renderGroups() {
       // past. The sentences live in Capabilities.pm beside the title, so this
       // page, describe_capabilities and the generated map say the same words.
       var grants = (CAP_GRANTS && CAP_GRANTS[c[0]]) || '';
+      // An INFO AFFORDANCE, not a question mark in the sentence. This shipped
+      // as a bare `?` against a class with no CSS, so every capability in the
+      // grid read as "Manage forms ?" - the text asking a question rather than
+      // a control offering an answer. The release manager's instruction was
+      // exactly this: say the label, and put the detail behind an info button
+      // or a tooltip.
       var info = grants
-        ? ' <span class="mg-cap-what" title="' + escHtml(grants) + '">?</span>'
+        ? ' <span class="mg-cap-what" tabindex="0" role="img"'
+          + ' aria-label="What this grants: ' + escHtml(grants) + '"'
+          + ' title="' + escHtml(grants) + '">i</span>'
         : '';
 
       // The technical name stays on the LABEL (SM617) and the sentence gets its

@@ -756,6 +756,39 @@
     color: #0a3622;
 }
 
+/* SM686: the capability grid's "what does this grant" marker. It had no rule
+   at all, so it rendered as a bare `?` sitting in the label text - the grid
+   read as "Manage forms ?" rather than offering somewhere to look. A circled
+   `i`, muted and sized below the label, reads as an affordance and stops the
+   glyph being mistaken for part of the sentence. Focusable, so the sentence is
+   reachable without a pointer. */
+.mg-cap-what {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.95rem;
+    height: 0.95rem;
+    margin-left: 0.15rem;
+    border: 1px solid var(--mg-border);
+    border-radius: 50%;
+    background: var(--mg-surface-alt);
+    color: var(--mg-text-muted);
+    font-size: 0.64rem;
+    font-style: italic;
+    font-weight: 600;
+    line-height: 1;
+    cursor: help;
+    vertical-align: middle;
+    user-select: none;
+}
+
+.mg-cap-what:hover,
+.mg-cap-what:focus {
+    border-color: var(--mg-accent);
+    color: var(--mg-accent);
+    outline: none;
+}
+
 .mg-badge-muted {
     background: var(--mg-surface-alt);
     color: var(--mg-text-muted);
