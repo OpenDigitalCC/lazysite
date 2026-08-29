@@ -29,10 +29,15 @@ use Lazysite::Data::Tables
     import_rows drop_table);
 use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect    ();
+use Lazysite::Data::Access     ();
+use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
+    _acl_allows _is_operator);
 use File::Path                 ();
 use JSON::PP                   ();
 
-our @EXPORT_OK = qw(action_data_tables action_data_table action_data_rows
+our @EXPORT_OK = qw(action_table_acl_get action_table_acl_set
+    action_table_acl_remove
+    action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
     action_data_table_save action_data_rebuild action_data_export
     action_data_import action_data_table_source action_data_migrate_plan
@@ -87,6 +92,132 @@ sub _gate {
     return { ok => 0,
         error => 'The data plugin is disabled. An operator can enable it on '
             . 'the Plugin Manager page.' };
+}
+
+# ---------------------------------------------------------------------------
+# SM687: a table's access rule, reachable.
+#
+# A table's access IS an ACL - Lazysite::Data::Access keys it
+# `lazysite/db/tables/<table>` and `may_read` consults it through the shared
+# `_acl_allows`. The obvious way to read and write it was the generic acl-get /
+# acl-set, and that NEVER WORKED: those verbs run `is_blocked_path`, which
+# refuses everything under `lazysite/` outside two carve-outs, so every call
+# came back "Path is blocked". The rule was enforced and unreachable at the same
+# time - the enforcement side reads the store directly and never consults the
+# blocklist.
+#
+# The blocklist is right and stays. It guards the generic FILE EDITOR from the
+# management tree, and a descriptor is exactly the sort of file it should keep
+# out of reach: writing one through the file editor would bypass the data
+# plugin's own gates, including SM682's authority check on `writable_by`.
+#
+# So the fix is a verb that knows it is addressing a TABLE, not a path. The key
+# is synthesised from a validated table name through Data::Access::acl_key -
+# the same function the enforcement side calls - so the surface that sets the
+# rule and the surface that applies it cannot key it differently.
+#
+# WHAT IS PORTED FROM THE FILE WRITER, AND WHAT IS NOT.
+#   Ported:     the owner rule (only the owner may change an existing rule,
+#               operators excepted), the read-any-rule split (SM464), and
+#               owner assignment.
+#   Not ported: `draft`, which is a property of a published section and means
+#               nothing for a table; the private-store move, because there is
+#               no file content to move - a table's rows live in the database
+#               and moving them is SM611's problem, not this verb's; and path
+#               validation, because the caller supplies a name, not a path.
+
+# A table name is one opaque segment. Same shape SM657 requires of a brief's
+# `table`, and for the same reason: it becomes part of a key, and a name
+# carrying a slash would put the rule somewhere the name does not describe.
+sub _acl_table_key {
+    my ($table) = @_;
+    return ( undef, { ok => 0, error => 'table name required' } )
+        unless defined $table && length $table;
+    return ( undef, { ok => 0, error => 'invalid table name' } )
+        unless $table =~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
+    return ( Lazysite::Data::Access::acl_key($table), undef );
+}
+
+sub action_table_acl_get {
+    my ( $table, $user ) = @_;
+    if ( my $off = _gate() ) { return $off }
+    my ( $key, $err ) = _acl_table_key($table);
+    return $err if $err;
+
+    my $a = load_acls()->{ _acl_norm($key) };
+
+    # SM464: reading a rule is the audit half - manage_users, a sysop, or a
+    # token carrying manage_users may read ANY rule. Changing one stays
+    # owner-only. Same split as a file's rule, deliberately.
+    unless ( Lazysite::Manager::Files::may_read_any_rule() ) {
+        return { ok => 0, error => 'Not the owner of this rule' }
+            if $a && ( $a->{owner} // '' ) ne ( $user // '' );
+    }
+    return { ok => 1, table => $table, path => $key, acl => $a };
+}
+
+sub action_table_acl_set {
+    my ( $table, $user, %o ) = @_;
+    if ( my $off = _gate() ) { return $off }
+    my ( $key, $err ) = _acl_table_key($table);
+    return $err if $err;
+
+    my $acls     = load_acls();
+    my $norm     = _acl_norm($key);
+    my $existing = $acls->{$norm};
+
+    unless ( _is_operator() ) {
+        if ($existing) {
+            return { ok => 0, error => 'Only the owner may change who can read this table' }
+                unless ( $existing->{owner} // '' ) eq ( $user // '' );
+        }
+        else {
+            # Creating the FIRST rule on a table. The file writer asks for write
+            # access to the file; the equivalent here is authority over the
+            # table, and reaching this verb at all requires manage_data.
+            return { ok => 0, error => 'You cannot set who can read this table' }
+                unless defined $user && length $user;
+        }
+    }
+
+    my $owner =
+          $existing                                     ? $existing->{owner}
+        : ( _is_operator() && defined $o{owner} && length $o{owner} ) ? $o{owner}
+        :                                                              $user;
+
+    my %rec = ( owner => $owner );
+    my $rl = _to_list( $o{read} );  $rec{read}  = $rl if defined $rl;
+    my $wl = _to_list( $o{write} ); $rec{write} = $wl if defined $wl;
+
+    $acls->{$norm} = \%rec;
+    save_acls($acls);
+    log_event( 'INFO', 'table-acl-set', 'table access rule set',
+        table => $table, user => $user );
+    return { ok => 1, table => $table, path => $key, acl => \%rec };
+}
+
+sub action_table_acl_remove {
+    my ( $table, $user ) = @_;
+    if ( my $off = _gate() ) { return $off }
+    my ( $key, $err ) = _acl_table_key($table);
+    return $err if $err;
+
+    my $acls     = load_acls();
+    my $norm     = _acl_norm($key);
+    my $existing = $acls->{$norm};
+    return { ok => 1, table => $table, path => $key, removed => 0 }
+        unless $existing;
+
+    unless ( _is_operator() ) {
+        return { ok => 0, error => 'Only the owner may change who can read this table' }
+            unless ( $existing->{owner} // '' ) eq ( $user // '' );
+    }
+
+    delete $acls->{$norm};
+    save_acls($acls);
+    log_event( 'INFO', 'table-acl-remove', 'table access rule cleared',
+        table => $table, user => $user );
+    return { ok => 1, table => $table, path => $key, removed => 1 };
 }
 
 sub _need_table {

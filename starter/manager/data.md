@@ -81,38 +81,6 @@ search: false
  </div>
 </div>
 
-<!-- SM678: WHO CAN READ THIS TABLE, as an EDITOR rather than an alert box.
-     The alert box this replaces ended by naming the command-line verb that
-     would change the rule - a remedy that is not in front of the reader and,
-     on a hosted instance, not theirs to run. A panel that shows a rule and
-     cannot change it sends its reader somewhere else to finish the job.
-
-     The chips are window.mgRights, the same editor the Files page uses. A
-     table's access IS an ACL - Lazysite::Data::Access keys it as
-     lazysite/db/tables/<table> - so this reads and writes it with acl-get and
-     acl-set, the same verbs a page's rule takes. -->
-<div id="table-acl-panel" class="mg-rows-modal" style="display:none;">
- <div class="mg-rows-sheet" style="max-width:40rem;">
-  <button class="mg-btn mg-btn-sm mg-rows-close" onclick="closeTableAcl()" title="Close">&times;</button>
-  <h2 style="font-size:1.05em;margin:0 0 4px;" id="table-acl-title"></h2>
-  <p style="font-size:0.85em;color:#888;margin:0 0 12px;" id="table-acl-note"></p>
-
-  <label style="display:block;font-size:0.85em;margin:0 0 4px;">Owner</label>
-  <input type="text" id="table-acl-owner" class="mg-inp" style="max-width:20rem;" placeholder="(nobody)">
-
-  <label style="display:block;font-size:0.85em;margin:12px 0 4px;">Who may read and write</label>
-  <div id="table-acl-rights" class="mg-rights"></div>
-  <div style="margin:8px 0 0;" id="table-acl-add"></div>
-
-  <p style="font-size:0.8em;color:#888;margin:12px 0 0;">Rule key: <code id="table-acl-key"></code></p>
-
-  <div style="margin-top:14px;display:flex;gap:8px;">
-    <button class="mg-btn mg-btn-primary" onclick="saveTableAcl()">Save</button>
-    <button class="mg-btn" onclick="closeTableAcl()">Cancel</button>
-  </div>
- </div>
-</div>
-
 <!-- DM-5: THE DESCRIPTOR IS EDITED AS TEXT, on purpose. A descriptor is a
      thing an operator reads - their comments, their key order and their
      spacing are part of what they wrote, and a form that regenerated the file
@@ -262,12 +230,15 @@ function loadTables() {
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
           + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
-          + (CAN_ACL ? '<button class="mg-btn" onclick="openTableAcl(\'' + escHtml(name) + '\')">Who can read</button> ' : '')
+          + (CAN_ACL ? '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="Who can read this table">&#9662;</a> ' : '')
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
           + '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=json&amp;table=' + enc + '">JSON</a> '
           + '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=csv&amp;table=' + enc + '">CSV</a></span>'
+          + '</div>'
+          + '<div class="mg-perms-row" data-acl-for="' + escHtml(name) + '" style="display:none;">'
+          +   '<div class="mg-perms-card"><div class="mg-acl-body">Loading&hellip;</div></div>'
           + '</div>';
       }
       list.innerHTML = html;
@@ -755,84 +726,126 @@ function closeRows() {
   if (p) p.style.display = 'none';
 }
 
-function openTableAcl(table) {
-  var key = tableAclKey(table);
-  fetch(API + '?action=acl-get&path=' + encodeURIComponent(key))
+// SM687/SM678: WHO CAN READ THIS TABLE, in an expander built from the same
+// parts as the Files page - the same chevron, the same `mg-perms-card`, the
+// same `mgRights` chips and the same principal picker. A table's access is an
+// ACL like a file's, so the operator who has learned one control has learned
+// both; a second control that merely resembled the first would be a second
+// thing to learn and a second thing to keep in step.
+function toggleTableAcl(el, table) {
+  var row  = el.closest('.mg-file-item');
+  var card = row && row.nextElementSibling;
+  if (!card || card.className.indexOf('mg-perms-row') < 0) return;
+
+  var willOpen = card.style.display === 'none';
+
+  // One at a time, as on the Files page: two open cards invite an edit in the
+  // one that is not being looked at.
+  var all = document.querySelectorAll('.mg-perms-row');
+  for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
+  var chevs = document.querySelectorAll('.mg-chev');
+  for (var j = 0; j < chevs.length; j++) {
+    chevs[j].innerHTML = '&#9662;';
+    chevs[j].classList.remove('mg-chev-open');
+  }
+  if (!willOpen) return;
+
+  card.style.display = '';
+  el.innerHTML = '&#9652;';
+  el.classList.add('mg-chev-open');
+  loadTableAcl(table, card);
+}
+
+// Read on OPEN rather than with the listing. A site with thirty tables would
+// otherwise pay thirty ACL reads to render a list, and SM679 made the same
+// argument the other way for the row count: what every row needs travels with
+// the listing, what one row needs is fetched when that row is opened.
+function loadTableAcl(table, card) {
+  var body = card.querySelector('.mg-acl-body');
+  body.innerHTML = 'Loading&hellip;';
+  fetch(API + '?action=data-table-acl-get&table=' + encodeURIComponent(table))
     .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
     .then(function(d) {
-      if (!d.ok) { showStatus(d.error || 'Could not read the rule', true); return; }
-      var acl = d.acl || {};
-
-      // SM678: the SHARED rights editor (window.mgRights), the same one the
-      // Files page uses on a file's ACL. A table's access is an ACL like any
-      // other - keyed lazysite/db/tables/<name> - so a second copy of this
-      // markup here would be two editors to keep in step, and they would
-      // diverge the first time either was touched.
-      var panel = document.getElementById('table-acl-panel');
-      document.getElementById('table-acl-title').textContent = 'Who can read "' + table + '"';
-      document.getElementById('table-acl-key').textContent = key;
-      document.getElementById('table-acl-owner').value = acl.owner || '';
-      document.getElementById('table-acl-rights').innerHTML = mgRights.build(acl);
-
-      // NO RULE AND AN EMPTY RULE MUST NOT LOOK THE SAME - SM635's argument for
-      // a protected file row. There are THREE states here, not two, and the
-      // middle one is the one that misleads: a rule that exists and names
-      // nobody looks like protection and is not.
-      var named = (acl.read || []).length || (acl.write || []).length;
-      var note;
-      if (!acl.owner && !named) {
-        note = 'No rule. Who may read this table follows the site\'s own rules'
-             + ' - a table that names no domain is reachable by any manage_data'
-             + ' holder on this instance.';
-      } else if (!named) {
-        note = 'This rule has an owner and nobody named. An empty list is not a'
-             + ' closed door: it reads as open within the account scope. Add a'
-             + ' person or @group below to narrow it.';
-      } else {
-        note = 'Toggle r / w per person. Nobody named = open within the account'
-             + ' scope.';
-      }
-      document.getElementById('table-acl-note').textContent = note;
-
-      document.getElementById('table-acl-add').innerHTML = window.mgPrincipalSelect
-        ? mgPrincipalSelect({ onchange: 'addTableAclPrincipal(this)', groupPrefix: '@',
-                              cls: 'mg-rights-pick' })
-        : '';
-
-      panel.setAttribute('data-table', table);
-      panel.style.display = '';
+      if (!d.ok) { body.innerHTML = '<div class="mg-perms-hint">' + escHtml(d.error || 'Could not read the rule') + '</div>'; return; }
+      renderTableAcl(table, card, d.acl || {}, d.path || '');
     })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+    .catch(function(e) { body.innerHTML = '<div class="mg-perms-hint">Error: ' + escHtml(e.message) + '</div>'; });
+}
+
+function renderTableAcl(table, card, acl, key) {
+  var named = (acl.read || []).length || (acl.write || []).length;
+
+  // THREE STATES, not two. SM635 argued it for a protected file row and the
+  // middle one is the one that misleads: a rule that exists and names nobody
+  // looks like protection and is not, because an empty list reads as open.
+  var hint;
+  if (!acl.owner && !named) {
+    hint = 'No rule. Who may read this table follows the site\'s own rules - a '
+         + 'table that names no domain is reachable by any manage_data holder '
+         + 'on this instance.';
+  } else if (!named) {
+    hint = 'This rule has an owner and nobody named. An empty list is not a '
+         + 'closed door: it reads as open within the account scope.';
+  } else {
+    hint = 'Toggle r / w per person. Nobody named = open within the account '
+         + 'scope; no owner and nobody named clears the rule.';
+  }
+
+  card.querySelector('.mg-acl-body').innerHTML =
+      '<div class="mg-perms-owner"><label>Owner</label>'
+    +   '<select class="mg-perm-owner">' + tableOwnerOptions(acl.owner) + '</select></div>'
+    + '<div class="mg-perms-rights-label">People &amp; groups with access</div>'
+    + '<div class="mg-rights">' + mgRights.build(acl) + '</div>'
+    + '<div class="mg-rights-add">'
+    +   (window.mgPrincipalSelect
+        ? mgPrincipalSelect({ onchange: 'addTableAclPrincipal(this)',
+                              groupPrefix: '@', cls: 'mg-rights-pick' })
+        : '')
+    + '</div>'
+    + '<div class="mg-perms-hint">' + escHtml(hint) + '</div>'
+    + '<div class="mg-perms-hint mg-muted">Rule key: <code>' + escHtml(key) + '</code></div>'
+    + '<div class="mg-perms-actions">'
+    +   '<button class="mg-btn mg-btn-primary" onclick="saveTableAcl(this,\'' + escHtml(table) + '\')">Save</button> '
+    +   '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(key) + '" title="This rule\'s audit history">&#128340; Audit</a>'
+    + '</div>';
+}
+
+function tableOwnerOptions(current) {
+  var opts = '<option value="">(nobody)</option>';
+  if (window.mgPrincipalOptions) opts += mgPrincipalOptions({ selected: current });
+  else if (current) opts += '<option selected>' + escHtml(current) + '</option>';
+  return opts;
 }
 
 function addTableAclPrincipal(sel) {
   var name = sel.value;
   sel.selectedIndex = 0;
   if (!name) return;
+  var card = sel.closest('.mg-perms-card');
+  var list = card && card.querySelector('.mg-rights');
+  if (!list) return;
   // SM462: a new principal gets BOTH rights. read-on/write-off stores an empty
   // write list, and an empty list means no restriction - so the table would end
   // up writable by more people than can read it.
-  document.getElementById('table-acl-rights').insertAdjacentHTML('beforeend',
-    mgRights.chip(name, 1, 1));
+  if (!list.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]')) {
+    list.insertAdjacentHTML('beforeend', mgRights.chip(name, 1, 1));
+  }
 }
 
-function saveTableAcl() {
-  var panel = document.getElementById('table-acl-panel');
-  var table = panel.getAttribute('data-table');
-  var key   = tableAclKey(table);
-  var owner = document.getElementById('table-acl-owner').value;
-  var got   = mgRights.collect(document.getElementById('table-acl-rights'));
+function saveTableAcl(btn, table) {
+  var card  = btn.closest('.mg-perms-card');
+  var owner = (card.querySelector('.mg-perm-owner') || {}).value || '';
+  var got   = mgRights.collect(card.querySelector('.mg-rights'));
 
-  // SM306's shape: no owner and nobody listed clears the rule rather than
-  // storing an empty one that reads as "open" on one surface and "named" on
-  // another.
+  // SM306's shape: no owner and nobody named CLEARS the rule rather than
+  // storing an empty one, which would read as "open" on one surface and as
+  // "named" on another.
   var clearing = !owner && !got.read.length && !got.write.length;
-  var action = clearing ? 'acl-remove' : 'acl-set';
-  var body   = clearing ? {} : { owner: owner, read: got.read, write: got.write };
+  var action   = clearing ? 'data-table-acl-remove' : 'data-table-acl-set';
 
-  fetch(API + '?action=' + action + '&path=' + encodeURIComponent(key), {
+  fetch(API + '?action=' + action + '&table=' + encodeURIComponent(table), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(clearing ? {} : { owner: owner, read: got.read, write: got.write })
   })
     .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
     .then(function(d) {
@@ -840,15 +853,11 @@ function saveTableAcl() {
       showStatus(clearing
         ? 'Rule cleared for "' + table + '".'
         : 'Who can read "' + table + '" updated.');
-      closeTableAcl();
+      loadTableAcl(table, card.closest('.mg-perms-row'));
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-function closeTableAcl() {
-  var p = document.getElementById('table-acl-panel');
-  if (p) p.style.display = 'none';
-}
 
 
 function openDescriptor(table) {

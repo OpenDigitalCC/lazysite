@@ -654,6 +654,13 @@ if ( !$token_auth ) {
         'data-row-save'     => 'manage_data|write_data',
         'data-row-delete'   => 'manage_data|write_data',
         'data-table-save'   => 'manage_data',
+        # SM687: who may read a table is an access rule, so it takes the
+        # capability that governs access rules - the same one a file's rule
+        # takes - rather than manage_data alone. Reaching the Data page needs
+        # manage_data too, so in practice a person holds both.
+        'data-table-acl-get'    => 'manage_content',
+        'data-table-acl-set'    => 'manage_content',
+        'data-table-acl-remove' => 'manage_content',
         'data-rebuild'      => 'manage_data',
         'data-export'       => 'manage_data',
         'data-import'       => 'manage_data',
@@ -886,6 +893,9 @@ if ($token_auth) {
         'data-migrate'               => sub { $_[0]->{manage_data} },
         'data-row-save'       => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
         'data-table-save'            => sub { $_[0]->{manage_data} },
+        'data-table-acl-get'         => sub { $_[0]->{manage_content} },    # SM687
+        'data-table-acl-set'         => sub { $_[0]->{manage_content} },    # SM687
+        'data-table-acl-remove'      => sub { $_[0]->{manage_content} },    # SM687
         'data-rebuild'               => sub { $_[0]->{manage_data} },
         'data-export'                => sub { $_[0]->{manage_data} },
         'data-import'                => sub { $_[0]->{manage_data} },
@@ -1671,6 +1681,18 @@ elsif ( $action eq 'data-rows' ) {
         limit    => $params{limit},
         offset   => $params{offset},
     );
+}
+elsif ( $action eq 'data-table-acl-get' ) {
+    $result = Lazysite::Manager::Data::action_table_acl_get( $params{table}, $auth_user );
+}
+elsif ( $action eq 'data-table-acl-set' ) {
+    my $b = _json_body();
+    $result = Lazysite::Manager::Data::action_table_acl_set(
+        $b->{table} // $params{table}, $auth_user,
+        owner => $b->{owner}, read => $b->{read}, write => $b->{write} );
+}
+elsif ( $action eq 'data-table-acl-remove' ) {
+    $result = Lazysite::Manager::Data::action_table_acl_remove( $params{table}, $auth_user );
 }
 elsif ( $action eq 'data-table-save' ) {
     # The descriptor arrives as YAML TEXT in the body, not as a structure. The

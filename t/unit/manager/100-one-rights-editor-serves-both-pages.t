@@ -75,8 +75,18 @@ like( $F, qr/function buildRights\([^)]*\)\s*\{\s*return mgRights\.build\(/,
 like( $D, qr/mgRights\.build\(/,  'data.md renders the rule with the shared editor' );
 like( $D, qr/mgRights\.collect\(/, 'data.md reads the chips back out of it' );
 like( $D, qr/action=' \+ action/, 'data.md posts the rule back' );
-like( $D, qr/acl-remove/,
+like( $D, qr/data-table-acl-remove/,
     'data.md clears a rule rather than storing an empty one' );
+
+# SM687: the same CONTROL, not one that resembles it. An operator who has
+# learned the Files expander has learned this one, and a second implementation
+# would be a second thing to keep in step.
+like( $D, qr/class="mg-chev"/,   'the Data listing expands from the same chevron' );
+like( $D, qr/class="mg-perms-row"/,  '...into the same row' );
+like( $D, qr/class="mg-perms-card"/, '...holding the same card' );
+like( $D, qr/mg-rights-add/,     '...with the same principal picker' );
+unlike( $D, qr/table-acl-panel/,
+    'and the modal it replaced is gone, not left orphaned in the markup' );
 unlike( $D, qr/with acl-set/,
     'data.md no longer sends the operator to a command line' );
 unlike( $D, qr/window\.alert\(/, 'the rule is not shown in an alert box' );
@@ -86,8 +96,8 @@ unlike( $D, qr/window\.alert\(/, 'the rule is not shown in an alert box' );
 # manage_content. Those do not have to travel together, so the button was on
 # offer to people every call behind it would refuse.
 like( $D, qr/CAN_ACL/, 'data.md knows whether the reader may touch a rule' );
-like( $D, qr/CAN_ACL \? '<button[^']*openTableAcl/,
-    'the button renders only for someone who can finish what it starts' );
+like( $D, qr/CAN_ACL \? '<a href="#" class="mg-chev"[^']*toggleTableAcl/,
+    'the control renders only for someone who can finish what it starts' );
 like( $D, qr/action=whoami/, '...and it asks, rather than assuming' );
 
 done_testing();
