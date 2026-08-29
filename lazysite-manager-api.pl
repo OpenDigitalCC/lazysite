@@ -2006,7 +2006,7 @@ elsif ( $action eq 'analyse_visitors' ) {
         month  => $params{month},  index => $params{index},
         trails => $params{trails} );
 }
-elsif ( $action eq 'whoami' )                { $result = action_whoami( $auth_user, $params{plugins} ) }
+elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plugins} ) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350
 elsif ( $action eq 'preview-public' ) {                                            # SM282
@@ -3716,17 +3716,17 @@ sub action_whoami {
         # plugin is off is being told about its own capability, not about the
         # site's shape). Everyone else gets id, name, description and version.
         ( $skip_plugins ? () : ( plugins => [
-            map {
-                my $p = $_;
-                my @owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
-                    ? @{ $p->{owns}{capabilities} } : ();
-                my $may_see_state = $s->{manage_config} || ( grep { $s->{$_} } @owns );
-                my %out           = %$p;
-                delete @out{qw(_script config_file)};
-                delete $out{_enabled}                      unless $may_see_state;
-                delete @out{qw(config_schema config_keys)} unless $s->{manage_config};
-                \%out;
-            } @{ ( action_plugin_list() || {} )->{plugins} || [] }
+                    map {
+                        my $p = $_;
+                        my @owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
+                            ? @{ $p->{owns}{capabilities} } : ();
+                        my $may_see_state = $s->{manage_config} || ( grep { $s->{$_} } @owns );
+                        my %out           = %$p;
+                        delete @out{qw(_script config_file)};
+                        delete $out{_enabled}                      unless $may_see_state;
+                        delete @out{qw(config_schema config_keys)} unless $s->{manage_config};
+                        \%out;
+                    } @{ ( action_plugin_list() || {} )->{plugins} || [] }
         ] ) ),
         # SM072: site-level capabilities from enabled plugins (e.g. email-send).
         site_capabilities => site_capabilities(),
