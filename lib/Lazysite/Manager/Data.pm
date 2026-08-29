@@ -35,7 +35,8 @@ use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
 use File::Path ();
 use JSON::PP   ();
 
-our @EXPORT_OK = qw(action_table_acl_get action_table_acl_set
+our @EXPORT_OK = qw(row_write_refusal
+    action_table_acl_get action_table_acl_set
     action_table_acl_remove
     action_data_tables action_data_table action_data_rows
     action_data_migrate action_data_row_save action_data_row_delete
@@ -355,6 +356,68 @@ sub load_table_for_audit {
     my ($table) = @_;
     return undef unless defined $table && length $table;
     return eval { load_table( $DOCROOT, $table ) };
+}
+
+# SM682 FOLLOW-UP (round 2, measured on 0.11.5): THE ALLOW-LIST DECISION, IN
+# ONE PLACE, BECAUSE IT WAS IN ONLY ONE OF TWO.
+#
+# `writable_by` was enforced in lazysite-data.pl - the app-user data endpoint -
+# and NOT on the control-API `data-row-save`, which carried the capability gate
+# (manage_data OR write_data) and nothing else. The edge agent measured the
+# consequence with a write_data-only partner token: it wrote a table naming a
+# group it was not in, a table with an explicitly empty list, and a table with
+# no list at all. Three cases that must refuse, all wrote.
+#
+# That makes write_data an instance-wide table write on that surface, which is
+# exactly the grant it exists to avoid - the comment in lazysite-data.pl says so
+# in those words, on the branch that was never reached.
+#
+# SM578 is the standing warning and it applies verbatim: four package verbs each
+# carried their own copy of one rule and two were missed. So the rule lives HERE
+# and both surfaces ask it, rather than each holding its own copy of a table
+# that must agree.
+#
+#   manage_data + empty list -> writes (historic behaviour, unchanged)
+#   manage_data + named list -> writes only if named (narrowing)
+#   write_data  + empty list -> REFUSED (an allow-list naming nobody is closed)
+#   write_data  + named list -> writes only if named
+sub row_write_refusal {
+    my ( $table, $caps, $groups ) = @_;
+    $caps   = {} unless ref $caps eq 'HASH';
+    $groups = [] unless ref $groups eq 'ARRAY';
+
+    my $d = eval { load_table( $DOCROOT, $table ) };
+    my $wb
+        = ( ref $d eq 'HASH' && $d->{ok} && ref $d->{writable_by} eq 'ARRAY' )
+        ? $d->{writable_by}
+        : [];
+
+    my %in = map { $_ => 1 } @{$groups};
+    my $named = ( @{$wb} && grep { $in{$_} } @{$wb} ) ? 1 : 0;
+
+    if ( !$caps->{manage_data} ) {
+        return undef if $named;
+        return {
+            ok    => 0,
+            kind  => 'forbidden',
+            error => @{$wb}
+            ? ( "table '$table' is writable by: "
+                    . join( ', ', @{$wb} )
+                    . ' - this account is in none of them' )
+            : ( "table '$table' names no writable_by groups, so a write_data "
+                    . 'grant reaches no rows in it. A sysop can add your group '
+                    . "to the table's writable_by." ),
+        };
+    }
+
+    return undef unless @{$wb} && !$named;
+    return {
+        ok    => 0,
+        kind  => 'forbidden',
+        error => "table '$table' is writable by: "
+            . join( ', ', @{$wb} )
+            . ' - this account is in none of them',
+    };
 }
 
 # SM682: the two halves of "did this save change who may write the rows".

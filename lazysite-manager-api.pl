@@ -1762,16 +1762,53 @@ elsif ( $action eq 'data-row-save' ) {
     # the collision would be silent.
     my $req = _json_body();
     my $row = $req->{row};
+    my $tbl = $req->{table} // $params{table};
+
+    # SM682 round 2: HONOUR `writable_by` HERE TOO.
+    #
+    # This path carried the capability gate (manage_data OR write_data) and
+    # nothing else, while the allow-list lived only in lazysite-data.pl. The
+    # edge agent measured a write_data-only partner token writing a table
+    # naming a group it was not in, a table with an empty list, and a table
+    # with no list - three cases that must refuse. On this surface write_data
+    # was therefore an instance-wide table write, which is the grant it exists
+    # to avoid.
+    #
+    # One shared decision (Manager::Data::row_write_refusal), asked by both
+    # surfaces, rather than a second copy of a rule that must agree.
+    my $refusal = Lazysite::Manager::Data::row_write_refusal(
+        $tbl,
+        ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
+
+        # THE ACCOUNT'S REAL GROUPS, not @user_groups. That array is filled
+        # from X-Remote-Groups on the cookie path, and a header is the stale
+        # source (SM268: ask the store first). A write-authority decision must
+        # not be answerable by a header the account no longer justifies.
+        [ Lazysite::Auth::Acl::groups_for_user($auth_user) ],
+    );
+
     $result
-        = ref $row eq 'HASH'
+        = $refusal ? $refusal
+        : ref $row eq 'HASH'
         ? Lazysite::Manager::Data::action_data_row_save(
-        $req->{table} // $params{table},
-        $req->{key} // $params{key}, $row )
+        $tbl, $req->{key} // $params{key}, $row )
         : { ok => 0, error => 'row must be a JSON object' };
 }
 elsif ( $action eq 'data-row-delete' ) {
     my $req = _json_body();
-    $result = Lazysite::Manager::Data::action_data_row_delete(
+
+    # SM682 round 2: a delete is a row write. Same rule, same shared decision -
+    # gating the save and not the delete would leave write_data able to empty a
+    # table it may not add to.
+    my $del_refusal = Lazysite::Manager::Data::row_write_refusal(
+        ( $req->{table} // $params{table} ),
+        ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
+        [ Lazysite::Auth::Acl::groups_for_user($auth_user) ],
+    );
+    $result
+        = $del_refusal
+        ? $del_refusal
+        : Lazysite::Manager::Data::action_data_row_delete(
         $req->{table} // $params{table},
         $req->{key}   // $params{key} );
 }

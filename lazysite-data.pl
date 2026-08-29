@@ -221,49 +221,23 @@ sub main {
         #
         # An EMPTY list means "no extra narrowing", which is what every
         # existing descriptor has.
-        my $desc = Lazysite::Data::Tables::load_table( $docroot, $table );
-        my $wb
-            = ( $desc->{ok} && ref $desc->{writable_by} eq 'ARRAY' )
-            ? $desc->{writable_by}
-            : [];
-        # SM682: THE LIST MEANS DIFFERENT THINGS TO THE TWO CAPABILITIES.
+        # SM682 round 2: ONE DECISION, ASKED HERE AND BY THE CONTROL API.
         #
-        #   manage_data + empty -> writes (the historic behaviour, unchanged)
-        #   manage_data + list  -> writes only if named (narrowing, unchanged)
-        #   write_data  + empty -> REFUSED
-        #   write_data  + list  -> writes only if named
-        #
-        # For manage_data the list narrows. For write_data it is an ALLOW-LIST,
-        # and a table naming nobody is closed to it - otherwise write_data would
-        # be instance-wide write under a different name, which is precisely the
-        # grant it exists to avoid.
-        #
-        # This keeps the descriptor from being a grant: an agent editing
-        # `writable_by` cannot give write to anyone who does not already hold
-        # write_data, and that comes from the group store.
-        my %in    = map { $_ => 1 } @groups;
-        my $named = ( @{$wb} && grep { $in{$_} } @{$wb} ) ? 1 : 0;
-
-        if ( !$caps->{manage_data} ) {
-            unless ($named) {
-                return reply( 403,
-                    { ok => 0, kind => 'forbidden',
-                        error => @{$wb}
-                        ? ( "table '$table' is writable by: "
-                                . join( ', ', @{$wb} )
-                                . ' - this account is in none of them' )
-                        : ( "table '$table' names no writable_by groups, so a "
-                                . 'write_data grant reaches no rows in it. A '
-                                . 'sysop can add your group to the table\'s '
-                                . 'writable_by.' ) } );
+        # This logic used to live only here, and the control-API data-row-save
+        # carried the capability gate alone - so a write_data-only partner token
+        # wrote every table on that surface, which the edge agent measured. The
+        # rule now lives in Manager::Data::row_write_refusal and both surfaces
+        # ask it, per SM578: a rule copied into two places is a rule that will
+        # disagree with itself.
+        require Lazysite::Manager::Data;
+        {
+            no warnings 'once';
+            local $Lazysite::Manager::Data::DOCROOT = $docroot;
+            if ( my $refusal
+                = Lazysite::Manager::Data::row_write_refusal( $table, $caps, \@groups ) )
+            {
+                return reply( 403, $refusal );
             }
-        }
-        elsif ( @{$wb} && !$named ) {
-            return reply( 403,
-                { ok => 0, kind => 'forbidden',
-                    error => "table '$table' is writable by: "
-                        . join( ', ', @{$wb} )
-                        . ' - this account is in none of them' } );
         }
 
         my $len = $ENV{CONTENT_LENGTH} || 0;
