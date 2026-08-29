@@ -1536,14 +1536,22 @@ elsif ( $action eq 'brief-delete' ) {
     # argument is exactly the acl-set/SM306 shape, and the explicit check is
     # what t/lint/52 requires of a paired action whose MCP twin declares the
     # argument required.
-    if ( !( defined $params{path} && length $params{path} ) ) {
+    # SM696: accept the parts that CREATED the entry, as brief-append does.
+    my $dreq   = _json_body();
+    my %dtyped = map { $_ => ( $params{$_} // $dreq->{$_} ) }
+        grep { length( $params{$_} // $dreq->{$_} // '' ) } qw(type table key);
+
+    if ( !( defined $params{path} && length $params{path} ) && !$dtyped{type} ) {
         $result = { ok => 0,
             error => 'brief-delete needs an explicit path - the store entry '
-                . 'to remove, as briefs-list reports it.' };
+                . 'to remove, as briefs-list reports it - or the typed '
+                . 'reference it was added with (type=row&table=NAME&key=KEY).' };
     }
     else {
         _briefs();
-        $result = Lazysite::Manager::Briefs::action_brief_delete($path);
+        $result = Lazysite::Manager::Briefs::action_brief_delete(
+            ( defined $params{path} && length $params{path} ) ? $path : undef,
+            %dtyped );
     }
 }
 elsif ( $action eq 'data-tables' ) {

@@ -208,8 +208,8 @@ sub action_briefs_list {
                     my @st = stat $f;
                     push @briefs,
                         { path => "/$rel",
-                        size   => $st[7] // 0,
-                        mtime  => $st[9] // 0,
+                        size  => $st[7] // 0,
+                        mtime => $st[9] // 0,
                         # SM657: a typed entry has no content FILE, so the
                         # file test would call every one of them an orphan and
                         # invite an operator to clear briefs that are doing
@@ -231,7 +231,26 @@ sub action_briefs_list {
 
 sub action_brief_delete {
     if ( my $off = _gate() ) { return $off }
-    my ($path) = @_;
+    my ( $path, %o ) = @_;
+
+    # SM696: A TYPED ENTRY IS REMOVED THE WAY IT WAS ADDED.
+    #
+    # `brief-append` takes type=row&table=NAME&key=KEY; delete took only a path,
+    # so a caller holding the row's identity - the same three parts it used to
+    # write the brief - had to LIST first to learn a path it could compose. On a
+    # data-driven site rows are deleted constantly, which is the case SM657 was
+    # built for, so that round trip is the common path rather than an edge.
+    #
+    # Resolved through `typed_rel`, the same function the append uses, so the
+    # two verbs cannot disagree about where an entry lives. The path form still
+    # works: a caller that has one from `briefs-list` should not have to take it
+    # apart.
+    if ( !( defined $path && length $path ) && length( $o{type} // '' ) ) {
+        my $t = typed_rel(%o);
+        return { ok => 0, error => $t->{error} } if $t && $t->{error};
+        $path = $t->{rel} if $t && $t->{rel};
+    }
+
     return { ok => 0, error => 'path required' }
         unless defined $path && length $path;
     ( my $rel = $path ) =~ s{\A/+}{};

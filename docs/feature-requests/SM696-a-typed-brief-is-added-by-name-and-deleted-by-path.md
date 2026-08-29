@@ -4,8 +4,8 @@ title: A typed brief is added by name and deleted by path
 raised: 2026-08-29
 raised-by: edge-testing agent
 area: briefs
-status: candidate
-status-note: "OPEN, small. `brief-append` takes `type=row&table=NAME&key=KEY`; `brief-delete` refuses that and needs the explicit path as `briefs-list` reports it (`/.typed/row/<table>/<key>`), sent as POST. So an agent that knows exactly which row's brief it wants must LIST first to learn the path it already has the parts of. Either the delete should accept the same three parameters that created the entry, or the asymmetry should be documented where an agent will meet it - the field agent hit it and worked it out, which is one run spent on a round trip."
+status: shipped
+status-note: "SHIPPED in 0.11.7 as option 1: brief-delete now accepts type/table/key and resolves them through typed_rel, the same function the append uses, so the two verbs cannot hold separate ideas of where an entry lives. The path form is unchanged for callers holding one from briefs-list. The validation matters as much as the convenience - the parts COMPOSE a path, so a delete accepting a slash where the append refuses one would reach entries the append could never have written. ORIGINALLY: `brief-append` takes `type=row&table=NAME&key=KEY`; `brief-delete` refuses that and needs the explicit path as `briefs-list` reports it (`/.typed/row/<table>/<key>`), sent as POST. So an agent that knows exactly which row's brief it wants must LIST first to learn the path it already has the parts of. Either the delete should accept the same three parameters that created the entry, or the asymmetry should be documented where an agent will meet it - the field agent hit it and worked it out, which is one run spent on a round trip."
 ---
 
 # What was measured
