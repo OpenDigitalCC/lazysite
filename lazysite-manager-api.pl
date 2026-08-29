@@ -2006,7 +2006,7 @@ elsif ( $action eq 'analyse_visitors' ) {
         month  => $params{month},  index => $params{index},
         trails => $params{trails} );
 }
-elsif ( $action eq 'whoami' )                { $result = action_whoami($auth_user) }
+elsif ( $action eq 'whoami' )                { $result = action_whoami( $auth_user, $params{plugins} ) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350
 elsif ( $action eq 'preview-public' ) {                                            # SM282
@@ -3614,7 +3614,21 @@ sub _action_effects {
 }
 
 sub action_whoami {
-    my ($user) = @_;
+    my ( $user, $want_plugins ) = @_;
+
+    # SM671: THE PLUGIN INVENTORY IS OPT-OUT, NOT OPT-IN.
+    #
+    # `whoami` is what an agent calls to answer "who am I and what may I do",
+    # and the field reported the answer being mostly a plugin catalogue - paid
+    # on every preflight, and preflight is now standing practice for a testing
+    # agent, once per account per run.
+    #
+    # Omitting it by default would be the leaner answer and a BREAKING one: a
+    # client reading `plugins` would silently start seeing an empty list, and
+    # this release is bound for stable across a fleet. So the array stays, and
+    # `plugins=0` gets the lean response. Additive, nothing breaks, and the
+    # caller who cares about the cost is exactly the caller who will pass it.
+    my $skip_plugins = ( defined $want_plugins && $want_plugins =~ /\A(?:0|no|false|off)\z/i ) ? 1 : 0;
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
 
     my $allg   = ( users_api( { action => 'groups' } ) || {} )->{groups} || {};
@@ -3701,7 +3715,7 @@ sub action_whoami {
         # the plugin itself governs (a manage_briefs holder learning the briefs
         # plugin is off is being told about its own capability, not about the
         # site's shape). Everyone else gets id, name, description and version.
-        plugins => [
+        ( $skip_plugins ? () : ( plugins => [
             map {
                 my $p = $_;
                 my @owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
@@ -3713,7 +3727,7 @@ sub action_whoami {
                 delete @out{qw(config_schema config_keys)} unless $s->{manage_config};
                 \%out;
             } @{ ( action_plugin_list() || {} )->{plugins} || [] }
-        ],
+        ] ) ),
         # SM072: site-level capabilities from enabled plugins (e.g. email-send).
         site_capabilities => site_capabilities(),
         # SM179 P7: when the bound site is a language-set member, tell the agent

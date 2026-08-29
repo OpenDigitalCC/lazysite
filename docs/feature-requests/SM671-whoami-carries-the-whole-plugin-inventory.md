@@ -3,7 +3,7 @@ title: "SM671: `whoami` carries the whole plugin inventory, so the answer to 'wh
 subtitle: "Site agent, 2026-08-28, driving whoami over the control API with three live tokens: 'the output's bloated by a big plugins array - so probably offer the plugin array as an additional call'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 ---
 
 # What it carries
