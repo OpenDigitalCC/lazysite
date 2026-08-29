@@ -2314,6 +2314,18 @@ sub action_git_history {
     # failure mode is a confident wrong conclusion rather than an error.
     my $in_store = ( ( $r->{store} // '' ) eq 'private' ) ? 1 : 0;
 
+    # SM695: THE OTHER WAY A PATH IS NOT COVERED. SM286 said the right thing
+    # for the private store and nothing for the paths the REPOSITORY excludes -
+    # the auth store, the forms store, the sync token - which equally can never
+    # have a commit. The field measured lazysite/forms/submissions/contact
+    # answering `versioned:true` with an empty list, indistinguishable from a
+    # file awaiting its first commit.
+    #
+    # Two different reasons, two different sentences: a protected file's
+    # history ran up to the point it was protected, while an excluded path was
+    # never in the history at all.
+    my $excluded = Lazysite::Git::excluded_from_history( $r->{rel} ) ? 1 : 0;
+
     return {
         ok      => 1,
         path    => $r->{rel},
@@ -2325,17 +2337,23 @@ sub action_git_history {
         # it was returning two `entries` perfectly well. A wrong key and an
         # empty result are indistinguishable, so the failure mode is not an
         # error but a confident wrong conclusion.
-        versions => ( $enabled && !$in_store
+        versions => ( $enabled && !$in_store && !$excluded
             ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit )
             : [] ),
 
-        versioned => _git_bool( $enabled && !$in_store ),
-        ( $in_store
+        versioned => _git_bool( $enabled && !$in_store && !$excluded ),
+        (   $in_store
             ? ( notice => 'This content is protected, and protected content is'
                     . ' kept out of the version history - a history can be'
                     . ' pushed to a remote, and this content is not meant to'
                     . ' travel. Its history runs up to the point it was'
                     . ' protected.' )
+            : $excluded
+            ? ( notice => 'This path is kept out of the version history'
+                    . ' entirely - the auth and forms stores, runtime state and'
+                    . ' generated files are excluded because a history can be'
+                    . ' pushed to a remote. It has no versions because it was'
+                    . ' never recorded, not because recording failed.' )
             : ()
         ),
     };

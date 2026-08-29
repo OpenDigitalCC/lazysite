@@ -4,8 +4,8 @@ title: A token client cannot tell protected-by-design from merely unrecorded
 raised: 2026-08-29
 raised-by: edge-testing agent
 area: content-history
-status: candidate
-status-note: "OPEN. Measured on 0.11.5: for a file in the private store, both `git-history` (control API) and `list_versions` (MCP) return `{versions:[], versioned:true, enabled:true}` - byte-identical in shape to a normal file that simply has no commits yet. SM683 fixed the misleading wording, but only on the FILES PAGE, which applies the interpretation when it renders. Every other client sees an empty list and no reason, so a token client cannot distinguish 'this content is held outside version control on purpose' from 'recording may be failing' - which is the exact confusion SM683 exists to remove."
+status: shipped
+status-note: "SHIPPED in 0.11.7. The cause was narrower and more precise than first filed: SM286 already reported the private STORE correctly (versioned:0 with a notice), and said nothing for the paths the REPOSITORY excludes - the auth store, the forms store, runtime state, generated .html. lazysite/forms/submissions/ is in git @EXCLUDE, so it can never hold a commit, and it was answering versioned:true. Git::excluded_from_history now derives that from the same @EXCLUDE list git is given, and the two empty cases carry different sentences: a protected file's history ran up to the point it was protected, an excluded path was never recorded at all. ORIGINALLY FILED AS: Measured on 0.11.5: for a file in the private store, both `git-history` (control API) and `list_versions` (MCP) return `{versions:[], versioned:true, enabled:true}` - byte-identical in shape to a normal file that simply has no commits yet. SM683 fixed the misleading wording, but only on the FILES PAGE, which applies the interpretation when it renders. Every other client sees an empty list and no reason, so a token client cannot distinguish 'this content is held outside version control on purpose' from 'recording may be failing' - which is the exact confusion SM683 exists to remove."
 ---
 
 # What was measured

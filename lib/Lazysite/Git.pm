@@ -171,6 +171,46 @@ my @EXCLUDE = qw(
     .install-state*
 );
 
+# SM695: DOES THE REPOSITORY COVER THIS PATH AT ALL?
+#
+# @EXCLUDE is a security boundary, not a tidiness list: the auth store, the
+# forms store, the sync token. A path under one of these entries can never have
+# a commit, so an empty history for it is not "no versions yet" - it is "history
+# does not cover this file", which is a different answer to a different
+# question.
+#
+# The field measured the consequence: `lazysite/forms/submissions/contact`
+# answered `{versions:[], versioned:true}`, byte-identical to a normal file
+# awaiting its first commit. SM286 already says the right thing for the private
+# STORE; this is the same statement owed to the paths the repo excludes.
+#
+# Matched against the same list git is given, so the two cannot disagree - a
+# second hand-written list here would be the SM578 mistake again.
+sub excluded_from_history {
+    my ($rel) = @_;
+    return 0 unless defined $rel && length $rel;
+    $rel =~ s{^/+}{};
+    my $path = "/$rel";
+    for my $e (@EXCLUDE) {
+        if ( $e =~ m{/\z} ) {                    # a directory prefix
+            return 1 if index( $path, $e ) == 0;
+        }
+        elsif ( $e =~ /\A\*(.+)\z/ ) {            # a suffix glob, e.g. *.html
+            my $suffix = $1;
+            return 1 if length($path) >= length($suffix)
+                && substr( $path, -length($suffix) ) eq $suffix;
+        }
+        elsif ( $e =~ /\A(.+)\*\z/ ) {            # a prefix glob
+            my $pre = "/$1";
+            return 1 if index( $path, $pre ) == 0;
+        }
+        else {
+            return 1 if $path eq $e;
+        }
+    }
+    return 0;
+}
+
 # Initialise the repo and take the adoption commit ("adopt existing site") of
 # the whole versioned set. Does NOT touch lazysite.conf - the git-init manager
 # action owns the conf key. Returns { ok, commit } or { ok => 0, error }.
