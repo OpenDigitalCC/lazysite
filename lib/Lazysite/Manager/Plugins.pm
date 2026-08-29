@@ -267,6 +267,25 @@ sub _describe {
 # would go stale the first time a plugin gained a dependency.
 #
 # Returns a message naming what is missing, or undef.
+# Is a command available and executable?
+#
+# PATH is read from the environment the CGI actually runs under, with a
+# conservative fallback: a plugin check must not conclude "installed" because a
+# login shell would have found it while the web server would not.
+#
+# No shell is involved. The caller checks the name against a strict pattern and
+# this joins it to a directory, so nothing here reaches a command line.
+sub _bin_on_path {
+    my ($bin) = @_;
+    return 0 unless defined $bin && length $bin;
+    my $path = $ENV{PATH} // '/usr/local/bin:/usr/bin:/bin';
+    for my $dir ( split /:/, $path ) {
+        next unless length $dir;
+        return 1 if -x "$dir/$bin" && !-d _;
+    }
+    return 0;
+}
+
 sub _missing_deps {
     my ( $script, $full, $desc ) = @_;
     # TLO-1: the caller may already hold the resolved path and the descriptor.
@@ -278,7 +297,21 @@ sub _missing_deps {
     return undef unless ref $desc eq 'HASH' && ref $desc->{owns} eq 'HASH';
 
     my @deps = @{ $desc->{owns}{deps} || [] };
-    return undef unless @deps;
+
+    # SM694: A PLUGIN MAY DEPEND ON A PROGRAM, NOT ONLY A MODULE.
+    #
+    # `deps` is checked by `require`, which answers for Perl modules and
+    # nothing else. A plugin wrapping an external tool - pandoc, and whatever
+    # follows it - had no way to declare what it needs, so SM472's rule ("a
+    # plugin that cannot run is not enabled") could not protect it: the
+    # operator would get a plugin that enables and then fails at first use,
+    # which is the exact state SM472 exists to prevent.
+    #
+    # `bins` is that declaration for an executable. Same refusal, same shape of
+    # message, same Debian hint - an operator should not have to learn a second
+    # idiom because the missing thing happens to be a binary.
+    my @bins = @{ $desc->{owns}{bins} || [] };
+    return undef unless @deps || @bins;
 
     my @absent;
     for my $m (@deps) {
@@ -288,6 +321,17 @@ sub _missing_deps {
         ( my $pkg = lc $m ) =~ s{::}{-}g;
         push @absent, "$m (Debian: lib$pkg-perl)";
     }
+
+    for my $b (@bins) {
+        # A bare command name only - never a path, never a shell metacharacter.
+        # This value comes from a plugin descriptor, and a lookup that
+        # interpolated it would let a descriptor decide what gets executed.
+        # The module branch guards its names for the same reason.
+        next unless $b =~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
+        next if _bin_on_path($b);
+        push @absent, "$b (a program, not a Perl module - Debian: $b)";
+    }
+
     return undef unless @absent;
 
     return

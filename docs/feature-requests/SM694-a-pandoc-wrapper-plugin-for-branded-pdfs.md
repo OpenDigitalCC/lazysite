@@ -118,8 +118,12 @@ exist, the second is the one that needs the boundary work.
 
 # What to settle before building
 
-1. An executable form for a plugin's declared dependency (the only dependency
-   work needed - the refuse-and-name behaviour already exists).
+1. ~~An executable form for a plugin's declared dependency~~ **DONE in
+   0.11.7**: a plugin declares `bins` beside `deps`, and `_missing_deps`
+   refuses to enable it when one is not on PATH, naming it as "a program, not a
+   Perl module" so an operator does not go looking for a CPAN package. The
+   dependency work for this plugin is finished; what remains below is the
+   execution boundary.
 2. The bounded root for anything the Markdown may reference.
 3. The fixed argument list, with nothing caller-supplied reaching pandoc.
 4. Whether conversion is synchronous or queued, which depends on [[SM666]].
