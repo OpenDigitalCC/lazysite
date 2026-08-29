@@ -83,6 +83,9 @@ tone: medium
 `data-safety-export-restore` | manage_data | file (query_or_body), apply (query_or_body)
 `data-safety-exports` | manage_data |  
 `data-table` | manage_data | table (query)
+`data-table-acl-get` | manage_content | table (query)
+`data-table-acl-remove` | manage_content | table (query)
+`data-table-acl-set` | manage_content | table (query_or_body), owner (body), read (body), write (body)
 `data-table-drop` | housekeeping | table (query_or_body), confirm (body)
 `data-table-save` | manage_data | table (query_or_body), descriptor (body)
 `data-table-source` | manage_data | table (query)

@@ -251,8 +251,8 @@ my $auth_user;
 my $token_auth = 0;
 my %token_caps;
 my $REQUEST_CONFINED = 0;    # SM648: were this caller's scopes RESOLVED?
-my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
-                       # per-domain content-access checks in actions like
+my @REQUEST_SCOPES;          # SM158: the request's resolved dav_scopes (union), for
+                             # per-domain content-access checks in actions like
                              # site-backup-create/apply. Empty => unconfined sysop.
 {
     my $hdr = $ENV{HTTP_AUTHORIZATION} // '';
@@ -649,13 +649,13 @@ if ( !$token_auth ) {
             # SM447: the data plugin's capability. Reads and writes alike -
             # unlike content, a table row has no per-file ACL to self-authorize
             # against, so the capability IS the gate.
-        'data-tables'       => 'manage_data', 'data-table'      => 'manage_data',
-        'data-rows'         => 'manage_data', 'data-migrate'    => 'manage_data',
+        'data-tables' => 'manage_data', 'data-table'   => 'manage_data',
+        'data-rows'   => 'manage_data', 'data-migrate' => 'manage_data',
         # SM682: either capability reaches a ROW write; the descriptor's
         # writable_by then decides, and means different things to the two.
-        'data-row-save'     => 'manage_data|write_data',
-        'data-row-delete'   => 'manage_data|write_data',
-        'data-table-save'   => 'manage_data',
+        'data-row-save'   => 'manage_data|write_data',
+        'data-row-delete' => 'manage_data|write_data',
+        'data-table-save' => 'manage_data',
         # SM687: who may read a table is an access rule, so it takes the
         # capability that governs access rules - the same one a file's rule
         # takes - rather than manage_data alone. Reaching the Data page needs
@@ -663,11 +663,11 @@ if ( !$token_auth ) {
         'data-table-acl-get'    => 'manage_content',
         'data-table-acl-set'    => 'manage_content',
         'data-table-acl-remove' => 'manage_content',
-        'data-rebuild'      => 'manage_data',
-        'data-export'       => 'manage_data',
-        'data-import'       => 'manage_data',
-        'data-table-source' => 'manage_data',
-        'data-migrate-plan' => 'manage_data',
+        'data-rebuild'          => 'manage_data',
+        'data-export'           => 'manage_data',
+        'data-import'           => 'manage_data',
+        'data-table-source'     => 'manage_data',
+        'data-migrate-plan'     => 'manage_data',
         # SM591: the lateral tiers. The module capability carries the working
         # verbs; destroying inside the module is its own grant, assigned by
         # SM587's copy test - a drop mints a safety export, so it is the
@@ -889,12 +889,12 @@ if ($token_auth) {
             # with a manage_domains token, same as the CLI/UI.
             # SM447: token clients are the point of the data plugin - an agent
             # populating a table is the primary use, not an afterthought.
-        'data-tables'                => sub { $_[0]->{manage_data} },
-        'data-table'                 => sub { $_[0]->{manage_data} },
-        'data-rows'                  => sub { $_[0]->{manage_data} },
-        'data-migrate'               => sub { $_[0]->{manage_data} },
-        'data-row-save'       => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
-        'data-table-save'            => sub { $_[0]->{manage_data} },
+        'data-tables'     => sub { $_[0]->{manage_data} },
+        'data-table'      => sub { $_[0]->{manage_data} },
+        'data-rows'       => sub { $_[0]->{manage_data} },
+        'data-migrate'    => sub { $_[0]->{manage_data} },
+        'data-row-save'   => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
+        'data-table-save' => sub { $_[0]->{manage_data} },
         'data-table-acl-get'         => sub { $_[0]->{manage_content} },    # SM687
         'data-table-acl-set'         => sub { $_[0]->{manage_content} },    # SM687
         'data-table-acl-remove'      => sub { $_[0]->{manage_content} },    # SM687
@@ -1214,6 +1214,7 @@ my %skip = map { $_ => 1 } qw(
     site-backup-inspect protected-sections
     data-tables data-table data-rows
     data-table-source data-migrate-plan data-safety-exports data-safety-export-read
+    data-table-acl-get
     brief-read briefs-list notices layouts-manifest
 );
 
@@ -1688,10 +1689,10 @@ elsif ( $action eq 'data-table-acl-get' ) {
     $result = Lazysite::Manager::Data::action_table_acl_get( $params{table}, $auth_user );
 }
 elsif ( $action eq 'data-table-acl-set' ) {
-    my $b = _json_body();
+    my $req = _json_body();
     $result = Lazysite::Manager::Data::action_table_acl_set(
-        $b->{table} // $params{table}, $auth_user,
-        owner => $b->{owner}, read => $b->{read}, write => $b->{write} );
+        $req->{table} // $params{table}, $auth_user,
+        owner => $req->{owner}, read => $req->{read}, write => $req->{write} );
 }
 elsif ( $action eq 'data-table-acl-remove' ) {
     $result = Lazysite::Manager::Data::action_table_acl_remove( $params{table}, $auth_user );

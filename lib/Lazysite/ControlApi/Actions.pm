@@ -113,14 +113,14 @@ our %ACTION = (
     # rule rather than inventing a separate policy for tables - reaching the
     # Data page needs manage_data too, so in practice a person holds both.
     'data-table-acl-get' => { caps => ['manage_content'],
-        params => [ { name => 'table', in => 'query_or_body' } ] },
+        params => [ { name => 'table', in => 'query' } ] },
     'data-table-acl-set' => { caps => ['manage_content'],
         params => [ { name => 'table', in => 'query_or_body' },
             { name => 'owner', in => 'body' },
             { name => 'read',  in => 'body' },
             { name => 'write', in => 'body' } ] },
     'data-table-acl-remove' => { caps => ['manage_content'],
-        params => [ { name => 'table', in => 'query_or_body' } ] },
+        params => [ { name => 'table', in => 'query' } ] },
     'data-table-save' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query_or_body' }, { name => 'descriptor', in => 'body' } ] },
     'data-import' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'apply', in => 'query' } ] },
     'data-export' => { caps => ['manage_data'], params => [ { name => 'table', in => 'query' }, { name => 'format', in => 'query' } ] },

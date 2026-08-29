@@ -216,7 +216,8 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         form-submission-confirm form-submissions-delete-bulk
         data-migrate data-row-save data-row-delete data-table-save data-rebuild
         data-export data-import data-table-drop data-safety-export-delete data-safety-export-restore
-        brief-append brief-delete briefs-migrate);
+        brief-append brief-delete briefs-migrate
+        data-table-acl-set data-table-acl-remove);
 
     # SM447 note, OUTSIDE the qw() because qw() has no comments - a `#` inside
     # one is a literal word, and putting it there added twenty imaginary action
@@ -225,6 +226,11 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # about, and a row is site data somebody may later dispute. The three data
     # READS are in the %skip list instead - an audit of who LOOKED at a table
     # would bury the entries recording who changed one.
+    #
+    # SM687: the two table-ACL WRITERS are audited and the READ is skipped, on
+    # the same rule as acl-set/acl-remove for a file: changing who may read a
+    # table is exactly what an operator asks the trail about, and asking who
+    # LOOKED at a rule would bury the entries recording who changed one.
     #
     # DM-2's data-export is audited DESPITE being a read, and the distinction
     # is not "read versus write" but "a page versus the whole thing". Paging
