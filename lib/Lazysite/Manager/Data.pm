@@ -35,7 +35,7 @@ use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
 use File::Path ();
 use JSON::PP   ();
 
-our @EXPORT_OK = qw(row_write_refusal
+our @EXPORT_OK = qw(row_write_refusal groups_for
     action_table_acl_get action_table_acl_set
     action_table_acl_remove
     action_data_tables action_data_table action_data_rows
@@ -381,6 +381,25 @@ sub load_table_for_audit {
 #   manage_data + named list -> writes only if named (narrowing)
 #   write_data  + empty list -> REFUSED (an allow-list naming nobody is closed)
 #   write_data  + named list -> writes only if named
+# The account's REAL groups, for a write-authority decision.
+#
+# Wrapped here rather than called from the dispatch branch because t/lint/77
+# reads each plugin-owned action's branch and requires every module it names to
+# consult the plugin's enabled state. Naming Lazysite::Auth::Acl there pulled a
+# core module into that set - correctly refused, since Acl has no business
+# knowing about the data plugin. The dependency belongs on this side of the
+# boundary.
+#
+# Resolved from the ACCOUNT, not from X-Remote-Groups: that header is the stale
+# source (SM268 - ask the store first), and a write-authority decision must not
+# be answerable by a header the account no longer justifies.
+sub groups_for {
+    my ($user) = @_;
+    return [] unless defined $user && length $user;
+    require Lazysite::Auth::Acl;
+    return [ Lazysite::Auth::Acl::groups_for_user($user) ];
+}
+
 sub row_write_refusal {
     my ( $table, $caps, $groups ) = @_;
     $caps   = {} unless ref $caps eq 'HASH';

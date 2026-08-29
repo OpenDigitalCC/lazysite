@@ -1780,11 +1780,7 @@ elsif ( $action eq 'data-row-save' ) {
         $tbl,
         ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
 
-        # THE ACCOUNT'S REAL GROUPS, not @user_groups. That array is filled
-        # from X-Remote-Groups on the cookie path, and a header is the stale
-        # source (SM268: ask the store first). A write-authority decision must
-        # not be answerable by a header the account no longer justifies.
-        [ Lazysite::Auth::Acl::groups_for_user($auth_user) ],
+        Lazysite::Manager::Data::groups_for($auth_user),
     );
 
     $result
@@ -1803,7 +1799,7 @@ elsif ( $action eq 'data-row-delete' ) {
     my $del_refusal = Lazysite::Manager::Data::row_write_refusal(
         ( $req->{table} // $params{table} ),
         ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
-        [ Lazysite::Auth::Acl::groups_for_user($auth_user) ],
+        Lazysite::Manager::Data::groups_for($auth_user),
     );
     $result
         = $del_refusal
