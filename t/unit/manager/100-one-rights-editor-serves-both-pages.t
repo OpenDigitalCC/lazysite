@@ -96,8 +96,14 @@ unlike( $D, qr/window\.alert\(/, 'the rule is not shown in an alert box' );
 # manage_content. Those do not have to travel together, so the button was on
 # offer to people every call behind it would refuse.
 like( $D, qr/CAN_ACL/, 'data.md knows whether the reader may touch a rule' );
-like( $D, qr/CAN_ACL \? '<a href="#" class="mg-chev"[^']*toggleTableAcl/,
-    'the control renders only for someone who can finish what it starts' );
+# The EXPANDER is for everyone - it holds the exports, which belong to anyone
+# who can see this page. What is gated is the ACL FETCH inside it: acl-get needs
+# manage_content, and asking anyway would put a refusal in front of a
+# manage_data holder reaching for an export.
+like( $D, qr/if \(CAN_ACL\) loadTableAcl\(/,
+    'the rule is fetched only for a reader whose grant can read it' );
+unlike( $D, qr/CAN_ACL \? '<a href="#" class="mg-chev"/,
+    'but the expander itself is not gated - it carries the exports' );
 like( $D, qr/action=whoami/, '...and it asks, rather than assuming' );
 
 done_testing();

@@ -233,17 +233,28 @@ function loadTables() {
         html += '<div class="mg-file-item">'
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
+          // THE ROW HOLDS WHAT AN OPERATOR SCANS FOR; the expander holds what
+          // they act on for one table. Rows and Fields are how you READ a
+          // table and stay in the list; the exports take you out of it, and
+          // the access rule is one table's business. Same division the Files
+          // page makes - a row, and an expand card for the rest.
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
           + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
-          + (CAN_ACL ? '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="Who can read this table">&#9662;</a> ' : '')
+          + '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table">&#9662;</a>'
+          + '</span>'
+          + '</div>'
+          + '<div class="mg-perms-row" data-acl-for="' + escHtml(name) + '" style="display:none;">'
+          +   '<div class="mg-perms-card">'
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
-          + '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=json&amp;table=' + enc + '">JSON</a> '
-          + '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=csv&amp;table=' + enc + '">CSV</a></span>'
-          + '</div>'
-          + '<div class="mg-perms-row" data-acl-for="' + escHtml(name) + '" style="display:none;">'
-          +   '<div class="mg-perms-card"><div class="mg-acl-body">Loading&hellip;</div></div>'
+          +     '<div class="mg-perms-rights-label">Export</div>'
+          +     '<div class="mg-perms-actions">'
+          +       '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=json&amp;table=' + enc + '">JSON</a> '
+          +       '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=csv&amp;table=' + enc + '">CSV</a>'
+          +     '</div>'
+          +     '<div class="mg-acl-body"></div>'
+          +   '</div>'
           + '</div>';
       }
       list.innerHTML = html;
@@ -758,7 +769,13 @@ function toggleTableAcl(el, table) {
   card.style.display = '';
   el.innerHTML = '&#9652;';
   el.classList.add('mg-chev-open');
-  loadTableAcl(table, card);
+
+  // The exports are in the card markup already and belong to anyone who can
+  // see this page. The ACL is fetched only for a reader whose grant can
+  // actually read it: acl-get is gated on manage_content, and asking anyway
+  // would put a refusal in front of a manage_data holder who was reaching for
+  // an export - a correct refusal to a question they did not ask.
+  if (CAN_ACL) loadTableAcl(table, card);
 }
 
 // Read on OPEN rather than with the listing. A site with thirty tables would
@@ -767,6 +784,7 @@ function toggleTableAcl(el, table) {
 // the listing, what one row needs is fetched when that row is opened.
 function loadTableAcl(table, card) {
   var body = card.querySelector('.mg-acl-body');
+  if (!body) return;
   body.innerHTML = 'Loading&hellip;';
   fetch(API + '?action=data-table-acl-get&table=' + encodeURIComponent(table))
     .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
