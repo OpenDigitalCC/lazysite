@@ -2368,7 +2368,7 @@ sub action_git_history {
 # because a blocked path is blocked for its own reasons rather than the
 # caller's.
 sub action_git_history_summary {
-    my ($scopes) = @_;
+    my ( $scopes, $username ) = @_;
     require Lazysite::Git;
     my $enabled = Lazysite::Git::enabled($DOCROOT);
     my $s =
@@ -2376,10 +2376,30 @@ sub action_git_history_summary {
         ? Lazysite::Git::files_summary($DOCROOT)
         : { files => [], summary => { files => 0, revisions => 0 } };
 
+    # SM683 STEP ONE: THE ACL, WHICH THIS FILTER DID NOT APPLY.
+    #
+    # Its per-file siblings all resolve through _git_target, which ends in
+    # `_acl_denied($rel, 'read', $username)` - so a file's read rule already
+    # governs its history, its diffs and its restores. This one filtered by
+    # blocked paths and by SCOPE, and by no ACL at all, while carrying a WIDER
+    # gate than the readers it summarises (manage_content|manage_config, SM664).
+    # A wider gate with a narrower filter is the wrong way round.
+    #
+    # Harmless only while protected content is absent from the repository. The
+    # moment it is versioned - which the release manager has ruled must happen -
+    # this hands any manage_config holder in scope the PATH and REVISION COUNT
+    # of every protected file. Not the bytes: the existence, and the rhythm of
+    # its editing, which for content whose protection is the point is not a
+    # small leak.
+    #
+    # So the reader is closed FIRST, before anything is moved into version
+    # control. Doing it the other way round opens a hole and closes it
+    # afterwards.
     my @files = grep {
         !is_blocked_path( $_->{path} )
             && !is_blocked_config( $_->{path} )
             && !outside_all_scopes( $scopes, $_->{path} )
+            && _acl_allows( $_->{path}, 'read', $username )
     } @{ $s->{files} || [] };
 
     # Recount, or the totals would describe a set the caller cannot see - a

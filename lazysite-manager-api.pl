@@ -1368,7 +1368,7 @@ elsif ( $action eq 'git-history-summary' ) {
     # SM419: the summary is scope-confined like every per-file history op.
     # It carries no path, so _confine_scope never sees it - the scopes have to
     # be handed over explicitly, as action_protected_sections already does.
-    $result = action_git_history_summary( \@REQUEST_SCOPES );
+    $result = action_git_history_summary( \@REQUEST_SCOPES, $auth_user );
 }
 elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-restore' ) { $result = action_git_restore( $path, $auth_user, $params{sha} ) }

@@ -77,8 +77,15 @@ surface.
 
 So the sequence is not negotiable:
 
-1. Give `action_git_history_summary` the ACL filter its per-file siblings
-   already have - `_acl_denied( $path, 'read', $username )` per entry, before
+1. **DONE in 0.11.6.** `action_git_history_summary` now applies
+   `_acl_allows($path, 'read', $username)` per entry, before the recount, so the
+   totals keep describing the set the caller can see. Sabotage-verified three
+   ways: removing the filter, counting revisions from the unfiltered set, and
+   over-filtering to nothing each fail
+   `t/unit/manager/103-the-history-summary-applies-the-acl.t`.
+
+   The original wording of this step, kept because it is the rule: give it the
+   ACL filter its per-file siblings - `_acl_denied( $path, 'read', $username )` per entry, before
    the recount, so the totals keep describing the set the caller can see. That
    is the rule the summary's own comment already states ("a number that
    disagrees with its own list is its own disclosure"); it simply applies it to
