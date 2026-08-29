@@ -75,8 +75,17 @@ does not reproduce this, because the mispairing needs enough interleaved blocks
 and comments to reach past one block to a later `-->`. That is why the defect
 survived every minimal test anyone would have written.
 
-What is still missing is the general form: a lint that renders EVERY manager
-page and asserts that every `id` its script fetches by name reaches the output.
+**DONE in 0.11.6+**: `t/lint/94-a-page-keeps-the-elements-its-script-fetches.t`
+renders every manager page and asserts that every `id` the page declares AND its
+own script fetches by name survives. The dependency list is derived from the
+`getElementById` calls rather than maintained by hand, so it cannot drift from
+what the page actually needs.
+
+Verified against the defect it exists for: removing the comment protection makes
+it fail and name `import-panel`, `import-file` and the rest of what the Data
+page was losing. What was still missing was the general form: a lint that
+renders EVERY manager page and asserts that every `id` its script fetches by
+name reaches the output.
 That would have caught this, and would catch the next thing that eats markup
 for a different reason. Filed as the remaining work here rather than built,
 because it needs a way to enumerate the ids a page's script actually depends on.
