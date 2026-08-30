@@ -29,8 +29,8 @@ search: false
 
 <p style="font-size:0.85em;color:#888;margin:0 0 12px;"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</p>
 
-<div class="mg-file-list" id="table-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
+<div class="mg-list" id="table-list">
+<div class="mg-row"><span class="mg-file-name">Loading...</span></div>
 </div>
 
 <!-- SM680: the rows panel is a MODAL, not a block below the listing.
@@ -193,7 +193,7 @@ function loadTables() {
         /* The plugin being disabled is the ordinary case, not a fault: it ships
            off and an operator turns it on. Say which it is rather than showing
            a bare error. */
-        list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name">'
+        list.innerHTML = '<div class="mg-row"><span class="mg-file-name">'
           + escHtml(data.error || 'could not read the tables') + '</span></div>';
         document.getElementById('table-count').textContent = '';
         return;
@@ -203,7 +203,7 @@ function loadTables() {
         tables.length === 1 ? '1 table' : tables.length + ' tables';
 
       if (!tables.length) {
-        list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name">'
+        list.innerHTML = '<div class="mg-row"><span class="mg-file-name">'
           + 'No tables are declared yet. An agent or the API declares one with '
           + '<code>data-table-save</code>.</span></div>';
         return;
@@ -230,7 +230,7 @@ function loadTables() {
         // opening every one.
         bits.push(t.has_acl ? 'access rule set' : 'no access rule');
         var enc = encodeURIComponent(name);
-        html += '<div class="mg-file-item">'
+        html += '<div class="mg-row">'
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '
           + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
           // THE ROW HOLDS WHAT AN OPERATOR SCANS FOR; the expander holds what
@@ -243,8 +243,8 @@ function loadTables() {
           + '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table">&#9662;</a>'
           + '</span>'
           + '</div>'
-          + '<div class="mg-perms-row" data-acl-for="' + escHtml(name) + '" style="display:none;">'
-          +   '<div class="mg-perms-card">'
+          + '<div class="mg-expand" data-acl-for="' + escHtml(name) + '" style="display:none;">'
+          +   '<div class="mg-expand">'
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
@@ -743,21 +743,21 @@ function closeRows() {
 }
 
 // SM687/SM678: WHO CAN READ THIS TABLE, in an expander built from the same
-// parts as the Files page - the same chevron, the same `mg-perms-card`, the
+// parts as the Files page - the same chevron, the same `mg-expand`, the
 // same `mgRights` chips and the same principal picker. A table's access is an
 // ACL like a file's, so the operator who has learned one control has learned
 // both; a second control that merely resembled the first would be a second
 // thing to learn and a second thing to keep in step.
 function toggleTableAcl(el, table) {
-  var row  = el.closest('.mg-file-item');
+  var row  = el.closest('.mg-row');
   var card = row && row.nextElementSibling;
-  if (!card || card.className.indexOf('mg-perms-row') < 0) return;
+  if (!card || card.className.indexOf('mg-expand') < 0) return;
 
   var willOpen = card.style.display === 'none';
 
   // One at a time, as on the Files page: two open cards invite an edit in the
   // one that is not being looked at.
-  var all = document.querySelectorAll('.mg-perms-row');
+  var all = document.querySelectorAll('.mg-expand');
   for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
   var chevs = document.querySelectorAll('.mg-chev');
   for (var j = 0; j < chevs.length; j++) {
@@ -844,7 +844,7 @@ function addTableAclPrincipal(sel) {
   var name = sel.value;
   sel.selectedIndex = 0;
   if (!name) return;
-  var card = sel.closest('.mg-perms-card');
+  var card = sel.closest('.mg-expand');
   var list = card && card.querySelector('.mg-rights');
   if (!list) return;
   // SM462: a new principal gets BOTH rights. read-on/write-off stores an empty
@@ -856,7 +856,7 @@ function addTableAclPrincipal(sel) {
 }
 
 function saveTableAcl(btn, table) {
-  var card  = btn.closest('.mg-perms-card');
+  var card  = btn.closest('.mg-expand');
   var owner = (card.querySelector('.mg-perm-owner') || {}).value || '';
   var got   = mgRights.collect(card.querySelector('.mg-rights'));
 
@@ -876,7 +876,7 @@ function saveTableAcl(btn, table) {
       showStatus(clearing
         ? 'Rule cleared for "' + table + '".'
         : 'Who can read "' + table + '" updated.');
-      loadTableAcl(table, card.closest('.mg-perms-row'));
+      loadTableAcl(table, card.closest('.mg-expand'));
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

@@ -19,7 +19,7 @@ search: false
 <div class="mg-toolbar" style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
 <button class="mg-btn" id="add-toggle" onclick="toggleAdd()">+ Add menu item</button>
 <span style="flex:1;"></span>
-<span id="nav-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
+<span id="nav-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
 <button class="mg-btn mg-btn-primary" onclick="saveNav()">Save</button>
 <button class="mg-btn" onclick="loadNav()">Reload</button>
 </div>

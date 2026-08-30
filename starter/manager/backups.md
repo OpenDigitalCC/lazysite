@@ -27,8 +27,8 @@ snapshot first, and clears the affected page caches.
 <div style="margin-bottom:12px;">
 <button class="mg-btn mg-btn-primary" onclick="createBackup(this)">Create content backup</button>
 </div>
-<div class="mg-file-list" id="content-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
+<div class="mg-list" id="content-list">
+<div class="mg-row"><span class="mg-file-name">Loading&hellip;</span></div>
 </div>
 </div>
 </div>
@@ -53,8 +53,8 @@ and <b>Apply</b> it to a domain there.
 <input type="file" accept=".tar.gz,application/gzip" style="display:none;" onchange="uploadPackage(this)">
 </label>
 </div>
-<div class="mg-file-list" id="package-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
+<div class="mg-list" id="package-list">
+<div class="mg-row"><span class="mg-file-name">Loading&hellip;</span></div>
 </div>
 </div>
 </div>
@@ -76,8 +76,8 @@ backup effectively holds the site's secrets &mdash; treat it accordingly.</p>
 <div style="margin-bottom:12px;">
 <button class="mg-btn mg-btn-primary" onclick="createFullBackup(this)">Create full-system backup</button>
 </div>
-<div class="mg-file-list" id="full-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
+<div class="mg-list" id="full-list">
+<div class="mg-row"><span class="mg-file-name">Loading&hellip;</span></div>
 </div>
 </div>
 </div>
@@ -135,16 +135,16 @@ function renderBackups(list, elId, restorable) {
   var el = document.getElementById(elId);
   if (!el) return;
   if (!list.length) {
-    el.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No backups yet</span></div>';
+    el.innerHTML = '<div class="mg-row"><span class="mg-file-name mg-empty">No backups yet</span></div>';
     return;
   }
   var html = '';
   for (var i = 0; i < list.length; i++) {
     var b = list[i];
-    var badge = b.kind === 'preinstall' ? 'mg-badge-success' : 'mg-badge-muted';
-    html += '<div class="mg-file-item">';
+    var badge = b.kind === 'preinstall' ? 'mg-tag mg-tag-on' : 'mg-tag mg-tag-off';
+    html += '<div class="mg-row">';
     html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(b.name) + '</span>';
-    html += '<span class="mg-badge ' + badge + '">' + escHtml(b.kind) + '</span>';
+    html += '<span class="mg-tag ' + badge + '">' + escHtml(b.kind) + '</span>';
     html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
     html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
     if (restorable) {
@@ -250,7 +250,7 @@ function renderPackages(list) {
   var el = document.getElementById('package-list');
   if (!el) return;
   if (!list.length) {
-    el.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No site packages yet &mdash; create one from Domains &rarr; Export site.</span></div>';
+    el.innerHTML = '<div class="mg-row"><span class="mg-file-name mg-empty">No site packages yet &mdash; create one from Domains &rarr; Export site.</span></div>';
     return;
   }
   var html = '';
@@ -259,14 +259,14 @@ function renderPackages(list) {
     var host = pkgHost(b.name);
     var uploaded = host === 'uploaded';
     var id = 'pkg-' + i;
-    html += '<div class="mg-file-item" style="flex-wrap:wrap;">';
+    html += '<div class="mg-row" style="flex-wrap:wrap;">';
     html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(b.name) + '</span>';
-    html += '<span class="mg-badge ' + (uploaded ? 'mg-badge-muted' : 'mg-badge-success') + '">' + (uploaded ? 'uploaded' : escHtml(host || 'site')) + '</span>';
+    html += '<span class="mg-tag ' + (uploaded ? 'mg-tag mg-tag-off' : 'mg-tag mg-tag-on') + '">' + (uploaded ? 'uploaded' : escHtml(host || 'site')) + '</span>';
     html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
     html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
     html += '<button class="mg-btn mg-btn-sm" onclick="showApply(\'' + escHtml(b.name) + '\', \'' + id + '\')">Apply&hellip;</button>';
     html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deletePackage(\'' + escHtml(b.name) + '\', this)">Delete</button>';
-    html += '<div class="mg-apply-panel" id="' + id + '" style="display:none;width:100%;margin-top:8px;"></div>';
+    html += '<div class="mg-expand" id="' + id + '" style="display:none;width:100%;margin-top:8px;"></div>';
     html += '</div>';
   }
   el.innerHTML = html;
@@ -419,7 +419,7 @@ function refreshApplyPreview(panelId) {
       if (chk.tls && chk.tls.ok === false) probs.push('no valid TLS certificate');
       if (chk.vhost && chk.vhost.ok === false) probs.push('no vhost is serving it');
       h += probs.length
-        ? '<div class="mg-apply-warn">&#9888; ' + escHtml(host) + ': ' + escHtml(probs.join('; '))
+        ? '<div class="mg-note mg-note-warn">&#9888; ' + escHtml(host) + ': ' + escHtml(probs.join('; '))
           + '. The apply will still work &mdash; the content simply is not reachable yet.</div>'
         : '<div class="mg-apply-ok">&#10003; ' + escHtml(host) + ' is resolving and served.</div>';
     }

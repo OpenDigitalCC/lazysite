@@ -16,8 +16,8 @@ search: false
 
 <div class="mg-status" id="cache-stats"></div>
 
-<div class="mg-file-list" id="cache-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
+<div class="mg-list" id="cache-list">
+<div class="mg-row"><span class="mg-file-name">Loading...</span></div>
 </div>
 
 <script>
@@ -74,7 +74,7 @@ function renderStats(data) {
 function renderCache(files) {
   var list = document.getElementById('cache-list');
   if (files.length === 0) {
-    list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No cached files</span></div>';
+    list.innerHTML = '<div class="mg-row"><span class="mg-file-name mg-empty">No cached files</span></div>';
     return;
   }
 
@@ -85,16 +85,16 @@ function renderCache(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     var age = now - (f.mtime || 0);
-    var statusClass = f.has_source ? 'mg-badge-success' : 'mg-badge-muted';
+    var statusClass = f.has_source ? 'mg-tag mg-tag-on' : 'mg-tag mg-tag-off';
     var statusLabel = f.has_source ? 'Has source' : 'Orphan';
     // Per-alias-host renders are tagged with their host (subdomain); primary
     // renders have no host. hostArg passes it through to a surgical invalidate.
-    var hostTag = f.host ? '<span class="mg-badge mg-badge-muted" title="cached render for the ' + escHtml(f.host) + ' host">' + escHtml(f.host) + '</span>' : '';
+    var hostTag = f.host ? '<span class="mg-tag mg-tag mg-tag-off" title="cached render for the ' + escHtml(f.host) + ' host">' + escHtml(f.host) + '</span>' : '';
     var hostArg = f.host ? ",'" + escHtml(f.host) + "'" : '';
-    html += '<div class="mg-file-item">';
+    html += '<div class="mg-row">';
     html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(f.path) + '</span>';
     html += hostTag;
-    html += '<span class="mg-badge ' + statusClass + '">' + statusLabel + '</span>';
+    html += '<span class="mg-tag ' + statusClass + '">' + statusLabel + '</span>';
     html += '<span class="mg-file-meta">' + formatAge(age) + ' ago</span>';
     html += '<button class="mg-btn mg-btn-sm" onclick="invalidate(\'' + escHtml(f.path) + '\'' + hostArg + ')">Invalidate</button>';
     html += '</div>';

@@ -40,7 +40,7 @@ search: false
 
 </div>
 
-<table class="mg-file-table">
+<table class="mg-table">
 <thead>
 <tr>
 <th class="mg-col-name mg-sortable" onclick="setSort('name')">Name <span class="mg-sort-ind" data-col="name"></span></th>
@@ -214,7 +214,7 @@ function updateHereProtection() {
     ? 'Hidden outright: a visitor gets 404, and it is absent from the sitemap, feeds and every listing.'
     : 'Visible only to the people named in the read list; everyone else is sent to sign in.';
 
-  var h = '<div class="mg-protect-here">'
+  var h = '<div class="mg-note mg-note-info">'
         + '<span class="mg-protect-lock">&#128274;</span> ';
   if (p.via === '') {
     h += '<strong>This folder is protected.</strong> ' + escHtml(what);
@@ -380,7 +380,7 @@ function nameChipHtml(name) {
 function addSectionPrincipal(sel) {
   var name = sel.value;
   if (!name) return;
-  var card = sel.closest('.mg-perms-card');
+  var card = sel.closest('.mg-expand');
   var list = card && card.querySelector('.mg-sec-read');
   if (!list) return;
   if (!list.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]')) {
@@ -554,8 +554,8 @@ function protectionBlock(f) {
         : '<div class="mg-perms-hint mg-muted">Inherited from <code>/' + escHtml(p.via) + '</code> - '
           + 'this row is covered because that folder is. Change it there, not here.</div>' );
   var badge = draft
-    ? '<span class="mg-alias-badge mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
-    : '<span class="mg-alias-badge" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
+    ? '<span class="mg-tag mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
+    : '<span class="mg-tag" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
   var who = (s.read && s.read.length)
     ? escHtml(s.read.join(', '))
     : '<span class="mg-muted">nobody but the owner</span>';
@@ -589,8 +589,8 @@ function protectionBlock(f) {
 
 // The per-file config card (collapsed by default; one open at a time).
 function permsCard(f) {
-  return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
-    + '<div class="mg-perms-card">'
+  return '<tr class="mg-expand" style="display:none"><td colspan="5" class="mg-perms-cell">'
+    + '<div class="mg-expand">'
     +   '<div class="mg-perms-head">'
     +     '<span class="mg-perms-title">' + escHtml(f.name) + '</span>'
     +     '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(f.path) + '" title="This file\'s audit history">&#128340; Audit</a>'
@@ -741,8 +741,8 @@ function folderCard(f) {
   // is the gap SM181 named and SM267 was carved out to close. Listing something
   // an operator cannot create is half a feature.
   var p = escHtml(f.path);
-  return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
-    + '<div class="mg-perms-card">'
+  return '<tr class="mg-expand" style="display:none"><td colspan="5" class="mg-perms-cell">'
+    + '<div class="mg-expand">'
     +   '<div class="mg-perms-head"><span class="mg-perms-title">' + escHtml(f.name) + '/</span></div>'
     +   '<div class="mg-perms-hint">Folder actions. Delete removes an <b>empty</b> folder; empty its contents first otherwise.</div>'
     +   '<div class="mg-perms-actions">'
@@ -757,7 +757,7 @@ function folderCard(f) {
     +     '<label><input type="radio" name="pol-' + p + '" value="draft"> '
     +       '<b>Draft</b> &mdash; hidden completely: 404 to the public, and absent from the sitemap, feeds and search</label>'
     +   '</div>'
-    +   '<div class="mg-form-row"><label>Who may read it</label>'
+    +   '<div class="mg-field"><label>Who may read it</label>'
     // SM305: the same picker the per-file card uses. This was a bare text box
     // taking a comma-separated list, which is the one control on the page that
     // accepted a name nobody had - and it governed who may read protected
@@ -782,7 +782,7 @@ function folderCard(f) {
 // acl-set the per-file editor uses - one writer, so a section and a file are
 // governed by the same store and the same rules.
 function protectSection(btn, path) {
-  var card  = btn.closest('.mg-perms-card');
+  var card  = btn.closest('.mg-expand');
   var pol   = card.querySelector('input[name="pol-' + path + '"]:checked');
   var read  = card.querySelector('.mg-sec-read');
   var draft = pol && pol.value === 'draft';
@@ -850,9 +850,9 @@ function gotoPage(n) { filePage = n; paintFiles(); window.scrollTo(0, 0); }
 function togglePerms(el) {
   var row = el.closest('tr');
   var card = row.nextElementSibling;
-  if (!card || card.className.indexOf('mg-perms-row') < 0) return;
+  if (!card || card.className.indexOf('mg-expand') < 0) return;
   var willOpen = card.style.display === 'none';
-  var allCards = document.querySelectorAll('.mg-perms-row');
+  var allCards = document.querySelectorAll('.mg-expand');
   for (var i = 0; i < allCards.length; i++) allCards[i].style.display = 'none';
   var allChev = document.querySelectorAll('.mg-chev');
   for (var j = 0; j < allChev.length; j++) { allChev[j].innerHTML = '&#9662;'; allChev[j].classList.remove('mg-chev-open'); }
@@ -1047,7 +1047,7 @@ function newFolder() {
 
 function deleteSelected() {
   var checks = document.querySelectorAll(
-    '.mg-file-table tbody tr:not([style*="display: none"]) .mg-file-select:checked');
+    '.mg-table tbody tr:not([style*="display: none"]) .mg-file-select:checked');
   if (!checks.length) return;
   var paths = [];
   for (var i = 0; i < checks.length; i++) paths.push(checks[i].value);
@@ -1130,7 +1130,7 @@ function handleSkipped(skipped, dir, files) {
 
 function zipSelected() {
   var checks = document.querySelectorAll(
-    '.mg-file-table tbody tr:not([style*="display: none"]) .mg-file-select:checked');
+    '.mg-table tbody tr:not([style*="display: none"]) .mg-file-select:checked');
   var qs = [];
   for (var i = 0; i < checks.length; i++) {
     if (checks[i].getAttribute('data-kind') === 'file') qs.push('paths=' + encodeURIComponent(checks[i].value));
@@ -1141,7 +1141,7 @@ function zipSelected() {
 
 function visibleFileChecks() {
   return document.querySelectorAll(
-    '.mg-file-table tbody tr:not([style*="display: none"]) .mg-file-select');
+    '.mg-table tbody tr:not([style*="display: none"]) .mg-file-select');
 }
 
 function toggleSelectAll(src) {
@@ -1331,13 +1331,13 @@ function loadAliasesInto() {
         return;
       }
       var html = intro
-        + '<table class="mg-file-table"><thead><tr><th>Alias</th>'
+        + '<table class="mg-table"><thead><tr><th>Alias</th>'
         + '<th>Redirects to</th><th>Type</th></tr></thead><tbody>';
       for (var i = 0; i < rows.length; i++) {
         var a = rows[i];
         var badge = a.code === 302
-          ? '<span class="mg-alias-badge mg-alias-302" title="Temporary redirect (aliases_temp:)">302</span>'
-          : '<span class="mg-alias-badge" title="Permanent redirect (aliases:)">301</span>';
+          ? '<span class="mg-tag mg-alias-302" title="Temporary redirect (aliases_temp:)">302</span>'
+          : '<span class="mg-tag" title="Permanent redirect (aliases:)">301</span>';
         html += '<tr><td>' + escHtml(a.alias) + '</td>'
               + '<td><a href="' + escHtml(a.target) + '">' + escHtml(a.target) + '</a></td>'
               + '<td>' + badge + '</td></tr>';
@@ -1468,7 +1468,7 @@ function renderHistory(panel, entries, protectedRow) {
       : '<p class="mg-muted">No versions recorded for this file. If it was changed after history was enabled, version recording may be failing &mdash; run <code>lazysite check</code>.</p>';
     return;
   }
-  var html = '<table class="mg-file-table"><thead><tr>'
+  var html = '<table class="mg-table"><thead><tr>'
            + '<th>When</th><th>Who</th><th>Change</th><th>Size</th><th></th></tr></thead><tbody>';
   for (var i = 0; i < entries.length; i++) {
     var e = entries[i];

@@ -113,7 +113,7 @@ function renderHistoryOverview() {
   }
   var html = '<p class="mg-muted">' + s.files + ' file' + (s.files === 1 ? '' : 's')
            + ' under history, ' + s.revisions + ' revision' + (s.revisions === 1 ? '' : 's') + ' in total.</p>'
-           + '<table class="mg-file-table"><thead><tr>'
+           + '<table class="mg-table"><thead><tr>'
            + '<th class="mg-sortable" onclick="sortHistoryOverview(\'path\')">Path</th>'
            + '<th class="mg-sortable" onclick="sortHistoryOverview(\'revisions\')">Revisions</th>'
            + '<th class="mg-sortable" onclick="sortHistoryOverview(\'first\')">First</th>'
@@ -240,7 +240,7 @@ function renderPlugins(plugins) {
 // that has since been destroyed.
 function renderPluginCard(plugin) {
   var hasConfig = !!(plugin.config_schema && plugin.config_schema.length);
-  var html = '<div class="mg-plugin-card mg-plugin-row" id="plugin-' + esc(plugin.id) + '">';
+  var html = '<div class="mg-plugin-card mg-row" id="plugin-' + esc(plugin.id) + '">';
   html += '<div class="mg-plugin-title">' + esc(plugin.name) + '</div>';
   html += '<div class="mg-plugin-desc">' + esc(plugin.description) + '</div>';
   if (plugin.actions && plugin.actions.length) {
@@ -318,7 +318,7 @@ function renderForm(plugin, values) {
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';
-    html += '<div class="mg-form-row mg-config-field"'+da+'>';
+    html += '<div class="mg-field mg-config-field"'+da+'>';
     html += '<label>' + esc(f.label) + '</label>';
     if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
@@ -333,15 +333,15 @@ function renderForm(plugin, values) {
       // credential fields with the operator's own saved site login.
       html += '<input type="password" name="'+f.key+'" placeholder="leave blank to keep" autocomplete="new-password">';
     } else if (f.type === 'readonly') {
-      html += '<span class="mg-readonly">'+esc(v)+'</span>';
+      html += '<span class="mg-readonly-value">'+esc(v)+'</span>';
     } else {
       var t = f.type==='email'?'email':f.type==='number'?'number':'text';
       html += '<input type="'+t+'" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+' autocomplete="off">';
     }
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
-       +  ' <span id="dirty-' + plugin.id + '" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
+  html += '<div class="mg-field"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
+       +  ' <span id="dirty-' + plugin.id + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
   return html;
 }
 
@@ -357,7 +357,7 @@ function applyShowWhen(container) {
     if (!ctrl) { f.style.display = 'none'; continue; }
     var cur = ctrl.type === 'checkbox' ? (ctrl.checked ? 'true' : 'false') : ctrl.value;
     var show = vals.indexOf(cur) !== -1;
-    f.style.display = show ? (f.classList.contains('mg-form-row') ? 'flex' : 'block') : 'none';
+    f.style.display = show ? (f.classList.contains('mg-field') ? 'flex' : 'block') : 'none';
   }
 }
 
@@ -655,7 +655,7 @@ function renderHandlerList() {
       html += '<div class="mg-handler-item" id="handler-' + h.id + '">';
       html += '<div class="mg-handler-item-header">';
       html += '<span class="mg-handler-name">' + esc(h.name || h.id) + '</span>';
-      html += '<span class="mg-badge ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
+      html += '<span class="mg-tag ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
       // File-storage handlers: inline "View submissions" slot. Populated
       // asynchronously once we know whether the configured directory
       // exists on disk. data-submissions-for="<id>" lets one fetch
@@ -998,22 +998,22 @@ function renderStep2Form(type, name, existingData, isEdit) {
   var html = '<div oninput="markHandlerDirty(\'' + esc(fid) + '\')" onchange="markHandlerDirty(\'' + esc(fid) + '\')">';
 
   if (isEdit) {
-    html += '<div class="mg-form-row">';
+    html += '<div class="mg-field">';
     html += '<label>ID</label>';
-    html += '<span class="mg-readonly">' + esc(d.id || '') + '</span>';
+    html += '<span class="mg-readonly-value">' + esc(d.id || '') + '</span>';
     html += '</div>';
-    html += '<div class="mg-form-row">';
+    html += '<div class="mg-field">';
     html += '<label>Type</label>';
-    html += '<span class="mg-readonly">' + esc(typeLabelFor(type)) + '</span>';
+    html += '<span class="mg-readonly-value">' + esc(typeLabelFor(type)) + '</span>';
     html += '</div>';
   }
 
-  html += '<div class="mg-wizard-section-label">Handler settings</div>';
-  html += '<div class="mg-form-row">';
+  html += '<div class="mg-sec">Handler settings</div>';
+  html += '<div class="mg-field">';
   html += '<label>Name</label>';
   html += '<input type="text" id="wiz-name" value="' + esc(d.name || name) + '" required>';
   html += '</div>';
-  html += '<div class="mg-form-row">';
+  html += '<div class="mg-field">';
   html += '<label>Enabled</label>';
   html += '<input type="checkbox" id="wiz-enabled"' + (d.enabled !== 'false' ? ' checked' : '') + '>';
   html += '</div>';
@@ -1024,13 +1024,13 @@ function renderStep2Form(type, name, existingData, isEdit) {
 
   html += '<div class="mg-wizard-actions">';
   if (isEdit) {
-    html += '<button type="button" class="mg-btn mg-btn-outline" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Update</button>';
+    html += '<button type="button" class="mg-btn mg-btn" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Update</button>';
     html += '<button type="button" class="mg-btn" onclick="cancelHandlerEdit(\'' + esc(d.id) + '\')">Cancel</button>';
   } else {
-    html += '<button type="button" class="mg-btn mg-btn-outline" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
+    html += '<button type="button" class="mg-btn mg-btn" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
     html += '<button type="button" class="mg-btn" onclick="hideAddWizard()">Cancel</button>';
   }
-  html += ' <span id="handler-dirty-' + esc(fid) + '" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes</span>';
+  html += ' <span id="handler-dirty-' + esc(fid) + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes</span>';
   html += '</div>';
   html += '</div>';
 
@@ -1041,45 +1041,45 @@ function renderSmtpFields(d) {
   var sv = smtpConnectionValues || {};
   var html = '';
 
-  html += '<div class="mg-wizard-section-label">Email settings</div>';
-  html += '<div class="mg-form-row"><label>From address</label>';
+  html += '<div class="mg-sec">Email settings</div>';
+  html += '<div class="mg-field"><label>From address</label>';
   html += '<input type="email" id="wiz-from" value="' + esc(d.from || 'webforms@example.com') + '" required>';
   html += '</div>';
-  html += '<div class="mg-form-row"><label>To address</label>';
+  html += '<div class="mg-field"><label>To address</label>';
   html += '<input type="email" id="wiz-to" value="' + esc(d.to || 'admin@example.com') + '" required>';
   html += '</div>';
-  html += '<div class="mg-form-row"><label>Subject prefix</label>';
+  html += '<div class="mg-field"><label>Subject prefix</label>';
   html += '<input type="text" id="wiz-subject_prefix" value="' + esc(d.subject_prefix !== undefined ? d.subject_prefix : '[Contact] ') + '">';
   html += '</div>';
 
   if (!smtpPlugin) return html;
 
-  html += '<div class="mg-wizard-section-label">SMTP connection</div>';
+  html += '<div class="mg-sec">SMTP connection</div>';
 
   var method = sv.method || 'sendmail';
-  html += '<div class="mg-form-row"><label>Send method</label>';
+  html += '<div class="mg-field"><label>Send method</label>';
   html += '<select id="wiz-method" onchange="applyShowWhen(this.closest(\'.mg-wizard\')||this.closest(\'.mg-handler-edit-form\'))">';
   ['sendmail', 'smtp'].forEach(function(o) {
     html += '<option' + (method === o ? ' selected' : '') + '>' + o + '</option>';
   });
   html += '</select></div>';
 
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="sendmail">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="sendmail">';
   html += '<label>Sendmail path</label>';
   html += '<input type="text" id="wiz-sendmail_path" value="' + esc(sv.sendmail_path || '/usr/sbin/sendmail') + '">';
   html += '</div>';
 
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>Host</label>';
   html += '<input type="text" id="wiz-host" value="' + esc(sv.host || 'localhost') + '">';
   html += '</div>';
 
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>Port</label>';
   html += '<input type="number" id="wiz-port" value="' + esc(sv.port || '587') + '" min="1" max="65535">';
   html += '</div>';
 
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>TLS</label>';
   html += '<select id="wiz-tls">';
   var tlsVal = sv.tls || 'false';
@@ -1089,22 +1089,22 @@ function renderSmtpFields(d) {
   html += '</select></div>';
 
   var authVal = sv.auth === 'true' || sv.auth === '1';
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>Authentication</label>';
   html += '<input type="checkbox" id="wiz-auth"' + (authVal ? ' checked' : '') + ' onchange="applyShowWhen(this.closest(\'.mg-wizard\')||this.closest(\'.mg-handler-edit-form\'))">';
   html += '</div>';
 
   // Auth fields: nested inside a smtp-only wrapper so they hide when method != smtp
   html += '<div class="mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
   html += '<label>Username</label>';
   html += '<input type="text" id="wiz-username" value="' + esc(sv.username || '') + '">';
   html += '</div>';
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
   html += '<label>Password</label>';
   html += '<input type="password" id="wiz-password" placeholder="leave blank to keep current" autocomplete="new-password">';
   html += '</div>';
-  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
+  html += '<div class="mg-field mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
   html += '<label>Password file (optional alternative)</label>';
   html += '<input type="text" id="wiz-password_file" value="' + esc(sv.password_file || '') + '" placeholder="e.g. lazysite/forms/.smtp-password">';
   html += '</div>';
@@ -1112,7 +1112,7 @@ function renderSmtpFields(d) {
 
   // SM137: staged connection check (host/port/TLS/auth). Runs against the SAVED
   // smtp.conf, so save first; the note says so.
-  html += '<div class="mg-form-row"><label>Connection</label><div>';
+  html += '<div class="mg-field"><label>Connection</label><div>';
   html += '<button type="button" class="mg-btn mg-btn-sm" onclick="validateSmtp(this)">Validate SMTP connection</button>';
   html += ' <span class="mg-muted" style="font-size:0.8rem">checks the saved settings - save changes first</span>';
   html += '<div class="smtp-validate-result" style="margin-top:4px;font-size:0.85rem"></div>';
@@ -1143,15 +1143,15 @@ function validateSmtp(btn) {
 }
 
 function renderFileFields(d) {
-  var html = '<div class="mg-wizard-section-label">File settings</div>';
-  html += '<div class="mg-form-row"><label>Directory</label>';
+  var html = '<div class="mg-sec">File settings</div>';
+  html += '<div class="mg-field"><label>Directory</label>';
   html += '<input type="text" id="wiz-path" value="' + esc(d.path || 'lazysite/forms/submissions') + '" required>';
   html += '</div>';
   // Only show the "View submissions" row on edit (not add): the handler
   // needs an id before we can probe. d.id is present on edit, absent on
   // the add wizard. checkSubmissionsDir() will populate the slot.
   if (d.id) {
-    html += '<div class="mg-form-row"><label>Submissions</label>';
+    html += '<div class="mg-field"><label>Submissions</label>';
     html += '<div data-submissions-for="' + esc(d.id) + '">';
     html += '<span style="font-size:0.8rem;color:var(--mg-text-light)">Checking...</span>';
     html += '</div></div>';
@@ -1160,11 +1160,11 @@ function renderFileFields(d) {
 }
 
 function renderWebhookFields(d) {
-  var html = '<div class="mg-wizard-section-label">Webhook settings</div>';
-  html += '<div class="mg-form-row"><label>URL</label>';
+  var html = '<div class="mg-sec">Webhook settings</div>';
+  html += '<div class="mg-field"><label>URL</label>';
   html += '<input type="url" id="wiz-url" value="' + esc(d.url || '') + '" required placeholder="https://">';
   html += '</div>';
-  html += '<div class="mg-form-row"><label>Format</label>';
+  html += '<div class="mg-field"><label>Format</label>';
   html += '<select id="wiz-format">';
   var fmt = d.format || 'json';
   ['json', 'slack'].forEach(function(o) {
@@ -1377,7 +1377,7 @@ function renderFormTargets(formName, currentTargets) {
       if (i !== idx && id) usedByOthers.push(id);
     });
 
-    html += '<div class="mg-form-row" style="margin-bottom:0.25rem">';
+    html += '<div class="mg-field" style="margin-bottom:0.25rem">';
     html += '<label>Target ' + (idx + 1) + '</label>';
     html += '<select data-form="' + esc(formName) + '" data-idx="' + idx + '" onchange="updateFormTarget(this)">';
     html += '<option value="">-- select handler --</option>';
@@ -1394,11 +1394,11 @@ function renderFormTargets(formName, currentTargets) {
 
   html += '</div>';
   html += '<div class="mg-wizard-actions">';
-  html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
+  html += '<button class="mg-btn mg-btn-sm mg-btn" onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
   html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
   // Re-rendered on every mutation, so seed the note from the guard's state.
   var dirtyNow = mgDirtyGuard.isDirty('targets-' + formName);
-  html += ' <span id="targets-dirty-' + esc(formName) + '" class="mg-dirty-note"'
+  html += ' <span id="targets-dirty-' + esc(formName) + '" class="mg-note mg-note-info"'
        +  (dirtyNow ? '' : ' style="display:none"') + '>&#9679; Unsaved changes &mdash; click Save</span>';
   html += '</div>';
 

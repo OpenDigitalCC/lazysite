@@ -884,7 +884,7 @@ function loadDomains() {
       // (edit + the domain actions) lives in the config sheet, so the row never
       // sprouts a dropdown or an inline edit panel. The table scrolls inside its
       // own box (overflow-x) so a wide value never pushes the page sideways.
-      var html = '<div style="overflow-x:auto;"><table class="mg-file-table" style="min-width:0;"><thead><tr><th>Domain</th>';
+      var html = '<div style="overflow-x:auto;"><table class="mg-table" style="min-width:0;"><thead><tr><th>Domain</th>';
       DISPLAY_KEYS.forEach(function (k) { html += '<th>' + esc(label(k)) + '</th>'; });
       html += '<th></th></tr></thead><tbody>';
       rows.forEach(function (row) {
@@ -892,8 +892,8 @@ function loadDomains() {
         // A small state chip where the data exposes one: an alias (no content
         // folder = mirrors the default site) or membership of a language set.
         var chip = '';
-        if (!row.content_root) chip += '<span class="mg-dom-chip" title="mirrors your default site">alias</span>';
-        if (row.lang_group && !row.lang_group_inherited) chip += '<span class="mg-dom-chip" title="part of a language set">set: ' + esc(row.lang_group) + '</span>';
+        if (!row.content_root) chip += '<span class="mg-tag" title="mirrors your default site">alias</span>';
+        if (row.lang_group && !row.lang_group_inherited) chip += '<span class="mg-tag" title="part of a language set">set: ' + esc(row.lang_group) + '</span>';
         // SM681: open the live domain in a new tab.
         //
         // BUILT FROM THE HOST, never from row.site_url. That field can carry
@@ -1003,7 +1003,7 @@ function loadLangStatus() {
         + '<span style="color:#2e9e50">current</span>, '
         + '<span style="color:#d99a20">stale</span> (source changed since translating) or '
         + '<span style="color:#999">missing</span>. Translate the sibling root at the same path to fill gaps.</p>';
-      html += '<div style="overflow-x:auto;"><table class="mg-file-table" style="min-width:0;"><thead><tr>'
+      html += '<div style="overflow-x:auto;"><table class="mg-table" style="min-width:0;"><thead><tr>'
         + '<th>Language</th><th>Host</th><th>Coverage</th><th>Current</th><th>Stale</th><th>Missing</th></tr></thead><tbody>';
       (d.roots || []).forEach(function (root) {
         html += '<tr><td><strong>' + esc(root.lang || '?') + '</strong></td>'

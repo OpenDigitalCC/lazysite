@@ -13,11 +13,11 @@ query_params:
 <div class="mg-card-header"><span class="mg-card-title">Layouts repo</span></div>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">Where layouts and themes are downloaded from. Leave the default, or point at your own fork. See the <a href="/docs/features/configuration/remote-layouts">docs</a>.</p>
-<div class="mg-form-row" style="margin:0;">
+<div class="mg-field" style="margin:0;">
 <label for="layouts-repo-input">Repo</label>
 <input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;" oninput="markRepoDirty()">
 <button class="mg-btn mg-btn-primary mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
-<span id="repo-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
+<span id="repo-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
 </div>
 </div>
 </div>
@@ -28,7 +28,7 @@ query_params:
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">A .zip with <code>theme.json</code> at its root and an <code>assets/</code> subtree. Installs under the active layout. (Layouts install from the catalogue below.)</p>
 <div style="display:flex;gap:0.5rem;align-items:center;">
 <input type="file" id="theme-file" accept=".zip">
-<button class="mg-btn mg-btn-outline" onclick="uploadTheme()">Upload</button>
+<button class="mg-btn mg-btn" onclick="uploadTheme()">Upload</button>
 </div>
 </div>
 </div>
@@ -36,7 +36,7 @@ query_params:
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Browse the repo</span>
-<button class="mg-btn mg-btn-outline mg-btn-sm" onclick="loadCatalogue()">Refresh</button>
+<button class="mg-btn mg-btn mg-btn-sm" onclick="loadCatalogue()">Refresh</button>
 </div>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">Layouts available in the repo. Installing a layout pulls its default theme; expand to install other themes.</p>
@@ -46,10 +46,10 @@ query_params:
 
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Installed layouts &amp; themes</span>
-<button id="lzs-stop-preview" class="mg-btn mg-btn-outline mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button></div>
+<button id="lzs-stop-preview" class="mg-btn mg-btn mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button></div>
 <p class="mg-card-subtitle" style="margin:0 0 8px 0.5rem;">The layout is the page structure; the theme is its colours and fonts. Activating one sets the site default for all visitors and clears the page cache. This is the single place to switch layout or theme.</p>
 <div id="installed">
-<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
+<div class="mg-row"><span class="mg-file-name">Loading...</span></div>
 </div>
 </div>
 
@@ -129,7 +129,7 @@ function usedBadge(hosts) {
                                  : 'in use by ' + hosts.length + ' domains';
   // text-transform is reset inline: this badge is rendered inside an uppercase
   // label and a domain name in caps is both ugly and harder to read.
-  return ' <span class="mg-badge" style="text-transform:none;letter-spacing:0"'
+  return ' <span class="mg-tag" style="text-transform:none;letter-spacing:0"'
     + ' title="' + escHtml(title) + '">' + escHtml(text) + '</span>';
 }
 
@@ -137,7 +137,7 @@ function usedBadge(hosts) {
 function renderInstalled(layouts, byLayout) {
   var box = document.getElementById('installed');
   if (!layouts.length) {
-    box.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">'
+    box.innerHTML = '<div class="mg-row"><span class="mg-file-name mg-empty">'
       + 'No layouts installed - install one from the catalogue above.</span></div>';
     return;
   }
@@ -153,7 +153,7 @@ function renderInstalled(layouts, byLayout) {
     html += '<div class="mg-handler-group" style="margin:0.5rem;">';
     html += '<div class="mg-handler-group-header">';
     html += '<span class="mg-handler-group-label">' + escHtml(L);
-    if (isActiveL) html += ' <span class="mg-badge mg-badge-success">active</span>';
+    if (isActiveL) html += ' <span class="mg-tag mg-tag mg-tag-on">active</span>';
     var lUsed = (LAYOUT_USED[L] || []).filter(function(h){ return h !== '(default)'; });
     if (!isActiveL) html += usedBadge(lUsed);
     html += '</span><div class="mg-handler-item-actions">';
@@ -186,7 +186,7 @@ function renderInstalled(layouts, byLayout) {
       var t = themes[i], isActiveT = (isActiveL && t === ACTIVE_THEME);
       html += '<div class="mg-handler-item"><div class="mg-handler-item-header">';
       html += '<span class="mg-handler-name">' + escHtml(t) + '</span>';
-      if (isActiveT) html += '<span class="mg-badge mg-badge-success">active</span>';
+      if (isActiveT) html += '<span class="mg-tag mg-tag mg-tag-on">active</span>';
       var tUsed = (THEME_USED[L + ' ' + t] || []).filter(function(h){ return h !== '(default)'; });
       if (!isActiveT) html += usedBadge(tUsed);
       html += '<span style="flex:1;"></span><div class="mg-handler-item-actions">';
@@ -415,10 +415,10 @@ function renderCatalogue(layouts) {
   for (var i = 0; i < layouts.length; i++) {
     var L = layouts[i];
     var cid = 'cat-' + L.name.replace(/[^A-Za-z0-9_-]/g, '_');
-    html += '<div class="mg-file-item">';
+    html += '<div class="mg-row">';
     html += '<span class="mg-file-name">' + escHtml(L.name) + '</span>';
-    if (L.version) html += '<span class="mg-badge">' + escHtml(L.version) + '</span>';
-    if (L.installed) html += '<span class="mg-badge mg-badge-success">installed</span>';
+    if (L.version) html += '<span class="mg-tag">' + escHtml(L.version) + '</span>';
+    if (L.installed) html += '<span class="mg-tag mg-tag mg-tag-on">installed</span>';
     html += '<div class="mg-file-actions">';
     html += '<button class="mg-btn mg-btn-sm" onclick="toggleCat(\'' + cid + '\')">Themes</button>';
     if (L.installed) {
@@ -432,11 +432,11 @@ function renderCatalogue(layouts) {
     var ths = L.themes || [];
     for (var j = 0; j < ths.length; j++) {
       var t = ths[j];
-      html += '<div class="mg-file-item"><span class="mg-file-name">' + escHtml(t.name) + '</span>';
+      html += '<div class="mg-row"><span class="mg-file-name">' + escHtml(t.name) + '</span>';
       if (t.name === L.default_theme) html += '<span class="mg-file-meta">default</span>';
       html += '<div class="mg-file-actions">';
       if (t.installed) {
-        html += '<span class="mg-badge mg-badge-success">installed</span>';
+        html += '<span class="mg-tag mg-tag mg-tag-on">installed</span>';
       } else {
         html += '<button class="mg-btn mg-btn-sm" onclick="installLayout(\''
           + escHtml(L.name) + '\',\'' + escHtml(t.name) + '\')">Install</button>';

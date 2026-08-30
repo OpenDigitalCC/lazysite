@@ -38,9 +38,9 @@ function loadPluginRegistry() {
 function renderPluginRegistry(plugins) {
   var container = document.getElementById('plugin-registry');
   if (!plugins.length) { container.innerHTML = '<p class="mg-empty">No plugins discovered.</p>'; return; }
-  var html = '<div class="mg-plugin-registry">';
+  var html = '<div class="mg-list">';
   plugins.forEach(function (p) {
-    html += '<div class="mg-plugin-row' + (p.core ? ' mg-plugin-core' : '') + '" data-script="' + esc(p._script) + '">';
+    html += '<div class="mg-row' + (p.core ? ' mg-plugin-core' : '') + '" data-script="' + esc(p._script) + '">';
     // Control column: the enable toggle, with Configure stacked beneath it when
     // enabled (so enabling never shifts the row across a column).
     html += '<div class="mg-plugin-ctl">';
@@ -65,7 +65,7 @@ function renderPluginRegistry(plugins) {
     // plugin details (its file is here, not cluttering the row).
     html += '<div class="mg-plugin-end">';
     if (p.core) {
-      html += '<span class="mg-badge enabled" title="Always on - wired in the web server config">core</span>';
+      html += '<span class="mg-tag enabled" title="Always on - wired in the web server config">core</span>';
     } else {
       var info = 'File: ' + p._script + (p.version ? '  ·  v' + p.version : '') + (p.id ? '  ·  id: ' + p.id : '');
       html += '<span class="mg-info" tabindex="0" role="img" aria-label="Plugin details" title="' + esc(info) + '">&#9432;</span>';

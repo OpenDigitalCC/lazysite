@@ -57,7 +57,7 @@ query_params:
 <button id="ed-save-btn" class="mg-btn mg-btn-primary" onclick="savePage()" disabled>Save</button>
 <button class="mg-btn" onclick="refreshPreview()">Preview</button>
 <a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
-<a id="ed-download-btn" class="mg-btn mg-btn-outline mg-btn-sm" href="#" download>Download</a>
+<a id="ed-download-btn" class="mg-btn mg-btn mg-btn-sm" href="#" download>Download</a>
 </div>
 
 <div id="ed-cache-notice" class="mg-cache-notice" style="display:none;"></div>
@@ -74,10 +74,10 @@ query_params:
 <details id="ed-fm-section" class="mg-fm-section" open>
 <summary>Front matter fields</summary>
 <div class="mg-fm-fields">
-<div class="mg-form-row"><label style="width:60px;">title</label><input type="text" id="fm-title" oninput="syncFmField('title',this.value)"></div>
-<div class="mg-form-row"><label style="width:60px;">subtitle</label><input type="text" id="fm-subtitle" oninput="syncFmField('subtitle',this.value)"></div>
-<div class="mg-form-row"><label style="width:60px;">auth</label><select id="fm-auth" onchange="syncFmField('auth',this.value)"><option value="">--</option><option value="none">none</option><option value="optional">optional</option><option value="required">required</option></select></div>
-<div class="mg-form-row"><label style="width:60px;">search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
+<div class="mg-field"><label style="width:60px;">title</label><input type="text" id="fm-title" oninput="syncFmField('title',this.value)"></div>
+<div class="mg-field"><label style="width:60px;">subtitle</label><input type="text" id="fm-subtitle" oninput="syncFmField('subtitle',this.value)"></div>
+<div class="mg-field"><label style="width:60px;">auth</label><select id="fm-auth" onchange="syncFmField('auth',this.value)"><option value="">--</option><option value="none">none</option><option value="optional">optional</option><option value="required">required</option></select></div>
+<div class="mg-field"><label style="width:60px;">search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
 </div>
 </details>
 <div id="ed-meta-section" class="mg-stack-section">
@@ -579,7 +579,7 @@ function renderJsonl(content) {
 
   title.textContent = 'Preview - ' + total + ' submission' + (total === 1 ? '' : 's');
 
-  var html = '<table class="mg-jsonl-table"><thead><tr>';
+  var html = '<table class="mg-table"><thead><tr>';
   for (var i = 0; i < columns.length; i++) {
     html += '<th>' + esc(columns[i]) + '</th>';
   }

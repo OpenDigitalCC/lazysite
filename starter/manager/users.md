@@ -8,7 +8,7 @@ query_params:
 
 <div id="status" class="mg-status"></div>
 
-<div class="mg-domain-note">
+<div class="mg-note mg-note-info">
 <b>Two access domains, one set of accounts.</b> The users and groups below are
 shared by both: <b>file management</b> &mdash; internal access through the manager
 UI, the control API and AI connectors, governed by each account's capabilities
@@ -29,18 +29,18 @@ identity in both domains; only <em>where</em> it is granted differs.
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Add user</span></div>
 <div class="mg-card-body">
-<div class="mg-form-row">
+<div class="mg-field">
 <label>Type</label>
 <select id="new-type">
 <option value="human">Human (interactive login)</option>
 <option value="ai">AI / backend (token)</option>
 </select>
 </div>
-<div class="mg-form-row">
+<div class="mg-field">
 <label>Username</label>
 <input type="text" id="new-username" placeholder="username" autocomplete="off">
 </div>
-<div class="mg-form-row">
+<div class="mg-field">
 <label>Groups</label>
 <div style="flex:1">
 <div class="mg-tokens" id="new-group-tokens"></div>
@@ -49,11 +49,11 @@ identity in both domains; only <em>where</em> it is granted differs.
 <div class="mg-tokens-pick"><select id="new-group-input" class="mg-inp mg-principal-pick" style="max-width:14rem"><option value="">add a group&hellip;</option></select> <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addNewUserGroupFromInput()">Add</button></div>
 </div>
 </div>
-<div class="mg-form-row">
+<div class="mg-field">
 <label>Create under</label>
 <select id="new-parent"><option value="">Managed by you</option></select>
 </div>
-<div class="mg-form-row">
+<div class="mg-field">
 <label></label>
 <button class="mg-btn mg-btn-primary" onclick="addUser()">Add user</button>
 </div>
@@ -513,17 +513,17 @@ function accountSettingsHtml(row) {
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="dn-' + ue + '" value="' + escHtml(s.display_name || '') +
     '" placeholder="' + ue + ' (shown in place of the login; the login is still listed beside it)">' +
     '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDisplayName(\'' + ue + '\')">Save</button>' +
-    '<span class="mg-inline-msg" id="dnmsg-' + ue + '"></span></div>';
+    '<span class="mg-status" id="dnmsg-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
     '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveComment(\'' + ue + '\')">Save</button>' +
-    '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
+    '<span class="mg-status" id="notemsg-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Email</span>' +
     '<input type="email" class="mg-inp" id="email-' + ue + '" value="' + escHtml(s.email || '') +
     '" placeholder="for emailed setup / reset links">' +
     '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
-    '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
+    '<span class="mg-status" id="emailmsg-' + ue + '"></span></div>';
   h += sec('General', gen);
 
   // --- Credentials (interactive login - human accounts only) ---
@@ -533,7 +533,7 @@ function accountSettingsHtml(row) {
     var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password" autocomplete="new-password">' +
       '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="savePassword(\'' + ue + '\')">Save</button>' +
-      '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
+      '<span class="mg-status" id="pwmsg-' + ue + '"></span></div>';
     cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
       '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +
       (s.claim_pending
@@ -555,7 +555,7 @@ function accountSettingsHtml(row) {
         '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="setup2fa(\'' + ue + '\')">Set up 2FA</button>';
     }
     cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' + mfaCtl +
-      '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
+      '<span class="mg-status" id="mfamsg-' + ue + '"></span></div>';
     cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
     h += sec('Credentials', cred);
   }
@@ -697,11 +697,11 @@ function accountSettingsHtml(row) {
     '<input type="date" class="mg-inp" id="exp-' + ue + '" value="' + expiryDate(s.expires_at) + '">' +
     '<button class="mg-btn mg-btn-sm" onclick="setExpiry(\'' + ue + '\')">Set</button>' +
     '<button class="mg-btn mg-btn-sm" onclick="clearExpiry(\'' + ue + '\')">Clear</button>' +
-    '<span class="mg-inline-msg" id="expmsg-' + ue + '"></span></div>';
+    '<span class="mg-status" id="expmsg-' + ue + '"></span></div>';
   ac += '<div class="mg-line"><span class="mg-line-lbl">Rename</span>' +
     '<input type="text" class="mg-inp" id="rename-' + ue + '" placeholder="new username" autocomplete="off">' +
     '<button class="mg-btn mg-btn-sm" onclick="renameUser(\'' + ue + '\')">Rename</button>' +
-    '<span class="mg-inline-msg" id="renmsg-' + ue + '"></span></div>';
+    '<span class="mg-status" id="renmsg-' + ue + '"></span></div>';
   // Parent: any account can be placed under another (sets managed_by), so the
   // hierarchy is editable after creation, not fixed - this is how you move a user
   // below another (SM104).
@@ -749,7 +749,7 @@ function accountSettingsHtml(row) {
         '<label class="mg-chk"><input type="checkbox"' + (s.scope_independent ? ' checked' : '') +
         ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> None &mdash; its own domain grants alone decide its reach</label>' +
         '<span class="mg-help" title="Off: this account can reach at most what the account that created it can reach, and that limit follows the whole chain of creators. On: its access is decided by its own domain grants alone, so it may reach content its creator cannot. The record of who created it is unchanged either way. This is separate from the Parent setting above - moving an account to top level does not affect it.">&#9432;</span>' +
-        '<span class="mg-inline-msg" id="scimsg-' + ue + '"></span></div>' +
+        '<span class="mg-status" id="scimsg-' + ue + '"></span></div>' +
         '<div class="mg-line"><span class="mg-line-lbl"></span>' + ceilNote + '</div>';
     }
   }
@@ -882,7 +882,7 @@ function savePassword(user) {
   var inp = document.getElementById('pw-' + user);
   var msg = document.getElementById('pwmsg-' + user);
   var pw = (inp && inp.value) || '';
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   if (!pw) { say('Enter a password.', false); return; }
   apiCall({ action: 'passwd', username: user, password: pw })
     .then(function(d) {
@@ -1025,7 +1025,7 @@ function showConnector(user) {
         var names = { mcp_enabled: 'MCP connector', oauth_enabled: 'OAuth authorization server' };
         var off = (pq.missing || []).map(function(k) { return names[k] || k; });
         warn =
-          '<div class="mg-onb-warn"><strong>This will not connect yet.</strong> ' +
+          '<div class="mg-note mg-note-warn"><strong>This will not connect yet.</strong> ' +
           'The web connector needs ' + escHtml(off.join(' and ')) +
           ', which ' + (off.length > 1 ? 'are' : 'is') + ' switched off on this site. ' +
           'Every request to ' + (off.length > 1 ? 'those endpoints returns' : 'that endpoint returns') +
@@ -1322,7 +1322,7 @@ function saveDisplayName(user) {
 function saveComment(user) {
   var inp = document.getElementById('note-' + user);
   var msg = document.getElementById('notemsg-' + user);
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   apiCall({ action: 'settings-set', username: user, key: 'comment', value: (inp && inp.value) || '' })
     .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
     .catch(function(e) { say('Error: ' + e.message, false); });
@@ -1332,7 +1332,7 @@ function saveComment(user) {
 function saveEmail(user) {
   var inp = document.getElementById('email-' + user);
   var msg = document.getElementById('emailmsg-' + user);
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   apiCall({ action: 'settings-set', username: user, key: 'email', value: (inp && inp.value) || '' })
     .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
     .catch(function(e) { say('Error: ' + e.message, false); });
@@ -1348,7 +1348,7 @@ function setupLink(user, reset) {
   function show(html) { if (box) { box.style.display = 'block'; box.innerHTML = html; } }
   apiCall({ action: 'claim-create', username: user, revoke: reset ? 1 : 0 })
     .then(function(d) {
-      if (!d.ok) { show('<span class="mg-err">' + escHtml(d.error) + '</span>'); return; }
+      if (!d.ok) { show('<span class="mg-status-error">' + escHtml(d.error) + '</span>'); return; }
       var link = location.origin + '/claim?u=' + encodeURIComponent(user) + '&c=' + encodeURIComponent(d.claim);
       var what = d.purpose === 'mint-token'
         ? 'Opening the link mints this account a token.'
@@ -1358,7 +1358,7 @@ function setupLink(user, reset) {
         '<code class="mg-code" id="setuplink-' + user + '">' + escHtml(link) + '</code>' +
         '<button class="mg-btn mg-btn-sm" onclick="copyText(\'setuplink-' + user + '\')">Copy</button>');
     })
-    .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
+    .catch(function(e) { show('<span class="mg-status-error">Error: ' + escHtml(e.message) + '</span>'); });
 }
 
 // Cancel an outstanding setup link (clears the pending claim; the account and
@@ -1387,7 +1387,7 @@ function expiryDate(epoch) {
 function setExpiry(user) {
   var inp = document.getElementById('exp-' + user);
   var msg = document.getElementById('expmsg-' + user);
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   var v = inp && inp.value;
   if (!v) { say('Pick a date, or use Clear.', false); return; }
   var epoch = Math.floor(new Date(v + 'T23:59:59').getTime() / 1000);   // end of the chosen day
@@ -1401,7 +1401,7 @@ function clearExpiry(user) {
   var msg = document.getElementById('expmsg-' + user);
   apiCall({ action: 'settings-set', username: user, key: 'expires_at', value: '' })
     .then(function(d) {
-      if (msg) { msg.textContent = d.ok ? 'No expiry.' : d.error; msg.className = 'mg-inline-msg ' + (d.ok ? 'mg-ok' : 'mg-err'); }
+      if (msg) { msg.textContent = d.ok ? 'No expiry.' : d.error; msg.className = 'mg-status ' + (d.ok ? 'mg-status-success' : 'mg-status-error'); }
       if (d.ok && inp) inp.value = '';
     })
     .catch(function(e) {});
@@ -1411,7 +1411,7 @@ function clearExpiry(user) {
 function renameUser(user) {
   var inp = document.getElementById('rename-' + user);
   var msg = document.getElementById('renmsg-' + user);
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   var to = ((inp && inp.value) || '').trim();
   if (!to) { say('New username required.', false); return; }
   apiCall({ action: 'rename', username: user, to: to })
@@ -1427,7 +1427,7 @@ function setup2fa(user) {
   show('<span class="mg-muted">Setting up&hellip;</span>');
   apiCall({ action: 'mfa-enroll', username: user })
     .then(function(d) {
-      if (!d.ok) { show('<span class="mg-err">' + escHtml(d.error) + '</span>'); return; }
+      if (!d.ok) { show('<span class="mg-status-error">' + escHtml(d.error) + '</span>'); return; }
       var codes = (d.recovery_codes || []).map(escHtml).join('<br>');
       show('<div class="mg-muted">Scan this with an authenticator app (Google Authenticator, Aegis, 1Password&hellip;), then enter a code below to confirm. 2FA is <b>not on</b> until you confirm.</div>' +
         '<div class="mg-qr" id="mfaqr-' + user + '"><span class="mg-muted">rendering QR&hellip;</span></div>' +
@@ -1438,13 +1438,13 @@ function setup2fa(user) {
         '<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="mg-inp" id="mfacode-' + user + '" placeholder="6-digit code">' +
         '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="confirm2fa(\'' + user + '\')">Confirm &amp; enable</button>' +
         '<button class="mg-btn mg-btn-sm" onclick="cancel2fa(\'' + user + '\')">Cancel setup</button>' +
-        '<span class="mg-inline-msg" id="mfacmsg-' + user + '"></span></div>' +
+        '<span class="mg-status" id="mfacmsg-' + user + '"></span></div>' +
         '<details style="margin-top:0.4rem"><summary style="cursor:pointer">Show recovery codes</summary>' +
         '<div class="mg-muted">Store these now &mdash; each works once if you lose the authenticator. Shown only now.</div>' +
         '<div class="mg-code" style="white-space:normal">' + codes + '</div></details>');
       renderQR('mfaqr-' + user, d.otpauth_uri);
     })
-    .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
+    .catch(function(e) { show('<span class="mg-status-error">Error: ' + escHtml(e.message) + '</span>'); });
 }
 
 // Confirm a pending 2FA setup with a code from the app. Only now is 2FA turned
@@ -1453,7 +1453,7 @@ function setup2fa(user) {
 function confirm2fa(user) {
   var inp = document.getElementById('mfacode-' + user);
   var msg = document.getElementById('mfacmsg-' + user);
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   var code = ((inp && inp.value) || '').replace(/\s/g, '');
   if (!code) { say('Enter the 6-digit code from your app.', false); return; }
   apiCall({ action: 'mfa-confirm', username: user, code: code })
@@ -1521,7 +1521,7 @@ function disable2fa(user) {
     if (!__ok) return;
     apiCall({ action: 'mfa-disable', username: user })
     .then(function(d) {
-      if (msg) { msg.textContent = d.ok ? 'Disabled.' : d.error; msg.className = 'mg-inline-msg ' + (d.ok ? 'mg-ok' : 'mg-err'); }
+      if (msg) { msg.textContent = d.ok ? 'Disabled.' : d.error; msg.className = 'mg-status ' + (d.ok ? 'mg-status-success' : 'mg-status-error'); }
       loadUsers();
     })
     .catch(function(e) {});

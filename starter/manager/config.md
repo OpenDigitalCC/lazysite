@@ -290,7 +290,7 @@ function applyPreset(name) {
     if (!h) return;                       // not on this page - say nothing
     if (h.value === p.sets[k]) { already.push(k); return; }
     h.value = p.sets[k];
-    var row = h.closest ? h.closest('.mg-form-row') : null;
+    var row = h.closest ? h.closest('.mg-field') : null;
     var cb = row ? row.querySelector('input.mg-toggle') : null;
     if (cb) cb.checked = (p.sets[k] === 'enabled');
     changed.push(k);
@@ -346,7 +346,7 @@ function renderSiteForm(values) {
   var lastGroup = null;
   SITE_SCHEMA.forEach(function(f) {
     if (f.group && f.group !== lastGroup) {
-      html += '<h3 class="mg-config-group">' + esc(f.group) + '</h3>';
+      html += '<h3 class="mg-sec">' + esc(f.group) + '</h3>';
       // The preset rides on the FIRST field of its group, so the button lands
       // under the heading it belongs to.
       if (f.group_preset && SERVICE_PRESETS[f.group_preset]) {
@@ -362,7 +362,7 @@ function renderSiteForm(values) {
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';
-    html += '<div class="mg-form-row mg-config-field"'+da+'>';
+    html += '<div class="mg-field mg-config-field"'+da+'>';
     html += '<label>' + esc(f.label) + '</label>';
     if (f.type === 'toggle') {
       // SM114: a boolean rendered as a switch. A hidden input carries the on/off
@@ -426,7 +426,7 @@ function renderSiteForm(values) {
            +  disp + '</span>';
       if (f.link_href) {
         html += '<a href="' + esc(f.link_href) + '" '
-             +  'class="mg-btn mg-btn-sm mg-btn-outline">'
+             +  'class="mg-btn mg-btn-sm mg-btn">'
              +  esc(f.link_label || 'Edit') + '</a>';
       }
     } else {
@@ -442,8 +442,8 @@ function renderSiteForm(values) {
     html += '<div class="mg-config-help mg-holder-line" id="cfg-holders-' + esc(f.key) + '"></div>';
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
-       +  ' <span id="site-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div>';
+  html += '<div class="mg-field"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
+       +  ' <span id="site-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div>';
   html += '</form>';
   return html;
 }

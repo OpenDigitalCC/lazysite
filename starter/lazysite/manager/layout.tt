@@ -93,7 +93,7 @@
         '<div class="mg-modal-msg"></div>' +
         (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') +
         '<div class="mg-modal-actions">' +
-          '<button class="mg-btn mg-btn-outline mg-modal-cancel"></button>' +
+          '<button class="mg-btn mg-btn mg-modal-cancel"></button>' +
           '<button class="mg-btn' + okClass + ' mg-modal-ok"></button>' +
         '</div>';
       box.querySelector('.mg-modal-msg').textContent = opts.msg || '';
@@ -511,7 +511,7 @@
       </div>
       <span class="mg-user">[% auth_name || auth_user %]</span>
       [% IF no_password %]
-      <span class="mg-no-password-warn">
+      <span class="mg-note mg-note-warn">
         &#9888; No password set.
         <a href="/manager/users">Set one</a>
       </span>
