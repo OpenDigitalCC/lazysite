@@ -125,7 +125,12 @@ contract, and the app-side changes that go with it.
   passthrough, so an absolute path in a document's image reference is resolved
   inside it. Measured, because the working directory looked like a confinement
   and is not one - the wrapper resolves relative references against the source
-  file's directory, not the cwd.
+  file's directory, not the cwd. **A latent gap in the 0.11.7 groundwork closed
+  with it** (58e537ee): `bins` shipped without the `owns` validator
+  knowing the key, and that validator refuses any key it does not recognise -
+  so the first plugin to declare a program would have been refused. No shipped
+  plugin declared one until this release, which is why a full gate found it and
+  review did not.
 
 - SM678 follow-up shipped (78dd6f42) **the table exports move into the
   expander.** The row holds what an operator scans for; the expander holds what
