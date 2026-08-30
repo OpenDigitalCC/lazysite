@@ -48,8 +48,15 @@ like( $C, qr/^\.mg-cap-what\s*\{/m,
     'the stylesheet has a rule for the marker' )
     or diag( 'Without a rule the glyph renders inline as plain text, which is '
         . 'exactly how the bare `?` came to look like punctuation.' );
-like( $C, qr/\.mg-cap-what\s*\{[^}]*border-radius:\s*50%/s,
+# THE PROPERTY, not the shape. A circle and a pill are both badges; the design
+# side may choose either, and a test that names one refuses a legitimate change
+# while proving nothing extra. What must hold is that the marker is GIVEN A BOX -
+# a border and a size - so it reads as a control rather than as a character in
+# the label text, which is the whole of SM686.
+like( $C, qr/\.mg-cap-what\s*\{[^}]*border(-radius)?:/s,
     '...that makes it a badge rather than a character' );
+like( $C, qr/\.mg-cap-what\s*\{[^}]*width:/s,
+    '...with a size of its own, not the text flow' );
 like( $C, qr/\.mg-cap-what\s*\{[^}]*cursor:\s*help/s,
     '...and says it can be hovered' );
 
@@ -62,7 +69,7 @@ like( $P, qr/mg-cap-what[^>]*aria-label=/,  'and names itself to a screen reader
 # hover rule, not that the two selectors sit on separate lines. A test pinned
 # to formatting fails on a reflow that changes nothing (SM684's lesson, in the
 # loud direction rather than the silent one).
-like( $C, qr/\.mg-cap-what:hover,\s*\.mg-cap-what:focus/s,
+like( $C, qr/\.mg-cap-what:hover,\s*\.mg-cap-what:focus(-visible)?/s,
     'and it shows the same state on focus as on hover' );
 
 # ---- the sentence itself still comes from one source ---------------------

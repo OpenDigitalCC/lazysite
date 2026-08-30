@@ -55,7 +55,16 @@ my $csrc = do { local $/; <$cf> };
 close $cf;
 like( $csrc, qr/\.mg-sheet\s*\{[^}]*position:\s*fixed/s, 'the sheet is a fixed overlay (consistent position)' );
 like( $csrc, qr/\.mg-sheet-panel\s*\{[^}]*width:\s*min\(/s, 'the sheet has a fixed width (consistent at any depth)' );
-like( $csrc, qr/\.mg-sheet-head\s*\{[^}]*background:\s*var\(--mg-accent\)/s, 'the header is a solid accent (coloured) bar' );
+# SM-DS1: the head is no longer an accent bar - the design moved the manager to
+# same-surface headers. The PROPERTY this was protecting survives: the sheet's
+# head must be visually separated from its body, so a sheet reads as one object
+# at any nesting depth. Separation by a rule is as good as separation by fill,
+# and pinning the fill refused a legitimate design change while proving nothing
+# the border does not.
+like( $csrc, qr/\.mg-sheet-head\s*\{[^}]*(border-bottom|background):/s,
+    'the head is separated from the body it sits above' );
+like( $csrc, qr/\.mg-sheet-head\s*\{[^}]*position:\s*sticky/s,
+    'and stays visible while the sheet scrolls' );
 like( $csrc, qr/\.mg-acc-kids\s*\{[^}]*border-left/s, 'nested sub-trees are indented with a rule' );
 
 # Create-user group staging (field report 2026-07-13): a group picked in the
