@@ -380,7 +380,7 @@ function nameChipHtml(name) {
 function addSectionPrincipal(sel) {
   var name = sel.value;
   if (!name) return;
-  var card = sel.closest('.mg-expand');
+  var card = sel.closest('.mg-expand-body');
   var list = card && card.querySelector('.mg-sec-read');
   if (!list) return;
   if (!list.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]')) {
@@ -590,7 +590,7 @@ function protectionBlock(f) {
 // The per-file config card (collapsed by default; one open at a time).
 function permsCard(f) {
   return '<tr class="mg-expand" style="display:none"><td colspan="5" class="mg-perms-cell">'
-    + '<div class="mg-expand">'
+    + '<div class="mg-expand-body">'
     +   '<div class="mg-perms-head">'
     +     '<span class="mg-perms-title">' + escHtml(f.name) + '</span>'
     +     '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(f.path) + '" title="This file\'s audit history">&#128340; Audit</a>'
@@ -742,7 +742,7 @@ function folderCard(f) {
   // an operator cannot create is half a feature.
   var p = escHtml(f.path);
   return '<tr class="mg-expand" style="display:none"><td colspan="5" class="mg-perms-cell">'
-    + '<div class="mg-expand">'
+    + '<div class="mg-expand-body">'
     +   '<div class="mg-perms-head"><span class="mg-perms-title">' + escHtml(f.name) + '/</span></div>'
     +   '<div class="mg-perms-hint">Folder actions. Delete removes an <b>empty</b> folder; empty its contents first otherwise.</div>'
     +   '<div class="mg-perms-actions">'
@@ -782,7 +782,7 @@ function folderCard(f) {
 // acl-set the per-file editor uses - one writer, so a section and a file are
 // governed by the same store and the same rules.
 function protectSection(btn, path) {
-  var card  = btn.closest('.mg-expand');
+  var card  = btn.closest('.mg-expand-body');
   var pol   = card.querySelector('input[name="pol-' + path + '"]:checked');
   var read  = card.querySelector('.mg-sec-read');
   var draft = pol && pol.value === 'draft';
@@ -850,7 +850,7 @@ function gotoPage(n) { filePage = n; paintFiles(); window.scrollTo(0, 0); }
 function togglePerms(el) {
   var row = el.closest('tr');
   var card = row.nextElementSibling;
-  if (!card || card.className.indexOf('mg-expand') < 0) return;
+  if (!card || !card.classList.contains('mg-expand')) return;
   var willOpen = card.style.display === 'none';
   var allCards = document.querySelectorAll('.mg-expand');
   for (var i = 0; i < allCards.length; i++) allCards[i].style.display = 'none';

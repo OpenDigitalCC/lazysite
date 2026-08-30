@@ -244,7 +244,7 @@ function loadTables() {
           + '</span>'
           + '</div>'
           + '<div class="mg-expand" data-acl-for="' + escHtml(name) + '" style="display:none;">'
-          +   '<div class="mg-expand">'
+          +   '<div class="mg-expand-body">'
           /* Plain links, not fetch(): a download is a navigation, and letting
              the browser do it means the file lands where the operator expects
              instead of being assembled in memory. */
@@ -844,7 +844,7 @@ function addTableAclPrincipal(sel) {
   var name = sel.value;
   sel.selectedIndex = 0;
   if (!name) return;
-  var card = sel.closest('.mg-expand');
+  var card = sel.closest('.mg-expand-body');
   var list = card && card.querySelector('.mg-rights');
   if (!list) return;
   // SM462: a new principal gets BOTH rights. read-on/write-off stores an empty
@@ -856,7 +856,7 @@ function addTableAclPrincipal(sel) {
 }
 
 function saveTableAcl(btn, table) {
-  var card  = btn.closest('.mg-expand');
+  var card  = btn.closest('.mg-expand-body');
   var owner = (card.querySelector('.mg-perm-owner') || {}).value || '';
   var got   = mgRights.collect(card.querySelector('.mg-rights'));
 
@@ -876,7 +876,7 @@ function saveTableAcl(btn, table) {
       showStatus(clearing
         ? 'Rule cleared for "' + table + '".'
         : 'Who can read "' + table + '" updated.');
-      loadTableAcl(table, card.closest('.mg-expand'));
+      loadTableAcl(table, card.closest('.mg-expand-body'));
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

@@ -470,11 +470,19 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
 }
 .mg-chev:hover { border-color: var(--mg-border); color: var(--mg-text); }
 .mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent-deep); border-color: var(--mg-accent); background: var(--mg-accent-bg); }
+/* THE EXPANDER IS TWO ELEMENTS WITH TWO JOBS, and collapsing them into one
+   class broke both the Files and Data pages in 0.11.8. The OUTER is the thing
+   JavaScript toggles and finds with querySelectorAll to close its siblings;
+   the INNER is the card that carries the padding and the accent edge. When
+   both answered to .mg-expand, closest('.mg-expand') returned the inner div
+   instead of the row, and the panel opened empty - a thin strip with a blue
+   edge and nothing in it. Two names, because they are two things. */
 .mg-expand {
-    padding: 14px 16px; background: var(--mg-surface-alt);
+    background: var(--mg-surface-alt);
     border-bottom: 1px solid var(--mg-border-light);
     border-left: 2px solid var(--mg-accent);
 }
+.mg-expand-body { padding: 14px 16px; max-width: 56em; }
 .mg-recent-dot { display: inline-block; width: 7px; height: 7px; background: var(--mg-accent2); border-radius: var(--mg-radius-pill); }
 .mg-protect-lock { font-size: 0.85em; opacity: 0.8; }
 

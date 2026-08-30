@@ -150,7 +150,7 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
 each. These are the survivors, registered so the pages have something to be converted
 <em>to</em>.</p>
 <div class="mg-sg-demo mg-sg-family">
-  <div><span class="mg-sg-tag">.mg-list / .mg-row / .mg-expand</span>
+  <div><span class="mg-sg-tag">.mg-list / .mg-row / .mg-expand / .mg-expand-body</span>
     <div class="mg-list">
       <div class="mg-row">
         <span class="mg-row-name">an-item</span>
@@ -158,7 +158,7 @@ each. These are the survivors, registered so the pages have something to be conv
         <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Read</button>
           <a href="#" class="mg-chev" onclick="return false;">&#9662;</a></span>
       </div>
-      <div class="mg-expand">the row expander card &mdash; one idiom, next sibling of its row</div>
+      <div class="mg-expand"><div class="mg-expand-body">the row expander &mdash; one idiom, next sibling of its row. <strong>Two elements:</strong> <code>.mg-expand</code> is what the script toggles and closes siblings of; <code>.mg-expand-body</code> is the card inside it. Collapsing them into one name emptied every expander in 0.11.8.</div></div>
     </div>
   </div>
   <div><span class="mg-sg-tag">.mg-note</span>
