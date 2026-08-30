@@ -346,7 +346,17 @@ function renderSiteForm(values) {
   var lastGroup = null;
   SITE_SCHEMA.forEach(function(f) {
     if (f.group && f.group !== lastGroup) {
-      html += '<h3 class="mg-sec">' + esc(f.group) + '</h3>';
+      // EACH GROUP IS A CARD - the component eleven other manager pages
+      // already use. This page rendered a heading and then a flat run of
+      // fields, so a long settings page had no structure to scan: label,
+      // input, help text, repeat, for the length of the schema. Reported as
+      // "options now above each other, tis lost its structure so hard to
+      // use, needs cards". Nothing new was invented for it.
+      if (lastGroup !== null) html += '</div></div>';
+      html += '<div class="mg-card">'
+           +  '<div class="mg-card-header"><span class="mg-card-title">'
+           +  esc(f.group) + '</span></div>'
+           +  '<div class="mg-card-body">';
       // The preset rides on the FIRST field of its group, so the button lands
       // under the heading it belongs to.
       if (f.group_preset && SERVICE_PRESETS[f.group_preset]) {
@@ -442,6 +452,9 @@ function renderSiteForm(values) {
     html += '<div class="mg-config-help mg-holder-line" id="cfg-holders-' + esc(f.key) + '"></div>';
     html += '</div>';
   });
+  // Close the last group's card before the actions, which sit outside the
+  // cards because Save applies to the whole form rather than to one group.
+  if (lastGroup !== null) html += '</div></div>';
   html += '<div class="mg-field"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
        +  ' <span id="site-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div>';
   html += '</form>';
