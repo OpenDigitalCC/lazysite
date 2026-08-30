@@ -88,7 +88,14 @@
     --mg-header-h:     52px;
 }
 /* Dark theme — same vocabulary, re-inked. */
-@media (prefers-color-scheme: dark) { :root {
+/* GUARDED, or an explicit choice cannot beat the OS. `:root` and
+   [data-theme="light"] have the SAME specificity (0,1,0), so an unguarded
+   block here - declared later in the file - wins over the light tokens above
+   for a viewer whose OS is dark. The toggle sets data-theme="light", the
+   tokens stay dark, and the switch appears dead. Reported from the live
+   manager as "switch between dark and light not working"; it only ever failed
+   in the dark-OS direction, which is why light-to-dark looked fine. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     color-scheme: dark;
     --mg-bg: #17181a; --mg-surface: #1f2124; --mg-surface-alt: #26282c;
     --mg-border: #42464c; --mg-border-light: #33363b;
@@ -165,9 +172,13 @@
     position: sticky; top: var(--mg-header-h);
 }
 .mg-sidebar .mg-nav { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
+/* The group heading must outrank its items. Both were --mg-text-muted, so a
+   heading differed from a link only by being SMALLER - which reads as less
+   important, not more. Reported as "little contrast between header and menu
+   item, headers should be more prominent". */
 .mg-nav-group {
     font-family: var(--mg-font-heading); font-size: 12px; text-transform: uppercase;
-    letter-spacing: 0.1em; color: var(--mg-text-muted); font-weight: 600;
+    letter-spacing: 0.1em; color: var(--mg-text); font-weight: 700;
     padding: 16px 10px 5px;
 }
 .mg-nav-group:first-child { padding-top: 0; }
@@ -364,6 +375,12 @@
 
 /* ============================================================ Status + notes */
 .mg-status { display: flex; align-items: center; gap: 8px; font-size: var(--mg-text-sm); color: var(--mg-text-muted); min-height: 20px; }
+/* An EMPTY status is not a status. Thirteen manager pages ship
+   <div id="status" class="mg-status"></div> and fill it later, so the ::before
+   dot below rendered on every page load as a stray square under the title -
+   reported from the live manager as "small artifact under title". :empty also
+   covers the case where a message is cleared rather than the node removed. */
+.mg-status:empty { display: none; }
 .mg-status::before { content: ''; width: 7px; height: 7px; flex: none; background: var(--mg-text-light); }
 .mg-status-success { color: var(--mg-success); } .mg-status-success::before { background: var(--mg-success); }
 .mg-status-error { color: var(--mg-danger); font-weight: 500; } .mg-status-error::before { background: var(--mg-danger); }

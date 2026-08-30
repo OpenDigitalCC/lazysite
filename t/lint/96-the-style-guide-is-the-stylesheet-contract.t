@@ -79,4 +79,32 @@ is( "@undocumented", '',
         . "manager ended up with two expander idioms - or the rule is dead and\n"
         . "should be removed. Both are answered by editing the guide." );
 
+subtest 'an explicit theme choice beats the operating system' => sub {
+    # `:root` and `[data-theme="light"]` have the SAME specificity, so an
+    # unguarded `@media (prefers-color-scheme: dark)` block declared later in
+    # the file wins over the light tokens for a viewer whose OS is dark. The
+    # toggle then sets data-theme="light", nothing changes, and the control
+    # looks broken - which is how it shipped in 0.11.8.
+    #
+    # It fails in ONE direction only, on a dark-OS machine, which is why it
+    # survived review: light-to-dark works fine and that is what most people
+    # try first.
+    my @unguarded;
+    for my $f ( sort glob("$root/starter/lazysite/manager/assets/manager-*.css") ) {
+        my ($v) = $f =~ m{manager-([a-z]+)\.css\z};
+        my $t = do { open my $fh, '<', $f or die $!; local $/; <$fh> };
+        $t =~ s{/\*.*?\*/}{}gs;
+        while ( $t =~ /\@media[^{]*prefers-color-scheme:\s*dark[^{]*\{\s*([^{]*)\{/g ) {
+            my $sel = $1;
+            $sel =~ s/\s+/ /g; $sel =~ s/^\s+|\s+$//g;
+            push @unguarded, "$v: \@media ... { $sel {"
+                unless $sel =~ /:not\(\s*\[data-theme=.light.\]\s*\)/;
+        }
+    }
+    is( "@unguarded", '', 'every dark media block excludes an explicit light choice' )
+        or diag( "Unguarded:\n  " . join( "\n  ", @unguarded )
+            . "\n\nUse :root:not([data-theme=\"light\"]) so a viewer who asks\n"
+            . "for light gets light even when their OS is dark." );
+};
+
 done_testing();
