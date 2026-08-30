@@ -1004,8 +1004,12 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-form-entry-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .mg-form-name { font-family: var(--mg-mono); font-size: 0.9em; font-weight: 600; margin-right: auto; }
 /* Both panels open UNDER a handler row and need separating from it. */
+/* The box these two used to draw for themselves now comes from .mg-expand /
+   .mg-expand-body, which they carry alongside their own class - the same
+   expander every other listing opens. All that is left here is the spacing
+   that is specific to sitting under a handler row. */
 .mg-handler-edit-form,
-.mg-submissions-panel { margin: 0.5rem 0 0.75rem; padding: 0.75rem; border: 1px solid var(--mg-border); border-radius: 4px; background: var(--mg-surface-alt); }
+.mg-submissions-panel { margin: 0.5rem 0 0.75rem; }
 .mg-handler-submissions { font-size: 0.85em; }
 .mg-submissions-table { width: 100%; font-size: 0.85em; }
 .mg-submissions-table th,

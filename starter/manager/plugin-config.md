@@ -653,7 +653,9 @@ function renderHandlerList() {
     ofType.forEach(function(h) {
       var enabled = h.enabled !== 'false';
       html += '<div class="mg-handler-item" id="handler-' + h.id + '">';
-      html += '<div class="mg-handler-item-header">';
+      // The same row idiom as Files and Data, rather than a fourth way of
+      // drawing a line with a name and some buttons on it.
+      html += '<div class="mg-row mg-handler-item-header">';
       html += '<span class="mg-handler-name">' + esc(h.name || h.id) + '</span>';
       html += '<span class="mg-tag ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
       // File-storage handlers: inline "View submissions" slot. Populated
@@ -670,8 +672,8 @@ function renderHandlerList() {
       html += '<button class="mg-btn mg-btn-sm" onclick=\'editHandler(' + JSON.stringify(h).replace(/'/g, "&#39;") + ')\'>Edit</button>';
       html += '<button class="mg-btn mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
       html += '</div></div>';
-      html += '<div class="mg-handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
-      html += '<div class="mg-submissions-panel" id="submissions-panel-' + esc(h.id) + '" style="display:none"></div>';
+      html += '<div class="mg-expand mg-expand-body mg-handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
+      html += '<div class="mg-expand mg-expand-body mg-submissions-panel" id="submissions-panel-' + esc(h.id) + '" style="display:none"></div>';
       html += '</div>';
     });
 
