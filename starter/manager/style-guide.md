@@ -145,490 +145,550 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
   <span class="mg-cap-what" tabindex="0" role="img" aria-label="What this grants: an example sentence" title="An example sentence.">i</span></label>
 </div>
 
-<h2 class="mg-sg-h">The rest of the vocabulary</h2>
-<p class="mg-sg-note">Every remaining class the stylesheet defines, with a live specimen carrying its own name. Each sits in its own containing block, so an overlay or a full-viewport component is trapped in its cell rather than covering the page.</p>
-<h3 class="mg-sg-fam">acc</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc</code><div class="mg-acc">acc</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-body</code><div class="mg-acc-body">acc-body</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-kids</code><div class="mg-acc-kids">acc-kids</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-leaf</code><div class="mg-acc-leaf">acc-leaf</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-line</code><div class="mg-acc-line">acc-line</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-list</code><div class="mg-acc-list">acc-list</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-name</code><div class="mg-acc-name">acc-name</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-note</code><div class="mg-acc-note">acc-note</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-spacer</code><div class="mg-acc-spacer">acc-spacer</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-acc-tags</code><div class="mg-acc-tags">acc-tags</div></div>
-</div>
-<h3 class="mg-sg-fam">alias</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-alias-302</code><div class="mg-alias-302">alias-302</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-alias-badge</code><div class="mg-alias-badge">alias-badge</div></div>
-</div>
-<h3 class="mg-sg-fam">apply</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-apply-block</code><div class="mg-apply-block">apply-block</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-apply-keep</code><div class="mg-apply-keep">apply-keep</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-apply-ok</code><div class="mg-apply-ok">apply-ok</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-apply-panel</code><div class="mg-apply-panel">apply-panel</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-apply-preview</code><div class="mg-apply-preview">apply-preview</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-apply-warn</code><div class="mg-apply-warn">apply-warn</div></div>
-</div>
-<h3 class="mg-sg-fam">bar</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bar</code><div class="mg-bar">bar</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bar-fill</code><div class="mg-bar-fill">bar-fill</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bar-label</code><div class="mg-bar-label">bar-label</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bar-row</code><div class="mg-bar-row">bar-row</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bar-val</code><div class="mg-bar-val">bar-val</div></div>
-</div>
-<h3 class="mg-sg-fam">bars</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bars</code><div class="mg-bars">bars</div></div>
-</div>
-<h3 class="mg-sg-fam">bc</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-bc-root</code><div class="mg-bc-root">bc-root</div></div>
-</div>
-<h3 class="mg-sg-fam">body</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-body</code><div class="mg-body">body</div></div>
-</div>
-<h3 class="mg-sg-fam">box</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-box</code><div class="mg-box">box</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-box-danger</code><div class="mg-box-danger">box-danger</div></div>
-</div>
-<h3 class="mg-sg-fam">brand</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-brand</code><div class="mg-brand">brand</div></div>
-</div>
-<h3 class="mg-sg-fam">breadcrumb</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-breadcrumb</code><div class="mg-breadcrumb">breadcrumb</div></div>
-</div>
-<h3 class="mg-sg-fam">cap</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-cap-dormant</code><div class="mg-cap-dormant">cap-dormant</div></div>
-</div>
-<h3 class="mg-sg-fam">checks</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-checks</code><div class="mg-checks">checks</div></div>
-</div>
-<h3 class="mg-sg-fam">cm</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-cm-content</code><div class="mg-cm-content">cm-content</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-cm-yaml</code><div class="mg-cm-yaml">cm-yaml</div></div>
-</div>
-<h3 class="mg-sg-fam">code</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-code</code><div class="mg-code">code</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-code-box</code><div class="mg-code-box">code-box</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-code-stale</code><div class="mg-code-stale">code-stale</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-code-token</code><div class="mg-code-token">code-token</div></div>
-</div>
-<h3 class="mg-sg-fam">col</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-col-exp</code><div class="mg-col-exp">col-exp</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-col-mod</code><div class="mg-col-mod">col-mod</div></div>
-</div>
-<h3 class="mg-sg-fam">configbtn</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-configbtn</code><div class="mg-configbtn">configbtn</div></div>
-</div>
-<h3 class="mg-sg-fam">connect</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-connect-hint</code><div class="mg-connect-hint">connect-hint</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-connect-pick</code><div class="mg-connect-pick">connect-pick</div></div>
-</div>
-<h3 class="mg-sg-fam">cred</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-cred-reveal</code><div class="mg-cred-reveal">cred-reveal</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-cred-value</code><div class="mg-cred-value">cred-value</div></div>
-</div>
-<h3 class="mg-sg-fam">diff</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-diff-minus</code><div class="mg-diff-minus">diff-minus</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-diff-plus</code><div class="mg-diff-plus">diff-plus</div></div>
-</div>
-<h3 class="mg-sg-fam">dirty</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-dirty-note</code><div class="mg-dirty-note">dirty-note</div></div>
-</div>
-<h3 class="mg-sg-fam">dom</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-dom-chip</code><div class="mg-dom-chip">dom-chip</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-dom-open</code><div class="mg-dom-open">dom-open</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-dom-tools</code><div class="mg-dom-tools">dom-tools</div></div>
-</div>
-<h3 class="mg-sg-fam">domain</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-domain-note</code><div class="mg-domain-note">domain-note</div></div>
-</div>
-<h3 class="mg-sg-fam">editor</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-dirty</code><div class="mg-editor-dirty">editor-dirty</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-divider</code><div class="mg-editor-divider">editor-divider</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-main</code><div class="mg-editor-main">editor-main</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-pane</code><div class="mg-editor-pane">editor-pane</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-path</code><div class="mg-editor-path">editor-path</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-root</code><div class="mg-editor-root">editor-root</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-saved</code><div class="mg-editor-saved">editor-saved</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-statusbar</code><div class="mg-editor-statusbar">editor-statusbar</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-editor-toolbar</code><div class="mg-editor-toolbar">editor-toolbar</div></div>
-</div>
-<h3 class="mg-sg-fam">empty</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-empty</code><div class="mg-empty">empty</div></div>
-</div>
-<h3 class="mg-sg-fam">err</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-err</code><div class="mg-err">err</div></div>
-</div>
-<h3 class="mg-sg-fam">file</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-actions</code><div class="mg-file-actions">file-actions</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-actions-left</code><div class="mg-file-actions-left">file-actions-left</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-actions-right</code><div class="mg-file-actions-right">file-actions-right</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-actions-row</code><div class="mg-file-actions-row">file-actions-row</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-dl</code><div class="mg-file-dl">file-dl</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-filter</code><div class="mg-file-filter">file-filter</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-filter-row</code><div class="mg-file-filter-row">file-filter-row</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-icon</code><div class="mg-file-icon">file-icon</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-list</code><div class="mg-file-list">file-list</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-select</code><div class="mg-file-select">file-select</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-size</code><div class="mg-file-size">file-size</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-file-table</code><div class="mg-file-table">file-table</div></div>
-</div>
-<h3 class="mg-sg-fam">fm</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-fm-fields</code><div class="mg-fm-fields">fm-fields</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-fm-section</code><div class="mg-fm-section">fm-section</div></div>
-</div>
-<h3 class="mg-sg-fam">foot</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-foot</code><div class="mg-foot">foot</div></div>
-</div>
-<h3 class="mg-sg-fam">form</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-form-row</code><div class="mg-form-row">form-row</div></div>
-</div>
-<h3 class="mg-sg-fam">handler</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-group</code><div class="mg-handler-group">handler-group</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-group-header</code><div class="mg-handler-group-header">handler-group-header</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-group-label</code><div class="mg-handler-group-label">handler-group-label</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-item</code><div class="mg-handler-item">handler-item</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-item-actions</code><div class="mg-handler-item-actions">handler-item-actions</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-item-header</code><div class="mg-handler-item-header">handler-item-header</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-handler-name</code><div class="mg-handler-name">handler-name</div></div>
-</div>
-<h3 class="mg-sg-fam">header</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-header</code><div class="mg-header">header</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-header-inner</code><div class="mg-header-inner">header-inner</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-header-tools</code><div class="mg-header-tools">header-tools</div></div>
-</div>
-<h3 class="mg-sg-fam">help</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-help</code><div class="mg-help">help</div></div>
-</div>
-<h3 class="mg-sg-fam">holder</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-holder-count</code><div class="mg-holder-count">holder-count</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-holder-line</code><div class="mg-holder-line">holder-line</div></div>
-</div>
-<h3 class="mg-sg-fam">info</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-info</code><div class="mg-info">info</div></div>
-</div>
-<h3 class="mg-sg-fam">inline</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-inline-msg</code><div class="mg-inline-msg">inline-msg</div></div>
-</div>
-<h3 class="mg-sg-fam">inp</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-inp-wide</code><div class="mg-inp-wide">inp-wide</div></div>
-</div>
-<h3 class="mg-sg-fam">json</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-json-pre</code><div class="mg-json-pre">json-pre</div></div>
-</div>
-<h3 class="mg-sg-fam">jsonl</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-jsonl-more</code><div class="mg-jsonl-more">jsonl-more</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-jsonl-table</code><div class="mg-jsonl-table">jsonl-table</div></div>
-</div>
-<h3 class="mg-sg-fam">line</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-line</code><div class="mg-line">line</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-line-lbl</code><div class="mg-line-lbl">line-lbl</div></div>
-</div>
-<h3 class="mg-sg-fam">lock</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-lock</code><div class="mg-lock">lock</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-lock-dot</code><div class="mg-lock-dot">lock-dot</div></div>
-</div>
-<h3 class="mg-sg-fam">main</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-main</code><div class="mg-main">main</div></div>
-</div>
-<h3 class="mg-sg-fam">muted</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-muted</code><div class="mg-muted">muted</div></div>
-</div>
-<h3 class="mg-sg-fam">nav</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-nav</code><div class="mg-nav">nav</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-nav-group</code><div class="mg-nav-group">nav-group</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-nav-handle</code><div class="mg-nav-handle">nav-handle</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-nav-item</code><div class="mg-nav-item">nav-item</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-nav-label</code><div class="mg-nav-label">nav-label</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-nav-url</code><div class="mg-nav-url">nav-url</div></div>
-</div>
-<h3 class="mg-sg-fam">new</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-new-group-row</code><div class="mg-new-group-row">new-group-row</div></div>
-</div>
-<h3 class="mg-sg-fam">no</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-no-password-warn</code><div class="mg-no-password-warn">no-password-warn</div></div>
-</div>
-<h3 class="mg-sg-fam">notif</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif</code><div class="mg-notif">notif</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-badge</code><div class="mg-notif-badge">notif-badge</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-btn</code><div class="mg-notif-btn">notif-btn</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-empty</code><div class="mg-notif-empty">notif-empty</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-item</code><div class="mg-notif-item">notif-item</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-msg</code><div class="mg-notif-msg">notif-msg</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-panel</code><div class="mg-notif-panel">notif-panel</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-time</code><div class="mg-notif-time">notif-time</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-notif-unread</code><div class="mg-notif-unread">notif-unread</div></div>
-</div>
-<h3 class="mg-sg-fam">ok</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-ok</code><div class="mg-ok">ok</div></div>
-</div>
-<h3 class="mg-sg-fam">onb</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb</code><div class="mg-onb">onb</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-card</code><div class="mg-onb-card">onb-card</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-card-go</code><div class="mg-onb-card-go">onb-card-go</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-head</code><div class="mg-onb-head">onb-head</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-list</code><div class="mg-onb-list">onb-list</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-ok</code><div class="mg-onb-ok">onb-ok</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-wait</code><div class="mg-onb-wait">onb-wait</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-onb-warn</code><div class="mg-onb-warn">onb-warn</div></div>
-</div>
-<h3 class="mg-sg-fam">owner</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-owner-name</code><div class="mg-owner-name">owner-name</div></div>
-</div>
-<h3 class="mg-sg-fam">page</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-page-title</code><div class="mg-page-title">page-title</div></div>
-</div>
-<h3 class="mg-sg-fam">pager</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-pager</code><div class="mg-pager">pager</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-pager-info</code><div class="mg-pager-info">pager-info</div></div>
-</div>
-<h3 class="mg-sg-fam">palette</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette</code><div class="mg-palette">palette</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-btn</code><div class="mg-palette-btn">palette-btn</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-empty</code><div class="mg-palette-empty">palette-empty</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-input</code><div class="mg-palette-input">palette-input</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-item</code><div class="mg-palette-item">palette-item</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-list</code><div class="mg-palette-list">palette-list</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-overlay</code><div class="mg-palette-overlay">palette-overlay</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-palette-url</code><div class="mg-palette-url">palette-url</div></div>
-</div>
-<h3 class="mg-sg-fam">perms</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-perms-cell</code><div class="mg-perms-cell">perms-cell</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-perms-head</code><div class="mg-perms-head">perms-head</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-perms-title</code><div class="mg-perms-title">perms-title</div></div>
-</div>
-<h3 class="mg-sg-fam">plugin</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-card</code><div class="mg-plugin-card">plugin-card</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-ctl</code><div class="mg-plugin-ctl">plugin-ctl</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-desc</code><div class="mg-plugin-desc">plugin-desc</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-end</code><div class="mg-plugin-end">plugin-end</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-main</code><div class="mg-plugin-main">plugin-main</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-registry</code><div class="mg-plugin-registry">plugin-registry</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-row</code><div class="mg-plugin-row">plugin-row</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-row-config</code><div class="mg-plugin-row-config">plugin-row-config</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-row-desc</code><div class="mg-plugin-row-desc">plugin-row-desc</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-row-name</code><div class="mg-plugin-row-name">plugin-row-name</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-plugin-title</code><div class="mg-plugin-title">plugin-title</div></div>
-</div>
-<h3 class="mg-sg-fam">preview</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-preview-frame</code><div class="mg-preview-frame">preview-frame</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-preview-pane</code><div class="mg-preview-pane">preview-pane</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-preview-toolbar</code><div class="mg-preview-toolbar">preview-toolbar</div></div>
-</div>
-<h3 class="mg-sg-fam">protect</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-protect-here</code><div class="mg-protect-here">protect-here</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-protect-lock</code><div class="mg-protect-lock">protect-lock</div></div>
-</div>
-<h3 class="mg-sg-fam">prov</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-prov</code><div class="mg-prov">prov</div></div>
-</div>
-<h3 class="mg-sg-fam">qr</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-qr</code><div class="mg-qr">qr</div></div>
-</div>
-<h3 class="mg-sg-fam">readonly</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-readonly</code><div class="mg-readonly">readonly</div></div>
-</div>
-<h3 class="mg-sg-fam">recent</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-recent-dot</code><div class="mg-recent-dot">recent-dot</div></div>
-</div>
-<h3 class="mg-sg-fam">rwflag</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-rwflag-g</code><div class="mg-rwflag-g">rwflag-g</div></div>
-</div>
-<h3 class="mg-sg-fam">sec</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sec</code><div class="mg-sec">sec</div></div>
-</div>
-<h3 class="mg-sg-fam">section</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-section-label</code><div class="mg-section-label">section-label</div></div>
-</div>
-<h3 class="mg-sg-fam">sheet</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet</code><div class="mg-sheet">sheet</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet-body</code><div class="mg-sheet-body">sheet-body</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet-close</code><div class="mg-sheet-close">sheet-close</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet-head</code><div class="mg-sheet-head">sheet-head</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet-open</code><div class="mg-sheet-open">sheet-open</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet-panel</code><div class="mg-sheet-panel">sheet-panel</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sheet-sub</code><div class="mg-sheet-sub">sheet-sub</div></div>
-</div>
-<h3 class="mg-sg-fam">shell</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-shell</code><div class="mg-shell">shell</div></div>
-</div>
-<h3 class="mg-sg-fam">sidebar</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sidebar</code><div class="mg-sidebar">sidebar</div></div>
-</div>
-<h3 class="mg-sg-fam">signout</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-signout</code><div class="mg-signout">signout</div></div>
-</div>
-<h3 class="mg-sg-fam">sort</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sort-ind</code><div class="mg-sort-ind">sort-ind</div></div>
-</div>
-<h3 class="mg-sg-fam">sortable</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-sortable</code><div class="mg-sortable">sortable</div></div>
-</div>
-<h3 class="mg-sg-fam">split</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-split-bar</code><div class="mg-split-bar">split-bar</div></div>
-</div>
-<h3 class="mg-sg-fam">stat</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-block</code><div class="mg-stat-block">stat-block</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-col</code><div class="mg-stat-col">stat-col</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-cols</code><div class="mg-stat-cols">stat-cols</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-label</code><div class="mg-stat-label">stat-label</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-tile</code><div class="mg-stat-tile">stat-tile</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-tiles</code><div class="mg-stat-tiles">stat-tiles</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-stat-value</code><div class="mg-stat-value">stat-value</div></div>
-</div>
-<h3 class="mg-sg-fam">subcount</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-subcount</code><div class="mg-subcount">subcount</div></div>
-</div>
-<h3 class="mg-sg-fam">theme</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-theme-toggle</code><div class="mg-theme-toggle">theme-toggle</div></div>
-</div>
-<h3 class="mg-sg-fam">toggle</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-toggle</code><div class="mg-toggle">toggle</div></div>
-</div>
-<h3 class="mg-sg-fam">token</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-token</code><div class="mg-token">token</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-token-x</code><div class="mg-token-x">token-x</div></div>
-</div>
-<h3 class="mg-sg-fam">tokens</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-tokens</code><div class="mg-tokens">tokens</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-tokens-empty</code><div class="mg-tokens-empty">tokens-empty</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-tokens-pick</code><div class="mg-tokens-pick">tokens-pick</div></div>
-</div>
-<h3 class="mg-sg-fam">undo</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-undo-bar</code><div class="mg-undo-bar">undo-bar</div></div>
-</div>
-<h3 class="mg-sg-fam">user</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-user</code><div class="mg-user">user</div></div>
-</div>
-<h3 class="mg-sg-fam">warning</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-warning-bar</code><div class="mg-warning-bar">warning-bar</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-warning-bar-close</code><div class="mg-warning-bar-close">warning-bar-close</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-warning-error</code><div class="mg-warning-error">warning-error</div></div>
-</div>
-<h3 class="mg-sg-fam">wizard</h3>
-<div class="mg-sg-grid">
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-wizard</code><div class="mg-wizard">wizard</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-wizard-actions</code><div class="mg-wizard-actions">wizard-actions</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-wizard-section-label</code><div class="mg-wizard-section-label">wizard-section-label</div></div>
-  <div class="mg-sg-item"><code class="mg-sg-name">.mg-wizard-title</code><div class="mg-wizard-title">wizard-title</div></div>
+<h2 class="mg-sg-h">Button labels &mdash; the vocabulary</h2>
+<p class="mg-sg-note">A style guide governs words as well as shapes. The manager
+currently uses <strong>107 distinct button labels</strong>, and several say the same
+thing three ways &mdash; an operator learning one page has to relearn the next. These are
+the words to use; anything else needs a reason.</p>
+<div class="mg-sg-demo mg-sg-family">
+  <div><span class="mg-sg-tag">commit</span>
+    <button class="mg-btn mg-btn-primary">Save</button>
+    <span class="mg-muted">Not <em>Update</em>, not <em>Apply</em>. One word for
+    &ldquo;write what I have entered&rdquo;. <em>Apply</em> is reserved for
+    putting a prepared thing into effect (a package, a preset) &mdash; a
+    different act from saving a form.</span>
+  </div>
+  <div><span class="mg-sg-tag">abandon</span>
+    <button class="mg-btn">Cancel</button>
+    <span class="mg-muted"><em>Cancel</em> when work would be lost, <em>Close</em>
+    when nothing would. An operator reads the difference as a warning, so using
+    them interchangeably removes a signal rather than adding a synonym.</span>
+  </div>
+  <div><span class="mg-sg-tag">destroy</span>
+    <button class="mg-btn mg-btn-danger">Delete</button>
+    <span class="mg-muted">Not <em>Remove</em>, not <em>Clear</em>. <em>Remove</em>
+    is for taking something out of a list it can be put back into;
+    <em>Clear</em> is for emptying a field. Only <em>Delete</em> destroys.</span>
+  </div>
+  <div><span class="mg-sg-tag">object</span>
+    <button class="mg-btn">Add a row</button>
+    <span class="mg-muted">Name the object when the page holds more than one kind
+    of thing (<em>Add a row</em>, <em>Declare a table</em>), and use the bare verb
+    when it cannot be ambiguous. A page of nothing but backups does not need
+    <em>Create content backup</em> on every button.</span>
+  </div>
+  <div><span class="mg-sg-tag">refuse</span>
+    <span class="mg-muted">A destructive label is a warning, never the guard.
+    <code>.mg-btn-danger</code> plus a confirmation; colour alone has never
+    stopped anybody.</span>
+  </div>
 </div>
 
-<script>
-// SM698: PREVIEW MODE. `?style=<name>` renders this guide in a candidate sheet
-// so an operator can see a style before committing to it.
-//
-// THE CANDIDATE MUST BE THE ONLY SHEET. Adding it alongside the active one
-// would let a component the candidate does not style inherit the active
-// style's rule and look finished - which is precisely the defect this guide
-// exists to expose (SM686, SM697). A preview that hides gaps is worse than no
-// preview, because it is believed. So the active sheet is REMOVED first.
-//
-// A closed set here as well: the value comes from a query string and reaches a
-// <link href>. The server refuses an unknown name; so does this.
-(function () {
-  var m = /[?&]style=([a-z]+)/.exec(window.location.search || '');
-  if (!m) return;
-  var want = m[1];
-  if (['classic', 'accessible', 'modern'].indexOf(want) < 0) return;
-
-  var links = document.querySelectorAll('link[rel="stylesheet"][href*="/manager/assets/manager-"]');
-  for (var i = 0; i < links.length; i++) links[i].parentNode.removeChild(links[i]);
-
-  var l = document.createElement('link');
-  l.rel = 'stylesheet';
-  l.href = '/manager/assets/manager-' + want + '.css';
-  document.head.appendChild(l);
-
-  // Say which style is on screen. Without it a preview is indistinguishable
-  // from the manager having changed under the operator.
-  document.addEventListener('DOMContentLoaded', function () {
-    var b = document.createElement('div');
-    b.className = 'mg-status';
-    b.textContent = 'Preview: the ' + want + ' style. Nothing has been changed.';
-    document.body.insertBefore(b, document.body.firstChild);
-  });
-})();
-</script>
+<h2 class="mg-sg-h">Every remaining component, by family</h2>
+<p class="mg-sg-note">The rest of the manager vocabulary, composed rather than listed. Each family is shown nested the way its pages build it, with every class labelled, so a stylesheet can be written against the structure rather than against a list of names. A class that renders as a bare label here has no rule.</p>
+<h3 class="mg-sg-fam">mg-file <span class="mg-sg-count">12</span></h3>
+<p class="mg-sg-note">Used by <code>files.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-file-actions"><span class="mg-sg-tag">.mg-file-actions</span><div class="mg-file-actions-left"><span class="mg-sg-tag">.mg-file-actions-left</span></div>
+<div class="mg-file-actions-right"><span class="mg-sg-tag">.mg-file-actions-right</span></div>
+<div class="mg-file-actions-row"><span class="mg-sg-tag">.mg-file-actions-row</span></div>
+<div class="mg-file-filter-row"><span class="mg-sg-tag">.mg-file-filter-row</span></div></div>
+<div class="mg-file-dl"><span class="mg-sg-tag">.mg-file-dl</span></div>
+<div class="mg-file-filter"><span class="mg-sg-tag">.mg-file-filter</span></div>
+<div class="mg-file-icon"><span class="mg-sg-tag">.mg-file-icon</span></div>
+<div class="mg-file-list"><span class="mg-sg-tag">.mg-file-list</span></div>
+<div class="mg-file-select"><span class="mg-sg-tag">.mg-file-select</span></div>
+<div class="mg-file-size"><span class="mg-sg-tag">.mg-file-size</span></div>
+<div class="mg-file-table"><span class="mg-sg-tag">.mg-file-table</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-plugin <span class="mg-sg-count">11</span></h3>
+<p class="mg-sg-note">Used by <code>plugins.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-plugin-card"><span class="mg-sg-tag">.mg-plugin-card</span><div class="mg-plugin-row-config"><span class="mg-sg-tag">.mg-plugin-row-config</span></div>
+<div class="mg-plugin-row-desc"><span class="mg-sg-tag">.mg-plugin-row-desc</span></div>
+<div class="mg-plugin-row-name"><span class="mg-sg-tag">.mg-plugin-row-name</span></div></div>
+<div class="mg-plugin-ctl"><span class="mg-sg-tag">.mg-plugin-ctl</span></div>
+<div class="mg-plugin-desc"><span class="mg-sg-tag">.mg-plugin-desc</span></div>
+<div class="mg-plugin-end"><span class="mg-sg-tag">.mg-plugin-end</span></div>
+<div class="mg-plugin-main"><span class="mg-sg-tag">.mg-plugin-main</span></div>
+<div class="mg-plugin-registry"><span class="mg-sg-tag">.mg-plugin-registry</span></div>
+<div class="mg-plugin-row"><span class="mg-sg-tag">.mg-plugin-row</span></div>
+<div class="mg-plugin-title"><span class="mg-sg-tag">.mg-plugin-title</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-acc <span class="mg-sg-count">10</span></h3>
+<p class="mg-sg-note">Used by <code>users.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-acc"><span class="mg-sg-tag">.mg-acc</span><div class="mg-acc-body"><span class="mg-sg-tag">.mg-acc-body</span></div>
+<div class="mg-acc-kids"><span class="mg-sg-tag">.mg-acc-kids</span></div>
+<div class="mg-acc-leaf"><span class="mg-sg-tag">.mg-acc-leaf</span></div>
+<div class="mg-acc-line"><span class="mg-sg-tag">.mg-acc-line</span></div>
+<div class="mg-acc-list"><span class="mg-sg-tag">.mg-acc-list</span></div>
+<div class="mg-acc-name"><span class="mg-sg-tag">.mg-acc-name</span></div>
+<div class="mg-acc-note"><span class="mg-sg-tag">.mg-acc-note</span></div>
+<div class="mg-acc-spacer"><span class="mg-sg-tag">.mg-acc-spacer</span></div>
+<div class="mg-acc-tags"><span class="mg-sg-tag">.mg-acc-tags</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-editor <span class="mg-sg-count">9</span></h3>
+<p class="mg-sg-note">Used by <code>edit.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-editor-dirty"><span class="mg-sg-tag">.mg-editor-dirty</span></div>
+<div class="mg-editor-divider"><span class="mg-sg-tag">.mg-editor-divider</span></div>
+<div class="mg-editor-main"><span class="mg-sg-tag">.mg-editor-main</span></div>
+<div class="mg-editor-pane"><span class="mg-sg-tag">.mg-editor-pane</span></div>
+<div class="mg-editor-path"><span class="mg-sg-tag">.mg-editor-path</span></div>
+<div class="mg-editor-root"><span class="mg-sg-tag">.mg-editor-root</span></div>
+<div class="mg-editor-saved"><span class="mg-sg-tag">.mg-editor-saved</span></div>
+<div class="mg-editor-statusbar"><span class="mg-sg-tag">.mg-editor-statusbar</span></div>
+<div class="mg-editor-toolbar"><span class="mg-sg-tag">.mg-editor-toolbar</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-notif <span class="mg-sg-count">9</span></h3>
+<p class="mg-sg-note">Used by <code>the layout</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-notif"><span class="mg-sg-tag">.mg-notif</span><div class="mg-notif-badge"><span class="mg-sg-tag">.mg-notif-badge</span></div>
+<div class="mg-notif-btn"><span class="mg-sg-tag">.mg-notif-btn</span></div>
+<div class="mg-notif-empty"><span class="mg-sg-tag">.mg-notif-empty</span></div>
+<div class="mg-notif-item"><span class="mg-sg-tag">.mg-notif-item</span></div>
+<div class="mg-notif-msg"><span class="mg-sg-tag">.mg-notif-msg</span></div>
+<div class="mg-notif-panel"><span class="mg-sg-tag">.mg-notif-panel</span></div>
+<div class="mg-notif-time"><span class="mg-sg-tag">.mg-notif-time</span></div>
+<div class="mg-notif-unread"><span class="mg-sg-tag">.mg-notif-unread</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-onb <span class="mg-sg-count">8</span></h3>
+<p class="mg-sg-note">Used by <code>users.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-onb"><span class="mg-sg-tag">.mg-onb</span><div class="mg-onb-card"><span class="mg-sg-tag">.mg-onb-card</span><div class="mg-onb-card-go"><span class="mg-sg-tag">.mg-onb-card-go</span></div></div>
+<div class="mg-onb-head"><span class="mg-sg-tag">.mg-onb-head</span></div>
+<div class="mg-onb-list"><span class="mg-sg-tag">.mg-onb-list</span></div>
+<div class="mg-onb-ok"><span class="mg-sg-tag">.mg-onb-ok</span></div>
+<div class="mg-onb-wait"><span class="mg-sg-tag">.mg-onb-wait</span></div>
+<div class="mg-onb-warn"><span class="mg-sg-tag">.mg-onb-warn</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-palette <span class="mg-sg-count">8</span></h3>
+<p class="mg-sg-note">Used by <code>the layout</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-palette"><span class="mg-sg-tag">.mg-palette</span><div class="mg-palette-btn"><span class="mg-sg-tag">.mg-palette-btn</span></div>
+<div class="mg-palette-empty"><span class="mg-sg-tag">.mg-palette-empty</span></div>
+<div class="mg-palette-input"><span class="mg-sg-tag">.mg-palette-input</span></div>
+<div class="mg-palette-item"><span class="mg-sg-tag">.mg-palette-item</span></div>
+<div class="mg-palette-list"><span class="mg-sg-tag">.mg-palette-list</span></div>
+<div class="mg-palette-overlay"><span class="mg-sg-tag">.mg-palette-overlay</span></div>
+<div class="mg-palette-url"><span class="mg-sg-tag">.mg-palette-url</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-handler <span class="mg-sg-count">7</span></h3>
+<p class="mg-sg-note">Used by <code>appearance.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-handler-group"><span class="mg-sg-tag">.mg-handler-group</span><div class="mg-handler-group-header"><span class="mg-sg-tag">.mg-handler-group-header</span></div>
+<div class="mg-handler-group-label"><span class="mg-sg-tag">.mg-handler-group-label</span></div>
+<div class="mg-handler-item-actions"><span class="mg-sg-tag">.mg-handler-item-actions</span></div>
+<div class="mg-handler-item-header"><span class="mg-sg-tag">.mg-handler-item-header</span></div></div>
+<div class="mg-handler-item"><span class="mg-sg-tag">.mg-handler-item</span></div>
+<div class="mg-handler-name"><span class="mg-sg-tag">.mg-handler-name</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-sheet <span class="mg-sg-count">7</span></h3>
+<p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-sheet"><span class="mg-sg-tag">.mg-sheet</span><div class="mg-sheet-body"><span class="mg-sg-tag">.mg-sheet-body</span></div>
+<div class="mg-sheet-close"><span class="mg-sg-tag">.mg-sheet-close</span></div>
+<div class="mg-sheet-head"><span class="mg-sg-tag">.mg-sheet-head</span></div>
+<div class="mg-sheet-open"><span class="mg-sg-tag">.mg-sheet-open</span></div>
+<div class="mg-sheet-panel"><span class="mg-sg-tag">.mg-sheet-panel</span></div>
+<div class="mg-sheet-sub"><span class="mg-sg-tag">.mg-sheet-sub</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-stat <span class="mg-sg-count">7</span></h3>
+<p class="mg-sg-note">Used by <code>stats.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-stat-block"><span class="mg-sg-tag">.mg-stat-block</span></div>
+<div class="mg-stat-col"><span class="mg-sg-tag">.mg-stat-col</span></div>
+<div class="mg-stat-cols"><span class="mg-sg-tag">.mg-stat-cols</span></div>
+<div class="mg-stat-label"><span class="mg-sg-tag">.mg-stat-label</span></div>
+<div class="mg-stat-tile"><span class="mg-sg-tag">.mg-stat-tile</span></div>
+<div class="mg-stat-tiles"><span class="mg-sg-tag">.mg-stat-tiles</span></div>
+<div class="mg-stat-value"><span class="mg-sg-tag">.mg-stat-value</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-apply <span class="mg-sg-count">6</span></h3>
+<p class="mg-sg-note">Used by <code>backups.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-apply-block"><span class="mg-sg-tag">.mg-apply-block</span></div>
+<div class="mg-apply-keep"><span class="mg-sg-tag">.mg-apply-keep</span></div>
+<div class="mg-apply-ok"><span class="mg-sg-tag">.mg-apply-ok</span></div>
+<div class="mg-apply-panel"><span class="mg-sg-tag">.mg-apply-panel</span></div>
+<div class="mg-apply-preview"><span class="mg-sg-tag">.mg-apply-preview</span></div>
+<div class="mg-apply-warn"><span class="mg-sg-tag">.mg-apply-warn</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-nav <span class="mg-sg-count">6</span></h3>
+<p class="mg-sg-note">Used by <code>nav.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-nav"><span class="mg-sg-tag">.mg-nav</span><div class="mg-nav-group"><span class="mg-sg-tag">.mg-nav-group</span></div>
+<div class="mg-nav-handle"><span class="mg-sg-tag">.mg-nav-handle</span></div>
+<div class="mg-nav-item"><span class="mg-sg-tag">.mg-nav-item</span></div>
+<div class="mg-nav-label"><span class="mg-sg-tag">.mg-nav-label</span></div>
+<div class="mg-nav-url"><span class="mg-sg-tag">.mg-nav-url</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-bar <span class="mg-sg-count">5</span></h3>
+<p class="mg-sg-note">Used by <code>stats.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-bar"><span class="mg-sg-tag">.mg-bar</span><div class="mg-bar-fill"><span class="mg-sg-tag">.mg-bar-fill</span></div>
+<div class="mg-bar-label"><span class="mg-sg-tag">.mg-bar-label</span></div>
+<div class="mg-bar-row"><span class="mg-sg-tag">.mg-bar-row</span></div>
+<div class="mg-bar-val"><span class="mg-sg-tag">.mg-bar-val</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-code <span class="mg-sg-count">4</span></h3>
+<p class="mg-sg-note">Used by <code>users.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-code"><span class="mg-sg-tag">.mg-code</span><div class="mg-code-box"><span class="mg-sg-tag">.mg-code-box</span></div>
+<div class="mg-code-stale"><span class="mg-sg-tag">.mg-code-stale</span></div>
+<div class="mg-code-token"><span class="mg-sg-tag">.mg-code-token</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-wizard <span class="mg-sg-count">4</span></h3>
+<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-wizard"><span class="mg-sg-tag">.mg-wizard</span><div class="mg-wizard-actions"><span class="mg-sg-tag">.mg-wizard-actions</span><div class="mg-wizard-section-label"><span class="mg-sg-tag">.mg-wizard-section-label</span></div></div>
+<div class="mg-wizard-title"><span class="mg-sg-tag">.mg-wizard-title</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-dom <span class="mg-sg-count">3</span></h3>
+<p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-dom-chip"><span class="mg-sg-tag">.mg-dom-chip</span></div>
+<div class="mg-dom-open"><span class="mg-sg-tag">.mg-dom-open</span></div>
+<div class="mg-dom-tools"><span class="mg-sg-tag">.mg-dom-tools</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-header <span class="mg-sg-count">3</span></h3>
+<p class="mg-sg-note">Used by <code>the layout</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-header"><span class="mg-sg-tag">.mg-header</span><div class="mg-header-inner"><span class="mg-sg-tag">.mg-header-inner</span></div>
+<div class="mg-header-tools"><span class="mg-sg-tag">.mg-header-tools</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-perms <span class="mg-sg-count">3</span></h3>
+<p class="mg-sg-note">Used by <code>files.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-perms-cell"><span class="mg-sg-tag">.mg-perms-cell</span></div>
+<div class="mg-perms-head"><span class="mg-sg-tag">.mg-perms-head</span></div>
+<div class="mg-perms-title"><span class="mg-sg-tag">.mg-perms-title</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-preview <span class="mg-sg-count">3</span></h3>
+<p class="mg-sg-note">Used by <code>edit.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-preview-frame"><span class="mg-sg-tag">.mg-preview-frame</span></div>
+<div class="mg-preview-pane"><span class="mg-sg-tag">.mg-preview-pane</span></div>
+<div class="mg-preview-toolbar"><span class="mg-sg-tag">.mg-preview-toolbar</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-tokens <span class="mg-sg-count">3</span></h3>
+<p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-tokens"><span class="mg-sg-tag">.mg-tokens</span><div class="mg-tokens-empty"><span class="mg-sg-tag">.mg-tokens-empty</span></div>
+<div class="mg-tokens-pick"><span class="mg-sg-tag">.mg-tokens-pick</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-warning <span class="mg-sg-count">3</span></h3>
+<p class="mg-sg-note">Used by <code>the layout</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-warning-bar"><span class="mg-sg-tag">.mg-warning-bar</span><div class="mg-warning-bar-close"><span class="mg-sg-tag">.mg-warning-bar-close</span></div></div>
+<div class="mg-warning-error"><span class="mg-sg-tag">.mg-warning-error</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-alias <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-alias-302"><span class="mg-sg-tag">.mg-alias-302</span></div>
+<div class="mg-alias-badge"><span class="mg-sg-tag">.mg-alias-badge</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-box <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-box"><span class="mg-sg-tag">.mg-box</span><div class="mg-box-danger"><span class="mg-sg-tag">.mg-box-danger</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-cm <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Used by <code>edit.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-cm-content"><span class="mg-sg-tag">.mg-cm-content</span></div>
+<div class="mg-cm-yaml"><span class="mg-sg-tag">.mg-cm-yaml</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-col <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Used by <code>files.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-col-exp"><span class="mg-sg-tag">.mg-col-exp</span></div>
+<div class="mg-col-mod"><span class="mg-sg-tag">.mg-col-mod</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-connect <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-connect-hint"><span class="mg-sg-tag">.mg-connect-hint</span></div>
+<div class="mg-connect-pick"><span class="mg-sg-tag">.mg-connect-pick</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-cred <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Used by <code>users.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-cred-reveal"><span class="mg-sg-tag">.mg-cred-reveal</span></div>
+<div class="mg-cred-value"><span class="mg-sg-tag">.mg-cred-value</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-diff <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-diff-minus"><span class="mg-sg-tag">.mg-diff-minus</span></div>
+<div class="mg-diff-plus"><span class="mg-sg-tag">.mg-diff-plus</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-fm <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-fm-fields"><span class="mg-sg-tag">.mg-fm-fields</span></div>
+<div class="mg-fm-section"><span class="mg-sg-tag">.mg-fm-section</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-holder <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-holder-count"><span class="mg-sg-tag">.mg-holder-count</span></div>
+<div class="mg-holder-line"><span class="mg-sg-tag">.mg-holder-line</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-jsonl <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-jsonl-more"><span class="mg-sg-tag">.mg-jsonl-more</span></div>
+<div class="mg-jsonl-table"><span class="mg-sg-tag">.mg-jsonl-table</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-line <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-line"><span class="mg-sg-tag">.mg-line</span><div class="mg-line-lbl"><span class="mg-sg-tag">.mg-line-lbl</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-lock <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-lock"><span class="mg-sg-tag">.mg-lock</span><div class="mg-lock-dot"><span class="mg-sg-tag">.mg-lock-dot</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-pager <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-pager"><span class="mg-sg-tag">.mg-pager</span><div class="mg-pager-info"><span class="mg-sg-tag">.mg-pager-info</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-protect <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-protect-here"><span class="mg-sg-tag">.mg-protect-here</span></div>
+<div class="mg-protect-lock"><span class="mg-sg-tag">.mg-protect-lock</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-token <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-token"><span class="mg-sg-tag">.mg-token</span><div class="mg-token-x"><span class="mg-sg-tag">.mg-token-x</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-bars <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-bars"><span class="mg-sg-tag">.mg-bars</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-bc <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-bc-root"><span class="mg-sg-tag">.mg-bc-root</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-body <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-body"><span class="mg-sg-tag">.mg-body</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-brand <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-brand"><span class="mg-sg-tag">.mg-brand</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-breadcrumb <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-breadcrumb"><span class="mg-sg-tag">.mg-breadcrumb</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-cap <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-cap-dormant"><span class="mg-sg-tag">.mg-cap-dormant</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-checks <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-checks"><span class="mg-sg-tag">.mg-checks</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-configbtn <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-configbtn"><span class="mg-sg-tag">.mg-configbtn</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-dirty <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-dirty-note"><span class="mg-sg-tag">.mg-dirty-note</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-domain <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-domain-note"><span class="mg-sg-tag">.mg-domain-note</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-empty <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-empty"><span class="mg-sg-tag">.mg-empty</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-err <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-err"><span class="mg-sg-tag">.mg-err</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-foot <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-foot"><span class="mg-sg-tag">.mg-foot</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-form <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-form-row"><span class="mg-sg-tag">.mg-form-row</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-help <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-help"><span class="mg-sg-tag">.mg-help</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-info <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-info"><span class="mg-sg-tag">.mg-info</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-inline <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-inline-msg"><span class="mg-sg-tag">.mg-inline-msg</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-inp <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-inp-wide"><span class="mg-sg-tag">.mg-inp-wide</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-json <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-json-pre"><span class="mg-sg-tag">.mg-json-pre</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-main <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-main"><span class="mg-sg-tag">.mg-main</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-muted <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-muted"><span class="mg-sg-tag">.mg-muted</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-new <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-new-group-row"><span class="mg-sg-tag">.mg-new-group-row</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-no <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-no-password-warn"><span class="mg-sg-tag">.mg-no-password-warn</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-ok <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-ok"><span class="mg-sg-tag">.mg-ok</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-owner <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-owner-name"><span class="mg-sg-tag">.mg-owner-name</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-page <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-page-title"><span class="mg-sg-tag">.mg-page-title</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-prov <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-prov"><span class="mg-sg-tag">.mg-prov</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-qr <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-qr"><span class="mg-sg-tag">.mg-qr</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-readonly <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-readonly"><span class="mg-sg-tag">.mg-readonly</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-recent <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-recent-dot"><span class="mg-sg-tag">.mg-recent-dot</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-rwflag <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Used by <code>files.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-rwflag-g"><span class="mg-sg-tag">.mg-rwflag-g</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-sec <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-sec"><span class="mg-sg-tag">.mg-sec</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-section <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-section-label"><span class="mg-sg-tag">.mg-section-label</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-shell <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-shell"><span class="mg-sg-tag">.mg-shell</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-sidebar <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-sidebar"><span class="mg-sg-tag">.mg-sidebar</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-signout <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-signout"><span class="mg-sg-tag">.mg-signout</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-sort <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-sort-ind"><span class="mg-sg-tag">.mg-sort-ind</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-sortable <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-sortable"><span class="mg-sg-tag">.mg-sortable</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-split <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-split-bar"><span class="mg-sg-tag">.mg-split-bar</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-subcount <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-subcount"><span class="mg-sg-tag">.mg-subcount</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-theme <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-theme-toggle"><span class="mg-sg-tag">.mg-theme-toggle</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-toggle <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-toggle"><span class="mg-sg-tag">.mg-toggle</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-undo <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-undo-bar"><span class="mg-sg-tag">.mg-undo-bar</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-user <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-user"><span class="mg-sg-tag">.mg-user</span></div>
+</div>
 
 <style>
 .mg-sg-h { margin: 1.6rem 0 0.2rem; font-size: 1.05rem; }
@@ -657,6 +717,14 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
    shape without hiding the label that names it. */
 .mg-sg-item [class*="overlay"], .mg-sg-item .mg-sheet,
 .mg-sg-item .mg-editor-root, .mg-sg-item .mg-modal { opacity: 0.35; }
+/* Family composition: each class is labelled in place, and nesting is shown by
+   indentation rather than by a diagram - the structure IS the specification. */
+.mg-sg-family { display: block; }
+.mg-sg-family > div { padding: 0.35rem 0.5rem; margin: 0.25rem 0;
+  border-left: 2px solid var(--mg-border); }
+.mg-sg-tag { display: inline-block; font-size: 0.68rem; font-family: ui-monospace,
+  SFMono-Regular, Menlo, monospace; color: var(--mg-text-muted); margin-right: 0.4rem; }
+.mg-sg-count { font-size: 0.7rem; color: var(--mg-text-muted); font-weight: normal; }
 .mg-sg-name { display: block; font-size: 0.72rem; color: var(--mg-text-muted);
   margin-bottom: 0.25rem; }
 </style>

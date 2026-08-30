@@ -53,6 +53,7 @@ my %in_css = map { $_ => 1 } $css_rules =~ /\.(mg-[\w-]+)/g;
 # cannot lean on a rule it exists to audit.
 my %guide_furniture = map { $_ => 1 } qw(
     mg-sg-h mg-sg-note mg-sg-demo mg-sg-fam mg-sg-grid mg-sg-item mg-sg-name
+    mg-sg-family mg-sg-tag mg-sg-count
 );
 
 cmp_ok( scalar( keys %in_guide ), '>', 200,

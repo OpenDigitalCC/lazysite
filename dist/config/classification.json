@@ -511,6 +511,11 @@
       "why": "as manager/"
     },
     {
+      "path": "{DOCROOT}/manager/assets/fonts",
+      "mode": "2775",
+      "why": "bundled woff2 faces served to the browser; same mode as the assets dir above it because it is refreshed on upgrade the same way"
+    },
+    {
       "path": "{DOCROOT}/../lib/Lazysite",
       "mode": "0755",
       "why": "as ../lib"
