@@ -690,6 +690,43 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-user"><span class="mg-sg-tag">.mg-user</span></div>
 </div>
 
+<script>
+// SM698: PREVIEW MODE. `?style=<name>` renders this guide in a candidate sheet
+// so an operator can see a style before committing to it.
+//
+// THE CANDIDATE MUST BE THE ONLY SHEET. Adding it alongside the active one
+// would let a component the candidate does not style inherit the active
+// style's rule and look finished - which is precisely the defect this guide
+// exists to expose (SM686, SM697). A preview that hides gaps is worse than no
+// preview, because it is believed. So the active sheet is REMOVED first.
+//
+// A closed set here as well: the value comes from a query string and reaches a
+// <link href>. The server refuses an unknown name; so does this.
+(function () {
+  var m = /[?&]style=([a-z]+)/.exec(window.location.search || '');
+  if (!m) return;
+  var want = m[1];
+  if (['classic', 'accessible', 'modern'].indexOf(want) < 0) return;
+
+  var links = document.querySelectorAll('link[rel="stylesheet"][href*="/manager/assets/manager-"]');
+  for (var i = 0; i < links.length; i++) links[i].parentNode.removeChild(links[i]);
+
+  var l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = '/manager/assets/manager-' + want + '.css';
+  document.head.appendChild(l);
+
+  // Say which style is on screen. Without it a preview is indistinguishable
+  // from the manager having changed under the operator.
+  document.addEventListener('DOMContentLoaded', function () {
+    var b = document.createElement('div');
+    b.className = 'mg-status';
+    b.textContent = 'Preview: the ' + want + ' style. Nothing has been changed.';
+    document.body.insertBefore(b, document.body.firstChild);
+  });
+})();
+</script>
+
 <style>
 .mg-sg-h { margin: 1.6rem 0 0.2rem; font-size: 1.05rem; }
 .mg-sg-note { margin: 0 0 0.6rem; font-size: 0.86rem; color: var(--mg-text-muted); max-width: 46rem; }
@@ -718,10 +755,28 @@ the words to use; anything else needs a reason.</p>
 .mg-sg-item [class*="overlay"], .mg-sg-item .mg-sheet,
 .mg-sg-item .mg-editor-root, .mg-sg-item .mg-modal { opacity: 0.35; }
 /* Family composition: each class is labelled in place, and nesting is shown by
-   indentation rather than by a diagram - the structure IS the specification. */
-.mg-sg-family { display: block; }
+   indentation rather than by a diagram - the structure IS the specification.
+
+   CONTAINED, for the same reason the grid cells are. Sixteen manager classes
+   are position:fixed/absolute or full-viewport - the overlays, the editor root,
+   the sheet, the command palette. Twice now this page has gone grey because a
+   demo rendered one of them loose: once when the vocabulary was a grid without
+   containment, and again when the grid was replaced by these family blocks and
+   the guard was not carried over.
+
+   `transform` creates a containing block for FIXED descendants as well as
+   absolute ones; `overflow:hidden` clips what is sized to the viewport;
+   `contain` stops layout escaping. The specimen still renders live. */
+.mg-sg-family { display: block; position: relative; overflow: hidden;
+  transform: translateZ(0); contain: layout paint; }
 .mg-sg-family > div { padding: 0.35rem 0.5rem; margin: 0.25rem 0;
-  border-left: 2px solid var(--mg-border); }
+  border-left: 2px solid var(--mg-border); position: relative; overflow: hidden;
+  transform: translateZ(0); contain: layout paint; max-height: 14rem; }
+/* An overlay painting its block solid would hide the labels naming it. */
+.mg-sg-family [class*="overlay"], .mg-sg-family .mg-sheet,
+.mg-sg-family .mg-editor-root, .mg-sg-family .mg-modal,
+.mg-sg-family .mg-palette, .mg-sg-family .mg-notif-panel,
+.mg-sg-family .mg-header, .mg-sg-family .mg-warning-bar { opacity: 0.4; }
 .mg-sg-tag { display: inline-block; font-size: 0.68rem; font-family: ui-monospace,
   SFMono-Regular, Menlo, monospace; color: var(--mg-text-muted); margin-right: 0.4rem; }
 .mg-sg-count { font-size: 0.7rem; color: var(--mg-text-muted); font-weight: normal; }
