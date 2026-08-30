@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM701 (PENDING) **the fleet rollout reports a table, not a transcript.**
+- SM701 shipped (896bcede, 5bb25b1e) **the fleet rollout reports a table, not a transcript.**
   Raised by the release manager: "install/deploy is now very noisy, reporting an
   ever longer collection of information." A candidate appeared in as many as
   four places, none of them complete, and every phase of every site streamed in
