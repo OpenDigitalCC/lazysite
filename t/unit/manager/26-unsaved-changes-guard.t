@@ -35,7 +35,7 @@ sub slurp {
 # --- config.md (the SM118 reference) uses the shared helper ------------------
 {
     my $page = slurp('starter/manager/config.md');
-    like( $page, qr/id="site-dirty" class="mg-dirty-note"/, 'config: dirty-note markup present' );
+    like( $page, qr/id="site-dirty" class="mg-note mg-note-info"/, 'config: dirty-note markup present' );
     like( $page, qr/mgDirtyGuard\.set\('site-settings'/, 'config: registers dirty state' );
     like( $page, qr/mgDirtyGuard\.clear\('site-settings'/, 'config: clears dirty state on save' );
     unlike( $page, qr/addEventListener\('beforeunload'/,
@@ -45,7 +45,7 @@ sub slurp {
 # --- nav.md: every mutation path marks dirty ---------------------------------
 {
     my $page = slurp('starter/manager/nav.md');
-    like( $page, qr/id="nav-dirty" class="mg-dirty-note"/, 'nav: dirty-note markup present' );
+    like( $page, qr/id="nav-dirty" class="mg-note mg-note-info"/, 'nav: dirty-note markup present' );
     like( $page, qr/mgDirtyGuard\.set\('nav'/,             'nav: registers dirty state' );
 
     # add / edit / indent / outdent / delete / drag-drop all mark dirty
@@ -73,7 +73,7 @@ sub slurp {
 # --- plugin-config.md: config forms, handler forms, form targets -------------
 {
     my $page = slurp('starter/manager/plugin-config.md');
-    like( $page, qr/class="mg-dirty-note"/, 'plugin-config: dirty-note markup present' );
+    like( $page, qr/class="mg-note mg-note-info"/, 'plugin-config: dirty-note markup present' );
     like( $page, qr/markPluginDirty/,       'plugin-config: config forms mark dirty' );
     like( $page, qr/markHandlerDirty/, 'plugin-config: handler add/edit forms mark dirty' );
     like( $page, qr/markTargetsDirty/, 'plugin-config: form targets mark dirty' );
@@ -85,7 +85,7 @@ sub slurp {
 # --- appearance.md: the layouts-repo field ----------------------------------
 {
     my $page = slurp('starter/manager/appearance.md');
-    like( $page, qr/id="repo-dirty" class="mg-dirty-note"/, 'appearance: dirty-note markup present' );
+    like( $page, qr/id="repo-dirty" class="mg-note mg-note-info"/, 'appearance: dirty-note markup present' );
     like( $page, qr/mgDirtyGuard\.set\('layouts-repo'/, 'appearance: registers dirty state' );
     like( $page, qr/mgDirtyGuard\.clear\('layouts-repo'/, 'appearance: clears dirty state on save' );
 }

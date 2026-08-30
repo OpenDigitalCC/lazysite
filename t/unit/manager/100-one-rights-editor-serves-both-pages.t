@@ -82,8 +82,10 @@ like( $D, qr/data-table-acl-remove/,
 # learned the Files expander has learned this one, and a second implementation
 # would be a second thing to keep in step.
 like( $D, qr/class="mg-chev"/,   'the Data listing expands from the same chevron' );
-like( $D, qr/class="mg-perms-row"/,  '...into the same row' );
-like( $D, qr/class="mg-perms-card"/, '...holding the same card' );
+# SM-DS1 collapsed mg-perms-row and mg-perms-card into the one expander. The
+# property is unchanged: the Data page uses the SAME control the Files page
+# does, whatever that control is currently called.
+like( $D, qr/class="mg-expand"/, '...into the same expander card' );
 like( $D, qr/mg-rights-add/,     '...with the same principal picker' );
 unlike( $D, qr/table-acl-panel/,
     'and the modal it replaced is gone, not left orphaned in the markup' );
