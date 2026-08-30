@@ -577,7 +577,8 @@ fi
 
 # --- coverage gate (eight-dimension review D3) ---
 # Instrumented re-run of the suite against the declared floors in
-# dist/config/coverage-floor. Slow (~10-15 minutes at release cadence);
+# dist/config/coverage-floor. Slow - about an hour on the 0.11.8 suite, not
+# the 10-15 minutes this said for years;
 # converts the recorded coverage evidence from "stale until someone
 # remembers" into a per-release fact.
 
@@ -601,7 +602,12 @@ fi
 # ( ... | tee f )` tests tee's exit status, which succeeds whatever the child
 # did. t/tools/34 asserts that trap against a failing stand-in, and this gate
 # must not reintroduce it.
-echo "==> coverage.sh --check (instrumented run; ~10-15 minutes)"
+# The estimate is MEASURED, and was wrong by roughly 4x until 0.11.8: the
+# uninstrumented suite takes ~10 minutes and Devel::Cover multiplies that
+# several times over. An estimate that understates by 4x is worse than none -
+# during the 0.11.8 cut it led to a healthy run being diagnosed as a hang, and
+# the next person to look would have reached for the kill.
+echo "==> coverage.sh --check (instrumented run; ~1 hour - Devel::Cover is several times the uninstrumented ~10 min)"
 # SM444 follow-up: BESIDE the stage, never inside it.
 #
 # The first version wrote this to $STAGE/coverage-check.txt and the next step
