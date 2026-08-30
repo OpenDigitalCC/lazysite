@@ -270,6 +270,15 @@
       "files": "starter/assets/qrcode.js",
       "homepage": "https://github.com/kazuhikoarase/qrcode-generator",
       "used_by": "manager 2FA enrolment QR (rendered client-side from the otpauth URI)"
+    },
+    {
+      "name": "barlow",
+      "version": "1.422",
+      "license": "OFL-1.1",
+      "purl": "pkg:generic/barlow@1.422",
+      "files": "starter/lazysite/manager/assets/fonts/*",
+      "homepage": "https://github.com/jpt/barlow",
+      "used_by": "manager UI typography (Barlow, Barlow Condensed) - bundled rather than fetched from a CDN so the manager makes no external request"
     }
   ],
   "environment": [
