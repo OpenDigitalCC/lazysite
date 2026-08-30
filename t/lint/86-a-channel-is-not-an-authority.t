@@ -12,20 +12,16 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root gate_caps);
 
 my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
 my $api = slurp("$root/lazysite-manager-api.pl");
 my $reg = slurp("$root/lib/Lazysite/ControlApi/Actions.pm");
 
-my ($need_block) = $api =~ /my \%need = \((.*?)\n    \);/s;
-ok( $need_block, 'the token gate table was found' );
-my %need;
-while ( $need_block =~ /'([a-z0-9_-]+)'\s*=>\s*sub\s*\{(.*?)\},?[ ]*(?:#[^\n]*)?\n/g ) {
-    my ( $a, $body ) = ( $1, $2 );
-    $need{$a} = { map { $_ => 1 } $body =~ /\{(\w+)\}/g };
-}
+# SM662: read as data, through the one helper that extracts the gate table.
+my %need = gate_caps($api);
+ok( scalar keys %need, 'the token gate table was found' );
 cmp_ok( scalar keys %need, '>=', 60, 'the gate table was parsed' );
 
 my %CHANNEL       = map       { $_ => 1 } qw(webdav api mcp ui);

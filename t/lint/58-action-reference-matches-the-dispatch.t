@@ -42,13 +42,14 @@ my @lines = split /\n/, $src, -1;
 my ($known_src) = $src =~ /my %KNOWN_ACTION = map \{ \$_ => 1 \} qw\(\s*(.*?)\s*\);/s;
 my @known       = sort split /\s+/, $known_src;
 
-my ($need_src) = $src =~ /my %need = \((.*?)\n    \);/s;
-my %need;
-# Line-based, NOT /sub \{([^}]*)\}/ - a predicate reads $_[0]->{manage_themes},
-# whose own closing brace ends that match at once and yields an empty list. It
+# SM662: read as DATA. The warning that stood here is worth keeping as
+# history: parsing a predicate with /sub \{([^}]*)\}/ stopped at the closing
+# brace of $_[0]->{manage_themes} and yielded an empty capability list - which
 # looks exactly like a working extraction that found no capability required,
-# which is the most dangerous shape a mistake can take in a security-adjacent
-# reference. Cost an hour the first time.
+# the most dangerous shape a mistake can take in a security-adjacent reference,
+# and it cost an hour. A declared list cannot fail that way, which is most of
+# why the table was made declarative.
+my %need = gate_caps($src);
 while ( $need_src =~ /^\s*'([a-z0-9_-]+)'\s*=>\s*sub \{(.*)$/mg ) {
     my ( $a, $body ) = ( $1, $2 );
     my @caps = $body =~ /\$_\[0\]->\{(\w+)\}/g;

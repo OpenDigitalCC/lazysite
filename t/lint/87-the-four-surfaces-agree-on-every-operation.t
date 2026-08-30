@@ -26,7 +26,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root gate_caps);
 
 my $root = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
@@ -44,14 +44,12 @@ while ( ( $cc_block // '' ) =~ /'([a-z0-9-]+)'\s*=>\s*'([a-z0-9_|]+)'/g ) {
 cmp_ok( scalar keys %cookie_caps, '>=', 30, '%COOKIE_CAP parsed non-trivially' );
 
 # --- column 2: the token gate %need (lint 86's parser) -----------------------
-my ($need_block) = $api_src =~ /my %need = \((.*?)\n    \);/s;
-ok( $need_block, 'found %need' );
-my %need_caps;
-while ( ( $need_block // '' ) =~ /'([a-z0-9_-]+)'\s*=>\s*sub\s*\{(.*?)\},?[ ]*(?:#[^\n]*)?\n/g ) {
-    my ( $a, $body ) = ( $1, $2 );
-    $need_caps{$a} = { map { $_ => 1 } $body =~ /\{(\w+)\}/g };
-}
-cmp_ok( scalar keys %need_caps, '>=', 60, '%need parsed non-trivially' );
+# SM662: the gate declares its capabilities, so this column is read as data.
+# TestHelper::gate_caps is the one place that extraction lives - it used to be
+# written out here, in lint 14, and in four other suites, each slightly
+# differently.
+my %need_caps = gate_caps($api_src);
+cmp_ok( scalar keys %need_caps, '>=', 60, 'the token gate table was read' );
 
 # --- column 3: the MCP tool registry -----------------------------------------
 # Segment %TOOLS on its 4-space-indented entry names (lint 23 parses the same

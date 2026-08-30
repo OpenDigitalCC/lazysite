@@ -876,58 +876,78 @@ if ($token_auth) {
     # The flag is read at dispatch, where the acting user is also known.
     $RESTRICT_THEME_DELETE = 1;
 
-    my %need = (
-        'artifact-manifest' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'artifact-validate' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'theme-activate'    => sub { $_[0]->{manage_themes} },
-        'layout-activate'   => sub { $_[0]->{manage_layouts} },
-        'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'config-set'        => sub { $_[0]->{manage_config} },
-        'config-read'       => sub { $_[0]->{manage_config} }, # SM122: read a safe subset
+    # SM662: A GATE DECLARES THE CAPABILITIES IT NEEDS, rather than testing
+    # them in code that nothing can read.
+    #
+    # An arrayref is ANY-OF: the gate opens if the caller holds at least one of
+    # the named capabilities. 'ALWAYS' means the action needs no capability.
+    #
+    # WHY. The old entries were predicates - sub { $_[0]->{manage_data} } -
+    # which are expressive and opaque: nothing can extract which capability an
+    # entry tests without executing it. That is why ControlApi::Actions.pm and
+    # the unlocks map are hand-kept COPIES of this fact, why SM687 needed nine
+    # registration points to add one action, and why every one of the last five
+    # was found by a failing gate rather than by reading the code.
+    #
+    # Declared, the capabilities are DATA, so the copies can be derived from
+    # the one table that decides anything.
+    #
+    # ANY-OF IS THE ONLY COMBINATOR HERE, and that is deliberate rather than a
+    # simplification: of the 81 entries, 63 name one capability, 15 name two,
+    # and 3 need none. A gate needing ALL of several would have to add a form
+    # here, in the open, rather than smuggle a predicate back in.
+    my %need_caps = (
+        'artifact-manifest' => [qw(manage_themes manage_layouts)],
+        'artifact-validate' => [qw(manage_themes manage_layouts)],
+        'theme-activate'    => [qw(manage_themes)],
+        'layout-activate'   => [qw(manage_layouts)],
+        'preview-grant'     => [qw(manage_themes manage_layouts)],
+        'config-set'        => [qw(manage_config)],
+        'config-read'       => [qw(manage_config)],    # SM122: read a safe subset
             # SM160: domain management + the portable site-package family are the
             # manage_domains capability (carved out of manage_config), so an
             # orchestrating control panel drives the lazysite side of a deploy
             # with a manage_domains token, same as the CLI/UI.
             # SM447: token clients are the point of the data plugin - an agent
             # populating a table is the primary use, not an afterthought.
-        'data-tables'     => sub { $_[0]->{manage_data} },
-        'data-table'      => sub { $_[0]->{manage_data} },
-        'data-rows'       => sub { $_[0]->{manage_data} },
-        'data-migrate'    => sub { $_[0]->{manage_data} },
-        'data-row-save'   => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
-        'data-table-save' => sub { $_[0]->{manage_data} },
-        'data-table-acl-get'         => sub { $_[0]->{manage_content} },    # SM687
-        'data-table-acl-set'         => sub { $_[0]->{manage_content} },    # SM687
-        'data-table-acl-remove'      => sub { $_[0]->{manage_content} },    # SM687
-        'data-rebuild'               => sub { $_[0]->{manage_data} },
-        'data-export'                => sub { $_[0]->{manage_data} },
-        'data-import'                => sub { $_[0]->{manage_data} },
-        'data-table-source'          => sub { $_[0]->{manage_data} },
-        'data-migrate-plan'          => sub { $_[0]->{manage_data} },
-        'data-table-drop'            => sub { $_[0]->{housekeeping} },
-        'data-safety-exports'        => sub { $_[0]->{manage_data} },
-        'data-safety-export-delete'  => sub { $_[0]->{purge} },
-        'data-safety-export-read'    => sub { $_[0]->{manage_data} },
-        'data-safety-export-restore' => sub { $_[0]->{manage_data} },
+        'data-tables'                => [qw(manage_data)],
+        'data-table'                 => [qw(manage_data)],
+        'data-rows'                  => [qw(manage_data)],
+        'data-migrate'               => [qw(manage_data)],
+        'data-row-save'              => [qw(manage_data write_data)],
+        'data-table-save'            => [qw(manage_data)],
+        'data-table-acl-get'         => [qw(manage_content)],           # SM687
+        'data-table-acl-set'         => [qw(manage_content)],           # SM687
+        'data-table-acl-remove'      => [qw(manage_content)],           # SM687
+        'data-rebuild'               => [qw(manage_data)],
+        'data-export'                => [qw(manage_data)],
+        'data-import'                => [qw(manage_data)],
+        'data-table-source'          => [qw(manage_data)],
+        'data-migrate-plan'          => [qw(manage_data)],
+        'data-table-drop'            => [qw(housekeeping)],
+        'data-safety-exports'        => [qw(manage_data)],
+        'data-safety-export-delete'  => [qw(purge)],
+        'data-safety-export-read'    => [qw(manage_data)],
+        'data-safety-export-restore' => [qw(manage_data)],
         # SM576 part 1: see %COOKIE_CAP above - the write half moves to
         # manage_briefs, the read half accepts either.
-        'brief-read'      => sub { $_[0]->{manage_content} || $_[0]->{manage_briefs} },
-        'brief-append'    => sub { $_[0]->{manage_briefs} },
-        'briefs-migrate'  => sub { $_[0]->{manage_briefs} },
-        'briefs-list'     => sub { $_[0]->{manage_content} || $_[0]->{manage_briefs} },
-        'brief-delete'    => sub { $_[0]->{purge} },
-        'data-row-delete' => sub { $_[0]->{manage_data} || $_[0]->{write_data} },
-        'domains-list'    => sub { $_[0]->{manage_domains} },   # read-only domains view
-        'domain-add'      => sub { $_[0]->{manage_domains} },
-        'domain-set'      => sub { $_[0]->{manage_domains} },
-        'domain-remove'   => sub { $_[0]->{manage_domains} },
-        'domain-preview'  => sub { $_[0]->{manage_domains} },   # SM155: pre-DNS render
-        'domain-check'    => sub { $_[0]->{manage_domains} },   # SM156: live config check
-        'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
+        'brief-read'      => [qw(manage_content manage_briefs)],
+        'brief-append'    => [qw(manage_briefs)],
+        'briefs-migrate'  => [qw(manage_briefs)],
+        'briefs-list'     => [qw(manage_content manage_briefs)],
+        'brief-delete'    => [qw(purge)],
+        'data-row-delete' => [qw(manage_data write_data)],
+        'domains-list'    => [qw(manage_domains)],              # read-only domains view
+        'domain-add'      => [qw(manage_domains)],
+        'domain-set'      => [qw(manage_domains)],
+        'domain-remove'   => [qw(manage_domains)],
+        'domain-preview'  => [qw(manage_domains)],              # SM155: pre-DNS render
+        'domain-check'    => [qw(manage_domains)],              # SM156: live config check
+        'lang-status' => [qw(manage_content)], # SM179 P6: set coverage (translation agent)
             # SM301: the twin of MCP's regenerate_registries. Same capability, and
             # now the same availability - the account that holds manage_content can
             # reach it whichever door it was granted.
-        'regenerate-registries' => sub { $_[0]->{manage_content} },
+        'regenerate-registries' => [qw(manage_content)],
         # SM281 item 3: the notice store as a READ surface.
         #
         # `notifications` unlocked a manager page and had no remote surface at
@@ -941,42 +961,42 @@ if ($token_auth) {
         # Read only. Writing is emission, which SM231 built and which routes by
         # type; a remote writer is item 2's addressing question and is not
         # answered by making the store readable.
-        'notices' => sub { $_[0]->{notifications} },
+        'notices' => [qw(notifications)],
         # SM282: seeing what a VISITOR gets for a path you can already read.
         # It renders anonymously, so it can never show more than the public
         # sees - manage_content is the grant that makes the question yours to
         # ask, not a grant to see anything new.
-        'preview-public'       => sub { $_[0]->{manage_content} },
-        'site-backup-create'   => sub { $_[0]->{manage_domains} },    # SM158
-        'site-backup-upload'   => sub { $_[0]->{manage_domains} },
-        'site-backup-apply'    => sub { $_[0]->{manage_domains} },
-        'site-backup-inspect'  => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-delete'   => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-download' => sub { $_[0]->{manage_domains} },    # SM193
-        'site-export-primary'  => sub { $_[0]->{manage_content} },    # SM185
+        'preview-public'       => [qw(manage_content)],
+        'site-backup-create'   => [qw(manage_domains)],    # SM158
+        'site-backup-upload'   => [qw(manage_domains)],
+        'site-backup-apply'    => [qw(manage_domains)],
+        'site-backup-inspect'  => [qw(manage_domains)],    # SM183
+        'site-backup-delete'   => [qw(manage_domains)],    # SM183
+        'site-backup-download' => [qw(manage_domains)],    # SM193
+        'site-export-primary'  => [qw(manage_content)],    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # SM652: read_submissions ONLY, on both channels - see the
             # declaration table above. manage_forms is definition-only now, so
             # the sysop parity note that stood here no longer applies.
-        'form-submissions' => sub { $_[0]->{read_submissions} },
-        'form-list'        => sub { $_[0]->{read_submissions} },
-        'form-delete' => sub { $_[0]->{manage_forms} },  # SM632: the inverse of bind_form
-        'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
-        'bad-url-block'   => sub { $_[0]->{manage_config} },    # SM704: block by hand
-        'bad-url-unblock' => sub { $_[0]->{manage_config} },
+        'form-submissions' => [qw(read_submissions)],
+        'form-list'        => [qw(read_submissions)],
+        'form-delete'      => [qw(manage_forms)],       # SM632: the inverse of bind_form
+        'bad-url-blocks'   => [qw(manage_config)],      # SM128: blocked-IP list
+        'bad-url-block'    => [qw(manage_config)],      # SM704: block by hand
+        'bad-url-unblock'  => [qw(manage_config)],
         # SM097: page-URL list for the nav editor. SM568: a content read too,
         # so manage_content admits it - as it does the MCP twin list_pages.
-        'pages' => sub { $_[0]->{manage_content} || $_[0]->{manage_nav} },
+        'pages' => [qw(manage_content manage_nav)],
         # SM123: a theme/layout manager may list what is installed (was previously
         # unavailable to token clients, so they activated each in turn to discover).
-        'theme-list'        => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'themes-for-layout' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'themes-list-all'   => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'layouts-available' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
-        'layouts-manifest'  => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'theme-list'        => [qw(manage_themes manage_layouts)],
+        'themes-for-layout' => [qw(manage_themes manage_layouts)],
+        'themes-list-all'   => [qw(manage_themes manage_layouts)],
+        'layouts-available' => [qw(manage_themes manage_layouts)],
+        'layouts-manifest'  => [qw(manage_themes manage_layouts)],
         # SM: a layouts manager may install/remove layouts on demand from the repo.
-        'layout-install' => sub { $_[0]->{manage_layouts} },
-        'layout-delete'  => sub { $_[0]->{manage_layouts} },
+        'layout-install' => [qw(manage_layouts)],
+        'layout-delete'  => [qw(manage_layouts)],
         # SM262: a caller that can create a theme may remove one IT created, and
         # nothing else - enforced in action_theme_delete, which this branch asks
         # for by setting $RESTRICT_THEME_DELETE below. Without this an agent
@@ -984,35 +1004,35 @@ if ($token_auth) {
         # them. The manager UI over a cookie session does not take this path and
         # keeps the unrestricted delete: a human at the console is the case the
         # UI-only rule was protecting, and it still is.
-        'theme-delete'            => sub { $_[0]->{manage_themes} },
-        'artifact-backups-delete' => sub { $_[0]->{purge} },
+        'theme-delete'            => [qw(manage_themes)],
+        'artifact-backups-delete' => [qw(purge)],
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
         # SM568: reading the navigation is a content read as much as a nav
         # editor's; manage_content admits it, as it does the MCP twin read_nav.
-        'nav-read' => sub { $_[0]->{manage_content} || $_[0]->{manage_nav} },
-        'nav-save' => sub { $_[0]->{manage_nav} },
+        'nav-read' => [qw(manage_content manage_nav)],
+        'nav-save' => [qw(manage_nav)],
         # SM134 follow-ups: the alias-redirect map is content-derived - a content
         # partner may list it (read-only; aliases are front-matter-authored).
-        'aliases-list' => sub { $_[0]->{manage_content} },
+        'aliases-list' => [qw(manage_content)],
         # SM085: content history. Reads and restore follow the content grant
         # (restore routes through the normal save path); enabling/initialising
         # the repo is a site-configuration act.
-        'git-status'  => sub { $_[0]->{manage_content} },
-        'git-history' => sub { $_[0]->{manage_content} },
-        'git-history-summary' => sub { $_[0]->{manage_content} || $_[0]->{manage_config} }, # SM199, SM664
-        'git-show'            => sub { $_[0]->{manage_content} },
-        'git-restore'         => sub { $_[0]->{manage_content} },
-        'git-init'            => sub { $_[0]->{manage_config} },
-        'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
-        'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
-        'actions-list' => sub { 1 },    # SM350: introspection - the action reference
+        'git-status'          => [qw(manage_content)],
+        'git-history'         => [qw(manage_content)],
+        'git-history-summary' => [qw(manage_content manage_config)],    # SM199, SM664
+        'git-show'            => [qw(manage_content)],
+        'git-restore'         => [qw(manage_content)],
+        'git-init'            => [qw(manage_config)],
+        'whoami' => 'ALWAYS',    # any authenticated token may introspect its own grant
+        'describe-capabilities' => 'ALWAYS', # SM126: introspection - the capability map
+        'actions-list'          => 'ALWAYS', # SM350: introspection - the action reference
             # Visitor-log analysis over the control API (token clients), same grant as
             # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
-        'analyse_visitors' => sub { $_[0]->{analytics} },
+        'analyse_visitors' => [qw(analytics)],
         # The audit trail is its own capability, separate from visitor analytics.
-        'audit' => sub { $_[0]->{audit} },
+        'audit' => [qw(audit)],
         # SM074: a publishing partner manages ACLs on the content it owns.
         # SM431: and so does a manage_content grant - the MCP twins
         # (get_permissions / set_permissions) sat under manage_content while
@@ -1025,10 +1045,26 @@ if ($token_auth) {
         # read, set or remove the rules that govern content. A themes partner
         # holding webdav for theme uploads reached all three; t/lint/86 now
         # forbids any channel capability in a token gate.
-        'acl-get'    => sub { $_[0]->{manage_content} },
-        'acl-set'    => sub { $_[0]->{manage_content} },
-        'acl-remove' => sub { $_[0]->{manage_content} },
+        'acl-get'    => [qw(manage_content)],
+        'acl-set'    => [qw(manage_content)],
+        'acl-remove' => [qw(manage_content)],
     );
+
+    # The predicates, rebuilt from the declaration, so every call site still
+    # receives a coderef and nothing downstream of %need changed.
+    #
+    # That this decides exactly what the predicates decided is not asserted,
+    # it is PROVED: tools/gate-fingerprint.pl runs every gate against a fixed
+    # battery - no capabilities, all of them, and each one alone - and its
+    # output is byte-identical before and after this change.
+    my %need = map {
+        my $d = $need_caps{$_};
+        $_ => (
+            ( !ref $d && $d eq 'ALWAYS' )
+            ? sub { 1 }
+            : do { my @c = @{$d}; sub { my $h = shift; scalar grep { $h->{$_} } @c } }
+        );
+    } keys %need_caps;
     # SM212: why a KNOWN action is withheld from token clients, where the answer
     # is a decision and not just "the manager UI owns this screen". Only the
     # actions whose absence would otherwise read as an oversight need an entry;

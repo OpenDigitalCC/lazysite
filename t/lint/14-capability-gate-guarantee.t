@@ -21,7 +21,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root gate_caps);
 
 my $root = repo_root();
 my $src  = do {
@@ -40,18 +40,11 @@ while ( $cc_block =~ /'([a-z0-9-]+)'\s*=>\s*'([a-z0-9_|]+)'/g ) {
     $cookie_caps{$1} = { map { $_ => 1 } split /\|/, $2 };
 }
 
-my ($need_block) = $src =~ /my %need = \((.*?)\n    \);/s;
-ok( $need_block, 'found the token %need map' );
-# Each entry is a single line: 'action' => sub { ... $_[0]->{cap} ... },
-# The sub bodies contain nested { } (the cap hash lookups), so parse per line -
-# capture the action, then every cap referenced on that same line.
-my %need_caps;    # action => { cap => 1, ... }  (empty = any authenticated)
-for my $line ( split /\n/, $need_block ) {
-    next unless $line =~ /'([a-z0-9-]+)'\s*=>\s*sub \{/;
-    my $act  = $1;
-    my %caps = map { $_ => 1 } ( $line =~ /\$_\[0\]->\{(\w+)\}/g );
-    $need_caps{$act} = \%caps;
-}
+# SM662: the gate DECLARES its capabilities, so this reads data rather than
+# picking capability names out of a sub body with a regex. TestHelper::gate_caps
+# is the one place that extraction lives.
+my %need_caps = gate_caps($src);
+ok( scalar keys %need_caps, 'found the token gate table' );
 
 my ($mut_block) = $src =~ /my %MUTATING = map \{ \$_ => 1 \} qw\((.*?)\)/s;
 my %mutating = map { $_ => 1 } split ' ', ( $mut_block // '' );

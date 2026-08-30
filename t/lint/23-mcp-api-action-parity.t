@@ -36,8 +36,9 @@ my $mcp_src = slurp("$root/lazysite-mcp.pl");
 
 # The live surfaces: %need keys are the token-callable actions, %TOOLS keys the
 # MCP tools.
-my ($need_block) = $api_src    =~ /my \%need = \((.*?)\n    \);/s;
-my @api_live     = $need_block =~ /'([a-z0-9_-]+)'\s*=>\s*sub/g;
+# SM662: the gate is declarative, so the live action list is simply its keys -
+# no regex over a sub body, and nothing to get subtly wrong.
+my @api_live = sort keys %{ { gate_caps($api_src) } };
 my @mcp_live     = $mcp_src    =~ /^    ([a-z_]+)\s*=>\s*\{/mg;
 cmp_ok( scalar @api_live, '>=', 40, 'the control-API action table was parsed' );
 cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );

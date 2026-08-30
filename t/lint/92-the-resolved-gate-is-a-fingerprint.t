@@ -32,7 +32,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root gate_predicates);
 
 my $root = repo_root();
 my $api  = "$root/lazysite-manager-api.pl";
@@ -40,9 +40,12 @@ plan skip_all => 'manager api missing' unless -f $api;
 
 my $src = do { open my $fh, '<', $api or die $!; local $/; <$fh> };
 
-my ($need_src) = $src =~ /\n( *my %need = \(.*?\n *\);)/s;
-ok( $need_src, 'the token gate table was extracted' )
-    or BAIL_OUT('no %need - the fingerprint cannot be taken');
+# SM662: the table is declarative, so the predicates are REBUILT from it -
+# in TestHelper, not imported from the script under test, so a fault in the
+# script's own rebuild cannot cancel itself out and agree with a broken gate.
+my %need = gate_predicates($src);
+ok( scalar keys %need, 'the token gate table was extracted' )
+    or BAIL_OUT('no gate table - the fingerprint cannot be taken');
 
 # The capability vocabulary, from the store's own list rather than a copy here -
 # a hand-kept list would be the seventh place (SM662's own subject).
@@ -52,14 +55,6 @@ cmp_ok( scalar @CAPS, '>=', 15, 'the capability vocabulary was read from the sto
 
 # Predicates receive a caps hashref. Some also consult a second argument; those
 # are called with an empty one so the answer is a function of capabilities only.
-my %need = do {
-    my %h;
-    my $code = $need_src;
-    $code =~ s/^ *my %need = \(/\%h = (/;
-    my $ok = eval "package SM662Probe; no warnings; $code; 1";
-    BAIL_OUT("could not compile the extracted gate table: $@") unless $ok;
-    %h;
-};
 cmp_ok( scalar keys %need, '>=', 60, 'the gate table compiled with its entries' );
 
 sub answers {

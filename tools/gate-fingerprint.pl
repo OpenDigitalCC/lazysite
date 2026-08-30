@@ -67,7 +67,23 @@ sub _describe {
         ( @singles ? join( ',', @singles ) : '-' );
 }
 
-my %need   = table('need');
+# SM662: %need is now DERIVED from %need_caps, so extracting the literal
+# `my %need = (` block no longer finds the decision - it finds the map that
+# rebuilds it. Extract the declaration and rebuild the predicates the same way
+# the API does, so this still fingerprints what the gate DECIDES.
+#
+# The rebuild is duplicated here on purpose and it is two lines: the tool must
+# not import from the script it is auditing, or a fault in the rebuild would
+# cancel itself out and the fingerprint would agree with a broken gate.
+my %need_caps = table('need_caps');
+my %need      = map {
+    my $d = $need_caps{$_};
+    $_ => (
+        ( !ref $d && $d eq 'ALWAYS' )
+        ? sub { 1 }
+        : do { my @c = @{$d}; sub { my $h = shift; scalar grep { $h->{$_} } @c } }
+    );
+} keys %need_caps;
 my %cookie = table('COOKIE_CAP');
 
 # SM682 correction: the fingerprint is keyed by capability NAME, not by

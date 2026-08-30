@@ -11,6 +11,7 @@ use FindBin;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
+    gate_caps gate_predicates
     repo_root processor_path
     load_processor silence_stdout
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
@@ -258,6 +259,51 @@ sub _gc_set_caps {
     open my $w, '>', $f or die "groups-settings: $!";
     print {$w} JSON::PP::encode_json($gs);
     close $w;
+}
+
+# SM662: THE GATE TABLE, READ ONCE.
+#
+# %need used to hold predicates - sub { $_[0]->{manage_data} } - so every suite
+# that wanted to know which capability an action needs wrote its own regex over
+# the sub body, and six of them did, slightly differently. The table is
+# declarative now (an arrayref is ANY-OF, 'ALWAYS' means none), so the answer
+# is data and this is the one place that extracts it.
+#
+# Returns: ( action => { cap => 1, ... } ), an EMPTY hash meaning the action
+# needs no capability.
+sub gate_caps {
+    my ($src) = @_;
+    my ($block) = $src =~ /\n( *my \%need_caps = \(.*?\n *\);)/s
+        or return ();
+    my %decl;
+    ( my $code = $block ) =~ s/^ *my \%need_caps = \(/\%decl = (/;
+    ## no critic (BuiltinFunctions::ProhibitStringyEval)
+    eval "package TestHelperGate; no warnings; $code; 1" or return ();
+    ## use critic
+    my %out;
+    for my $act ( keys %decl ) {
+        my $d = $decl{$act};
+        $out{$act} = ( !ref $d && $d eq 'ALWAYS' )
+            ? {}
+            : { map { $_ => 1 } @{ $d || [] } };
+    }
+    return %out;
+}
+
+# The same table as PREDICATES, for a caller that wants to run the gate rather
+# than read it. Rebuilt here rather than imported from the script under test,
+# so a fault in the script's own rebuild cannot cancel itself out.
+sub gate_predicates {
+    my ($src) = @_;
+    my %caps = gate_caps($src);
+    my %need;
+    for my $act ( keys %caps ) {
+        my @c = keys %{ $caps{$act} };
+        $need{$act} = @c
+            ? sub { my $h = shift; scalar grep { $h->{$_} } @c }
+            : sub { 1 };
+    }
+    return %need;
 }
 
 sub repo_root {
