@@ -9,17 +9,32 @@
 #
 # THE EXECUTION BOUNDARY, which the filing said to settle before writing this:
 #
-#   1. A BOUNDED ROOT. Pandoc resolves image and include paths, so a conversion
-#      that read whatever the Markdown named would be a file-read primitive with
-#      the CGI's privileges. `--resource-path` is pinned to the docroot and
-#      pandoc runs with the docroot as its working directory, so a reference
-#      outside it does not resolve. `--sandbox` is passed when the installed
-#      pandoc supports it, which refuses filesystem access outright.
+#   1. A BOUNDED ROOT, as far as the wrapper allows. md-to-pdf owns the pandoc
+#      invocation, so this plugin cannot pass --sandbox or --resource-path
+#      through it. What it CAN control is the brands base and the working
+#      directory. MD_TO_PDF_BRANDS is pinned to the site's own brand folder, so
+#      a document naming a brand cannot pull a template from elsewhere.
+#
+#      MEASURED, because the working directory looked like a confinement and is
+#      not one: the wrapper resolves a document's relative references against
+#      the SOURCE FILE's directory, not against the cwd. Converting the same
+#      page from two different working directories embedded the same image both
+#      times. So the scratch directory below buys predictable output, not
+#      containment, and this comment does not claim otherwise.
+#
+#      THE RESIDUAL RISK, stated rather than hidden: an absolute path - or
+#      enough leading ../ - in a document's image reference is resolved by
+#      pandoc inside the wrapper, where this plugin has no say. Converting is
+#      gated on manage_content, so the author already reads the content tree,
+#      but not arbitrary host files, and that gap is real until the wrapper
+#      offers a sandbox flag or a passthrough of its own. Recorded on SM694.
 #
 #   2. A FIXED ARGUMENT LIST. Every argument is built here. Nothing a caller
 #      sends reaches the command line, and the list is a Perl list passed to a
-#      list-form open - no shell, so no quoting question to get wrong. A brand
-#      is a NAME matched against the files actually present, never a path.
+#      list-form exec - no shell, so no quoting question to get wrong. The BRAND
+#      is chosen in the document's own front matter (`brand: <name>`), which is
+#      the wrapper's interface; the plugin's job is to bound where brands are
+#      read FROM, not to pass one on a command line.
 #
 #   3. READ AUTHORITY. Converting a page is producing a copy of it, so the
 #      caller must be able to READ it. The conversion asks the same ACL the
@@ -50,9 +65,10 @@ sub describe {
         id          => 'pandoc',
         name        => 'PDF export (pandoc)',
         version     => '1',
-        description => 'Convert a page to a branded PDF using a pandoc '
-            . 'installed on this server. Brand assets live in the site files, '
-            . 'so an operator maintains them where they maintain content.',
+        description => 'Convert a page to a branded PDF through md-to-pdf, the '
+            . 'pandoc wrapper installed on this server. Brand assets live in '
+            . 'the site files, so an operator maintains them where they '
+            . 'maintain content.',
         owns => {
 
             # No new capability. Converting a page is reading it in another
@@ -60,9 +76,12 @@ sub describe {
             # authority an operator would have to reason about separately.
             capabilities => [],
 
-            # SM694: the executable form. pandoc is a program, not a module, and
-            # without this the plugin would enable on a host that cannot run it.
-            bins => ['pandoc'],
+            # SM694: the executable form. What this plugin CALLS is md-to-pdf,
+            # the pandoc wrapper - which owns the pandoc and XeLaTeX invocation,
+            # the templates and the brand machinery. Declaring `pandoc` here
+            # would let the plugin enable on a host that has pandoc and not the
+            # wrapper, which is the state `bins` exists to prevent.
+            bins => ['md-to-pdf'],
         },
         config_file   => 'lazysite/pandoc.conf',
         config_schema => [
@@ -87,18 +106,18 @@ sub describe {
     };
 }
 
-# The pandoc the plugin will actually use. Resolved from PATH the same way the
-# enable-time check does, so "enabled" and "works" cannot disagree.
-sub _pandoc_path {
+# The converter the plugin will actually run. Resolved from PATH the same way
+# the enable-time check does, so "enabled" and "works" cannot disagree.
+sub _converter_path {
     my $path = $ENV{PATH} // '/usr/local/bin:/usr/bin:/bin';
     for my $dir ( split /:/, $path ) {
         next unless length $dir;
-        return "$dir/pandoc" if -x "$dir/pandoc" && !-d _;
+        return "$dir/md-to-pdf" if -x "$dir/md-to-pdf" && !-d _;
     }
     return undef;
 }
 
-sub _pandoc_version {
+sub _converter_version {
     my ($bin) = @_;
     return undef unless defined $bin;
     my $out = '';
@@ -107,13 +126,13 @@ sub _pandoc_version {
         $out = <$fh> // '';
         close $fh;
     }
-    return ( $out =~ /pandoc\s+([0-9][\w.]*)/ ) ? $1 : undef;
+    return ( $out =~ /([0-9]+\.[0-9][\w.]*)/ ) ? $1 : undef;
 }
 
-# Does this pandoc understand --sandbox? Older ones do not, and passing an
-# unknown flag fails the whole conversion - so ask rather than assume, and lose
-# the extra confinement rather than the feature on an older install.
-sub _supports_sandbox {
+# Does this wrapper understand --no-viewer? It must: on a server there is no
+# viewer to open, and a converter that tries to open one blocks the request.
+# Asked rather than assumed, because an unknown flag fails the whole run.
+sub _supports_no_viewer {
     my ($bin) = @_;
     return 0 unless defined $bin;
     my $out = '';
@@ -122,7 +141,7 @@ sub _supports_sandbox {
         $out = <$fh> // '';
         close $fh;
     }
-    return $out =~ /--sandbox/ ? 1 : 0;
+    return $out =~ /--no-viewer/ ? 1 : 0;
 }
 
 # The brands present: one subfolder per brand under the configured directory.
@@ -154,8 +173,8 @@ sub convert {
     my $brand   = $o{brand};
     my $dir     = $o{brand_dir} // 'brand';
 
-    my $bin = _pandoc_path();
-    return { ok => 0, error => 'pandoc is not installed on this server' }
+    my $bin = _converter_path();
+    return { ok => 0, error => 'md-to-pdf is not installed on this server' }
         unless $bin;
 
     # ONE SEGMENT AT A TIME, no traversal, no absolute path. The content path
@@ -177,75 +196,83 @@ sub convert {
             . "($MAX_INPUT_BYTES bytes)" }
         if defined $size && $size > $MAX_INPUT_BYTES;
 
-    # A brand is a NAME, matched against what is actually there. A path here
-    # would let a caller point the conversion at any directory on the host.
-    my @args;
+    # THE BRAND IS CHOSEN IN THE DOCUMENT, not on the command line - that is
+    # md-to-pdf's interface (`brand: <name>` in the front matter). So the
+    # plugin's job is not to pass a brand but to bound where brands are read
+    # FROM: MD_TO_PDF_BRANDS pins the base to the site's own folder, so a
+    # document naming a brand cannot pull a template from elsewhere on the host.
+    my $brands_base = "$docroot/$dir";
     if ( defined $brand && length $brand ) {
         my $known = _brands( $docroot, $dir );
         return { ok => 0,
             error => "unknown brand '$brand'. Present: "
                 . ( @{$known} ? join( ', ', @{$known} ) : '(none)' ) }
             unless grep { $_ eq $brand } @{$known};
-        my $header = "$docroot/$dir/$brand/header.tex";
-        push @args, '--include-in-header', $header if -f $header;
-        my $meta = "$docroot/$dir/$brand/brand.yaml";
-        push @args, '--metadata-file', $meta if -f $meta;
     }
 
-    my $out = "$docroot/lazysite/cache/pandoc-" . $$ . '-' . time . '.pdf';
+    # Convert in a scratch directory. The wrapper names its output from the
+    # document's title and writes it to the CWD, so a scratch dir is both how
+    # the output is found and how the docroot is kept clean of stray PDFs.
+    my $work = "$docroot/lazysite/cache/pandoc-$$-" . time;
+    require File::Path;
+    File::Path::make_path($work);
+    return { ok => 0, error => 'could not prepare a working directory' }
+        unless -d $work;
 
-    # --resource-path and the working directory both pin resolution to the
-    # docroot, so an image reference outside it does not resolve. --sandbox
-    # refuses filesystem access outright where the installed pandoc has it.
-    my @cmd = (
-        $bin,              $src,
-        '-o',              $out,
-        '--resource-path', $docroot,
-        '--from',          'markdown',
-    );
-    push @cmd, '--sandbox' if _supports_sandbox($bin) && !@args;
-    push @cmd, @args;
+    my @cmd = ( $bin, '--no-viewer', $src );
 
-    my $err = '';
     my $pid = fork();
-    return { ok => 0, error => 'could not start the converter' }
-        unless defined $pid;
+    unless ( defined $pid ) {
+        File::Path::remove_tree($work);
+        return { ok => 0, error => 'could not start the converter' };
+    }
     if ( !$pid ) {
-        chdir $docroot or exit 127;
-        open STDOUT, '>', '/dev/null';
-        open STDERR, '>', '/dev/null';
+        chdir $work or exit 127;
+
+        # Bound the brands base to this site. Anything the document names is
+        # resolved under here or not at all.
+        $ENV{MD_TO_PDF_BRANDS} = $brands_base if -d $brands_base;
+
+        open STDOUT, '>',  "$work/.out";
+        open STDERR, '>&', \*STDOUT;
         exec { $cmd[0] } @cmd;
         exit 127;
     }
 
     # BOUNDED. There is no queue and no daemon (SM666), so this runs in the
-    # request - which means it must be unable to run away with it.
-    my $done = 0;
-    local $SIG{ALRM} = sub { kill 'TERM', $pid; };
+    # request and must be unable to run away with it.
+    local $SIG{ALRM} = sub { kill 'TERM', $pid };
     alarm $TIMEOUT_SECONDS;
     waitpid $pid, 0;
     my $status = $?;
     alarm 0;
 
-    unless ( -f $out && $status == 0 ) {
-        unlink $out if -f $out;
+    # The wrapper names the PDF from the document title, so the plugin finds it
+    # rather than predicting it - predicting a filename from a title means
+    # reimplementing somebody else's slug rules and being wrong the first time
+    # a title has a colon in it.
+    my ($pdf) = glob("$work/*.pdf");
+    unless ( $pdf && -s $pdf && $status == 0 ) {
+        my $why = '';
+        if ( open my $l, '<', "$work/.out" ) { local $/; $why = <$l> // ''; close $l }
+        File::Path::remove_tree($work);
+        $why =~ s/\s+/ /g;
         return { ok => 0,
-            error => 'the conversion did not produce a document. A LaTeX '
-                . 'engine (pdflatex or xelatex) must be installed alongside '
-                . 'pandoc for PDF output.' };
+            error => 'the conversion did not produce a document'
+                . ( length $why ? ": " . substr( $why, -200 ) : '' ) };
     }
-    return { ok => 1, pdf => $out, bytes => ( -s $out ) };
+    return { ok => 1, pdf => $pdf, bytes => ( -s $pdf ) };
 }
 
 sub plugin_status {
     my ($docroot) = @_;
-    my $bin = _pandoc_path();
+    my $bin = _converter_path();
     return {
         ok        => 1,
         available => $bin ? JSON::PP::true : JSON::PP::false,
-        pandoc    => $bin,
-        version   => _pandoc_version($bin),
-        sandbox   => _supports_sandbox($bin) ? JSON::PP::true : JSON::PP::false,
+        converter => $bin,
+        version   => _converter_version($bin),
+        no_viewer => _supports_no_viewer($bin) ? JSON::PP::true : JSON::PP::false,
         brands    => _brands( $docroot, 'brand' ),
     };
 }

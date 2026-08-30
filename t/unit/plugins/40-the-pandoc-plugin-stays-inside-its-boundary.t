@@ -36,11 +36,12 @@ my $src = do { open my $fh, '<', $plug or die $!; local $/; <$fh> };
 
 subtest 'the dependency is DECLARED, so enabling is refused without it' => sub {
     my $d = main::describe();
-    is_deeply( $d->{owns}{bins}, ['pandoc'],
-        'pandoc is declared as a program the plugin needs' )
-        or diag( 'Without this the plugin enables on a host that cannot run it '
-            . 'and fails at first use - the state SM472 exists to prevent, and '
-            . 'the reason `bins` was added in 0.11.7.' );
+    is_deeply( $d->{owns}{bins}, ['md-to-pdf'],
+        'the WRAPPER is declared, not pandoc' )
+        or diag( 'md-to-pdf is what this plugin calls; it owns the pandoc and '
+            . 'XeLaTeX invocation, the templates and the brands. Declaring '
+            . 'pandoc would let the plugin enable on a host that has pandoc and '
+            . 'not the wrapper - the state `bins` exists to prevent.' );
     is_deeply( $d->{owns}{capabilities}, [],
         'and it invents no capability of its own' )
         or diag( 'Converting a page is reading it in another format. A new '
@@ -55,19 +56,26 @@ subtest 'the argument list is built here, never by a caller' => sub {
             . 'the quoting of a filename becomes a security question.' );
     unlike( $code, qr/system\s*\(\s*"/, 'no string-form system()' );
     unlike( $code, qr/`[^`]*\$/,        'no backticks interpolating a variable' );
-    like( $code, qr/'--resource-path', \$docroot/,
-        'resolution is pinned to the docroot' );
-    like( $code, qr/chdir \$docroot/,
-        'and the converter runs there, so a relative reference cannot escape' );
+    like( $code, qr/'--no-viewer'/,
+        'the viewer is suppressed' )
+        or diag( 'On a server there is no viewer to open, and a converter that '
+            . 'tries to open one blocks the request until it is killed.' );
+    like( $code, qr/MD_TO_PDF_BRANDS/,
+        'the brands base is pinned to this site' )
+        or diag( 'The wrapper resolves brands from an environment variable, a '
+            . 'config file, or its bundled default. Left unset, a document '
+            . 'could name a brand resolved from elsewhere on the host.' );
 };
 
 subtest 'it converts, and the refusals refuse' => sub {
-    plan skip_all => 'no pandoc on this host' unless main::_pandoc_path();
+    plan skip_all => 'no md-to-pdf on this host' unless main::_converter_path();
 
     my $d = tempdir( CLEANUP => 1 );
     make_path( "$d/lazysite/cache", "$d/brand/house", "$d/docs" );
     open my $f, '>', "$d/docs/page.md" or die $!;
-    print {$f} "# A page\n\nWith an accent: Je\x{c3}\x{bb}ne.\n";
+    # Front matter, because that is where the wrapper reads title and brand.
+    print {$f} "---\ntitle: A Test Page\nbrand: plain\n---\n\n"
+        . "# A page\n\nWith an accent: Je\x{c3}\x{bb}ne.\n";
     close $f;
 
     my $ok = main::convert( docroot => $d, path => 'docs/page.md' );
@@ -120,9 +128,9 @@ subtest 'it converts, and the refusals refuse' => sub {
 subtest 'the work is bounded, because there is no queue to put it in' => sub {
     like( $code, qr/\$TIMEOUT_SECONDS\s*=\s*\d+/, 'a conversion has a timeout' );
     like( $code, qr/alarm \$TIMEOUT_SECONDS/,     'and it is armed' )
-        or diag( 'A timeout nothing arms is a comment.' );
-    like( $code, qr/kill 'TERM', \$pid/,          'and it kills the converter' );
-    like( $code, qr/\$MAX_INPUT_BYTES/,           'and the input is size-capped' )
+        or diag('A timeout nothing arms is a comment.');
+    like( $code, qr/kill 'TERM', \$pid/, 'and it kills the converter' );
+    like( $code, qr/\$MAX_INPUT_BYTES/,  'and the input is size-capped' )
         or diag( 'This runs inside the request. Without a cap a large page is a '
             . 'denial of service against the manager.' );
 };

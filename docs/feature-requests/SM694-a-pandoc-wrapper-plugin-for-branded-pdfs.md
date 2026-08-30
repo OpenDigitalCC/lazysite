@@ -5,7 +5,7 @@ raised: 2026-08-29
 raised-by: release manager
 area: plugins
 status: shipped
-status-note: "SHIPPED in 0.11.8. plugins/pandoc.pl converts a Markdown page to a branded PDF. The dependency half shipped first in 0.11.7 - a plugin declares `bins` beside `deps`, so SM472's rule (a plugin that cannot run is not enabled) applies to a program as well as a module, and an operator without pandoc is refused at the switch rather than given a button that fails at first use. THE FOUR EXECUTION DECISIONS the filing said to settle before writing it are settled and asserted: a bounded root (--resource-path pinned to the docroot, pandoc chdir'd there, --sandbox where the installed pandoc has it - asked, not assumed); a fixed argument list (list-form exec so no shell parses anything, and a brand is a NAME matched against the directories that exist, never a path); read authority (converting a page produces a copy of it, so it rides on manage_content and invents no capability); and bounded work (an armed timeout and an input size cap, because there is no queue and it runs in the request). Proved rather than declared: the test converts a real page to a real 49KB PDF on a host with pandoc 3.1.11.1, and measures every traversal, extension and brand refusal."
+status-note: "SHIPPED in 0.11.8. plugins/pandoc.pl converts a Markdown page to a branded PDF. IT CALLS md-to-pdf, THE WRAPPER, NOT PANDOC - the release manager corrected an earlier draft that checked for pandoc itself: md-to-pdf is what gets invoked, it depends on pandoc, and it owns the pandoc and XeLaTeX invocation, the templates and the brands. So `bins` declares md-to-pdf; declaring pandoc would let the plugin enable on a host that has pandoc and not the wrapper, which is the state `bins` exists to prevent. The dependency half shipped first in 0.11.7 - a plugin declares `bins` beside `deps`, so SM472's rule (a plugin that cannot run is not enabled) applies to a program as well as a module. THE FOUR EXECUTION DECISIONS are settled and asserted, two of them differently from the plan because the wrapper owns the pandoc command line: the brands base is pinned to the site via MD_TO_PDF_BRANDS (--resource-path and --sandbox cannot be passed through the wrapper, so the bounded root is narrower than the filing assumed and the code says so); a fixed argument list (list-form exec, no shell, and a brand is a NAME matched against the directories that exist - though the brand is chosen in the document's own front matter, which is the wrapper's interface); read authority (converting a page produces a copy of it, so it rides on manage_content and invents no capability); and bounded work (an armed timeout and an input size cap, because there is no queue and it runs in the request). Proved against the real wrapper: md-to-pdf 1.0.20 converts a real page to a real 14KB PDF, and every traversal, extension and brand refusal is measured. ONE RESIDUAL RISK IS RECORDED RATHER THAN CLOSED - see the section below."
 ---
 
 # The request
@@ -124,10 +124,37 @@ exist, the second is the one that needs the boundary work.
    Perl module" so an operator does not go looking for a CPAN package. The
    dependency work for this plugin is finished; what remains below is the
    execution boundary.
-2. The bounded root for anything the Markdown may reference.
-3. The fixed argument list, with nothing caller-supplied reaching pandoc.
-4. Whether conversion is synchronous or queued, which depends on [[SM666]].
-5. Named brand sets or one per site.
+2. ~~The bounded root~~ **PARTLY, and honestly**: see the residual risk below.
+3. ~~The fixed argument list~~ **DONE**: list-form exec, nothing caller-supplied
+   on the command line.
+4. ~~Synchronous or queued~~ **SYNCHRONOUS**, with a timeout and a size cap.
+   A queue is [[SM666]]/[[SM579]]; half of one here is how a site engine becomes
+   a multipurpose tool.
+5. ~~Named brand sets or one per site~~ **One folder per site**, one subfolder
+   per brand, under the configured `brand_dir`.
+
+# The residual risk, recorded rather than closed
+
+The plan assumed this plugin would drive pandoc and could therefore pin
+`--resource-path` and pass `--sandbox`. It drives **md-to-pdf**, which owns the
+pandoc invocation and offers no passthrough for either. So:
+
+- **What is bounded**: the brands base, via `MD_TO_PDF_BRANDS`, so a document
+  naming a brand cannot pull a template from elsewhere on the host.
+- **What is not**: an absolute path - or enough leading `../` - in a document's
+  image reference is resolved by pandoc inside the wrapper. Converting is gated
+  on `manage_content`, so the author already reads the content tree; the gap is
+  between that and arbitrary host files.
+
+The working directory looked like it closed this and does not. **Measured**:
+converting the same page from two different working directories embedded the
+same relative image both times, because the wrapper resolves relative references
+against the *source file's* directory, not the cwd. The scratch directory the
+plugin uses buys predictable output, not containment, and the code says so
+rather than implying otherwise.
+
+Closing it needs a sandbox flag or an argument passthrough in md-to-pdf, which
+is a change to the wrapper, not to lazysite.
 
 # Related
 
@@ -137,4 +164,9 @@ SM472 (a plugin that cannot run is not enabled - the mechanism this uses),
 diagram/document practice: SVG to PDF via inkscape, never ImageMagick - a
 reminder that this project already has opinions about how PDFs get made.
 
-# Not started
+# Shipped
+
+In 0.11.8, against md-to-pdf 1.0.20. `plugins/pandoc.pl` plus
+`t/unit/plugins/40-the-pandoc-plugin-stays-inside-its-boundary.t`, which
+asserts the four boundary properties and skips cleanly on a host without the
+wrapper.
