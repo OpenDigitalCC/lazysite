@@ -966,6 +966,31 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-handler-item-actions { display: flex; gap: 6px; }
 .mg-handler-name { font-weight: 500; flex: 1; }
 
+/* SM697: eight classes Plugin Config emits that no rule defined. Carried onto
+   the design sheets when they replaced manager.css wholesale - the fix landed
+   on the old sheet, and a wholesale replacement silently undoes that kind of
+   fix unless it is carried forward deliberately. An element whose class nothing
+   defines renders as unstyled inline content: the Form Connections list ran
+   together as a paragraph, the submissions table had no table styling, and a
+   panel opening under a handler sat flush against the row above, reading as
+   part of the previous handler rather than this one's detail. */
+.mg-form-entry { padding: 0.5rem 0; border-bottom: 1px solid var(--mg-border-light); }
+.mg-form-entry:last-child { border-bottom: none; }
+.mg-form-entry-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.mg-form-name { font-family: var(--mg-mono); font-size: 0.9em; font-weight: 600; margin-right: auto; }
+/* Both panels open UNDER a handler row and need separating from it. */
+.mg-handler-edit-form,
+.mg-submissions-panel { margin: 0.5rem 0 0.75rem; padding: 0.75rem; border: 1px solid var(--mg-border); border-radius: 4px; background: var(--mg-surface-alt); }
+.mg-handler-submissions { font-size: 0.85em; }
+.mg-submissions-table { width: 100%; font-size: 0.85em; }
+.mg-submissions-table th,
+.mg-submissions-table td { vertical-align: top; max-width: 22rem; overflow-wrap: anywhere; }
+/* A checkbox column should be as wide as a checkbox; equal share pushed the
+   content that matters off the right-hand side. */
+.mg-submissions-table td:first-child,
+.mg-submissions-table th:first-child { width: 1.5rem; }
+.mg-sub-cb { margin: 0; }
+
 /* --- Wizard */
 .mg-wizard { background: var(--mg-surface-alt); border: 1px solid var(--mg-border); padding: 16px; margin-top: 12px; }
 .mg-wizard-title { font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; color: var(--mg-text); }

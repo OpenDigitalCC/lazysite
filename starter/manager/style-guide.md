@@ -318,7 +318,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-palette-overlay"><span class="mg-sg-tag">.mg-palette-overlay</span></div>
 <div class="mg-palette-url"><span class="mg-sg-tag">.mg-palette-url</span></div></div>
 </div>
-<h3 class="mg-sg-fam">mg-handler <span class="mg-sg-count">7</span></h3>
+<h3 class="mg-sg-fam">mg-handler <span class="mg-sg-count">9</span></h3>
 <p class="mg-sg-note">Used by <code>appearance.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-handler-group"><span class="mg-sg-tag">.mg-handler-group</span><div class="mg-handler-group-header"><span class="mg-sg-tag">.mg-handler-group-header</span></div>
@@ -327,6 +327,8 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-handler-item-header"><span class="mg-sg-tag">.mg-handler-item-header</span></div></div>
 <div class="mg-handler-item"><span class="mg-sg-tag">.mg-handler-item</span></div>
 <div class="mg-handler-name"><span class="mg-sg-tag">.mg-handler-name</span></div>
+<div class="mg-handler-edit-form"><span class="mg-sg-tag">.mg-handler-edit-form</span></div>
+<div class="mg-handler-submissions"><span class="mg-sg-tag">.mg-handler-submissions</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-sheet <span class="mg-sg-count">7</span></h3>
 <p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
@@ -578,9 +580,11 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-foot"><span class="mg-sg-tag">.mg-foot</span></div>
 </div>
-<h3 class="mg-sg-fam">mg-form <span class="mg-sg-count">1</span></h3>
-<p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<h3 class="mg-sg-fam">mg-form <span class="mg-sg-count">4</span></h3>
+<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
+<div class="mg-form-entry"><span class="mg-sg-tag">.mg-form-entry</span><div class="mg-form-entry-header"><span class="mg-sg-tag">.mg-form-entry-header</span>
+<div class="mg-form-name"><span class="mg-sg-tag">.mg-form-name</span></div></div></div>
 <div class="mg-form-row"><span class="mg-sg-tag">.mg-form-row</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-help <span class="mg-sg-count">1</span></h3>
@@ -708,10 +712,21 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-split-bar"><span class="mg-sg-tag">.mg-split-bar</span></div>
 </div>
+<h3 class="mg-sg-fam">mg-sub <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-sub-cb"><span class="mg-sg-tag">.mg-sub-cb</span></div>
+</div>
 <h3 class="mg-sg-fam">mg-subcount <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-subcount"><span class="mg-sg-tag">.mg-subcount</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-submissions <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-submissions-panel"><span class="mg-sg-tag">.mg-submissions-panel</span>
+<table class="mg-submissions-table"><tbody><tr><td><span class="mg-sg-tag">.mg-submissions-table</span></td></tr></tbody></table></div>
 </div>
 <h3 class="mg-sg-fam">mg-theme <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
