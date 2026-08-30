@@ -279,15 +279,23 @@ if ( $do_seed && !-f $conf_target && -f $conf_source ) {
     print "  seeded: lazysite/lazysite.conf\n";
 }
 
-# Copy manager CSS to web-accessible path
+# Copy the manager stylesheets to the web-accessible path.
+#
+# SM698: EVERY shipped sheet, not just the active one. The dev server does not
+# know which style the conf names, and copying only one would make a style
+# switch appear to do nothing here while working on a real install - a
+# difference between the dev server and production is the worst kind of bug to
+# chase, because the code is right in both.
 {
-    my $src = "$LAZYSITE_DIR/manager/assets/manager.css";
-    my $dst = "$DOCROOT/manager/assets/manager.css";
-    if ( $do_seed && -f $src ) {
+    if ($do_seed) {
         require File::Path;
         require File::Copy;
-        File::Path::make_path("$DOCROOT/manager/assets") unless -d "$DOCROOT/manager/assets";
-        File::Copy::copy( $src, $dst );
+        File::Path::make_path("$DOCROOT/manager/assets")
+            unless -d "$DOCROOT/manager/assets";
+        for my $sheet ( glob("$LAZYSITE_DIR/manager/assets/manager-*.css") ) {
+            my ($base) = $sheet =~ m{([^/]+)\z};
+            File::Copy::copy( $sheet, "$DOCROOT/manager/assets/$base" );
+        }
     }
 }
 

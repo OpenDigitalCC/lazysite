@@ -1314,6 +1314,15 @@ sub post_install_steps {
     {
         my $orphan = lazysite_dir_for($docroot) . "/manager/assets/manager.css";
         unlink $orphan if -f $orphan;
+
+        # SM698: and the SERVED sheet from before the styles were named. An
+        # upgrade installs manager-classic.css beside it and stops referencing
+        # manager.css, so the old file would sit in the web root unreferenced -
+        # which is the same stale-stylesheet state SM109 removed the copy hack
+        # to prevent. Nothing links to it after this release; remove it rather
+        # than leave a sheet that looks live and is not.
+        my $served_orphan = "$docroot/manager/assets/manager.css";
+        unlink $served_orphan if -f $served_orphan;
         my $od = lazysite_dir_for($docroot) . "/manager/assets";
         rmdir $od if -d $od;    # only succeeds if empty
     }

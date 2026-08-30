@@ -48,7 +48,12 @@ function showStatus(msg, isErr) {
   var s = document.getElementById('status');
   if (!s) return;
   s.textContent = msg;
-  s.className = 'mg-status' + (isErr ? ' mg-status-error' : ' mg-status-ok');
+  // SM697 follow-up: `mg-status-success`, not `mg-status-ok`. This page invented
+  // a second name for the state every other page calls success - and because
+  // the class is BUILT rather than written, no scan of class attributes found
+  // it and the stylesheet never defined it. A successful status here has been
+  // rendering unstyled.
+  s.className = 'mg-status' + (isErr ? ' mg-status-error' : ' mg-status-success');
 }
 
 function fmtBytes(b) {

@@ -6529,16 +6529,24 @@ sub render_content {
         },
         query            => $query,
         params           => $query,
-        lazysite_version => _lazysite_version(),       # asset cache-buster (?v=)
-        enabled_plugins  => _enabled_plugins(),        # conditional manager nav
-        manager_caps     => \%manager_caps,            # SM154: gate the Domains nav
-        scope_root       => $scope_root,               # SM154: a bound editor's root
-        home_domain      => $home_domain,              # SM154: a bound editor's domain
-        dav_scopes       => join( ',', @my_scopes ),   # SM157: multi-domain switcher list
-        site_lang        => $site_lang,                # SM179: the host's language
-        page_lang        => $page_lang,                # SM179: per-page override
-        languages        => \@languages,               # SM179 P2: switcher/hreflang
-        t                => {},                        # SM179 P5: layout chrome strings
+        lazysite_version => _lazysite_version(),    # asset cache-buster (?v=)
+
+        # SM698: WHICH MANAGER STYLE. The name of a shipped sheet, never a path
+        # - the value reaches an href, so a free-form string would let a config
+        # edit point the manager at any URL. An unknown or absent name falls
+        # back to `classic`, which is the sheet every instance had before this
+        # setting existed, so a typo degrades to the status quo rather than to
+        # an unstyled manager.
+        manager_style   => _manager_style(),
+        enabled_plugins => _enabled_plugins(),         # conditional manager nav
+        manager_caps    => \%manager_caps,             # SM154: gate the Domains nav
+        scope_root      => $scope_root,                # SM154: a bound editor's root
+        home_domain     => $home_domain,               # SM154: a bound editor's domain
+        dav_scopes      => join( ',', @my_scopes ),    # SM157: multi-domain switcher list
+        site_lang       => $site_lang,                 # SM179: the host's language
+        page_lang       => $page_lang,                 # SM179: per-page override
+        languages       => \@languages,                # SM179 P2: switcher/hreflang
+        t               => {},                         # SM179 P5: layout chrome strings
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session
@@ -7235,6 +7243,30 @@ sub _enabled_plugins {
     }
     close $fh;
     return \%en;
+}
+
+# SM698: the manager style an instance has chosen.
+#
+# A CLOSED SET, not a filename. `manager_style` in lazysite.conf names one of
+# the sheets the engine ships; anything else is ignored. The alternative - let
+# the setting carry a path or a URL - puts an attacker-or-typo-controlled value
+# into a <link href> on every manager page, which is a stylesheet-injection
+# surface for the sake of flexibility nobody asked for. Uploading a sheet
+# (SM698 step 5) will need its own mechanism and its own boundary; it will not
+# be this setting widening.
+sub _manager_style {
+    my %SHIPPED = map { $_ => 1 } qw(classic accessible modern);
+    my $want    = '';
+    my $conf    = "$LAZYSITE_DIR/lazysite.conf";
+    if ( -f $conf && open my $fh, '<', $conf ) {
+        while ( my $line = <$fh> ) {
+            next unless $line =~ /\A\s*manager_style\s*:\s*(\S+)/;
+            $want = lc $1;
+            last;
+        }
+        close $fh;
+    }
+    return $SHIPPED{$want} ? $want : 'classic';
 }
 
 sub _lazysite_version {

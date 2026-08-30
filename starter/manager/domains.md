@@ -4,19 +4,10 @@ auth: manager
 search: false
 ---
 
-<style>
-/* SM144-style config sheet reuses the shared .mg-sheet / .mg-box machinery from
-   manager.css (same as the Users page). The domain editor sections keep their
-   own grid layout, so a small scope wrapper is all that is added here. */
-.mg-dom-chip { display:inline-block; font-size:0.72em; padding:0.05em 0.5em; border-radius:999px;
-  background:var(--mg-surface-alt,#f0f0f0); color:var(--mg-text-muted,#777); margin-left:6px; vertical-align:middle; }
-.mg-dom-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-/* SM681: the open-in-a-new-tab arrow beside a host. Muted until hovered, so
-   it does not compete with the host name it belongs to. */
-.mg-dom-open { margin-left:6px; text-decoration:none; color:var(--mg-text-muted,#999);
-  font-size:0.9em; vertical-align:middle; }
-.mg-dom-open:hover, .mg-dom-open:focus { color:var(--mg-link,#06c); }
-</style>
+<!-- SM697: this page's <style> block moved to manager.css. A page carrying its
+     own stylesheet is the same defect as a class with no rule: the style guide
+     cannot audit it, and the next page needing the component copies the block
+     rather than reusing the class. -->
 
 <div id="status" class="mg-status"></div>
 
