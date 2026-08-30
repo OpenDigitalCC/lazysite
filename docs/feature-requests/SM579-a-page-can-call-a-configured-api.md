@@ -1,10 +1,10 @@
 ---
-title: "SM579: connectors - a page can call an API the operator configured"
-subtitle: "The engine can already POST a form to a URL. What it cannot do is hold a REUSABLE, credentialed connector that several forms, buttons and tables send through - the way smtp.conf holds the mail account once and every email handler references it."
+title: "SM579: a site collects, sends to a remote service, and shows what comes back"
+subtitle: "Rescoped from 'connectors' to the workflow question the apps are actually asking. The engine can already POST a form to a URL. What it cannot do is hold a REUSABLE, credentialed connector that several forms, buttons and tables send through - the way smtp.conf holds the mail account once and every email handler references it."
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "REQUESTED BY THE OPERATOR 2026-08-25: a plugin function a page can call out to an API with, set up like SMTP - configure connectors, then wire them on; triggered by a form post OR a user button press; the data coming from the form OR from a data table. WHAT ALREADY EXISTS, verified in plugins/form-handler.pl: a `webhook` handler type is declared (name, enabled, url, format json|slack) and dispatch accepts both `webhook` and `api`, calling dispatch_webhook - which POSTs the non-underscore form fields as JSON through LWP::UserAgent with a 10s timeout and logs a WARN on failure. So FORM -> one URL already works. WHAT IS MISSING is everything that makes it a connector rather than a URL field: (1) a NAMED, REUSABLE connector holding endpoint, method, headers and CREDENTIALS in the reserved tree the way lazysite/forms/smtp.conf does, referenced by name from any number of handlers, so a key is written once and never appears in a per-form config an author can read; (2) a BUTTON trigger - a page control that sends without being a form submission; (3) a DATA TABLE source - sending a row (or a query's rows) rather than only the fields a visitor just typed; (4) the delivery discipline the existing webhook lacks: retry/timeout policy, an audit entry per call, and a visitor-facing outcome. PLANNED as a design; the security section below is the part that decides the shape and wants the operator's ruling before anything is built."
+status-note: "RESCOPED 2026-08-30 by the release manager, from 'a connector' to THE WORKFLOW QUESTION, and named as the next major feature after 0.11.8. The shape asked for: a trigger in the site (a form submission, or something else) gathers data from FORM FIELDS, a DATA TABLE, FILES and ATTACHMENTS, sends it to a remote service, and that service answers with links or messages that come back into the site. THE CONSTRAINT THAT DECIDES THE DESIGN: there is no listener. Nothing can trigger this instance from outside until the persistent runtime exists (SM666), so the return leg cannot be a callback - it is the site asking again, and in the meantime the honest answer to a visitor is 'check back in five minutes'. THE BOUNDARY THE RELEASE MANAGER SET: lazysite must not become more of a multipurpose tool. This is not a workflow engine, a scheduler or an integration platform; it is one bounded act - collect, send, wait, show - and every generalisation of it should be refused by default. PREVIOUSLY, and still true as the starting point:REQUESTED BY THE OPERATOR 2026-08-25: a plugin function a page can call out to an API with, set up like SMTP - configure connectors, then wire them on; triggered by a form post OR a user button press; the data coming from the form OR from a data table. WHAT ALREADY EXISTS, verified in plugins/form-handler.pl: a `webhook` handler type is declared (name, enabled, url, format json|slack) and dispatch accepts both `webhook` and `api`, calling dispatch_webhook - which POSTs the non-underscore form fields as JSON through LWP::UserAgent with a 10s timeout and logs a WARN on failure. So FORM -> one URL already works. WHAT IS MISSING is everything that makes it a connector rather than a URL field: (1) a NAMED, REUSABLE connector holding endpoint, method, headers and CREDENTIALS in the reserved tree the way lazysite/forms/smtp.conf does, referenced by name from any number of handlers, so a key is written once and never appears in a per-form config an author can read; (2) a BUTTON trigger - a page control that sends without being a form submission; (3) a DATA TABLE source - sending a row (or a query's rows) rather than only the fields a visitor just typed; (4) the delivery discipline the existing webhook lacks: retry/timeout policy, an audit entry per call, and a visitor-facing outcome. PLANNED as a design; the security section below is the part that decides the shape and wants the operator's ruling before anything is built."
 ---
 
 # What exists, and what a connector adds
@@ -79,3 +79,112 @@ An outbound interface is a significant change: `docs/SECURITY.md` gains
 an entry in the shape git-sync's egress entry uses (what changed / threat
 delta), because this adds an SSRF-shaped surface and a credential at
 rest.
+
+# The workflow question (release manager, 2026-08-30)
+
+This filing began as "a reusable connector". The request behind it is larger and
+worth stating in its own words, because the shape of the answer follows from it:
+
+> there are apps that require to trigger external functions, then collect
+> responses. this may be the result of a form submission or other trigger in the
+> site. then collected data from the variables, database, files and attachments
+> might then be sent to a remote service, and that service may return with some
+> links or messages. until the listener real-time daemon is built, we can't be
+> remotely triggered, so we may need to leave it with user to recheck in 5 mins
+> or whatever.
+
+## The boundary, first
+
+**lazysite must not become more of a multipurpose tool.** That is the governing
+constraint, and it is easier to hold now than after the first three features have
+been added to a workflow engine that did not mean to become one.
+
+So this is **one bounded act**, not a platform:
+
+> Something happens in the site. Data is gathered. It goes to one remote
+> service. The answer comes back and is shown.
+
+Everything that generalises that should be refused by default and argued for
+individually: branching, conditionals, multiple steps, fan-out to several
+services, scheduling, retries as a user-visible concept, a designer UI for
+sequences. Each is reasonable on its own and the sum of them is a product this
+project has said it does not want to be.
+
+The test to apply to any addition: **does an app need this, or would a workflow
+engine have it?** The second is not a reason.
+
+## What makes this different from the webhook that already exists
+
+Today `plugins/form-handler.pl` POSTs a form's fields to one URL and logs a
+warning if that fails. Four things are missing, and only the first was in the
+original filing:
+
+1. **The data is not just the form.** A submission is one trigger among several,
+   and what gets sent may include rows from a data table, a file, an attachment,
+   and site variables - assembled deliberately rather than being whatever the
+   visitor typed.
+2. **There is a RETURN LEG.** The existing webhook is fire-and-forget. This has
+   an answer that matters - links, messages - and that answer has to land
+   somewhere a page can render it.
+3. **The credential is reusable and hidden.** A named connector holding endpoint,
+   method, headers and secrets the way `smtp.conf` holds the mail account, so a
+   key is written once and never sits in a per-form config an author can read.
+4. **Nothing can call us back.**
+
+## The fourth is the one that decides the design
+
+**There is no listener.** Nothing outside can trigger this instance until the
+persistent runtime exists ([[SM666]]), and until then a remote service cannot
+call back with its answer.
+
+So the return leg is not a callback. It is **the site asking again**, and that
+forces three things into the design that a callback-based design would not need:
+
+- **A durable record of the in-flight request** - what was sent, when, to which
+  connector, and what it is waiting for. That record is the workflow; there is
+  no other state.
+- **A way to ask again** that is not a background job, because there is no
+  background. Realistically: the visitor's own next page load, or an operator
+  action, or a request the page makes on a timer while somebody is looking at it.
+- **An honest thing to tell the visitor.** The release manager's own phrasing is
+  the right one: *check back in five minutes*. A page that pretends to be
+  waiting, or spins forever, is worse than one that says plainly that the answer
+  is not here yet and how to come back for it.
+
+That last point is worth holding onto when the daemon does arrive. The
+"come back later" state will still be the honest answer whenever the remote
+service is slow, so it is not scaffolding to be thrown away - it is the design,
+and the daemon only removes the polling.
+
+## What this needs decided before anything is built
+
+1. **Where does the answer live?** A data table row is the obvious home - it is
+   already the engine's durable, queryable store, and a page can already render
+   from one. If the answer is a table, this feature is mostly plumbing between
+   things that exist.
+2. **What may a connector be sent?** Form fields and table rows are clear. Files
+   and attachments are not: sending a file to a third party is a disclosure, and
+   the rule for which files a connector may read has to be an ACL question, not
+   a configuration one.
+3. **Who may configure one?** Creating a connector means naming a destination for
+   site data and holding a credential for it. That is a conferral in the SM647 /
+   SM682 sense - the authority to decide where data goes - and it should require
+   authority over the data, not merely over pages.
+4. **What is recorded?** Every call to a remote service is a disclosure event. An
+   audit entry per call, saying which connector, which trigger, and what class of
+   data - never the payload itself.
+5. **What happens when it never answers?** A request with no reply is the normal
+   case at least once. There has to be a state for it that is not "waiting", and
+   an operator has to be able to see the stuck ones.
+
+## Sequencing
+
+Not for 0.11.8. Named here because the information arrived and belongs on the
+record while it is fresh; the release manager's expectation is that it is the
+next major feature after the 0.11.8 edge.
+
+It also sits behind two things already filed: [[SM666]] (the runtime, which
+removes the polling) and the data-table work, since the answer most likely lands
+in a table. Neither blocks a first version - the polling design is honest without
+the daemon - but both change how much of this is plumbing rather than new
+machinery.
