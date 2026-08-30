@@ -31,7 +31,7 @@ my @guarded = (
     'starter/lazysite.conf.example',
     '.gitignore',
     'starter/docs/ai-briefing-development.md',
-    'starter/lazysite/manager/assets/manager.css',
+    'starter/lazysite/manager/assets/manager-classic.css',
 );
 
 for my $rel (@guarded) {

@@ -422,7 +422,7 @@ subtest 'manager CSS installs to the web-served manager/assets path' => sub {
     my ( $docroot, $cgibin ) = fresh_docroot();
     run_install( '--docroot', $docroot, '--cgibin', $cgibin );
 
-    my $css = "$docroot/manager/assets/manager.css";
+    my $css = "$docroot/manager/assets/manager-classic.css";
     ok( -f $css, 'manager.css is at the web-served /manager/assets/ path' );
 
     # It is now shipped straight there by the manifest (code bucket), so an
@@ -430,7 +430,7 @@ subtest 'manager CSS installs to the web-served manager/assets path' => sub {
     # any orphan from a prior install is cleaned up.
     my $state = load_state($docroot);
     ok( exists $state->{files}{$css}, 'manager.css is manifest-tracked in state' );
-    ok( !-f "$docroot/lazysite/manager/assets/manager.css",
+    ok( !-f "$docroot/lazysite/manager/assets/manager-classic.css",
         'no stale copy left under the Apache-denied /lazysite/ tree' );
 };
 

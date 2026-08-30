@@ -18,7 +18,7 @@ use FindBin;
 
 my $root = "$FindBin::Bin/../../..";
 my $page = "$root/starter/manager/groups.md";
-my $css  = "$root/starter/lazysite/manager/assets/manager.css";
+my $css  = "$root/starter/lazysite/manager/assets/manager-classic.css";
 
 sub slurp {
     my ($p) = @_;

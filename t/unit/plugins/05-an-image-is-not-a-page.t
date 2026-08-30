@@ -78,7 +78,7 @@ subtest 'the things that are pages' => sub {
 subtest 'a cache-buster does not change what a file is' => sub {
     # Assets are versioned with ?v=<version> in this project, so a predicate that
     # matched only bare paths would exclude nothing on a real site.
-    ok( AssetCheck::_is_asset('/manager/assets/manager.css?v=0.10.12'),
+    ok( AssetCheck::_is_asset('/manager/assets/manager-classic.css?v=0.10.12'),
         'a versioned stylesheet is still an asset' );
     ok( AssetCheck::_is_asset('/x.png?a=1&b=2'), 'and any query at all' );
 };

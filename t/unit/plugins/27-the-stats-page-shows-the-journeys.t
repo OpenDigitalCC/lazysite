@@ -172,7 +172,7 @@ like( $journeys, qr/addEventListener/, 'it binds its listener instead' );
 # Every CSS class it uses must exist, or it renders unstyled and nobody notices
 # until they look at it.
 my $css = do {
-    open my $fh, '<', "$root/starter/lazysite/manager/assets/manager.css" or die $!;
+    open my $fh, '<', "$root/starter/lazysite/manager/assets/manager-classic.css" or die $!;
     local $/;
     <$fh>;
 };

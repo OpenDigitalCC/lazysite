@@ -27,7 +27,7 @@ use TestHelper qw(repo_root);
 
 my $root  = repo_root();
 my $pagef = "$root/starter/manager/stats.md";
-my $cssf  = "$root/starter/lazysite/manager/assets/manager.css";
+my $cssf  = "$root/starter/lazysite/manager/assets/manager-classic.css";
 plan skip_all => "no $pagef" unless -f $pagef;
 
 my $page = do { open my $fh, '<', $pagef or die $!; local $/; <$fh> };

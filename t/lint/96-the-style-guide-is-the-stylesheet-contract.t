@@ -27,7 +27,7 @@ use FindBin;
 
 my $root  = "$FindBin::Bin/../..";
 my $guide = "$root/starter/manager/style-guide.md";
-my $cssf  = "$root/starter/lazysite/manager/assets/manager.css";
+my $cssf  = "$root/starter/lazysite/manager/assets/manager-classic.css";
 
 plan skip_all => "no $guide" unless -f $guide;
 plan skip_all => "no $cssf"  unless -f $cssf;

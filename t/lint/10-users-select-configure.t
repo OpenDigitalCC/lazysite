@@ -49,7 +49,7 @@ like( $src, qr/function closeConfig\(/, 'the sheet can be closed' );
 like( $src, qr/mg-acc-kids/, 'sub-users nest under an indented tree container' );
 
 # The CSS backs it: a fixed, accent-headed sheet (not a nested shrinking panel).
-my $css = repo_root() . '/starter/lazysite/manager/assets/manager.css';
+my $css = repo_root() . '/starter/lazysite/manager/assets/manager-classic.css';
 open my $cf, '<', $css or BAIL_OUT("cannot read $css: $!");
 my $csrc = do { local $/; <$cf> };
 close $cf;
