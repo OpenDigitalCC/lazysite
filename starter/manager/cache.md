@@ -89,7 +89,7 @@ function renderCache(files) {
     var statusLabel = f.has_source ? 'Has source' : 'Orphan';
     // Per-alias-host renders are tagged with their host (subdomain); primary
     // renders have no host. hostArg passes it through to a surgical invalidate.
-    var hostTag = f.host ? '<span class="mg-tag mg-tag mg-tag-off" title="cached render for the ' + escHtml(f.host) + ' host">' + escHtml(f.host) + '</span>' : '';
+    var hostTag = f.host ? '<span class="mg-tag mg-tag-off" title="cached render for the ' + escHtml(f.host) + ' host">' + escHtml(f.host) + '</span>' : '';
     var hostArg = f.host ? ",'" + escHtml(f.host) + "'" : '';
     html += '<div class="mg-row">';
     html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(f.path) + '</span>';

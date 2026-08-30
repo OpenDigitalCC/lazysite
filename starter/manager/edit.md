@@ -57,7 +57,7 @@ query_params:
 <button id="ed-save-btn" class="mg-btn mg-btn-primary" onclick="savePage()" disabled>Save</button>
 <button class="mg-btn" onclick="refreshPreview()">Preview</button>
 <a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
-<a id="ed-download-btn" class="mg-btn mg-btn mg-btn-sm" href="#" download>Download</a>
+<a id="ed-download-btn" class="mg-btn mg-btn-sm" href="#" download>Download</a>
 </div>
 
 <div id="ed-cache-notice" class="mg-cache-notice" style="display:none;"></div>

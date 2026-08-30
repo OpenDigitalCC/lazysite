@@ -1067,7 +1067,7 @@ function showConnector(user) {
         '<li>When it asks you to sign in, paste this one-time connect code:' +
         '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
         '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button>' +
-        '<button class="mg-btn mg-btn-sm" id="cc-regen-' + ue + '" onclick="regenerateConnectCode(\'' + ue + '\')">Regenerate</button></div>' +
+        '<button class="mg-btn mg-btn-change mg-btn-sm" id="cc-regen-' + ue + '" onclick="regenerateConnectCode(\'' + ue + '\')">Regenerate</button></div>' +
         '<span class="mg-muted" id="cc-life-' + ue + '">Single-use.</span></li>' +
         '</ol>' +
         '<div class="mg-onb-wait" id="conn-wait-' + ue + '">&#8987; waiting for the AI agent to connect&hellip;</div>' +

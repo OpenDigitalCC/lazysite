@@ -1024,10 +1024,10 @@ function renderStep2Form(type, name, existingData, isEdit) {
 
   html += '<div class="mg-wizard-actions">';
   if (isEdit) {
-    html += '<button type="button" class="mg-btn mg-btn" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Update</button>';
+    html += '<button type="button" class="mg-btn" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Save</button>';
     html += '<button type="button" class="mg-btn" onclick="cancelHandlerEdit(\'' + esc(d.id) + '\')">Cancel</button>';
   } else {
-    html += '<button type="button" class="mg-btn mg-btn" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
+    html += '<button type="button" class="mg-btn" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
     html += '<button type="button" class="mg-btn" onclick="hideAddWizard()">Cancel</button>';
   }
   html += ' <span id="handler-dirty-' + esc(fid) + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes</span>';

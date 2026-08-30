@@ -163,7 +163,7 @@ function groupSummaryInner(g) {
   // applies to no one (caps resolve only through membership). Flag it so the
   // create-group-then-forget-members trap is visible without opening the group.
   var inert = (nOn > 0 && members.length === 0)
-    ? ' <span class="mg-tag mg-tag mg-tag-off" title="This group grants capabilities but has no members, so it applies to no one. Add a member to put its access into effect.">no members</span>'
+    ? ' <span class="mg-tag mg-tag-off" title="This group grants capabilities but has no members, so it applies to no one. Add a member to put its access into effect.">no members</span>'
     : '';
   // SM576: a backend group exists to aggregate capabilities and other groups -
   // it is not something to give a person. Said on the summary line so the
@@ -182,16 +182,16 @@ function groupSummaryInner(g) {
   // anyone meeting the page for the first time, and this is the distinction
   // that decides whether an operator can act on the row at all.
   var backend = (info.assignable === false)
-    ? ' <span class="mg-tag mg-tag mg-tag-off" title="A backend group: it aggregates capabilities and other groups. People are not added to it - they are added to a role that is nested inside it.">&#128230; backend</span>'
-    : ' <span class="mg-tag mg-tag mg-tag-off" title="A role: this is the kind of group you give to a person. Assign it from an account\'s card on the Users page.">&#128100; role</span>';
+    ? ' <span class="mg-tag mg-tag-off" title="A backend group: it aggregates capabilities and other groups. People are not added to it - they are added to a role that is nested inside it.">&#128230; backend</span>'
+    : ' <span class="mg-tag mg-tag-off" title="A role: this is the kind of group you give to a person. Assign it from an account\'s card on the Users page.">&#128100; role</span>';
   // SM608: shipped with the engine, or made here? The two carry different risk
   // on rename and delete - a shipped group is something the engine expects to
   // find, an operator's own is not - and the list gave no way to tell. A
   // TOOLTIP rather than a column, as the operator asked: it is a fact you want
   // when you are about to change something, not one you read every time.
   var origin = info.seeded
-    ? ' <span class="mg-tag mg-tag mg-tag-off" title="Shipped with the engine. Renaming or deleting it may break something lazysite expects to find.">system</span>'
-    : ' <span class="mg-tag mg-tag mg-tag-off" title="Created on this instance. Renaming or deleting it affects only what was built here.">yours</span>';
+    ? ' <span class="mg-tag mg-tag-off" title="Shipped with the engine. Renaming or deleting it may break something lazysite expects to find.">system</span>'
+    : ' <span class="mg-tag mg-tag-off" title="Created on this instance. Renaming or deleting it affects only what was built here.">yours</span>';
 
   // SM642: DISPLAY NAME (group name). Every seeded group already carries a
   // `label` and the page has always shown the bare name instead, so an operator
@@ -209,7 +209,7 @@ function groupSummaryInner(g) {
     : ge;
 
   return '<span class="mg-acc-name">' + name + '</span>' + recentDot(g) +
-    (info.manager ? ' <span class="mg-tag mg-tag mg-tag-on">manager</span>' : '') +
+    (info.manager ? ' <span class="mg-tag mg-tag-on">manager</span>' : '') +
     backend + origin + inert +
     '<span class="mg-acc-spacer"></span>' +
     '<span class="mg-acc-tags">' +

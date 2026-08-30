@@ -17,6 +17,23 @@
       document.documentElement.setAttribute('data-theme', t);
     } catch (e) {}
   })();
+  // SM-DS1: the drawer. `data-nav-open` on .mg-shell is what the sheet keys
+  // off; nothing else needs to know it is open. Escape closes it, because a
+  // drawer that covers the page and can only be dismissed by finding the scrim
+  // is a trap for anyone on a keyboard.
+  window.mgToggleNav = function (want) {
+    var shell = document.querySelector('.mg-shell');
+    if (!shell) return;
+    var open = (want === undefined) ? !shell.hasAttribute('data-nav-open') : !!want;
+    if (open) { shell.setAttribute('data-nav-open', ''); }
+    else      { shell.removeAttribute('data-nav-open'); }
+    var b = document.querySelector('.mg-nav-burger');
+    if (b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { window.mgToggleNav(0); }
+  });
+
   window.mgToggleTheme = function(){
     var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
@@ -93,7 +110,7 @@
         '<div class="mg-modal-msg"></div>' +
         (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') +
         '<div class="mg-modal-actions">' +
-          '<button class="mg-btn mg-btn mg-modal-cancel"></button>' +
+          '<button class="mg-btn mg-modal-cancel"></button>' +
           '<button class="mg-btn' + okClass + ' mg-modal-ok"></button>' +
         '</div>';
       box.querySelector('.mg-modal-msg').textContent = opts.msg || '';
@@ -498,6 +515,12 @@
 
 <header class="mg-header">
   <div class="mg-header-inner">
+    <!-- SM-DS1: the mobile nav drawer toggle. Hidden on desktop by the sheet;
+         on a phone it is the only route to the navigation, so it carries
+         aria-expanded and aria-controls rather than relying on the icon. The
+         old wrap-to-top nav rows are gone. -->
+    <button type="button" class="mg-nav-burger" onclick="mgToggleNav()"
+            aria-label="Navigation" aria-expanded="false" aria-controls="mg-sidebar">&#9776;</button>
     <a href="/" class="mg-brand">[% site_name || 'Site' %]</a>
     <button type="button" class="mg-palette-btn" onclick="mgPaletteOpen()" aria-label="Open command palette">
       <span>Jump to&hellip;</span><kbd>Ctrl K</kbd>
@@ -529,7 +552,10 @@
 </div>
 
 <div class="mg-shell">
-  <aside class="mg-sidebar">
+  <!-- Tap off the drawer to close it. Empty by design: a hit area, not
+       content, and inert until the drawer is open. -->
+  <div class="mg-scrim" onclick="mgToggleNav(0)"></div>
+  <aside class="mg-sidebar" id="mg-sidebar">
     <nav class="mg-nav" aria-label="Manager navigation">
       <div class="mg-nav-group">Content</div>
       [% IF manager_caps.manage_content %]<a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Read and write site content. To enable it, grant 'Content' to a group on the Groups page.">Files &#128274;</a>[% END %]

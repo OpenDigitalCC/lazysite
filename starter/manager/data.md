@@ -70,7 +70,7 @@ search: false
     <div id="import-plan" style="font-size:0.9em;"></div>
     <div id="import-error" class="mg-status"></div>
     <div style="display:flex;gap:8px;margin-top:10px;">
-      <button class="mg-btn mg-btn-primary" id="import-apply-btn" onclick="applyImport()" style="display:none;">Apply</button>
+      <button class="mg-btn mg-btn-change mg-btn-primary" id="import-apply-btn" onclick="applyImport()" style="display:none;">Apply</button>
       <button class="mg-btn" onclick="cancelImport()">Cancel</button>
     </div>
     </div>
@@ -118,7 +118,7 @@ search: false
     <div id="plan-body" style="font-size:0.9em;"></div>
     <div id="plan-error" class="mg-status"></div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-      <button class="mg-btn mg-btn-primary" id="plan-migrate-btn" onclick="runMigrate()" style="display:none;">Migrate</button>
+      <button class="mg-btn mg-btn-change mg-btn-primary" id="plan-migrate-btn" onclick="runMigrate()" style="display:none;">Migrate</button>
       <button class="mg-btn mg-btn-danger" id="plan-rebuild-btn" onclick="runRebuild()" style="display:none;">Rebuild, losing the named columns</button>
     </div>
   </div>

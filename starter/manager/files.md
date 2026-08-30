@@ -611,7 +611,7 @@ function permsCard(f) {
     +     briefButton(f) + ' '
     +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
     +     '<button class="mg-btn" onclick="duplicateFile(this)">&#10697; Duplicate&hellip;</button>'
-    +     ( /\.url$/.test(f.name) ? '<button class="mg-btn" onclick="migrateToLocal(this)">&#11015; Migrate to local</button>' : '' )
+    +     ( /\.url$/.test(f.name) ? '<button class="mg-btn mg-btn-change" onclick="migrateToLocal(this)">&#11015; Migrate to local</button>' : '' )
     +     ( GIT.enabled && isEditable(f.name) ? '<button class="mg-btn" onclick="toggleHistory(this)">&#128337; History</button>' : '' )
     +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
     +     '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
