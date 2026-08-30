@@ -61,7 +61,30 @@ exit main() if !caller;
 
 sub reply {
     my ( $status, $data ) = @_;
-    my $body = JSON::PP->new->canonical->encode($data);
+
+    # SM700: ->utf8, and the Content-Length that depends on it.
+    #
+    # Connect.pm opens SQLite with sqlite_unicode => 1, so a TEXT column comes
+    # back as a CHARACTER string - `u` with a circumflex is one character,
+    # U+00FB. Encoding without ->utf8 returns JSON as characters, and printing
+    # that to a STDOUT with no encoding layer writes each codepoint as one byte:
+    # U+00FB becomes 0xFB. The header says charset=utf-8, so the browser tries
+    # to UTF-8-decode a lone high byte and gets U+FFFD - the black diamond an
+    # operator sees on familyhq, where "Jeune federal" (accented) rendered with
+    # a replacement character for each accent.
+    #
+    # The control API never had this because it uses encode_json, which is UTF-8
+    # by definition, with STDOUT in binmode. The two endpoints read the same
+    # rows and diverged only here.
+    #
+    # Content-Length MUST be taken after encoding. length() on a character
+    # string counts characters; it matched only because the bug emitted one byte
+    # per character, so fixing the encoding without this would under-report the
+    # length and truncate every response carrying an accent.
+    my $body = JSON::PP->new->utf8->canonical->encode($data);
+
+    # Bytes now. Say so, rather than relying on the absence of a layer.
+    binmode STDOUT;
     print "Status: $status\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n";
 
@@ -245,7 +268,11 @@ sub main {
             if $len > 256 * 1024;
         my $body = '';
         read( STDIN, $body, $len ) if $len;
-        my $req = eval { JSON::PP->new->decode($body) } // {};
+        # SM700, the same defect inverted. read() gives BYTES; decoding them without
+        # ->utf8 treats each byte as a codepoint, so a posted accent arrives as two
+        # characters and is stored double-encoded. The read path made the mojibake
+        # visible; this one would have written it.
+        my $req = eval { JSON::PP->new->utf8->decode($body) } // {};
         return reply( 400, { ok => 0, error => 'body must be a JSON object' } )
             unless ref $req eq 'HASH';
 
