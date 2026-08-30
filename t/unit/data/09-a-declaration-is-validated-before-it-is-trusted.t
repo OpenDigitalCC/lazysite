@@ -75,6 +75,16 @@ subtest 'the other fields are shaped too' => sub {
     ok( !ok_decl( { deps => ['dbi'] } ),     'a module name is not lower-case' );
     ok( ok_decl(  { deps => ['DBD::SQLite'] } ), 'a real one passes' );
     ok( !ok_decl( { config_keys => ['dbSource'] } ), 'config keys are snake_case' );
+
+    # SM694: `bins` names a PROGRAM. A path would pin the declaration to one
+    # host's layout, so it stops travelling with the package that carries it -
+    # and resolution is PATH's job at enable time, not the declaration's.
+    ok( !ok_decl( { bins => ['/usr/bin/md-to-pdf'] } ),
+        'a program may not be declared by absolute path' );
+    ok( !ok_decl( { bins => ['../md-to-pdf'] } ),
+        'nor by a relative one' );
+    ok( ok_decl( { bins => ['md-to-pdf'] } ),
+        'a bare program name is fine, hyphens and all' );
 };
 
 subtest 'every problem is reported, not just the first' => sub {

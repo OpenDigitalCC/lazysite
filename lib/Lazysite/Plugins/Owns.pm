@@ -34,7 +34,7 @@ our @EXPORT_OK = qw(validate_owns owns_keys);
 # ignored: a plugin author writing `capability` for `capabilities` would
 # otherwise get silence and a capability that never appears, which reads as the
 # platform being broken.
-my @KEYS = qw(config_keys storage endpoints capabilities deps);
+my @KEYS = qw(config_keys storage endpoints capabilities deps bins);
 
 sub owns_keys { my @k = @KEYS; return @k }
 
@@ -131,6 +131,18 @@ sub validate_owns {
         push @bad, _err( $id, 'deps',
             "'" . ( defined $m ? $m : '(undef)' ) . "' is not a module name" )
             unless defined $m && !ref $m && $m =~ /\A[A-Z][\w:]*\z/;
+    }
+
+    # SM694: a PROGRAM the plugin needs, beside `deps` for a Perl module. A
+    # BARE NAME, never a path: resolution is PATH's job at enable time, and a
+    # plugin declaring /usr/local/bin/x would be naming one host's layout
+    # rather than a dependency - which is how a declaration stops travelling
+    # with the package it belongs to.
+    for my $b ( @{ $owns->{bins} || [] } ) {
+        push @bad, _err( $id, 'bins',
+            "'" . ( defined $b ? $b : '(undef)' )
+                . "' must be a bare program name, with no path" )
+            unless defined $b && !ref $b && $b =~ /\A[a-z][a-z0-9._-]*\z/;
     }
 
     for my $k ( @{ $owns->{config_keys} || [] } ) {
