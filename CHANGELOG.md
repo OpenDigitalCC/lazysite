@@ -44,6 +44,99 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.11.8 - EDGE: a manager style an operator chooses, a guide that is the stylesheet's contract, and a page that can become a PDF (2026-08-30)
+
+**Cut as edge deliberately.** Promotion costs a fleet update, so this one
+carries a large batch rather than several small ones: a whole visual layer, its
+contract, and the app-side changes that go with it.
+
+- SM698 partial (cf38560e, acceecdc, 8a67a9c0, d202bb81, be891aae) **the
+  manager style is a named choice, previewed before it is committed.** Three
+  sheets - `classic`, `modern`, `accessible` - selected by `manager_style` in
+  config, with `classic` the shipped default so an instance that never touches
+  the setting sees the manager it already had. **The split into three files is
+  deliberate**, on the release manager's decision: the design side ships one
+  sheet switching on `[data-variant]`, but a future style may differ far more
+  than these three do, and an in-page switcher makes each new style a tax on
+  all the others because it has to keep working in a document containing its
+  rivals. The preview renders the style guide itself with the candidate sheet,
+  so a style is seen before it is chosen. **Barlow is bundled** - 21 `woff2`
+  faces and `OFL.txt` in the site files, upstream `unicode-range` preserved so
+  a Latin-only operator fetches about half of it. No CDN and no external
+  request: an operator's manager does not phone a third party to render.
+  Still open: operator-supplied sheets (download/upload).
+
+- The design pass that goes with those sheets (9595cafd, 14f6813b, 1b5c13a9)
+  collapses duplicate class names across every manager page, moves the nav into
+  a drawer, and gives state-rewriting actions their own colour so that
+  "publish" and "cancel" stop looking alike. Two tests that had pinned an
+  appearance now assert the property instead, which is what let the appearance
+  change at all.
+
+- SM697 partial (59d72636, fbd2f0f1) **eight classes Plugin Config emitted that
+  no rule defined, and a lint that refuses the ninth.** Reported as formatting
+  problems; measuring found the same defect on seven more pages - twenty `mg-`
+  classes with no rule, of which six are legitimate `querySelector` handles and
+  fourteen are real formatting bugs. Plugin Config's eight are fixed; the other
+  twelve are enumerated in `t/lint/95` as known debt, so a NEW one fails
+  immediately while the backlog is paid. This is SM686 a second time: an
+  element whose class nothing defines renders as unstyled inline content,
+  nothing errors, and the source reads correctly - only the rendered page says
+  otherwise. The rules were carried onto all three sheets when the design drop
+  replaced the old one, because a wholesale replacement silently undoes exactly
+  this kind of fix.
+
+- **The manager style guide** (`/manager/style-guide`) is a manager page
+  demonstrating every component, and `t/lint/96` makes it a contract in both
+  directions: a class the guide names must have a rule, and a rule the sheet
+  defines must appear in the guide. The first direction catches a style that is
+  incomplete; the second catches a component nobody documented, which is how
+  the manager came to have two expander idioms. A candidate sheet is complete
+  when it satisfies the guide.
+
+- SM699 partial (1c4dfd59) **the button-label vocabulary is written down.**
+  Audited across every manager page: `Save` (13) / `Update` (2) / `Apply` (2)
+  all mean commit; `Cancel` (8) / `Close` (8) / `Dismiss` (2) all mean stop;
+  `Delete` (9) / `Remove` (1) / `Clear` (2) all mean destroy-or-not. An
+  operator who learns one page has to relearn the next. The vocabulary is in
+  the guide; reconciling the 107 existing labels to it is not yet done.
+
+- SM700 shipped (ff191895) **the data endpoint emits UTF-8 bytes, and counts
+  them.** A familyhq holiday rendered as `Je?ne f?d?ral`. Ingest, SQLite and
+  the control API were all correct and measured so - the stored bytes were
+  valid UTF-8. `lazysite-data.pl` encoded with `JSON::PP->new->...->encode` and
+  no `->utf8`, so a character string reached a layer-less `STDOUT` and each
+  codepoint went out as one byte; the header promised `charset=utf-8` and the
+  browser replaced every lone high byte. **`Content-Length` was fixed in the
+  same change and had to be**: it was `length()` of the character string, right
+  only because of the bug, so correcting the encoding alone would have
+  truncated every accented response - a cosmetic fault turned into a broken
+  one. The request body is decoded as UTF-8 too, which would otherwise have
+  stored double-encoded text.
+
+- SM694 shipped (15788265, 4789f124, 2fffe0a1) **a page can be converted to a
+  branded PDF, through `md-to-pdf`.** The plugin calls the wrapper, not pandoc:
+  the wrapper owns the pandoc and XeLaTeX invocation, the templates and the
+  brands, so `bins => ['md-to-pdf']` is what makes "enabled" and "works" agree.
+  Brands live in the site files, where an operator maintains them beside their
+  content. The conversion is synchronous with an armed timeout and an input
+  size cap, because there is no queue to put it in. **One boundary is recorded
+  rather than closed**: the wrapper accepts no `--sandbox` or `--resource-path`
+  passthrough, so an absolute path in a document's image reference is resolved
+  inside it. Measured, because the working directory looked like a confinement
+  and is not one - the wrapper resolves relative references against the source
+  file's directory, not the cwd.
+
+- SM678 follow-up shipped (78dd6f42) **the table exports move into the
+  expander.** The row holds what an operator scans for; the expander holds what
+  they act on for one table.
+
+Docs: SM579 rescoped (79f6f535) from "a page can call a configured API" to the
+workflow question, with the boundary the release manager set - lazysite is not
+to become a multipurpose tool - and the constraint that without the listener
+daemon there is nothing to trigger a run, so a workflow that waits has to leave
+the operator to come back to it. Thirty-six shipped filings archived (da769fac).
+
 ## 0.11.7 - STABLE: the feedback loop repaired, the gate taught to see a rendered page, and three answers that were confidently wrong (2026-08-29)
 
 **The first stable since 0.11.1.** A site upgrading from there crosses six
