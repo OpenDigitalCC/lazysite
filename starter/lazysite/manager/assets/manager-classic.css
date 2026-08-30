@@ -1,2293 +1,1078 @@
-/*
- * lazysite Manager CSS
- * Source: lazysite/manager/assets/manager.css
- * This copy is served as a static file by the dev server.
+/* lazysite manager style: classic
+ *
+ * SPLIT FROM THE SM-DS1 DESIGN SHEET. The design side ships one stylesheet that
+ * switches on [data-variant] at the root; lazysite splits it into one file per
+ * style and selects with `manager_style` in the config (SM698).
+ *
+ * The split is deliberate, not a conversion cost. A future style may differ far
+ * more than these three do, and an in-page switcher that carries every style at
+ * once makes each new one a tax on all the others - it has to keep working
+ * inside a document that also contains its rivals. One file per style keeps
+ * them independent, and an operator loads only the one they chose.
+ *
+ * Base (Industry) rules first, then this variant's overrides in the order the
+ * source declared them, so the cascade is exactly what the design intended.
  */
+
 /* ============================================================
-   lazysite Manager CSS
-   All manager presentation defined here.
-   Use --mg-* custom properties in page inline styles.
+   lazysite Manager CSS — "Industry" redesign (SM-DS1)
+   Drop-in replacement for manager/assets/manager.css.
+   Language: steel-blue blueprint on a light technical ground;
+   Barlow Condensed headings over Barlow; square corners,
+   hairline borders. Two-accent action language:
+     steel  = do / navigate / confirm  (one primary per view)
+     copper = careful / change (apply, overwrite, regenerate)
+     red    = destructive (colour is a warning, not the guard)
+   Themes: follows the OS by default; [data-theme="light|dark"]
+   on <html> (or any wrapper) overrides. All text >= AA 4.5:1.
    ============================================================ */
+/* Fonts: Barlow + Barlow Condensed ship BUNDLED (SM698) - no external
+   request from a shipped asset. Load assets/fonts/fonts.css (the @font-face
+   set with unicode-range subsets + OFL.txt) before this sheet. */
 
-:root {
-    /* SM109 phase 1: a calmer neutral surface, one confident accent, a real
-       elevation scale, and a disciplined type scale. Pages consume these --mg-*
-       vars, so this block reskins the whole manager. */
-
-    /* Surfaces - warmer, quieter neutrals */
-    --mg-bg:          #fafafa;
-    --mg-surface:     #ffffff;
-    --mg-surface-alt: #f5f5f4;
-    --mg-border:      #e7e5e4;
-    --mg-border-light:#f0efed;
-    /* Back-compat aliases for legacy names used (with hard-coded fallbacks) in
-       page styles - mapping them to real tokens makes those styles invert too. */
-    --mg-bg-alt:      var(--mg-surface-alt);
-    --mg-bg-muted:    var(--mg-surface-alt);
-    --mg-bg-hover:    var(--mg-surface-alt);
-
-    /* Text - one strong, one muted, one faint */
-    --mg-text:        #1c1917;
-    --mg-text-muted:  #78716c;
-    --mg-text-light:  #79736d;   /* was #a8a29e (2.5:1, WCAG fail); now 4.7:1 AA */
-
-    /* A single confident accent (indigo - distinct from Bootstrap blue) */
-    --mg-accent:      #4f46e5;
-    --mg-accent-hover:#4338ca;
-    --mg-accent-bg:   #eef2ff;
-    --mg-accent-text: #ffffff;
-    --mg-focus-ring:  0 0 0 3px rgba(79,70,229,0.25);
-
-    /* Desaturated status - reads as information, not alarm */
-    --mg-danger:      #b42318;
-    --mg-danger-bg:   #fef3f2;
-    --mg-success:     #067647;
-    --mg-success-bg:  #ecfdf3;
-    --mg-warning:     #b54708;
-    --mg-warning-bg:  #fffaeb;
-
-    /* Radii - softer */
-    --mg-radius:      6px;
-    --mg-radius-lg:   10px;
-    --mg-radius-pill: 999px;
-
-    /* Elevation - the missing scale */
-    --mg-shadow-sm:   0 1px 2px rgba(28,25,23,0.06);
-    --mg-shadow-md:   0 2px 8px rgba(28,25,23,0.08);
-    --mg-shadow-lg:   0 8px 24px rgba(28,25,23,0.12);
-
+:root, [data-theme="light"] {
+    color-scheme: light;
+    /* Ground + surfaces */
+    --mg-bg:           #f2f2f3;
+    --mg-surface:      #fbfbfc;
+    --mg-surface-alt:  #ebebed;
+    --mg-border:       #c6c9cd;   /* hairlines that actually read */
+    --mg-border-light: #dcdee1;
+    /* Text — the grey-on-grey fix: every step clears AA on every surface */
+    --mg-text:         #1d1f20;
+    --mg-text-muted:   #4f5459;   /* 7.6:1 */
+    --mg-text-light:   #686e74;   /* 5.1:1 — the floor; nothing lighter carries words */
+    /* Accent 1 — steel: do / navigate / confirm */
+    --mg-accent:       oklch(0.58 0.062 253);
+    --mg-accent-deep:  oklch(0.44 0.075 253);  /* text-safe on bg */
+    --mg-accent-fill:  oklch(0.49 0.075 253);  /* solid fill under white text */
+    --mg-accent-hover: oklch(0.44 0.08 253);
+    --mg-accent-bg:    oklch(0.93 0.018 253);
+    --mg-accent-text:  #ffffff;
+    /* Accent 2 — copper: careful / change */
+    --mg-accent2:      oklch(0.58 0.075 var(--mg-h2, 45));
+    --mg-accent2-deep: oklch(0.43 0.09 var(--mg-h2, 45));
+    --mg-accent2-fill: oklch(0.49 0.09 var(--mg-h2, 45));
+    --mg-accent2-bg:   oklch(0.93 0.022 var(--mg-h2, 45));
+    /* Status — information, not alarm */
+    --mg-danger:       oklch(0.49 0.14 27);
+    --mg-danger-deep:  oklch(0.42 0.15 27);
+    --mg-danger-bg:    oklch(0.94 0.028 27);
+    --mg-success:      oklch(0.46 0.09 152);
+    --mg-success-bg:   oklch(0.94 0.03 152);
+    --mg-warning:      oklch(0.47 0.10 82);
+    --mg-warning-bg:   oklch(0.95 0.035 85);
+    /* Blueprint geometry */
+    --mg-radius:       0;
+    --mg-radius-pill:  999px;      /* toggle knob + count badge only */
+    --mg-mark:         color-mix(in oklab, var(--mg-text) 40%, transparent);
+    --mg-shadow-sm:    0 1px 2px rgba(29,31,32,0.07);
+    --mg-shadow-md:    0 2px 10px rgba(29,31,32,0.10);
+    --mg-shadow-lg:    0 10px 32px rgba(29,31,32,0.16);
+    /* Controls — two sizes, everywhere */
+    --mg-ctl:          36px;
+    --mg-ctl-sm:       28px;
+    /* Type */
+    --mg-font:         'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mg-font-heading: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+    --mg-mono:         ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    --mg-font-size:    15px;
+    --mg-line-height:  1.55;
+    --mg-text-sm:      13px;
+    --mg-text-lg:      17px;
+    --mg-text-xl:      22px;
     /* Spacing */
-    --mg-gap:         1rem;
-    --mg-gap-sm:      0.5rem;
-    --mg-gap-xs:      0.25rem;
-
-    /* Typography - larger base, three steps */
-    --mg-font:        system-ui, -apple-system, BlinkMacSystemFont,
-                      'Segoe UI', sans-serif;
-    --mg-mono:        ui-monospace, 'Cascadia Code', 'Fira Code',
-                      'Consolas', monospace;
-    --mg-font-size:   15px;
-    --mg-line-height: 1.55;
-    --mg-text-sm:     0.8667rem;  /* 13px - the one small size */
-    --mg-text-lg:     1.2rem;     /* 18px - card / section titles */
-    --mg-text-xl:     1.5rem;     /* 24px - page title */
-
-    /* Header */
-    --mg-header-h:    48px;
-    --mg-header-bg:   #1a1d23;
-    --mg-header-text: #e9ecef;
-    --mg-header-muted:#9a958f;
-    --mg-nav-active:  #ffffff;
-    --mg-nav-hover:   rgba(255,255,255,0.12);
-}
-
-/* ============================================================
-   Reset and base
-   ============================================================ */
-
-*, *::before, *::after { box-sizing: border-box; }
-
-.mg-body {
-    margin: 0;
-    padding: 0;
-    font-family: var(--mg-font);
-    font-size: var(--mg-font-size);
-    line-height: var(--mg-line-height);
-    color: var(--mg-text);
-    background: var(--mg-bg);
-    min-height: 100vh;
-}
-
-/* ============================================================
-   Header
-   ============================================================ */
-
-.mg-header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    height: var(--mg-header-h);
-    background: var(--mg-header-bg);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
-.mg-header-inner {
-    display: flex;
-    align-items: center;
-    height: 100%;
-    padding: 0 1.25rem;
-    gap: 1.5rem;
-}
-
-.mg-brand {
-    display: flex;
-    align-items: baseline;
-    gap: 0.4rem;
-    text-decoration: none;
-    color: var(--mg-nav-active);
-    font-weight: 600;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-/* ============================================================
-   Nav
-   ============================================================ */
-
-.mg-nav {
-    display: flex;
-    align-items: center;
-    gap: 0.15rem;
-    flex: 1;
-}
-
-.mg-nav a {
-    display: inline-flex;
-    align-items: center;
-    height: 32px;
-    padding: 0 0.75rem;
-    border-radius: var(--mg-radius);
-    font-size: 0.85rem;
-    color: var(--mg-header-muted);
-    text-decoration: none;
-    transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
-}
-
-.mg-nav a:hover {
-    background: var(--mg-nav-hover);
-    color: var(--mg-nav-active);
-}
-
-.mg-nav a.active {
-    background: rgba(255,255,255,0.1);
-    color: var(--mg-nav-active);
-    font-weight: 500;
-}
-
-/* ============================================================
-   Header tools (right side)
-   ============================================================ */
-
-.mg-header-tools {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-shrink: 0;
-    margin-left: auto;
-}
-
-.mg-user {
-    font-size: 0.8rem;
-    color: var(--mg-header-muted);
-}
-
-.mg-signout {
-    font-size: 0.8rem;
-    color: var(--mg-header-muted);
-    text-decoration: none;
-    padding: 0.2rem 0.5rem;
-    border-radius: var(--mg-radius);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.mg-signout:hover {
-    color: var(--mg-nav-active);
-    border-color: rgba(255,255,255,0.25);
-}
-
-/* ============================================================
-   Main content area
-   ============================================================ */
-
-.mg-main {
-    padding: 1.5rem;
-    max-width: 960px;
-}
-
-/* ============================================================
-   Page title
-   ============================================================ */
-
-.mg-main h1 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 0 0 1.25rem;
-    color: var(--mg-text);
-}
-
-/* ============================================================
-   Cards
-   ============================================================ */
-
-.mg-card {
-    background: var(--mg-surface);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius-lg);
-    box-shadow: var(--mg-shadow-sm);
-    margin-bottom: 1rem;
-    overflow: hidden;
-}
-
-.mg-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.7rem 1rem;
-    background: var(--mg-surface-alt);
-    border-bottom: 1px solid var(--mg-border);
-    gap: 0.75rem;
-}
-
-.mg-card-title {
-    font-weight: 600;
-    font-size: var(--mg-text-lg);
-    color: var(--mg-text);
-}
-
-.mg-card-subtitle {
-    font-size: var(--mg-text-sm);
-    color: var(--mg-text-muted);
-}
-
-.mg-card-body {
-    padding: 1rem;
-}
-
-/* ============================================================
-   Buttons
-   ============================================================ */
-
-.mg-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.7rem;
-    font-size: var(--mg-text-sm);
-    font-family: var(--mg-font);
-    font-weight: 500;
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius);
-    /* A low background always, so every button reads as an action; it lifts on
-       hover. (Was transparent-until-hover, which looked like plain text.) */
-    background: var(--mg-surface-alt);
-    color: var(--mg-text);
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.12s, color 0.12s, box-shadow 0.12s, border-color 0.12s;
-    white-space: nowrap;
-    line-height: 1.4;
-}
-
-.mg-btn:hover {
-    background: var(--mg-border-light);
-    border-color: var(--mg-text-light);
-    color: var(--mg-text);
-}
-
-.mg-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--mg-focus-ring);
-}
-
-/* Exactly one primary button per view - the solid accent. */
-.mg-btn-primary {
-    background: var(--mg-accent);
-    border-color: var(--mg-accent);
-    color: var(--mg-accent-text);
-    font-weight: 600;
-    box-shadow: var(--mg-shadow-sm);
-}
-
-.mg-btn-primary:hover {
-    background: var(--mg-accent-hover);
-    border-color: var(--mg-accent-hover);
-    color: var(--mg-accent-text);
-}
-
-.mg-btn-danger {
-    color: var(--mg-danger);
-}
-
-.mg-btn-danger:hover {
-    background: var(--mg-danger-bg);
-    color: var(--mg-danger);
-}
-
-.mg-btn-outline {
-    border-color: var(--mg-border);
-    background: var(--mg-surface);
-    color: var(--mg-text);
-}
-
-.mg-btn-outline:hover {
-    background: var(--mg-surface-alt);
-    border-color: var(--mg-text-light);
-}
-
-.mg-btn-sm {
-    padding: 0.18rem 0.55rem;
-    font-size: 0.8rem;
-}
-
-.mg-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* ============================================================
-   Form rows
-   ============================================================ */
-
-.mg-form-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    margin-bottom: 0.6rem;
-}
-
-.mg-form-row label {
-    width: 120px;
-    flex-shrink: 0;
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    padding-top: 0.3rem;
-    text-align: right;
-}
-
-.mg-form-row input[type="text"], .mg-form-row input[type="email"], .mg-form-row input[type="password"], .mg-form-row input[type="number"], .mg-form-row input[type="url"], .mg-form-row input[type="search"], .mg-form-row select, .mg-form-row textarea {
-    flex: 1;
-    padding: 0.3rem 0.5rem;
-    font-size: 0.875rem;
-    font-family: var(--mg-font);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius);
-    background: var(--mg-surface);
-    color: var(--mg-text);
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.mg-form-row input:focus, .mg-form-row select:focus, .mg-form-row textarea:focus {
-    outline: none;
-    border-color: var(--mg-accent);
-    box-shadow: var(--mg-focus-ring);
-}
-
-/* SM068: placeholder text is a hint, not a value. Make that
-   visually obvious - browsers default placeholders to ~40%
-   opacity which can read as "greyed-out value" rather than
-   "hint". Explicit muted colour + italic lifts the ambiguity. */
-.mg-form-row input::placeholder, .mg-form-row textarea::placeholder {
-    color: var(--mg-text-light);
-    opacity: 1;
-    font-style: italic;
-}
-
-.mg-form-row input[type="checkbox"] {
-    flex: none;
-    width: auto;
-    margin-top: 0.35rem;
-    margin-left: 0;
-    accent-color: var(--mg-accent);
-}
-
-.mg-config-field[data-show-key] { display: none; }
-
-.mg-readonly {
-    font-family: var(--mg-mono);
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    padding-top: 0.3rem;
-}
-
-.mg-file-filter {
-    flex: 1;
-    padding: 0.3rem 0.6rem;
-    font-size: 0.875rem;
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius);
-    background: var(--mg-surface);
-    color: var(--mg-text);
-}
-
-.mg-file-filter:focus {
-    outline: none;
-    border-color: var(--mg-accent);
-}
-
-.mg-breadcrumb {
-    font-family: var(--mg-mono);
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    margin-bottom: 0.5rem;
-}
-
-.mg-breadcrumb a {
-    color: var(--mg-accent);
-    text-decoration: none;
-}
-
-.mg-file-list {
-    background: var(--mg-surface);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius-lg);
-    overflow: hidden;
-}
-
-.mg-file-item {
-    display: flex;
-    align-items: center;
-    padding: 0.45rem 0.75rem;
-    border-bottom: 1px solid var(--mg-border-light);
-    gap: 0.5rem;
-    font-size: 0.875rem;
-}
-
-.mg-file-item:last-child { border-bottom: none; }
-
-.mg-file-item:hover { background: var(--mg-surface-alt); }
-
-.mg-file-icon {
-    font-size: 1rem;
-    flex-shrink: 0;
-    width: 1.25rem;
-    text-align: center;
-}
-
-.mg-file-name {
-    flex: 1;
-    color: var(--mg-text);
-    text-decoration: none;
-}
-
-.mg-file-name:hover { color: var(--mg-accent); }
-
-.mg-file-meta {
-    font-size: 0.75rem;
-    color: var(--mg-text-light);
-    white-space: nowrap;
-}
-
-.mg-file-actions { display: flex; gap: 0.35rem; }
-
-/* SM019b: table-based layout for the files app. The legacy
-   .mg-file-item flex row above is still used by other manager
-   pages (users, cache, themes) for their own list rows - do not
-   remove it just because files.md no longer uses it. */
-.mg-file-filter-row {
-    margin-bottom: 0.5rem;
-}
-
-.mg-file-filter-row .mg-file-filter {
-    width: 40%;
-    min-width: 280px;
-    flex: none;
-}
-
-.mg-file-actions-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--mg-gap-sm);
-    margin-bottom: 0.5rem;
-}
-
-.mg-file-actions-left, .mg-file-actions-right {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.mg-file-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--mg-surface);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius-lg);
-    overflow: hidden;
-    font-size: 0.875rem;
-}
-
-.mg-file-table th, .mg-file-table td {
-    padding: 0.4rem 0.6rem;
-    text-align: left;
-    vertical-align: middle;
-}
-
-.mg-file-table thead th {
-    font-weight: 600;
-    color: var(--mg-text-muted);
-    border-bottom: 1px solid var(--mg-border);
-    background: var(--mg-surface-alt);
-}
-
-.mg-file-table tbody tr {
-    border-bottom: 1px solid var(--mg-border-light);
-}
-
-.mg-file-table tbody tr:last-child {
-    border-bottom: none;
-}
-
-.mg-file-table tbody tr:hover {
-    background: var(--mg-surface-alt);
-}
-
-.mg-col-check { width: 32px; }
-
-.mg-file-table .mg-file-icon {
-    font-size: 1rem;
-    padding: 0.4rem 0;
-}
-
-.mg-file-table .mg-file-name a {
-    color: var(--mg-text);
-    text-decoration: none;
-}
-
-.mg-file-table .mg-file-name a:hover {
-    color: var(--mg-accent);
-}
-
-/* SM077 v2: clean row (icon + name left; Access / Modified / select / expander
-   right) with a per-file config card that expands in place. */
-.mg-file-table .mg-col-access, .mg-file-table .mg-col-mod, .mg-file-table .mg-col-check, .mg-file-table .mg-col-exp { white-space: nowrap; text-align: right; }
-
-.mg-file-table .mg-col-access { text-align: left; font-size: 0.85em; }
-
-.mg-file-table th.mg-col-access { text-align: left; }
-
-/* NB: do not use `.mg-acc` here - that class is the Users/Groups accordion
-   <details>. The file access flags use their own `mg-rwflag*` names. */
-.mg-owner-name { color: var(--mg-text); }
-
-.mg-rwflag-none { color: var(--mg-text-light); }
-
-.mg-rwflag {
-    display: inline-block;
-    width: 1.1em; text-align: center;
-    font-weight: 700; font-family: monospace;
-    border-radius: 2px; margin-left: 0.1em;
-}
-
-.mg-rwflag-ok { color: var(--mg-success); }
-
-/* open within scope */
-.mg-rwflag-no { color: var(--mg-danger); }
-
-/* restricted to owner/list */
-.mg-rwflag-g { color: var(--mg-accent); font-weight: 700; font-family: monospace; }
-
-.mg-lock { margin-right: 0.35em; }
-
-.mg-chev {
-    text-decoration: none; color: var(--mg-text-light);
-    font-size: 1.1em; padding: 0 0.3em; cursor: pointer;
-}
-
-.mg-chev:hover { color: var(--mg-accent); }
-
-/* Audit log pagination (50 rows/page). */
-.audit-pagination {
-    display: flex; align-items: center; gap: 1em; margin-top: 0.8em;
-    font-size: 0.85em;
-}
-
-.audit-page-info { color: var(--mg-text-light); }
-
-/* Users page: explains the two access domains sharing one account set. */
-.mg-domain-note {
-    margin: 0.5rem; padding: 0.7em 1em; font-size: 0.88em; line-height: 1.5;
-    background: var(--mg-bg-alt, #f6f6f6);
-    border-left: 3px solid var(--mg-accent); border-radius: 4px;
-}
-
-/* The expander turns accent-blue while its row is open, so the open file is
-   easy to spot. */
-.mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent); }
-
-/* The open editor is bracketed top and bottom by an accent rule, visually
-   tying the expanded details to the file row above it. */
-.mg-perms-row .mg-perms-cell {
-    padding: 0;
-    background: var(--mg-bg-alt, #f6f6f6);
-    border-top: 2px solid var(--mg-accent);
-    border-bottom: 2px solid var(--mg-accent);
-}
-
-.mg-perms-card { padding: 1em 1.2em 1.1em; max-width: 56em; }
-
-.mg-perms-head {
-    display: flex; align-items: baseline; justify-content: space-between;
-    margin-bottom: 0.7em; padding-bottom: 0.5em;
-    border-bottom: 1px solid var(--mg-border, #ddd);
-}
-
-.mg-perms-title { font-weight: 600; font-size: 0.95em; }
-
-.mg-perms-history { font-size: 0.8em; text-decoration: none; color: var(--mg-text-light); }
-
-.mg-perms-history:hover { color: var(--mg-accent); }
-
-.mg-perms-owner { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.9em; }
-
-.mg-perms-owner label { font-size: 0.85em; font-weight: 600; }
-
-.mg-perms-owner select { font-size: 0.85em; min-width: 12em; }
-
-.mg-perms-rights-label { font-size: 0.85em; font-weight: 600; margin-bottom: 0.4em; }
-
-.mg-rights { display: flex; flex-wrap: wrap; gap: 0.5em; min-height: 1.8em; }
-
-.mg-chip {
-    display: inline-flex; align-items: center; gap: 0.3em;
-    padding: 0.2em 0.3em 0.2em 0.6em;
-    background: #fff; border: 1px solid var(--mg-border, #ccc); border-radius: 1em;
-    font-size: 0.85em;
-}
-
-.mg-chip-name { font-weight: 600; }
-
-.mg-chip-right {
-    width: 1.5em; height: 1.5em; border-radius: 50%;
-    border: 1px solid var(--mg-border, #ccc); cursor: pointer;
-    font-family: monospace; font-weight: 700; font-size: 0.85em; line-height: 1;
-    background: #eee; color: #999;
-}
-
-.mg-chip-right.on { background: var(--mg-success); border-color: var(--mg-success); color: #fff; }
-
-.mg-chip-x {
-    border: none; background: none; cursor: pointer;
-    color: var(--mg-text-light); font-size: 1.1em; line-height: 1; padding: 0 0.2em;
-}
-
-.mg-chip-x:hover { color: var(--mg-danger); }
-
-.mg-rights-add { margin-top: 0.6em; }
-
-.mg-rights-pick { font-size: 0.85em; min-width: 16em; }
-
-.mg-perms-hint { margin: 0.8em 0; font-size: 0.75em; color: var(--mg-text-light); }
-
-.mg-perms-actions { display: flex; gap: 0.5em; flex-wrap: wrap; align-items: center; }
-
-.mg-perms-actions .mg-perms-save { margin-left: auto; }
-
-/* SM076: Claude.ai connector setup - the two-step instruction cards. */
-.mg-file-size { color: var(--mg-text-light); font-size: 0.85em; }
-
-.mg-onb { width: 100%; font-size: 0.85em; box-sizing: border-box; }
-
-.mg-onb-card {
-    border: 1px solid var(--mg-border, #ddd); border-left: 3px solid var(--mg-accent);
-    border-radius: 4px; padding: 0.8em 1em; margin-top: 0.5em;
-    background: var(--mg-bg-alt, #f6f6f6);
-}
-
-.mg-onb-card-go { border-left-color: var(--mg-success); }
-
-.mg-onb-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5em; }
-
-.mg-onb-list { margin: 0.3em 0 0.3em 1.1em; padding: 0; font-size: 0.9em; line-height: 1.5; }
-
-.mg-onb-list li { margin-bottom: 0.55em; }
-
-.mg-code-box {
-    background: #fff; border: 1px solid var(--mg-border, #ccc); border-radius: 3px;
-    padding: 0.4em 0.6em; margin: 0.4em 0; font-family: monospace; font-size: 0.95em;
-    display: flex; flex-direction: column; gap: 0.2em; word-break: break-all;
-}
-
-.mg-code-token { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.6em; }
-
-.mg-code-token code { font-size: 1.05em; font-weight: 700; color: var(--mg-accent); }
-
-/* SM277: a lapsed connect code reads as spent rather than merely quiet - the
-   operator should not be able to mistake it for one that still works. */
-.mg-code-token code.mg-code-stale { color: var(--mg-text-light); text-decoration: line-through; }
-
-/* SM277: the reciprocal capability count under a Services switch. Quieter than
-   the note above it - it is context for the switch, not instruction. */
-.mg-holder-line:empty { display: none; }
-
-/* SM266: the apply-confidence block. Quiet by default - what the operator
-   should notice is the overwrite count and any readiness warning, so those two
-   carry the weight and everything else stays plain. */
-.mg-apply-preview { margin: 0 0 8px; font-size: 0.85rem; }
-
-.mg-apply-block { margin-bottom: 8px; }
-
-.mg-apply-block ul { margin: 0.2em 0 0; padding-left: 1.2em; }
-
-.mg-apply-warn { margin: 6px 0; padding: 6px 8px; border-left: 3px solid #b45309; color: #b45309; }
-
-.mg-apply-ok { margin: 6px 0; color: var(--mg-success); }
-
-.mg-apply-keep { display: block; margin: 0.3em 0 0; }
-
-.mg-undo-bar { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--mg-accent); }
-
-.mg-holder-count { cursor: help; }
-
-.mg-onb-wait { margin-top: 0.6em; font-size: 0.85em; color: var(--mg-text-light); }
-
-.mg-onb-ok { color: var(--mg-success); font-weight: 600; }
-
-.mg-file-table .mg-file-dl a {
-    font-size: 1.15em;
-    font-weight: bold;
-    text-decoration: none;
-    color: var(--mg-text);
-}
-
-.mg-file-table .mg-file-dl a:hover {
-    color: var(--mg-accent);
-}
-
-/* ============================================================
-   Status badges
-   ============================================================ */
-
-.mg-badge {
-    display: inline-block;
-    padding: 0.1rem 0.4rem;
-    font-size: 0.72rem;
-    font-weight: 500;
-    border-radius: 3px;
-    white-space: nowrap;
-}
-
-.mg-badge-success {
-    background: var(--mg-success-bg);
-    color: #0a3622;
-}
-
-/* SM686: the capability grid's "what does this grant" marker. It had no rule
-   at all, so it rendered as a bare `?` sitting in the label text - the grid
-   read as "Manage forms ?" rather than offering somewhere to look. A circled
-   `i`, muted and sized below the label, reads as an affordance and stops the
-   glyph being mistaken for part of the sentence. Focusable, so the sentence is
-   reachable without a pointer. */
-.mg-cap-what {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 0.95rem;
-    height: 0.95rem;
-    margin-left: 0.15rem;
-    border: 1px solid var(--mg-border);
-    border-radius: 50%;
-    background: var(--mg-surface-alt);
-    color: var(--mg-text-muted);
-    font-size: 0.64rem;
-    font-style: italic;
-    font-weight: 600;
-    line-height: 1;
-    cursor: help;
-    vertical-align: middle;
-    user-select: none;
-}
-
-.mg-cap-what:hover, .mg-cap-what:focus {
-    border-color: var(--mg-accent);
-    color: var(--mg-accent);
-    outline: none;
-}
-
-/* SM697, paid down by the style guide: four classes whose appearance the guide
-   made obvious by showing them in context. The remaining debt is the set whose
-   appearance is a DESIGN decision (mg-split-bar, mg-recent-dot and friends) -
-   those want the rendered page, not a guess from a class name. */
-
-/* A note under a field: what it does, and what happens if it is wrong. Quieter
-   than the label, never quieter than readable. */
-.mg-field-note {
-    margin-top: 0.2rem;
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    max-width: 34rem;
-}
-
-/* A value that is DERIVED, shown rather than edited. Deliberately not a
-   disabled input: a greyed-out box invites clicking and then refuses, which
-   reads as broken rather than as computed. */
-.mg-readonly-value {
-    display: inline-block;
-    padding: 0.25rem 0.45rem;
-    border: 1px dashed var(--mg-border);
-    border-radius: 3px;
-    background: var(--mg-surface-alt);
-    color: var(--mg-text-muted);
-    font-family: var(--mg-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-    font-size: 0.85em;
-}
-
-/* A preset fills several fields at once, so it sits apart from the field it
-   happens to follow. */
-.mg-config-preset { margin-top: 0.35rem; }
-
-/* The owner control inside a permissions card. Sized to a name, not to the
-   card - a full-width select next to a short label reads as the primary
-   control, and the rights chips below it are the primary control. */
-.mg-perm-owner {
-    min-width: 12rem;
-    max-width: 20rem;
-    font-size: 0.85em;
-}
-
-/* SM697, the last nine. Written from how each is used, and moved to WHERE the
-   contract says appearance lives.
-
-   Three of these (.mg-dom-*) already had rules - in a <style> block inside
-   domains.md. A page carrying its own stylesheet is the same defect as a class
-   with no rule, wearing better clothes: the style guide cannot audit it, the
-   next page needing the component copies the block, and the two drift. Moved
-   here verbatim, comments and all.
-
-   The rest had their appearance in inline `style=` attributes on the element,
-   which is hand-styling one instance rather than defining a component. */
-
-/* A domain's label chip - a small muted pill beside a host name. */
-.mg-dom-chip {
-    display: inline-block;
-    font-size: 0.72em;
-    padding: 0.05em 0.5em;
-    border-radius: 999px;
-    background: var(--mg-surface-alt, #f0f0f0);
-    color: var(--mg-text-muted, #777);
-    margin-left: 6px;
-    vertical-align: middle;
-}
-
-.mg-dom-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-
-/* SM681: the open-in-a-new-tab arrow beside a host. Muted until hovered, so it
-   does not compete with the host name it belongs to. */
-.mg-dom-open {
-    margin-left: 6px;
-    text-decoration: none;
-    color: var(--mg-text-muted, #999);
-    font-size: 0.9em;
-    vertical-align: middle;
-}
-
-.mg-dom-open:hover,
-.mg-dom-open:focus { color: var(--mg-link, #06c); }
-
-/* A proportion bar: segments side by side summing to the whole. The height and
-   the pill shape were inline on every instance. */
-.mg-split-bar {
-    display: flex;
-    height: 14px;
-    border-radius: 7px;
-    overflow: hidden;
-    margin: 0.4rem 0;
-    background: var(--mg-surface-alt);
-}
-
-/* "Changed recently" beside a name. A dot, not a word, because it appears in a
-   list where the names are what is being read. */
-.mg-recent-dot {
-    display: inline-block;
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: var(--mg-accent);
-    margin-left: 0.35rem;
-    vertical-align: middle;
-}
-
-/* The padlock marking a held-back row (SM635). Sized DOWN from the row text: it
-   marks the row, it is not the subject of it. */
-.mg-protect-lock {
-    font-size: 0.85em;
-    opacity: 0.75;
-    margin-right: 0.15rem;
-}
-
-/* The panel an "apply" opens under its own row - a preview of what would
-   happen, before it happens. */
-.mg-apply-panel {
-    width: 100%;
-    margin-top: 8px;
-    padding: 0.6rem;
-    border: 1px solid var(--mg-border);
-    border-radius: 4px;
-    background: var(--mg-surface-alt);
-}
-
-/* The per-row select box in a file listing. Sits in a checkbox-width column,
-   so it carries no margin of its own. */
-.mg-file-select { margin: 0; vertical-align: middle; }
-
-/* Onboarding: the state where a step is done but will not WORK yet - a
-   different thing from an error, and it must not look like one. Amber, not
-   red: nothing is broken, something is incomplete. */
-.mg-onb-warn {
-    margin: 0.4rem 0;
-    padding: 0.5rem 0.65rem;
-    border-left: 3px solid var(--mg-warn-border, #e0a800);
-    background: var(--mg-warn-bg, #fff8e1);
-    color: var(--mg-text, #333);
-    font-size: 0.88em;
-}
-
-/* SM697: the Plugin Config page's forms and handlers section emitted EIGHT
-   classes the stylesheet had no rule for. An element carrying a class nothing
-   defines renders as unstyled inline content, so a list of forms ran together
-   as a paragraph, a submissions table had no table styling, and the panels that
-   open under a handler had no separation from what sits above them.
-
-   Same defect as SM686, where a hint marker with no rule read as punctuation in
-   a label. The class exists in the markup, the page looks written, and nothing
-   errors - which is why it survives review: the code is right and the page is
-   wrong, and only the rendered page says so. */
-.mg-form-entry {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--mg-border-light);
-}
-
-.mg-form-entry:last-child { border-bottom: none; }
-
-.mg-form-entry-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.mg-form-name {
-    font-family: var(--mg-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-    font-size: 0.9em;
-    font-weight: 600;
-    margin-right: auto;
-}
-
-/* The two panels that open UNDER a handler row. Both were flush against the row
-   above, so an opened panel read as part of the previous handler rather than as
-   this one's detail - the same confusion SM680 fixed by making the rows panel a
-   modal. */
-.mg-handler-edit-form,
-.mg-submissions-panel {
-    margin: 0.5rem 0 0.75rem;
-    padding: 0.75rem;
-    border: 1px solid var(--mg-border);
-    border-radius: 4px;
-    background: var(--mg-surface-alt);
-}
-
-.mg-handler-submissions { font-size: 0.85em; }
-
-.mg-submissions-table { width: 100%; font-size: 0.85em; }
-
-.mg-submissions-table th,
-.mg-submissions-table td {
-    vertical-align: top;
-    max-width: 22rem;
-    overflow-wrap: anywhere;
-}
-
-/* A checkbox column should be as wide as a checkbox. Without this the select
-   column took an equal share of the table and pushed the content that matters
-   off the right-hand side. */
-.mg-submissions-table td:first-child,
-.mg-submissions-table th:first-child { width: 1.5rem; }
-
-.mg-sub-cb { margin: 0; }
-
-.mg-badge-muted {
-    background: var(--mg-surface-alt);
-    color: var(--mg-text-muted);
-    border: 1px solid var(--mg-border);
-}
-
-/* ============================================================
-   Tables
-   ============================================================ */
-
-.mg-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-}
-
-.mg-table th {
-    text-align: left;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--mg-text-muted);
-    border-bottom: 1px solid var(--mg-border);
-    background: var(--mg-surface-alt);
-}
-
-.mg-table td {
-    padding: 0.45rem 0.6rem;
-    border-bottom: 1px solid var(--mg-border-light);
-    vertical-align: middle;
-}
-
-.mg-table tr:last-child td { border-bottom: none; }
-
-.mg-table tr:hover td { background: var(--mg-surface-alt); }
-
-/* ============================================================
-   Status messages
-   ============================================================ */
-
-.mg-status {
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    min-height: 1.2em;
-    padding: 0.2rem 0;
-}
-
-.mg-status-success { color: var(--mg-success); }
-
-.mg-status-error { color: var(--mg-danger); }
-
-/* ============================================================
-   Section labels
-   ============================================================ */
-
-.mg-section-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--mg-text-muted);
-    margin: 1rem 0 0.5rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid var(--mg-border-light);
-}
-
-.mg-section-label:first-child { margin-top: 0; }
-
-/* ============================================================
-   Empty states
-   ============================================================ */
-
-.mg-empty {
-    padding: 0.75rem;
-    font-size: 0.875rem;
-    color: var(--mg-text-light);
-    font-style: italic;
-}
-
-/* ============================================================
-   Nav editor (drag and drop)
-   ============================================================ */
-
-.mg-nav-item {
-    display: flex;
-    align-items: center;
-    padding: 0.4rem 0.6rem;
-    background: var(--mg-surface);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius);
-    margin-bottom: 0.3rem;
-    gap: 0.5rem;
-    cursor: default;
-}
-
-.mg-nav-item.child {
-    margin-left: 1.5rem;
-    background: var(--mg-surface-alt);
-}
-
-.mg-nav-item.dragging {
-    opacity: 0.4;
-    border-style: dashed;
-}
-
-.nav-drop-zone {
-    height: 4px;
-    margin: 1px 0;
-    border-radius: 2px;
-    transition: height 0.1s;
-}
-
-.nav-drop-zone.drop-active {
-    height: 3px;
-    background: var(--mg-accent);
-    box-shadow: 0 0 4px rgba(79,70,229,0.4);
-}
-
-.mg-nav-handle {
-    cursor: grab;
-    color: var(--mg-text-light);
-    font-size: 0.9rem;
-    padding: 0 0.2rem;
-    user-select: none;
-    flex-shrink: 0;
-}
-
-.mg-nav-handle:active { cursor: grabbing; }
-
-.mg-nav-label { flex: 1; font-size: 0.875rem; }
-
-.mg-nav-url {
-    font-family: var(--mg-mono);
-    font-size: 0.75rem;
-    color: var(--mg-text-muted);
-}
-
-/* ============================================================
-   Editor pane (edit.md)
-   ============================================================ */
-
-.mg-editor-root {
-    position: fixed;
-    inset: var(--mg-header-h) 0 0 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--mg-bg);
-}
-
-.mg-editor-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0 1rem;
-    height: 40px;
-    background: var(--mg-surface);
-    border-bottom: 1px solid var(--mg-border);
-    flex-shrink: 0;
-}
-
-.mg-editor-path {
-    font-family: var(--mg-mono);
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.mg-editor-main {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-
-.mg-editor-pane {
-    width: 50%;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    background: var(--mg-surface);
-    border-right: 1px solid var(--mg-border);
-}
-
-.mg-editor-divider {
-    width: 4px;
-    background: var(--mg-border);
-    cursor: col-resize;
-    flex-shrink: 0;
-}
-
-.mg-editor-divider:hover { background: var(--mg-text-light); }
-
-.mg-preview-pane {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.mg-preview-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.3rem 0.75rem;
-    background: var(--mg-surface-alt);
-    border-bottom: 1px solid var(--mg-border);
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    flex-shrink: 0;
-}
-
-.mg-preview-toolbar span:first-child { flex: 1; }
-
-.mg-preview-frame {
-    flex: 1;
-    border: none;
-    width: 100%;
-}
-
-.mg-editor-statusbar {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 0.2rem 1rem;
-    background: var(--mg-header-bg);
-    color: var(--mg-header-muted);
-    font-size: 0.72rem;
-    font-family: var(--mg-mono);
-    flex-shrink: 0;
-}
-
-.mg-editor-dirty { color: var(--mg-warning); margin-left: auto; }
-
-.mg-editor-saved { color: #4caf82; }
-
-.mg-lock-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    display: inline-block;
-    flex-shrink: 0;
-}
-
-.mg-lock-dot.editing { background: var(--mg-success); }
-
-.mg-lock-dot.locked { background: var(--mg-warning); }
-
-/* Front matter panel */
-.mg-fm-section summary {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--mg-text-muted);
-    cursor: pointer;
-    background: var(--mg-surface-alt);
-    border-bottom: 1px solid var(--mg-border);
-    user-select: none;
-}
-
-.mg-fm-section summary:hover { background: #e9ecef; }
-
-.mg-fm-fields { padding: 0.6rem 0.75rem; }
-
-/* CodeMirror integration */
-.mg-cm-yaml .CodeMirror {
-    font-size: 0.8rem;
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius);
-    height: auto;
-    min-height: 60px;
-    font-family: var(--mg-mono);
-}
-
-.mg-cm-content .CodeMirror {
-    height: 100%;
-    min-height: 400px;
-    font-size: 0.875rem;
-    line-height: 1.6;
-    font-family: var(--mg-mono);
-    border-top: 1px solid var(--mg-border);
-}
-
-.cm-tt-variable {
-    color: #c0392b;
-    background: rgba(192,57,43,0.07);
-    border-radius: 2px;
-}
-
-/* ============================================================
-   Plugin cards
-   ============================================================ */
-
-.mg-plugin-card {
-    background: var(--mg-surface);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius-lg);
-    padding: 0.875rem;
-    margin-bottom: 0.875rem;
-}
-
-.mg-plugin-title {
-    font-weight: 600;
-    font-size: 0.9rem;
-    margin-bottom: 0.15rem;
-}
-
-.mg-plugin-desc {
-    font-size: 0.8rem;
-    color: var(--mg-text-muted);
-    margin-bottom: 0.6rem;
-}
-
-.mg-handler-group {
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius-lg);
-    overflow: hidden;
-    margin-bottom: 0.875rem;
-}
-
-.mg-handler-group-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.4rem 0.75rem;
-    background: var(--mg-surface-alt);
-    border-bottom: 1px solid var(--mg-border);
-}
-
-.mg-handler-group-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--mg-text-muted);
-}
-
-.mg-handler-item {
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--mg-border-light);
-}
-
-.mg-handler-item:last-child { border-bottom: none; }
-
-.mg-handler-item-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.mg-handler-item-actions {
-    display: flex;
-    gap: 0.35rem;
-}
-
-.mg-handler-name {
-    font-weight: 500;
-    font-size: 0.9rem;
-    flex: 1;
-}
-
-/* ============================================================
-   Wizard
-   ============================================================ */
-
-.mg-wizard {
-    background: var(--mg-surface-alt);
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius-lg);
-    padding: 1rem;
-    margin-top: 0.75rem;
-}
-
-.mg-wizard-title {
-    font-weight: 600;
-    font-size: 0.95rem;
-    margin-bottom: 0.75rem;
-    color: var(--mg-text);
-}
-
-.mg-wizard-section-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--mg-text-muted);
-    margin: 0.75rem 0 0.4rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--mg-border);
-}
-
-.mg-wizard-section-label:first-of-type {
-    border-top: none;
-    margin-top: 0;
-    padding-top: 0;
-}
-
-.mg-wizard-actions {
-    margin-top: 0.75rem;
-    display: flex;
-    gap: 0.5rem;
-}
-
-/* ============================================================
-   Responsive
-   ============================================================ */
-
-@media (max-width: 700px) {.mg-header-inner { padding: 0 0.75rem; gap: 0.75rem; }
-
-.mg-nav a { padding: 0 0.5rem; font-size: 0.8rem; }
-
-.mg-main { padding: 1rem 0.75rem; }
-
-.mg-user { display: none; }
-}
-
-.mg-no-password-warn {
-    font-size: 0.78rem;
-    color: var(--mg-warning);
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.mg-no-password-warn a {
-    color: var(--mg-warning);
-    text-decoration: underline;
-}
-
-/* Global warning bar - appears below the manager nav, above page
-   content. Used by mgShowWarning() in view.tt to surface API errors
-   (CSRF rejections {ok:0}
-
-responses, network failures) consistently
-   across every manager page. */
-.mg-warning-bar {
-    background: var(--mg-warning-bg, #fff3cd);
-    border-bottom: 1px solid var(--mg-warning-border, #ffc107);
-    color: var(--mg-warning-text, #856404);
-    padding: 0.6rem 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.875rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-.mg-warning-bar.mg-warning-error {
-    background: var(--mg-error-bg, #f8d7da);
-    border-color: var(--mg-error-border, #f5c6cb);
-    color: var(--mg-error-text, #721c24);
-}
-
-.mg-warning-bar-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1rem;
-    color: inherit;
-    padding: 0 0.25rem;
-}
-
-/* SM017: JSON / JSONL preview above the file editor. */
-.mg-json-pre {
-    margin: 0;
-    padding: 0.75rem;
-    background: var(--mg-bg-muted, #f6f8fa);
-    border: 1px solid var(--mg-border, #e1e4e8);
-    border-radius: 4px;
-    font-family: var(--mg-mono, ui-monospace, 'SF Mono', Menlo, monospace);
-    font-size: 0.8rem;
-    line-height: 1.4;
-    overflow-x: auto;
-    white-space: pre;
-    max-height: 24rem;
-    overflow-y: auto;
-}
-
-.mg-jsonl-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-}
-
-.mg-jsonl-table th, .mg-jsonl-table td {
-    padding: 0.4rem 0.6rem;
-    border-bottom: 1px solid var(--mg-border, #e1e4e8);
-    text-align: left;
-    vertical-align: top;
-    word-break: break-word;
-}
-
-.mg-jsonl-table thead th {
-    background: var(--mg-bg-muted, #f6f8fa);
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--mg-text-light, #666);
-    border-bottom: 2px solid var(--mg-border, #e1e4e8);
-}
-
-.mg-jsonl-table tbody tr:hover {
-    background: var(--mg-bg-muted, #fafbfc);
-}
-
-.mg-jsonl-more {
-    margin: 0.5rem 0 0;
-    color: var(--mg-text-light, #666);
-    font-size: 0.8rem;
-    font-style: italic;
-}
-
-/* ============================================================
-   SM109 phase 2 - switches, toasts, confirm/prompt modal
-   ============================================================ */
-
-/* Capability + plugin on/off checkboxes render as toggle switches */
-.mg-chk input[type="checkbox"], input.mg-toggle {
-    appearance: none;
-    -webkit-appearance: none;
-    position: relative;
-    width: 2rem;
-    height: 1.15rem;
-    margin: 0;
-    border: none;
-    border-radius: var(--mg-radius-pill);
-    background: var(--mg-border);
-    cursor: pointer;
-    flex: none;
-    vertical-align: middle;
-    transition: background 0.15s;
-}
-
-.mg-chk input[type="checkbox"]::after, input.mg-toggle::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: calc(1.15rem - 4px);
-    height: calc(1.15rem - 4px);
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: var(--mg-shadow-sm);
-    transition: transform 0.15s;
-}
-
-.mg-chk input[type="checkbox"]:checked, input.mg-toggle:checked { background: var(--mg-accent); }
-
-.mg-chk input[type="checkbox"]:checked::after, input.mg-toggle:checked::after { transform: translateX(calc(2rem - 1.15rem)); }
-
-.mg-chk input[type="checkbox"]:focus-visible, input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring); }
-
-/* Toasts */
-#mg-toasts {
-    position: fixed;
-    bottom: 1.25rem;
-    right: 1.25rem;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    max-width: min(24rem, calc(100vw - 2rem));
-}
-
-.mg-toast {
-    background: var(--mg-text);
-    color: #fff;
-    padding: 0.65rem 0.9rem;
-    border-radius: var(--mg-radius);
-    box-shadow: var(--mg-shadow-lg);
-    font-size: var(--mg-text-sm);
-    line-height: 1.4;
-    opacity: 0;
-    transform: translateY(0.5rem);
-    transition: opacity 0.2s, transform 0.2s;
-}
-
-.mg-toast-in { opacity: 1; transform: translateY(0); }
-
-.mg-toast-success { background: var(--mg-success); }
-
-.mg-toast-error { background: var(--mg-danger); }
-
-/* Confirm / prompt modal */
-.mg-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(28,25,23,0.4);
-    opacity: 0;
-    transition: opacity 0.18s;
-}
-
-.mg-modal-overlay.mg-modal-in { opacity: 1; }
-
-.mg-modal {
-    background: var(--mg-surface);
-    border-radius: var(--mg-radius-lg);
-    box-shadow: var(--mg-shadow-lg);
-    padding: 1.25rem;
-    width: min(26rem, calc(100vw - 2rem));
-    transform: translateY(0.5rem) scale(0.98);
-    transition: transform 0.18s;
-}
-
-.mg-modal-in .mg-modal { transform: translateY(0) scale(1); }
-
-.mg-modal-msg {
-    font-size: var(--mg-font-size);
-    color: var(--mg-text);
-    line-height: 1.5;
-    white-space: pre-wrap;
-}
-
-.mg-modal-input {
-    width: 100%;
-    margin-top: 0.75rem;
-    padding: 0.4rem 0.6rem;
-    font: inherit;
-    border: 1px solid var(--mg-border);
-    border-radius: var(--mg-radius);
-    background: var(--mg-surface);
-    color: var(--mg-text);
-}
-
-.mg-modal-input:focus { outline: none; border-color: var(--mg-accent); box-shadow: var(--mg-focus-ring); }
-
-.mg-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 1.1rem;
-}
-
-/* ============================================================
-   SM109 phase 3 - shared manager components
-   Consolidated from the pages' inline <style>; token-driven, no
-   hard-coded colours { border:1px solid var(--mg-border); border-radius:var(--mg-radius); margin:0 0 1rem; background:var(--mg-surface); }
-
-/* Accordion rows (Users, etc.) */
-.mg-acc-list { padding:0; }
-
-.mg-acc { border-bottom:1px solid var(--mg-border); }
-
-/* One-line account row (SM144): name + role + lineage on the left, the
-   Configure button on the right. A parent row lives in a <summary> (collapsible
-   subtree); a leaf row is a plain div. Both share .mg-acc-line. */
-.mg-acc-line { cursor:default; padding:0.45rem 0.75rem; display:flex; align-items:center;
-  gap:0.5rem; list-style:none; }
-
-summary.mg-acc-line { cursor:pointer; }
-
-/* the row (minus the name) toggles the subtree */
-.mg-acc > summary::-webkit-details-marker { display:none; }
-
-/* An obvious accent disclosure triangle on parent rows; leaves have none. */
-summary.mg-acc-line::before { content:'\25B8'; color:var(--mg-accent); font-size:0.95em; width:1em; display:inline-block; text-align:center; }
-
-.mg-acc[open] > summary.mg-acc-line::before { content:'\25BE'; }
-
-summary.mg-acc-line:hover::before { color:var(--mg-accent-hover); }
-
-.mg-acc-leaf > .mg-acc-line { padding-left:calc(0.75rem + 0.9em + 0.5rem); }
-
-/* align names under a parent's, past the (absent) triangle */
-summary.mg-acc-line:hover { background:var(--mg-surface-alt); }
-
-.mg-acc-name { font-weight:600; }
-
-.mg-acc-spacer { flex:1 1 auto; }
-
-.mg-acc-line .mg-configbtn { flex:0 0 auto; }
-
-/* The nested sub-tree: an indent + an accent (blue) bar, so depth reads as
-   hierarchy at a glance. The row stays full width; only the left indent grows, so even a deep tree keeps the Configure button aligned on the right. */
-.mg-acc-kids { margin-left:1.1rem; border-left:3px solid var(--mg-accent); }
-
-/* Expandable accordion body (Groups page: members + capabilities under a row). */
-.mg-acc-body { padding:0.5rem 0.75rem 0.9rem 1.75rem; background:var(--mg-surface-alt); }
-
-.mg-subcount { color:var(--mg-text-light); font-weight:400; font-size:var(--mg-text-sm); }
-
-.mg-connect-pick { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.3rem; }
-
-.mg-connect-hint { font-size:var(--mg-text-sm); margin:0.2rem 0; min-height:1em; }
-
-.mg-acc-tags { color:var(--mg-text-muted); font-size:var(--mg-text-sm); margin-left:auto; }
-
-/* SELECT vs CONFIGURE (SM144, users page). The tree is for SELECTING: one line
-   per account (name + role + count + Configure), sub-users nested (the indent
-   rule alone shows hierarchy - no row tint). CONFIGURING happens in the
-   full-width editor sheet - one consistent surface at any tree depth, so
-   nesting never shrinks the editor. */
-.mg-configbtn.active { box-shadow:0 0 0 2px var(--mg-surface), 0 0 0 4px var(--mg-accent); }
-
-/* The editor sheet: a centred, fixed-width overlay so editing is the same size
-   and position however deep the account sits in the tree (not a nested, ever-narrowing panel). The header is a solid accent bar naming the account. */
-.mg-sheet { position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.45);
-  display:flex; align-items:flex-start; justify-content:center;
-  padding:4vh 1rem; overflow:auto; }
-
-.mg-sheet[hidden] { display:none; }
-
-.mg-sheet-panel { width:min(720px, 96vw); max-height:92vh; display:flex;
-  flex-direction:column; background:var(--mg-surface); border-radius:var(--mg-radius);
-  box-shadow:0 12px 40px rgba(0,0,0,0.35); overflow:hidden; }
-
-.mg-sheet-head { position:sticky; top:0; display:flex; align-items:center; gap:0.6rem;
-  padding:0.7rem 1rem; background:var(--mg-accent); color:var(--mg-accent-text);
-  font-weight:600; font-size:1.02em; }
-
-.mg-sheet-sub { font-weight:400; font-size:var(--mg-text-sm); opacity:0.9; }
-
-.mg-sheet-close { margin-left:auto; background:transparent; border:none;
-  color:var(--mg-accent-text); font-size:1.5rem; line-height:1; cursor:pointer;
-  padding:0 0.2rem; }
-
-.mg-sheet-close:hover { opacity:0.8; }
-
-.mg-sheet-body { padding:0.3rem 1rem 1rem; overflow:auto; background:var(--mg-surface-alt); }
-
-body.mg-sheet-open { overflow:hidden; }
-
-/* 2FA enrolment QR (SM146): centred, on a white card so it scans on any theme. */
-.mg-qr { display:flex; justify-content:center; margin:0.5rem 0; }
-
-.mg-qr svg { width:180px; height:180px; background:#fff; padding:8px; border:1px solid var(--mg-border); border-radius:var(--mg-radius); }
-
-/* Danger-zone box (SM144): the disable/delete actions, set apart. */
-.mg-box-danger { border-color:var(--mg-danger); }
-
-.mg-box-danger > .mg-sec { color:var(--mg-danger); }
-
-/* Section label + rows + fields */
-.mg-sec { font-size:var(--mg-text-sm); text-transform:uppercase; letter-spacing:0.04em;
-  color:var(--mg-text-muted); margin:0.7rem 0 0.3rem; }
-
-/* A true grid so the capability toggles line up in aligned columns/rows instead
-   of a ragged flex-wrap where each varying-width label shifts the next. */
-.mg-checks { display:grid; grid-template-columns:repeat(auto-fill, minmax(15rem, 1fr));
-  gap:0.35rem 1rem; align-items:start; }
-
-.mg-chk { font-size:var(--mg-text-sm); display:inline-flex; align-items:center; gap:0.4rem;
-  cursor:pointer; }
-
-.mg-line { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; margin:0.3rem 0; }
-
-.mg-line-lbl { width:5.5rem; color:var(--mg-text-muted); font-size:var(--mg-text-sm); }
-
-.mg-inp { font-size:var(--mg-text-sm); padding:0.25rem 0.45rem; min-width:11rem;
-  border:1px solid var(--mg-border); border-radius:var(--mg-radius);
-  background:var(--mg-surface); color:var(--mg-text); }
-
-.mg-inp:focus { outline:none; border-color:var(--mg-accent); box-shadow:var(--mg-focus-ring); }
-
-.mg-inp-wide { min-width:20rem; flex:1; }
-
-.mg-acc-note { color:var(--mg-text-muted); font-style:italic; font-size:var(--mg-text-sm); }
-
-.mg-code { font-family:var(--mg-mono); background:var(--mg-surface-alt); padding:0.1rem 0.3rem;
-  border-radius:var(--mg-radius); word-break:break-all; }
-
-.mg-muted { color:var(--mg-text-muted); font-size:var(--mg-text-sm); }
-
-.mg-help { cursor:help; color:var(--mg-text-light); }
-
-/* SM180: a granted channel whose site service is switched off - inert until enabled. */
-.mg-cap-dormant { cursor:help; color:#b45309; font-size:0.9em; font-weight:600; }
-
-.mg-prov { color:var(--mg-text-muted); font-size:var(--mg-text-sm); margin-top:0.4rem; }
-
-.mg-inline-msg { font-size:var(--mg-text-sm); }
-
-.mg-inline-msg.mg-ok { color:var(--mg-success); }
-
-.mg-inline-msg.mg-err { color:var(--mg-danger); }
-
-.mg-onb { width:100%; font-family:var(--mg-mono); font-size:0.78rem; }
-
-.mg-cred-reveal { margin:0.4rem 0; padding:0.45rem 0.55rem; background:var(--mg-surface-alt);
-  border:1px solid var(--mg-border); border-radius:var(--mg-radius); font-size:var(--mg-text-sm); }
-
-.mg-cred-value { font-family:var(--mg-mono); word-break:break-all; background:var(--mg-surface);
-  padding:0.1rem 0.25rem; border-radius:var(--mg-radius); }
-
-/* Status / capability tags (tinted pills) */
-.mg-tag { font-size:var(--mg-text-sm); padding:0.05rem 0.4rem; border-radius:var(--mg-radius-pill); }
-
-.mg-tag-on { color:var(--mg-success); background:var(--mg-success-bg); }
-
-.mg-tag-off { color:var(--mg-danger);  background:var(--mg-danger-bg); }
-
-.mg-tag-auto { color:var(--mg-text-muted); background:var(--mg-surface-alt); }
-
-.mg-tag-human { color:var(--mg-accent); background:var(--mg-accent-bg); }
-
-/* Boxed subsection */
-.mg-box { border:1px solid var(--mg-border); border-radius:var(--mg-radius);
-  padding:0.4rem 0.6rem 0.6rem; margin:0.5rem 0; background:var(--mg-surface); }
-
-.mg-box .mg-sec { margin-top:0.2rem; }
-
-.mg-new-group-row { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;
-  border-top:1px solid var(--mg-border); }
-
-/* Audit table (consolidated from audit.md, tokenised) */
-.audit-table { width:100%; border-collapse:collapse; font-size:var(--mg-text-sm); }
-
-.audit-table th, .audit-table td { text-align:left; padding:0.35rem 0.5rem; border-bottom:1px solid var(--mg-border); }
-
-.audit-table th { color:var(--mg-text-muted); font-weight:600; }
-
-.audit-table tr:hover td { background:var(--mg-surface-alt); }
-
-/* Consistent page heading rendered by the manager layout from front-matter
-   title (so pages don't each hand-roll - or omit - their own title). */
-.mg-page-title { font-size:1.35rem; font-weight:600; line-height:1.2;
-  margin:0 0 1rem; color:var(--mg-text); }
-
-.audit-fail { color:var(--mg-danger); }
-
-.audit-info { color:var(--mg-danger); text-decoration:none; cursor:pointer; font-size:0.95rem; }
-
-.audit-detail { color:var(--mg-danger); font-size:var(--mg-text-sm); opacity:0.85; }
-
-/* Failure reason expands on its own full-width row below the entry (was a cramped
-   inline span in the narrow Status cell). */
-.audit-detail-row td { background:var(--mg-surface-alt); color:var(--mg-text);
-  white-space:normal; padding:0.45rem 0.6rem; font-size:var(--mg-text-sm); }
-
-/* Config page (consolidated from config.md) */
-.mg-config-section { margin-bottom: 2rem; }
-
-.mg-config-help { color: var(--mg-text-muted); font-size: var(--mg-text-sm); margin: 0.25rem 0 1rem; }
-
-.mg-plugin-registry { display: flex; flex-direction: column; gap: 0.25rem; }
-
-.mg-plugin-row {
-  display: grid;
-  grid-template-columns: 4.5rem 1fr auto;   /* control | name+desc | info-or-core */
-  align-items: start;
-  gap: 0.75rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--mg-border);
-  border-radius: var(--mg-radius);
-}
-
-.mg-plugin-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; padding-top: 0.1rem; }
-
-.mg-plugin-main { min-width: 0; }
-
-.mg-plugin-end { display: flex; align-items: center; justify-content: flex-end; }
-
-.mg-plugin-row-name { font-weight: 500; }
-
-.mg-plugin-row-desc { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
-
-.mg-info { cursor: help; color: var(--mg-text-light); font-size: 1.15em; }
-
-.mg-info:hover, .mg-info:focus { color: var(--mg-accent); outline: none; }
-
-/* One "pick none-or-many from a list" component (group members, add-user group
-   picker): selected items are pills; pick more from the adjacent dropdown. */
-.mg-tokens { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
-
-.mg-token {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  padding: 0.12rem 0.3rem 0.12rem 0.55rem;
-  background: var(--mg-accent-bg); color: var(--mg-accent);
-  border: 1px solid var(--mg-border); border-radius: var(--mg-radius-pill);
-  font-size: var(--mg-text-sm);
-}
-
-.mg-token a { color: inherit; text-decoration: none; }
-
-.mg-token a:hover { text-decoration: underline; }
-
-.mg-token-x {
-  cursor: pointer; border: none; background: none; padding: 0 0.15rem;
-  color: var(--mg-text-muted); font-size: 1.05rem; line-height: 1; border-radius: 50%;
-}
-
-.mg-token-x:hover { color: var(--mg-danger); }
-
-.mg-tokens-empty { color: var(--mg-text-muted); font-size: var(--mg-text-sm); font-style: italic; }
-
-.mg-tokens-pick { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem; }
-
-/* ============================================================
-   SM109 phases 4-6 - shell + sidebar, command palette, dark mode
-   ============================================================ */
-
-/* Shell: grouped left sidebar + main */
-.mg-shell { display: flex; align-items: flex-start; }
-
-.mg-sidebar {
-  flex: none;
-  width: 200px;
-  padding: 1rem 0.6rem;
-  border-right: 1px solid var(--mg-border);
-  background: var(--mg-surface);
-  min-height: calc(100vh - var(--mg-header-h));
-  position: sticky;
-  top: var(--mg-header-h);
-}
-
-.mg-sidebar .mg-nav { display: flex; flex-direction: column; gap: 0.1rem; align-items: stretch; flex: none; }
-
-.mg-nav-group {
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--mg-text-light); font-weight: 600;
-  padding: 0.7rem 0.6rem 0.25rem;
-}
-
-.mg-nav-group:first-child { padding-top: 0; }
-
-.mg-sidebar .mg-nav a {
-  display: block; height: auto; padding: 0.4rem 0.6rem;
-  border-radius: var(--mg-radius); font-size: var(--mg-text-sm);
-  color: var(--mg-text-muted); text-decoration: none; white-space: nowrap;
-  transition: background 0.12s, color 0.12s;
-}
-
-.mg-sidebar .mg-nav a:hover { background: var(--mg-surface-alt); color: var(--mg-text); }
-
-.mg-sidebar .mg-nav a.active { background: var(--mg-accent-bg); color: var(--mg-accent); font-weight: 600; }
-
-.mg-main { flex: 1; min-width: 0; }
-@media (max-width: 720px) {.mg-shell { flex-direction: column; }
-
-.mg-sidebar { width: 100%; position: static; min-height: 0;
-    border-right: none; border-bottom: 1px solid var(--mg-border); }
-
-.mg-sidebar .mg-nav { flex-direction: row; flex-wrap: wrap; }
-
-.mg-nav-group { width: 100%; padding-top: 0.3rem; }
-}
-
-/* Header: palette trigger + theme toggle */
-.mg-palette-btn {
-  display: inline-flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-  margin-left: 1.5rem; padding: 0.3rem 0.6rem; min-width: 12rem;
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: var(--mg-radius); color: var(--mg-header-muted);
-  font-size: 0.8rem; font-family: var(--mg-font); cursor: pointer;
-}
-
-.mg-palette-btn:hover { color: var(--mg-nav-active); border-color: rgba(255,255,255,0.25); }
-
-.mg-palette-btn kbd {
-  font-family: var(--mg-mono); font-size: 0.7rem; padding: 0.05rem 0.3rem;
-  background: rgba(255,255,255,0.1); border-radius: 3px;
-}
-
-.mg-theme-toggle {
-  background: transparent; border: 1px solid rgba(255,255,255,0.1);
-  color: var(--mg-header-muted); border-radius: var(--mg-radius);
-  width: 28px; height: 28px; cursor: pointer; font-size: 0.95rem; line-height: 1;
-}
-
-.mg-theme-toggle:hover { color: var(--mg-nav-active); border-color: rgba(255,255,255,0.25); }
-
-/* Command palette */
-.mg-palette-overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 12vh; background: rgba(28,25,23,0.4);
-}
-
-.mg-palette {
-  width: min(34rem, calc(100vw - 2rem));
-  background: var(--mg-surface); border: 1px solid var(--mg-border);
-  border-radius: var(--mg-radius-lg); box-shadow: var(--mg-shadow-lg); overflow: hidden;
-}
-
-.mg-palette-input {
-  width: 100%; padding: 0.8rem 1rem; border: none;
-  border-bottom: 1px solid var(--mg-border);
-  font-size: 1rem; font-family: var(--mg-font);
-  background: var(--mg-surface); color: var(--mg-text);
-}
-
-.mg-palette-input:focus { outline: none; }
-
-.mg-palette-list { max-height: 20rem; overflow-y: auto; padding: 0.3rem; }
-
-.mg-palette-item {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0.45rem 0.7rem; border-radius: var(--mg-radius); cursor: pointer;
-  font-size: var(--mg-text-sm); color: var(--mg-text);
-}
-
-.mg-palette-item.sel, .mg-palette-item:hover { background: var(--mg-accent-bg); color: var(--mg-accent); }
-
-.mg-palette-url { color: var(--mg-text-light); font-family: var(--mg-mono); font-size: 0.75rem; }
-
-.mg-palette-item.sel .mg-palette-url { color: var(--mg-accent); opacity: 0.75; }
-
-.mg-palette-empty { padding: 0.7rem; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
-
-/* Dark mode - reassign tokens; every component inherits */
+    --mg-gap:          16px;
+    --mg-gap-sm:       8px;
+    --mg-gap-xs:       4px;
+    --mg-header-h:     52px;
+}
+/* Dark theme — same vocabulary, re-inked. */
+@media (prefers-color-scheme: dark) { :root {
+    color-scheme: dark;
+    --mg-bg: #17181a; --mg-surface: #1f2124; --mg-surface-alt: #26282c;
+    --mg-border: #42464c; --mg-border-light: #33363b;
+    --mg-text: #eceded; --mg-text-muted: #b6babe; --mg-text-light: #959aa1;
+    --mg-accent: oklch(0.72 0.07 253); --mg-accent-deep: oklch(0.78 0.065 253);
+    --mg-accent-fill: oklch(0.53 0.085 253); --mg-accent-hover: oklch(0.80 0.06 253);
+    --mg-accent-bg: oklch(0.30 0.045 253); --mg-accent-text: #ffffff;
+    --mg-accent2: oklch(0.72 0.08 var(--mg-h2, 45)); --mg-accent2-deep: oklch(0.78 0.075 var(--mg-h2, 45));
+    --mg-accent2-fill: oklch(0.52 0.09 var(--mg-h2, 45)); --mg-accent2-bg: oklch(0.30 0.05 var(--mg-h2, 45));
+    --mg-danger: oklch(0.72 0.12 27); --mg-danger-deep: oklch(0.78 0.10 27); --mg-danger-bg: oklch(0.30 0.06 27);
+    --mg-success: oklch(0.74 0.10 152); --mg-success-bg: oklch(0.28 0.05 152);
+    --mg-warning: oklch(0.76 0.10 85); --mg-warning-bg: oklch(0.30 0.05 85);
+    --mg-mark: color-mix(in oklab, var(--mg-text) 45%, transparent);
+    --mg-shadow-sm: 0 1px 2px rgba(0,0,0,0.5); --mg-shadow-md: 0 2px 10px rgba(0,0,0,0.5);
+    --mg-shadow-lg: 0 10px 32px rgba(0,0,0,0.6);
+} }
 [data-theme="dark"] {
-  --mg-bg:          #1c1917;
-  --mg-surface:     #2a2624;
-  --mg-surface-alt: #211d1b;
-  --mg-border:      #44403c;
-  --mg-border-light:#332e2a;
-  /* Brighter text for stronger contrast on dark (was #f5f5f4 / #a8a29e). */
-  --mg-text:        #fbfbfa;
-  --mg-text-strong: #ffffff;
-  --mg-text-muted:  #c0bab3;
-  --mg-text-light:  #9a948c;   /* was #78716c (~3:1); now ~5:1 AA on dark */
-  --mg-accent:      #818cf8;
-  --mg-accent-hover:#a5b4fc;
-  --mg-accent-bg:   #2e2b52;
-  --mg-accent-text: #1c1917;
-  --mg-focus-ring:  0 0 0 3px rgba(129,140,248,0.3);
-  --mg-danger:  #f97066; --mg-danger-bg:  #3a201d;
-  --mg-success: #47cd89; --mg-success-bg: #15291f;
-  --mg-warning: #f5b14a; --mg-warning-bg: #332512;
-  --mg-shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-  --mg-shadow-md: 0 2px 8px rgba(0,0,0,0.45);
-  --mg-shadow-lg: 0 8px 24px rgba(0,0,0,0.55);
-  --mg-header-bg:   #16130f;
-  --mg-header-muted:#a8a29e;
+    color-scheme: dark;
+    --mg-bg: #17181a; --mg-surface: #1f2124; --mg-surface-alt: #26282c;
+    --mg-border: #42464c; --mg-border-light: #33363b;
+    --mg-text: #eceded; --mg-text-muted: #b6babe; --mg-text-light: #959aa1;
+    --mg-accent: oklch(0.72 0.07 253); --mg-accent-deep: oklch(0.78 0.065 253);
+    --mg-accent-fill: oklch(0.53 0.085 253); --mg-accent-hover: oklch(0.80 0.06 253);
+    --mg-accent-bg: oklch(0.30 0.045 253); --mg-accent-text: #ffffff;
+    --mg-accent2: oklch(0.72 0.08 var(--mg-h2, 45)); --mg-accent2-deep: oklch(0.78 0.075 var(--mg-h2, 45));
+    --mg-accent2-fill: oklch(0.52 0.09 var(--mg-h2, 45)); --mg-accent2-bg: oklch(0.30 0.05 var(--mg-h2, 45));
+    --mg-danger: oklch(0.72 0.12 27); --mg-danger-deep: oklch(0.78 0.10 27); --mg-danger-bg: oklch(0.30 0.06 27);
+    --mg-success: oklch(0.74 0.10 152); --mg-success-bg: oklch(0.28 0.05 152);
+    --mg-warning: oklch(0.76 0.10 85); --mg-warning-bg: oklch(0.30 0.05 85);
+    --mg-mark: color-mix(in oklab, var(--mg-text) 45%, transparent);
+    --mg-shadow-sm: 0 1px 2px rgba(0,0,0,0.5); --mg-shadow-md: 0 2px 10px rgba(0,0,0,0.5);
+    --mg-shadow-lg: 0 10px 32px rgba(0,0,0,0.6);
 }
 
-[data-theme="dark"] .mg-toast { background: var(--mg-surface-alt); color: var(--mg-text); border: 1px solid var(--mg-border); }
+/* ============================================================ Base */
+*, *::before, *::after { box-sizing: border-box; }
+.mg-body {
+    margin: 0; padding: 0;
+    font-family: var(--mg-font); font-size: var(--mg-font-size);
+    line-height: var(--mg-line-height);
+    color: var(--mg-text); background: var(--mg-bg); min-height: 100vh;
+}
+.mg-body ::selection { background: var(--mg-accent-bg); color: var(--mg-accent-deep); }
+.mg-body :focus-visible { outline: 2px solid var(--mg-accent); outline-offset: 2px; }
+.mg-main a, .mg-note a { color: var(--mg-accent-deep); text-decoration: underline; text-underline-offset: 2px; }
+.mg-main a:visited, .mg-note a:visited { color: var(--mg-accent-deep); }
+.mg-main a:hover, .mg-note a:hover { color: var(--mg-accent-hover); }
 
-/* ============================================================
-   SM109 phase 6b - dark-mode contrast + readability fixes
-   ============================================================ */
-
-/* Content links: tokenised so they read in light AND dark, including
-   visited/clicked (audit links, the domain-note pane, misc inline links). */
-.mg-main a, .mg-domain-note a { color: var(--mg-accent); }
-
-.mg-main a:visited, .mg-domain-note a:visited { color: var(--mg-accent); }
-
-.mg-main a:hover, .mg-domain-note a:hover { color: var(--mg-accent-hover); text-decoration: underline; }
-
-/* Sidebar: group titles stronger than the items beneath them. */
-.mg-nav-group { color: var(--mg-text); font-weight: 700; }
-
-.mg-sidebar .mg-nav a { color: var(--mg-text-muted); }
-
-/* Ghost/tertiary buttons (download, add brief, row actions) were too feint.
-   Variants re-affirmed so they keep their own colour. */
-.mg-btn { color: var(--mg-text); }
-
-.mg-btn-primary { color: var(--mg-accent-text); }
-
-.mg-btn-danger { color: var(--mg-danger); }
-
-/* r/w access flags: bolder so they read in both modes. */
-.mg-rwflag, .mg-rwflag-ok, .mg-rwflag-no, .mg-rwflag-g { font-weight: 700; }
-
-/* Permission chips: tokenised surfaces (were #fff / #eee / #999). */
-.mg-chip { background: var(--mg-surface); }
-
-.mg-chip-right { background: var(--mg-surface-alt); color: var(--mg-text-muted); }
-
-.mg-chip-right.on { color: var(--mg-accent-text); }
-
-/* Tokenise the last hard-coded values so they invert. */
-.mg-badge-success { color: var(--mg-success); }
-
-.mg-editor-saved { color: var(--mg-success); }
-
-.mg-fm-section summary:hover { background: var(--mg-surface-alt); }
-
-.mg-foot { color: var(--mg-text-light); }
-
-/* The file editor uses CodeMirror, whose bundled theme is light. Give it a dark
-   variant so the "extra" and content editors invert with the rest of the manager. */
-[data-theme="dark"] .CodeMirror { background: var(--mg-surface); color: var(--mg-text); }
-
-[data-theme="dark"] .CodeMirror-gutters { background: var(--mg-surface-alt); border-right-color: var(--mg-border); }
-
-[data-theme="dark"] .CodeMirror-linenumber { color: var(--mg-text-light); }
-
-[data-theme="dark"] .CodeMirror-cursor { border-left: 1px solid var(--mg-text); }
-
-[data-theme="dark"] .CodeMirror-selected { background: var(--mg-accent-bg) !important; }
-
-[data-theme="dark"] .CodeMirror-activeline-background { background: var(--mg-surface-alt); }
-
-[data-theme="dark"] .mg-cm-yaml, [data-theme="dark"] .mg-cm-content { background: var(--mg-surface); }
-
-/* Onboarding code box (was a hard-coded white) */
-.mg-code-box { background: var(--mg-surface); }
-
-/* SM111: sortable file columns + pager */
-.mg-file-table th.mg-sortable { cursor: pointer; user-select: none; }
-
-.mg-file-table th.mg-sortable:hover { color: var(--mg-text); }
-
-.mg-sort-ind { color: var(--mg-accent); font-size: 0.75em; }
-
-.mg-pager {
-  display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem;
-  padding: 0.5rem 0.2rem; font-size: var(--mg-text-sm);
+/* ============================================================ Shell */
+.mg-header {
+    position: sticky; top: 0; z-index: 100; height: var(--mg-header-h);
+    background: var(--mg-surface); border-bottom: 1px solid var(--mg-border);
+}
+.mg-header-inner { display: flex; align-items: center; height: 100%; padding: 0 20px; gap: 20px; }
+.mg-brand {
+    display: flex; align-items: baseline; gap: 6px; text-decoration: none;
+    color: var(--mg-text); font-family: var(--mg-font-heading);
+    font-weight: 600; font-size: 18px; letter-spacing: 0.04em; text-transform: uppercase;
+    white-space: nowrap; flex-shrink: 0;
+}
+.mg-brand small { font-size: 12px; color: var(--mg-text-light); letter-spacing: 0.08em; }
+.mg-header-tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
+.mg-user { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+.mg-signout {
+    font-size: var(--mg-text-sm); color: var(--mg-text-muted); text-decoration: none;
+    padding: 4px 10px; border: 1px solid var(--mg-border);
+}
+.mg-signout:hover { color: var(--mg-text); border-color: var(--mg-text-light); }
+.mg-shell { display: flex; align-items: flex-start; }
+.mg-sidebar {
+    flex: none; width: 208px; padding: 16px 10px;
+    border-right: 1px solid var(--mg-border); background: var(--mg-surface);
+    min-height: calc(100vh - var(--mg-header-h));
+    position: sticky; top: var(--mg-header-h);
+}
+.mg-sidebar .mg-nav { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
+.mg-nav-group {
+    font-family: var(--mg-font-heading); font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--mg-text-muted); font-weight: 600;
+    padding: 16px 10px 5px;
+}
+.mg-nav-group:first-child { padding-top: 0; }
+.mg-sidebar .mg-nav a {
+    display: block; padding: 7px 10px; font-size: 14px;
+    color: var(--mg-text-muted); text-decoration: none; white-space: nowrap;
+    border-left: 2px solid transparent;
+    transition: background 0.12s, color 0.12s;
+}
+.mg-sidebar .mg-nav a:hover { background: var(--mg-surface-alt); color: var(--mg-text); }
+.mg-sidebar .mg-nav a.active {
+    background: var(--mg-accent-bg); color: var(--mg-accent-deep);
+    border-left-color: var(--mg-accent); font-weight: 600;
+}
+.mg-main { flex: 1; min-width: 0; padding: 24px; max-width: 1040px; }
+.mg-page-title {
+    font-family: var(--mg-font-heading); font-size: var(--mg-text-xl); font-weight: 600;
+    letter-spacing: 0.03em; text-transform: uppercase; line-height: 1.2;
+    margin: 0 0 18px; color: var(--mg-text);
+}
+.mg-sec {
+    font-family: var(--mg-font-heading); font-size: var(--mg-text-sm); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.09em; color: var(--mg-text-muted);
+    margin: 20px 0 8px;
+}
+.mg-sec:first-child { margin-top: 0; }
+/* Mobile: sidebar becomes a slide-in drawer behind .mg-nav-burger. */
+.mg-nav-burger {
+    display: none; width: var(--mg-ctl); height: var(--mg-ctl);
+    background: none; border: 1px solid var(--mg-border); color: var(--mg-text);
+    font-size: 18px; line-height: 1; cursor: pointer;
+}
+.mg-scrim { display: none; }
+@media (max-width: 720px) {
+    .mg-nav-burger { display: inline-flex; align-items: center; justify-content: center; }
+    .mg-sidebar {
+        position: fixed; z-index: 300; top: var(--mg-header-h); left: 0; bottom: 0;
+        width: min(280px, 84vw); min-height: 0; overflow-y: auto;
+        transform: translateX(-100%); transition: transform 0.18s ease-out;
+        box-shadow: var(--mg-shadow-lg);
+    }
+    .mg-shell[data-nav-open] .mg-sidebar { transform: translateX(0); }
+    .mg-shell[data-nav-open] .mg-scrim {
+        display: block; position: fixed; inset: var(--mg-header-h) 0 0 0; z-index: 290;
+        background: rgba(0,0,0,0.4);
+    }
+    .mg-main { padding: 16px; }
+}
+/* Touch: every control clears 44px. */
+@media (pointer: coarse) {
+    .mg-btn, .mg-inp, .mg-field input, .mg-field select, .mg-chev { min-height: 44px; }
 }
 
+/* ============================================================ Buttons
+   .mg-btn (neutral) | -primary (steel, ONE per view) | -change (copper,
+   careful/change) | -danger (destructive; confirm is the guard) | -sm */
+.mg-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: var(--mg-ctl); padding: 0 14px;
+    font: 500 14px/1.3 var(--mg-font);
+    border: 1px solid var(--mg-border); background: var(--mg-surface); color: var(--mg-text);
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.mg-btn:hover { background: var(--mg-surface-alt); border-color: var(--mg-text-light); }
+.mg-btn:active { background: var(--mg-border-light); }
+.mg-btn[aria-pressed="true"] { background: var(--mg-accent-bg); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
+.mg-btn-primary {
+    background: var(--mg-accent-fill); border-color: var(--mg-accent-fill);
+    color: var(--mg-accent-text); font-weight: 600; position: relative;
+}
+.mg-btn-primary::before, .mg-btn-primary::after {
+    content: '+'; position: absolute; font: 500 13px/1 var(--mg-font);
+    color: var(--mg-mark); pointer-events: none;
+}
+.mg-btn-primary::before { top: -8px; left: -4px; }
+.mg-btn-primary::after { bottom: -8px; right: -4px; }
+.mg-btn-primary:hover { background: var(--mg-accent-hover); border-color: var(--mg-accent-hover); color: var(--mg-accent-text); }
+[data-theme="dark"] .mg-btn-primary:hover, [data-theme="dark"] .mg-btn-change:hover { filter: brightness(1.12); }
+.mg-btn-change {
+    background: var(--mg-accent2-bg); border-color: var(--mg-accent2);
+    color: var(--mg-accent2-deep); font-weight: 600;
+}
+.mg-btn-change:hover { background: var(--mg-accent2-fill); border-color: var(--mg-accent2-fill); color: #fff; }
+.mg-btn-danger { background: var(--mg-surface); border-color: var(--mg-danger); color: var(--mg-danger); }
+.mg-btn-danger:hover { background: var(--mg-danger-bg); border-color: var(--mg-danger); color: var(--mg-danger-deep); }
+.mg-btn-sm { min-height: var(--mg-ctl-sm); padding: 0 10px; font-size: var(--mg-text-sm); }
+.mg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ============================================================ Forms
+   One field idiom: label ABOVE control (replaces .mg-form-row's
+   right-aligned side labels — see briefing). */
+.mg-field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; max-width: 560px; }
+.mg-field > label { font-size: var(--mg-text-sm); font-weight: 600; color: var(--mg-text); letter-spacing: 0.01em; }
+.mg-inp, .mg-field input:not([type="checkbox"]):not([type="radio"]), .mg-field select, .mg-field textarea,
+.mg-main select, .mg-main input[type="text"], .mg-main input[type="search"], .mg-main input[type="number"],
+.mg-main input[type="url"], .mg-main input[type="email"], .mg-main input[type="password"],
+.mg-main input[type="date"], .mg-main textarea {
+    min-height: var(--mg-ctl); padding: 6px 10px;
+    font: 400 14px/1.4 var(--mg-font);
+    border: 1px solid var(--mg-border); background: var(--mg-surface); color: var(--mg-text);
+    border-radius: 0; transition: border-color 0.12s;
+}
+.mg-inp:focus, .mg-field input:focus, .mg-field select:focus, .mg-field textarea:focus,
+.mg-main select:focus, .mg-main input:focus, .mg-main textarea:focus {
+    outline: 2px solid var(--mg-accent); outline-offset: -1px; border-color: var(--mg-accent);
+}
+.mg-inp::placeholder, .mg-field input::placeholder, .mg-main input::placeholder, .mg-main textarea::placeholder {
+    color: var(--mg-text-light); opacity: 1; font-style: italic;
+}
+.mg-inp-sm { min-height: var(--mg-ctl-sm); padding: 3px 8px; font-size: var(--mg-text-sm); }
+.mg-inp-wide { min-width: 20rem; }
+.mg-field-note { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+.mg-readonly-value {
+    display: inline-block; align-self: flex-start; padding: 6px 10px; min-height: var(--mg-ctl);
+    font-family: var(--mg-mono); font-size: var(--mg-text-sm); line-height: 1.7;
+    color: var(--mg-text-muted); background: var(--mg-surface-alt);
+    border: 1px dashed var(--mg-border);
+}
+.mg-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 6px 16px; align-items: start; }
+.mg-chk { font-size: 14px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-height: var(--mg-ctl-sm); }
+/* Toggle switch — square-cornered, blueprint-true. */
+.mg-chk input[type="checkbox"], input.mg-toggle {
+    appearance: none; -webkit-appearance: none; flex: none; margin: 0;
+    width: 34px; height: 20px; border: 1px solid var(--mg-border);
+    background: var(--mg-surface-alt); cursor: pointer; position: relative;
+    transition: background 0.12s, border-color 0.12s;
+}
+.mg-chk input[type="checkbox"]::after, input.mg-toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+    background: var(--mg-text-light); transition: left 0.12s, background 0.12s;
+}
+.mg-chk input:checked, input.mg-toggle:checked { background: var(--mg-accent-bg); border-color: var(--mg-accent-fill); }
+.mg-chk input:checked::after, input.mg-toggle:checked::after { left: 16px; background: var(--mg-accent-fill); }
+.mg-cap-what {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; font: 600 11px/1 var(--mg-mono);
+    color: var(--mg-accent-deep); border: 1px solid var(--mg-accent);
+    cursor: help; border-radius: var(--mg-radius-pill);
+}
+.mg-cap-what:hover, .mg-cap-what:focus-visible { background: var(--mg-accent-bg); }
+
+/* ============================================================ Tags
+   .mg-tag labels a state. Old .mg-badge*, .mg-alias-badge, .mg-dom-chip
+   collapse into this family (see briefing). */
+.mg-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    padding: 1px 7px; border: 1px solid var(--mg-border);
+    background: var(--mg-surface); color: var(--mg-text-muted);
+    white-space: nowrap; flex: none;
+}
+.mg-tag-on      { color: var(--mg-success); background: var(--mg-success-bg); border-color: color-mix(in oklab, var(--mg-success) 40%, transparent); }
+.mg-tag-off     { color: var(--mg-danger);  background: var(--mg-danger-bg);  border-color: color-mix(in oklab, var(--mg-danger) 40%, transparent); }
+.mg-tag-warn    { color: var(--mg-warning); background: var(--mg-warning-bg); border-color: color-mix(in oklab, var(--mg-warning) 45%, transparent); }
+.mg-tag-human   { color: var(--mg-accent-deep); background: var(--mg-accent-bg); border-color: color-mix(in oklab, var(--mg-accent) 45%, transparent); }
+.mg-tag-auto    { color: var(--mg-text-muted); background: var(--mg-surface-alt); }
+.mg-tag-change  { color: var(--mg-accent2-deep); background: var(--mg-accent2-bg); border-color: color-mix(in oklab, var(--mg-accent2) 45%, transparent); }
+/* Removable pick-list token */
+.mg-tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mg-token {
+    display: inline-flex; align-items: center; gap: 6px; min-height: var(--mg-ctl-sm);
+    padding: 0 4px 0 9px; background: var(--mg-accent-bg); color: var(--mg-accent-deep);
+    border: 1px solid color-mix(in oklab, var(--mg-accent) 45%, transparent);
+    font-size: var(--mg-text-sm); font-weight: 500;
+}
+.mg-token a { color: inherit; text-decoration: none; }
+.mg-token-x {
+    cursor: pointer; border: none; background: none; padding: 0 5px;
+    color: var(--mg-accent-deep); font-size: 15px; line-height: 1;
+}
+.mg-token-x:hover { color: var(--mg-danger); }
+.mg-tokens-empty { color: var(--mg-text-muted); font-size: var(--mg-text-sm); font-style: italic; }
+/* Permission chip: name + r/w toggles + remove */
+.mg-chip {
+    display: inline-flex; align-items: center; gap: 2px; min-height: var(--mg-ctl-sm);
+    padding: 0 3px 0 9px; background: var(--mg-surface); border: 1px solid var(--mg-border);
+    font-size: var(--mg-text-sm);
+}
+.mg-chip-name { font-weight: 500; margin-right: 4px; }
+.mg-chip-right {
+    width: 22px; height: 22px; border: 1px solid var(--mg-border); background: var(--mg-surface-alt);
+    font: 600 12px/1 var(--mg-mono); color: var(--mg-text-light); cursor: pointer;
+}
+.mg-chip-right.on { background: var(--mg-accent-fill); border-color: var(--mg-accent-fill); color: var(--mg-accent-text); }
+.mg-chip-x { border: none; background: none; cursor: pointer; padding: 0 6px; color: var(--mg-text-light); font-size: 15px; line-height: 1; }
+.mg-chip-x:hover { color: var(--mg-danger); }
+/* r/w flags in listings — letters carry the meaning, colour is second */
+.mg-rwflag { display: inline-block; width: 1.2em; text-align: center; font: 700 0.85em var(--mg-mono); }
+.mg-rwflag-ok { color: var(--mg-success); }
+.mg-rwflag-no { color: var(--mg-danger); text-decoration: line-through; }
+.mg-rwflag-none { color: var(--mg-text-light); font: 400 italic 0.85em var(--mg-font); }
+.mg-rwflag-g { color: var(--mg-accent-deep); font-weight: 700; }
+
+/* ============================================================ Status + notes */
+.mg-status { display: flex; align-items: center; gap: 8px; font-size: var(--mg-text-sm); color: var(--mg-text-muted); min-height: 20px; }
+.mg-status::before { content: ''; width: 7px; height: 7px; flex: none; background: var(--mg-text-light); }
+.mg-status-success { color: var(--mg-success); } .mg-status-success::before { background: var(--mg-success); }
+.mg-status-error { color: var(--mg-danger); font-weight: 500; } .mg-status-error::before { background: var(--mg-danger); }
+.mg-status-warn { color: var(--mg-warning); } .mg-status-warn::before { background: var(--mg-warning); }
+/* One note family: what was .mg-domain-note, .mg-onb-warn, .mg-apply-warn,
+   .mg-protect-here, .mg-no-password-warn, .mg-dirty-note */
+.mg-note {
+    margin: 10px 0; padding: 10px 12px; font-size: var(--mg-text-sm); line-height: 1.5;
+    background: var(--mg-surface-alt); border: 1px solid var(--mg-border); color: var(--mg-text);
+}
+.mg-note-warn { background: var(--mg-warning-bg); border-color: color-mix(in oklab, var(--mg-warning) 45%, transparent); }
+.mg-note-warn strong:first-child, .mg-note-warn > b:first-child { color: var(--mg-warning); }
+.mg-note-danger { background: var(--mg-danger-bg); border-color: color-mix(in oklab, var(--mg-danger) 45%, transparent); }
+.mg-note-info { background: var(--mg-accent-bg); border-color: color-mix(in oklab, var(--mg-accent) 45%, transparent); }
+.mg-warning-bar {
+    position: sticky; top: var(--mg-header-h); z-index: 90;
+    display: flex; align-items: center; gap: 10px; padding: 8px 20px;
+    background: var(--mg-warning-bg); color: var(--mg-text);
+    border-bottom: 1px solid color-mix(in oklab, var(--mg-warning) 50%, transparent);
+    font-size: var(--mg-text-sm);
+}
+.mg-warning-bar.mg-warning-error { background: var(--mg-danger-bg); border-bottom-color: color-mix(in oklab, var(--mg-danger) 50%, transparent); }
+.mg-warning-bar-close { margin-left: auto; border: none; background: none; cursor: pointer; color: var(--mg-text-muted); font-size: 16px; padding: 0 4px; }
+.mg-toast {
+    position: fixed; right: 20px; bottom: 20px; z-index: 1300;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; font-size: 14px; font-weight: 500;
+    background: var(--mg-surface); color: var(--mg-text);
+    border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg);
+    opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s;
+}
+.mg-toast::before { content: ''; width: 8px; height: 8px; flex: none; background: var(--mg-text-light); }
+.mg-toast-in { opacity: 1; transform: translateY(0); }
+.mg-toast-success::before { background: var(--mg-success); }
+.mg-toast-error { border-color: var(--mg-danger); } .mg-toast-error::before { background: var(--mg-danger); }
+.mg-empty {
+    padding: 18px; font-size: 14px; color: var(--mg-text-muted); text-align: center;
+    border: 1px dashed var(--mg-border); background: none;
+}
+
+/* ============================================================ Cards
+   Transparent-feeling surface, hairline border, two registration
+   marks (CSS-only — no extra markup). Cards do not nest. */
+.mg-card { background: var(--mg-surface); border: 1px solid var(--mg-border); margin-bottom: var(--mg-gap); position: relative; }
+.mg-card::before, .mg-card::after { content: '+'; position: absolute; font: 500 14px/1 var(--mg-font); color: var(--mg-mark); pointer-events: none; }
+.mg-card::before { top: -8px; left: -4.5px; }
+.mg-card::after { bottom: -8px; right: -4.5px; }
+.mg-card-header {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--mg-border-light);
+}
+.mg-card-title {
+    font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg);
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--mg-text);
+}
+.mg-card-subtitle { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+.mg-card-body { padding: 16px; }
+.mg-box { border: 1px solid var(--mg-border); padding: 10px 12px 12px; margin: 10px 0; background: var(--mg-surface); }
+.mg-box-danger { border-color: var(--mg-danger); }
+.mg-box-danger > .mg-sec { color: var(--mg-danger); }
+
+/* ============================================================ Tables
+   ONE table. Old .mg-file-table, .audit-table, .mg-jsonl-table
+   collapse into .mg-table (see briefing). */
+.mg-table { width: 100%; border-collapse: collapse; background: var(--mg-surface); border: 1px solid var(--mg-border); font-size: 14px; }
+.mg-table th {
+    text-align: left; padding: 8px 12px;
+    font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted);
+    border-bottom: 1px solid var(--mg-border);
+}
+.mg-table td { padding: 8px 12px; border-bottom: 1px solid var(--mg-border-light); }
+.mg-table tbody tr:last-child td { border-bottom: none; }
+.mg-table tbody tr:hover td { background: var(--mg-surface-alt); }
+.mg-table th.mg-sortable { cursor: pointer; user-select: none; }
+.mg-table th.mg-sortable:hover { color: var(--mg-text); }
+.mg-sort-ind { color: var(--mg-accent-deep); font-size: 0.8em; }
+.mg-col-check { width: 36px; text-align: center; }
+.mg-col-access, .mg-col-mod, .mg-col-exp { white-space: nowrap; text-align: right; }
+.mg-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 8px 2px; font-size: var(--mg-text-sm); }
 .mg-pager:empty { display: none; }
-
 .mg-pager-info { color: var(--mg-text-muted); }
 
-/* SM114: baseline for any form control (incl. unstyled ones like the theme browse)
-   so they invert with the theme. Colours/border only - keeps each field's sizing. */
-.mg-main select, .mg-main input[type="text"], .mg-main input[type="search"], .mg-main input[type="number"], .mg-main input[type="url"], .mg-main input[type="email"], .mg-main input[type="password"], .mg-main input[type="date"], .mg-main input:not([type]) {
-  background: var(--mg-surface);
-  color: var(--mg-text);
-  border: 1px solid var(--mg-border);
-  border-radius: var(--mg-radius);
+/* ============================================================ Rows + THE expander
+   .mg-row is the one list row (files, plugins, handlers, notif items…).
+   .mg-expand is the one in-place detail card, opening as the row's
+   next sibling; only one open at a time. */
+.mg-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
+.mg-row {
+    display: flex; align-items: center; gap: 10px; min-height: 44px;
+    padding: 4px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
 }
-
-.mg-main select:focus, .mg-main input:focus {
-  outline: none; border-color: var(--mg-accent); box-shadow: var(--mg-focus-ring);
+.mg-list > :last-child, .mg-list > details:last-child .mg-row { border-bottom: none; }
+.mg-row:hover { background: var(--mg-surface-alt); }
+.mg-row-name { flex: 1; min-width: 0; font-weight: 500; color: var(--mg-text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.mg-row-name:hover { color: var(--mg-accent-deep); }
+.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); white-space: nowrap; }
+.mg-row-actions { display: flex; gap: 6px; align-items: center; }
+.mg-chev {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--mg-ctl-sm); height: var(--mg-ctl-sm); flex: none;
+    border: 1px solid transparent; color: var(--mg-text-muted);
+    text-decoration: none; cursor: pointer; font-size: 14px; background: none;
 }
-
-/* SM116: a readable dark colour scheme for the CodeMirror Markdown/YAML editor.
-   Brighter palette tuned to WCAG against the dark editor surface (#2a2624): every
-   token clears AAA (>=7:1) except the deliberately dimmed comment/markers, which
-   still clear AA (>=4.5:1). Light mode keeps the bundled theme. */
-[data-theme="dark"] .CodeMirror .cm-header { color: #a6e8b5; font-weight: 600; }
-
-/* headings - bright green (10.6:1) */
-[data-theme="dark"] .CodeMirror .cm-strong { color: #ffffff; font-weight: 700; }
-
-/* bold - white */
-[data-theme="dark"] .CodeMirror .cm-em { color: #e3cffd; font-style: italic; }
-
-/* italic - violet (10.4:1) */
-[data-theme="dark"] .CodeMirror .cm-link, [data-theme="dark"] .CodeMirror .cm-url { color: #aab6ff; }
-
-/* links - indigo (7.7:1) */
-[data-theme="dark"] .CodeMirror .cm-quote { color: #c4bdb5; font-style: italic; }
-
-[data-theme="dark"] .CodeMirror .cm-comment { color: #a8a199; }
-
-/* dimmed but AA (5.9:1) */
-[data-theme="dark"] .CodeMirror .cm-string { color: #bfe8c0; }
-
-/* strings - green (11:1) */
-[data-theme="dark"] .CodeMirror .cm-keyword, [data-theme="dark"] .CodeMirror .cm-tag, [data-theme="dark"] .CodeMirror .cm-builtin { color: #ffbcbc; }
-
-/* red - lighter (9.4:1) */
-[data-theme="dark"] .CodeMirror .cm-atom, [data-theme="dark"] .CodeMirror .cm-number { color: #ffd591; }
-
-/* orange - lighter (10.8:1) */
-[data-theme="dark"] .CodeMirror .cm-variable-2, [data-theme="dark"] .CodeMirror .cm-attribute, [data-theme="dark"] .CodeMirror .cm-property { color: #a3e0ef; }
-
-/* (10.3:1) */
-[data-theme="dark"] .CodeMirror .cm-hr, [data-theme="dark"] .CodeMirror .cm-formatting { color: #a8a199; }
-
-/* markers dimmed (AA) */
-
-/* SM114: site-settings group headers + unified breadcrumb root icon */
-.mg-config-group {
-  font-size: var(--mg-text-sm); text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--mg-text-muted); font-weight: 700;
-  margin: 1.4rem 0 0.5rem; padding-bottom: 0.3rem;
-  border-bottom: 1px solid var(--mg-border);
+.mg-chev:hover { border-color: var(--mg-border); color: var(--mg-text); }
+.mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent-deep); border-color: var(--mg-accent); background: var(--mg-accent-bg); }
+.mg-expand {
+    padding: 14px 16px; background: var(--mg-surface-alt);
+    border-bottom: 1px solid var(--mg-border-light);
+    border-left: 2px solid var(--mg-accent);
 }
+.mg-recent-dot { display: inline-block; width: 7px; height: 7px; background: var(--mg-accent2); border-radius: var(--mg-radius-pill); }
+.mg-protect-lock { font-size: 0.85em; opacity: 0.8; }
 
-.mg-config-group:first-child { margin-top: 0; }
+/* ============================================================ Tree (accounts) */
+.mg-acc { border-bottom: 1px solid var(--mg-border-light); }
+.mg-acc:last-child { border-bottom: none; }
+.mg-acc-line { cursor: default; padding: 6px 12px; min-height: 44px; display: flex; align-items: center; gap: 8px; list-style: none; font-size: 14px; }
+summary.mg-acc-line { cursor: pointer; }
+.mg-acc > summary::-webkit-details-marker { display: none; }
+summary.mg-acc-line::before { content: '+'; color: var(--mg-accent-deep); font: 600 14px/1 var(--mg-mono); width: 1em; text-align: center; }
+.mg-acc[open] > summary.mg-acc-line::before { content: '\2212'; }
+summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
+.mg-acc-name { font-weight: 600; }
+.mg-acc-spacer { flex: 1 1 auto; }
+.mg-acc-kids { margin-left: 18px; border-left: 1px solid var(--mg-border); }
+.mg-acc-body { padding: 10px 12px 14px 24px; background: var(--mg-surface-alt); }
+.mg-acc-note { color: var(--mg-text-muted); font-style: italic; font-size: var(--mg-text-sm); }
+.mg-subcount { color: var(--mg-text-muted); font-weight: 400; font-size: var(--mg-text-sm); }
 
-.mg-bc-root { font-size: 1.05em; }
+/* ============================================================ Overlays (all four kept) */
+/* .mg-modal is the wrapper and the positioning context: the overlay and the
+   panel position against IT, so a contained specimen (or a future portal)
+   behaves the same as the full-page case. */
+.mg-modal { position: fixed; inset: 0; z-index: 1100; }
+.mg-modal-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,0.45); }
+.mg-modal .mg-modal-overlay { position: absolute; z-index: auto; }
+.mg-modal-in {
+    position: fixed; z-index: 1110; top: 18vh; left: 50%; transform: translateX(-50%);
+    width: min(26rem, calc(100vw - 32px)); background: var(--mg-surface);
+    border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); padding: 18px;
+}
+.mg-modal .mg-modal-in { position: absolute; z-index: auto; }
+.mg-modal-msg { margin-bottom: 12px; font-size: 14px; }
+.mg-modal-input { width: 100%; margin-bottom: 14px; }
+.mg-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.mg-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; }
+.mg-sheet[hidden] { display: none; }
+.mg-sheet-panel {
+    width: min(720px, 96vw); max-height: 92vh; display: flex; flex-direction: column;
+    background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); overflow: hidden;
+}
+.mg-sheet-head {
+    position: sticky; top: 0; display: flex; align-items: baseline; gap: 10px;
+    padding: 12px 16px; background: var(--mg-surface); border-bottom: 1px solid var(--mg-border);
+    font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg);
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--mg-text);
+}
+.mg-sheet-sub { font-family: var(--mg-font); font-weight: 400; font-size: var(--mg-text-sm); color: var(--mg-text-muted); text-transform: none; letter-spacing: 0; }
+.mg-sheet-close { margin-left: auto; background: none; border: 1px solid transparent; color: var(--mg-text-muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 8px; }
+.mg-sheet-close:hover { color: var(--mg-text); border-color: var(--mg-border); }
+.mg-sheet-body { padding: 8px 16px 16px; overflow: auto; }
+body.mg-sheet-open { overflow: hidden; }
+.mg-palette-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; background: rgba(0,0,0,0.45); }
+.mg-palette { width: min(34rem, calc(100vw - 32px)); background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); overflow: hidden; }
+.mg-palette-input { width: 100%; padding: 13px 16px; border: none; border-bottom: 1px solid var(--mg-border); font: 400 15px var(--mg-font); background: var(--mg-surface); color: var(--mg-text); }
+.mg-palette-input:focus { outline: none; }
+.mg-palette-list { max-height: 20rem; overflow-y: auto; padding: 4px; }
+.mg-palette-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; cursor: pointer; font-size: 14px; color: var(--mg-text); }
+.mg-palette-item.sel, .mg-palette-item:hover { background: var(--mg-accent-bg); color: var(--mg-accent-deep); }
+.mg-palette-url { color: var(--mg-text-light); font-family: var(--mg-mono); font-size: 12px; }
+.mg-palette-item.sel .mg-palette-url { color: var(--mg-accent-deep); }
+.mg-palette-empty { padding: 12px; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+.mg-palette-btn {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: var(--mg-ctl-sm); padding: 0 10px; min-width: 12rem;
+    background: var(--mg-surface-alt); border: 1px solid var(--mg-border); color: var(--mg-text-muted);
+    font: 400 13px var(--mg-font); cursor: pointer;
+}
+.mg-palette-btn:hover { color: var(--mg-text); border-color: var(--mg-text-light); }
+.mg-palette-btn kbd { font-family: var(--mg-mono); font-size: 11px; padding: 1px 5px; border: 1px solid var(--mg-border); background: var(--mg-surface); }
+.mg-theme-toggle {
+    background: none; border: 1px solid var(--mg-border); color: var(--mg-text-muted);
+    width: var(--mg-ctl-sm); height: var(--mg-ctl-sm); cursor: pointer; font-size: 14px; line-height: 1;
+}
+.mg-theme-toggle:hover { color: var(--mg-text); border-color: var(--mg-text-light); }
 
-/* SM118: unsaved-changes reminder on the settings form */
-.mg-dirty-note { color: var(--mg-warning); font-size: var(--mg-text-sm); font-weight: 600; }
+/* ============================================================ Notifications */
+.mg-notif { position: relative; display: inline-flex; }
+.mg-notif-btn { background: none; border: 1px solid transparent; cursor: pointer; font-size: 16px; color: var(--mg-text-light); position: relative; width: var(--mg-ctl-sm); height: var(--mg-ctl-sm); line-height: 1; }
+.mg-notif-btn:hover { color: var(--mg-text); border-color: var(--mg-border); }
+.mg-notif-btn.mg-notif-unread { color: var(--mg-accent-deep); }
+.mg-notif-badge {
+    position: absolute; top: -5px; right: -5px; background: var(--mg-danger);
+    color: #fff; font: 700 10px/16px var(--mg-font); min-width: 16px; height: 16px;
+    text-align: center; border-radius: var(--mg-radius-pill); padding: 0 3px;
+}
+.mg-notif-panel {
+    position: absolute; top: 130%; right: 0; width: 20rem; max-height: 24rem; overflow-y: auto;
+    background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-md); z-index: 60;
+}
+.mg-notif-item { display: block; padding: 10px 12px; border-bottom: 1px solid var(--mg-border-light); color: var(--mg-text); text-decoration: none; }
+.mg-notif-item:last-child { border-bottom: none; }
+.mg-notif-item:hover { background: var(--mg-surface-alt); }
+.mg-notif-msg { font-size: var(--mg-text-sm); }
+.mg-notif-time { font-size: 12px; color: var(--mg-text-muted); margin-top: 2px; }
+.mg-notif-empty { padding: 16px; text-align: center; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
 
-/* SM083: visitor stats dashboard */
-.mg-stat-tiles { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
-
-.mg-stat-tile { flex: 1; min-width: 8rem; background: var(--mg-surface-alt);
-  border: 1px solid var(--mg-border); border-radius: var(--mg-radius); padding: 0.75rem 1rem; }
-
-.mg-stat-value { font-size: var(--mg-text-xl); font-weight: 700; color: var(--mg-text); line-height: 1.1; }
-
-.mg-stat-label { font-size: var(--mg-text-sm); color: var(--mg-text-muted); margin-top: 0.2rem; }
-
-.mg-bars { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.3rem 0 1rem; }
-
-.mg-bar-row { display: flex; align-items: center; gap: 0.5rem; font-size: var(--mg-text-sm); }
-
-.mg-bar-label { width: 6rem; flex: none; color: var(--mg-text-muted); }
-
-.mg-bar { flex: 1; height: 0.8rem; background: var(--mg-surface-alt);
-  border-radius: var(--mg-radius-pill); overflow: hidden; }
-
+/* ============================================================ Stats */
+.mg-stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 12px; margin-bottom: 16px; }
+.mg-stat-tile { background: var(--mg-surface); border: 1px solid var(--mg-border); padding: 12px 14px; }
+.mg-stat-value { font-family: var(--mg-font-heading); font-size: 28px; font-weight: 600; color: var(--mg-text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mg-stat-label { font-size: var(--mg-text-sm); color: var(--mg-text-muted); margin-top: 2px; }
+.mg-bars { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 16px; }
+.mg-bar-row { display: flex; align-items: center; gap: 10px; font-size: var(--mg-text-sm); }
+.mg-bar-label { width: 6.5rem; flex: none; color: var(--mg-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-bar { flex: 1; height: 12px; background: var(--mg-surface-alt); border: 1px solid var(--mg-border-light); }
 .mg-bar-fill { display: block; height: 100%; background: var(--mg-accent); }
-
-.mg-bar-val { width: 4rem; flex: none; text-align: right; color: var(--mg-text-muted); }
-
-.mg-stat-cols { display: flex; flex-wrap: wrap; gap: 1.5rem; }
-
+.mg-bar-val { width: 4rem; flex: none; text-align: right; color: var(--mg-text-muted); font-variant-numeric: tabular-nums; }
+.mg-split-bar { display: flex; height: 12px; border: 1px solid var(--mg-border-light); overflow: hidden; }
+.mg-split-bar > * { height: 100%; }
+.mg-stat-cols { display: flex; flex-wrap: wrap; gap: 24px; }
 .mg-stat-col { flex: 1; min-width: 16rem; }
 
-/* SM113: operator notifications (header bell + dropdown) */
-.mg-notif { position: relative; display: inline-flex; }
+/* ============================================================ Misc */
+.mg-breadcrumb { font-family: var(--mg-mono); font-size: var(--mg-text-sm); color: var(--mg-text-muted); margin-bottom: 10px; }
+.mg-breadcrumb a { color: var(--mg-accent-deep); text-decoration: none; }
+.mg-breadcrumb a:hover { text-decoration: underline; }
+.mg-code { font-family: var(--mg-mono); font-size: 0.88em; background: var(--mg-surface-alt); border: 1px solid var(--mg-border-light); padding: 1px 5px; word-break: break-all; }
+.mg-muted { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+.mg-help { cursor: help; color: var(--mg-text-light); text-decoration: underline dotted; }
+.mg-diff-plus, .mg-diff-minus { font-family: var(--mg-mono); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.mg-diff-plus { color: var(--mg-success); }
+.mg-diff-minus { color: var(--mg-danger); }
+.mg-qr { display: flex; justify-content: center; margin: 10px 0; }
+.mg-qr svg, .mg-qr img { width: 180px; height: 180px; background: #fff; padding: 8px; border: 1px solid var(--mg-border); }
+.mg-json-pre { margin: 0; padding: 12px; font-family: var(--mg-mono); font-size: 12.5px; line-height: 1.5; background: var(--mg-surface); border: 1px solid var(--mg-border); overflow: auto; }
+.mg-foot { color: var(--mg-text-muted); font-size: var(--mg-text-sm); padding: 24px 0; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-/* The bell is an emoji, so it renders full-colour (bright yellow) by default.
-   Quiet grey when there is nothing unread; colour returns with .mg-notif-unread
-   (set by the badge script when unread > 0). */
-.mg-notif-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem;
-  color: var(--mg-text-light); position: relative; padding: 0.25rem; line-height: 1;
-  filter: grayscale(1); opacity: 0.55; }
+/* ============================================================
+   VARIANTS — data-variant="classic|modern|accessible" on <html>,
+   orthogonal to data-theme. Three genuinely different UIs over
+   one markup contract:
+     classic    — traditional manager: system fonts, rounded, dark
+                  top bar, filled card headers, plain checkboxes
+     modern     — the Industry blueprint pushed: grid ground,
+                  condensed uppercase, registration marks, two accents
+     accessible — high-contrast large-print: black-on-white, 2px
+                  borders, yellow focus, 48px controls, zero motion
+   No data-variant attribute = modern (the base sheet).
+   ============================================================ */
 
-.mg-notif-btn:hover { color: var(--mg-text); opacity: 0.85; }
+/* ------------------------------------------------ CLASSIC */
 
-.mg-notif-btn.mg-notif-unread { filter: none; opacity: 1; }
 
-.mg-notif-badge { position: absolute; top: -2px; right: -2px; background: var(--mg-danger, #c0392b);
-  color: #fff; font-size: 0.6rem; font-weight: 700; min-width: 1rem; height: 1rem; line-height: 1rem;
-  text-align: center; border-radius: 1rem; padding: 0 0.2rem; }
 
-.mg-notif-panel { position: absolute; top: 130%; right: 0; width: 18rem; max-height: 24rem;
-  overflow-y: auto; background: var(--mg-surface); border: 1px solid var(--mg-border);
-  border-radius: var(--mg-radius); box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 60; }
 
-.mg-notif-item { display: block; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--mg-border);
-  color: var(--mg-text); text-decoration: none; }
 
-.mg-notif-item:last-child { border-bottom: none; }
 
-.mg-notif-item:hover { background: var(--mg-surface-alt); }
 
-.mg-notif-msg { font-size: var(--mg-text-sm); }
 
-.mg-notif-time { font-size: 0.7rem; color: var(--mg-text-muted); margin-top: 0.15rem; }
 
-.mg-notif-empty { padding: 1rem; text-align: center; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
 
-/* Plugin Manager: per-row Configure link (SM - plugin page split) */
-.mg-plugin-row-config { font-size: var(--mg-text-sm); color: var(--mg-accent); text-decoration: none; }
 
-.mg-plugin-row-config:hover { text-decoration: underline; }
 
-/* SM134 follow-ups: Files page Aliases card - redirect-type badges */
-.mg-alias-badge { display: inline-block; padding: 0 0.45em; border-radius: 0.7em;
-  font-size: 0.75em; font-weight: 700; line-height: 1.5;
-  background: var(--mg-accent-bg, #e8f0fa); color: var(--mg-accent, #3a7bd5); }
 
-/* SM424: one stats block at a time. <details> gives the behaviour; this gives
-   the summary a pointer and keeps the .mg-sec heading style, so a collapsed
-   block reads as a heading rather than as a broken one. */
-.mg-stat-block { margin: 0 0 10px; }
+/* The traditional dark top bar */
 
-.mg-stat-block > summary { cursor: pointer; list-style: revert; }
 
-.mg-stat-block > summary:hover { text-decoration: underline; }
 
-/* SM638: what governs the folder you are standing in. Sits under the
-   breadcrumb, above the listing, because that is where an operator looks to
-   answer "where am I" - and "is this protected" is the same question. */
-.mg-protect-here {
-    margin: 0 0 10px;
-    padding: 8px 10px;
-    border-radius: 4px;
-    background: var(--mg-warn-bg, #faf3e0);
-    color: var(--mg-fg, #333);
-    font-size: 0.9rem;
-    line-height: 1.5;
+
+
+
+
+
+
+
+/* Plain checkboxes, not switches */
+
+
+
+
+
+
+/* ------------------------------------------------ MODERN
+   The Industry blueprint, pushed. */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ------------------------------------------------ ACCESSIBLE
+   High-contrast large print. Black on white, 2px rules, yellow
+   focus, 48px targets, zero decoration, zero motion. */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ============================================================
+   LEGACY VOCABULARY — complete-contract coverage (SM-DS1b)
+   Every class the current pages emit is styled here against the
+   new tokens, so the sheet drops in BEFORE the markup migrations
+   in briefing.md land. Token-driven throughout: all three
+   variants and both themes flow through automatically. The
+   collapses in briefing.md remain the direction; this layer is
+   the bridge and burns down as pages migrate.
+   ============================================================ */
+
+/* Legacy token aliases — re-specified on theme/variant wrappers so
+   var() substitution tracks the wrapper's own tokens. */
+:root, [data-theme], [data-variant] {
+    --mg-bg-alt: var(--mg-surface-alt);
+    --mg-bg-muted: var(--mg-surface-alt);
+    --mg-bg-hover: var(--mg-surface-alt);
+    --mg-radius-lg: var(--mg-r, 0px);
+    --mg-header-bg: var(--mg-surface);
+    --mg-header-text: var(--mg-text);
+    --mg-header-muted: var(--mg-text-muted);
+    --mg-nav-active: var(--mg-text);
+    --mg-nav-hover: var(--mg-surface-alt);
+    --mg-warn: var(--mg-warning);
+    --mg-warn-bg: var(--mg-warning-bg);
+    --mg-warning-border: color-mix(in oklab, var(--mg-warning) 45%, transparent);
+    --mg-warning-text: var(--mg-warning);
+    --mg-error-bg: var(--mg-danger-bg);
+    --mg-error-border: color-mix(in oklab, var(--mg-danger) 45%, transparent);
+    --mg-error-text: var(--mg-danger);
+    --mg-link: var(--mg-accent-deep);
+    --mg-fg: var(--mg-text);
+    --mg-ok: var(--mg-success);
+    --mg-focus-ring: 0 0 0 2px color-mix(in oklab, var(--mg-accent) 35%, transparent);
 }
 
+/* --- Legacy forms (side-label rows; .mg-field is the direction) */
+.mg-form-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.mg-form-row label { width: 120px; flex-shrink: 0; font-size: var(--mg-text-sm); font-weight: 600; color: var(--mg-text); padding-top: 8px; text-align: right; }
+.mg-form-row input:not([type="checkbox"]), .mg-form-row select, .mg-form-row textarea { flex: 1; }
+.mg-form-row input[type="checkbox"] { flex: none; margin-top: 10px; }
+@media (max-width: 720px) { .mg-form-row { flex-direction: column; gap: 4px; } .mg-form-row label { width: auto; text-align: left; padding-top: 0; } }
+.mg-readonly { font-family: var(--mg-mono); font-size: var(--mg-text-sm); color: var(--mg-text-muted); padding-top: 8px; }
+.mg-config-field[data-show-key] { display: none; }
+.mg-config-section { margin-bottom: 28px; }
+.mg-config-help { color: var(--mg-text-muted); font-size: var(--mg-text-sm); margin: 4px 0 14px; }
+.mg-config-group { font-family: var(--mg-font-heading); font-size: var(--mg-text-sm); text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); font-weight: 600; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--mg-border); }
+.mg-config-group:first-child { margin-top: 0; }
+.mg-config-preset { margin-top: 6px; }
+.mg-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 5px 0; }
+.mg-line-lbl { width: 5.5rem; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+.mg-section-label { font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; color: var(--mg-text-muted); }
+.mg-prov { color: var(--mg-text-muted); font-size: var(--mg-text-sm); margin-top: 6px; }
+.mg-inline-msg { font-size: var(--mg-text-sm); }
+.mg-inline-msg.mg-ok { color: var(--mg-success); }
+.mg-inline-msg.mg-err { color: var(--mg-danger); font-weight: 500; }
+.mg-cap-dormant { cursor: help; color: var(--mg-warning); font-size: 0.9em; font-weight: 600; }
+.mg-cred-reveal { margin: 6px 0; padding: 8px 10px; background: var(--mg-surface-alt); border: 1px solid var(--mg-border); font-size: var(--mg-text-sm); }
+.mg-cred-value { font-family: var(--mg-mono); word-break: break-all; background: var(--mg-surface); padding: 1px 4px; border: 1px solid var(--mg-border-light); }
+.mg-connect-pick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mg-connect-hint { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+.mg-new-group-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--mg-border-light); }
+.mg-configbtn.active { box-shadow: 0 0 0 2px var(--mg-surface), 0 0 0 4px var(--mg-accent); }
+.mg-acc-list { padding: 0; }
+.mg-acc-leaf { list-style: none; }
+.mg-acc-tags { color: var(--mg-text-muted); font-size: var(--mg-text-sm); margin-left: auto; }
+.mg-btn-outline { background: var(--mg-surface); }
+
+/* --- Legacy file listing (flex rows; .mg-list/.mg-row is the direction) */
+.mg-breadcrumb .mg-bc-root { font-size: 1.05em; }
+.mg-file-filter-row { margin-bottom: 8px; }
+.mg-file-filter { min-height: var(--mg-ctl); padding: 6px 10px; font: 400 14px/1.4 var(--mg-font); border: 1px solid var(--mg-border); background: var(--mg-surface); color: var(--mg-text); }
+.mg-file-filter-row .mg-file-filter { width: 40%; min-width: 280px; }
+.mg-file-filter:focus { outline: 2px solid var(--mg-accent); outline-offset: -1px; border-color: var(--mg-accent); }
+.mg-file-actions-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.mg-file-actions-left, .mg-file-actions-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mg-file-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
+.mg-file-item { display: flex; align-items: center; min-height: 44px; padding: 4px 12px; border-bottom: 1px solid var(--mg-border-light); gap: 8px; font-size: 14px; }
+.mg-file-item:last-child { border-bottom: none; }
+.mg-file-item:hover { background: var(--mg-surface-alt); }
+.mg-file-icon { flex-shrink: 0; width: 20px; text-align: center; }
+.mg-file-name { flex: 1; min-width: 0; color: var(--mg-text); font-weight: 500; text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.mg-file-name:hover { color: var(--mg-accent-deep); }
+.mg-file-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); white-space: nowrap; font-weight: 400; }
+.mg-file-actions { display: flex; gap: 6px; }
+.mg-file-size { color: var(--mg-text-muted); font-size: 0.85em; }
+.mg-file-select { margin: 0; vertical-align: middle; }
+.mg-owner-name { color: var(--mg-text); }
+.mg-lock { margin-right: 5px; }
+.mg-file-table { width: 100%; border-collapse: collapse; background: var(--mg-surface); border: 1px solid var(--mg-border); font-size: 14px; }
+.mg-file-table th { text-align: left; padding: 8px 12px; font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); border-bottom: 1px solid var(--mg-border); }
+.mg-file-table td { padding: 8px 12px; border-bottom: 1px solid var(--mg-border-light); }
+.mg-file-table tbody tr:hover td { background: var(--mg-surface-alt); }
+.mg-file-table .mg-col-access, .mg-file-table .mg-col-mod, .mg-file-table .mg-col-check, .mg-file-table .mg-col-exp { white-space: nowrap; text-align: right; }
+.mg-file-table th.mg-sortable { cursor: pointer; user-select: none; }
+.mg-file-table th.mg-sortable:hover { color: var(--mg-text); }
+.mg-file-table .mg-file-dl a { font-size: 1.1em; font-weight: 600; text-decoration: none; color: var(--mg-text); }
+.mg-file-table .mg-file-dl a:hover { color: var(--mg-accent-deep); }
+.mg-protect-here { margin: 0 0 10px; padding: 10px 12px; background: var(--mg-warning-bg); border: 1px solid color-mix(in oklab, var(--mg-warning) 45%, transparent); color: var(--mg-text); font-size: var(--mg-text-sm); line-height: 1.5; }
 .mg-protect-here .mg-btn { margin-left: 6px; }
+.mg-alias-badge { display: inline-flex; align-items: center; padding: 1px 7px; font-size: 12px; font-weight: 600; background: var(--mg-accent-bg); color: var(--mg-accent-deep); border: 1px solid color-mix(in oklab, var(--mg-accent) 45%, transparent); white-space: nowrap; }
+.mg-alias-302 { background: var(--mg-warning-bg); color: var(--mg-warning); border-color: color-mix(in oklab, var(--mg-warning) 45%, transparent); }
 
-.mg-alias-302 { background: var(--mg-warn-bg, #faf3e0); color: var(--mg-warn, #b07d1a); }
+/* --- Legacy audit + JSONL tables (.mg-table is the direction) */
+.audit-table { width: 100%; border-collapse: collapse; font-size: var(--mg-text-sm); background: var(--mg-surface); border: 1px solid var(--mg-border); }
+.audit-table th, .audit-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--mg-border-light); }
+.audit-table th { font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); border-bottom-color: var(--mg-border); }
+.audit-table tr:hover td { background: var(--mg-surface-alt); }
+.audit-pagination { display: flex; align-items: center; gap: 14px; margin-top: 10px; font-size: var(--mg-text-sm); }
+.audit-page-info { color: var(--mg-text-muted); }
+.audit-fail { color: var(--mg-danger); font-weight: 500; }
+.audit-info { color: var(--mg-danger); text-decoration: none; cursor: pointer; }
+.audit-detail { color: var(--mg-danger); font-size: var(--mg-text-sm); }
+.audit-detail-row td { background: var(--mg-surface-alt); border-left: 2px solid var(--mg-danger); color: var(--mg-text); white-space: normal; padding: 8px 10px; font-size: var(--mg-text-sm); }
+.mg-jsonl-table { width: 100%; border-collapse: collapse; font-size: var(--mg-text-sm); }
+.mg-jsonl-table th, .mg-jsonl-table td { padding: 6px 10px; border-bottom: 1px solid var(--mg-border-light); text-align: left; vertical-align: top; word-break: break-word; }
+.mg-jsonl-table thead th { background: var(--mg-surface-alt); font-family: var(--mg-font-heading); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); border-bottom: 1px solid var(--mg-border); }
+.mg-jsonl-table tbody tr:hover { background: var(--mg-surface-alt); }
+.mg-jsonl-more { margin: 8px 0 0; color: var(--mg-text-muted); font-size: var(--mg-text-sm); font-style: italic; }
 
-/* SM629: the size of one revision's change, in the history row. Tabular
-   numerals so a column of them lines up and can be scanned for the large edit, which is the whole reason for showing it. Colour is a SECOND signal, never
-   the only one - the + and - carry the meaning for anyone who cannot see the
-   difference between the two greens and reds. */
-.mg-diff-plus, .mg-diff-minus {
-  font-family: var(--mg-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.82em; font-variant-numeric: tabular-nums; }
+/* --- Legacy notes + apply/undo (map onto the .mg-note family) */
+.mg-domain-note { margin: 8px 0; padding: 10px 12px; font-size: var(--mg-text-sm); line-height: 1.5; background: var(--mg-accent-bg); border: 1px solid color-mix(in oklab, var(--mg-accent) 45%, transparent); }
+.mg-apply-preview { margin: 0 0 8px; font-size: var(--mg-text-sm); }
+.mg-apply-block { margin-bottom: 8px; }
+.mg-apply-block ul { margin: 3px 0 0; padding-left: 18px; }
+.mg-apply-warn { margin: 6px 0; padding: 8px 10px; background: var(--mg-warning-bg); border: 1px solid color-mix(in oklab, var(--mg-warning) 45%, transparent); color: var(--mg-warning); font-weight: 500; }
+.mg-apply-ok { margin: 6px 0; color: var(--mg-success); }
+.mg-apply-keep { display: block; margin: 4px 0 0; }
+.mg-apply-panel { width: 100%; margin-top: 8px; padding: 14px 16px; background: var(--mg-surface-alt); border-left: 2px solid var(--mg-accent2); }
+.mg-undo-bar { margin: 0 0 10px; padding: 10px 12px; background: var(--mg-surface-alt); border: 1px solid var(--mg-border); border-left: 2px solid var(--mg-accent); }
+.mg-holder-line:empty { display: none; }
+.mg-holder-line { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+.mg-holder-count { cursor: help; }
+.mg-no-password-warn { font-size: var(--mg-text-sm); color: var(--mg-warning); display: flex; align-items: center; gap: 5px; font-weight: 500; }
+.mg-no-password-warn a { color: var(--mg-warning); text-decoration: underline; }
+.mg-dirty-note { color: var(--mg-warning); font-size: var(--mg-text-sm); font-weight: 600; }
 
-.mg-diff-plus { color: var(--mg-ok, #2f7d32); }
+/* --- Legacy badges (map onto the .mg-tag family) */
+.mg-badge { display: inline-flex; align-items: center; padding: 1px 7px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; border: 1px solid var(--mg-border); background: var(--mg-surface); color: var(--mg-text-muted); white-space: nowrap; flex: none; }
+.mg-badge-muted { background: var(--mg-surface-alt); }
+.mg-badge-success { background: var(--mg-success-bg); color: var(--mg-success); border-color: color-mix(in oklab, var(--mg-success) 40%, transparent); }
+.mg-dom-chip { display: inline-flex; align-items: center; font-size: 12px; padding: 0 7px; background: var(--mg-surface-alt); color: var(--mg-text-muted); border: 1px solid var(--mg-border-light); margin-left: 6px; vertical-align: middle; }
+.mg-dom-open { margin-left: 6px; text-decoration: none; color: var(--mg-text-muted); font-size: 0.9em; vertical-align: middle; }
+.mg-dom-open:hover, .mg-dom-open:focus { color: var(--mg-accent-deep); }
+.mg-dom-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mg-tokens-pick { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.mg-stat-block { margin: 0 0 10px; }
+.mg-stat-block > summary { cursor: pointer; list-style: revert; }
+.mg-stat-block > summary:hover { text-decoration: underline; }
 
-.mg-diff-minus { color: var(--mg-danger, #b3261e); }
+/* --- Legacy perms card (the .mg-expand direction) */
+.mg-perms-row .mg-perms-cell { padding: 0; background: var(--mg-surface-alt); border-top: 2px solid var(--mg-accent); border-bottom: 2px solid var(--mg-accent); }
+.mg-perms-card { padding: 14px 16px; max-width: 56em; }
+.mg-perms-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--mg-border); }
+.mg-perms-title { font-weight: 600; }
+.mg-perms-history { font-size: var(--mg-text-sm); text-decoration: none; color: var(--mg-text-muted); }
+.mg-perms-history:hover { color: var(--mg-accent-deep); text-decoration: underline; }
+.mg-perms-owner { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.mg-perms-owner label { font-size: var(--mg-text-sm); font-weight: 600; }
+.mg-perm-owner, .mg-perms-owner select { min-width: 12rem; max-width: 20rem; font-size: var(--mg-text-sm); }
+.mg-perms-rights-label { font-size: var(--mg-text-sm); font-weight: 600; margin-bottom: 5px; }
+.mg-rights { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+.mg-rights-add { margin-top: 8px; }
+.mg-rights-pick { font-size: var(--mg-text-sm); min-width: 16em; }
+.mg-perms-hint { margin: 10px 0; font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+.mg-perms-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mg-perms-actions .mg-perms-save { margin-left: auto; }
+
+/* --- Onboarding / connector setup */
+.mg-onb { width: 100%; font-size: var(--mg-text-sm); box-sizing: border-box; }
+.mg-onb-card { border: 1px solid var(--mg-border); border-left: 2px solid var(--mg-accent); padding: 12px 14px; margin-top: 8px; background: var(--mg-surface); }
+.mg-onb-card-go { border-left-color: var(--mg-success); }
+.mg-onb-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; gap: 8px; }
+.mg-onb-list { margin: 4px 0 4px 18px; padding: 0; line-height: 1.55; }
+.mg-onb-list li { margin-bottom: 8px; }
+.mg-onb-ok { color: var(--mg-success); font-weight: 600; }
+.mg-onb-wait { margin-top: 8px; font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+.mg-onb-warn { margin: 6px 0; padding: 8px 10px; background: var(--mg-warning-bg); border: 1px solid color-mix(in oklab, var(--mg-warning) 45%, transparent); color: var(--mg-text); font-size: var(--mg-text-sm); }
+.mg-code-box { background: var(--mg-surface); border: 1px solid var(--mg-border); padding: 7px 10px; margin: 6px 0; font-family: var(--mg-mono); font-size: 13px; display: flex; flex-direction: column; gap: 3px; word-break: break-all; }
+.mg-code-token { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
+.mg-code-token code { font-size: 1.05em; font-weight: 700; color: var(--mg-accent-deep); }
+.mg-code-token code.mg-code-stale { color: var(--mg-text-light); text-decoration: line-through; }
+
+/* --- Nav manager (drag list) */
+.mg-nav-item { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 10px; background: var(--mg-surface); border: 1px solid var(--mg-border); margin-bottom: 4px; font-size: 14px; }
+.mg-nav-item.dragging { opacity: 0.4; border-style: dashed; }
+.nav-drop-zone { height: 4px; margin: 1px 0; transition: height 0.1s; }
+.nav-drop-zone.drop-active { height: 3px; background: var(--mg-accent); }
+.mg-nav-handle { cursor: grab; color: var(--mg-text-light); font-size: 14px; padding: 0 3px; user-select: none; flex-shrink: 0; }
+.mg-nav-handle:active { cursor: grabbing; }
+.mg-nav-label { flex: 1; font-size: 14px; }
+.mg-nav-url { font-family: var(--mg-mono); font-size: 12px; color: var(--mg-text-muted); }
+
+/* --- Editor pane */
+.mg-editor-root { position: fixed; inset: var(--mg-header-h) 0 0 0; display: flex; flex-direction: column; background: var(--mg-bg); }
+.mg-editor-toolbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 44px; background: var(--mg-surface); border-bottom: 1px solid var(--mg-border); flex-shrink: 0; }
+.mg-editor-path { font-family: var(--mg-mono); font-size: var(--mg-text-sm); color: var(--mg-text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-editor-main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.mg-editor-pane { width: 50%; display: flex; flex-direction: column; overflow-y: auto; background: var(--mg-surface); border-right: 1px solid var(--mg-border); }
+.mg-editor-divider { width: 4px; background: var(--mg-border); cursor: col-resize; flex-shrink: 0; }
+.mg-editor-divider:hover { background: var(--mg-accent); }
+.mg-preview-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.mg-preview-toolbar { display: flex; align-items: center; gap: 8px; padding: 5px 12px; background: var(--mg-surface-alt); border-bottom: 1px solid var(--mg-border); font-size: var(--mg-text-sm); color: var(--mg-text-muted); flex-shrink: 0; }
+.mg-preview-toolbar span:first-child { flex: 1; }
+.mg-preview-frame { flex: 1; border: none; width: 100%; background: #fff; }
+.mg-editor-statusbar { display: flex; align-items: center; gap: 24px; padding: 4px 16px; background: var(--mg-surface-alt); border-top: 1px solid var(--mg-border); color: var(--mg-text-muted); font-size: 12px; font-family: var(--mg-mono); flex-shrink: 0; }
+.mg-editor-dirty { color: var(--mg-warning); margin-left: auto; font-weight: 600; }
+.mg-editor-saved { color: var(--mg-success); }
+.mg-lock-dot { width: 8px; height: 8px; display: inline-block; flex-shrink: 0; background: var(--mg-text-light); }
+.mg-lock-dot.editing { background: var(--mg-success); }
+.mg-lock-dot.locked { background: var(--mg-warning); }
+.mg-fm-section summary { padding: 7px 12px; font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); cursor: pointer; background: var(--mg-surface-alt); border-bottom: 1px solid var(--mg-border); user-select: none; }
+.mg-fm-section summary:hover { color: var(--mg-text); }
+.mg-fm-fields { padding: 10px 12px; }
+.mg-cm-yaml .CodeMirror { font-size: 13px; border: 1px solid var(--mg-border); height: auto; min-height: 60px; font-family: var(--mg-mono); }
+.mg-cm-content .CodeMirror { height: 100%; min-height: 400px; font-size: 14px; line-height: 1.6; font-family: var(--mg-mono); border-top: 1px solid var(--mg-border); }
+.cm-tt-variable { color: var(--mg-danger); background: color-mix(in oklab, var(--mg-danger) 8%, transparent); }
+[data-theme="dark"] .CodeMirror { background: var(--mg-surface); color: var(--mg-text); }
+[data-theme="dark"] .CodeMirror-gutters { background: var(--mg-surface-alt); border-right-color: var(--mg-border); }
+[data-theme="dark"] .CodeMirror-linenumber { color: var(--mg-text-light); }
+[data-theme="dark"] .CodeMirror-cursor { border-left: 1px solid var(--mg-text); }
+[data-theme="dark"] .CodeMirror-selected { background: var(--mg-accent-bg) !important; }
+[data-theme="dark"] .CodeMirror-activeline-background { background: var(--mg-surface-alt); }
+[data-theme="dark"] .mg-cm-yaml, [data-theme="dark"] .mg-cm-content { background: var(--mg-surface); }
+[data-theme="dark"] .CodeMirror .cm-header { color: #a6e8b5; font-weight: 600; }
+[data-theme="dark"] .CodeMirror .cm-strong { color: #ffffff; font-weight: 700; }
+[data-theme="dark"] .CodeMirror .cm-em { color: #e3cffd; font-style: italic; }
+[data-theme="dark"] .CodeMirror .cm-link, [data-theme="dark"] .CodeMirror .cm-url { color: #aab6ff; }
+[data-theme="dark"] .CodeMirror .cm-quote { color: #c4bdb5; font-style: italic; }
+[data-theme="dark"] .CodeMirror .cm-comment { color: #a8a199; }
+[data-theme="dark"] .CodeMirror .cm-string { color: #bfe8c0; }
+[data-theme="dark"] .CodeMirror .cm-keyword, [data-theme="dark"] .CodeMirror .cm-tag, [data-theme="dark"] .CodeMirror .cm-builtin { color: #ffbcbc; }
+[data-theme="dark"] .CodeMirror .cm-atom, [data-theme="dark"] .CodeMirror .cm-number { color: #ffd591; }
+[data-theme="dark"] .CodeMirror .cm-variable-2, [data-theme="dark"] .CodeMirror .cm-attribute, [data-theme="dark"] .CodeMirror .cm-property { color: #a3e0ef; }
+[data-theme="dark"] .CodeMirror .cm-hr, [data-theme="dark"] .CodeMirror .cm-formatting { color: #a8a199; }
+
+/* --- Plugins + handlers */
+.mg-plugin-card { background: var(--mg-surface); border: 1px solid var(--mg-border); padding: 14px; margin-bottom: 14px; }
+.mg-plugin-title { font-weight: 600; margin-bottom: 2px; }
+.mg-plugin-desc { font-size: var(--mg-text-sm); color: var(--mg-text-muted); margin-bottom: 10px; }
+.mg-plugin-registry { display: flex; flex-direction: column; gap: 4px; }
+.mg-plugin-row { display: grid; grid-template-columns: 4.5rem 1fr auto; align-items: start; gap: 12px; padding: 9px 12px; border: 1px solid var(--mg-border); background: var(--mg-surface); }
+.mg-plugin-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 2px; }
+.mg-plugin-main { min-width: 0; }
+.mg-plugin-end { display: flex; align-items: center; justify-content: flex-end; }
+.mg-plugin-row-name { font-weight: 500; }
+.mg-plugin-row-desc { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+.mg-plugin-row-config { font-size: var(--mg-text-sm); color: var(--mg-accent-deep); text-decoration: none; }
+.mg-plugin-row-config:hover { text-decoration: underline; }
+.mg-info { cursor: help; color: var(--mg-text-light); font-size: 1.1em; }
+.mg-info:hover, .mg-info:focus { color: var(--mg-accent-deep); outline: none; }
+.mg-handler-group { border: 1px solid var(--mg-border); background: var(--mg-surface); overflow: hidden; margin-bottom: 14px; }
+.mg-handler-group-header { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; background: var(--mg-surface-alt); border-bottom: 1px solid var(--mg-border); }
+.mg-handler-group-label { font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); }
+.mg-handler-item { padding: 8px 12px; border-bottom: 1px solid var(--mg-border-light); }
+.mg-handler-item:last-child { border-bottom: none; }
+.mg-handler-item-header { display: flex; align-items: center; gap: 8px; }
+.mg-handler-item-actions { display: flex; gap: 6px; }
+.mg-handler-name { font-weight: 500; flex: 1; }
+
+/* --- Wizard */
+.mg-wizard { background: var(--mg-surface-alt); border: 1px solid var(--mg-border); padding: 16px; margin-top: 12px; }
+.mg-wizard-title { font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; color: var(--mg-text); }
+.mg-wizard-section-label { font-family: var(--mg-font-heading); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mg-text-muted); margin: 12px 0 6px; padding-top: 8px; border-top: 1px solid var(--mg-border); }
+.mg-wizard-section-label:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.mg-wizard-actions { margin-top: 12px; display: flex; gap: 8px; }
+
+/* --- Variant touch-ups for the legacy layer */
+
+/* ---- classic ---- */
+
+:root {
+    --mg-font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mg-font-heading: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mg-font-size: 14px; --mg-line-height: 1.5;
+    --mg-text-sm: 12.5px; --mg-text-lg: 16px; --mg-text-xl: 20px;
+    --mg-ctl: 32px; --mg-ctl-sm: 26px;
+    --mg-bg: #eef0f2; --mg-surface: #ffffff; --mg-surface-alt: #f4f5f7;
+    --mg-border: #d0d4d9; --mg-border-light: #e4e6e9;
+    --mg-accent: oklch(0.50 0.10 250); --mg-accent-deep: oklch(0.42 0.11 250);
+    --mg-accent-fill: oklch(0.46 0.10 250); --mg-accent-hover: oklch(0.40 0.11 250);
+    --mg-accent-bg: oklch(0.93 0.03 250);
+    --mg-mark: transparent;
+    --mg-r: 5px;
+    --mg-header-h: 46px;
+}
+
+[data-theme="dark"] {
+    --mg-bg: #1b1d20; --mg-surface: #24272b; --mg-surface-alt: #2b2f34;
+    --mg-border: #464b52; --mg-border-light: #35393f;
+    --mg-accent: oklch(0.72 0.09 250); --mg-accent-deep: oklch(0.78 0.08 250);
+    --mg-accent-fill: oklch(0.52 0.10 250); --mg-accent-hover: oklch(0.80 0.08 250);
+    --mg-accent-bg: oklch(0.30 0.05 250);
+}
+
+@media (prefers-color-scheme: dark) {
+:not([data-theme="light"]) {
+        --mg-bg: #1b1d20; --mg-surface: #24272b; --mg-surface-alt: #2b2f34;
+        --mg-border: #464b52; --mg-border-light: #35393f;
+        --mg-accent: oklch(0.72 0.09 250); --mg-accent-deep: oklch(0.78 0.08 250);
+        --mg-accent-fill: oklch(0.52 0.10 250); --mg-accent-hover: oklch(0.80 0.08 250);
+        --mg-accent-bg: oklch(0.30 0.05 250);
+    }
+[data-theme="light"] {
+        --mg-bg: #eef0f2; --mg-surface: #ffffff; --mg-surface-alt: #f4f5f7;
+        --mg-border: #d0d4d9; --mg-border-light: #e4e6e9;
+        --mg-accent: oklch(0.50 0.10 250); --mg-accent-deep: oklch(0.42 0.11 250);
+        --mg-accent-fill: oklch(0.46 0.10 250); --mg-accent-hover: oklch(0.40 0.11 250);
+        --mg-accent-bg: oklch(0.93 0.03 250);
+    }
+}
+
+.mg-btn, .mg-inp, .mg-field input, .mg-field select, .mg-field textarea, .mg-main select, .mg-main input, .mg-main textarea, .mg-tag, .mg-token, .mg-note, .mg-modal-in, .mg-sheet-panel, .mg-palette, .mg-stat-tile, .mg-empty, .mg-readonly-value, .mg-toast, .mg-signout, .mg-palette-btn, .mg-chip { border-radius: var(--mg-r); }
+
+.mg-card { border-radius: var(--mg-r); box-shadow: var(--mg-shadow-sm); overflow: hidden; }
+
+.mg-card::before, .mg-card::after, .mg-btn-primary::before, .mg-btn-primary::after { content: none; }
+
+.mg-page-title, .mg-card-title, .mg-sec, .mg-nav-group, .mg-table th, .mg-brand, .mg-sheet-head, .mg-stat-value {
+    font-family: var(--mg-font); text-transform: none; letter-spacing: 0;
+}
+
+.mg-page-title { font-size: 20px; font-weight: 600; }
+
+.mg-card-title { font-size: 15px; font-weight: 600; }
+
+.mg-card-header { background: var(--mg-surface-alt); padding: 9px 14px; }
+
+.mg-sec { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+
+.mg-table th { background: var(--mg-surface-alt); font-size: 13px; font-weight: 600; }
+
+.mg-stat-value { font-size: 24px; font-weight: 700; }
+
+.mg-header { background: #333a45; border-bottom: none; }
+
+.mg-brand { color: #ffffff; }
+
+.mg-brand small { color: #9aa3af; }
+
+.mg-user { color: #c6cbd3; }
+
+.mg-signout { color: #c6cbd3; border-color: rgba(255,255,255,0.25); }
+
+.mg-signout:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+
+.mg-palette-btn { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #c6cbd3; }
+
+.mg-palette-btn kbd { background: rgba(255,255,255,0.1); border-color: transparent; color: #c6cbd3; }
+
+.mg-theme-toggle, .mg-nav-burger { border-color: rgba(255,255,255,0.2); color: #c6cbd3; }
+
+.mg-header .mg-notif-btn { color: #c6cbd3; }
+
+.mg-chk input[type="checkbox"], input.mg-toggle {
+    appearance: auto; -webkit-appearance: auto; width: 15px; height: 15px;
+    border: none; background: none; accent-color: var(--mg-accent-fill);
+}
+
+.mg-chk input[type="checkbox"]::after, input.mg-toggle::after { content: none; }
+
+.mg-sidebar .mg-nav a.active { border-left-width: 3px; }
+
+.mg-btn-change { background: var(--mg-surface); }
+
+.mg-btn-change:hover { background: var(--mg-accent2-bg); color: var(--mg-accent2-deep); border-color: var(--mg-accent2); }
+
+.mg-config-group, .mg-section-label, .mg-handler-group-label, .mg-wizard-section-label, .mg-fm-section summary, .mg-jsonl-table thead th, .mg-file-table th, .audit-table th, .mg-wizard-title { font-family: var(--mg-font); letter-spacing: 0.03em; }
+
+.mg-plugin-card, .mg-plugin-row, .mg-handler-group, .mg-wizard, .mg-onb-card, .mg-badge, .mg-dom-chip, .mg-nav-item { border-radius: var(--mg-r); }

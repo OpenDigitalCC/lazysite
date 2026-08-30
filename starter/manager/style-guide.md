@@ -145,6 +145,50 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
   <span class="mg-cap-what" tabindex="0" role="img" aria-label="What this grants: an example sentence" title="An example sentence.">i</span></label>
 </div>
 
+<h2 class="mg-sg-h">The collapsed vocabulary (SM-DS1)</h2>
+<p class="mg-sg-note">The design pass folded several near-duplicate families into one
+each. These are the survivors, registered so the pages have something to be converted
+<em>to</em>.</p>
+<div class="mg-sg-demo mg-sg-family">
+  <div><span class="mg-sg-tag">.mg-list / .mg-row / .mg-expand</span>
+    <div class="mg-list">
+      <div class="mg-row">
+        <span class="mg-row-name">an-item</span>
+        <span class="mg-row-meta">9 rows &middot; published</span>
+        <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Read</button>
+          <a href="#" class="mg-chev" onclick="return false;">&#9662;</a></span>
+      </div>
+      <div class="mg-expand">the row expander card &mdash; one idiom, next sibling of its row</div>
+    </div>
+  </div>
+  <div><span class="mg-sg-tag">.mg-note</span>
+    <div class="mg-note mg-note-info">info &mdash; something worth knowing</div>
+    <div class="mg-note mg-note-warn">warn &mdash; done, but it will not work yet</div>
+    <div class="mg-note mg-note-danger">danger &mdash; this will lose something</div>
+  </div>
+  <div><span class="mg-sg-tag">.mg-field / .mg-inp-sm</span>
+    <div class="mg-field"><label>Label above the control</label>
+      <input class="mg-inp" value="a value"></div>
+    <div class="mg-field"><label>Small</label>
+      <input class="mg-inp mg-inp-sm" value="compact"></div>
+  </div>
+  <div><span class="mg-sg-tag">.mg-btn-change</span>
+    <button class="mg-btn mg-btn-primary">Save</button>
+    <button class="mg-btn mg-btn-change">Apply</button>
+    <span class="mg-muted">steel confirms, copper changes, red destroys</span>
+  </div>
+  <div><span class="mg-sg-tag">.mg-tag-warn / -change, .mg-status-warn</span>
+    <span class="mg-tag mg-tag-warn">warn</span>
+    <span class="mg-tag mg-tag-change">change</span>
+    <div class="mg-status mg-status-warn">neither success nor error</div>
+  </div>
+  <div><span class="mg-sg-tag">.mg-nav-burger / .mg-scrim</span>
+    <button class="mg-nav-burger">&#9776;</button>
+    <div class="mg-scrim"></div>
+    <span class="mg-muted">drawer toggle and tap-to-close scrim</span>
+  </div>
+</div>
+
 <h2 class="mg-sg-h">Button labels &mdash; the vocabulary</h2>
 <p class="mg-sg-note">A style guide governs words as well as shapes. The manager
 currently uses <strong>107 distinct button labels</strong>, and several say the same
