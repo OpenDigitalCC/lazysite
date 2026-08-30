@@ -4,18 +4,6 @@ auth: manager
 search: false
 ---
 
-<style>
-/* SM680: the rows panel as an OVERLAY rather than a block below the listing.
-   Fixed and scrollable inside itself, so a long table scrolls within the sheet
-   instead of moving the page underneath - which is how a watched user pressed
-   Rows and did not see anything happen. */
-.mg-rows-modal { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;
-  display:flex; align-items:center; justify-content:center; }
-.mg-rows-sheet { position:relative; background:var(--mg-bg,#fff); color:var(--mg-text,inherit);
-  width:94%; max-width:1100px; max-height:88vh; overflow:auto; border-radius:8px;
-  padding:16px 18px; }
-.mg-rows-close { position:absolute; top:10px; right:12px; }
-</style>
 
 <div id="status" class="mg-status"></div>
 
@@ -44,11 +32,14 @@ search: false
      detail about one entry in it - and the panel has its own pager, its own
      filter and its own editor, which is an application nested inside a
      listing. -->
-<div id="rows-panel" class="mg-rows-modal" style="display:none;">
- <div class="mg-rows-sheet">
-  <button class="mg-btn mg-btn-sm mg-rows-close" onclick="closeRows()" title="Close">&times;</button>
-  <h2 style="font-size:1.05em;margin:0 0 4px;" id="rows-title"></h2>
-  <p style="font-size:0.85em;color:#888;margin:0 0 10px;" id="rows-note"></p>
+<div id="rows-panel" class="mg-sheet" style="display:none;">
+ <div class="mg-sheet-panel">
+  <div class="mg-sheet-head">
+   <span id="rows-title"></span>
+   <span class="mg-sheet-sub" id="rows-note"></span>
+   <button class="mg-sheet-close" onclick="closeRows()" title="Close" aria-label="Close">&times;</button>
+  </div>
+  <div class="mg-sheet-body">
   <div style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <button class="mg-btn mg-btn-primary" id="row-add-btn" onclick="openEditor(null)">Add a row</button>
     <label class="mg-btn" style="cursor:pointer;">Import CSV&hellip;<input type="file" id="import-file" accept=".csv,text/csv" style="display:none;" onchange="planImport()"></label>
@@ -77,6 +68,7 @@ search: false
   </div>
   <div style="overflow-x:auto;">
     <table class="mg-table" id="rows-table"><thead></thead><tbody></tbody></table>
+  </div>
   </div>
  </div>
 </div>
@@ -282,7 +274,12 @@ function loadRows(table, page) {
     .then(function(data) {
       var panel = document.getElementById('rows-panel');
       var tbl   = document.getElementById('rows-table');
-      panel.style.display = 'block';
+      // 'flex', not 'block': .mg-sheet centres its panel with flexbox, so
+      // block layout puts the sheet in the top-left corner instead.
+      panel.style.display = 'flex';
+      // The page behind a sheet does not scroll - the same idiom domains.md
+      // uses, so a sheet behaves the same way wherever it is opened.
+      document.body.classList.add('mg-sheet-open');
       document.getElementById('rows-title').textContent = table;
 
       if (!data.ok) {
@@ -740,6 +737,7 @@ function closeRows() {
   }
   var p = document.getElementById('rows-panel');
   if (p) p.style.display = 'none';
+  document.body.classList.remove('mg-sheet-open');
 }
 
 // SM687/SM678: WHO CAN READ THIS TABLE, in an expander built from the same

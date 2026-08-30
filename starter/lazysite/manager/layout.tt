@@ -103,30 +103,37 @@
   // Promise-based modal: resolves true/false (confirm) or string/null (prompt).
   function mgModal(opts) {
     return new Promise(function(resolve){
-      var ov = document.createElement('div'); ov.className = 'mg-modal-overlay';
-      var box = document.createElement('div'); box.className = 'mg-modal';
+      // WRAPPER > backdrop + panel, which is what the stylesheet describes.
+      // .mg-modal-in is the PANEL, not an animation state - naming it as a
+      // state here while the sheet styled it as the panel is what sized the
+      // dialog to the viewport.
+      var ov = document.createElement('div'); ov.className = 'mg-modal';
       var okClass = opts.danger ? ' mg-btn-danger' : ' mg-btn-primary';
-      box.innerHTML =
-        '<div class="mg-modal-msg"></div>' +
-        (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') +
-        '<div class="mg-modal-actions">' +
-          '<button class="mg-btn mg-modal-cancel"></button>' +
-          '<button class="mg-btn' + okClass + ' mg-modal-ok"></button>' +
+      ov.innerHTML =
+        '<div class="mg-modal-overlay"></div>' +
+        '<div class="mg-modal-in">' +
+          '<div class="mg-modal-msg"></div>' +
+          (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') +
+          '<div class="mg-modal-actions">' +
+            '<button class="mg-btn mg-modal-cancel"></button>' +
+            '<button class="mg-btn' + okClass + ' mg-modal-ok"></button>' +
+          '</div>' +
         '</div>';
+      var box = ov.querySelector('.mg-modal-in');
       box.querySelector('.mg-modal-msg').textContent = opts.msg || '';
       box.querySelector('.mg-modal-cancel').textContent = opts.cancel || 'Cancel';
       box.querySelector('.mg-modal-ok').textContent = opts.ok || 'OK';
-      ov.appendChild(box); document.body.appendChild(ov);
+      document.body.appendChild(ov);
       var input = box.querySelector('.mg-modal-input');
       if (input) { input.value = (opts.value != null ? opts.value : ''); setTimeout(function(){ input.focus(); input.select(); }, 30); }
-      requestAnimationFrame(function(){ ov.classList.add('mg-modal-in'); });
+      requestAnimationFrame(function(){ ov.classList.add('mg-modal-shown'); });
       function onKey(e){
         if (e.key === 'Escape') close(opts.prompt ? null : false);
         else if (e.key === 'Enter') close(opts.prompt ? (input ? input.value : '') : true);
       }
       function close(val){
         document.removeEventListener('keydown', onKey);
-        ov.classList.remove('mg-modal-in');
+        ov.classList.remove('mg-modal-shown');
         setTimeout(function(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }, 200);
         resolve(val);
       }
