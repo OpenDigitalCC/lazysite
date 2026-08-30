@@ -29,11 +29,45 @@ my $root  = "$FindBin::Bin/../..";
 my $guide = "$root/starter/manager/style-guide.md";
 my $cssf  = "$root/starter/lazysite/manager/assets/manager-classic.css";
 
-plan skip_all => "no $guide" unless -f $guide;
-plan skip_all => "no $cssf"  unless -f $cssf;
+# NOT skip_all. Both of these are shipped artefacts: if either is absent the
+# manager has no stylesheet or no guide, which is a failure to report and never
+# a reason to fall silent. t/lint/95 skipped on exactly this shape, and when
+# 0.11.8 renamed manager.css that skip turned a dead check into a passing suite
+# for a whole release.
+ok( -f $guide, 'the style guide is present' ) or BAIL_OUT("no $guide");
+ok( -f $cssf,  'the classic stylesheet is present' ) or BAIL_OUT("no $cssf");
 
 my $g   = do { open my $fh, '<', $guide or die $!; local $/; <$fh> };
 my $css = do { open my $fh, '<', $cssf  or die $!; local $/; <$fh> };
+
+# THE THREE SHEETS SHARE ONE VOCABULARY, and that is what makes it legitimate
+# for the rest of this test to read `classic` alone. A style is a re-inking of
+# the same components, not a different set of them - so a class present in one
+# sheet and missing from another is unstyled for whoever selected that style,
+# and the guide (which is written once) could not tell you which.
+subtest 'every shipped style defines the same vocabulary' => sub {
+    my %set;
+    for my $f ( sort glob("$root/starter/lazysite/manager/assets/manager-*.css") ) {
+        my ($v) = $f =~ m{manager-([a-z]+)\.css\z};
+        my $t = do { open my $fh, '<', $f or die $!; local $/; <$fh> };
+        $t =~ s{/\*.*?\*/}{}gs;
+        my %c; $c{$1} = 1 while $t =~ /\.(mg-[\w-]+)/g;
+        $set{$v} = \%c;
+    }
+    ok( scalar keys %set, 'the sheets were found' ) or return;
+    my $base = ( sort keys %set )[0];
+    for my $v ( sort keys %set ) {
+        next if $v eq $base;
+        my @only_base = grep { !$set{$v}{$_} } sort keys %{ $set{$base} };
+        my @only_this = grep { !$set{$base}{$_} } sort keys %{ $set{$v} };
+        is( "@only_base", '', "$v defines everything $base does" )
+            or diag( "Missing from $v: @only_base\n"
+                . "An operator on that style sees these unstyled." );
+        is( "@only_this", '', "$v defines nothing $base lacks" )
+            or diag( "Only in $v: @only_this\n"
+                . "The guide is written once, against the shared vocabulary." );
+    }
+};
 
 # Classes the guide DEMONSTRATES: those in a class attribute, plus those it
 # names in a `.mg-x` code label. Both count as registering a component.

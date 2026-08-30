@@ -21,10 +21,32 @@ use Test::More;
 use FindBin;
 
 my $root = "$FindBin::Bin/../..";
-my $cssf = "$root/starter/lazysite/manager/assets/manager.css";
-plan skip_all => "no $cssf" unless -f $cssf;
 
-my $css = do { open my $fh, '<', $cssf or die $!; local $/; <$fh> };
+# EVERY SHIPPED SHEET, and it is a FAILURE to find none.
+#
+# This test read `manager.css` and skipped when it was absent. 0.11.8 renamed
+# that file to manager-classic.css and split two more beside it - so from that
+# release the suite reported `1..0 # SKIP` and ran no assertions at all, while
+# counting as a passing suite in every gate. A guard that disables itself when
+# its subject moves is worse than no guard: it reports the same green tick
+# either way, which is the defect class this project keeps closing. The skip
+# is now a failure, so the next rename fails loudly instead of going quiet.
+#
+# All three sheets, because a class defined only in `classic` is unstyled for
+# an operator who selected `modern` - the fault this test exists to catch,
+# arriving through the style selector rather than through a missing rule.
+my @sheets = sort glob("$root/starter/lazysite/manager/assets/manager-*.css");
+ok( scalar @sheets,
+    'the shipped manager stylesheets were found' )
+    or BAIL_OUT( 'No manager-*.css under starter/lazysite/manager/assets. '
+        . 'If the sheets moved again, point this test at them - do not let it '
+        . 'skip, which is how it went silent for a whole release.' );
+
+my %css;
+for my $f (@sheets) {
+    my ($variant) = $f =~ m{manager-([a-z]+)\.css\z};
+    $css{$variant} = do { open my $fh, '<', $f or die $!; local $/; <$fh> };
+}
 
 # Classes that exist for scripting or state, not appearance. A class used only
 # as a querySelector handle is legitimately undefined in CSS, so this list is
@@ -41,28 +63,12 @@ my %scripting_only = map { $_ => 1 } qw(
     mg-sec-read
 );
 
-# KNOWN AND NOT YET FIXED (SM697, measured 2026-08-29). Fourteen classes across
-# seven pages that are PURELY VISUAL - not selector handles - and have no rule.
-# They are listed rather than waived so this lint can guard the boundary today
-# while they are worked through: a NEW one fails immediately, and this list only
-# ever shrinks.
-#
-# Do not add to it. If a page needs a class, the stylesheet needs the rule; the
-# entries below are a debt, not a pattern.
-my %known_debt = map { $_ => 1 } qw(
-    mg-apply-panel
-    mg-config-preset
-    mg-readonly-value
-    mg-field-note
-    mg-dom-tools
-    mg-dom-chip
-    mg-dom-open
-    mg-recent-dot
-    mg-protect-lock
-    mg-file-select
-    mg-split-bar
-    mg-onb-warn
-);
+# PAID. SM697 measured fourteen classes with no rule; eight were fixed in
+# 0.11.8 and the design sheets that landed in the same release defined the
+# remaining twelve, in all three variants. The list is empty and the ceiling
+# below is zero, so a new undefined class fails immediately rather than joining
+# a waiver list that reads like permission.
+my %known_debt = ();
 
 my @pages = sort glob("$root/starter/manager/*.md");
 plan skip_all => 'no manager pages' unless @pages;
@@ -84,14 +90,15 @@ for my $page (@pages) {
             next if $scripting_only{$c};
             next if $known_debt{$c};
             next if $seen{$c}++;
-            next if index( $css, ".$c" ) >= 0;
-            push @undefined, "$name: .$c";
+            my @missing = grep { index( $css{$_}, ".$c" ) < 0 } sort keys %css;
+            next unless @missing;
+            push @undefined, "$name: .$c (undefined in: @missing)";
         }
     }
 }
 
 is( "@undefined", '',
-    'every mg- class a manager page emits has a rule in manager.css' )
+    'every mg- class a manager page emits has a rule in EVERY shipped style' )
     or diag( "Emitted with no stylesheet rule:\n  "
         . join( "\n  ", @undefined )
         . "\n\nAn element carrying a class nothing defines renders as unstyled\n"
@@ -103,15 +110,19 @@ is( "@undefined", '',
 # The debt list only shrinks. An entry that no longer needs to be there is a
 # waiver protecting nothing, and the next person to add a class would find a
 # list that looks like permission.
-my @stale = grep { index( $css, ".$_" ) >= 0 } sort keys %known_debt;
+my @stale = grep {
+    my $c = $_; !grep { index( $css{$_}, ".$c" ) < 0 } keys %css
+} sort keys %known_debt;
 is( "@stale", '',
     'no entry in the known-debt list has quietly been fixed without being removed' )
     or diag( "These now HAVE a rule and should leave the list:\n  "
         . join( "\n  ", map {".$_"} @stale ) );
 
-cmp_ok( scalar( keys %known_debt ), '<=', 12,
+cmp_ok( scalar( keys %known_debt ), '<=', 0,
     'the known-debt list has not grown' )
-    or diag( 'SM697 measured twelve distinct classes. If this fails somebody '
-        . 'has added to the debt rather than paying it.' );
+    or diag( 'SM697 measured twelve distinct classes and the design sheets '
+        . 'defined all twelve, so the list is empty and the ceiling is zero. '
+        . 'If this fails somebody has added to the debt rather than paying '
+        . 'it - add the rule instead, in all three sheets.' );
 
 done_testing();

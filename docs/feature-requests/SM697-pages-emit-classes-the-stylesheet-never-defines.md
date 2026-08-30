@@ -4,8 +4,8 @@ title: Manager pages emit classes the stylesheet never defines
 raised: 2026-08-29
 raised-by: release manager
 area: manager-ui
-status: partial
-status-note: "PARTIAL. Reported as formatting problems on Plugin Config; measuring it found the same defect on seven more pages. TWENTY mg- classes are emitted with no rule in manager.css - six are legitimate querySelector handles, FOURTEEN are purely visual and therefore real formatting bugs. Plugin Config's eight are FIXED in 0.11.8; the remaining twelve are enumerated in t/lint/95 as known debt so a NEW one fails immediately while the backlog is paid. This is SM686 a second time: an element carrying a class nothing defines renders as unstyled inline content, nothing errors, and the source looks correct - only the rendered page says otherwise."
+status: shipped
+status-note: "SHIPPED. Reported as formatting problems on Plugin Config; measuring found the same defect on seven more pages - TWENTY mg- classes emitted with no rule, six of them legitimate querySelector handles and fourteen real formatting bugs. Plugin Config's eight were fixed in 0.11.8, and the design sheets that landed in the same release defined the remaining twelve in all three variants, so the debt list is EMPTY and its ceiling is zero. THE GUARD ITSELF HAD GONE SILENT and that is the more serious half: t/lint/95 opened `manager.css` and skipped when absent, 0.11.8 renamed that file to manager-classic.css, and from that release the suite reported `1..0 # SKIP` while counting as a passing suite in every gate - a check that disables itself when its subject moves reports the same green tick either way. It now reads every shipped sheet, BAILS rather than skips when none is found, and names the variant a class is missing from. t/lint/96 carried the same skip and now bails too, and asserts the three sheets define one shared vocabulary - which is what makes reading `classic` alone legitimate."
 ---
 
 # What was reported
