@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM701 (PENDING) **the fleet rollout reports a table, not a transcript.**
+  Raised by the release manager: "install/deploy is now very noisy, reporting an
+  ever longer collection of information." A candidate appeared in as many as
+  four places, none of them complete, and every phase of every site streamed in
+  full. It now prints ONE table - domain, user, version, channel, in scope - then
+  only warnings and failures, each attributed to its site, then a summary table
+  of what happened. `--verbose` restores the transcript. **A failing site still
+  prints everything captured**, because a summary that says "failed" without
+  saying why moves the operator's work into a second run.
+
+  **The defect found while doing it matters more than the tidying.** The scope
+  loop ends each iteration with `set -e`, so errexit is on for the rest of the
+  script, and the deploy loop's `bash "$DEPLOY" ...; rc=$?` exited *before* the
+  assignment ran. The first site that failed to install aborted the whole
+  rollout: `FAILED` never filled, the remaining sites were never attempted, and
+  SM344's "ROLLOUT FAILED - a retry is meaningful" verdict could never be
+  reached. Latent because installs succeed. Now guarded with the same explicit
+  `set +e`/`set -e` pair the scope loop already uses.
+
 ## 0.11.8 - EDGE: a manager style an operator chooses, a guide that is the stylesheet's contract, and a page that can become a PDF (2026-08-30)
 
 **Cut as edge deliberately.** Promotion costs a fleet update, so this one

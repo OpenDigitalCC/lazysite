@@ -16,6 +16,15 @@
 # reconcile it, never silently deployed to.
 #
 #   --list        discover and report only; make no changes.
+#   --verbose     stream every phase's full output, as this script did before
+#                 the report was trimmed. The default is QUIET: one table of
+#                 what was discovered, then only warnings and failures, then a
+#                 summary table. A rollout across a large fleet otherwise
+#                 reports thousands of lines in which the two that matter are
+#                 indistinguishable from the rest - the operator asked for the
+#                 signal, not the transcript. A site that FAILS still prints its
+#                 whole captured output regardless of this flag, because the
+#                 detail of a failure is the one thing never worth suppressing.
 #   --templates   ALSO refresh the shared lazysite-app Hestia web template FILES
 #                 from STAGE before deploying, so a later vhost change (e.g. the
 #                 SSI options) is staged. This only updates the shared template
@@ -91,6 +100,7 @@ set -u
 shopt -s nullglob
 
 LIST=0
+VERBOSE=0
 DO_TPL=0
 DO_REBUILD=0
 DO_PROXY=0
@@ -98,6 +108,7 @@ ARGS=()
 for a in "$@"; do
     case "$a" in
         --list)       LIST=1 ;;
+        --verbose|-v) VERBOSE=1 ;;
         --templates)  DO_TPL=1 ;;
         --rebuild)    DO_REBUILD=1; DO_TPL=1 ;;
         --proxy)      DO_PROXY=1; DO_TPL=1 ;;
@@ -140,6 +151,75 @@ PROXY_TPL='lazysite-proxy'
 # operator's first rollout of 0.10.10.
 in_list() { local x="$1"; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }
 
+# --- reporting -------------------------------------------------------------
+#
+# Defined here for the SM324 reason the block above records: bash resolves a
+# function at CALL time, so one defined below its caller is `command not found`
+# and returns 127 - which, in a guard written `f ... && continue`, silently
+# means "did not match".
+#
+# THE REPORT IS QUIET BY DEFAULT. A rollout used to stream every phase of every
+# site: the discovery list, then the same domains again with their channel,
+# again in an out-of-scope block, then a banner and the full install transcript
+# per site, then repair and probe per site. On a fleet of any size the two lines
+# an operator needs are somewhere in several thousand. So: one table of what was
+# found, only warnings and failures while it runs, and a summary table at the
+# end. --verbose restores the transcript.
+
+TBL_FMT='  %-42s %-12s %-9s %-9s %s\n'
+
+table_head() { printf "$TBL_FMT" DOMAIN USER VERSION CHANNEL SCOPE; }
+table_row()  { printf "$TBL_FMT" "$1" "$2" "$3" "$4" "$5"; }
+
+SUM_FMT='  %-42s %-9s %-9s %s\n'
+sum_head() { printf "$SUM_FMT" DOMAIN FROM TO RESULT; }
+sum_row()  { printf "$SUM_FMT" "$1" "$2" "$3" "$4"; }
+
+# What counts as worth interrupting a quiet run for. Deliberately broad: a
+# missed warning is the failure mode this whole change risks introducing, and a
+# false positive costs one line.
+NOISE_RE='(WARN|WARNING|ERROR|FAIL|FAILED|CRITICAL|EXPOSED|refus|cannot|not writable|denied|Permission|missing)'
+
+# run_quiet LABEL COMMAND...
+#
+# Runs the command with its output captured. On success, prints only the lines
+# that look like a warning or a failure, each tagged with the site it came from
+# so a filtered line is still attributable. On FAILURE, prints everything it
+# captured - the detail of a failure is the one thing never worth suppressing,
+# and a summary that says "failed" without saying why just moves the operator's
+# work to a second run.
+#
+# Returns the command's own exit status, unchanged: every caller here branches
+# on it, and this function must be invisible to that logic.
+run_quiet() {
+    local label="$1"; shift
+    local out rc had_e
+    if [ "$VERBOSE" = 1 ]; then
+        "$@"
+        return $?
+    fi
+    # SAVE AND RESTORE the caller's errexit rather than forcing it on. An
+    # earlier draft ended with a bare `set -e`, which turned errexit ON even
+    # when the caller had deliberately turned it off to inspect a status - so
+    # `return $rc` with a non-zero rc killed the script at the call site, which
+    # is the exact failure this function was added to stop happening in the
+    # deploy loop. Caught by exercising it rather than reading it.
+    case $- in *e*) had_e=1 ;; *) had_e=0 ;; esac
+    set +e
+    out=$( "$@" 2>&1 )
+    rc=$?
+    [ "$had_e" = 1 ] && set -e
+    if [ "$rc" != 0 ]; then
+        printf '\n--- %s: FAILED (status %s), full output ---\n' "$label" "$rc"
+        printf '%s\n' "$out"
+        printf -- '--- end %s ---\n' "$label"
+    else
+        printf '%s\n' "$out" | grep -E "$NOISE_RE" | sed "s/^/  [$label] /" || true
+    fi
+    return "$rc"
+}
+
+
 ver_of() {   # print the "version" from an install-state.json, or "?"
     # (perl -ne exits 0 on a missing file, so test first rather than ||)
     [ -f "$1" ] || { echo '?'; return; }
@@ -154,6 +234,7 @@ ver_of() {   # print the "version" from an install-state.json, or "?"
 # lazysite. Fallback (older STAGE without the lister): the original marker glob,
 # which cannot see the template and so updates every marked tree.
 USERS=(); DOMAINS=(); VERS=(); EXCLUDED=()
+EXC_D=(); EXC_U=(); EXC_V=()
 LISTER="$STAGE/installers/hestia/lazysite-hestia-list.sh"
 if [ -f "$LISTER" ]; then
     while IFS=$'\t' read -r u d doc; do
@@ -167,7 +248,11 @@ if [ -f "$LISTER" ]; then
     for i in "${!DOMAINS[@]}"; do _IN_TPL["${USERS[$i]}/${DOMAINS[$i]}"]=1; done
     while IFS=$'\t' read -r u d doc; do
         [ -n "$d" ] || continue
-        [ "${_IN_TPL[$u/$d]:-0}" = 1 ] || EXCLUDED+=( "$d (user $u)" )
+        if [ "${_IN_TPL[$u/$d]:-0}" != 1 ]; then
+            EXCLUDED+=( "$d (user $u)" )
+            EXC_D+=( "$d" ); EXC_U+=( "$u" )
+            EXC_V+=( "$(ver_of "$doc/lazysite/.install-state.json")" )
+        fi
     done < <(bash "$LISTER" --plain)
 else
     for state in /home/*/web/*/public_html/lazysite/.install-state.json; do
@@ -181,18 +266,16 @@ n=${#DOMAINS[@]}
 NEWVER="$(ver_of "$STAGE/release-manifest.json")"
 [ "$NEWVER" = '?' ] && NEWVER="$( [ -f "$STAGE/VERSION" ] && cat "$STAGE/VERSION" || echo unknown )"
 
-echo "lazysite sites on this host: $n   (staged release: $NEWVER)"
-for i in "${!DOMAINS[@]}"; do
-    printf '  %-44s user=%-12s %s\n' "${DOMAINS[$i]}" "${USERS[$i]}" "${VERS[$i]}"
-done
-if [ "${#EXCLUDED[@]}" -gt 0 ]; then
-    echo
-    printf 'EXCLUDED %d domain(s): install marker present but NOT on the lazysite-app template - not updated:\n' "${#EXCLUDED[@]}"
-    printf '  %s\n' "${EXCLUDED[@]}"
-    echo '  (run lazysite-hestia-list.sh to review; re-set the template or remove the stale marker to reconcile.)'
+# The table is rendered ONCE, below, after the channel check has run - so a
+# candidate appears on exactly one line carrying everything known about it,
+# rather than in a discovery list, again with its channel, and again in an
+# out-of-scope block. --list still exits before anything is changed; it now
+# reaches the table first, because --channel-check reads lazysite.conf and the
+# manifest and writes nothing, which is what makes it safe to run for a report.
+if [ "$n" = 0 ] && [ "${#EXCLUDED[@]}" = 0 ]; then
+    echo "No lazysite site found on this host."
+    exit 0
 fi
-[ "$LIST" = 1 ] && exit 0
-[ "$n" -gt 0 ] || { echo "Nothing to update."; exit 0; }
 
 # --- SCOPE: which sites is this release actually FOR? (SM345) -------------
 #
@@ -214,6 +297,7 @@ fi
 # would be one fact in two places, which is the defect this project keeps
 # closing.
 IN_USERS=(); IN_DOMAINS=(); OUT_OF_SCOPE=()
+CHANS=(); SCOPES=()
 for i in "${!DOMAINS[@]}"; do
     _d="${DOMAINS[$i]}"; _u="${USERS[$i]}"
     _dr="/home/$_u/web/$_d/public_html"
@@ -240,18 +324,36 @@ for i in "${!DOMAINS[@]}"; do
     # makes the normal case legible too.
     _ch=$(sed -n 's/^[[:space:]]*update_channel[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' \
             "$_dr/lazysite/lazysite.conf" 2>/dev/null | head -1)
-    printf '    %-44s channel=%-8s %s\n' \
-        "$_d" "${_ch:-(unset)}" "$( [ "$_cc" = 3 ] && echo 'OUT OF SCOPE' || echo 'in scope' )"
+    CHANS+=( "${_ch:-(unset)}" )
+    SCOPES+=( "$( [ "$_cc" = 3 ] && echo 'out of scope' || echo 'in scope' )" )
 done
 
-if [ "${#OUT_OF_SCOPE[@]}" -gt 0 ]; then
-    echo
-    printf '==> OUT OF SCOPE for this release: %d site(s). NOT touched in any way.\n' "${#OUT_OF_SCOPE[@]}"
-    printf '    %s\n' "${OUT_OF_SCOPE[@]}"
-    echo "    Their update_channel does not accept this build. No template change,"
-    echo "    no vhost rebuild, no repair, no probe - they are left exactly as they"
-    echo "    are until a release they accept comes along."
-fi
+# --- ONE TABLE: every candidate, what it runs, what it is set to, and whether
+# this release is for it. Everything an operator needs to answer "what is about
+# to happen, and to what" without reading further.
+echo
+printf '==> lazysite fleet update to %s\n' "$NEWVER"
+echo
+table_head
+for i in "${!DOMAINS[@]}"; do
+    table_row "${DOMAINS[$i]}" "${USERS[$i]}" "${VERS[$i]}" \
+              "${CHANS[$i]:-?}" "${SCOPES[$i]:-?}"
+done
+for i in "${!EXC_D[@]}"; do
+    # Marker present, template moved away. Never silently deployed to: the
+    # operator reconciles template against marker, and until they do this
+    # domain is reported and left alone.
+    table_row "${EXC_D[$i]}" "${EXC_U[$i]}" "${EXC_V[$i]}" '-' \
+              'excluded (not on lazysite-app)'
+done
+echo
+printf '  %d candidate(s): %d in scope, %d out of scope, %d excluded\n' \
+    "$(( n + ${#EXC_D[@]} ))" "${#IN_DOMAINS[@]}" "${#OUT_OF_SCOPE[@]}" "${#EXC_D[@]}"
+[ "${#OUT_OF_SCOPE[@]}" -gt 0 ] && \
+    echo '  Out of scope: update_channel does not accept this build - no template change, no rebuild, no repair, no probe.'
+[ "${#EXC_D[@]}" -gt 0 ] && \
+    echo '  Excluded: re-set the template or remove the stale marker to reconcile (lazysite-hestia-list.sh).'
+[ "$LIST" = 1 ] && exit 0
 
 # From here on, these are THE sites.
 DOMAINS=( "${IN_DOMAINS[@]}" )
@@ -350,19 +452,29 @@ fi
 # --- deploy each -------------------------------------------------------------
 # Per-site exit: 0 = updated, 4 = skipped by the site's update channel (stable
 # site, edge release), anything else = failed.
-ok=0; SKIPPED=(); FAILED=()
+ok=0; SKIPPED=(); FAILED=(); RESULTS=()
 for i in "${!DOMAINS[@]}"; do
     d="${DOMAINS[$i]}"; u="${USERS[$i]}"
-    echo; echo "################ $d (user $u) ################"
-    bash "$DEPLOY" "$u" "$d" "$STAGE"; rc=$?
-    if   [ "$rc" = 0 ]; then ok=$(( ok + 1 ))
-    elif [ "$rc" = 4 ]; then SKIPPED+=( "$d" )
-    else                     FAILED+=( "$d" )
+    # ERREXIT IS ON HERE, and was before this line existed. The scope loop above
+    # ends each iteration with `set -e`, so from its first pass onwards a
+    # non-zero simple command exits the script - and `cmd; rc=$?` does NOT
+    # protect against that, because the exit happens before the assignment
+    # runs. The deploy loop therefore could not do what it says: the first site
+    # that failed to install ABORTED THE ROLLOUT, so FAILED never filled, and
+    # the "ROLLOUT FAILED - a retry is meaningful" verdict at the end could
+    # never print. It stayed invisible because installs succeed; the failure
+    # path was the one nobody exercised.
+    #
+    # Guarded explicitly, the way the scope loop already guards its own call.
+    set +e
+    run_quiet "$d" bash "$DEPLOY" "$u" "$d" "$STAGE"
+    rc=$?
+    set -e
+    if   [ "$rc" = 0 ]; then ok=$(( ok + 1 )); RESULTS+=( "updated" )
+    elif [ "$rc" = 4 ]; then SKIPPED+=( "$d" ); RESULTS+=( "skipped (channel)" )
+    else                     FAILED+=( "$d" ); RESULTS+=( "FAILED (status $rc)" )
     fi
 done
-
-echo
-echo "Updated $ok/$n site(s) to $NEWVER.  Skipped ${#SKIPPED[@]} (stable channel).  Failed ${#FAILED[@]}."
 
 # --- re-apply access rules so protected content leaves the docroot -----------
 #
@@ -403,11 +515,7 @@ if [ "${DO_REAPPLY:-0}" = 1 ]; then
             printf 'REAPPLY FAILED: %s\n' "${REAPPLY_FAILED[*]}"
     fi
 else
-    echo
-    echo "==> access rules: NOT re-applied (no --reapply-acls)."
-    echo "    Any section protected before 0.10.9 still has its FILES in the"
-    echo "    document root. Verify from outside with:"
-    echo "        lazysite check --check-acl https://<domain>/"
+    echo "==> access rules: not re-applied (no --reapply-acls); content protected before 0.10.9 keeps its files in the docroot."
 fi
 [ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
@@ -434,12 +542,11 @@ if [ -f "$LZS" ]; then
     #
     # A site is either in scope for this release or it is left alone. There is no
     # third category where we touch it a little.
-    echo
-    echo "==> health: repairing what can be repaired (in-scope sites only)"
+    echo "==> health: repair, then probe (in-scope sites only)"
     _rep_clean=0; _rep_fixed=0; _rep_human=0
     for i in "${!DOMAINS[@]}"; do
         set +e
-        perl "$LZS" repair --domain "${DOMAINS[$i]}"
+        run_quiet "repair ${DOMAINS[$i]}" perl "$LZS" repair --domain "${DOMAINS[$i]}"
         _rc=$?
         set -e
         case "$_rc" in
@@ -447,16 +554,12 @@ if [ -f "$LZS" ]; then
             *) _rep_human=$(( _rep_human + 1 )); REPAIR_RC=1 ;;
         esac
     done
-    printf '  %d clean, %d need a human (of %d in scope)\n' \
-        "$_rep_clean" "$_rep_human" "$n"
 
     if [ "${DO_ACL_PROBE:-1}" = 1 ]; then
-        echo
-        echo "==> outside-in ACL probe (in-scope sites only)"
         _probe_ok=0; _probe_bad=0
         for i in "${!DOMAINS[@]}"; do
             set +e
-            perl "$LZS" probe --domain "${DOMAINS[$i]}"
+            run_quiet "probe ${DOMAINS[$i]}" perl "$LZS" probe --domain "${DOMAINS[$i]}"
             _rc=$?
             set -e
             case "$_rc" in
@@ -464,8 +567,6 @@ if [ -f "$LZS" ]; then
                 *) _probe_bad=$(( _probe_bad + 1 )); ACL_PROBE_RC=1 ;;
             esac
         done
-        printf '  %d clean, %d exposed (of %d in scope)\n' \
-            "$_probe_ok" "$_probe_bad" "$n"
     fi
 fi
 
@@ -477,12 +578,32 @@ if [ "$DO_PROXY" = 1 ]; then
         echo "  These still serve gated static files directly (SM283)."
     fi
 else
-    echo "==> front end: NOT checked or changed (no --proxy)."
-    echo "  On Hestia the ACL rules live in the Apache template, and nginx"
-    echo "  answers static requests before Apache sees them. Until a domain is"
-    echo "  on the $PROXY_TPL proxy template, a protected section's images,"
-    echo "  PDFs and archives are public. Review: lazysite-hestia-list.sh"
+    echo "==> front end: not checked or changed (no --proxy); a domain not on $PROXY_TPL serves protected statics publicly (SM283)."
 fi
+
+# --- SUMMARY: the same candidates, with what actually happened to each -------
+echo
+printf '==> SUMMARY: %s\n' "$NEWVER"
+echo
+sum_head
+for i in "${!DOMAINS[@]}"; do
+    sum_row "${DOMAINS[$i]}" "${VERS[$i]:-?}" "$NEWVER" "${RESULTS[$i]:-?}"
+done
+for i in "${!OUT_OF_SCOPE[@]}"; do
+    sum_row "${OUT_OF_SCOPE[$i]}" '-' '-' 'not in scope (untouched)'
+done
+for i in "${!EXC_D[@]}"; do
+    sum_row "${EXC_D[$i]}" "${EXC_V[$i]}" '-' 'excluded (untouched)'
+done
+echo
+printf '  %d updated, %d failed, %d skipped, %d out of scope, %d excluded\n' \
+    "$ok" "${#FAILED[@]}" "${#SKIPPED[@]}" "${#OUT_OF_SCOPE[@]}" "${#EXC_D[@]}"
+[ -n "${_rep_clean:-}" ] && \
+    printf '  repair: %d clean, %d need a human\n' "${_rep_clean:-0}" "${_rep_human:-0}"
+[ -n "${_probe_ok:-}" ] && \
+    printf '  probe:  %d clean, %d exposed\n' "${_probe_ok:-0}" "${_probe_bad:-0}"
+[ "$VERBOSE" = 0 ] && \
+    echo '  (quiet report; re-run with --verbose for every phase in full)'
 
 # SM344: TWO different facts, and they had one bit between them.
 #
