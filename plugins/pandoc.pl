@@ -233,8 +233,11 @@ sub convert {
         # resolved under here or not at all.
         $ENV{MD_TO_PDF_BRANDS} = $brands_base if -d $brands_base;
 
-        open STDOUT, '>',  "$work/.out";
-        open STDERR, '>&', \*STDOUT;
+        # Checked, because a child that cannot redirect would otherwise write
+        # the converter's chatter onto the CGI's own STDOUT - into the HTTP
+        # response, mid-header. Exit instead; the parent reports the failure.
+        open STDOUT, '>',  "$work/.out" or exit 127;
+        open STDERR, '>&', \*STDOUT     or exit 127;
         exec { $cmd[0] } @cmd;
         exit 127;
     }
