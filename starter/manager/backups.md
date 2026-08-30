@@ -174,7 +174,7 @@ function offerUndo(snapshot, host) {
     + 'Not what you meant? <button class="mg-btn mg-btn-sm" '
     + 'onclick="undoApply(\'' + escHtml(snapshot) + '\', this)">Undo &mdash; restore '
     + '<code>' + escHtml(snapshot) + '</code></button> '
-    + '<button class="mg-btn mg-btn-sm" onclick="this.parentNode.remove()">Dismiss</button>';
+    + '<button class="mg-btn mg-btn-sm" onclick="this.parentNode.remove()">Close</button>';
 }
 
 function undoApply(snapshot, btn) {

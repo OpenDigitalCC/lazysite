@@ -241,7 +241,7 @@ function pendingBannerHtml(g) {
     return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0;">' +
       '<span style="flex:1;">' + escHtml(capLabel(cap)) + ' <code style="color:var(--mg-text-muted);">' + ce + '</code></span>' +
       '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',true)">Grant</button>' +
-      '<button class="mg-btn mg-btn-sm" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',false)">Dismiss</button>' +
+      '<button class="mg-btn mg-btn-sm" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',false)">Deny</button>' +
       '</div>';
   }).join('');
   return '<div class="mg-cap-dormant" style="margin:0.25rem 0 0.5rem;padding:8px 10px;">' +

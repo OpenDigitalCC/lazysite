@@ -222,6 +222,25 @@ the words to use; anything else needs a reason.</p>
     is for taking something out of a list it can be put back into;
     <em>Clear</em> is for emptying a field. Only <em>Delete</em> destroys.</span>
   </div>
+  <div><span class="mg-sg-tag">decide</span>
+    <button class="mg-btn mg-btn-primary">Grant</button>
+    <button class="mg-btn">Deny</button>
+    <span class="mg-muted">A button that WRITES an authority is a decision, and
+    must read as one. <em>Dismiss</em> was doing this job on the Groups page:
+    it denied a pending capability while reading like closing a notice, so an
+    operator could decide without knowing they had. Pair the affirmative with
+    its actual opposite, never with a word for going away.</span>
+  </div>
+  <div><span class="mg-sg-tag">install</span>
+    <button class="mg-btn">Install</button>
+    <button class="mg-btn mg-btn-change">Update</button>
+    <span class="mg-muted"><em>Update</em> is banned as a synonym for
+    <em>Save</em> and is the right word HERE: bringing an installed package to
+    the catalogue's version is a different act from installing a new one, and
+    the pair tells the operator which they are about to do. Found by auditing
+    the labels against this list - the vocabulary was incomplete, not the
+    button wrong.</span>
+  </div>
   <div><span class="mg-sg-tag">object</span>
     <button class="mg-btn">Add a row</button>
     <span class="mg-muted">Name the object when the page holds more than one kind

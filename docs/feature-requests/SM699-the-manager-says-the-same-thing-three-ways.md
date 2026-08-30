@@ -4,8 +4,8 @@ title: The manager uses 107 button labels, several saying the same thing
 raised: 2026-08-30
 raised-by: release manager
 area: manager-ui
-status: partial
-status-note: "PARTIAL - the vocabulary is DOCUMENTED in the manager style guide; the 107 existing labels are NOT yet reconciled to it. Audited across every manager page: Save (13) / Update (2) / Apply (2) all mean commit; Cancel (8) / Close (8) / Dismiss (2) all mean stop; Delete (9) / Remove (1) / Clear (2) all mean destroy-or-not. An operator who learns one page has to relearn the next. Raised by the release manager while reviewing the system-wide style change, on the grounds that labels are part of the same contract as classes."
+status: shipped
+status-note: "SHIPPED. The vocabulary is in the manager style guide and the labels are reconciled to it. AUDITING THE 107 FOUND THAT MOST WERE ALREADY RIGHT, and that the interesting cases needed judgement rather than a rename: `Apply` on the data import genuinely puts a prepared thing into effect, `Remove` on a descriptor row is exactly a list it can be put back into, and both `Clear`s empty a field. TWO WERE WRONG. On Backups, `Dismiss` closed a notice - now `Close`. On Groups, `Dismiss` was the negative half of a capability decision: capDecide(...,false) WRITES value:off, so a button reading like closing a notice was denying an authority, and an operator could decide without knowing they had. Now `Deny`, paired with `Grant`. ONE FOUND THE GUIDE INCOMPLETE RATHER THAN THE BUTTON WRONG: appearance.md uses `Update` for bringing an INSTALLED layout to the catalogue version, paired with `Install` for a new one - a distinct act the vocabulary had banned without naming its legitimate use. The guide now carries `decide` and `install` alongside commit/abandon/destroy/object. t/lint/97 keeps the reconciliation from coming undone: it polices the words banned OUTRIGHT (a word earns that list only once every occurrence is reconciled, or the test just documents a backlog nobody runs) and checks the guide publishes the reason, because a ban with no published reason reads as arbitrary and the next author reinstates it."
 ---
 
 # What was measured
