@@ -87,4 +87,58 @@ subtest 'the dev server carries every sheet, not just one' => sub {
             . 'because the code is right in both.' );
 };
 
+subtest 'the setting is settable, readable and validated' => sub {
+    my $api = do {
+        open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $api, qr/asset_max_age manager_style/,
+        'config-read surfaces it, so the page can show the current value' );
+    like( $api, qr/asset_max_age\n\s+manager_style/,
+        'and config-set accepts it, so the page can persist it' );
+    like( $api, qr/Unknown manager style/,
+        'an unknown name is refused at the boundary, naming what is available' )
+        or diag( 'The renderer already falls back to classic, so an unknown '
+            . 'stored value is inert - but the Config page would then show a '
+            . 'style the manager is not wearing, and an operator comparing the '
+            . 'two would be right to think something was broken.' );
+};
+
+subtest 'the preview shows the candidate ALONE' => sub {
+    my $g = do {
+        open my $fh, '<', "$root/starter/manager/style-guide.md" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $g, qr/\[\?&\]style=\(\[a-z\]\+\)/, 'the guide honours ?style=' );
+    like( $g, qr/\['classic', 'accessible', 'modern'\]\.indexOf\(want\) < 0/,
+        'from the same closed set the server enforces' );
+    like( $g, qr/links\[i\]\.parentNode\.removeChild\(links\[i\]\)/,
+        'the ACTIVE sheet is removed before the candidate is added' )
+        or diag( 'Adding the candidate alongside the active sheet lets a '
+            . 'component the candidate does not style inherit the active '
+            . "rule and look finished. That is the defect this guide exists "
+            . 'to expose, so a preview that hides it is worse than none - it '
+            . 'is believed.' );
+    like( $g, qr/Preview: the/,
+        'and the page says it is a preview, so it is not mistaken for the '
+            . 'manager having changed' );
+};
+
+subtest 'the settings page previews in an iframe' => sub {
+    my $c = do {
+        open my $fh, '<', "$root/starter/manager/config.md" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $c, qr{<iframe src="/manager/style-guide\?style='},
+        'the preview is an iframe pointing at the guide' )
+        or diag( 'Injecting the candidate sheet into this page would restyle '
+            . 'the manager the operator is standing in - including the modal '
+            . 'doing the previewing and the Save button they have not pressed.' );
+    like( $c, qr/this\.form\.elements\[/,
+        'it previews the value currently SELECTED, not the value saved' );
+};
+
 done_testing();

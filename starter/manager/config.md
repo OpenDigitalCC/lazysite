@@ -75,6 +75,16 @@ var SITE_SCHEMA = [
     on: 'enabled', off: 'disabled', default: 'disabled',
     group: 'Services: agent and CLI access (Claude Code, Desktop, scripts)',
     note: 'How an agent turns the one-time PAIRING KEY from "Generate agent brief" into a working token, and how it rotates one later. Off by default; when off the key cannot be redeemed, so a brief you issue cannot be used. Enable while provisioning agents; it can go off again afterwards, though rotation stops with it.' },
+  // SM698: which stylesheet the manager itself wears. A NAME from a closed set,
+  // resolved by the processor - the value reaches a <link href> on every manager
+  // page, so a free-form string here would be a stylesheet-injection surface.
+  // An unknown name falls back to `classic`, the sheet every instance had before
+  // this setting existed.
+  { key: 'manager_style', label: 'Manager style', type: 'select',
+    options: ['classic', 'accessible', 'modern'], default: 'classic',
+    group: 'Appearance of the manager',
+    preview: true,
+    note: 'How the manager itself looks. This changes nothing about the site you publish - only the admin pages you are reading now. Preview a style before committing to it: the preview shows every component in that style, so a style that leaves something unstyled is visible before you choose it.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
     options: ['all', 'beta', 'stable'], default: 'all', group: 'Updates',
     note: 'The minimum release maturity this site accepts, on the edge < beta < stable < certified ladder. "all" installs every release (early testing); "beta" takes beta and above (tested, bedding in); "stable" takes stable and certified builds - supported software; "certified" takes only builds whose compliance records were walked before the cut. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },
@@ -299,6 +309,36 @@ function applyPreset(name) {
     ' turned on - press Save to apply.');
 }
 
+// SM698: show a manager style before committing to it.
+//
+// AN IFRAME, NOT AN INJECTED STYLESHEET. Loading a candidate sheet into this
+// page would restyle the manager the operator is standing in - including the
+// modal doing the previewing, and the Save button they have not pressed yet.
+// The iframe keeps the candidate inside the preview, where it belongs.
+//
+// The guide is the preview because it already shows every component in every
+// state. A swatch row or a screenshot would let a style look finished while
+// leaving something unstyled, which is the defect the guide exists to expose.
+function previewStyle(name) {
+  if (!name) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'mg-modal';
+  wrap.innerHTML =
+      '<div class="mg-modal-overlay"></div>'
+    + '<div class="mg-modal-in" style="width:min(64rem,94vw);height:82vh;display:flex;flex-direction:column;">'
+    +   '<div class="mg-modal-msg"><strong>' + escHtml(name) + '</strong> &mdash; every manager component in this style. '
+    +     'Nothing is saved by looking.</div>'
+    +   '<iframe src="/manager/style-guide?style=' + encodeURIComponent(name) + '" '
+    +     'title="Manager style preview" '
+    +     'style="flex:1;width:100%;border:1px solid var(--mg-border);border-radius:4px;background:#fff"></iframe>'
+    +   '<div class="mg-modal-actions"><button type="button" class="mg-btn">Close</button></div>'
+    + '</div>';
+  function shut() { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }
+  wrap.querySelector('.mg-modal-overlay').onclick = shut;
+  wrap.querySelector('.mg-modal-actions .mg-btn').onclick = shut;
+  document.body.appendChild(wrap);
+}
+
 function renderSiteForm(values) {
   var html = '<form id="site-form" onsubmit="saveSiteSettings(event)" oninput="markSiteDirty()" onchange="markSiteDirty()">';
   // Emit a group heading only when the group CHANGES, so consecutive fields in
@@ -336,6 +376,15 @@ function renderSiteForm(values) {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
       (f.options||[]).forEach(function(o) { html += '<option'+(v===o?' selected':'')+'>'+o+'</option>'; });
       html += '</select>';
+      // SM698: a field may offer to SHOW what an option looks like before it is
+      // chosen. The preview reads the select's CURRENT value, not the saved
+      // one, so an operator picks an option and previews that - which is the
+      // order somebody actually does it in.
+      if (f.preview) {
+        html += ' <button type="button" class="mg-btn mg-btn-sm" '
+             +  'onclick="previewStyle(this.form.elements[\''+f.key+'\'].value)">'
+             +  'Preview&hellip;</button>';
+      }
     } else if (f.type === 'dropdown_layouts') {
       // SM044: populated from the layouts-available response cached
       // in availableLayouts. On change, refresh the theme dropdown

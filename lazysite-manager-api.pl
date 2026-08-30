@@ -3313,7 +3313,7 @@ sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme layouts_repo nav_file webdav_enabled
         manager manager_path search_default update_channel canonical_ip
-        asset_max_age
+        asset_max_age manager_style
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -3430,12 +3430,29 @@ sub action_config_set {
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
         update_channel canonical_ip manager manager_path asset_max_age
+        manager_style
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
     # manager on its own Config page over a cookie session; a partner grant
     # holding manage_config may not.
     my %cookie_only_key = ( manager => 1, manager_path => 1 );
+
+    # SM698: a manager style must be one the engine ships. The renderer already
+    # falls back to `classic` for anything else, so an unknown value here is
+    # inert rather than dangerous - but storing it would leave the Config page
+    # showing a style the manager is not wearing, and an operator comparing the
+    # two would be right to think something was broken. Refuse at the boundary
+    # instead, naming what is available.
+    if ( $key eq 'manager_style' && length($value) ) {
+        my %shipped = map { $_ => 1 } qw(classic accessible modern);
+        unless ( $shipped{ lc $value } ) {
+            return { ok => 0, kind => 'invalid',
+                error => "Unknown manager style '$value'. The styles this "
+                    . 'release ships are: classic, accessible, modern.' };
+        }
+        $value = lc $value;
+    }
     if ( $token_auth && $cookie_only_key{ $key // '' } ) {
         return { ok => 0, kind => 'forbidden', field => $key,
             error => "Config key '$key' is set only from the manager UI over a "

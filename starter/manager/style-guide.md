@@ -593,6 +593,43 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
   <div class="mg-sg-item"><code class="mg-sg-name">.mg-wizard-title</code><div class="mg-wizard-title">wizard-title</div></div>
 </div>
 
+<script>
+// SM698: PREVIEW MODE. `?style=<name>` renders this guide in a candidate sheet
+// so an operator can see a style before committing to it.
+//
+// THE CANDIDATE MUST BE THE ONLY SHEET. Adding it alongside the active one
+// would let a component the candidate does not style inherit the active
+// style's rule and look finished - which is precisely the defect this guide
+// exists to expose (SM686, SM697). A preview that hides gaps is worse than no
+// preview, because it is believed. So the active sheet is REMOVED first.
+//
+// A closed set here as well: the value comes from a query string and reaches a
+// <link href>. The server refuses an unknown name; so does this.
+(function () {
+  var m = /[?&]style=([a-z]+)/.exec(window.location.search || '');
+  if (!m) return;
+  var want = m[1];
+  if (['classic', 'accessible', 'modern'].indexOf(want) < 0) return;
+
+  var links = document.querySelectorAll('link[rel="stylesheet"][href*="/manager/assets/manager-"]');
+  for (var i = 0; i < links.length; i++) links[i].parentNode.removeChild(links[i]);
+
+  var l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = '/manager/assets/manager-' + want + '.css';
+  document.head.appendChild(l);
+
+  // Say which style is on screen. Without it a preview is indistinguishable
+  // from the manager having changed under the operator.
+  document.addEventListener('DOMContentLoaded', function () {
+    var b = document.createElement('div');
+    b.className = 'mg-status';
+    b.textContent = 'Preview: the ' + want + ' style. Nothing has been changed.';
+    document.body.insertBefore(b, document.body.firstChild);
+  });
+})();
+</script>
+
 <style>
 .mg-sg-h { margin: 1.6rem 0 0.2rem; font-size: 1.05rem; }
 .mg-sg-note { margin: 0 0 0.6rem; font-size: 0.86rem; color: var(--mg-text-muted); max-width: 46rem; }
