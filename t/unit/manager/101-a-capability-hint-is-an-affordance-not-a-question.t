@@ -58,7 +58,11 @@ like( $C, qr/\.mg-cap-what\s*\{[^}]*cursor:\s*help/s,
 # is available to somebody on a keyboard.
 like( $P, qr/mg-cap-what[^>]*tabindex="0"/, 'the marker can be focused' );
 like( $P, qr/mg-cap-what[^>]*aria-label=/,  'and names itself to a screen reader' );
-like( $C, qr/\.mg-cap-what:hover,\s*\n\.mg-cap-what:focus/,
+# Matched with flexible whitespace: the property is that focus shares the
+# hover rule, not that the two selectors sit on separate lines. A test pinned
+# to formatting fails on a reflow that changes nothing (SM684's lesson, in the
+# loud direction rather than the silent one).
+like( $C, qr/\.mg-cap-what:hover,\s*\.mg-cap-what:focus/s,
     'and it shows the same state on focus as on hover' );
 
 # ---- the sentence itself still comes from one source ---------------------
