@@ -1,6 +1,6 @@
 ---
 title: "Manager review, 2026-08-30/31: every item the release manager raised, and where it got to"
-subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Fifty-nine done, six open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
+subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Sixty-one done, four open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
 brand: plain
 standard-margins: true
 ---
@@ -81,7 +81,8 @@ Refs are quotable: `MR-01` and so on.
 | MR-64 | Group roll-up text is clutter | Five bundle names beside a group name is more text than the name itself, and someone scanning a list is reading names. It is a count, with the names in the tooltip | — |
 | MR-65 | Does the PDF plugin create its brand directory on enable? | **It did not.** Status told the operator to add a brand under a path nothing had made. Enabling now runs an init hook that creates it with a README saying what a brand folder holds, and that nothing under lazysite/ is served | — |
 | MR-66 | Designer's round-2 response | Every change accepted without overrule. Red moves to hue 12 with raised chroma, copper stays at 45. Both specimens drawn and adopted into our guide; the dense form adds one class and Site settings uses it. One adaptation: their sheets carried .mg-field-note, which SM699 had merged | SM-DS2 |
-
+| MR-50 | SM662: a gate declares its capabilities | DONE and folded in. The restructure was proved by fingerprint and parked because it broke six lint suites - each of which parsed `my %need = (` and picked capability names out of a sub body with its own regex. They read the gate through one helper now. Re-proved after the rebase: the fingerprint differs from the pre-SM662 baseline by exactly the two lines of the action added since, and narrowing a gate still moves exactly one row | SM662 |
+| MR-54 | Nav edit line should be one modal with both boxes | The shared modal takes a `fields` list rather than nav growing its own dialog; `prompt` stays the single-box shorthand so no caller changed | — |
 
 # Open
 
@@ -90,9 +91,7 @@ Refs are quotable: `MR-01` and so on.
 | --- | --- | --- |
 | MR-48 | `domains.md` carries 1,019 lines of page-local CSS | The last page-local block, tracked as debt with a ceiling so nothing new joins it. Needs the designer's eye on which rules are new components and which re-invent existing ones |
 | MR-49 | Narrow widths | MOSTLY DONE. The drawer breakpoint moved 720 -> 1000px, which was the actual cause of the Sessions overflow; the drawer's focus handling is fixed; the editor switches panes below 1000px. What remains is a walkthrough of everything added this session at narrow width - it has been reasoned about, not looked at |
-| MR-50 | SM662: a gate declares its capabilities | Built and proved by fingerprint, then DROPPED from the stack: it breaks six suites that parse the literal `%need` block. Held on `claude/need-declares-caps` |
 | MR-51 | Layout install said "Layout not found" | Preview artefact, not a product fault - there are no layouts in the starter tree and a theme installs into one. Recorded so it is not re-investigated |
-| MR-54 | Nav: the edit line should be a modal holding both boxes, not one after the other | Not done |
 
 # What this review says about the gate
 
