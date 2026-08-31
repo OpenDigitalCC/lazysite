@@ -472,8 +472,19 @@ function initTrails(plugin) {
   // fetched, so filling the select costs nothing and is done either way. The
   // day's journeys are a second round trip, and that one waits until somebody
   // opens the card.
-  cardSet( 'card-trails', 'trails-card-body',
-      blockOpen( 'card-trails', 0 ), trailsLoadCurrent );
+  // JOURNEYS DOES NOT REMEMBER BEING OPEN, deliberately, and it is the only
+  // card that does not.
+  //
+  // SM424 remembers each card's state so an operator who lives on one section
+  // does not reopen it every visit. That is right for the cheap cards, which
+  // ride on the summary the page already fetched. Journeys is a SECOND round
+  // trip, and remembering it open means paying that on every page load for a
+  // choice made once - which is what the release manager saw and asked for.
+  //
+  // So it starts closed every time, and its fetch happens when somebody opens
+  // it. Closing the loop the other way - remembering the state but not
+  // fetching - would show an open card with nothing in it, which is worse.
+  cardSet( 'card-trails', 'trails-card-body', 0, trailsLoadCurrent );
 }
 
 function trailsLoadCurrent() {

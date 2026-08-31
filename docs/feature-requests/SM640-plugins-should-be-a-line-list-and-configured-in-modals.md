@@ -3,8 +3,8 @@ title: "SM640: the plugin page should list enabled plugins as lines, and every p
 subtitle: "Operator, 2026-08-27: 'plugin page should line list enabled plugins, and all should be managed in modals as standard practice. this can be done plugin at a time, as they are refactored to the new mechanism (like data tables)'"
 brand: plain
 standard-margins: true
-status: partial
-status-note: "PARTIAL (PENDING). THE MECHANISM SHIPPED: the page is a line list, and a plugin config opens in one shared modal that fetches its own values and no longer reloads the whole page on save. ADOPTION IS THE OPEN HALF and stays open by design - this is a standing pattern, adopted one plugin at a time. What has NOT moved into the modal: the forms plugin handler list and its add-handler wizard, which relocate DOM nodes and would be destroyed with the modal; child configs; and per-plugin action buttons, which stay on the row where they read as properties of the plugin rather than of its configuration."
+status: shipped
+status-note: "SHIPPED. The mechanism shipped earlier - the page is a line list and a plugin config opens in one shared modal that fetches its own values and no longer reloads the page. THE BLOCKER ON THE REST IS GONE: the handler section stayed out of the modal because showAddHandlerForm() MOVED a single wizard node into whichever group was being added to, and a modal destroyed on close takes a moved node with it. Each group owns its slot now, rendered in place, so nothing moves and t/lint/106 holds that property rather than the markup. Per-plugin ACTION buttons stay on the row by design - they read as properties of the plugin rather than of its configuration - and they are one aligned group there now rather than three baselines."
 ---
 
 # The shape

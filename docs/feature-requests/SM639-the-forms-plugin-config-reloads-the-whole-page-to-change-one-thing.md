@@ -3,8 +3,8 @@ title: "SM639: the forms plugin's configuration is rendered inline with every ot
 subtitle: "Operator, 2026-08-27: 'forms plugin, make the actual config a modal and loaded on click, so that when things change the whole plugins config doesn't need reload'"
 brand: plain
 standard-margins: true
-status: partial
-status-note: "PARTIAL (PENDING). The forms plugin config form now opens in the shared modal (SM640) and fetches on click, and saving no longer reloads the page - which was the stated cost. STILL INLINE: the handler list and the add-handler wizard. showAddHandlerForm() relocates the wizard node into a handler group, so hosting that group in a modal destroyed on close would lose the node; converting it needs the wizard to stop moving DOM and is its own piece of work."
+status: shipped
+status-note: "SHIPPED. The forms config opens in the shared modal and fetches on click, and saving no longer reloads the page. The handler list and the add-handler wizard were the remainder, and both filings named the same cause: showAddHandlerForm() relocated one wizard node between groups, so it could not live in a modal that is destroyed on close. Each group renders its own slot now - nothing is moved to open the form - which is the piece of work SM639 said it needed."
 ---
 
 # What changing one setting costs today

@@ -323,6 +323,11 @@
 /* ============================================================ Tags
    .mg-tag labels a state. Old .mg-badge*, .mg-alias-badge, .mg-dom-chip
    collapse into this family (see briefing). */
+/* A chip that follows a name needs air: on the Domains row the alias tag sat
+   hard against the host and its open-in-new-tab icon, reading as one run of
+   text rather than a name with a state beside it. */
+.mg-file-name > .mg-tag, .mg-row-name > .mg-tag, .mg-dom-open + .mg-tag { margin-left: 0.5em; }
+.mg-tag + .mg-tag { margin-left: 0.35em; }
 .mg-tag {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
@@ -480,15 +485,24 @@
    .mg-expand is the one in-place detail card, opening as the row's
    next sibling; only one open at a time. */
 .mg-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
+/* MR-53, decided by the release manager: A GRID, NOT A FLEX LINE. As a flex
+   row every listing packed independently, so nothing lined up DOWN the list
+   and a long name squeezed the actions. Two columns: everything that describes
+   the row, then everything that acts on it. */
 .mg-row {
-    display: flex; align-items: center; gap: 10px; min-height: 44px;
-    padding: 4px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center; gap: 10px; min-height: 44px;
+    padding: 6px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
 }
+.mg-row > :last-child { justify-self: end; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mg-row .mg-row-meta { display: block; margin-top: 1px; }
 .mg-list > :last-child, .mg-list > details:last-child .mg-row { border-bottom: none; }
 .mg-row:hover { background: var(--mg-surface-alt); }
 .mg-row-name { flex: 1; min-width: 0; font-weight: 500; color: var(--mg-text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.mg-row-name:hover { color: var(--mg-accent-deep); }
-.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); white-space: nowrap; }
+/* No nowrap: on its own line it may wrap, which is what lets a narrow window
+   survive rather than overflow. */
+.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
 .mg-row-actions { display: flex; gap: 6px; align-items: center; }
 .mg-chev {
     display: inline-flex; align-items: center; justify-content: center;
@@ -539,11 +553,18 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-modal .mg-modal-overlay { position: absolute; z-index: auto; }
 .mg-modal-in {
     position: fixed; z-index: 1110; top: 18vh; left: 50%; transform: translateX(-50%);
-    width: min(26rem, calc(100vw - 32px)); background: var(--mg-surface);
+    /* MR-44: as big as its content, no bigger than the window. A fixed
+       ceiling was too narrow for a field table and too wide for a sentence. */
+    width: max-content;
+    min-width: min(26rem, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    background: var(--mg-surface);
     border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); padding: 18px;
 }
 .mg-modal .mg-modal-in { position: absolute; z-index: auto; }
-.mg-modal-msg { margin-bottom: 12px; font-size: 14px; }
+/* Prose is capped separately, so a long sentence wraps rather than stretching
+   the dialog to the width of the screen. */
+.mg-modal-msg { margin-bottom: 12px; font-size: 14px; max-width: 44rem; }
 .mg-modal-input { width: 100%; margin-bottom: 14px; }
 /* A labelled field inside a modal, for an asking with more than one part. */
 .mg-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
@@ -553,7 +574,8 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; }
 .mg-sheet[hidden] { display: none; }
 .mg-sheet-panel {
-    width: min(720px, 96vw); max-height: 92vh; display: flex; flex-direction: column;
+    width: max-content; min-width: min(36rem, 92vw); max-width: 96vw;
+    max-height: 92vh; display: flex; flex-direction: column;
     background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); overflow: hidden;
 }
 .mg-sheet-head {
@@ -1026,6 +1048,9 @@ body.mg-sheet-open { overflow: hidden; }
    that is specific to sitting under a handler row. */
 .mg-handler-edit-form,
 .mg-submissions-panel { margin: 0.5rem 0 0.75rem; }
+/* The add-handler form, in the group it belongs to. One slot per group, so
+   nothing has to be moved to open it (SM639/SM640). */
+.mg-handler-wizard { margin: 0.5rem 0 0.75rem; }
 .mg-handler-submissions { font-size: 0.85em; }
 .mg-submissions-table { width: 100%; font-size: 0.85em; }
 .mg-submissions-table th,

@@ -439,7 +439,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-rollup"><span class="mg-sg-tag">.mg-rollup</span> &#8593; cap-content, ch-ui</div>
 </div>
-<h3 class="mg-sg-fam">mg-handler <span class="mg-sg-count">9</span></h3>
+<h3 class="mg-sg-fam">mg-handler <span class="mg-sg-count">10</span></h3>
 <p class="mg-sg-note">Used by <code>appearance.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-handler-group"><span class="mg-sg-tag">.mg-handler-group</span><div class="mg-handler-group-header"><span class="mg-sg-tag">.mg-handler-group-header</span></div>
@@ -450,6 +450,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-handler-name"><span class="mg-sg-tag">.mg-handler-name</span></div>
 <div class="mg-handler-edit-form"><span class="mg-sg-tag">.mg-handler-edit-form</span></div>
 <div class="mg-handler-submissions"><span class="mg-sg-tag">.mg-handler-submissions</span></div>
+<div class="mg-handler-wizard"><span class="mg-sg-tag">.mg-handler-wizard</span> the add-handler form, in the group it belongs to &mdash; one slot per group, so nothing is moved to open it</div>
 </div>
 <h3 class="mg-sg-fam">mg-sheet <span class="mg-sg-count">7</span></h3>
 <p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>

@@ -774,10 +774,17 @@ function renderHandlerList() {
       html += '<p class="mg-empty">No ' + typeLabels[type].toLowerCase() + ' handlers configured.</p>';
     }
 
+    // SM639/SM640: EACH GROUP OWNS ITS WIZARD SLOT.
+    //
+    // There used to be one wizard node after the whole list, and opening the
+    // form MOVED it into the group being added to. That relocation is what
+    // kept this section out of the shared config modal - a modal destroyed on
+    // close takes the moved node with it - and both filings recorded it as
+    // the blocker. Nothing moves now: the slot is rendered where it is used.
+    html += '<div class="mg-handler-wizard" id="add-handler-wizard-' + type + '" style="display:none"></div>';
+
     html += '</div>';
   });
-
-  html += '<div id="add-handler-wizard" style="display:none"></div>';
 
   document.getElementById('handler-list').innerHTML = html;
 
@@ -1048,12 +1055,10 @@ function setSubsBody(html, title) {
 function showAddHandlerForm(type) {
   hideAddWizard();
 
-  var wizard = document.getElementById('add-handler-wizard');
+  var wizard = document.getElementById('add-handler-wizard-' + type);
   if (!wizard) return;
 
   // Move wizard inside the relevant group
-  var group = document.getElementById('mg-handler-group-' + type);
-  if (group) group.appendChild(wizard);
 
   // Skip step 1 - go directly to step 2 for the given type
   var name = nameForType(type);
@@ -1077,8 +1082,12 @@ function typeLabelFor(type) {
 }
 
 function hideAddWizard() {
-  var wizard = document.getElementById('add-handler-wizard');
-  if (wizard) { wizard.innerHTML = ''; wizard.style.display = 'none'; }
+  // Every slot, because there is one per group now and any of them may be open.
+  var slots = document.querySelectorAll('.mg-handler-wizard');
+  for (var i = 0; i < slots.length; i++) {
+    slots[i].innerHTML = '';
+    slots[i].style.display = 'none';
+  }
   // Closing the wizard - by Cancel or after a successful save - discards it.
   clearHandlerDirty('new');
 }
