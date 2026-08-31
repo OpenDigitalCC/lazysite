@@ -1,6 +1,6 @@
 ---
 title: "Manager review, 2026-08-30/31: every item the release manager raised, and where it got to"
-subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Forty-six done, eight open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
+subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Forty-eight done, eight open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
 brand: plain
 standard-margins: true
 ---
@@ -64,6 +64,9 @@ Refs are quotable: `MR-01` and so on.
 | MR-44 | Modals should be as big as their content, scrolling only at browser width | Five panels had five fixed ceilings, and `showModal` built a sixth overlay in `cssText`. One rule now: `max-content`, floored so a sentence is not a sliver, capped at the window. Prose is capped separately so a long message wraps rather than stretching the dialog | — |
 | MR-45 | What does "not published" mean, and how do you publish? | It was a bare label an operator could neither read nor act on. Both places now say it is about anonymous visitors, and name the Published tickbox in Fields as the way to change it | — |
 | MR-52 | Remove the plugin pointer from Site settings | Removed | — |
+
+| MR-55 | The `members` group is an example for the demo, and now has a display name and description - put them in the seeded data | Seeded. It shipped with every install and no label, so it showed its bare name for ever - the state SM642 fixed for groups an operator makes, still true for the one group everybody starts with. It says it is an example, so nobody has to guess whether deleting it breaks something | — |
+| MR-56 | Still "What would migrating do?", and still not understood | The button was hard-coded onto the panel, so it asked while a table was being CREATED (nothing to compare) and again when the stored table already matched (answer: nothing). It appears only when the two have come apart, and says "Compare with the stored table". The plan's own wording drops the word: "These can be applied safely, keeping every row" / "These cannot be applied to the stored table". The listing says "fields changed, not yet applied" rather than "needs migrating" | — |
 
 
 # Open

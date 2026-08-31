@@ -98,7 +98,7 @@ search: false
   <div id="descriptor-error" class="mg-status" style="margin-top:8px;"></div>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
     <button class="mg-btn mg-btn-primary" id="descriptor-save" onclick="saveDescriptor()">Create table</button>
-    <button class="mg-btn" onclick="planMigration()">What would migrating do?</button>
+    <button class="mg-btn" id="descriptor-compare" onclick="planMigration()" style="display:none;">Compare with the stored table</button>
     <button class="mg-btn" onclick="closeDescriptor()">Cancel</button>
   </div>
 
@@ -110,7 +110,7 @@ search: false
     <div id="plan-body" style="font-size:0.9em;"></div>
     <div id="plan-error" class="mg-status"></div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-      <button class="mg-btn mg-btn-change mg-btn-primary" id="plan-migrate-btn" onclick="runMigrate()" style="display:none;">Migrate</button>
+      <button class="mg-btn mg-btn-change mg-btn-primary" id="plan-migrate-btn" onclick="runMigrate()" style="display:none;">Apply, keeping every row</button>
       <button class="mg-btn mg-btn-danger" id="plan-rebuild-btn" onclick="runRebuild()" style="display:none;">Rebuild, losing the named columns</button>
     </div>
   </div>
@@ -191,6 +191,12 @@ function loadTables() {
         return;
       }
       var tables = data.tables || [];
+      // The listing already knows each table's state; the descriptor panel
+      // needs it to decide whether there is anything to compare.
+      TABLE_STATE = {};
+      tables.forEach(function (t) {
+        TABLE_STATE[t.table || t.name || ''] = { pending: !!t.pending_schema };
+      });
       document.getElementById('table-count').textContent =
         tables.length === 1 ? '1 table' : tables.length + ' tables';
 
@@ -221,7 +227,10 @@ function loadTables() {
         if (typeof t.row_count === 'number') {
           bits.push(t.row_count + ' row' + (t.row_count === 1 ? '' : 's'));
         }
-        if (t.pending_schema) bits.push('needs migrating');
+        // Plain words. "needs migrating" named an internal step; what an
+        // operator wants to know is that the description and the stored table
+        // have come apart, and that the stored one is the older of the two.
+        if (t.pending_schema) bits.push('<span title="The fields described here have changed since the table was created. The stored table still has the old shape until you apply the change.">fields changed, not yet applied</span>');
         // SM678 remainder: say whether a rule governs this table, where the
         // operator is looking. "No rule" and "a rule nobody has opened" looked
         // identical until now, so learning which tables were governed meant
@@ -605,10 +614,21 @@ function declareTableNamed(name) {
 function setDescriptorAction() {
   var b = document.getElementById('descriptor-save');
   if (b) b.textContent = DESC.isNew ? 'Create table' : 'Save changes';
+
+  // MR-53 follow-up: "What would migrating do?" sat on the panel always, so it
+  // asked its question while a table was being CREATED - when there is no
+  // stored table to compare with - and again when the stored table already
+  // matched, when the answer is "nothing". Shown only when the two have come
+  // apart, which is the only time the question has an answer.
+  var c = document.getElementById('descriptor-compare');
+  if (!c) return;
+  var st = TABLE_STATE[DESC.table];
+  c.style.display = ( !DESC.isNew && st && st.pending ) ? '' : 'none';
 }
 
 /* --- SM502 U-4: the descriptor form ------------------------------------ */
 var DESC_TAB = 'form';
+var TABLE_STATE = {};
 var TYPES = ['text', 'integer', 'decimal', 'boolean', 'date', 'datetime', 'enum'];
 
 function descTab(which) {
@@ -1028,12 +1048,12 @@ function planMigration() {
       var html = '';
       if (d.create) html += '<p>This table has been described but not created yet. <strong>Create it</strong> to start storing rows.</p>';
       if (d.additive && d.additive.length) {
-        html += '<p>Migrate will apply, keeping every row:</p><ul>';
+        html += '<p><strong>These can be applied safely</strong>, keeping every row:</p><ul>';
         d.additive.forEach(function(w) { html += '<li>' + escHtml(w) + '</li>'; });
         html += '</ul>';
       }
       if (d.blocked && d.blocked.length) {
-        html += '<p><strong>Migrate will refuse</strong> these, because applying them in place could lose data:</p><ul>';
+        html += '<p><strong>These cannot be applied to the stored table</strong>, because doing it in place could lose data:</p><ul>';
         d.blocked.forEach(function(b) { html += '<li>' + escHtml(b.why) + '</li>'; });
         html += '</ul>';
         if (d.rebuild) {
@@ -1062,7 +1082,7 @@ function planMigration() {
         // The button names the act. Creating a table that does not exist is
         // not a migration, and calling it one is what made the operator ask
         // "when i create a table, why migrate?".
-        mb.textContent = d.create ? 'Create table' : 'Migrate';
+        mb.textContent = d.create ? 'Create table' : 'Apply, keeping every row';
       }
 
       // The explainer earns its place only when one of the two is actually on

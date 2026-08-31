@@ -3690,6 +3690,17 @@ sub _default_group_seed {
         # is stored once and cannot drift. What differs is the DOOR, which is a
         # real distinction and now a one-line one - agent-ai reaches both, mcp-ai
         # is the MCP-only variant for a partner that should hold no API access.
+        # SM705: `members` ships with every install and had no label or
+        # description, so it showed its bare name for ever - the state SM642
+        # fixed for groups an operator makes, still true for the one group
+        # everybody starts with. It is an EXAMPLE: a demonstration site needs
+        # an ordinary organisational group to point at, and it says so, so
+        # nobody has to guess whether deleting it breaks something.
+        'members' => {
+            label       => 'Site members', assignable => 1,
+            description => 'An example organisational group, shipped so a new '
+                . 'site has one to look at. It grants nothing on its own. '
+                . 'Rename it, re-use it, or delete it.' },
         'content-editors' => {
             label       => 'Website editor', assignable => 1,
             description => 'Writes and edits pages, navigation and forms, in the '
