@@ -339,9 +339,9 @@ A page chooses its brand in its own front matter:
     brand: house
     ---
 
-This folder sits under `lazysite/`, which is never served - so a template or a
-logo here is not published to the web. Manage it on the Files page like any
-other folder.
+This folder sits under the lazysite directory, which is never served - so a
+template or a logo here is not published to the web. Manage it on the Files
+page like any other folder.
 NOTE
         close $fh;
     }
