@@ -328,12 +328,19 @@
    text rather than a name with a state beside it. */
 .mg-file-name > .mg-tag, .mg-row-name > .mg-tag, .mg-dom-open + .mg-tag { margin-left: 0.5em; }
 .mg-tag + .mg-tag { margin-left: 0.35em; }
+/* A STATE, NOT A CONTROL. A plain .mg-tag carried the button's chrome exactly
+   - 1px solid border, surface fill, the same small height - so the "alias"
+   chip on a domain row read as a button and was pressed, repeatedly, by the
+   person who owns the manager. It says what the row IS; nothing happens
+   because there is nothing to happen. It now reads as a label: a pill, a soft
+   fill, no hard edge, and a cursor that does not promise a click. */
 .mg-tag {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
-    padding: 1px 7px; border: 1px solid var(--mg-border);
-    background: var(--mg-surface); color: var(--mg-text-muted);
-    white-space: nowrap; flex: none;
+    padding: 1px 8px; border: 1px solid transparent;
+    border-radius: var(--mg-radius-pill);
+    background: var(--mg-surface-alt); color: var(--mg-text-muted);
+    white-space: nowrap; flex: none; cursor: default;
 }
 .mg-tag-on      { color: var(--mg-success); background: var(--mg-success-bg); border-color: color-mix(in oklab, var(--mg-success) 40%, transparent); }
 .mg-tag-off     { color: var(--mg-danger);  background: var(--mg-danger-bg);  border-color: color-mix(in oklab, var(--mg-danger) 40%, transparent); }
@@ -504,13 +511,20 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
    survive rather than overflow. */
 .mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
 .mg-row-actions { display: flex; gap: 6px; align-items: center; }
+/* The expander is a 28px box holding a 14px glyph, and it is the ONLY way
+   into a file's settings or a table's fields - reported as hard to hit on a
+   touch screen, which it is: a finger pad is about 45px across. It is now a
+   full control's height with a glyph half again as large, and it carries a
+   visible resting border so the target reads as a target rather than as
+   punctuation in the row. */
 .mg-chev {
     display: inline-flex; align-items: center; justify-content: center;
-    width: var(--mg-ctl-sm); height: var(--mg-ctl-sm); flex: none;
-    border: 1px solid transparent; color: var(--mg-text-muted);
-    text-decoration: none; cursor: pointer; font-size: 14px; background: none;
+    width: var(--mg-ctl); height: var(--mg-ctl); flex: none;
+    border: 1px solid var(--mg-border); color: var(--mg-text-muted);
+    text-decoration: none; cursor: pointer; font-size: 20px; line-height: 1;
+    background: none;
 }
-.mg-chev:hover { border-color: var(--mg-border); color: var(--mg-text); }
+.mg-chev:hover { border-color: var(--mg-text-light); color: var(--mg-text); background: var(--mg-surface-alt); }
 .mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent-deep); border-color: var(--mg-accent); background: var(--mg-accent-bg); }
 /* THE EXPANDER IS TWO ELEMENTS WITH TWO JOBS, and collapsing them into one
    class broke both the Files and Data pages in 0.11.8. The OUTER is the thing
@@ -911,7 +925,11 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-dom-open { margin-left: 6px; text-decoration: none; color: var(--mg-text-muted); font-size: 0.9em; vertical-align: middle; }
 .mg-dom-open:hover, .mg-dom-open:focus { color: var(--mg-accent-deep); }
 .mg-dom-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.mg-tokens-pick { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+/* Wraps: this row holds a picker, Add, a spacer, Delete and Restore
+   defaults, and at 420px the last two ended past the edge of the screen
+   with nothing to scroll - found by tools/manager-layout-check.js, not
+   by reading it. */
+.mg-tokens-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .mg-stat-block { margin: 0 0 10px; }
 .mg-stat-block > summary { cursor: pointer; list-style: revert; }
 .mg-stat-block > summary:hover { text-decoration: underline; }
@@ -1131,6 +1149,24 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-table td, .audit-table td { overflow-wrap: break-word; }
 /* The long one: a user-agent has no spaces to break on for most of its length. */
 .audit-table td { overflow-wrap: anywhere; }
+
+/* The two cells that made Sessions scroll sideways, and why the sheet could
+   not fix them from here: both carried their layout as INLINE styles on the
+   cell, and an inline style beats every rule in this file. The device column
+   asked for max-width:20rem AND white-space:nowrap, so it took 320px for
+   "curl/8.14.1"; the actions cell was nowrap around two buttons whose labels
+   run to 172px. Together they put the table's floor above its container and
+   the second button off the edge - measured, per column, at 1100px.
+   Expressed here instead, where a width can answer the space it is given. */
+.mg-cell-ua {
+    max-width: 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mg-cell-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+/* A nowrap cell contributes its full text to the column's MINIMUM, capped by
+   this max-width - so 20rem of user agent was 320px of the table's floor, on
+   a screen with 354px to give. The cap answers the screen; the full string
+   stays in the cell's title, where it was already. */
+@media (max-width: 900px) { .mg-cell-ua { max-width: 9rem; } }
 .mg-table-wrap { overflow-x: auto; }
 
 /* The groups list is sectioned by what a group IS - a role you assign, a
@@ -1192,7 +1228,9 @@ body.mg-sheet-open { overflow: hidden; }
 
 .mg-btn:hover { transform: translate(-1px, -1px); box-shadow: var(--mg-shadow-sm); }
 
-.mg-tag { background: transparent; }
+/* Modern keeps the flat treatment - and with no fill AND no border the
+   chip reads as text, which is what it is. */
+.mg-tag { background: transparent; border-color: transparent; }
 
 .mg-stat-tile { background: transparent; }
 
@@ -1222,14 +1260,43 @@ body.mg-sheet-open { overflow: hidden; }
 }
 .mg-form-dense .mg-field:first-child { padding-top: 0; }
 .mg-form-dense .mg-field:last-child { border-bottom: none; padding-bottom: 0; }
-.mg-form-dense .mg-field > label { grid-column: 1; padding-top: 8px; }
-.mg-form-dense .mg-field > *:not(label) { grid-column: 2; }
+/* The field's OWN label goes in the rail. `.mg-chk` is a label too - it wraps
+   the checkbox so the box and its wording are one hit target - so a bare
+   `> label` sent BOTH to column 1 and the box stacked under its label. That is
+   the Site settings checkbox report, and the reason the fix for it never
+   worked: the rule written to answer it sets flex-direction on .mg-field,
+   which is a GRID in here, where flex properties do nothing at all. */
+.mg-form-dense .mg-field > label:not(.mg-chk) { grid-column: 1; padding-top: 8px; }
+.mg-form-dense .mg-field > *:not(label),
+.mg-form-dense .mg-field > label.mg-chk { grid-column: 2; }
 .mg-form-dense .mg-field .mg-muted { margin: 0; }
 .mg-form-dense .mg-checks { grid-column: 2; }
 @media (max-width: 720px) {
     .mg-form-dense .mg-field { grid-template-columns: 1fr; gap: 4px 0; }
-    .mg-form-dense .mg-field > label { padding-top: 0; }
-    .mg-form-dense .mg-field > *:not(label), .mg-form-dense .mg-checks { grid-column: 1; }
+    .mg-form-dense .mg-field > label:not(.mg-chk) { padding-top: 0; }
+    .mg-form-dense .mg-field > *:not(label),
+    .mg-form-dense .mg-field > label.mg-chk,
+    .mg-form-dense .mg-checks { grid-column: 1; }
+    /* Stacking label-above-control is right for a text box and wrong for a
+       checkbox at EVERY width: the box is small, the wording IS the control,
+       and a tick sitting alone under its own label reads as a second setting.
+       So a checkbox field keeps its row here - box, then wording, with the
+       help text below across both. */
+    .mg-form-dense .mg-field:has(> label.mg-chk) {
+        grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 10px;
+    }
+    /* Both pinned to ROW 1. Naming only the columns was not enough: the
+       wording comes first in the markup, so it took row 1 column 2, and grid
+       auto-placement never goes backwards - the box, asking for column 1,
+       landed on row 2 underneath it. The columns were right and the result
+       still looked exactly like the bug being fixed. */
+    .mg-form-dense .mg-field:has(> label.mg-chk) > label.mg-chk {
+        grid-column: 1; grid-row: 1;
+    }
+    .mg-form-dense .mg-field:has(> label.mg-chk) > label:not(.mg-chk) {
+        grid-column: 2; grid-row: 1;
+    }
+    .mg-form-dense .mg-field:has(> label.mg-chk) > *:not(label) { grid-column: 1 / -1; }
 }
 /* Groups — the dense sectioned list, drawn. The section head joins
    the .mg-sec vocabulary; rows are the ordinary .mg-row; the roll-up
@@ -1269,6 +1336,16 @@ body.mg-sheet-open { overflow: hidden; }
     .mg-header-tools .mg-brand { display: none; }
     /* The shortcut hint, on a device with no Ctrl key. */
     .mg-palette-btn kbd { display: none; }
+}
+@media (max-width: 1000px) {
+    /* An overlay is opaque. The docked sidebar is a column IN the page, so
+       modern paints it transparent for its flat look and the page background
+       shows through - correct. Below 1000px the same element becomes a fixed
+       drawer ON TOP of the page, and transparent then means the reader sees
+       the backups table through the menu. Reported as "menu became
+       transparent"; measured as rgba(0, 0, 0, 0) on a position: fixed
+       element. The shadow goes with it: a panel that floats needs an edge. */
+    .mg-sidebar { background: var(--mg-surface); box-shadow: var(--mg-shadow-lg); }
 }
 @media (max-width: 560px) {
     /* .mg-row is `minmax(0, 1fr) auto` - everything that describes the row,

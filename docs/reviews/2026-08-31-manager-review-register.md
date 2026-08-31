@@ -90,16 +90,63 @@ Refs are quotable: `MR-01` and so on.
 | MR-72 | Sessions & keys still scrolls; device should wrap | Those tables are `.audit-table`, not `.mg-table` - so the wrap rules I added named a class Sessions does not use. Both classes now, with `anywhere` for the user-agent column, which has no spaces to break on | — |
 | MR-73 | Fields modal still narrow | Adopting the design side's sheets reverted MR-44 and MR-53, because both were made AFTER the package was sent. Re-applied, and verified in the SERVED css rather than the source | — |
 | MR-74 | Plugin buttons now aligned | Confirmed by the release manager | — |
+| MR-48 | `domains.md` carries 1,019 lines of page-local CSS | CLOSED by the release manager: the page is fine, and nothing about it needs a designer's time. The rules stay where they are; `t/lint/108` stops the block growing | — |
 | MR-67 | PDF creation: cache so the same document is not re-rendered, and let a document be an ordered set of files | Built as filed. A document names its parts in front matter; each part is checked exactly as the document is; a part the reader may not read REFUSES the document and names it, which is the release manager's ruling and not the cheaper option. The PDF is kept in `lazysite/cache/pdf/` while it post-dates the document, its parts AND the brand folder, and a **Clear** action empties it - the filing had assumed the cache page already swept that folder, and it does not | `t/unit/plugins/41`, eleven sabotages |
 | MR-49 | Narrow widths | Now looked at, not reasoned about. Sixteen pages measured in a real browser at 320/420/560/740/900px - `documentElement.scrollWidth` against `clientWidth`. The header could not fit a phone: every item in it was `flex-shrink: 0`, so its 737px min-content width became the document's and EVERY page carried a horizontal scrollbar at 420px. The duplicate "Lazysite Manager" title and the Ctrl-K hint go at 740px; the account name and the palette at 560px. Then each page was LOOKED at, which found what fitting cannot: the group list clipped its counts mid-word ("1 capabili . 0 membe"), the roll-up line drew two arrows because the markup emitted the one the designer's sheet had taken on, and the editor's toolbar sat off-screen inside a `position: fixed` root where overflow raises no scrollbar to notice - Download moved from 555px to 304px in a 320px viewport once it scrolled. Nav rows shrink their URL rather than wrapping (a wrapped row drops its buttons under the drag handle), the Files table gained the wrapper its siblings have, and `.mg-toolbar` - used by two pages, defined by none, inline-styled twice - became one documented rule. The first attempt changed nothing silently: the rules sat 400 lines ABOVE the base rule they had to beat | `t/lint/107`, and the sweep |
+| MR-75 | Site settings: checkboxes back on their own lines | THREE mechanisms behind one report. The rule that answers it sets flex-direction on `.mg-field`, which the dense form makes a GRID - flex properties do nothing there. Fixing that exposed `.mg-chk` being itself a `<label>`, so `> label` sent both it and the field's label to column 1. Fixing THAT left them on different rows, because the wording comes first in the markup and grid auto-placement never goes backwards. Beside its label at 380/600/720/1000/1400px | measured, five widths |
+| MR-76 | Sessions still scrolls sideways | The device cell carried `max-width:20rem;white-space:nowrap` INLINE and the actions cell `white-space:nowrap` around two buttons - so every sheet rule written to fix it lost. Both are classes now (`.mg-cell-ua`, `.mg-cell-actions`); the table fits from 800px where it needed 900px | measured per column |
+| MR-77 | Modern: the drawer is transparent | `.mg-sidebar { background: transparent }` is modern's flat look, right for a docked column and wrong the moment the same element becomes a fixed overlay. Measured as `rgba(0, 0, 0, 0)` on a `position: fixed` element; opaque below 1000px now, on all three sheets | measured |
+| MR-78 | Expander ▾ too small to press | A 28px box holding a 14px glyph, and the only way into a file's settings. Full control height, 20px glyph, resting border. A finger pad is about 45px | — |
+| MR-79 | Data tables: JSON/CSV text orphaned from the buttons | It sat three cards above the export buttons, explaining a choice the reader was not making yet. An `.mg-info` beside the buttons now | — |
+| MR-80 | "Not published" still means nothing to the reader | Said twice. The first pass kept the word and explained it in a tooltip; "not published" reads as UNFINISHED. The setting is about who may READ it, so it says **public** / **private** - the word the descriptor itself uses (`public: true`) | — |
+| MR-81 | Domains: the "alias" chip does nothing | It was never a control - a state chip meaning "no content folder of its own" - but a plain `.mg-tag` carried the button's exact chrome, so it was pressed. REMOVED at the release manager's call: the Content folder column already reads "default site". Tags no longer borrow the button's border and fill | — |
 
 
 # Open
 
 | Ref | Raised | Why it is still open |
 | --- | --- | --- |
-| MR-48 | `domains.md` carries 1,019 lines of page-local CSS | The last page-local block, tracked as debt with a ceiling so nothing new joins it. Needs the designer's eye on which rules are new components and which re-invent existing ones |
 | MR-51 | Layout install said "Layout not found" | Preview artefact, not a product fault - there are no layouts in the starter tree and a theme installs into one. Recorded so it is not re-investigated |
+| Inline styles | 355 across nineteen manager pages | Held at a per-page ceiling by `t/lint/108`, ratcheting down. Not a defect on its own; it is the mechanism by which fixed defects come back, so it is tracked rather than swept |
+
+# Why the same defect kept coming back
+
+The release manager asked whether there were conflicting requirements behind
+the fix-one-expose-another loop. There were not. Three fixes changed nothing
+at all, silently, and each failed in a way that is invisible in a diff:
+
+1. **An inline style beat the sheet.** Sessions' device cell carried
+   `style="max-width:20rem;white-space:nowrap"` and its actions cell
+   `style="white-space:nowrap"`. Every rule written in the stylesheet to make
+   that column wrap lost to them. The manager carries 355 such attributes.
+
+2. **The rule addressed the wrong display model.** "A checkbox belongs beside
+   its label" set `flex-direction` on `.mg-field` - which the dense form makes
+   a **grid**, where flex properties do nothing. The rule read correctly,
+   applied cleanly, and could never have worked. When that was fixed, the
+   columns were right and the box still stacked underneath: grid
+   auto-placement does not go backwards, so the wording took row 1 and the box
+   went to row 2. Two mechanical failures behind one report.
+
+3. **Source order.** The narrow-width header rules sat 400 lines above the
+   base rule they had to beat, at equal specificity, and lost.
+
+None of the three is visible by reading the CSS, and all three look fixed in
+review. That is the whole loop.
+
+## What now catches them
+
+- `t/lint/108` holds inline styles at a per-page ceiling that only ratchets
+  down. It cannot judge a style; it stops the count growing, which is what
+  turns a fixed defect back into an open one.
+- `tools/manager-layout-check.js` asks a real browser, at several widths, and
+  reports outcomes rather than rules: a page that does not fit, a control
+  off-screen with nothing to scroll to it, a checkbox on a different row from
+  its label, a table wider than its container, text cut mid-word. It found the
+  Groups picker row running off a phone screen within a minute of existing.
+
+The tier cannot run a browser, so the second is a tool rather than a test.
+Run it before saying a layout defect is fixed.
 
 # What this review says about the gate
 

@@ -185,7 +185,7 @@ the register row records whose half was walked.
    with a default, and a date. Do **not** add `public: true`. Press
    **Refresh**.
 
-   *You should see:* your table listed as **not published** and **needs
+   *You should see:* your table listed as **private** and **needs
    migrating**. Both are the expected state of a new table.
 
 3. Click **Fields** on its row.

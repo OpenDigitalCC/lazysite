@@ -889,10 +889,13 @@ function loadDomains() {
       html += '<th></th></tr></thead><tbody>';
       rows.forEach(function (row) {
         if (row.is_primary) return;   // the default site lives in Site settings, not this list
-        // A small state chip where the data exposes one: an alias (no content
-        // folder = mirrors the default site) or membership of a language set.
+        // A small state chip where the data exposes one the row does not
+        // already carry. The "alias" chip that used to sit here is gone: it
+        // meant "no content folder of its own", and the Content folder column
+        // one place to the right already reads "default site". Two ways of
+        // saying the same thing, and the chip looked like a button - so it
+        // was pressed, and nothing happened, because there was nothing to do.
         var chip = '';
-        if (!row.content_root) chip += '<span class="mg-tag" title="mirrors your default site">alias</span>';
         if (row.lang_group && !row.lang_group_inherited) chip += '<span class="mg-tag" title="part of a language set">set: ' + esc(row.lang_group) + '</span>';
         // SM681: open the live domain in a new tab.
         //

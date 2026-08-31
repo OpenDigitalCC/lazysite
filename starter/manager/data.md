@@ -7,15 +7,13 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<div class="mg-note mg-note-info">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. A table is <strong>closed until it is published</strong>: until its descriptor says <code>public: true</code>, an anonymous visitor sees nothing, not even that it exists. What you see here is what the store holds, whoever may read it.</div>
+<div class="mg-note mg-note-info">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. Every table is <strong>private</strong> unless you make it <strong>public</strong>: a private table is readable only by signed-in accounts with data access, and an anonymous visitor is told nothing, not even that it exists. A public table can be read by anyone who visits the site. This page always shows you the whole store, whatever each table's setting.</div>
 
 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
 <button class="mg-btn" onclick="loadTables()">Refresh</button>
 <button class="mg-btn" onclick="declareTable()">Declare a table&hellip;</button>
 <span id="table-count" style="font-size:0.85em;color:var(--mg-text-muted);"></span>
 </div>
-
-<div class="mg-note mg-note-info"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</div>
 
 <div class="mg-list" id="table-list">
 <div class="mg-row"><span class="mg-file-name">Loading...</span></div>
@@ -213,13 +211,19 @@ function loadTables() {
         var name = t.table || t.name || '';
         var bits = [];
         if (t.title && t.title !== name) bits.push(escHtml(t.title));
-        // MR-45: the state, and what it MEANS. "not published" was a bare
-        // label an operator could neither interpret nor act on: it is about
-        // anonymous visitors, and it is changed by the Published tickbox in
-        // Fields. The title carries the how, so the row stays scannable.
+        // MR-45, and then again: the state, and what it MEANS. The first
+        // pass kept the word "published" and explained it in a tooltip. That
+        // was not enough - "not published" reads as UNFINISHED, a draft
+        // somebody has yet to release, and the release manager said twice
+        // that it did not tell them anything.
+        //
+        // The setting is about WHO MAY READ IT. Everyone already has a
+        // vocabulary for that, and it is the word the descriptor itself uses
+        // (`public: true`): public and private. The tooltip carries the
+        // consequence, so the row itself stays scannable.
         bits.push(t.public
-          ? '<span title="Anonymous visitors can read this table through the data endpoint. Change it with the Published tickbox in Fields.">published</span>'
-          : '<span title="Only signed-in accounts with data access can read this table; an anonymous visitor is told nothing, not even that it exists. Tick Published in Fields to open it.">not published</span>');
+          ? '<span title="Anyone visiting the site can read this table\'s rows, including visitors who are not signed in. Change it with the Public tickbox in Fields.">public</span>'
+          : '<span title="Only signed-in accounts with data access can read this table. An anonymous visitor is told nothing, not even that it exists. Tick Public in Fields to open it up.">private</span>');
         // SM679: how many rows. `row_count` is ABSENT rather than 0 when the
         // server could not count - a table awaiting migration, or one whose
         // query failed - so the test is `typeof`, not truthiness: `0` is a real
@@ -259,6 +263,17 @@ function loadTables() {
           +     '<div class="mg-perms-actions">'
           +       '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=json&amp;table=' + enc + '">JSON</a> '
           +       '<a class="mg-btn" href="' + API + '?action=data-export&amp;format=csv&amp;table=' + enc + '">CSV</a>'
+          /* The difference between the two formats used to be a paragraph at
+             the top of the page, three cards away from the buttons it was
+             about - so it explained a choice the reader was not making yet,
+             and by the time they made it the text was off screen. It travels
+             with the buttons now. */
+          +       '<span class="mg-info" tabindex="0" role="img"'
+          +         ' aria-label="Which export format to choose"'
+          +         ' title="JSON is the exact copy: types survive and it is the one that'
+          +         ' goes back in. CSV is for a spreadsheet - no types, an unset value'
+          +         ' reads as an empty one, and cells a spreadsheet would run as formulas'
+          +         ' are prefixed with an apostrophe, which changes them.">&#9432;</span>'
           +     '</div>'
           +     '<div class="mg-acl-body"></div>'
           +   '</div>'
@@ -683,7 +698,10 @@ function buildDescForm(shape) {
     + '<label>Key</label><select class="mg-inp" id="desc-key"><option value="">automatic id</option>';
   names.forEach(function(n) { h += '<option' + (!shape.auto_key && shape.key === n ? ' selected' : '') + '>' + escHtml(n) + '</option>'; });
   h += '</select>'
-    + '<label>Published</label><input type="checkbox" id="desc-public"' + (shape['public'] ? ' checked' : '') + '>'
+    + '<label>Public</label><input type="checkbox" id="desc-public"'
+    + ' title="Off: only signed-in accounts with data access can read this'
+    + ' table. On: anyone visiting the site can read its rows."'
+    + (shape['public'] ? ' checked' : '') + '>'
     + '<div class="mg-muted">Ticked, anonymous visitors can read this table\'s rows. '
     +   'Unticked, only signed-in accounts with data access can, and a visitor is not told the table exists.</div>'
     + '<label>Timestamps</label><input type="checkbox" id="desc-ts"' + (shape.timestamps ? ' checked' : '') + '>'

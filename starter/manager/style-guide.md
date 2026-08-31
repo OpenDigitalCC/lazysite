@@ -795,6 +795,14 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-rwflag-g"><span class="mg-sg-tag">.mg-rwflag-g</span></div>
 </div>
+<h3 class="mg-sg-fam">mg-cell <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Table cells with a job of their own. <code>.mg-cell-ua</code> holds one long unbroken value - a user agent, a token - and elides it, with the full text in the cell's title. <code>.mg-cell-actions</code> holds a row's buttons and wraps them, so a second button never leaves the screen.</p>
+<div class="mg-sg-demo mg-sg-family">
+<table class="mg-table"><tbody><tr>
+<td class="mg-cell-ua" title="the full value lives in the title">Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101<span class="mg-sg-tag">.mg-cell-ua</span></td>
+<td class="mg-cell-actions"><button class="mg-btn mg-btn-sm">Sign out</button><button class="mg-btn mg-btn-sm">Sign out everywhere</button><span class="mg-sg-tag">.mg-cell-actions</span></td>
+</tr></tbody></table>
+</div>
 <h3 class="mg-sg-fam">mg-toolbar <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">A row of controls above a list - Add, Refresh, a filter. It wraps, so on a narrow screen the controls stack rather than leaving the page.</p>
 <div class="mg-sg-demo mg-sg-family">

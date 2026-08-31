@@ -115,9 +115,9 @@ function renderSessions(d) {
       '<td><a href="/manager/users?user=' + encodeURIComponent(s.user) + '">' + escHtml(s.user) + '</a>' + badge + '</td>' +
       '<td>' + escHtml(when) + '</td>' +
       '<td>' + escHtml(s.ip || '') + '</td>' +
-      '<td class="mg-muted" style="max-width:20rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' +
+      '<td class="mg-muted mg-cell-ua" title="' +
         escHtml(s.ua || '') + '">' + escHtml(s.ua || '') + '</td>' +
-      '<td style="white-space:nowrap">' +
+      '<td class="mg-cell-actions">' +
       '<button class="mg-btn mg-btn-sm" onclick="revokeSession(\'' + escHtml(s.sid) + '\',\'' +
         escHtml(s.user) + '\',' + (s.current ? 'true' : 'false') + ')">Sign out</button> ' +
       '<button class="mg-btn mg-btn-sm" onclick="revokeUser(\'' + escHtml(s.user) + '\')">Sign out everywhere</button>' +
