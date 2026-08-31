@@ -290,11 +290,50 @@ function refreshGroupInert(g) {
   if (iw) iw.innerHTML = inertWarnHtml(g);
 }
 
+// WHICH BUNDLES A GROUP ROLLS UP INTO.
+//
+// Nesting is a graph, not a tree: of 24 seeded groups, 8 belong to more than
+// one bundle and site-admins belongs to SEVEN. Drawing it as a literal tree
+// would render that group seven times, and an operator editing one copy would
+// have no way to know the other six were the same thing.
+//
+// So each group is listed ONCE, in a section for what it is, and says what it
+// rolls up into. The relationship is shown where it is true rather than by
+// repeating the group under every parent.
+function groupParents(g) {
+  var out = [];
+  Object.keys(allGroups).forEach(function (p) {
+    if (p === g) return;
+    var m = allGroups[p] && allGroups[p].members;
+    if (Array.isArray(m) && m.indexOf(g) >= 0) out.push(p);
+  });
+  return out.sort();
+}
+
+function groupKind(g) {
+  var info = allGroups[g] || {};
+  if (/^cap-/.test(g)) return 'cap';
+  if (/^ch-/.test(g))  return 'ch';
+  return info.assignable === false ? 'cap' : 'role';
+}
+
+var SECTIONS = [
+  { kind: 'role', title: 'Roles',
+    note: 'Groups you put people in. Each one holds capabilities of its own, or gets them from the bundles it belongs to.',
+    open: true },
+  { kind: 'cap', title: 'Capability bundles',
+    note: 'These hold the capabilities. A role that belongs to one is granted everything it holds - which is why a role can look empty and still grant a great deal.',
+    open: false },
+  { kind: 'ch', title: 'Channel bundles',
+    note: 'These decide WHERE a capability can be used: the manager UI, WebDAV, the control API, MCP. A capability with no channel is unreachable.',
+    open: false }
+];
+
 function renderGroups() {
   var el = document.getElementById('groups-info');
   var keys = Object.keys(allGroups).sort();
   if (!keys.length) { el.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No groups defined.</div>'; return; }
-  el.innerHTML = keys.map(function(g) {
+  var oneGroup = function(g) {
     var info = allGroups[g] || {};
     var members = Array.isArray(info.members) ? info.members : [];
     var caps = info.caps || {};

@@ -264,7 +264,10 @@ function renderPluginCard(plugin) {
     html += '</div>';
   }
   if (hasConfig) {
-    html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Configure</button>';
+    // mg-btn-sm, like every other button in this row. Configure was full size
+    // beside small action buttons, so one plugin's controls came in two
+    // weights and the odd one out read as more important than the rest.
+    html += '<button class="mg-btn mg-btn-sm" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Configure</button>';
   }
   // SM664: content history's way in is a VIEW, not a config form - it declares
   // an empty config_schema, so without this its row would offer nothing at all.
