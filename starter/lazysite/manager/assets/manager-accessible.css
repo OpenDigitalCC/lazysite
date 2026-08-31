@@ -394,14 +394,26 @@
 .mg-note-warn strong:first-child, .mg-note-warn > b:first-child { color: var(--mg-warning); }
 .mg-note-danger { background: var(--mg-danger-bg); border-color: color-mix(in oklab, var(--mg-danger) 45%, transparent); }
 .mg-note-info { background: var(--mg-accent-bg); border-color: color-mix(in oklab, var(--mg-accent) 45%, transparent); }
+/* A WARNING HAS TO LOOK LIKE ONE. --mg-warning-bg and --mg-danger-bg are the
+   quiet tints used behind blocks of text; on a full-width bar they read as
+   white with a hairline, so a refusal an operator needed to notice did not
+   announce itself. Mixed against the surface instead, so the tint holds in
+   light and dark, with a solid edge in the semantic colour - the same accent
+   edge .mg-expand uses. */
 .mg-warning-bar {
     position: sticky; top: var(--mg-header-h); z-index: 90;
-    display: flex; align-items: center; gap: 10px; padding: 8px 20px;
-    background: var(--mg-warning-bg); color: var(--mg-text);
-    border-bottom: 1px solid color-mix(in oklab, var(--mg-warning) 50%, transparent);
+    display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+    background: color-mix(in oklab, var(--mg-warning) 20%, var(--mg-surface));
+    color: var(--mg-text);
+    border-left: 4px solid var(--mg-warning);
+    border-bottom: 1px solid color-mix(in oklab, var(--mg-warning) 45%, transparent);
     font-size: var(--mg-text-sm);
 }
-.mg-warning-bar.mg-warning-error { background: var(--mg-danger-bg); border-bottom-color: color-mix(in oklab, var(--mg-danger) 50%, transparent); }
+.mg-warning-bar.mg-warning-error {
+    background: color-mix(in oklab, var(--mg-danger) 20%, var(--mg-surface));
+    border-left-color: var(--mg-danger);
+    border-bottom-color: color-mix(in oklab, var(--mg-danger) 45%, transparent);
+}
 .mg-warning-bar-close { margin-left: auto; border: none; background: none; cursor: pointer; color: var(--mg-text-muted); font-size: 16px; padding: 0 4px; }
 .mg-toast {
     position: fixed; right: 20px; bottom: 20px; z-index: 1300;

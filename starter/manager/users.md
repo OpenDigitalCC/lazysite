@@ -512,17 +512,17 @@ function accountSettingsHtml(row) {
   gen += '<div class="mg-line"><span class="mg-line-lbl">Display name</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="dn-' + ue + '" value="' + escHtml(s.display_name || '') +
     '" placeholder="' + ue + ' (shown in place of the login; the login is still listed beside it)">' +
-    '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDisplayName(\'' + ue + '\')">Save</button>' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveDisplayName(\'' + ue + '\')">Save name</button>' +
     '<span class="mg-status" id="dnmsg-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
-    '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveComment(\'' + ue + '\')">Save</button>' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save note</button>' +
     '<span class="mg-status" id="notemsg-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Email</span>' +
     '<input type="email" class="mg-inp" id="email-' + ue + '" value="' + escHtml(s.email || '') +
     '" placeholder="for emailed setup / reset links">' +
-    '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save email</button>' +
     '<span class="mg-status" id="emailmsg-' + ue + '"></span></div>';
   h += sec('General', gen);
 
@@ -532,7 +532,7 @@ function accountSettingsHtml(row) {
   if (ui) {
     var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password" autocomplete="new-password">' +
-      '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="savePassword(\'' + ue + '\')">Save</button>' +
+      '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save password</button>' +
       '<span class="mg-status" id="pwmsg-' + ue + '"></span></div>';
     cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
       '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +
