@@ -80,7 +80,7 @@ search: false
      the render path uses, so a refusal here is the refusal a page would get,
      named by field and rule. Saving never migrates: the plan below says what
      a migration WOULD do, and the operator decides. -->
-<div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;max-width:min(64rem, 96vw);">
+<div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;">
   <div class="mg-card-header"><span class="mg-card-title" id="descriptor-title"></span></div>
   <div class="mg-card-body">
   <!-- SM502 U-4: THE FORM IS A SECOND DOOR ONTO THE TEXT. The YAML stays
@@ -207,7 +207,13 @@ function loadTables() {
         var name = t.table || t.name || '';
         var bits = [];
         if (t.title && t.title !== name) bits.push(escHtml(t.title));
-        bits.push(t.public ? 'published' : 'not published');
+        // MR-45: the state, and what it MEANS. "not published" was a bare
+        // label an operator could neither interpret nor act on: it is about
+        // anonymous visitors, and it is changed by the Published tickbox in
+        // Fields. The title carries the how, so the row stays scannable.
+        bits.push(t.public
+          ? '<span title="Anonymous visitors can read this table through the data endpoint. Change it with the Published tickbox in Fields.">published</span>'
+          : '<span title="Only signed-in accounts with data access can read this table; an anonymous visitor is told nothing, not even that it exists. Tick Published in Fields to open it.">not published</span>');
         // SM679: how many rows. `row_count` is ABSENT rather than 0 when the
         // server could not count - a table awaiting migration, or one whose
         // query failed - so the test is `typeof`, not truthiness: `0` is a real
@@ -407,14 +413,24 @@ function showModal(panelId, cancelFn) {
   mark.style.display = 'none';
   panel.parentNode.insertBefore(mark, panel);
   var ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  // THE SHARED SHEET, not a sixth overlay written out by hand. This built its
+  // own backdrop in cssText beside .mg-modal, .mg-sheet and .mg-palette.
+  ov.className = 'mg-sheet';
+  ov.style.display = 'flex';
+  ov.style.alignItems = 'center';
   // SM585: the CARD is the frame. .mg-card already carries the manager's
   // surface, border, radius and shadow, and .mg-card-header/.mg-card-body
   // carry the padding - so the box only sizes and scrolls. Painting a second
   // background and radius here stacked two surfaces and left the content
   // hard against the edge, which is what the operator saw.
   var box = document.createElement('div');
-  box.style.cssText = 'width:92%;max-width:48rem;max-height:90vh;overflow:auto;';
+  // MR-44: no hand-set width. .mg-sheet-panel sizes to the content and caps
+  // at the window, so a field table is as wide as it needs and scrolls only
+  // when the window itself runs out - rather than inside a box that was
+  // narrower than the table before the window was.
+  box.className = 'mg-sheet-panel';
+  box.style.maxHeight = '90vh';
+  box.style.overflow = 'auto';
   panel.style.display = 'block';
   panel.style.margin = '0';
   panel.style.maxWidth = 'none';
@@ -648,6 +664,8 @@ function buildDescForm(shape) {
   names.forEach(function(n) { h += '<option' + (!shape.auto_key && shape.key === n ? ' selected' : '') + '>' + escHtml(n) + '</option>'; });
   h += '</select>'
     + '<label>Published</label><input type="checkbox" id="desc-public"' + (shape['public'] ? ' checked' : '') + '>'
+    + '<div class="mg-muted">Ticked, anonymous visitors can read this table\'s rows. '
+    +   'Unticked, only signed-in accounts with data access can, and a visitor is not told the table exists.</div>'
     + '<label>Timestamps</label><input type="checkbox" id="desc-ts"' + (shape.timestamps ? ' checked' : '') + '>'
     + '<label>Indexes</label><input class="mg-inp" id="desc-indexes" placeholder="one per line: area, street" value="' + escHtml((shape.indexes || []).map(function(ix) { return ix.join(', '); }).join('\n')) + '">'
     + '</div>'

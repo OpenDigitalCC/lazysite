@@ -1,6 +1,6 @@
 ---
 title: "Manager review, 2026-08-30/31: every item the release manager raised, and where it got to"
-subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read."
+subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Forty-six done, eight open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
 brand: plain
 standard-margins: true
 ---
@@ -61,19 +61,23 @@ Refs are quotable: `MR-01` and so on.
 | MR-41 | data.pl header drift | It claimed its surfaces were "the next commit" three releases after they shipped | — |
 | MR-42 | Manual add of a blocked address | Same store and shape as an automatic entry | SM704 |
 | MR-43 | Remove the placeholder card from stats | "No need to say what isn't there" | — |
+| MR-44 | Modals should be as big as their content, scrolling only at browser width | Five panels had five fixed ceilings, and `showModal` built a sixth overlay in `cssText`. One rule now: `max-content`, floored so a sentence is not a sliver, capped at the window. Prose is capped separately so a long message wraps rather than stretching the dialog | — |
+| MR-45 | What does "not published" mean, and how do you publish? | It was a bare label an operator could neither read nor act on. Both places now say it is about anonymous visitors, and name the Published tickbox in Fields as the way to change it | — |
+| MR-52 | Remove the plugin pointer from Site settings | Removed | — |
+
 
 # Open
 
 | Ref | Raised | Why it is still open |
 | --- | --- | --- |
-| MR-44 | Data fields modal still scrolls horizontally; a modal should be at least as big as its content and scroll only at browser width | Not done. The panel was widened to `min(64rem, 96vw)`, which is a fixed ceiling rather than the rule asked for. Doing it properly means sizing to content with the viewport as the only limit, and applying that to every sheet - not one panel |
-| MR-45 | What does "not published" mean on a data table, and how do you publish? | Not answered in the UI. `public: true` in the descriptor is what publishes a table; the listing says "not published" without saying that, and the descriptor form has a Published checkbox whose relationship to the phrase is not stated |
 | MR-46 | Red and copper are neighbours | `--mg-danger` is hue 27, `--mg-accent2` is hue 45. The field agent read a `--mg-danger` Delete as copper. Referred to the designer rather than re-picked here, because it is their semantic set |
 | MR-47 | A dense settings card, and a dense list, have no specimen in the guide | We built both with existing components; neither is designed. In the designer brief |
 | MR-48 | `domains.md` carries 1,019 lines of page-local CSS | The last page-local block, tracked as debt with a ceiling so nothing new joins it. Needs the designer's eye on which rules are new components and which re-invent existing ones |
 | MR-49 | Narrow widths are unreviewed | The nav drawer only appears below about 1000px and has never been looked at there; nor has the device column |
 | MR-50 | SM662: a gate declares its capabilities | Built and proved by fingerprint, then DROPPED from the stack: it breaks six suites that parse the literal `%need` block. Held on `claude/need-declares-caps` |
 | MR-51 | Layout install said "Layout not found" | Preview artefact, not a product fault - there are no layouts in the starter tree and a theme installs into one. Recorded so it is not re-investigated |
+| MR-53 | The manager still has column problems: space wasted on the right while extra columns are cramped inside rows. What would render these better? | Not done, and it is the last structural question left. A proposal is below rather than a change, because it affects every listing |
+| MR-54 | Nav: the edit line should be a modal holding both boxes, not one after the other | Not done |
 
 # What this review says about the gate
 
@@ -91,3 +95,35 @@ Four of the defects above shipped through a full release gate:
 Five new lints came out of this review (`99`-`104`). The pattern in all of them
 is the same: the tier could say what the code SAYS, and could not say what the
 browser DOES.
+
+# MR-53: what would render these better
+
+The shape of the problem, measured rather than felt: a listing row is a flex
+line with a name, some metadata and a group of buttons. It has no columns, so
+everything after the name is pushed right and packed against the edge, while a
+page laid out for reading leaves the right-hand third empty.
+
+Three ways out, using what already exists:
+
+**1. A grid row rather than a flex row.** `.mg-row` becomes
+`grid-template-columns: minmax(0,1fr) auto auto` - name, metadata, actions -
+so the columns line up DOWN the list rather than each row packing
+independently. This is what the Plugin row already does
+(`4.5rem 1fr auto`), and it is why that page reads more evenly than Files.
+Cheapest change, biggest gain, and the guide already has a specimen.
+
+**2. The metadata moves under the name, not beside it.** Two lines per row -
+name on the first, `9 rows · no access rule` in `.mg-muted` on the second -
+which is how the Files listing already treats a filename with its size and
+date. It buys horizontal room without a wider window and reads better at
+narrow widths, where these rows currently overflow.
+
+**3. The page stops being a column of text.** `.mg-main` is capped for reading
+prose, which is right for Site settings and wrong for a listing: a table of
+tables wants the width. A listing page could opt out of the reading cap.
+
+**Recommendation: 1 and 2 together, 3 only for pages that are wholly a
+listing.** They compose - a grid row whose first column holds a two-line
+name-and-metadata block - and neither invents a component. **This is a design
+question as much as a layout one**, and the dense-list specimen it needs is
+already on the designer's list (MR-47).

@@ -539,17 +539,26 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-modal .mg-modal-overlay { position: absolute; z-index: auto; }
 .mg-modal-in {
     position: fixed; z-index: 1110; top: 18vh; left: 50%; transform: translateX(-50%);
-    width: min(26rem, calc(100vw - 32px)); background: var(--mg-surface);
+    /* MR-44: as big as its content, and no bigger than the window. A fixed
+       ceiling made a panel too narrow for a field table and too wide for a
+       sentence; max-content sizes to what is in it, min-width stops a short
+       message becoming a sliver, and prose is capped separately below so a
+       long sentence wraps instead of stretching the dialog to the screen. */
+    width: max-content;
+    min-width: min(26rem, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    background: var(--mg-surface);
     border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); padding: 18px;
 }
 .mg-modal .mg-modal-in { position: absolute; z-index: auto; }
-.mg-modal-msg { margin-bottom: 12px; font-size: 14px; }
+.mg-modal-msg { margin-bottom: 12px; font-size: 14px; max-width: 44rem; }
 .mg-modal-input { width: 100%; margin-bottom: 14px; }
 .mg-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .mg-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; }
 .mg-sheet[hidden] { display: none; }
 .mg-sheet-panel {
-    width: min(720px, 96vw); max-height: 92vh; display: flex; flex-direction: column;
+    width: max-content; min-width: min(36rem, 92vw); max-width: 96vw;
+    max-height: 92vh; display: flex; flex-direction: column;
     background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); overflow: hidden;
 }
 .mg-sheet-head {
