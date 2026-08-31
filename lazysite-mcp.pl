@@ -475,6 +475,21 @@ my %TOOLS = (
                 },
                 active_layout => $layout, active_theme => $theme,
                 tools         => _tool_names($caps),
+                # SM653/SM525: the same list, split by where it can be CALLED.
+                # `tools` stays the whole set so no existing reader changes.
+                tools_by_reach => do {
+                    my ( $anywhere, $path_only ) = _tool_classes($caps);
+                    { anywhere => $anywhere,
+                        path_only => $path_only,
+                        note      => @{$path_only}
+                        ? 'The path_only tools are callable on theme and layout '
+                            . 'paths only, through the path-aware override. On any '
+                            . 'other path they are refused - hold the capability '
+                            . 'each names to call it anywhere.'
+                        : 'Every tool offered is callable on any path this grant '
+                            . 'reaches.',
+                    };
+                },
                 # How this session authenticated + when the credential expires
                 # (OAuth tokens expire ~hourly and refresh transparently; a
                 # static/operator credential may be permanent = null).
@@ -3325,12 +3340,12 @@ my %ANNOTATE = (
     plan_data_migration    => [ 1, 0, 0 ],
     read_data_rows         => [ 1, 0, 0 ],
     save_data_table => [ 0, 0, 1 ], # a descriptor's public flag decides what the site serves
-    migrate_data_table    => [ 0, 0, 1 ],  # applies the safe changes to the live table
-    rebuild_data_table    => [ 0, 1, 1 ],  # drops columns, by named confirmation
-    drop_data_table       => [ 0, 1, 1 ],
-    save_data_row         => [ 0, 0, 1 ],
-    delete_data_row       => [ 0, 1, 1 ],
-    list_domains          => [ 1, 0, 0 ],
+    migrate_data_table => [ 0, 0, 1 ],    # applies the safe changes to the live table
+    rebuild_data_table => [ 0, 1, 1 ],    # drops columns, by named confirmation
+    drop_data_table    => [ 0, 1, 1 ],
+    save_data_row      => [ 0, 0, 1 ],
+    delete_data_row    => [ 0, 1, 1 ],
+    list_domains       => [ 1, 0, 0 ],
     # SM647: the fourth slot. domain_set writes allowed_groups - the domain
     # access model - so it moves the read boundary as surely as set_permissions
     # does, and the twin table on the control API says so now too.
@@ -3402,6 +3417,32 @@ my %ANNOTATE = (
 # SM525: whoami's tool list is tools/list's answer for the same session - one
 # filtered source, so the two cannot disagree about what a grant may call.
 sub _tool_names { my ($caps) = @_; return [ map { $_->{name} } @{ tool_list($caps) } ] }
+
+# SM653: THE TWO CLASSES, REPORTED SEPARATELY.
+#
+# tools/list offers a themes-only grant 26 content tools it cannot call
+# anywhere it would think to try - they are reachable only on theme and layout
+# paths, through the path-aware override. The listing now SAYS so in each
+# tool's description, which was the first remedy; this is the second, and it is
+# for a reader that counts rather than reads.
+#
+# whoami answered one flat list, so an agent comparing "what I hold" against
+# "what I can call" saw 26 tools it would be refused on every ordinary path and
+# had no way to tell them from the rest. Two lists, derived from the SAME rule
+# that decides callability - never a second hand-kept list of names, which
+# would be wrong the first time a tool gained a capability.
+sub _tool_classes {
+    my ($caps) = @_;
+    my ( @anywhere, @path_only );
+    for my $t ( @{ tool_list($caps) } ) {
+        my $name = $t->{name};
+        if ( $TOOLS{$name} && _path_only_for( $name, $TOOLS{$name}, $caps ) ) {
+            push @path_only, $name;
+        }
+        else { push @anywhere, $name }
+    }
+    return ( \@anywhere, \@path_only );
+}
 
 # SM196: which tools an AUTHENTICATED session may invoke - the same gate as
 # tools/call (mcp channel + per-tool capability; path-aware tools are also
