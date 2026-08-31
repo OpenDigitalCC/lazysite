@@ -1,5 +1,5 @@
 ---
-title: "SM646: instances can send notifications out and cannot hear anything back, so nothing can be reported TO a lazysite"
+title: "SM646 - inter-site real time back-end comms: instances can send notifications out and cannot hear anything back, so nothing can be reported TO a lazysite"
 subtitle: "Operator, 2026-08-27: 'inter systems communications. plugin to register xmpp account, locally anonymises messages before sending, holds a map, so no local user exposed, yet messages can be routed to sender'"
 brand: plain
 standard-margins: true
