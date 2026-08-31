@@ -1084,6 +1084,25 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-table td { overflow-wrap: break-word; }
 .mg-table-wrap { overflow-x: auto; }
 
+/* The groups list is sectioned by what a group IS - a role you assign, a
+   capability bundle, a channel bundle - because 24 of them in one alphabetical
+   list is not a list an operator can scan. Nesting is a GRAPH, not a tree:
+   eight of the seeded groups belong to more than one bundle and site-admins
+   belongs to seven, so drawing it literally would render that group seven
+   times and an operator editing one copy could not tell it was the same thing.
+   Each group appears once, and says what it rolls up into. */
+.mg-group-section { margin: 0 0 14px; border: 1px solid var(--mg-border); background: var(--mg-surface); }
+.mg-group-section > summary { cursor: pointer; list-style: none; padding: 10px 14px;
+    background: var(--mg-surface-alt); border-bottom: 1px solid var(--mg-border);
+    font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg); }
+.mg-group-section > summary::-webkit-details-marker { display: none; }
+.mg-group-section > summary::before { content: '\25B8'; margin-right: 0.45rem; display: inline-block; transition: transform 0.12s; }
+.mg-group-section[open] > summary::before { transform: rotate(90deg); }
+.mg-group-section > .mg-note { margin: 10px 14px; }
+.mg-group-section-head { display: flex; align-items: baseline; gap: 8px; }
+/* An upward arrow, because it names what this group is INSIDE. */
+.mg-rollup { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+
 /* --- Wizard */
 .mg-wizard { background: var(--mg-surface-alt); border: 1px solid var(--mg-border); padding: 16px; margin-top: 12px; }
 .mg-wizard-title { font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; color: var(--mg-text); }

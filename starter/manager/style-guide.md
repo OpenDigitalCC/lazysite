@@ -326,6 +326,17 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-palette-overlay"><span class="mg-sg-tag">.mg-palette-overlay</span></div>
 <div class="mg-palette-url"><span class="mg-sg-tag">.mg-palette-url</span></div></div>
 </div>
+<h3 class="mg-sg-fam">mg-group <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Used by <code>groups.md</code>. A long list is sectioned by what a thing IS, and each entry says what it rolls up into rather than being repeated under every parent.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-group-section"><span class="mg-sg-tag">.mg-group-section</span>
+<div class="mg-group-section-head"><span class="mg-sg-tag">.mg-group-section-head</span></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-rollup <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">Names the containers a thing belongs to, on its own summary line.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-rollup"><span class="mg-sg-tag">.mg-rollup</span> &#8593; cap-content, ch-ui</div>
+</div>
 <h3 class="mg-sg-fam">mg-handler <span class="mg-sg-count">9</span></h3>
 <p class="mg-sg-note">Used by <code>appearance.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">

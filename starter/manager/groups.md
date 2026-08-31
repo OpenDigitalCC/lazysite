@@ -162,6 +162,16 @@ function groupSummaryInner(g) {
   // SM198: a group that grants capabilities but has NO members is inert - it
   // applies to no one (caps resolve only through membership). Flag it so the
   // create-group-then-forget-members trap is visible without opening the group.
+  // WHAT THIS GROUP ROLLS UP INTO. A role can hold nothing of its own and
+  // still grant a great deal, because the bundles it belongs to hold the
+  // capabilities - and that was invisible on a flat list, where a role with an
+  // empty grid looked harmless.
+  var ups = (typeof groupParents === 'function') ? groupParents(g) : [];
+  var rollup = ups.length
+    ? ' <span class="mg-rollup" title="Belongs to these bundles, and is granted everything they hold">&#8593; '
+      + ups.map(escHtml).join(', ') + '</span>'
+    : '';
+
   var inert = (nOn > 0 && members.length === 0)
     ? ' <span class="mg-tag mg-tag-off" title="This group grants capabilities but has no members, so it applies to no one. Add a member to put its access into effect.">no members</span>'
     : '';
@@ -210,7 +220,7 @@ function groupSummaryInner(g) {
 
   return '<span class="mg-acc-name">' + name + '</span>' + recentDot(g) +
     (info.manager ? ' <span class="mg-tag mg-tag-on">manager</span>' : '') +
-    backend + origin + inert +
+    backend + origin + inert + rollup +
     '<span class="mg-acc-spacer"></span>' +
     '<span class="mg-acc-tags">' +
     nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
@@ -480,6 +490,17 @@ function renderGroups() {
 
     h += '</div></details>';
     return h;
+  };
+
+  el.innerHTML = SECTIONS.map(function (sec) {
+    var mine = keys.filter(function (g) { return groupKind(g) === sec.kind; });
+    if (!mine.length) return '';
+    return '<details class="mg-group-section"' + (sec.open ? ' open' : '') + '>'
+      + '<summary class="mg-group-section-head">' + escHtml(sec.title)
+      + ' <span class="mg-subcount">' + mine.length + '</span></summary>'
+      + '<div class="mg-note mg-note-info">' + escHtml(sec.note) + '</div>'
+      + mine.map(oneGroup).join('')
+      + '</details>';
   }).join('');
 }
 
