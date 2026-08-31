@@ -1,6 +1,6 @@
 ---
 title: "Manager review, 2026-08-30/31: every item the release manager raised, and where it got to"
-subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Forty-eight done, eight open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
+subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Forty-nine done, eight open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
 brand: plain
 standard-margins: true
 ---
@@ -67,6 +67,8 @@ Refs are quotable: `MR-01` and so on.
 
 | MR-55 | The `members` group is an example for the demo, and now has a display name and description - put them in the seeded data | Seeded. It shipped with every install and no label, so it showed its bare name for ever - the state SM642 fixed for groups an operator makes, still true for the one group everybody starts with. It says it is an example, so nobody has to guess whether deleting it breaks something | — |
 | MR-56 | Still "What would migrating do?", and still not understood | The button was hard-coded onto the panel, so it asked while a table was being CREATED (nothing to compare) and again when the stored table already matched (answer: nothing). It appears only when the two have come apart, and says "Compare with the stored table". The plan's own wording drops the word: "These can be applied safely, keeping every row" / "These cannot be applied to the stored table". The listing says "fields changed, not yet applied" rather than "needs migrating" | — |
+
+| MR-57 | `/docs/features` returned 404 | The DEV SERVER, not the product: Apache's mod_dir adds a missing trailing slash by default, so the same URL serves on a real deployment. Fixed in the dev server, because one that answers differently from production sends you hunting for product faults that are its own - the same class as the asset copy that hid the missing fonts link | — |
 
 
 # Open

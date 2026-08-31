@@ -481,6 +481,31 @@ sub handle_request {
         return;
     }
 
+    # A DIRECTORY WITHOUT ITS TRAILING SLASH REDIRECTS, as Apache's mod_dir
+    # does by default on a real deployment. Without it /docs/features answered
+    # 404 here while /docs/features/ served, and the same URL worked in
+    # production - so a link that is fine on a live site looked broken locally,
+    # which is the wrong way round for a development server to be wrong.
+    #
+    # Same class as the asset copy above: a dev server that serves a DIFFERENT
+    # set of responses from production sends you hunting for product faults
+    # that are its own.
+    if ( $method eq 'GET' && $uri !~ m{/$} && $uri !~ m{\?} ) {
+        ( my $dpath = $uri ) =~ s{/+$}{};
+        my $dir_fs = length $dpath ? "$DOCROOT$dpath" : $DOCROOT;
+        if ( -d $dir_fs && !-f "$dir_fs.md" ) {
+            my $to = $uri . '/';
+            print {$client} "HTTP/1.1 301 Moved Permanently\r\n"
+                . "Location: $to\r\n"
+                . "Content-Length: 0\r\n"
+                . "Connection: close\r\n\r\n";
+            log_event( 'INFO', $uri, 'request',
+                method => $method, status => '301 Moved Permanently',
+                ms     => int( ( time() - $t0 ) * 1000 ) );
+            return;
+        }
+    }
+
     # SM091: --auto-index. A GET for a directory with no index.md (and no
     # same-named <dir>.md) gets a generated listing instead of a 404, so an
     # arbitrary tree of Markdown is browsable. Nothing is written to the docroot.
