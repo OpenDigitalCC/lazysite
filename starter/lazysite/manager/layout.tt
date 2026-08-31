@@ -143,7 +143,20 @@
         '<div class="mg-modal-overlay"></div>' +
         '<div class="mg-modal-in">' +
           '<div class="mg-modal-msg"></div>' +
-          (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') +
+          // SEVERAL FIELDS IN ONE ASKING. A two-part answer asked as two
+          // consecutive prompts makes the operator hold the first in their
+          // head while giving the second, and Cancel on the second throws
+          // both away with no sign of which was kept. `fields` takes them
+          // together; `prompt` stays the single-box shorthand.
+          ( opts.fields
+            ? opts.fields.map(function (f) {
+                return '<label class="mg-modal-field">'
+                     +   '<span>' + (f.label || f.name) + '</span>'
+                     +   '<input class="mg-inp mg-modal-input" type="text" data-field="'
+                     +     f.name + '" value="">'
+                     + '</label>';
+              }).join('')
+            : (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') ) +
           '<div class="mg-modal-actions">' +
             '<button class="mg-btn mg-modal-cancel"></button>' +
             '<button class="mg-btn' + okClass + ' mg-modal-ok"></button>' +
@@ -155,11 +168,19 @@
       box.querySelector('.mg-modal-ok').textContent = opts.ok || 'OK';
       document.body.appendChild(ov);
       var input = box.querySelector('.mg-modal-input');
-      if (input) { input.value = (opts.value != null ? opts.value : ''); setTimeout(function(){ input.focus(); input.select(); }, 30); }
+      if (opts.fields) {
+        opts.fields.forEach(function (f) {
+          var el = box.querySelector('[data-field="' + f.name + '"]');
+          if (el) el.value = (f.value != null ? f.value : '');
+        });
+      } else if (input) {
+        input.value = (opts.value != null ? opts.value : '');
+      }
+      if (input) setTimeout(function(){ input.focus(); input.select(); }, 30);
       requestAnimationFrame(function(){ ov.classList.add('mg-modal-shown'); });
       function onKey(e){
-        if (e.key === 'Escape') close(opts.prompt ? null : false);
-        else if (e.key === 'Enter') close(opts.prompt ? (input ? input.value : '') : true);
+        if (e.key === 'Escape') close((opts.prompt || opts.fields) ? null : false);
+        else if (e.key === 'Enter') close(collect());
       }
       function close(val){
         document.removeEventListener('keydown', onKey);
@@ -168,8 +189,17 @@
         resolve(val);
       }
       document.addEventListener('keydown', onKey);
-      box.querySelector('.mg-modal-ok').onclick = function(){ close(opts.prompt ? (input ? input.value : '') : true); };
-      box.querySelector('.mg-modal-cancel').onclick = function(){ close(opts.prompt ? null : false); };
+      function collect() {
+        if (!opts.fields) return opts.prompt ? (input ? input.value : '') : true;
+        var out = {};
+        opts.fields.forEach(function (f) {
+          var el = box.querySelector('[data-field="' + f.name + '"]');
+          out[f.name] = el ? el.value : '';
+        });
+        return out;
+      }
+      box.querySelector('.mg-modal-ok').onclick = function(){ close(collect()); };
+      box.querySelector('.mg-modal-cancel').onclick = function(){ close((opts.prompt || opts.fields) ? null : false); };
       ov.addEventListener('click', function(e){ if (e.target === ov) close(opts.prompt ? null : false); });
     });
   }

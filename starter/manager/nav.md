@@ -264,17 +264,24 @@ function addItem() {
   updateParentSelect();
 }
 
+// MR-54: ONE asking, not two. Chained prompts made the operator hold the label
+// in their head while typing the URL, and Cancel on the second threw both away
+// with nothing to say which had been kept.
 function editItem(idx) {
   var item = navItems[idx];
-  mgPrompt('Label:', item.label).then(function(newLabel) {
-    if (newLabel === null) return;
-    mgPrompt('URL (blank = group heading):', item.url || '').then(function(newUrl) {
-      if (newUrl === null) return;
-      item.label = newLabel;
-      item.url = newUrl;
-      markNavDirty();
-      renderNav();
-    });
+  mgModal({
+    msg: 'Navigation item',
+    ok: 'Save',
+    fields: [
+      { name: 'label', label: 'Label', value: item.label },
+      { name: 'url',   label: 'URL (blank = group heading)', value: item.url || '' }
+    ]
+  }).then(function (v) {
+    if (v === null) return;
+    item.label = v.label;
+    item.url   = v.url;
+    markNavDirty();
+    renderNav();
   });
 }
 

@@ -203,6 +203,8 @@ or Cancel closes it.</span>
   <div class="mg-modal-in">
     <div class="mg-modal-msg">Type the table name to confirm.</div>
     <input class="mg-modal-input" value="">
+    <label class="mg-modal-field"><span>.mg-modal-field &mdash; a labelled part of a multi-part asking</span>
+      <input class="mg-inp mg-modal-input" value=""></label>
     <div class="mg-modal-actions"><button class="mg-btn" onclick="sgClose('sg-modal')">Cancel</button> <button class="mg-btn mg-btn-danger" onclick="sgClose('sg-modal')">Drop</button></div>
   </div>
 </div>

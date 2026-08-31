@@ -545,6 +545,10 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-modal .mg-modal-in { position: absolute; z-index: auto; }
 .mg-modal-msg { margin-bottom: 12px; font-size: 14px; }
 .mg-modal-input { width: 100%; margin-bottom: 14px; }
+/* A labelled field inside a modal, for an asking with more than one part. */
+.mg-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.mg-modal-field > span { font-size: var(--mg-text-sm); font-weight: 600; color: var(--mg-text); }
+.mg-modal-field .mg-modal-input { margin-bottom: 0; }
 .mg-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .mg-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; }
 .mg-sheet[hidden] { display: none; }
