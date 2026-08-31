@@ -86,12 +86,14 @@ search: false
        the same declaration without asking anyone to type YAML, and saving
        from it regenerates the text - comments do not survive that, and the
        tab says so. -->
-  <div style="display:flex;gap:6px;margin:0 0 10px;">
-    <button class="mg-btn" id="desc-tab-form" onclick="descTab('form')">Fields</button>
+  <!-- The tabs are two views of ONE document: the form, and the text it is
+       stored as. "Fields" named a section of the form rather than the view. -->
+  <div class="mg-line">
+    <button class="mg-btn" id="desc-tab-form" onclick="descTab('form')">Form</button>
     <button class="mg-btn" id="desc-tab-yaml" onclick="descTab('yaml')">YAML</button>
   </div>
   <div id="descriptor-form" style="font-size:0.9em;"></div>
-  <p id="descriptor-yaml-note" style="display:none;font-size:0.85em;color:var(--mg-text-muted);margin:0 0 6px;">The text as stored. Saving from the Fields tab regenerates it; comments and ordering are kept only when you save from here.</p>
+  <p id="descriptor-yaml-note" style="display:none;font-size:0.85em;color:var(--mg-text-muted);margin:0 0 6px;">The text as stored. Saving from the Form tab regenerates it; comments and ordering are kept only when you save from here.</p>
   <textarea id="descriptor-text" class="mg-inp" rows="18" spellcheck="false" style="display:none;width:100%;font-family:monospace;font-size:0.9em;"></textarea>
   <div id="descriptor-error" class="mg-status" style="margin-top:8px;"></div>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
@@ -221,16 +223,13 @@ function loadTables() {
         // vocabulary for that, and it is the word the descriptor itself uses
         // (`public: true`): public and private. The tooltip carries the
         // consequence, so the row itself stays scannable.
-        // The word is the way in. It said what the state was and named the
-        // control that changes it in a TOOLTIP, which is hover-only and which
-        // the release manager reasonably never saw: "how would I change that
-        // so it can be read by anonymous?" Clicking the state now opens
-        // Fields, where the tickbox and its consequence are written out.
-        bits.push('<a href="#" onclick="openDescriptor(\'' + escHtml(name) + '\'); return false;"'
-          + (t.public
-            ? ' title="Anyone visiting the site can read this table\'s rows, including visitors who are not signed in. Click to change it.">public'
-            : ' title="Only signed-in accounts with data access can read this table. An anonymous visitor is told nothing, not even that it exists. Click to change it.">private')
-          + '</a>');
+        // A state, stated. Making the word a link to the form that changes it
+        // was tried and taken out: a row of facts in which one is a control
+        // reads as though the others might be too. The button beside it says
+        // Configure, which is where every setting on this table is changed.
+        bits.push(t.public
+          ? '<span title="Anyone visiting the site can read this table\'s rows, including visitors who are not signed in.">public</span>'
+          : '<span title="Only signed-in accounts with data access can read this table. An anonymous visitor is told nothing, not even that it exists.">private</span>');
         // SM679: how many rows. `row_count` is ABSENT rather than 0 when the
         // server could not count - a table awaiting migration, or one whose
         // query failed - so the test is `typeof`, not truthiness: `0` is a real
@@ -257,7 +256,7 @@ function loadTables() {
           // the access rule is one table's business. Same division the Files
           // page makes - a row, and an expand card for the rest.
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
-          + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
+          + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Configure</button> '
           + '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table" aria-expanded="false"></a>'
           + '</span>'
           + '</div>'
@@ -698,26 +697,84 @@ function fieldRow(name, spec) {
   return h;
 }
 
+// The index picker. An index is a LIST of field names, and this form offers
+// the first of them from the fields that exist - which is the one that
+// matters: Query.pm asks `$ix->[0] eq $f` and never looks further, so the
+// first field is what makes a filter cheap. A longer index is legal, is
+// validated, and is carried through untouched in data-rest rather than being
+// silently dropped by a form that cannot draw it. Edit those in the YAML tab.
+function indexRow(fieldNames, first, rest) {
+  var h = '<div class="mg-line desc-index">'
+    + '<select class="mg-inp desc-ix" data-rest="' + escHtml((rest || []).join(',')) + '">';
+  fieldNames.forEach(function(n) {
+    h += '<option' + (n === first ? ' selected' : '') + '>' + escHtml(n) + '</option>';
+  });
+  h += '</select>';
+  if (rest && rest.length) {
+    h += '<span class="mg-row-meta">then ' + escHtml(rest.join(', ')) + ' &mdash; edit in YAML</span>';
+  }
+  h += '<button class="mg-btn mg-btn-sm" onclick="this.closest(\'.desc-index\').remove()">Remove</button>'
+    + '</div>';
+  return h;
+}
+
+function descFieldNames() {
+  var out = [];
+  document.querySelectorAll('#desc-fields tr.desc-field .desc-name').forEach(function(i) {
+    var v = i.value.replace(/^\s+|\s+$/g, '');
+    if (v) out.push(v);
+  });
+  return out;
+}
+
+function addDescIndex() {
+  var names = descFieldNames();
+  if (!names.length) { showStatus('Add a field first - an index names one.', true); return; }
+  var box = document.getElementById('desc-indexes');
+  box.insertAdjacentHTML('beforeend', indexRow(names, names[0], []));
+}
+
 function buildDescForm(shape) {
   var names = Object.keys(shape.fields || {}).sort();
-  var h = '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;max-width:32rem;margin:0 0 10px;">'
-    + '<label>Title</label><input class="mg-inp" id="desc-title" value="' + escHtml(shape.title || '') + '">'
-    + '<label>Key</label><select class="mg-inp" id="desc-key"><option value="">automatic id</option>';
+  // .mg-form-dense is the manager's settings form: a label rail beside its
+  // control, one pair per row. The hand-rolled grid this replaces took loose
+  // children two at a time, so the Public help text - one child, no partner -
+  // put every label after it in the control column and every control under
+  // the next label. Timestamps read as the caption of the Public help.
+  var h = '<div class="mg-form-dense">'
+    + '<div class="mg-field"><label for="desc-title">Table name</label>'
+    +   '<input class="mg-inp" id="desc-title" value="' + escHtml(shape.title || '') + '"></div>'
+    + '<div class="mg-field"><label for="desc-key">Key</label>'
+    +   '<select class="mg-inp" id="desc-key"><option value="">automatic id</option>';
   names.forEach(function(n) { h += '<option' + (!shape.auto_key && shape.key === n ? ' selected' : '') + '>' + escHtml(n) + '</option>'; });
-  h += '</select>'
-    + '<label>Public</label><input type="checkbox" id="desc-public"'
-    + ' title="Off: only signed-in accounts with data access can read this'
-    + ' table. On: anyone visiting the site can read its rows."'
-    + (shape['public'] ? ' checked' : '') + '>'
-    + '<div class="mg-muted">Ticked, anonymous visitors can read this table\'s rows. '
-    +   'Unticked, only signed-in accounts with data access can, and a visitor is not told the table exists.</div>'
-    + '<label>Timestamps</label><input type="checkbox" id="desc-ts"' + (shape.timestamps ? ' checked' : '') + '>'
-    + '<label>Indexes</label><input class="mg-inp" id="desc-indexes" placeholder="one per line: area, street" value="' + escHtml((shape.indexes || []).map(function(ix) { return ix.join(', '); }).join('\n')) + '">'
+  h += '</select></div>'
+    + '<div class="mg-field"><label for="desc-public">Public</label>'
+    +   '<label class="mg-chk"><input type="checkbox" id="desc-public"'
+    +     (shape['public'] ? ' checked' : '') + '></label>'
+    +   '<div class="mg-muted">Ticked, anyone visiting the site can read this table\'s rows. '
+    +     'Unticked, only signed-in accounts with data access can, and a visitor is not told the table exists.</div>'
     + '</div>'
+    + '<div class="mg-field"><label for="desc-ts">Timestamps</label>'
+    +   '<label class="mg-chk"><input type="checkbox" id="desc-ts"' + (shape.timestamps ? ' checked' : '') + '></label>'
+    +   '<div class="mg-muted">Records when each row was created and last changed.</div>'
+    + '</div>'
+    + '<div class="mg-field"><label>Indexes</label>'
+    +   '<div id="desc-indexes">';
+  (shape.indexes || []).forEach(function(ix) {
+    h += indexRow(names, ix[0], ix.slice(1));
+  });
+  h += '</div>'
+    +   '<div class="mg-muted">A field you filter or sort by often. Without one, '
+    +     'a filter on that field reads every row.'
+    +     '<br><button class="mg-btn mg-btn-sm" onclick="addDescIndex()">Add an index</button></div>'
+    + '</div>'
+    + '<div class="mg-field mg-field-wide"><label>Fields</label><div>'
     + '<div class="mg-table-wrap"><table class="mg-table" id="desc-fields"><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Unique</th><th>Default</th><th>Options</th><th></th></tr></thead><tbody>';
   names.forEach(function(n) { h += fieldRow(n, shape.fields[n]); });
   h += '</tbody></table></div>'
-    + '<button class="mg-btn mg-btn-sm" style="margin-top:6px;" onclick="addDescField()">Add a field</button>'
+    + '<button class="mg-btn mg-btn-sm mg-mt-6" onclick="addDescField()">Add a field</button>'
+    + '</div></div>'
+    + '</div>'
     + '<p style="font-size:0.85em;color:var(--mg-text-muted);margin:8px 0 0;">'
     + 'The key field identifies a row, so it must be filled in and no two rows '
     + 'may share a value. Choose <em>automatic</em> and the system fills it in.'
@@ -739,9 +796,17 @@ function readDescForm() {
   if (key) shape.key = key;
   shape['public'] = document.getElementById('desc-public').checked;
   shape.timestamps = document.getElementById('desc-ts').checked;
-  var ix = document.getElementById('desc-indexes').value.split(/\n/).map(function(l) {
-    return l.split(',').map(function(x) { return x.replace(/^\s+|\s+$/g, ''); }).filter(function(x) { return x; });
-  }).filter(function(l) { return l.length; });
+  // Each picker carries the rest of its index in data-rest, so saving the
+  // form preserves a composite index it could not draw rather than quietly
+  // shortening it to one field.
+  var ix = [];
+  document.querySelectorAll('#desc-indexes .desc-ix').forEach(function(sel) {
+    if (!sel.value) return;
+    var rest = (sel.getAttribute('data-rest') || '').split(',')
+      .map(function(x) { return x.replace(/^\s+|\s+$/g, ''); })
+      .filter(function(x) { return x; });
+    ix.push([sel.value].concat(rest));
+  });
   if (ix.length) shape.indexes = ix;
   var order = [];
   document.querySelectorAll('#desc-fields tr.desc-field').forEach(function(tr) {
@@ -979,7 +1044,10 @@ function openDescriptor(table) {
   DESC.isNew = false;
   setDescriptorAction();
   DESC.lost  = [];
-  document.getElementById('descriptor-title').textContent = 'Fields of ' + table;
+  // "Fields of X" named one section of what this modal edits. It edits the
+  // whole descriptor - name, key, who may read it, timestamps, indexes AND
+  // fields - which is one YAML file saved in one act.
+  document.getElementById('descriptor-title').textContent = 'Table configuration: ' + table;
   document.getElementById('descriptor-error').textContent = '';
   document.getElementById('plan-panel').style.display = 'none';
   showModal('descriptor-panel', closeDescriptor);
@@ -1041,7 +1109,13 @@ function saveDescriptor() {
     // For a table that EXISTS, the plan panel says what would change and asks
     // for a decision. Announcing it in advance describes a step the operator
     // has not chosen yet.
-    if (d.migrate_required) planMigration();
+    if (d.migrate_required) { planMigration(); return; }
+    // NOTHING LEFT TO DECIDE, SO THE MODAL GOES. It used to stay open with
+    // Save still on it and "Changes saved." written to the status line
+    // BEHIND it - so the one visible thing was the button that had just been
+    // pressed, and the reasonable reading was that it had not worked.
+    // A form that is still there is a form that still wants something.
+    closeDescriptor();
   })
   .catch(function(e) { setDescError('Could not save: ' + e); });
 }
@@ -1117,7 +1191,15 @@ function planMigration() {
       var offered = document.getElementById('plan-migrate-btn').style.display === ''
                  || document.getElementById('plan-rebuild-btn').style.display === '';
       if (offered) {
-        html = '<p style="color:var(--mg-text-muted);font-size:0.95em;"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>' + html;
+        // SAY THAT THE SAVE WORKED, where the operator is now looking. The
+        // form saves, the modal stays open because a decision is pending, and
+        // Save is still on screen - which reads as "it did not save". The
+        // description IS saved; what has not happened is the change to the
+        // stored table, which is what these two buttons are for.
+        html = '<p class="mg-row-meta"><strong>The description is saved.</strong> '
+             + 'The stored table has not changed yet \u2014 choose how to apply it.</p>'
+             + '<p class="mg-row-meta"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>'
+             + html;
       }
       body.innerHTML = html;
     })

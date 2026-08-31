@@ -107,6 +107,14 @@ Refs are quotable: `MR-01` and so on.
 | MR-86 | Audit log dragged the page sideways at 420px | Seven columns and no `.mg-table-wrap`, the wrapper every other data table has | found by `tools/manager-layout-check.js` |
 | MR-87 | Appearance: Upload 44px off a 420px screen | A nowrap flex row around a file input, which is unusually wide and does not shrink | same |
 | MR-88 | Keys table overflowed at 900px | Two more inline `white-space:nowrap` cells, the second around a whole sentence - 295px of minimum in a table with 832px for six columns | same |
+| MR-89 | "Fields" is really table configuration | The modal edits one YAML document - name, key, who may read it, timestamps, indexes AND fields - saved in one act. Row button says **Configure**, modal is "Table configuration", tabs are Form and YAML. The split stays where the DATA splits: the descriptor in the modal, the access rule and exports in the expander, because the ACL is a different store | — |
+| MR-90 | Descriptor form: labels and controls not aligned | A hand-rolled two-column grid, and the Public help is one child with no partner - so every label after it moved into the control column. `.mg-form-dense` now, one pair per row. Unreadable since it was written | measured, five labels |
+| MR-91 | Title should be Table name; indexes should be picked, not typed | Both done. A composite index the picker cannot draw is carried through untouched rather than shortened to its first field | — |
+| MR-92 | The brand folder cannot be reached in Files | The plugin said "manage it on the Files page like any other folder"; the page answered **Path is blocked**. Carved out for assets; a pandoc TEMPLATE stays refused, because its text reaches xelatex and would turn manage_content into "read any file this server can" | `t/unit/manager/28`, [[SM707]] |
+| MR-93 | A refused listing showed the previous folder's rows | So an unlistable folder looked like a folder containing other files, and a file uploaded into it looked like it had never arrived. The refusal is rendered where the files would be | — |
+| MR-94 | "Create the brand folder" says the same thing however often you press it | It now says whether it made the folder or found it, and what is in it | — |
+| MR-95 | Sign out buttons should carry red | Both do. They end something for somebody, and one ends it everywhere | — |
+| MR-96 | "Did it save?" - the descriptor form | It had. The modal stays open because a migration decision is pending, and "Changes saved." went to the status line BEHIND it, so the only visible thing was the button just pressed. The plan panel now opens by saying the description is saved and what has not happened yet; with nothing pending the modal closes | — |
 
 
 # Open
@@ -114,7 +122,7 @@ Refs are quotable: `MR-01` and so on.
 | Ref | Raised | Why it is still open |
 | --- | --- | --- |
 | MR-51 | Layout install said "Layout not found" | Preview artefact, not a product fault - there are no layouts in the starter tree and a theme installs into one. Recorded so it is not re-investigated |
-| Inline styles | 346 across nineteen manager pages | Held at a per-page ceiling by `t/lint/108`, ratcheting down. Not a defect on its own; it is the mechanism by which fixed defects come back, so it is tracked rather than swept |
+| Inline styles | 342 across nineteen manager pages | Held at a per-page ceiling by `t/lint/108`, ratcheting down. Not a defect on its own; it is the mechanism by which fixed defects come back, so it is tracked rather than swept |
 
 # Why the same defect kept coming back
 

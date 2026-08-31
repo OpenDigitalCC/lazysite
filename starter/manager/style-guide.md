@@ -795,6 +795,16 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-rwflag-g"><span class="mg-sg-tag">.mg-rwflag-g</span></div>
 </div>
+<h3 class="mg-sg-fam">mg-field-wide <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">A field in a <code>.mg-form-dense</code> whose content is a table rather than a control: the label goes above and the content takes the full width. A rail 220px wide leaves too little for a seven-column editor.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-form-dense"><div class="mg-field mg-field-wide"><label>Fields</label><div><span class="mg-sg-tag">.mg-field-wide</span></div></div></div>
+</div>
+<h3 class="mg-sg-fam">mg-mt-6 <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">A control that follows something rather than sitting beside it - an "Add a row" button under the table it adds to.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div><button class="mg-btn mg-btn-sm mg-mt-6">Add a field</button><span class="mg-sg-tag">.mg-mt-6</span></div>
+</div>
 <h3 class="mg-sg-fam">mg-mono <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">A value the reader may need to read or copy exactly - a backup filename, an identifier. Not for prose.</p>
 <div class="mg-sg-demo mg-sg-family">

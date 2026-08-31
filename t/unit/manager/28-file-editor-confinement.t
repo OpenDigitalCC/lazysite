@@ -22,6 +22,32 @@ ok( is_blocked_path('lazysite/git-sync.conf'), 'H4: plugin-secret conf blocked' 
 ok( !is_blocked_path('lazysite/forms/submissions/2026.jsonl'), 'forms/submissions still readable' );
 ok( !is_blocked_path('content/page.md'), 'ordinary content not blocked' );
 
+# SM694/SM706: the BRAND folder. The plugin creates it under lazysite/ so that
+# a logo and a letterhead are not served to the web, and tells the operator to
+# manage it on the Files page - which answered "Path is blocked", so the
+# instruction was false and the folder invisible.
+#
+# It is carved out for what it mostly holds - a logo, a font, a colour - and
+# NOT for a pandoc template. A template's text reaches xelatex at render time,
+# so `\input{/etc/passwd}` in one is read by the CGI user: uploading a template
+# would turn manage_content, which authors pages, into "read any file this
+# server can". md-to-pdf never passes -shell-escape, so this is a file read
+# rather than command execution - which is why the line is drawn here and not
+# further out. SM707 asks whether the manager should ever offer it.
+ok( !is_blocked_path('lazysite/brands'),            'the brand folder is listable' );
+ok( !is_blocked_path('lazysite/brands/house/logo.png'), 'a brand logo is managed like content' );
+ok( !is_blocked_path('lazysite/brands/house/Font.otf'), 'and so is a font' );
+ok( is_blocked_path('lazysite/brands/house/brand.latex'),
+    'a pandoc template is NOT uploadable through the manager' )
+    or diag( 'Its text reaches the PDF engine, which reads what it is told to '
+        . 'read. That is a bigger grant than the page this was uploaded from.' );
+ok( is_blocked_path('lazysite/brands/house/brand.tex'), '.tex likewise' );
+ok( is_blocked_path('lazysite/brands/house/macros.sty'), '.sty likewise' );
+ok( is_blocked_path('lazysite/brands/house/filter.lua'),
+    'and a lua filter, which pandoc executes' );
+ok( is_blocked_path('lazysite/brands/house/BRAND.LaTeX'),
+    'the rule is case-insensitive, like the extension rule above it' );
+
 # The capability-/scope-gated content areas partners legitimately manage by
 # path (layouts, themes, nav.conf) must NOT be caught by this path blocklist -
 # their own manage_layouts/manage_themes/manage_nav + dav_scope gates apply.

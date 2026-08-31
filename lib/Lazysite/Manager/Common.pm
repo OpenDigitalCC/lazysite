@@ -329,7 +329,8 @@ sub outside_all_scopes {
 # Nothing in the fleet is expected to have it; the check is cheap and the
 # finding would be interesting rather than damaging (the files are still on
 # disk, just no longer reachable through the file surface).
-our @LAZYSITE_OPEN_PREFIXES = ( 'lazysite/forms/submissions/', 'lazysite/layouts/' );
+our @LAZYSITE_OPEN_PREFIXES
+    = ( 'lazysite/forms/submissions/', 'lazysite/layouts/', 'lazysite/brands/' );
 our @LAZYSITE_OPEN_EXACT    = ('lazysite/nav.conf');
 
 sub _is_carveout {
@@ -385,6 +386,28 @@ sub is_blocked_path {
     # SEC-2026-07: never write/serve an executable or server-config extension.
     if ( $rel_path =~ $DANGEROUS_RE ) {
         log_event( 'WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user );
+        return 1;
+    }
+
+    # A BRAND TEMPLATE IS EXECUTABLE INPUT, and the brand folder is otherwise
+    # ordinary operator content - a logo, a font, a colour - which is why it is
+    # carved out above. A pandoc LaTeX template is different in kind: its text
+    # reaches xelatex, and `\input{/etc/passwd}` in it is read at render time
+    # by the CGI user. Uploading one would turn manage_content, which today
+    # authors pages, into "read any file this server can", which is not a
+    # grant the Files page is entitled to hand out.
+    #
+    # md-to-pdf never passes -shell-escape, so this is a file READ and not
+    # command execution - checked, and stated rather than assumed.
+    #
+    # Templates therefore arrive the way they always have: placed on the server
+    # by somebody who already holds that authority. SM707 asks whether the
+    # manager should ever offer it.
+    if ( $rel_path =~ m{\Alazysite/brands/}i
+        && $rel_path =~ /\.(?:tex|latex|sty|cls|lua)\z/i )
+    {
+        log_event( 'WARN', $action, 'blocked brand template via manager',
+            path => $rel_path, user => $auth_user );
         return 1;
     }
     return 0;

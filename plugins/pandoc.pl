@@ -458,14 +458,27 @@ sub plugin_status {
     };
 }
 
+sub _brands_in {
+    my ($dir) = @_;
+    return () unless -d $dir;
+    opendir my $dh, $dir or return ();
+    my @out = sort grep { !/\A\./ && -d "$dir/$_" } readdir $dh;
+    closedir $dh;
+    return @out;
+}
+
 # The folder, and a note in it. An empty directory tells an operator nothing;
 # a README beside it says what belongs there, in the place they are standing
 # when they wonder.
 sub plugin_init {
     my ($docroot) = @_;
     my $dir = "$docroot/lazysite/brands";
+    # Whether it was already there decides what the operator is told. The
+    # release manager pressed Create, was told the folder was ready, and had
+    # no way to tell that from having just made it - so they pressed it again.
+    my $existed = -d $dir;
     require File::Path;
-    File::Path::make_path($dir)                          unless -d $dir;
+    File::Path::make_path($dir)                          unless $existed;
     return { ok => 0, error => "could not create $dir" } unless -d $dir;
 
     my $readme = "$dir/README.md";
@@ -481,9 +494,15 @@ A page chooses its brand in its own front matter:
     brand: house
     ---
 
-This folder sits under the lazysite directory, which is never served - so a
-template or a logo here is not published to the web. Manage it on the Files
-page like any other folder.
+WHERE THIS IS. Files page -> lazysite/ -> brands/. It sits under the lazysite
+directory, which is never served, so a logo or a template here is not
+published to the web.
+
+Logos, fonts and colour files can be uploaded here on the Files page like any
+other content. A pandoc TEMPLATE (.tex, .latex, .sty, .cls) cannot: its text
+is handed to the PDF engine at render time, so uploading one would let anyone
+who can edit this site read any file the server can. Templates are placed on
+the server directly, by somebody who already holds that authority.
 
 A page can also be assembled from several: list them in its front matter and
 they are converted in the order given.
@@ -501,10 +520,18 @@ reader rebuilds it.
 NOTE
         close $fh;
     }
+    my @brands = _brands_in($dir);
     return {
         ok      => 1,
-        message => 'lazysite/brands/ is ready. Add one folder per brand; '
-            . 'the README there says what goes in one.'
+        created => ( $existed ? JSON::PP::false : JSON::PP::true ),
+        brands  => \@brands,
+        message => ( $existed
+            ? 'lazysite/brands/ was already there'
+            : 'Created lazysite/brands/' )
+            . ( @brands
+            ? ', holding: ' . join( ', ', @brands ) . '.'
+            : '. It has no brands in it yet - make a folder inside it on the '
+                . 'Files page, one per brand, and put the logo and fonts there.' ),
     };
 }
 

@@ -884,6 +884,8 @@ body.mg-sheet-open { overflow: hidden; }
    in the page rather than in the sheet, and the reason the same fix keeps
    coming back. */
 .mg-mono { font-family: var(--mg-mono); font-size: 0.8rem; }
+/* A control that follows something rather than sitting beside it. */
+.mg-mt-6 { margin-top: 6px; }
 /* A card that belongs to a row and spans it: an .mg-row is two columns, so a
    panel opened from a row would otherwise sit in one of them. */
 .mg-row-wide { grid-column: 1 / -1; width: 100%; margin-top: 8px; }
@@ -1356,6 +1358,12 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-form-dense .mg-field > label.mg-chk { grid-column: 2; }
 .mg-form-dense .mg-field .mg-muted { margin: 0; }
 .mg-form-dense .mg-checks { grid-column: 2; }
+/* A section whose content is a TABLE, not a control: the label rail is 220px
+   of the 56em, and a seven-column field editor squeezed into what was left
+   had its last two columns cut off. Label above, content across. */
+.mg-form-dense .mg-field-wide { grid-template-columns: minmax(0, 1fr); }
+.mg-form-dense .mg-field-wide > label { grid-column: 1; padding-top: 0; }
+.mg-form-dense .mg-field-wide > *:not(label) { grid-column: 1; }
 @media (max-width: 720px) {
     .mg-form-dense .mg-field { grid-template-columns: 1fr; gap: 4px 0; }
     .mg-form-dense .mg-field > label:not(.mg-chk) { padding-top: 0; }

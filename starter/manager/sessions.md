@@ -118,9 +118,11 @@ function renderSessions(d) {
       '<td class="mg-muted mg-cell-ua" title="' +
         escHtml(s.ua || '') + '">' + escHtml(s.ua || '') + '</td>' +
       '<td class="mg-cell-actions">' +
-      '<button class="mg-btn mg-btn-sm" onclick="revokeSession(\'' + escHtml(s.sid) + '\',\'' +
+      // Red: both END something for somebody, and the second ends it
+      // everywhere. They sat in the same plain button as Download.
+      '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeSession(\'' + escHtml(s.sid) + '\',\'' +
         escHtml(s.user) + '\',' + (s.current ? 'true' : 'false') + ')">Sign out</button> ' +
-      '<button class="mg-btn mg-btn-sm" onclick="revokeUser(\'' + escHtml(s.user) + '\')">Sign out everywhere</button>' +
+      '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeUser(\'' + escHtml(s.user) + '\')">Sign out everywhere</button>' +
       '</td></tr>';
   });
   h += '</tbody></table></div>';

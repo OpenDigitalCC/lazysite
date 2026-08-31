@@ -142,7 +142,22 @@ function loadDir(dir) {
       return fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.ok) { showStatus(data.error, true); return; }
+          if (!data.ok) {
+            // A REFUSAL IS RENDERED WHERE THE FILES WOULD BE. Showing the
+            // message in the status bar and returning left the PREVIOUS
+            // folder's rows on screen, so a folder that could not be listed
+            // looked like a folder whose contents were these other files -
+            // and a file uploaded into it looked like it had not arrived.
+            // Reported exactly that way, on lazysite/brands/.
+            showStatus(data.error, true);
+            var body = document.getElementById('file-rows');
+            if (body) {
+              body.innerHTML = '<tr><td colspan="5"><span class="mg-empty">'
+                + escHtml(data.error || 'This folder could not be listed.')
+                + ' &mdash; ' + escHtml(currentDir) + '</span></td></tr>';
+            }
+            return;
+          }
           renderFiles(data.entries || []);
           updateSelection();
         });
