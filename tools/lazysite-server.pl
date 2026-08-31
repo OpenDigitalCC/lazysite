@@ -292,9 +292,24 @@ if ( $do_seed && !-f $conf_target && -f $conf_source ) {
         require File::Copy;
         File::Path::make_path("$DOCROOT/manager/assets")
             unless -d "$DOCROOT/manager/assets";
-        for my $sheet ( glob("$LAZYSITE_DIR/manager/assets/manager-*.css") ) {
-            my ($base) = $sheet =~ m{([^/]+)\z};
-            File::Copy::copy( $sheet, "$DOCROOT/manager/assets/$base" );
+        # EVERYTHING under assets/, not just manager-*.css. The install
+        # manifest ships the whole directory (classification rule
+        # ^starter/lazysite/manager/assets/), so a dev server that copied only
+        # the sheets served a DIFFERENT set of files from production - and the
+        # first thing that fell through the gap was fonts.css and its 21 faces,
+        # which made the fonts look broken locally and fine on a real install.
+        for my $src ( glob("$LAZYSITE_DIR/manager/assets/*") ) {
+            my ($base) = $src =~ m{([^/]+)\z};
+            if ( -d $src ) {
+                File::Path::make_path("$DOCROOT/manager/assets/$base");
+                for my $f ( glob("$src/*") ) {
+                    my ($fb) = $f =~ m{([^/]+)\z};
+                    File::Copy::copy( $f, "$DOCROOT/manager/assets/$base/$fb" );
+                }
+            }
+            else {
+                File::Copy::copy( $src, "$DOCROOT/manager/assets/$base" );
+            }
         }
     }
 }

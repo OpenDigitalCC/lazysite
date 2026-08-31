@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
+  <!-- SM698: the bundled faces. This link was MISSING: the sheets carried a
+       comment saying to load it and nothing did, so Barlow never arrived and
+       every style fell back to the system font - which is why `modern` and
+       `accessible` did not look like the design they were drawn from. It goes
+       BEFORE the manager sheet so @font-face is known when the first rule that
+       names Barlow is applied. -->
+  <link rel="stylesheet" href="/manager/assets/fonts.css?v=[% lazysite_version %]">
   <link rel="stylesheet" href="/manager/assets/manager-[% manager_style %].css?v=[% lazysite_version %]">
   <script>
   // SM109 phase 6: set the theme before first paint (no flash). Saved choice wins,

@@ -566,10 +566,27 @@ sub _groups_grant_cap {
     return 0 unless @groups;
     my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return 0 unless -f $f;
-    open my $fh, '<:raw', $f or return 0;
-    local $/;
-    my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
-    close $fh;
+
+    # THE SLURP IS SCOPED TO THE READ. `local $/;` at this sub's top level
+    # stayed in effect for everything after it - including _group_closure
+    # below, whose _group_membership_map reads the groups file with
+    # `while (<$fh>)`. In slurp mode that loop takes the WHOLE file as one
+    # line, so the map collapsed from 21 groups to 1, the parent table came
+    # out empty, and NO nested group ever resolved.
+    #
+    # What that cost: a capability held by a group through nesting - which is
+    # how the shipped groups are arranged, ch-ui containing site-admins and
+    # the rest - was never granted. An account in site-admins was told
+    # "Manager access not permitted". It fails CLOSED, so it is a lockout
+    # rather than a leak, and it is invisible to any test whose user is in a
+    # group that holds the capability DIRECTLY.
+    my $gs;
+    {
+        open my $fh, '<:raw', $f or return 0;
+        local $/;
+        $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
+        close $fh;
+    }
     for my $g ( _group_closure(@groups) ) {    # SM121: compound-expanded
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
     }

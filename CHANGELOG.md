@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM702 (PENDING) **a capability held through nesting was never granted.**
+  Reported from a live manager: an account in `site-admins` was told "Manager
+  access not permitted", though the shipped groups put `site-admins` inside
+  `ch-ui` and `ch-ui` holds `ui`. `local $/` in `_groups_grant_cap` is scoped to
+  the enclosing BLOCK - the whole sub - so it was still undef when
+  `_group_closure` ran, and `_group_membership_map`'s `while (<$fh>)` took the
+  entire groups file as ONE line. Measured: 21 groups parsed normally, 1 in
+  slurp mode. The parent table was empty and nothing nested resolved.
+
+  **It fails closed** - a lockout, not a leak - and every existing test put its
+  user in a group holding the capability directly, so the whole suite passed.
+  The regression test grants a capability ONLY through nesting.
+
 - SM701 shipped (896bcede, 5bb25b1e) **the fleet rollout reports a table, not a transcript.**
   Raised by the release manager: "install/deploy is now very noisy, reporting an
   ever longer collection of information." A candidate appeared in as many as
