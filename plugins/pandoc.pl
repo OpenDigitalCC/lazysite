@@ -284,9 +284,12 @@ sub plugin_status {
     # worked, not what it found.
     my $msg = !$bin
         ? 'md-to-pdf is not installed on this server, so this plugin cannot convert anything.'
+        # NOT THE PATH. Where a binary sits on the host is not something an
+        # operator can act on, and printing it is a small disclosure for
+        # nothing. What they need to know is that the converter answers.
         : sprintf(
-        'md-to-pdf %s is installed and answering at %s. %s',
-        ( defined $ver ? $ver : '(version unknown)' ), $bin,
+        'The PDF converter is installed and answering (md-to-pdf %s). %s',
+        ( defined $ver ? $ver : 'version unknown' ),
         ( @{$brands}
             ? 'Brands found: ' . join( ', ', @{$brands} ) . '.'
             : 'No brands yet - add a folder under lazysite/brands/ on the Files page.' )
@@ -296,7 +299,7 @@ sub plugin_status {
         ok        => 1,
         message   => $msg,
         available => $bin ? JSON::PP::true : JSON::PP::false,
-        converter => $bin,
+        installed => ( $bin ? JSON::PP::true : JSON::PP::false ),
         version   => $ver,
         no_viewer => _supports_no_viewer($bin) ? JSON::PP::true : JSON::PP::false,
         brands    => $brands,

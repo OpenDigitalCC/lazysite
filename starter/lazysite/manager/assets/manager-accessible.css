@@ -55,9 +55,9 @@
     --mg-accent2-fill: oklch(0.49 0.09 var(--mg-h2, 45));
     --mg-accent2-bg:   oklch(0.93 0.022 var(--mg-h2, 45));
     /* Status — information, not alarm */
-    --mg-danger:       oklch(0.49 0.14 27);
-    --mg-danger-deep:  oklch(0.42 0.15 27);
-    --mg-danger-bg:    oklch(0.94 0.028 27);
+    --mg-danger:       oklch(0.48 0.17 12);
+    --mg-danger-deep:  oklch(0.41 0.18 12);
+    --mg-danger-bg:    oklch(0.94 0.03 10);
     --mg-success:      oklch(0.46 0.09 152);
     --mg-success-bg:   oklch(0.94 0.03 152);
     --mg-warning:      oklch(0.47 0.10 82);
@@ -105,7 +105,7 @@
     --mg-accent-bg: oklch(0.30 0.045 253); --mg-accent-text: #ffffff;
     --mg-accent2: oklch(0.72 0.08 var(--mg-h2, 45)); --mg-accent2-deep: oklch(0.78 0.075 var(--mg-h2, 45));
     --mg-accent2-fill: oklch(0.52 0.09 var(--mg-h2, 45)); --mg-accent2-bg: oklch(0.30 0.05 var(--mg-h2, 45));
-    --mg-danger: oklch(0.72 0.12 27); --mg-danger-deep: oklch(0.78 0.10 27); --mg-danger-bg: oklch(0.30 0.06 27);
+    --mg-danger: oklch(0.72 0.14 12); --mg-danger-deep: oklch(0.78 0.12 12); --mg-danger-bg: oklch(0.30 0.07 10);
     --mg-success: oklch(0.74 0.10 152); --mg-success-bg: oklch(0.28 0.05 152);
     --mg-warning: oklch(0.76 0.10 85); --mg-warning-bg: oklch(0.30 0.05 85);
     --mg-mark: color-mix(in oklab, var(--mg-text) 45%, transparent);
@@ -122,7 +122,7 @@
     --mg-accent-bg: oklch(0.30 0.045 253); --mg-accent-text: #ffffff;
     --mg-accent2: oklch(0.72 0.08 var(--mg-h2, 45)); --mg-accent2-deep: oklch(0.78 0.075 var(--mg-h2, 45));
     --mg-accent2-fill: oklch(0.52 0.09 var(--mg-h2, 45)); --mg-accent2-bg: oklch(0.30 0.05 var(--mg-h2, 45));
-    --mg-danger: oklch(0.72 0.12 27); --mg-danger-deep: oklch(0.78 0.10 27); --mg-danger-bg: oklch(0.30 0.06 27);
+    --mg-danger: oklch(0.72 0.14 12); --mg-danger-deep: oklch(0.78 0.12 12); --mg-danger-bg: oklch(0.30 0.07 10);
     --mg-success: oklch(0.74 0.10 152); --mg-success-bg: oklch(0.28 0.05 152);
     --mg-warning: oklch(0.76 0.10 85); --mg-warning-bg: oklch(0.30 0.05 85);
     --mg-mark: color-mix(in oklab, var(--mg-text) 45%, transparent);
@@ -480,30 +480,15 @@
    .mg-expand is the one in-place detail card, opening as the row's
    next sibling; only one open at a time. */
 .mg-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
-/* MR-53: A GRID, NOT A FLEX LINE.
-   As a flex row every listing packed independently - the name ragged, the
-   metadata wherever it fell, the buttons jammed against the right edge - so
-   nothing lined up DOWN the list and a long name squeezed the actions. Two
-   columns: everything that describes the row, then everything that acts on it.
-   The Plugin row has been a grid all along, which is why that page reads more
-   evenly than Files did. */
 .mg-row {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center; gap: 10px; min-height: 44px;
-    padding: 6px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
+    display: flex; align-items: center; gap: 10px; min-height: 44px;
+    padding: 4px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
 }
-/* The row's own action group sits in the second column whatever it is made of. */
-.mg-row > :last-child { justify-self: end; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-/* The metadata drops UNDER the name rather than competing with it for width -
-   which is where the horizontal room comes from without a wider window. */
-.mg-row .mg-row-meta { display: block; margin-top: 1px; }
 .mg-list > :last-child, .mg-list > details:last-child .mg-row { border-bottom: none; }
 .mg-row:hover { background: var(--mg-surface-alt); }
 .mg-row-name { flex: 1; min-width: 0; font-weight: 500; color: var(--mg-text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.mg-row-name:hover { color: var(--mg-accent-deep); }
-/* No nowrap: on its own line it may wrap, which is what makes a narrow window
-   survive rather than overflow. */
-.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
+.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); white-space: nowrap; }
 .mg-row-actions { display: flex; gap: 6px; align-items: center; }
 .mg-chev {
     display: inline-flex; align-items: center; justify-content: center;
@@ -554,26 +539,17 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-modal .mg-modal-overlay { position: absolute; z-index: auto; }
 .mg-modal-in {
     position: fixed; z-index: 1110; top: 18vh; left: 50%; transform: translateX(-50%);
-    /* MR-44: as big as its content, and no bigger than the window. A fixed
-       ceiling made a panel too narrow for a field table and too wide for a
-       sentence; max-content sizes to what is in it, min-width stops a short
-       message becoming a sliver, and prose is capped separately below so a
-       long sentence wraps instead of stretching the dialog to the screen. */
-    width: max-content;
-    min-width: min(26rem, calc(100vw - 32px));
-    max-width: calc(100vw - 32px);
-    background: var(--mg-surface);
+    width: min(26rem, calc(100vw - 32px)); background: var(--mg-surface);
     border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); padding: 18px;
 }
 .mg-modal .mg-modal-in { position: absolute; z-index: auto; }
-.mg-modal-msg { margin-bottom: 12px; font-size: 14px; max-width: 44rem; }
+.mg-modal-msg { margin-bottom: 12px; font-size: 14px; }
 .mg-modal-input { width: 100%; margin-bottom: 14px; }
 .mg-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .mg-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow: auto; }
 .mg-sheet[hidden] { display: none; }
 .mg-sheet-panel {
-    width: max-content; min-width: min(36rem, 92vw); max-width: 96vw;
-    max-height: 92vh; display: flex; flex-direction: column;
+    width: min(720px, 96vw); max-height: 92vh; display: flex; flex-direction: column;
     background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); overflow: hidden;
 }
 .mg-sheet-head {
@@ -1152,7 +1128,7 @@ body.mg-sheet-open { overflow: hidden; }
     --mg-accent-bg: oklch(0.94 0.015 253);
     --mg-accent2: oklch(0.40 0.10 45); --mg-accent2-deep: oklch(0.35 0.10 45);
     --mg-accent2-fill: oklch(0.36 0.10 45); --mg-accent2-bg: oklch(0.94 0.02 45);
-    --mg-danger: oklch(0.42 0.15 27); --mg-danger-deep: oklch(0.36 0.15 27); --mg-danger-bg: oklch(0.95 0.02 27);
+    --mg-danger: oklch(0.41 0.18 12); --mg-danger-deep: oklch(0.35 0.17 12); --mg-danger-bg: oklch(0.95 0.025 10);
     --mg-success: oklch(0.40 0.10 152); --mg-success-bg: oklch(0.95 0.025 152);
     --mg-warning: oklch(0.42 0.10 82); --mg-warning-bg: oklch(0.96 0.03 85);
     --mg-mark: transparent;
@@ -1170,7 +1146,7 @@ body.mg-sheet-open { overflow: hidden; }
     --mg-accent-bg: oklch(0.25 0.04 253); --mg-accent-text: #0b0c0c;
     --mg-accent2: oklch(0.82 0.09 45); --mg-accent2-deep: oklch(0.86 0.08 45);
     --mg-accent2-fill: oklch(0.80 0.09 45); --mg-accent2-bg: oklch(0.25 0.05 45);
-    --mg-danger: oklch(0.80 0.10 27); --mg-danger-deep: oklch(0.86 0.08 27); --mg-danger-bg: oklch(0.25 0.06 27);
+    --mg-danger: oklch(0.80 0.12 12); --mg-danger-deep: oklch(0.86 0.10 12); --mg-danger-bg: oklch(0.25 0.07 10);
     --mg-success: oklch(0.84 0.10 152); --mg-success-bg: oklch(0.24 0.05 152);
     --mg-warning: oklch(0.86 0.10 85); --mg-warning-bg: oklch(0.26 0.05 85);
 }
@@ -1185,7 +1161,7 @@ body.mg-sheet-open { overflow: hidden; }
         --mg-accent-bg: oklch(0.25 0.04 253); --mg-accent-text: #0b0c0c;
         --mg-accent2: oklch(0.82 0.09 45); --mg-accent2-deep: oklch(0.86 0.08 45);
         --mg-accent2-fill: oklch(0.80 0.09 45); --mg-accent2-bg: oklch(0.25 0.05 45);
-        --mg-danger: oklch(0.80 0.10 27); --mg-danger-deep: oklch(0.86 0.08 27); --mg-danger-bg: oklch(0.25 0.06 27);
+        --mg-danger: oklch(0.80 0.12 12); --mg-danger-deep: oklch(0.86 0.10 12); --mg-danger-bg: oklch(0.25 0.07 10);
         --mg-success: oklch(0.84 0.10 152); --mg-success-bg: oklch(0.24 0.05 152);
         --mg-warning: oklch(0.86 0.10 85); --mg-warning-bg: oklch(0.26 0.05 85);
     }
@@ -1283,3 +1259,53 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-badge, .mg-dom-chip { font-size: 15px; border-width: 2px; }
 
 .mg-form-row label { font-size: 16px; }
+
+
+/* ============================================================
+   SM-DS2 — round-2 answers.
+   1) Danger moved hue 27 -> 12 (crimson) with chroma raised: copper
+      (45) untouched; warning (82) untouched. See the response brief.
+   2) The two drawn specimens: the dense settings form and the
+      sectioned groups list. Same class set in all three styles.
+   ============================================================ */
+/* Dense settings form — the drawn answer for fifteen-field pages.
+   Markup: .mg-card > .mg-card-body > .mg-form-dense > .mg-field.
+   The SAME .mg-field markup (label above control) re-flows into a
+   label rail beside the control and its help; below 720px it stacks
+   back to label-above. One group per card; the card header carries
+   the group's one paragraph of help as its subtitle. */
+.mg-form-dense { display: flex; flex-direction: column; }
+.mg-form-dense .mg-field {
+    display: grid; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr);
+    gap: 2px 20px; align-items: start; margin: 0; max-width: 56em;
+    padding: 12px 0; border-bottom: 1px solid var(--mg-border-light);
+}
+.mg-form-dense .mg-field:first-child { padding-top: 0; }
+.mg-form-dense .mg-field:last-child { border-bottom: none; padding-bottom: 0; }
+.mg-form-dense .mg-field > label { grid-column: 1; padding-top: 8px; }
+.mg-form-dense .mg-field > *:not(label) { grid-column: 2; }
+.mg-form-dense .mg-field .mg-muted { margin: 0; }
+.mg-form-dense .mg-checks { grid-column: 2; }
+@media (max-width: 720px) {
+    .mg-form-dense .mg-field { grid-template-columns: 1fr; gap: 4px 0; }
+    .mg-form-dense .mg-field > label { padding-top: 0; }
+    .mg-form-dense .mg-field > *:not(label), .mg-form-dense .mg-checks { grid-column: 1; }
+}
+/* Groups — the dense sectioned list, drawn. The section head joins
+   the .mg-sec vocabulary; rows are the ordinary .mg-row; the roll-up
+   line names what a group is INSIDE (hence the outward arrow). */
+.mg-group-section > summary {
+    display: flex; align-items: baseline; gap: 8px; padding: 9px 14px;
+    font-family: var(--mg-font-heading); font-size: var(--mg-text-sm); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.09em; color: var(--mg-text-muted);
+}
+.mg-group-section > summary:hover { color: var(--mg-text); background: var(--mg-surface-alt); }
+.mg-group-section .mg-row:last-child { border-bottom: none; }
+.mg-rollup { font-size: var(--mg-text-sm); color: var(--mg-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-rollup::before { content: '\2197\00a0'; color: var(--mg-text-light); }
+.mg-rollup a { color: var(--mg-accent-deep); }
+/* accessible ink for the SM-DS2 additions */
+.mg-group-section > summary { font-family: var(--mg-font); text-transform: none; letter-spacing: 0; font-size: 17px; font-weight: 700; color: var(--mg-text); }
+.mg-form-dense .mg-field { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
+.mg-form-dense .mg-field > label { padding-top: 12px; }
+.mg-rollup { font-size: 16px; }

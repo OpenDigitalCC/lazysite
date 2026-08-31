@@ -110,6 +110,87 @@ dismisses itself.</span>
 </table>
 </div>
 
+<h2 class="mg-sg-h">Settings &mdash; the dense form</h2>
+<p class="mg-sg-note">SM-DS2, drawn by the design side for fifteen-field pages. One
+schema group per card, the group's help as the card subtitle, and
+<code>.mg-form-dense</code> re-flowing the SAME <code>.mg-field</code> markup into a
+label rail with the control and its help beside it. Fifteen fields scan down the left
+edge instead of scrolling a flat column. Below 720px it stacks back to label-above,
+which is the idiom the manager already had.</p>
+<div class="mg-sg-demo">
+<div class="mg-card" style="margin-bottom: 0;">
+  <div class="mg-card-header">
+    <span class="mg-card-title">Publishing</span>
+    <span class="mg-card-subtitle">how pages leave the site: addresses, feeds, and the build that produces them</span>
+  </div>
+  <div class="mg-card-body">
+    <div class="mg-form-dense">
+      <div class="mg-field">
+        <label>Base URL</label>
+        <input type="url" value="https://example.org">
+        <div class="mg-muted">Absolute links, feeds and sitemaps are written against this.</div>
+      </div>
+      <div class="mg-field">
+        <label>Feed length</label>
+        <select><option>20 entries</option><option>50 entries</option></select>
+        <div class="mg-muted">Applies to RSS and JSON feeds alike; archives are unaffected.</div>
+      </div>
+      <div class="mg-field">
+        <label>Canonical scheme</label>
+        <span class="mg-readonly-value">https &mdash; forced by the proxy</span>
+      </div>
+      <div class="mg-field">
+        <label>On publish</label>
+        <div class="mg-checks">
+          <label class="mg-chk"><input type="checkbox" checked> Ping search engines</label>
+          <label class="mg-chk"><input type="checkbox"> Rebuild related pages</label>
+        </div>
+        <div class="mg-muted">Both run after the build finishes, never during it.</div>
+      </div>
+    </div>
+  </div>
+</div>
+    </section>
+
+    <section data-screen-label="Groups list" style="margin-bottom: 36px;">
+</div>
+
+<h2 class="mg-sg-h">Groups &mdash; the dense sectioned list</h2>
+<p class="mg-sg-note">SM-DS2. The sectioned structure kept and re-inked: the section
+head joins the <code>.mg-sec</code> vocabulary, the count is <code>.mg-subcount</code>,
+rows are ordinary <code>.mg-row</code>, and <code>.mg-rollup</code> gains an outward
+marker with overflow ellipsis &mdash; so a group belonging to seven bundles cannot
+wreck its row. No new classes.</p>
+<div class="mg-sg-demo">
+<details class="mg-group-section" open>
+  <summary><span class="mg-group-section-head">Roles</span><span class="mg-subcount">3 groups</span></summary>
+  <div class="mg-row">
+    <span class="mg-row-name">@editors</span>
+    <span class="mg-rollup"><a href="#">@staff</a>, <a href="#">@all</a></span>
+    <span class="mg-row-meta">8 members</span>
+    <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Configure</button></span>
+  </div>
+  <div class="mg-row">
+    <span class="mg-row-name">@reviewers</span>
+    <span class="mg-rollup"><a href="#">@staff</a></span>
+    <span class="mg-row-meta">3 members</span>
+    <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Configure</button></span>
+  </div>
+  <div class="mg-row">
+    <span class="mg-row-name">@admins</span>
+    <span class="mg-rollup"><a href="#">@staff</a>, <a href="#">@oncall</a></span>
+    <span class="mg-row-meta">2 members</span>
+    <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Configure</button></span>
+  </div>
+</details>
+<details class="mg-group-section" style="margin-bottom: 0;">
+  <summary><span class="mg-group-section-head">Bundles</span><span class="mg-subcount">2 groups &middot; collapsed</span></summary>
+</details>
+    </section>
+
+    <section data-screen-label="Legacy vocabulary" style="margin-bottom: 36px;">
+</div>
+
 <h2 class="mg-sg-h">Modal</h2>
 <p class="mg-sg-note">For a subject that is not more detail about a row - its own application, with its own controls. SM680: a panel opening below a long list is not seen.</p>
 <div class="mg-sg-demo">

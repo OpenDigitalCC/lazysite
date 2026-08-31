@@ -243,8 +243,12 @@ function renderPluginCard(plugin) {
   var html = '<div class="mg-plugin-card mg-row" id="plugin-' + esc(plugin.id) + '">';
   html += '<div class="mg-plugin-title">' + esc(plugin.name) + '</div>';
   html += '<div class="mg-plugin-desc">' + esc(plugin.description) + '</div>';
+  // The group opens unconditionally, because Configure and the per-plugin
+  // buttons below belong to it even when the plugin declares no actions of its
+  // own. Opening it only for declared actions is what left those buttons
+  // outside the group, each on its own baseline.
+  html += '<div class="mg-wizard-actions">';
   if (plugin.actions && plugin.actions.length) {
-    html += '<div class="mg-wizard-actions">';
     plugin.actions.forEach(function(a, ai) {
       // Lifecycle actions a plugin drives from its enable/disable toggle
       // (on_enable / on_disable) are marked hidden - they are not buttons here,
@@ -261,7 +265,6 @@ function renderPluginCard(plugin) {
         html += '<button class="mg-btn mg-btn-sm" onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
       }
     });
-    html += '</div>';
   }
   if (hasConfig) {
     // mg-btn-sm, like every other button in this row. Configure was full size
@@ -272,7 +275,7 @@ function renderPluginCard(plugin) {
   // SM664: content history's way in is a VIEW, not a config form - it declares
   // an empty config_schema, so without this its row would offer nothing at all.
   if (plugin.id === 'content-history') {
-    html += '<button class="mg-btn" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
   }
   // SM703: the blocked-address list belongs to the plugin that does the
   // blocking. It sat on Visitor Statistics, which reads as a reporting filter -
@@ -281,8 +284,13 @@ function renderPluginCard(plugin) {
   // on a statistics page invites an operator to read it as "hidden from the
   // numbers" rather than "refused the site".
   if (plugin.id === 'bad-url-blocker') {
-    html += '<button class="mg-btn" onclick="toggleBlocked(this)" '
+    html += '<button class="mg-btn mg-btn-sm" onclick="toggleBlocked(this)" '
          +  'aria-controls="blocked-body" aria-expanded="false">Blocked addresses</button>';
+  }
+  // Every button this plugin offers is now in ONE group, so they share a
+  // baseline and wrap together. Panels open BELOW it, full width.
+  html += '</div>';
+  if (plugin.id === 'bad-url-blocker') {
     html += '<div class="mg-card-body mg-expand-body" id="blocked-body" style="display:none">Loading&hellip;</div>';
   }
   if (plugin.child_configs) {

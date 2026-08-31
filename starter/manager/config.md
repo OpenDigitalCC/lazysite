@@ -351,11 +351,15 @@ function renderSiteForm(values) {
       // input, help text, repeat, for the length of the schema. Reported as
       // "options now above each other, tis lost its structure so hard to
       // use, needs cards". Nothing new was invented for it.
-      if (lastGroup !== null) html += '</div></div>';
+      if (lastGroup !== null) html += '</div></div></div>';
+      // SM-DS2: the drawn dense form. .mg-form-dense re-flows the SAME
+      // .mg-field markup into a label rail, so fifteen fields scan down the
+      // left edge instead of scrolling a flat column - and below 720px it
+      // stacks back to label-above, the idiom this page already had.
       html += '<div class="mg-card">'
            +  '<div class="mg-card-header"><span class="mg-card-title">'
            +  esc(f.group) + '</span></div>'
-           +  '<div class="mg-card-body">';
+           +  '<div class="mg-card-body"><div class="mg-form-dense">';
       // The preset rides on the FIRST field of its group, so the button lands
       // under the heading it belongs to.
       if (f.group_preset && SERVICE_PRESETS[f.group_preset]) {
@@ -459,7 +463,7 @@ function renderSiteForm(values) {
   });
   // Close the last group's card before the actions, which sit outside the
   // cards because Save applies to the whole form rather than to one group.
-  if (lastGroup !== null) html += '</div></div>';
+  if (lastGroup !== null) html += '</div></div></div>';
   html += '<div class="mg-field"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
        +  ' <span id="site-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div>';
   html += '</form>';
