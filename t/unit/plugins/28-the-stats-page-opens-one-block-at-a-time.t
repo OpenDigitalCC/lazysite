@@ -146,16 +146,27 @@ like( $page, qr/function statsToggle.*?try\s*\{.*?\}\s*catch\s*\(e\)\s*\{/s,
 # ---------------------------------------------------------------------
 # 5. A card nobody opens costs no request
 # ---------------------------------------------------------------------
-# The page used to call loadBlocked() unconditionally at load, so every visit
-# fetched the blocked list whether or not anyone looked at it.
-unlike( $page, qr/^loadBlocked\(\);/m,
-    'the blocked list is no longer fetched unconditionally at load' );
-like( $page, qr/cardSet\(\s*'card-blocked'/,
-    'it is fetched through the card, which knows whether it is open' );
+# The page used to fetch a card's contents unconditionally at load, whether or
+# not anyone looked. The deferred-fetch machinery is now exercised by the
+# journeys card; the blocked-address card it was written for moved to Plugin
+# Config in SM703.
+like( $page, qr/cardSet\(\s*'card-trails'/,
+    'a card is fetched through the machinery that knows whether it is open' );
 like( $page, qr/if \(open && !cardLoaded\[key\]\)/,
     'and the fetch happens on the FIRST open only, not on every toggle' );
-like( $page, qr/id="blocked-body" hidden/,
-    'the blocked card body starts hidden' );
+
+# SM703: a block is an ACCESS CONTROL - lazysite-auth.pl answers a blocked
+# address 403 and exits before anything is served - so it does not belong on a
+# page of statistics, where it reads as "hidden from the numbers" rather than
+# "refused the site". It lives with the plugin that does the blocking.
+unlike( $page, qr/function loadBlocked/,
+    'the blocked-address list is not implemented on the statistics page' );
+unlike( $page, qr/id="blocked-body"/,
+    'and its panel is not here either' );
+like( $page, qr{/manager/plugin-config},
+    'the page points at where the list now lives' )
+    or diag( 'Moving a control without leaving a pointer strands the operator '
+        . 'who knew where it used to be.' );
 like( $page, qr/id="trails-card-body" hidden/,
     'the journeys card body starts hidden' );
 
@@ -205,7 +216,7 @@ like( $page, qr/addEventListener\('toggle'/,
     'they use addEventListener' );
 like( $page, qr/function bindCard/,
     'the card buttons are bound the same way' );
-for my $id (qw(card-blocked-toggle card-trails-toggle)) {
+for my $id (qw(card-trails-toggle)) {    # card-blocked moved out, SM703
     like( $page, qr/id="\Q$id\E"[^>]*>/s, "$id exists for bindCard to find" );
     unlike( $page, qr/id="\Q$id\E"[^>]*\bonclick=/s,
         "$id carries no inline onclick" );

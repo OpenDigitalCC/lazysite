@@ -271,6 +271,17 @@ function renderPluginCard(plugin) {
   if (plugin.id === 'content-history') {
     html += '<button class="mg-btn" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
   }
+  // SM703: the blocked-address list belongs to the plugin that does the
+  // blocking. It sat on Visitor Statistics, which reads as a reporting filter -
+  // and a block is not a reporting filter: lazysite-auth.pl answers a blocked
+  // address 403 and exits before anything is served. Putting an access control
+  // on a statistics page invites an operator to read it as "hidden from the
+  // numbers" rather than "refused the site".
+  if (plugin.id === 'bad-url-blocker') {
+    html += '<button class="mg-btn" onclick="toggleBlocked(this)" '
+         +  'aria-controls="blocked-body" aria-expanded="false">Blocked addresses</button>';
+    html += '<div class="mg-card-body mg-expand-body" id="blocked-body" style="display:none">Loading&hellip;</div>';
+  }
   if (plugin.child_configs) {
     html += '<div class="mg-card-body" id="children-' + plugin.id + '">Loading...</div>';
   }
@@ -630,6 +641,52 @@ function loadChildConfigs(plugin) {
     var pluginCard = document.getElementById('plugin-' + plugin.id);
     pluginCard.insertAdjacentHTML('afterend', cardHtml);
   });
+}
+
+// --- Blocked addresses (SM128, moved here by SM703) ---
+
+function toggleBlocked(btn) {
+  var el = document.getElementById('blocked-body');
+  if (!el) return;
+  var open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  if (!open) loadBlocked();
+}
+
+function loadBlocked() {
+  var el = document.getElementById('blocked-body');
+  if (!el) return;
+  fetch(API + '?action=bad-url-blocks').then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.ok) { el.innerHTML = '<p class="mg-muted">' + esc((d && d.error) || 'Unavailable.') + '</p>'; return; }
+    var ips = Object.keys(d.blocks || {});
+    if (!ips.length) { el.innerHTML = '<p class="mg-muted">No addresses are currently blocked.</p>'; return; }
+    ips.sort(function (a, b) { return (d.blocks[b].since || 0) - (d.blocks[a].since || 0); });
+    var h = '<p class="mg-muted">A blocked address is refused the site &mdash; it receives 403 and is served nothing. '
+          + 'Unblocking takes effect on its next request.</p>'
+          + '<div class="mg-table-wrap"><table class="mg-table"><thead><tr>'
+          + '<th>Address</th><th>Probes</th><th>Blocked since</th><th></th></tr></thead><tbody>';
+    ips.forEach(function (ip) {
+      var b = d.blocks[ip];
+      var since = b.since ? new Date(b.since * 1000).toLocaleString() : '';
+      h += '<tr><td><code>' + esc(ip) + '</code></td><td>' + esc(String(b.count))
+         + '</td><td>' + esc(since) + '</td><td>'
+         + '<button class="mg-btn mg-btn-sm" onclick="unblockIp(\'' + esc(ip).replace(/'/g, '') + '\')">Unblock</button>'
+         + '</td></tr>';
+    });
+    el.innerHTML = h + '</tbody></table></div>';
+  }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
+}
+
+function unblockIp(ip) {
+  fetch(API + '?action=bad-url-unblock&ip=' + encodeURIComponent(ip), { method: 'POST' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { showStatus((d && d.error) || 'Unblock failed', true); return; }
+      showStatus('Unblocked ' + ip + '.');
+      loadBlocked();
+    })
+    .catch(function (e) { showStatus('Error: ' + e.message, true); });
 }
 
 // --- Handler list (grouped by type) ---

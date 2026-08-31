@@ -20,7 +20,9 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             name        => 'Bad-URL auto-blocker',
             description => 'Auto-blocks source IPs that hammer scanner/probe URLs '
                 . '(/wp-login.php, /.env, *.php on a Markdown site, ...). On by '
-                . 'default. Blocked IPs and unblock are on the Visitor Statistics page.',
+                . 'default. A blocked address is REFUSED THE SITE - it receives '
+                . '403 and is served nothing. The current blocks, with per-address '
+                . 'unblock, are on this page.',
             version     => '1.0',
             config_file => 'lazysite/lazysite.conf',
             config_keys => [qw(bad_url_block bad_url_threshold bad_url_window bad_url_extra)],

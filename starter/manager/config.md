@@ -20,18 +20,18 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 // config-set allow-list and config-read subset; the guarantee test
 // t/lint/18-config-key-parity.t fails the build if they drift.)
 var SITE_SCHEMA = [
-  { key: 'site_name',      label: 'Site name',             type: 'text',   required: true,
+  { key: 'site_name', placeholder: 'My Site',      label: 'Site name',             type: 'text',   required: true,
     default: 'My Site', group: 'Identity' },
-  { key: 'site_url',       label: 'Site URL',              type: 'text',
+  { key: 'site_url', placeholder: 'Detected from the request',       label: 'Site URL',              type: 'text',
     default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
   // Layout, theme and the layouts repo are managed in ONE place - the Appearance
   // page (Installed layouts & themes), where activation also clears the page cache
   // and mirrors theme assets - so they are NOT duplicated here in settings.
-  { key: 'nav_file',       label: 'Navigation file',       type: 'text',
+  { key: 'nav_file', placeholder: 'lazysite/nav.conf',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf', group: 'Content' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
     on: 'true', off: 'false', default: 'true' },
-  { key: 'asset_max_age', label: 'Asset cache lifetime (seconds)', type: 'text',
+  { key: 'asset_max_age', placeholder: '0 - re-check every time', label: 'Asset cache lifetime (seconds)', type: 'text',
     default: '', group: 'Content',
     note: 'How long a visitor\'s browser may keep stylesheets, images and fonts before re-checking. Empty or 0 (the default) means re-check on every use: theme changes and newly protected files take effect immediately, at the cost of more requests. A value like 300 lets browsers reuse assets for that many seconds - fewer requests, and a change (including protecting a file) can take up to that long to reach visitors who already fetched it.' },
   // SM095/SM138: Manager-UI access is the `ui` channel capability, granted through
@@ -40,7 +40,7 @@ var SITE_SCHEMA = [
   { key: 'manager',        label: 'Enable the manager UI', type: 'toggle',
     on: 'enabled', off: 'disabled', default: 'disabled', group: 'Manager user interface',
     note: 'The manager UI is the web interface you are using right now. Switch it OFF to run lazysite as a HEADLESS CMS: the /manager interface is disabled (including for you), but the site keeps serving pages and stays fully configurable over the control API, WebDAV, MCP and direct file access. To turn it back on, set "manager: enabled" in lazysite.conf.' },
-  { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
+  { key: 'manager_path', placeholder: '/manager',   label: 'Manager URL path',      type: 'text',
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
   // SM623: the service toggles are grouped BY WHAT A CLIENT NEEDS, not by the
@@ -440,7 +440,13 @@ function renderSiteForm(values) {
              +  esc(f.link_label || 'Edit') + '</a>';
       }
     } else {
-      html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
+      // A placeholder shows only when the box is EMPTY, so it answers the
+      // question an operator actually has in front of a pre-filled field:
+      // what happens if I clear this? Each one names the fallback rather
+      // than giving an example, which would only repeat the label.
+      html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'
+           +  (f.placeholder ? ' placeholder="'+esc(f.placeholder)+'"' : '')
+           +  (f.required?' required':'')+'>';
     }
     if (f.note) html += '<div class="mg-config-help mg-muted">' + esc(f.note) + '</div>';
     // SM277: an anchor for the reciprocal count, emitted for every field so

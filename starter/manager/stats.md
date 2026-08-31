@@ -31,12 +31,15 @@ search: false
 
 <div class="mg-card">
 <div class="mg-card-header">
-<span class="mg-card-title">Blocked IPs (auto-blocker)</span>
-<button class="mg-btn mg-btn-sm" id="card-blocked-toggle" aria-controls="blocked-body"
-        aria-expanded="false">Show</button>
-<button class="mg-btn mg-btn-sm" onclick="loadBlocked()">Refresh</button>
+<span class="mg-card-title">Blocked addresses</span>
 </div>
-<div class="mg-card-body" id="blocked-body" hidden>Loading&hellip;</div>
+<div class="mg-card-body">
+<p class="mg-muted">A blocked address is <strong>refused the site</strong> &mdash; it
+receives 403 and is served nothing, so it is an access control rather than a
+reporting filter. The list and per-address unblock live with the plugin that
+does the blocking:
+<a href="/manager/plugin-config">Plugin Config &rarr; Bad-URL auto-blocker</a>.</p>
+</div>
 </div>
 
 <script>
@@ -381,12 +384,13 @@ function bindCard(key, bodyId, load) {
   }
 }
 
-// SM424: the same rule for a WHOLE CARD. Trails and the blocked-address list
-// are their own cards below the report, and an operator who came for hits per
-// day scrolls past both. They collapse the same way and remember the same way,
-// and the fetch is DEFERRED to the first open - a card nobody expands costs no
-// request at all, which the previous unconditional loadBlocked() did on every
-// page load whether anyone looked or not.
+// SM424: the same rule for a WHOLE CARD. Trails is its own card below the
+// report, and an operator who came for hits per day scrolls past it. It
+// collapses the same way, remembers the same way, and its fetch is DEFERRED to
+// the first open - a card nobody expands costs no request at all, which the
+// unconditional load it replaced did on every page load whether anyone looked
+// or not. (The blocked-address card that shared this rule moved to Plugin
+// Config in SM703.)
 var cardLoaded = {};
 function cardSet(key, bodyId, open, load) {
   var el = document.getElementById(bodyId);
@@ -433,37 +437,7 @@ function refBlock(ref) {
   return h + '</tbody></table></div>';
 }
 
-// SM128: the bad-URL auto-blocker's current blocks, with per-IP unblock.
-function loadBlocked() {
-  var el = document.getElementById('blocked-body');
-  fetch(API + '?action=bad-url-blocks').then(function (r) { return r.json(); }).then(function (d) {
-    if (!d || !d.ok) { el.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'Unavailable.') + '</p>'; return; }
-    var ips = Object.keys(d.blocks || {});
-    if (!ips.length) { el.innerHTML = '<p class="mg-muted">No IPs are currently blocked.</p>'; return; }
-    ips.sort(function (a, b) { return (d.blocks[b].since || 0) - (d.blocks[a].since || 0); });
-    var h = '<table class="mg-table"><thead><tr><th>IP</th><th>Probes</th><th>Since</th><th></th></tr></thead><tbody>';
-    ips.forEach(function (ip) {
-      var b = d.blocks[ip];
-      var since = b.since ? new Date(b.since * 1000).toLocaleString() : '';
-      h += '<tr><td><code>' + sesc(ip) + '</code></td><td>' + fmtNum(b.count)
-         + '</td><td>' + sesc(since) + '</td><td>'
-         + '<button class="mg-btn mg-btn-sm" onclick="unblockIp(\'' + sesc(ip).replace(/'/g, '') + '\')">Unblock</button>'
-         + '</td></tr>';
-    });
-    el.innerHTML = h + '</tbody></table>';
-  }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
-}
 
-function unblockIp(ip) {
-  fetch(API + '?action=bad-url-unblock&ip=' + encodeURIComponent(ip), { method: 'POST' })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (!d || !d.ok) { showStatus((d && d.error) || 'Unblock failed', true); return; }
-      showStatus('Unblocked ' + ip + '.');
-      loadBlocked();
-    })
-    .catch(function (e) { showStatus('Error: ' + e.message, true); });
-}
 
 // SM399: the journeys panel - the ONE question the aggregates above cannot
 // answer.
@@ -587,9 +561,8 @@ function renderTrails(d) {
 }
 
 loadStats();
-// Both cards honour what this viewer last chose; neither fetches until it is
-// actually open.
-bindCard( 'card-blocked', 'blocked-body', loadBlocked );
+// The trails card honours what this viewer last chose and does not fetch until
+// it is actually open. (The blocked-address card moved to Plugin Config in
+// SM703 - it is an access control, not a statistic.)
 bindCard( 'card-trails',  'trails-card-body', trailsLoadCurrent );
-cardSet( 'card-blocked', 'blocked-body', blockOpen( 'card-blocked', 0 ), loadBlocked );
 </script>
