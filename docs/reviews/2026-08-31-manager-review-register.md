@@ -100,6 +100,13 @@ Refs are quotable: `MR-01` and so on.
 | MR-79 | Data tables: JSON/CSV text orphaned from the buttons | It sat three cards above the export buttons, explaining a choice the reader was not making yet. An `.mg-info` beside the buttons now | — |
 | MR-80 | "Not published" still means nothing to the reader | Said twice. The first pass kept the word and explained it in a tooltip; "not published" reads as UNFINISHED. The setting is about who may READ it, so it says **public** / **private** - the word the descriptor itself uses (`public: true`) | — |
 | MR-81 | Domains: the "alias" chip does nothing | It was never a control - a state chip meaning "no content folder of its own" - but a plain `.mg-tag` carried the button's exact chrome, so it was pressed. REMOVED at the release manager's call: the Content folder column already reads "default site". Tags no longer borrow the button's border and fill | — |
+| MR-82 | Backups: a button out of alignment | Every button in all three lists, in fact. `.mg-row` is a two-column grid - what describes the row, what acts on it - and the rows handed it five loose children, so the badge, Download and Restore each took a row of their own. Two children now, the house idiom | — |
+| MR-83 | Two expander idioms: `+` on Groups, `▾` on Files and Data | Standardised on `+`/`−`. On Files the triangle was worse than inconsistent: that table sorts with ▲/▼ in its column headers, so the same shape meant "sort by this" and "open this" a row apart. The glyph now comes from the sheet, not from each page, so a page cannot spell it differently or let the marker drift from the class that styles it. The MECHANISM still differs by necessity - `<details>` cannot wrap rows of a `<table>` - but the control is one thing to look at | — |
+| MR-84 | Appearance: installed items below the repo list | Reordered: what you have, then where more comes from, then how they arrive. The page opened on a catalogue of downloads with the thing an operator came to change below it. The Layouts repo field also stacked its Save button 560px wide, the width of the field | — |
+| MR-85 | "How do I let anonymous visitors read a table?" | The row said `private` and named the control that changes it in a TOOLTIP - hover-only, and reasonably never seen. The state is now a link: click it and Fields opens, where the tickbox and its consequence are written out | — |
+| MR-86 | Audit log dragged the page sideways at 420px | Seven columns and no `.mg-table-wrap`, the wrapper every other data table has | found by `tools/manager-layout-check.js` |
+| MR-87 | Appearance: Upload 44px off a 420px screen | A nowrap flex row around a file input, which is unusually wide and does not shrink | same |
+| MR-88 | Keys table overflowed at 900px | Two more inline `white-space:nowrap` cells, the second around a whole sentence - 295px of minimum in a table with 832px for six columns | same |
 
 
 # Open
@@ -107,7 +114,7 @@ Refs are quotable: `MR-01` and so on.
 | Ref | Raised | Why it is still open |
 | --- | --- | --- |
 | MR-51 | Layout install said "Layout not found" | Preview artefact, not a product fault - there are no layouts in the starter tree and a theme installs into one. Recorded so it is not re-investigated |
-| Inline styles | 355 across nineteen manager pages | Held at a per-page ceiling by `t/lint/108`, ratcheting down. Not a defect on its own; it is the mechanism by which fixed defects come back, so it is tracked rather than swept |
+| Inline styles | 346 across nineteen manager pages | Held at a per-page ceiling by `t/lint/108`, ratcheting down. Not a defect on its own; it is the mechanism by which fixed defects come back, so it is tracked rather than swept |
 
 # Why the same defect kept coming back
 

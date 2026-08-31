@@ -39,9 +39,9 @@ plan skip_all => 'no manager pages' unless @pages;
 
 # Measured 2026-08-31. Lower a number when you remove one; never raise one.
 my %CEILING = (
-    'appearance.md'     => 18,
+    'appearance.md'     => 16,
     'audit.md'          => 7,
-    'backups.md'        => 16,
+    'backups.md'        => 12,
     'cache.md'          => 2,
     'config.md'         => 4,
     'data.md'           => 49,
@@ -53,7 +53,7 @@ my %CEILING = (
     'nav.md'            => 16,
     'plugin-config.md'  => 43,
     'plugins.md'        => 0,
-    'sessions.md'       => 21,
+    'sessions.md'       => 18,
     'stats.md'          => 12,
     'style-guide.md'    => 4,
     'themes.md'         => 0,

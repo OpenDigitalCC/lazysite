@@ -524,6 +524,21 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
     text-decoration: none; cursor: pointer; font-size: 20px; line-height: 1;
     background: none;
 }
+/* ONE EXPANDER GLYPH, and it is the one the accordion already uses. Two
+   idioms were shipping: a `+` that becomes `-` on Groups, and a triangle that
+   flips on Files and Data. On Files the triangle was worse than inconsistent -
+   that table sorts with the same triangles in its column headers, so the same
+   shape meant "sort by this" in one place and "open this" in another, a row
+   apart.
+   The glyph is set HERE rather than written into each page, so a page cannot
+   spell it differently and the open state cannot get out of step with the
+   class that styles it. */
+.mg-chev::before { content: '+'; font-family: var(--mg-mono); font-weight: 600; }
+/* Underlined, because `.mg-main a` (0,2,0) beats `.mg-chev` (0,1,0) and the
+   chevron is an <a>. The control is a box with a border; an underline under
+   its glyph reads as a link to somewhere. */
+.mg-main a.mg-chev, .mg-main a.mg-chev:hover { text-decoration: none; }
+.mg-chev-open::before { content: '\2212'; }
 .mg-chev:hover { border-color: var(--mg-text-light); color: var(--mg-text); background: var(--mg-surface-alt); }
 .mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent-deep); border-color: var(--mg-accent); background: var(--mg-accent-bg); }
 /* THE EXPANDER IS TWO ELEMENTS WITH TWO JOBS, and collapsing them into one
@@ -864,6 +879,15 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-file-name { flex: 1; min-width: 0; color: var(--mg-text); font-weight: 500; text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
 .mg-file-name:hover { color: var(--mg-accent-deep); }
 .mg-file-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); white-space: nowrap; font-weight: 400; }
+/* A value the reader may need to read exactly - a backup filename, an id.
+   Four rows carried this as an inline font-family, which is a layout decision
+   in the page rather than in the sheet, and the reason the same fix keeps
+   coming back. */
+.mg-mono { font-family: var(--mg-mono); font-size: 0.8rem; }
+/* A card that belongs to a row and spans it: an .mg-row is two columns, so a
+   panel opened from a row would otherwise sit in one of them. */
+.mg-row-wide { grid-column: 1 / -1; width: 100%; margin-top: 8px; }
+.mg-expand[hidden], .mg-row-wide[hidden] { display: none; }
 .mg-file-actions { display: flex; gap: 6px; }
 .mg-file-size { color: var(--mg-text-muted); font-size: 0.85em; }
 .mg-file-select { margin: 0; vertical-align: middle; }

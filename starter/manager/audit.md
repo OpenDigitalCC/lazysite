@@ -195,7 +195,10 @@ function loadAudit() {
         : '');
     }
     if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
-    var h = '<table class="audit-table"><thead><tr>' +
+    // Wrapped, like every other data table in the manager: seven columns do
+    // not fit a phone, and the choice is scrolling inside the table's own box
+    // or dragging the whole page sideways. Found at 420px, five pixels over.
+    var h = '<div class="mg-table-wrap"><table class="audit-table"><thead><tr>' +
       '<th>When</th><th>User</th><th>Source</th><th>Action</th><th>Target</th><th>From</th><th>Status</th>' +
       '</tr></thead><tbody>';
     d.entries.forEach(function (e, i) {
@@ -219,7 +222,7 @@ function loadAudit() {
         '</td><td>' + aesc(e.ip) +
         '</td><td>' + statusCell + '</td></tr>' + detailRow;
     });
-    h += '</tbody></table>';
+    h += '</tbody></table></div>';
     el.innerHTML = h + paginationHtml(d);
   }).catch(function (e) { document.getElementById('audit-table').textContent = 'Error: ' + e.message; });
 }

@@ -79,7 +79,7 @@ dismisses itself.</span>
   <span class="mg-file-name"><code>an-item</code> <span class="mg-file-meta">9 rows &middot; published</span></span>
   <span>
     <button class="mg-btn">Read</button>
-    <a href="#" class="mg-chev mg-chev-open" onclick="return false;">&#9652;</a>
+    <a href="#" class="mg-chev mg-chev-open" onclick="return false;" aria-expanded="true"></a>
   </span>
 </div>
 <div class="mg-perms-row">
@@ -247,7 +247,7 @@ each. These are the survivors, registered so the pages have something to be conv
         <span class="mg-row-name">an-item</span>
         <span class="mg-row-meta">9 rows &middot; published</span>
         <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Read</button>
-          <a href="#" class="mg-chev" onclick="return false;">&#9662;</a></span>
+          <a href="#" class="mg-chev" onclick="return false;" aria-expanded="false"></a></span>
       </div>
       <div class="mg-expand"><div class="mg-expand-body">the row expander &mdash; one idiom, next sibling of its row. <strong>Two elements:</strong> <code>.mg-expand</code> is what the script toggles and closes siblings of; <code>.mg-expand-body</code> is the card inside it. Collapsing them into one name emptied every expander in 0.11.8.</div></div>
     </div>
@@ -794,6 +794,16 @@ the words to use; anything else needs a reason.</p>
 <p class="mg-sg-note">Used by <code>files.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-rwflag-g"><span class="mg-sg-tag">.mg-rwflag-g</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-mono <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">A value the reader may need to read or copy exactly - a backup filename, an identifier. Not for prose.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div><span class="mg-mono">lazysite-manual-20260831T141346Z.tar.gz</span><span class="mg-sg-tag">.mg-mono</span></div>
+</div>
+<h3 class="mg-sg-fam">mg-row-wide <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">A panel opened from a row, spanning both of the row's columns. An <code>.mg-row</code> is two columns - what describes the row, and what acts on it - so a card belonging to the whole row needs to say so.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-row"><span class="mg-file-name">a row</span><span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Apply&hellip;</button></span><div class="mg-expand mg-row-wide"><div class="mg-expand-body"><span class="mg-sg-tag">.mg-row-wide</span></div></div></div>
 </div>
 <h3 class="mg-sg-fam">mg-cell <span class="mg-sg-count">2</span></h3>
 <p class="mg-sg-note">Table cells with a job of their own. <code>.mg-cell-ua</code> holds one long unbroken value - a user agent, a token - and elides it, with the full text in the cell's title. <code>.mg-cell-actions</code> holds a row's buttons and wraps them, so a second button never leaves the screen.</p>

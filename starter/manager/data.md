@@ -221,9 +221,16 @@ function loadTables() {
         // vocabulary for that, and it is the word the descriptor itself uses
         // (`public: true`): public and private. The tooltip carries the
         // consequence, so the row itself stays scannable.
-        bits.push(t.public
-          ? '<span title="Anyone visiting the site can read this table\'s rows, including visitors who are not signed in. Change it with the Public tickbox in Fields.">public</span>'
-          : '<span title="Only signed-in accounts with data access can read this table. An anonymous visitor is told nothing, not even that it exists. Tick Public in Fields to open it up.">private</span>');
+        // The word is the way in. It said what the state was and named the
+        // control that changes it in a TOOLTIP, which is hover-only and which
+        // the release manager reasonably never saw: "how would I change that
+        // so it can be read by anonymous?" Clicking the state now opens
+        // Fields, where the tickbox and its consequence are written out.
+        bits.push('<a href="#" onclick="openDescriptor(\'' + escHtml(name) + '\'); return false;"'
+          + (t.public
+            ? ' title="Anyone visiting the site can read this table\'s rows, including visitors who are not signed in. Click to change it.">public'
+            : ' title="Only signed-in accounts with data access can read this table. An anonymous visitor is told nothing, not even that it exists. Click to change it.">private')
+          + '</a>');
         // SM679: how many rows. `row_count` is ABSENT rather than 0 when the
         // server could not count - a table awaiting migration, or one whose
         // query failed - so the test is `typeof`, not truthiness: `0` is a real
@@ -251,7 +258,7 @@ function loadTables() {
           // page makes - a row, and an expand card for the rest.
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
           + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Fields</button> '
-          + '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table">&#9662;</a>'
+          + '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table" aria-expanded="false"></a>'
           + '</span>'
           + '</div>'
           + '<div class="mg-expand" data-acl-for="' + escHtml(name) + '" style="display:none;">'
@@ -843,14 +850,16 @@ function toggleTableAcl(el, table) {
   for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
   var chevs = document.querySelectorAll('.mg-chev');
   for (var j = 0; j < chevs.length; j++) {
-    chevs[j].innerHTML = '&#9662;';
+    // The glyph is the stylesheet's (.mg-chev::before); the page owns only
+    // the STATE, so the two cannot disagree.
     chevs[j].classList.remove('mg-chev-open');
+    chevs[j].setAttribute('aria-expanded', 'false');
   }
   if (!willOpen) return;
 
   card.style.display = '';
-  el.innerHTML = '&#9652;';
   el.classList.add('mg-chev-open');
+  el.setAttribute('aria-expanded', 'true');
 
   // The exports are in the card markup already and belong to anyone who can
   // see this page. The ACL is fetched only for a reader whose grant can

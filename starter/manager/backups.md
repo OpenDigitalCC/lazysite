@@ -142,16 +142,23 @@ function renderBackups(list, elId, restorable) {
   for (var i = 0; i < list.length; i++) {
     var b = list[i];
     var badge = b.kind === 'preinstall' ? 'mg-tag mg-tag-on' : 'mg-tag mg-tag-off';
+    // TWO children, which is what .mg-row is: everything that describes the
+    // row, then everything that acts on it. Five loose children were placed
+    // into a two-column grid one after another, so the badge, Download and
+    // Restore each landed on a row of their own, staggered - reported as a
+    // button out of alignment, and it was every button in the list.
     html += '<div class="mg-row">';
-    html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(b.name) + '</span>';
-    html += '<span class="mg-tag ' + badge + '">' + escHtml(b.kind) + '</span>';
-    html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
+    html += '<span class="mg-file-name"><span class="mg-mono">' + escHtml(b.name) + '</span> '
+          + '<span class="mg-tag ' + badge + '">' + escHtml(b.kind) + '</span> '
+          + '<span class="mg-row-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span></span>';
+    html += '<span class="mg-row-actions">';
     html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
     if (restorable) {
       html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="restoreBackup(\'' + escHtml(b.name) + '\', this)">Restore</button>';
     } else {
-      html += '<span class="mg-file-meta">restore via CLI</span>';
+      html += '<span class="mg-row-meta">restore via CLI</span>';
     }
+    html += '</span>';
     html += '</div>';
   }
   el.innerHTML = html;
@@ -259,14 +266,19 @@ function renderPackages(list) {
     var host = pkgHost(b.name);
     var uploaded = host === 'uploaded';
     var id = 'pkg-' + i;
-    html += '<div class="mg-row" style="flex-wrap:wrap;">';
-    html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(b.name) + '</span>';
-    html += '<span class="mg-tag ' + (uploaded ? 'mg-tag mg-tag-off' : 'mg-tag mg-tag-on') + '">' + (uploaded ? 'uploaded' : escHtml(host || 'site')) + '</span>';
-    html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
+    // Same two children as the backup rows above. `flex-wrap` on the row did
+    // nothing: .mg-row is a grid, and the expand card it was there to keep on
+    // its own line spans both columns instead.
+    html += '<div class="mg-row">';
+    html += '<span class="mg-file-name"><span class="mg-mono">' + escHtml(b.name) + '</span> '
+          + '<span class="mg-tag ' + (uploaded ? 'mg-tag mg-tag-off' : 'mg-tag mg-tag-on') + '">' + (uploaded ? 'uploaded' : escHtml(host || 'site')) + '</span> '
+          + '<span class="mg-row-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span></span>';
+    html += '<span class="mg-row-actions">';
     html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
     html += '<button class="mg-btn mg-btn-sm" onclick="showApply(\'' + escHtml(b.name) + '\', \'' + id + '\')">Apply&hellip;</button>';
     html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deletePackage(\'' + escHtml(b.name) + '\', this)">Delete</button>';
-    html += '<div class="mg-expand" id="' + id + '" style="display:none;width:100%;margin-top:8px;"></div>';
+    html += '</span>';
+    html += '<div class="mg-expand mg-row-wide" id="' + id + '" hidden></div>';
     html += '</div>';
   }
   el.innerHTML = html;
@@ -310,8 +322,11 @@ function uploadPackage(input) {
 function showApply(name, panelId) {
   var panel = document.getElementById(panelId);
   if (!panel) return;
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
+  // The `hidden` ATTRIBUTE, not an inline display. Same state, expressed
+  // where the stylesheet can see it - .mg-expand[hidden] - and one less
+  // inline style for a rule in the sheet to lose to.
+  if (!panel.hidden) { panel.hidden = true; return; }
+  panel.hidden = false;
   panel.innerHTML = '<span class="mg-muted">Loading&hellip;</span>';
   panel._pkg = name;
   Promise.all([
@@ -344,7 +359,7 @@ function showApply(name, panelId) {
     html += '<div id="' + panelId + '-preview" class="mg-apply-preview"></div>';
     html += '<div class="mg-muted" style="font-size:0.8rem;margin-bottom:8px;">Apply overwrites the target domain\'s content and rewrites its presentation (site_url / site_name / theme / layout / nav) to the package\'s. A safety snapshot is taken first and the change is recorded in content history. DNS/TLS for the target stay the operator\'s job.</div>';
     html += '<button class="mg-btn mg-btn-primary mg-btn-sm" onclick="doApply(\'' + escHtml(name) + '\', \'' + selId + '\', \'' + clnId + '\', this)">Apply package</button> ';
-    html += '<button class="mg-btn mg-btn-sm" onclick="document.getElementById(\'' + panelId + '\').style.display=\'none\';">Cancel</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="document.getElementById(\'' + panelId + '\').hidden = true;">Cancel</button>';
     panel.innerHTML = html;
     refreshApplyPreview(panelId);
   }).catch(function(e) { panel.innerHTML = '<span class="mg-warn">Error: ' + escHtml(e.message) + '</span>'; });

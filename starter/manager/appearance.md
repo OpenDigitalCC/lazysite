@@ -9,26 +9,18 @@ query_params:
 
 <div id="status" class="mg-status"></div>
 
+<!-- WHAT YOU HAVE, THEN WHERE MORE COMES FROM. The catalogue and the repo
+     setting used to sit above this: the page opened on a list of things the
+     operator could download, and the thing they came to change - which layout
+     and theme this site is using - was below it, off the bottom on a laptop.
+     Ordered by how often each is wanted. -->
 <div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Layouts repo</span></div>
+<div class="mg-card-header"><span class="mg-card-title">Installed layouts &amp; themes</span>
+<button id="lzs-stop-preview" class="mg-btn mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button></div>
 <div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Where layouts and themes are downloaded from. Leave the default, or point at your own fork. See the <a href="/docs/features/configuration/remote-layouts">docs</a>.</p>
-<div class="mg-field" style="margin:0;">
-<label for="layouts-repo-input">Repo</label>
-<input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;" oninput="markRepoDirty()">
-<button class="mg-btn mg-btn-primary mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
-<span id="repo-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
-</div>
-</div>
-</div>
-
-<div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Upload a theme</span></div>
-<div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">A .zip with <code>theme.json</code> at its root and an <code>assets/</code> subtree. Installs under the active layout. (Layouts install from the catalogue below.)</p>
-<div style="display:flex;gap:0.5rem;align-items:center;">
-<input type="file" id="theme-file" accept=".zip">
-<button class="mg-btn" onclick="uploadTheme()">Upload</button>
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">The layout is the page structure; the theme is its colours and fonts. Activating one sets the site default for all visitors and clears the page cache. This is the single place to switch layout or theme.</p>
+<div id="installed">
+<div class="mg-row"><span class="mg-file-name">Loading...</span></div>
 </div>
 </div>
 </div>
@@ -45,11 +37,34 @@ query_params:
 </div>
 
 <div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Installed layouts &amp; themes</span>
-<button id="lzs-stop-preview" class="mg-btn mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button></div>
-<p class="mg-card-subtitle" style="margin:0 0 8px 0.5rem;">The layout is the page structure; the theme is its colours and fonts. Activating one sets the site default for all visitors and clears the page cache. This is the single place to switch layout or theme.</p>
-<div id="installed">
-<div class="mg-row"><span class="mg-file-name">Loading...</span></div>
+<div class="mg-card-header"><span class="mg-card-title">Upload a theme</span></div>
+<div class="mg-card-body">
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">A .zip with <code>theme.json</code> at its root and an <code>assets/</code> subtree. Installs under the active layout. (Layouts install from the catalogue.)</p>
+<!-- .mg-line, which wraps. A file input is unusually wide and does not
+     shrink, so this row as a nowrap flex put Upload 44px off the side of a
+     420px screen with nothing to scroll to it. -->
+<div class="mg-line">
+<input type="file" id="theme-file" accept=".zip">
+<button class="mg-btn" onclick="uploadTheme()">Upload</button>
+</div>
+</div>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Layouts repo</span></div>
+<div class="mg-card-body">
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Where layouts and themes are downloaded from. Leave the default, or point at your own fork. See the <a href="/docs/features/configuration/remote-layouts">docs</a>.</p>
+<!-- A .mg-field stacks label above control, so four loose children made a
+     column and Save rendered 560px wide, the width of the field. The control
+     here is an input WITH a button: .mg-line is the row idiom for that. -->
+<div class="mg-field" style="margin:0;">
+<label for="layouts-repo-input">Repo</label>
+<div class="mg-line">
+<input type="text" id="layouts-repo-input" class="mg-inp" placeholder="OpenDigitalCC/lazysite-layouts" oninput="markRepoDirty()">
+<button class="mg-btn mg-btn-primary mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
+<span id="repo-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
+</div>
+</div>
 </div>
 </div>
 

@@ -291,8 +291,12 @@ function renderKeys(d) {
       '<td>' + chans + '</td>' +
       '<td>' + when + '</td>' +
       '<td>' + status + '</td>' +
-      '<td style="white-space:nowrap">' + ttlSel + slides + '</td>' +
-      '<td style="white-space:nowrap">' +
+      // Both cells were `white-space:nowrap` INLINE - the same thing that made
+      // the sessions table above overflow, and the second of them wraps a
+      // whole sentence, so it demanded 295px of a table that had 832 for six
+      // columns. .mg-cell-actions is the row-of-controls idiom and it wraps.
+      '<td class="mg-cell-actions">' + ttlSel + slides + '</td>' +
+      '<td class="mg-cell-actions">' +
       // SM499: an interactive account's credential is its login PASSWORD, and
       // cmd_key_revoke refuses it by design (SM439: "listing is not
       // offering"). Offering the button anyway made the refusal the
@@ -300,7 +304,7 @@ function renderKeys(d) {
       // when used teaches an operator to distrust the page. The row carries
       // the flag for exactly this moment.
       (k.interactive
-        ? '<span class="mg-muted" style="font-size:0.85em">interactive - manage on the <a href="/manager/users">Users page</a></span>'
+        ? '<span class="mg-row-meta">interactive - manage on the <a href="/manager/users">Users page</a></span>'
         : '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>') +
       '</td></tr>';
   });

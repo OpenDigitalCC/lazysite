@@ -720,10 +720,10 @@ function rowHtml(f) {
   if (isDir) {
     // SM162: folders get an actions dropdown too (rename/move, delete) - the
     // subset that applies to a directory (no per-file ACL / history / download).
-    html += '<td class="mg-col-exp"><a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="Folder actions">&#9662;</a></td>';
+    html += '<td class="mg-col-exp"><a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="Folder actions" aria-expanded="false"></a></td>';
   } else {
     html += '<td class="mg-col-exp">' + lockGlyph(f)
-          + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions">&#9662;</a></td>';
+          + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions" aria-expanded="false"></a></td>';
   }
   html += '</tr>';
   html += isDir ? folderCard(f) : permsCard(f);
@@ -857,8 +857,17 @@ function togglePerms(el) {
   var allCards = document.querySelectorAll('.mg-expand');
   for (var i = 0; i < allCards.length; i++) allCards[i].style.display = 'none';
   var allChev = document.querySelectorAll('.mg-chev');
-  for (var j = 0; j < allChev.length; j++) { allChev[j].innerHTML = '&#9662;'; allChev[j].classList.remove('mg-chev-open'); }
-  if (willOpen) { card.style.display = ''; el.innerHTML = '&#9652;'; el.classList.add('mg-chev-open'); }
+  // The glyph is the stylesheet's (.mg-chev::before); the page owns the
+  // STATE only, so a page cannot spell the marker differently from its class.
+  for (var j = 0; j < allChev.length; j++) {
+    allChev[j].classList.remove('mg-chev-open');
+    allChev[j].setAttribute('aria-expanded', 'false');
+  }
+  if (willOpen) {
+    card.style.display = '';
+    el.classList.add('mg-chev-open');
+    el.setAttribute('aria-expanded', 'true');
+  }
 }
 
 function savePerms(btn) {
