@@ -76,18 +76,27 @@ output is compared against.
 
 # What to settle before building
 
-1. **Where the cache lives.** `lazysite/cache/pdf/` is the obvious place - not
-   served, already swept by the cache page. It must be swept: a stale PDF that
-   nothing can clear is worse than a slow one.
-2. **Whether a part is ACL-checked.** A part is a content file with its own
-   rule. A document that includes a file the reader may not read must refuse,
-   or the PDF becomes a way to read around an ACL. This is the one part of this
-   filing that is a security question rather than a performance one.
-3. **What a partial may itself contain.** A part that names its own parts is a
-   recursion, and needs a depth limit or a flat rule.
-4. **Whether rendering stays in the request.** Caching makes the common case
-   free, which weakens the argument for a queue - but the FIRST render of a
-   long document still blocks. Related to SM666 and SM579.
+1. ~~Where the cache lives~~ **`lazysite/cache/pdf/`**: not served, and already
+   swept by the cache page. It must be sweepable - a stale PDF that nothing can
+   clear is worse than a slow one.
+2. ~~Whether a part is ACL-checked~~ **DECIDED by the release manager: REFUSE.**
+   A part is a content file with its own rule, so a document naming a file the
+   reader may not read is refused - it does not silently omit the part, and it
+   does not render it. Omitting would be worse than refusing: the reader gets a
+   document that looks complete and is not, and nothing tells them which.
+
+   The cost is accepted with the decision: a document can be BROKEN by someone
+   tightening a rule on a file elsewhere, and the person who broke it is not
+   the person who sees the refusal. So the refusal must name the part and its
+   rule, or the operator is told only that something is wrong.
+3. ~~What a partial may itself contain~~ **A flat list.** A part that named its
+   own parts would be a recursion needing a depth limit, a cycle check and a
+   story about what the cache compares against. None of that buys anything a
+   longer list does not.
+4. ~~Whether rendering stays in the request~~ **In the request, for now.**
+   Caching makes the common case free, which is most of the argument for a
+   queue gone; the FIRST render of a long document still blocks, and that is
+   what SM666 is for rather than half a queue here.
 
 # Related
 
