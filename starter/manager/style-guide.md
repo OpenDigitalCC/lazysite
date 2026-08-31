@@ -39,8 +39,13 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
 <div class="mg-status">Neutral status, waiting.</div>
 <div class="mg-status mg-status-success">Saved.</div>
 <div class="mg-status mg-status-error">Refused, naming the rule that refused.</div>
-<div class="mg-toast mg-toast-success mg-toast-in">Row added</div>
-<div class="mg-toast mg-toast-error mg-toast-in">Could not save</div>
+<div class="mg-sg-item"><div class="mg-toast mg-toast-success mg-toast-in">Row added</div></div>
+<div class="mg-sg-item"><div class="mg-toast mg-toast-error mg-toast-in">Could not save</div></div>
+<button class="mg-btn" onclick="sgToast('success')">Show a success toast</button>
+<button class="mg-btn" onclick="sgToast('error')">Show an error toast</button>
+<span class="mg-muted">A toast is fixed to the corner of the viewport. The two
+cells name and colour it; the buttons show it where it really appears, and it
+dismisses itself.</span>
 </div>
 
 <h2 class="mg-sg-h">Badges and tags</h2>
@@ -108,14 +113,17 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
 <h2 class="mg-sg-h">Modal</h2>
 <p class="mg-sg-note">For a subject that is not more detail about a row - its own application, with its own controls. SM680: a panel opening below a long list is not seen.</p>
 <div class="mg-sg-demo">
-<div class="mg-modal">
-  <div class="mg-modal-overlay"></div>
+<button class="mg-btn" onclick="sgOpen('sg-modal')">Open the modal</button>
+<span class="mg-muted">It covers the page, as it does in use. Esc, the overlay
+or Cancel closes it.</span>
+</div>
+<div class="mg-modal" id="sg-modal" hidden>
+  <div class="mg-modal-overlay" onclick="sgClose('sg-modal')"></div>
   <div class="mg-modal-in">
     <div class="mg-modal-msg">Type the table name to confirm.</div>
     <input class="mg-modal-input" value="">
-    <div class="mg-modal-actions"><button class="mg-btn">Cancel</button> <button class="mg-btn mg-btn-danger">Drop</button></div>
+    <div class="mg-modal-actions"><button class="mg-btn" onclick="sgClose('sg-modal')">Cancel</button> <button class="mg-btn mg-btn-danger" onclick="sgClose('sg-modal')">Drop</button></div>
   </div>
-</div>
 </div>
 
 <h2 class="mg-sg-h">Inputs and configuration fields</h2>
@@ -756,6 +764,39 @@ the words to use; anything else needs a reason.</p>
 </div>
 
 <script>
+// THE OVERLAY SPECIMENS ARE TRIGGERED, not pinned.
+//
+// A guide has to show every component, and sixteen of them are position:fixed.
+// The family cells contain theirs (.mg-sg-item below), but the modal and the
+// toasts were rendered loose: the modal covered the whole page with nothing to
+// close it, and two toasts sat over the corner of every section. Reported from
+// the live guide - "a popup which sits over the other content, and cant be
+// closed".
+//
+// Shown on demand instead, which also demonstrates the thing a static specimen
+// cannot: how it behaves. The modal closes on Esc, on its overlay, and on
+// either button - the three ways the real one closes.
+function sgOpen(id) {
+  var el = document.getElementById(id);
+  if (el) { el.hidden = false; document.body.classList.add('mg-sheet-open'); }
+}
+function sgClose(id) {
+  var el = document.getElementById(id);
+  if (el) { el.hidden = true; document.body.classList.remove('mg-sheet-open'); }
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  var open = document.querySelectorAll('.mg-modal:not([hidden]), .mg-sheet:not([hidden])');
+  for (var i = 0; i < open.length; i++) sgClose(open[i].id);
+});
+function sgToast(kind) {
+  var t = document.createElement('div');
+  t.className = 'mg-toast mg-toast-' + kind + ' mg-toast-in';
+  t.textContent = kind === 'error' ? 'Could not save' : 'Row added';
+  document.body.appendChild(t);
+  setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 2600);
+}
+
 // SM698: PREVIEW MODE. `?style=<name>` renders this guide in a candidate sheet
 // so an operator can see a style before committing to it.
 //
