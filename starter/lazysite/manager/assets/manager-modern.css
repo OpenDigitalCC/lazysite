@@ -480,15 +480,30 @@
    .mg-expand is the one in-place detail card, opening as the row's
    next sibling; only one open at a time. */
 .mg-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
+/* MR-53: A GRID, NOT A FLEX LINE.
+   As a flex row every listing packed independently - the name ragged, the
+   metadata wherever it fell, the buttons jammed against the right edge - so
+   nothing lined up DOWN the list and a long name squeezed the actions. Two
+   columns: everything that describes the row, then everything that acts on it.
+   The Plugin row has been a grid all along, which is why that page reads more
+   evenly than Files did. */
 .mg-row {
-    display: flex; align-items: center; gap: 10px; min-height: 44px;
-    padding: 4px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center; gap: 10px; min-height: 44px;
+    padding: 6px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
 }
+/* The row's own action group sits in the second column whatever it is made of. */
+.mg-row > :last-child { justify-self: end; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* The metadata drops UNDER the name rather than competing with it for width -
+   which is where the horizontal room comes from without a wider window. */
+.mg-row .mg-row-meta { display: block; margin-top: 1px; }
 .mg-list > :last-child, .mg-list > details:last-child .mg-row { border-bottom: none; }
 .mg-row:hover { background: var(--mg-surface-alt); }
 .mg-row-name { flex: 1; min-width: 0; font-weight: 500; color: var(--mg-text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.mg-row-name:hover { color: var(--mg-accent-deep); }
-.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); white-space: nowrap; }
+/* No nowrap: on its own line it may wrap, which is what makes a narrow window
+   survive rather than overflow. */
+.mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
 .mg-row-actions { display: flex; gap: 6px; align-items: center; }
 .mg-chev {
     display: inline-flex; align-items: center; justify-content: center;

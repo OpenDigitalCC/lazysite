@@ -239,7 +239,7 @@ function loadTables() {
         var enc = encodeURIComponent(name);
         html += '<div class="mg-row">'
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '
-          + '<span style="color:var(--mg-text-muted);font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
+          + '<span class="mg-row-meta">' + bits.join(' &middot; ') + '</span></span>'
           // THE ROW HOLDS WHAT AN OPERATOR SCANS FOR; the expander holds what
           // they act on for one table. Rows and Fields are how you READ a
           // table and stay in the list; the exports take you out of it, and

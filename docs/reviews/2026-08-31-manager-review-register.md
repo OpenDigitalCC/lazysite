@@ -1,6 +1,6 @@
 ---
 title: "Manager review, 2026-08-30/31: every item the release manager raised, and where it got to"
-subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Forty-nine done, eight open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
+subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Fifty done, seven open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
 brand: plain
 standard-margins: true
 ---
@@ -70,6 +70,8 @@ Refs are quotable: `MR-01` and so on.
 
 | MR-57 | `/docs/features` returned 404 | The DEV SERVER, not the product: Apache's mod_dir adds a missing trailing slash by default, so the same URL serves on a real deployment. Fixed in the dev server, because one that answers differently from production sends you hunting for product faults that are its own - the same class as the asset copy that hid the missing fonts link | — |
 
+| MR-53 | Manager columns: wasted space right, cramped columns inside rows | **Decided by the release manager: grid rows plus metadata under the name, reading cap left alone.** `.mg-row` is a two-column grid - everything that describes the row, then everything that acts on it - so columns line up DOWN the list instead of each row packing on its own. The metadata uses `.mg-row-meta`, a class the guide already documented and no page used, and drops to its own line: that is where the horizontal room comes from without a wider window. Its `nowrap` is gone, so a narrow window wraps rather than overflows | — |
+
 
 # Open
 
@@ -78,10 +80,9 @@ Refs are quotable: `MR-01` and so on.
 | MR-46 | Red and copper are neighbours | `--mg-danger` is hue 27, `--mg-accent2` is hue 45. The field agent read a `--mg-danger` Delete as copper. Referred to the designer rather than re-picked here, because it is their semantic set |
 | MR-47 | A dense settings card, and a dense list, have no specimen in the guide | We built both with existing components; neither is designed. In the designer brief |
 | MR-48 | `domains.md` carries 1,019 lines of page-local CSS | The last page-local block, tracked as debt with a ceiling so nothing new joins it. Needs the designer's eye on which rules are new components and which re-invent existing ones |
-| MR-49 | Narrow widths are unreviewed | The nav drawer only appears below about 1000px and has never been looked at there; nor has the device column |
+| MR-49 | Narrow widths are unreviewed | PARTLY DONE. Measured: there is ONE breakpoint, 720px, seven rules, identical in all three styles - the drawer appears there, not at 1000px as was assumed. The drawer's focus handling is FIXED (it already had Escape and aria-expanded; it now moves focus in, returns it to the burger, and marks the main region inert). What remains: **the 720-1000px band has no rules at all** - sidebar still a fixed column, main squeezed, nothing adapting - and everything added this session has only been seen at desktop width |
 | MR-50 | SM662: a gate declares its capabilities | Built and proved by fingerprint, then DROPPED from the stack: it breaks six suites that parse the literal `%need` block. Held on `claude/need-declares-caps` |
 | MR-51 | Layout install said "Layout not found" | Preview artefact, not a product fault - there are no layouts in the starter tree and a theme installs into one. Recorded so it is not re-investigated |
-| MR-53 | The manager still has column problems: space wasted on the right while extra columns are cramped inside rows. What would render these better? | Not done, and it is the last structural question left. A proposal is below rather than a change, because it affects every listing |
 | MR-54 | Nav: the edit line should be a modal holding both boxes, not one after the other | Not done |
 
 # What this review says about the gate

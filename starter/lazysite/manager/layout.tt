@@ -36,6 +36,29 @@
     else      { shell.removeAttribute('data-nav-open'); }
     var b = document.querySelector('.mg-nav-burger');
     if (b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+
+    // MR-49: FOCUS GOES WHERE THE DRAWER IS. Escape and aria-expanded were
+    // already handled; focus was not - so opening the drawer left the caret
+    // behind it, and a keyboard user tabbed into the page the drawer was
+    // covering. Closing returns focus to the burger, because being dropped at
+    // the top of the document is its own kind of lost.
+    //
+    // `inert` on the main region stops the page behind taking a tab at all;
+    // where the browser does not support it the focus move above is still an
+    // improvement on nothing.
+    var main = document.querySelector('.mg-main');
+    if (open) {
+      if (main) { try { main.inert = true; } catch (e) {} }
+      var first = shell.querySelector('.mg-sidebar a, .mg-sidebar button');
+      if (first) first.focus();
+    } else {
+      if (main) { try { main.inert = false; } catch (e) {} }
+      if (b && document.activeElement
+            && shell.querySelector('.mg-sidebar')
+            && shell.querySelector('.mg-sidebar').contains(document.activeElement)) {
+        b.focus();
+      }
+    }
   };
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { window.mgToggleNav(0); }
