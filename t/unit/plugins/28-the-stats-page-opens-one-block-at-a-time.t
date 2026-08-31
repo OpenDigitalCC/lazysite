@@ -163,10 +163,12 @@ unlike( $page, qr/function loadBlocked/,
     'the blocked-address list is not implemented on the statistics page' );
 unlike( $page, qr/id="blocked-body"/,
     'and its panel is not here either' );
-like( $page, qr{/manager/plugin-config},
-    'the page points at where the list now lives' )
-    or diag( 'Moving a control without leaving a pointer strands the operator '
-        . 'who knew where it used to be.' );
+# The pointer card went too, on the release manager's instruction: "no need to
+# say what isn't there". A page of statistics that spends a card explaining
+# where a DIFFERENT page keeps an access control is still spending a card on
+# something the operator did not come for.
+unlike( $page, qr{Blocked addresses},
+    'and the page does not keep a card explaining where the list went' );
 like( $page, qr/id="trails-card-body" hidden/,
     'the journeys card body starts hidden' );
 

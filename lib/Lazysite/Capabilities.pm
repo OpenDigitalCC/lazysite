@@ -370,7 +370,7 @@ my %ACTION_INFO = (
             # this capability could call the action and nothing said so, which
             # is the half of SM654 a lint does not catch (it refuses
             # over-claiming, not silence).
-            api => [ qw(config-read config-set git-init bad-url-blocks bad-url-unblock
+            api => [ qw(config-read config-set git-init bad-url-blocks bad-url-block bad-url-unblock
                     git-history-summary) ],
         },
     },

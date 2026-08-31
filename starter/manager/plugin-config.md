@@ -665,7 +665,12 @@ function loadBlocked() {
     var ips = Object.keys(d.blocks || {});
     if (!ips.length) { el.innerHTML = '<p class="mg-muted">No addresses are currently blocked.</p>'; return; }
     ips.sort(function (a, b) { return (d.blocks[b].since || 0) - (d.blocks[a].since || 0); });
-    var h = '<p class="mg-muted">A blocked address is refused the site &mdash; it receives 403 and is served nothing. '
+    var h = '<div class="mg-line" style="margin:0 0 10px;">'
+          + '<input class="mg-inp" id="block-add-ip" placeholder="203.0.113.4" '
+          +   'style="max-width:14rem" onkeydown="if(event.key===\'Enter\')addBlock()">'
+          + '<button class="mg-btn" onclick="addBlock()">Block this address</button>'
+          + '</div>'
+          + '<p class="mg-muted">A blocked address is refused the site &mdash; it receives 403 and is served nothing. '
           + 'Unblocking takes effect on its next request.</p>'
           + '<div class="mg-table-wrap"><table class="mg-table"><thead><tr>'
           + '<th>Address</th><th>Probes</th><th>Blocked since</th><th></th></tr></thead><tbody>';
@@ -679,6 +684,26 @@ function loadBlocked() {
     });
     el.innerHTML = h + '</tbody></table></div>';
   }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
+}
+
+// SM704: block an address the operator names. The auto-blocker catches a
+// probe once it trips a threshold; an operator watching one in the access log
+// should not have to wait for that.
+function addBlock() {
+  var el = document.getElementById('block-add-ip');
+  var ip = (el && el.value || '').replace(/^\s+|\s+$/g, '');
+  if (!ip) return;
+  fetch(API + '?action=bad-url-block&ip=' + encodeURIComponent(ip), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { showStatus((d && d.error) || 'Could not block', true); return; }
+      showStatus(d.added ? 'Blocked ' + ip + '.' : ip + ' was already blocked.');
+      el.value = '';
+      loadBlocked();
+    })
+    .catch(function (e) { showStatus('Error: ' + e.message, true); });
 }
 
 function unblockIp(ip) {

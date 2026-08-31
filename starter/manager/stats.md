@@ -29,19 +29,6 @@ search: false
 </div>
 </div>
 
-<div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Blocked addresses</span>
-</div>
-<div class="mg-card-body">
-<div class="mg-note mg-note-info">A blocked address is <strong>refused the site</strong> &mdash; it
-receives 403 and is served nothing, so it is an access control rather than a
-reporting filter. The list and per-address unblock live with the plugin that
-does the blocking:
-<a href="/manager/plugin-config">Plugin Config &rarr; Bad-URL auto-blocker</a>.</div>
-</div>
-</div>
-
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var statsScript = null;

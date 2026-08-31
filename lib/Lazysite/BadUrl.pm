@@ -16,7 +16,7 @@ use warnings;
 use JSON::PP ();
 use Fcntl    qw(:flock);
 use Exporter 'import';
-our @EXPORT_OK = qw(is_bad_url is_blocked record_and_check list_blocks unblock);
+our @EXPORT_OK = qw(is_bad_url is_blocked record_and_check list_blocks block unblock);
 
 # Built-in probe patterns. A lazysite site serves no PHP, so any .php is a probe.
 # Mirrors the stats plugin's noise set (kept in sync by t/unit/lib/12-bad-url.t).
@@ -111,6 +111,35 @@ sub list_blocks {
     my $b = _read_json( _blocked_path($docroot) );
     return {} unless ref $b eq 'HASH';
     return $b;
+}
+
+# SM704: block an address the operator names, rather than only one the
+# threshold caught. An operator watching a probe in the access log should not
+# have to wait for it to trip a counter.
+#
+# The shape matches what record_and_check writes, so the listing, the guard and
+# unblock all treat a manual entry exactly like an automatic one - a manual
+# block that needed its own handling everywhere would be a second kind of block.
+# `by` records who, because "why is this address blocked" is the question asked
+# later, and an automatic entry answers it with the path that tripped it.
+sub block {
+    my ( $docroot, $ip, %opt ) = @_;
+    return 0 unless defined $ip && length $ip;
+    return 0 if $ip =~ /[^0-9a-fA-F:.]/;    # an address, not a pattern
+    my $added = 0;
+    _update_blocked( $docroot, sub {
+            my ($blk) = @_;
+            return $blk if $blk->{$ip};     # already blocked; not an error
+            $blk->{$ip} = {
+                since => time,
+                count => 0,
+                path  => '(added by hand)',
+                by    => ( defined $opt{by} ? $opt{by} : '' ),
+            };
+            $added = 1;
+            return $blk;
+    } );
+    return $added;
 }
 
 sub unblock {

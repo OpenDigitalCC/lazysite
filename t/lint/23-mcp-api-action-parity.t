@@ -245,6 +245,7 @@ my %API_ONLY = (
     'artifact-validate'       => 'undecided',
     'artifact-backups-delete' => 'undecided',
     'bad-url-blocks'          => 'undecided',
+    'bad-url-block'           => 'undecided',
     'bad-url-unblock'         => 'undecided',
 );
 my %MCP_ONLY = (

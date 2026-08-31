@@ -79,6 +79,7 @@ our %ACTION = (
     'backup-list'     => { caps => undef, params => [] },
     'backup-restore' => { caps => undef, params => [ { name => 'name', in => 'query' } ] },
     'bad-url-blocks' => { caps => ['manage_config'], params => [] },
+    'bad-url-block' => { caps => ['manage_config'], params => [ { name => 'ip', in => 'query' } ] },
     'bad-url-unblock' => { caps => ['manage_config'], params => [ { name => 'ip', in => 'query' } ] },
     'cache-invalidate' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'host', in => 'query' } ] },
     'cache-list'       => { caps => undef,             params => [] },

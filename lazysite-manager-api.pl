@@ -181,7 +181,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     brief-read brief-append briefs-migrate briefs-list brief-delete
     artifact-backups-delete artifact-manifest artifact-validate audit
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
-    bad-url-unblock cache-invalidate cache-list channel-services
+    bad-url-block bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token
     data-export data-import data-migrate data-rebuild data-row-delete data-row-save data-rows
     data-migrate-plan data-table data-table-drop data-table-save data-table-source data-tables
@@ -513,7 +513,7 @@ my %MUTATING = map { $_ => 1 } qw(
     data-table-acl-set data-table-acl-remove
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
     save delete mkdir move copy migrate-to-local file-upload git-restore
-    git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
+    git-init cache-invalidate acl-set acl-remove config-set bad-url-block bad-url-unblock
     brief-append briefs-migrate brief-delete
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
     theme-delete theme-rename theme-upload layout-activate layout-delete
@@ -709,6 +709,7 @@ if ( !$token_auth ) {
         # lists, which is the same disclosure acl-get carries per file - so it
         # takes the same capability, and the response is scope-filtered on top.
         'protected-sections' => 'manage_content',
+        'bad-url-block'      => 'manage_config',
         'bad-url-unblock'    => 'manage_config', 'rotate-auth-secret' => 'manage_config',
         'backup-create'      => 'manage_config', 'backup-restore'     => 'manage_config',
         # SM268 03-F11: removing a snapshot is the same authority as taking or
@@ -961,6 +962,7 @@ if ($token_auth) {
         'form-list'        => sub { $_[0]->{read_submissions} },
         'form-delete' => sub { $_[0]->{manage_forms} },  # SM632: the inverse of bind_form
         'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
+        'bad-url-block'   => sub { $_[0]->{manage_config} },    # SM704: block by hand
         'bad-url-unblock' => sub { $_[0]->{manage_config} },
         # SM097: page-URL list for the nav editor. SM568: a content read too,
         # so manage_content admits it - as it does the MCP twin list_pages.
@@ -1859,6 +1861,28 @@ elsif ( $action eq 'config-set' ) {
         ( defined $req->{value} ? $req->{value} : $params{value} ) );
 }
 elsif ( $action eq 'bad-url-blocks' ) { $result = { ok => 1, blocks => list_blocks($DOCROOT) } }
+elsif ( $action eq 'bad-url-block' ) {
+
+    # SM704: block an address by hand. The same store, the same shape and the
+    # same unblock as an automatic entry - a manual block that behaved
+    # differently would be a second kind of block to reason about.
+    my $ip = defined $params{ip} ? $params{ip} : ( eval { decode_json($body) } || {} )->{ip};
+    if ( !defined $ip || !length $ip ) {
+        $result = { ok => 0, error => 'an address is required' };
+    }
+    elsif ( $ip =~ /[^0-9a-fA-F:.]/ ) {
+        $result = { ok => 0,
+            error => "'$ip' is not an address. Block one address at a time; "
+                . 'this is not a pattern or a range.' };
+    }
+    else {
+        my $added = block( $DOCROOT, $ip, by => $auth_user );
+        log_event( 'INFO', 'bad-url-block', 'IP blocked by hand',
+            ip => $ip, user => $auth_user );
+        $result = { ok => 1,
+            added => ( $added ? JSON::PP::true : JSON::PP::false ) };
+    }
+}
 elsif ( $action eq 'bad-url-unblock' ) {
     my $ip = defined $params{ip} ? $params{ip} : ( eval { decode_json($body) } || {} )->{ip};
     my $removed = ( defined $ip && length $ip ) ? unblock( $DOCROOT, $ip ) : 0;
