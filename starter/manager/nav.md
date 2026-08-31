@@ -27,19 +27,19 @@ search: false
 <!-- Add-item form: hidden until "Add menu item" is clicked, so the fields are
      clearly a distinct "add new" box rather than loose inputs in the toolbar. -->
 <div id="add-panel" style="display:none;border:1px solid var(--mg-border,#ddd);border-radius:6px;padding:12px;margin-bottom:14px;">
-  <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Add a menu item</div>
+  <div style="font-size:0.78em;color:var(--mg-text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Add a menu item</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:#555;">Label
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:var(--mg-text-muted);">Label
       <input type="text" id="add-label" placeholder="e.g. About" class="mg-inp" style="width:180px;" onkeydown="if(event.key==='Enter'){addItem();event.preventDefault();}"></label>
-    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:#555;">Link
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:var(--mg-text-muted);">Link
       <input type="text" id="add-url" placeholder="/about (blank = group heading)" class="mg-inp" style="width:240px;" list="page-urls" onkeydown="if(event.key==='Enter'){addItem();event.preventDefault();}"></label>
     <datalist id="page-urls"></datalist>
-    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:#555;">Under
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:var(--mg-text-muted);">Under
       <select id="add-parent" class="mg-inp" style="padding:4px;"><option value="">Top level</option></select></label>
     <button class="mg-btn mg-btn-primary" onclick="addItem()">Add to menu</button>
     <button class="mg-btn" onclick="toggleAdd()">Done</button>
   </div>
-  <div style="font-size:0.8em;color:#888;margin-top:6px;">A blank link makes a group heading (its children drop down under it). Items are added to the list below &mdash; reorder by dragging, then <strong>Save</strong>.</div>
+  <div style="font-size:0.8em;color:var(--mg-text-muted);margin-top:6px;">A blank link makes a group heading (its children drop down under it). Items are added to the list below &mdash; reorder by dragging, then <strong>Save</strong>.</div>
 </div>
 
 <div id="nav-list">Loading...</div>

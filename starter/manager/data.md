@@ -7,15 +7,15 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<p style="font-size:0.85em;color:#888;margin:0 0 12px;">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. A table is <strong>closed until it is published</strong>: until its descriptor says <code>public: true</code>, an anonymous visitor sees nothing, not even that it exists. What you see here is what the store holds, whoever may read it.</p>
+<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. A table is <strong>closed until it is published</strong>: until its descriptor says <code>public: true</code>, an anonymous visitor sees nothing, not even that it exists. What you see here is what the store holds, whoever may read it.</p>
 
 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
 <button class="mg-btn" onclick="loadTables()">Refresh</button>
 <button class="mg-btn" onclick="declareTable()">Declare a table&hellip;</button>
-<span id="table-count" style="font-size:0.85em;color:#888;"></span>
+<span id="table-count" style="font-size:0.85em;color:var(--mg-text-muted);"></span>
 </div>
 
-<p style="font-size:0.85em;color:#888;margin:0 0 12px;"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</p>
+<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</p>
 
 <div class="mg-list" id="table-list">
 <div class="mg-row"><span class="mg-file-name">Loading...</span></div>
@@ -93,7 +93,7 @@ search: false
     <button class="mg-btn" id="desc-tab-yaml" onclick="descTab('yaml')">YAML</button>
   </div>
   <div id="descriptor-form" style="font-size:0.9em;"></div>
-  <p id="descriptor-yaml-note" style="display:none;font-size:0.85em;color:#888;margin:0 0 6px;">The text as stored. Saving from the Fields tab regenerates it; comments and ordering are kept only when you save from here.</p>
+  <p id="descriptor-yaml-note" style="display:none;font-size:0.85em;color:var(--mg-text-muted);margin:0 0 6px;">The text as stored. Saving from the Fields tab regenerates it; comments and ordering are kept only when you save from here.</p>
   <textarea id="descriptor-text" class="mg-inp" rows="18" spellcheck="false" style="display:none;width:100%;font-family:monospace;font-size:0.9em;"></textarea>
   <div id="descriptor-error" class="mg-status" style="margin-top:8px;"></div>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
@@ -165,10 +165,10 @@ function escHtml(s) {
    operator goes to find out which. */
 function cell(v) {
   if (v === null || v === undefined) {
-    return '<span style="color:#bbb;font-style:italic;">not set</span>';
+    return '<span style="color:var(--mg-text-light);font-style:italic;">not set</span>';
   }
   if (v === '') {
-    return '<span style="color:#bbb;font-style:italic;">empty</span>';
+    return '<span style="color:var(--mg-text-light);font-style:italic;">empty</span>';
   }
   if (v === true)  return 'yes';
   if (v === false) return 'no';
@@ -224,7 +224,7 @@ function loadTables() {
         var enc = encodeURIComponent(name);
         html += '<div class="mg-row">'
           + '<span class="mg-file-name"><code>' + escHtml(name) + '</code> '
-          + '<span style="color:#888;font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
+          + '<span style="color:var(--mg-text-muted);font-size:0.85em;">' + bits.join(' &middot; ') + '</span></span>'
           // THE ROW HOLDS WHAT AN OPERATOR SCANS FOR; the expander holds what
           // they act on for one table. Rows and Fields are how you READ a
           // table and stay in the list; the exports take you out of it, and
@@ -358,7 +358,7 @@ function renderRows(rows, desc) {
       + '</td></tr>';
   }
   if (!rows.length) {
-    body = '<tr><td colspan="' + (cols.length + 1) + '" style="color:#888;">'
+    body = '<tr><td colspan="' + (cols.length + 1) + '" style="color:var(--mg-text-muted);">'
          + 'This table holds no rows yet.</td></tr>';
   }
   tbl.querySelector('tbody').innerHTML = body;
@@ -369,9 +369,9 @@ function inputFor(name, spec, value) {
   var id   = 'f-' + name;
   var type = spec.type || 'text';
   var v    = (value === null || value === undefined) ? '' : String(value);
-  var req  = spec.required ? ' <span style="color:#c33;" title="required">*</span>' : '';
-  var label = '<label for="' + id + '" style="display:block;font-size:0.85em;color:#666;margin:8px 0 2px;">'
-            + escHtml(name) + req + ' <span style="color:#aaa;">' + escHtml(type) + '</span></label>';
+  var req  = spec.required ? ' <span style="color:var(--mg-danger);" title="required">*</span>' : '';
+  var label = '<label for="' + id + '" style="display:block;font-size:0.85em;color:var(--mg-text-muted);margin:8px 0 2px;">'
+            + escHtml(name) + req + ' <span style="color:var(--mg-text-light);">' + escHtml(type) + '</span></label>';
 
   if (type === 'enum') {
     var opts = '<option value="">—</option>';
@@ -383,7 +383,7 @@ function inputFor(name, spec, value) {
   if (type === 'boolean') {
     var on = (value === true || value === 1 || v === '1' || v === 'true');
     return '<label style="display:block;margin:8px 0 2px;"><input type="checkbox" id="' + id + '" data-field="' + escHtml(name) + '" data-bool="1"' + (on ? ' checked' : '') + '> '
-         + escHtml(name) + req + ' <span style="color:#aaa;font-size:0.85em;">boolean</span></label>';
+         + escHtml(name) + req + ' <span style="color:var(--mg-text-light);font-size:0.85em;">boolean</span></label>';
   }
   if (type === 'text' && spec.widget === 'textarea') {
     return label + '<textarea class="mg-inp" id="' + id + '" data-field="' + escHtml(name) + '" rows="4" style="width:100%;">' + escHtml(v) + '</textarea>';
@@ -461,7 +461,7 @@ function openEditor(index) {
     var spec = desc.fields[n];
     var field = inputFor(n, spec, row ? row[n] : (spec['default'] !== undefined ? spec['default'] : null));
     if (row && n === desc.key) {
-      field = field.replace('<input ', '<input readonly style="width:100%;background:#f3f3f3;" ');
+      field = field.replace('<input ', '<input readonly style="width:100%;background:var(--mg-surface-alt);" ');
     }
     html += field;
   });
@@ -631,7 +631,7 @@ function buildDescForm(shape) {
   names.forEach(function(n) { h += fieldRow(n, shape.fields[n]); });
   h += '</tbody></table>'
     + '<button class="mg-btn mg-btn-sm" style="margin-top:6px;" onclick="addDescField()">Add a field</button>'
-    + '<p style="font-size:0.85em;color:#888;margin:8px 0 0;">The key field, if not automatic, is required and unique by implication. Saving from here regenerates the YAML; comments in it are dropped.</p>';
+    + '<p style="font-size:0.85em;color:var(--mg-text-muted);margin:8px 0 0;">The key field, if not automatic, is required and unique by implication. Saving from here regenerates the YAML; comments in it are dropped.</p>';
   document.getElementById('descriptor-form').innerHTML = h;
 }
 
@@ -1009,7 +1009,7 @@ function planMigration() {
       var offered = document.getElementById('plan-migrate-btn').style.display === ''
                  || document.getElementById('plan-rebuild-btn').style.display === '';
       if (offered) {
-        html = '<p style="color:#888;font-size:0.95em;"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>' + html;
+        html = '<p style="color:var(--mg-text-muted);font-size:0.95em;"><strong>Migrate</strong> applies only changes that keep every row \u2014 it refuses anything that could lose data. <strong>Rebuild</strong> makes the descriptor true whatever that costs: it names each column it would drop, and writes a safety export first.</p>' + html;
       }
       body.innerHTML = html;
     })

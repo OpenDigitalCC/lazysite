@@ -78,7 +78,7 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
   </span>
 </div>
 <div class="mg-perms-row">
-  <div class="mg-perms-card">
+  <div class="mg-expand-body">
     <div class="mg-perms-rights-label">Export</div>
     <div class="mg-perms-actions"><a class="mg-btn" href="#">JSON</a> <a class="mg-btn" href="#">CSV</a></div>
     <div class="mg-perms-owner"><label>Owner</label> <select class="mg-perm-owner"><option>alice</option></select></div>
@@ -127,7 +127,7 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
     <div class="mg-config-field">
       <label>A setting</label>
       <input class="mg-inp" value="a value">
-      <div class="mg-field-note">What it does, and what happens if it is wrong.</div>
+      <div class="mg-muted">What it does, and what happens if it is wrong.</div>
     </div>
     <div class="mg-config-field">
       <label>Derived</label>
@@ -240,7 +240,7 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-file-dl"><span class="mg-sg-tag">.mg-file-dl</span></div>
 <div class="mg-file-filter"><span class="mg-sg-tag">.mg-file-filter</span></div>
 <div class="mg-file-icon"><span class="mg-sg-tag">.mg-file-icon</span></div>
-<div class="mg-file-list"><span class="mg-sg-tag">.mg-file-list</span></div>
+<div class="mg-list"><span class="mg-sg-tag">.mg-list</span></div>
 <div class="mg-file-select"><span class="mg-sg-tag">.mg-file-select</span></div>
 <div class="mg-file-size"><span class="mg-sg-tag">.mg-file-size</span></div>
 <div class="mg-file-table"><span class="mg-sg-tag">.mg-file-table</span></div>
@@ -249,7 +249,7 @@ the words to use; anything else needs a reason.</p>
 <p class="mg-sg-note">Used by <code>plugins.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-plugin-card"><span class="mg-sg-tag">.mg-plugin-card</span><div class="mg-plugin-row-config"><span class="mg-sg-tag">.mg-plugin-row-config</span></div>
-<div class="mg-plugin-row-desc"><span class="mg-sg-tag">.mg-plugin-row-desc</span></div>
+<div class="mg-muted"><span class="mg-sg-tag">.mg-muted</span></div>
 <div class="mg-plugin-row-name"><span class="mg-sg-tag">.mg-plugin-row-name</span></div></div>
 <div class="mg-plugin-ctl"><span class="mg-sg-tag">.mg-plugin-ctl</span></div>
 <div class="mg-plugin-desc"><span class="mg-sg-tag">.mg-plugin-desc</span></div>
@@ -456,7 +456,7 @@ the words to use; anything else needs a reason.</p>
 <h3 class="mg-sg-fam">mg-connect <span class="mg-sg-count">2</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
-<div class="mg-connect-hint"><span class="mg-sg-tag">.mg-connect-hint</span></div>
+<div class="mg-muted"><span class="mg-sg-tag">.mg-muted</span></div>
 <div class="mg-connect-pick"><span class="mg-sg-tag">.mg-connect-pick</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-cred <span class="mg-sg-count">2</span></h3>

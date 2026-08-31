@@ -229,7 +229,7 @@ function pendingBannerHtml(g) {
   var rows = pending.map(function(cap) {
     var ce = escHtml(cap);
     return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0;">' +
-      '<span style="flex:1;">' + escHtml(capLabel(cap)) + ' <code style="color:#888;">' + ce + '</code></span>' +
+      '<span style="flex:1;">' + escHtml(capLabel(cap)) + ' <code style="color:var(--mg-text-muted);">' + ce + '</code></span>' +
       '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',true)">Grant</button>' +
       '<button class="mg-btn mg-btn-sm" onclick="capDecide(\'' + ge + '\',\'' + ce + '\',false)">Dismiss</button>' +
       '</div>';
@@ -310,7 +310,7 @@ function renderGroups() {
     h += '<div class="mg-line"><label style="min-width:5.5rem">Kind</label>'
        + '<label class="mg-chk"><input type="checkbox"' + (info.assignable === false ? '' : ' checked')
        + ' onchange="setAssignable(\'' + ge + '\', this.checked)"> Assignable to people'
-       + ' <span style="font-weight:400;color:#888">— unticked, it is a backend group that only aggregates capabilities and other groups</span>'
+       + ' <span style="font-weight:400;color:var(--mg-text-muted)">— unticked, it is a backend group that only aggregates capabilities and other groups</span>'
        + '</label></div>';
 
     // SM673 follow-up: where an approved registration lands.
@@ -328,7 +328,7 @@ function renderGroups() {
          + '<label class="mg-chk"><input type="checkbox"' + (info.registration ? ' checked' : '')
          + ' onchange="setRegistration(\'' + ge + '\', this.checked)">'
          + ' Add anonymous user registrations to this group'
-         + ' <span style="font-weight:400;color:#888">— an approved request joins every group ticked here,'
+         + ' <span style="font-weight:400;color:var(--mg-text-muted)">— an approved request joins every group ticked here,'
          + ' and holds whatever they grant. Nothing ticked means an approved account joins nothing.</span>'
          + '</label></div>';
     }
@@ -413,9 +413,9 @@ function renderGroups() {
     // explicit "no" (the capability stops warning everywhere); the grid below
     // shows it unticked and it can be granted later like anything else.
     h += '<div id="gpend-' + ge + '">' + pendingBannerHtml(g) + '</div>';
-    h += '<div class="mg-sec">Channels <span style="font-weight:400;color:#888">— where members may operate</span></div>';
+    h += '<div class="mg-sec">Channels <span style="font-weight:400;color:var(--mg-text-muted)">— where members may operate</span></div>';
     h += '<div class="mg-checks">' + CHANNELS.map(function(c) { return row(c, true); }).join('') + '</div>';
-    h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';
+    h += '<div class="mg-sec">Actions <span style="font-weight:400;color:var(--mg-text-muted)">— what they may do</span></div>';
     h += '<div class="mg-checks">' + ACTIONS.map(function(c) { return row(c, false); }).join('') + '</div>';
 
     // SM165: domain access lives on the DOMAIN (each domain names the groups

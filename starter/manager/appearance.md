@@ -226,7 +226,7 @@ function renderBackupsPanel(backups) {
   h += '<summary style="cursor:pointer;padding:0.5rem;font-weight:600;">'
      + 'Backups (' + backups.length + ') – old theme/layout snapshots</summary>';
   h += '<div style="padding:0.3rem 0.6rem;">';
-  h += '<div style="font-size:0.8rem;color:#888;margin:0 0 0.4rem;">Snapshots kept when a '
+  h += '<div style="font-size:0.8rem;color:var(--mg-text-muted);margin:0 0 0.4rem;">Snapshots kept when a '
      + 'layout or theme is switched or deleted. Safe to remove; the active layout is never touched.</div>';
   h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="purgeAllBackups()">Delete all backups</button>';
   for (var i = 0; i < backups.length; i++) {

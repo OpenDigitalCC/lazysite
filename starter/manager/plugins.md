@@ -60,7 +60,7 @@ function renderPluginRegistry(plugins) {
     // Main column: name + description.
     html += '<div class="mg-plugin-main">' +
       '<div class="mg-plugin-row-name">' + esc(p.name) + '</div>' +
-      '<div class="mg-plugin-row-desc">' + esc(p.description || '') + '</div></div>';
+      '<div class="mg-muted">' + esc(p.description || '') + '</div></div>';
     // End column (info only): the core badge, or an info tooltip carrying the
     // plugin details (its file is here, not cluttering the row).
     html += '<div class="mg-plugin-end">';

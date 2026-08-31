@@ -629,7 +629,7 @@ function accountSettingsHtml(row) {
         '<button class="mg-btn mg-btn-sm" onclick="connectAs(\'' + ue + '\',\'desktop\')">Claude Desktop (connector)</button>' +
         '<button class="mg-btn mg-btn-sm" onclick="connectAs(\'' + ue + '\',\'code\')">Claude Code / script</button>' +
       '</div>' +
-      '<div class="mg-connect-hint mg-muted" id="connhint-' + ue + '"></div>' +
+      '<div class="mg-muted mg-muted" id="connhint-' + ue + '"></div>' +
       '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>' +
       '<div id="onb-' + ue + '" style="display:none"></div>';
     h += sec('Connect an AI assistant', conn);

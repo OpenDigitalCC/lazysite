@@ -622,7 +622,7 @@ function loadChildConfigs(plugin) {
         cardHtml += '</div>';
       });
     } else {
-      cardHtml += '<p style="font-size:13px;color:#888;">No form configs found.</p>';
+      cardHtml += '<p style="font-size:13px;color:var(--mg-text-muted);">No form configs found.</p>';
     }
     cardHtml += '<div class="mg-status" id="status-form-connections"></div>';
     cardHtml += '</div>';

@@ -748,7 +748,7 @@ function refreshPreview() {
           try { escaped = JSON.stringify(JSON.parse(text), null, 2)
                   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); } catch(e) {}
         }
-        frame.srcdoc = '<html><body style="margin:0;padding:12px;font:13px/1.5 ui-monospace,monospace;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap;word-break:break-all;">' + escaped + '</body></html>';
+        frame.srcdoc = '<html><body style="margin:0;padding:12px;font:13px/1.5 ui-monospace,monospace;background:var(--mg-surface);color:var(--mg-text);white-space:pre-wrap;word-break:break-all;">' + escaped + '</body></html>';
         document.getElementById('ed-preview-status').textContent = 'Raw output';
       })
       .catch(function() {

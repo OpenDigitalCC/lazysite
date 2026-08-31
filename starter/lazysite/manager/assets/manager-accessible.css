@@ -291,7 +291,6 @@
 }
 .mg-inp-sm { min-height: var(--mg-ctl-sm); padding: 3px 8px; font-size: var(--mg-text-sm); }
 .mg-inp-wide { min-width: 20rem; }
-.mg-field-note { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
 .mg-readonly-value {
     display: inline-block; align-self: flex-start; padding: 6px 10px; min-height: var(--mg-ctl);
     font-family: var(--mg-mono); font-size: var(--mg-text-sm); line-height: 1.7;
@@ -791,7 +790,6 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-cred-reveal { margin: 6px 0; padding: 8px 10px; background: var(--mg-surface-alt); border: 1px solid var(--mg-border); font-size: var(--mg-text-sm); }
 .mg-cred-value { font-family: var(--mg-mono); word-break: break-all; background: var(--mg-surface); padding: 1px 4px; border: 1px solid var(--mg-border-light); }
 .mg-connect-pick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.mg-connect-hint { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
 .mg-new-group-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--mg-border-light); }
 .mg-configbtn.active { box-shadow: 0 0 0 2px var(--mg-surface), 0 0 0 4px var(--mg-accent); }
 .mg-acc-list { padding: 0; }
@@ -807,7 +805,6 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-file-filter:focus { outline: 2px solid var(--mg-accent); outline-offset: -1px; border-color: var(--mg-accent); }
 .mg-file-actions-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .mg-file-actions-left, .mg-file-actions-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.mg-file-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
 .mg-file-item { display: flex; align-items: center; min-height: 44px; padding: 4px 12px; border-bottom: 1px solid var(--mg-border-light); gap: 8px; font-size: 14px; }
 .mg-file-item:last-child { border-bottom: none; }
 .mg-file-item:hover { background: var(--mg-surface-alt); }
@@ -883,7 +880,6 @@ body.mg-sheet-open { overflow: hidden; }
 
 /* --- Legacy perms card (the .mg-expand direction) */
 .mg-perms-row .mg-perms-cell { padding: 0; background: var(--mg-surface-alt); border-top: 2px solid var(--mg-accent); border-bottom: 2px solid var(--mg-accent); }
-.mg-perms-card { padding: 14px 16px; max-width: 56em; }
 .mg-perms-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--mg-border); }
 .mg-perms-title { font-weight: 600; }
 .mg-perms-history { font-size: var(--mg-text-sm); text-decoration: none; color: var(--mg-text-muted); }
@@ -977,7 +973,6 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-plugin-main { min-width: 0; }
 .mg-plugin-end { display: flex; align-items: center; justify-content: flex-end; }
 .mg-plugin-row-name { font-weight: 500; }
-.mg-plugin-row-desc { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
 .mg-plugin-row-config { font-size: var(--mg-text-sm); color: var(--mg-accent-deep); text-decoration: none; }
 .mg-plugin-row-config:hover { text-decoration: underline; }
 .mg-info { cursor: help; color: var(--mg-text-light); font-size: 1.1em; }

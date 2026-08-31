@@ -12,7 +12,7 @@ search: false
 </div>
 
 <!-- SM110: alias-host copies are invalidated alongside, not listed. -->
-<p style="font-size:0.85em;color:#888;margin:0 0 12px;">The list shows every cached render &mdash; the primary site and each domain / sub&#8209;domain host (tagged with its host). A host's renders live in <code>lazysite/cache/hosts/&lt;host&gt;/</code>, not beside the content, so manage them here rather than in Files. <strong>Invalidate</strong> clears that entry (a host entry clears just that host); <strong>Clear All</strong> clears everything.</p>
+<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;">The list shows every cached render &mdash; the primary site and each domain / sub&#8209;domain host (tagged with its host). A host's renders live in <code>lazysite/cache/hosts/&lt;host&gt;/</code>, not beside the content, so manage them here rather than in Files. <strong>Invalidate</strong> clears that entry (a host entry clears just that host); <strong>Clear All</strong> clears everything.</p>
 
 <div class="mg-status" id="cache-stats"></div>
 

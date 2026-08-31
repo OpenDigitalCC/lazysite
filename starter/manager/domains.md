@@ -11,7 +11,7 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<p style="font-size:0.85em;color:#888;margin:0 0 12px;">
+<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;">
 Your site is always served at its default address. This page is for the
 <strong>additional domains</strong> you serve from this one instance. Each can be
 a first&#8209;class site &mdash; its own home page, sitemap, feeds and search &mdash;
@@ -26,10 +26,10 @@ routing are configured so the domain reaches this instance.
 </p>
 
 <div style="border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:10px 12px;margin-bottom:12px;">
-  <label style="font-size:0.9em;">This server's public IP address(es) <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
+  <label style="font-size:0.9em;">This server's public IP address(es) <span style="color:var(--mg-text-light);font-weight:400">&mdash; optional</span><br>
     <input id="f-canonical-ip" placeholder="e.g. 203.0.113.5" style="width:16rem;max-width:100%;box-sizing:border-box;">
     <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveCanonicalIp()">Save</button></label>
-  <div style="font-size:0.8em;color:#888;margin-top:2px;">Used by <strong>Check</strong> to confirm a domain points to this server. Comma&#8209;separate several. Leave blank to auto&#8209;detect (from your site address, or the server's own address) &mdash; set it when this server sits behind a proxy or NAT.</div>
+  <div style="font-size:0.8em;color:var(--mg-text-muted);margin-top:2px;">Used by <strong>Check</strong> to confirm a domain points to this server. Comma&#8209;separate several. Leave blank to auto&#8209;detect (from your site address, or the server's own address) &mdash; set it when this server sits behind a proxy or NAT.</div>
 </div>
 
 <div class="mg-toolbar" style="margin-bottom:12px;">
@@ -57,10 +57,10 @@ routing are configured so the domain reaches this instance.
 
 
 <div id="domain-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#fff;width:92%;max-width:1100px;height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
+  <div style="background:var(--mg-surface);width:92%;max-width:1100px;height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--mg-border,#ddd);">
       <strong id="domain-preview-title" style="flex:1;font-size:0.95em;"></strong>
-      <span style="font-size:0.8em;color:#888;">public render &mdash; scripts disabled</span>
+      <span style="font-size:0.8em;color:var(--mg-text-muted);">public render &mdash; scripts disabled</span>
       <a id="domain-preview-open" href="#" target="_blank" rel="noopener noreferrer" class="mg-btn mg-btn-sm">Open live site &#8599;</a>
       <button class="mg-btn mg-btn-sm" onclick="closePreview()">Close</button>
     </div>
@@ -69,7 +69,7 @@ routing are configured so the domain reaches this instance.
 </div>
 
 <div id="domain-check-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#fff;width:92%;max-width:680px;max-height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
+  <div style="background:var(--mg-surface);width:92%;max-width:680px;max-height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--mg-border,#ddd);">
       <strong id="domain-check-title" style="flex:1;font-size:0.95em;"></strong>
       <button class="mg-btn mg-btn-sm" onclick="closeCheck()">Close</button>
@@ -334,17 +334,17 @@ function domainSettingsHtml(row, isCreate) {
         opts += '<option value="' + esc(d.host) + '">' + esc(d.host) + '</option>';
       }
     });
-    h += '<div class="mg-box"><div style="font-size:0.72em;color:#999;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">New domain</div>'
+    h += '<div class="mg-box"><div style="font-size:0.72em;color:var(--mg-text-light);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">New domain</div>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px;align-items:start;">'
-      + '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:#555;">'
-      + '<span style="font-weight:600;color:#444;">Full domain name</span>'
+      + '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:var(--mg-text-muted);">'
+      + '<span style="font-weight:600;color:var(--mg-text);">Full domain name</span>'
       + '<input id="e-' + esc(NEW_HOST) + '-host" placeholder="clienta.com" style="width:100%;box-sizing:border-box;" oninput="onNewHostInput()">'
-      + '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">The complete hostname visitors type – e.g. clienta.com or shop.clienta.com. Must be unique in this instance.</span>'
+      + '<span style="font-weight:400;color:var(--mg-text-light);font-size:0.92em;margin-top:2px;">The complete hostname visitors type – e.g. clienta.com or shop.clienta.com. Must be unique in this instance.</span>'
       + '</label>'
-      + '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:#555;">'
-      + '<span style="font-weight:600;color:#444;">Copy settings from</span>'
+      + '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:var(--mg-text-muted);">'
+      + '<span style="font-weight:600;color:var(--mg-text);">Copy settings from</span>'
       + '<select id="e-' + esc(NEW_HOST) + '-clone" onchange="cloneFrom(this.value)" style="width:100%;box-sizing:border-box;">' + opts + '</select>'
-      + '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">Pre-fill from an existing domain – a quick way to stand up another like one you already have. You can change anything before saving.</span>'
+      + '<span style="font-weight:400;color:var(--mg-text-light);font-size:0.92em;margin-top:2px;">Pre-fill from an existing domain – a quick way to stand up another like one you already have. You can change anything before saving.</span>'
       + '</label>'
       + '</div></div>';
   }
@@ -637,15 +637,15 @@ function previewDomain(host) {
   // The in-session render shows the site now (pre-DNS); the link opens the REAL
   // domain in a new tab, for once it is live.
   document.getElementById('domain-preview-open').href = 'https://' + encodeURIComponent(host).replace(/%2F/gi, '/') + '/';
-  frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:#888">Rendering&hellip;</p>';
+  frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:var(--mg-text-muted)">Rendering&hellip;</p>';
   ov.style.display = 'flex';
   fetch(API + '?action=domain-preview&host=' + encodeURIComponent(host), { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d && d.ok) { frame.srcdoc = d.html || '<p style="padding:1rem">(empty page)</p>'; }
-      else { frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:#b00">' + (d && d.error ? d.error : 'Preview failed') + '</p>'; }
+      else { frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:var(--mg-danger)">' + (d && d.error ? d.error : 'Preview failed') + '</p>'; }
     })
-    .catch(function (e) { frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:#b00">Error: ' + e.message + '</p>'; });
+    .catch(function (e) { frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:var(--mg-danger)">Error: ' + e.message + '</p>'; });
 }
 
 // SM156: check whether a domain is configured to serve THIS instance live. The
@@ -655,29 +655,29 @@ function checkDomain(host) {
   var ov = document.getElementById('domain-check-overlay');
   var body = document.getElementById('domain-check-body');
   document.getElementById('domain-check-title').textContent = 'Domain check: ' + host;
-  body.innerHTML = '<p style="color:#888">Checking ' + esc(host) + '&hellip;</p>';
+  body.innerHTML = '<p style="color:var(--mg-text-muted)">Checking ' + esc(host) + '&hellip;</p>';
   ov.style.display = 'flex';
   fetch(API + '?action=domain-check&host=' + encodeURIComponent(host), { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) { renderCheck(host, d); })
-    .catch(function (e) { body.innerHTML = '<p style="color:#b00">Check failed: ' + esc(e.message) + '</p>'; });
+    .catch(function (e) { body.innerHTML = '<p style="color:var(--mg-danger)">Check failed: ' + esc(e.message) + '</p>'; });
 }
 function renderCheck(host, d) {
   var body = document.getElementById('domain-check-body');
-  if (!d || !d.ok) { body.innerHTML = '<p style="color:#b00">' + esc((d && d.error) || 'Check failed') + '</p>'; return; }
+  if (!d || !d.ok) { body.innerHTML = '<p style="color:var(--mg-danger)">' + esc((d && d.error) || 'Check failed') + '</p>'; return; }
   var rows = (d.checks || []).map(function (c) {
-    var icon = (c.pass == null) ? '<span style="color:#c90">&#9679;</span>'
-             : c.pass ? '<span style="color:#080">&#10004;</span>'
-             : '<span style="color:#b00">&#10008;</span>';
+    var icon = (c.pass == null) ? '<span style="color:var(--mg-warning)">&#9679;</span>'
+             : c.pass ? '<span style="color:var(--mg-success)">&#10004;</span>'
+             : '<span style="color:var(--mg-danger)">&#10008;</span>';
     return '<tr><td style="padding:5px 10px 5px 0;vertical-align:top">' + icon + '</td>'
          + '<td style="padding:5px 12px 5px 0;font-weight:600;white-space:nowrap;vertical-align:top">' + esc(c.label) + '</td>'
-         + '<td style="padding:5px 0;color:#555">' + esc(c.detail) + '</td></tr>';
+         + '<td style="padding:5px 0;color:var(--mg-text-muted)">' + esc(c.detail) + '</td></tr>';
   }).join('');
   var summary = d.all_pass
-    ? '<p style="color:#080;font-weight:600;margin:0 0 10px">This domain is live and served by this instance.</p>'
-    : '<p style="color:#b00;font-weight:600;margin:0 0 10px">This domain is not fully configured yet.</p>';
+    ? '<p style="color:var(--mg-success);font-weight:600;margin:0 0 10px">This domain is live and served by this instance.</p>'
+    : '<p style="color:var(--mg-danger);font-weight:600;margin:0 0 10px">This domain is not fully configured yet.</p>';
   body.innerHTML = summary + '<table style="border-collapse:collapse">' + rows + '</table>'
-    + '<div id="browser-probe" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--mg-border,#eee);color:#888;font-size:0.9em">Checking from your browser&hellip;</div>';
+    + '<div id="browser-probe" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--mg-border,#eee);color:var(--mg-text-muted);font-size:0.9em">Checking from your browser&hellip;</div>';
   browserProbe(host);
 }
 // Browser-eye view: our own instance id (same origin) vs the id served over the
@@ -693,14 +693,14 @@ function browserProbe(host) {
         .then(function (r) { return r.json(); })
         .then(function (remote) {
           if (remote && remote.instance && mine && remote.instance === mine.instance) {
-            el.innerHTML = '<span style="color:#080">&#10004;</span> Your browser reaches this domain over HTTPS and it serves this instance.';
+            el.innerHTML = '<span style="color:var(--mg-success)">&#10004;</span> Your browser reaches this domain over HTTPS and it serves this instance.';
           } else {
-            el.innerHTML = '<span style="color:#c90">&#9679;</span> Your browser reached it over HTTPS, but a different instance answered.';
+            el.innerHTML = '<span style="color:var(--mg-warning)">&#9679;</span> Your browser reached it over HTTPS, but a different instance answered.';
           }
         });
     })
     .catch(function () {
-      el.innerHTML = '<span style="color:#b00">&#10008;</span> Your browser could not reach https://' + esc(host) + ' (DNS, certificate, or the site is not live yet).';
+      el.innerHTML = '<span style="color:var(--mg-danger)">&#10008;</span> Your browser could not reach https://' + esc(host) + ' (DNS, certificate, or the site is not live yet).';
     });
 }
 function closeCheck() { document.getElementById('domain-check-overlay').style.display = 'none'; }
@@ -744,15 +744,15 @@ function editField(host, k, row, isCreate) {
   var effective = row[k] || '';
   var hintText = (isCreate && CREATE_HINTS[k]) ? CREATE_HINTS[k] : EDIT_HINTS[k];
   var hint = hintText
-    ? '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">' + esc(hintText) + '</span>'
+    ? '<span style="font-weight:400;color:var(--mg-text-light);font-size:0.92em;margin-top:2px;">' + esc(hintText) + '</span>'
     : '';
   var full = 'width:100%;box-sizing:border-box;';
   var wrap = function (inner, span) {
     // A field cell: label above, control below. `span` makes a wide control (the
     // tick-lists) claim the full grid width so it doesn't squeeze the columns.
-    return '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:#555;'
+    return '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:var(--mg-text-muted);'
       + (span ? 'grid-column:1/-1;' : '') + '">'
-      + '<span style="font-weight:600;color:#444;">' + esc(label(k)) + '</span>'
+      + '<span style="font-weight:600;color:var(--mg-text);">' + esc(label(k)) + '</span>'
       + inner + hint + '</label>';
   };
 
@@ -804,7 +804,7 @@ function editField(host, k, row, isCreate) {
       field = '<select id="e-' + esc(host) + '-cr-parent" style="' + full + '"'
             + ' onchange="syncContentRoot()">'
             + '<option value="">Loading folders…</option></select>'
-            + '<div id="cr-preview" style="margin-top:4px;font-size:0.85em;color:#666;"></div>'
+            + '<div id="cr-preview" style="margin-top:4px;font-size:0.85em;color:var(--mg-text-muted);"></div>'
             + '<div id="cr-custom" style="display:none;margin-top:4px;">' + field + '</div>';
     }
   }
@@ -815,7 +815,7 @@ function editField(host, k, row, isCreate) {
   // field whose relevance is conditional reads better next to its condition, and
   // hidden entirely when it does not apply.
   if ( isCreate && k === 'content_root' ) {
-    var seedHidden = ' style="display:none;margin-top:6px;font-size:0.85em;color:#555;"';
+    var seedHidden = ' style="display:none;margin-top:6px;font-size:0.85em;color:var(--mg-text-muted);"';
     return wrap(
       field
         + '<label id="seed-wrap"' + seedHidden + '>'
@@ -831,10 +831,10 @@ function editField(host, k, row, isCreate) {
 function editSection(host, section, row, isCreate) {
   var cells = section.keys.map(function (k) { return editField(host, k, row, isCreate); }).join('');
   var note = section.note
-    ? ' <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#aaa;">&mdash; ' + esc(section.note) + '</span>'
+    ? ' <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--mg-text-light);">&mdash; ' + esc(section.note) + '</span>'
     : '';
   return '<div style="margin-top:12px;">'
-    + '<div style="font-size:0.72em;color:#999;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">'
+    + '<div style="font-size:0.72em;color:var(--mg-text-light);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">'
     + esc(section.title) + note + '</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px;align-items:start;">'
     + cells + '</div></div>';
@@ -917,11 +917,11 @@ function loadDomains() {
         DISPLAY_KEYS.forEach(function (k) {
           var v = row[k], inherited = row[k + '_inherited'], cell;
           if (k === 'content_root' && !v) {
-            cell = '<span style="color:#999" title="serves your default site">default site</span>';
+            cell = '<span style="color:var(--mg-text-light)" title="serves your default site">default site</span>';
           } else if (!v) {
-            cell = '<span style="color:#ccc">&mdash;</span>';
+            cell = '<span style="color:var(--mg-text-light)">&mdash;</span>';
           } else if (inherited) {
-            cell = '<span style="color:#999" title="inherited from the default site">' + esc(v) + '</span>';
+            cell = '<span style="color:var(--mg-text-light)" title="inherited from the default site">' + esc(v) + '</span>';
           } else {
             cell = esc(v);
           }
@@ -935,7 +935,7 @@ function loadDomains() {
       });
       html += '</tbody></table></div>';
       if (rows.length <= 1) {
-        html += '<p style="font-size:0.85em;color:#888;margin-top:10px;">'
+        html += '<p style="font-size:0.85em;color:var(--mg-text-muted);margin-top:10px;">'
               + 'No extra domains yet. Use <strong>Add domain</strong> to host several '
               + 'first-class sites from this one instance.</p>';
       }
@@ -982,7 +982,7 @@ function coverageBar(root) {
     var pct = total ? (n / total * 100) : 0;
     return '<span title="' + title + ': ' + n + '" style="display:inline-block;height:100%;width:' + pct + '%;background:' + colour + ';"></span>';
   };
-  return '<span style="display:inline-flex;height:9px;width:120px;border-radius:4px;overflow:hidden;background:#eee;vertical-align:middle;">'
+  return '<span style="display:inline-flex;height:9px;width:120px;border-radius:4px;overflow:hidden;background:var(--mg-surface-alt);vertical-align:middle;">'
        + seg(root.current, '#2e9e50', 'current')
        + seg(root.stale, '#d99a20', 'stale')
        + seg(root.missing, '#cccccc', 'missing')
@@ -996,13 +996,13 @@ function loadLangStatus() {
       if (!d || !d.ok || !d.members || d.members < 2) { box.style.display = 'none'; return; }
       var s = d.source || {};
       var html = '<h2 style="font-size:1.05em;margin:0 0 4px;">Language coverage</h2>'
-        + '<p style="font-size:0.82em;color:#888;margin:0 0 10px;">'
+        + '<p style="font-size:0.82em;color:var(--mg-text-muted);margin:0 0 10px;">'
         + 'This is a language set (group <code>' + esc(d.group) + '</code>). The source is <strong>'
         + esc(s.lang || '?') + '</strong> with ' + (s.files || 0) + ' page(s). '
         + 'Each other language is compared to it &mdash; '
-        + '<span style="color:#2e9e50">current</span>, '
-        + '<span style="color:#d99a20">stale</span> (source changed since translating) or '
-        + '<span style="color:#999">missing</span>. Translate the sibling root at the same path to fill gaps.</p>';
+        + '<span style="color:var(--mg-success)">current</span>, '
+        + '<span style="color:var(--mg-warning)">stale</span> (source changed since translating) or '
+        + '<span style="color:var(--mg-text-light)">missing</span>. Translate the sibling root at the same path to fill gaps.</p>';
       html += '<div style="overflow-x:auto;"><table class="mg-table" style="min-width:0;"><thead><tr>'
         + '<th>Language</th><th>Host</th><th>Coverage</th><th>Current</th><th>Stale</th><th>Missing</th></tr></thead><tbody>';
       (d.roots || []).forEach(function (root) {
@@ -1010,8 +1010,8 @@ function loadLangStatus() {
           + '<td>' + esc(root.host || '') + '</td>'
           + '<td>' + coverageBar(root) + '</td>'
           + '<td>' + (root.current || 0) + '</td>'
-          + '<td' + (root.stale ? ' style="color:#d99a20;font-weight:600"' : '') + '>' + (root.stale || 0) + '</td>'
-          + '<td' + (root.missing ? ' style="color:#b00;font-weight:600"' : '') + '>' + (root.missing || 0) + '</td>'
+          + '<td' + (root.stale ? ' style="color:var(--mg-warning);font-weight:600"' : '') + '>' + (root.stale || 0) + '</td>'
+          + '<td' + (root.missing ? ' style="color:var(--mg-danger);font-weight:600"' : '') + '>' + (root.missing || 0) + '</td>'
           + '</tr>';
       });
       html += '</tbody></table></div>';

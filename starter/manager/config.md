@@ -330,7 +330,7 @@ function previewStyle(name) {
     +     'Nothing is saved by looking.</div>'
     +   '<iframe src="/manager/style-guide?style=' + encodeURIComponent(name) + '" '
     +     'title="Manager style preview" '
-    +     'style="flex:1;width:100%;border:1px solid var(--mg-border);border-radius:4px;background:#fff"></iframe>'
+    +     'style="flex:1;width:100%;border:1px solid var(--mg-border);border-radius:4px;background:var(--mg-surface)"></iframe>'
     +   '<div class="mg-modal-actions"><button type="button" class="mg-btn">Close</button></div>'
     + '</div>';
   function shut() { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }
@@ -442,7 +442,7 @@ function renderSiteForm(values) {
     } else {
       html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
     }
-    if (f.note) html += '<div class="mg-config-help mg-field-note">' + esc(f.note) + '</div>';
+    if (f.note) html += '<div class="mg-config-help mg-muted">' + esc(f.note) + '</div>';
     // SM277: an anchor for the reciprocal count, emitted for every field so
     // refreshServiceCounts can fill in whichever ones map to a channel. Empty
     // until the count arrives, and it stays empty for a service with no

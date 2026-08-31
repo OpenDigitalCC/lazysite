@@ -26,10 +26,10 @@ query_params:
   <input type="date" id="audit-to" class="mg-inp" style="max-width:10rem" onchange="filterAudit()">
   <button class="mg-btn mg-btn-sm" onclick="clearAuditFilter()">Clear</button>
   <button class="mg-btn mg-btn-sm" onclick="loadAudit()">Refresh</button>
-  <label style="font-size:0.85rem;color:#666;margin-left:0.5rem;"><input type="checkbox" id="audit-auto" onchange="toggleAuditAuto(this.checked)"> Auto-refresh (10s)</label>
+  <label style="font-size:0.85rem;color:var(--mg-text-muted);margin-left:0.5rem;"><input type="checkbox" id="audit-auto" onchange="toggleAuditAuto(this.checked)"> Auto-refresh (10s)</label>
 </div>
 
-<div id="audit-scope" style="margin-top:0.4rem;font-size:0.85rem;color:#666;"></div>
+<div id="audit-scope" style="margin-top:0.4rem;font-size:0.85rem;color:var(--mg-text-muted);"></div>
 
 <div id="audit-table" style="margin-top:0.6rem;">Loading&hellip;</div>
 
