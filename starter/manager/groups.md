@@ -167,9 +167,14 @@ function groupSummaryInner(g) {
   // capabilities - and that was invisible on a flat list, where a role with an
   // empty grid looked harmless.
   var ups = (typeof groupParents === 'function') ? groupParents(g) : [];
+  // The NAMES are clutter on a summary line: five bundle names beside a group
+  // name is more text than the name itself, and an operator scanning the list
+  // is reading names, not memberships. The count carries the fact; the names
+  // are in the tooltip for the moment somebody wants them.
   var rollup = ups.length
-    ? ' <span class="mg-rollup" title="Belongs to these bundles, and is granted everything they hold">&#8593; '
-      + ups.map(escHtml).join(', ') + '</span>'
+    ? ' <span class="mg-rollup" title="Belongs to ' + escHtml(ups.join(', '))
+      + ' - and is granted everything they hold">&#8599; in '
+      + ups.length + ' bundle' + (ups.length === 1 ? '' : 's') + '</span>'
     : '';
 
   var inert = (nOn > 0 && members.length === 0)

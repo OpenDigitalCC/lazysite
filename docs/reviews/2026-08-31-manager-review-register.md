@@ -83,6 +83,14 @@ Refs are quotable: `MR-01` and so on.
 | MR-66 | Designer's round-2 response | Every change accepted without overrule. Red moves to hue 12 with raised chroma, copper stays at 45. Both specimens drawn and adopted into our guide; the dense form adds one class and Site settings uses it. One adaptation: their sheets carried .mg-field-note, which SM699 had merged | SM-DS2 |
 | MR-50 | SM662: a gate declares its capabilities | DONE and folded in. The restructure was proved by fingerprint and parked because it broke six lint suites - each of which parsed `my %need = (` and picked capability names out of a sub body with its own regex. They read the gate through one helper now. Re-proved after the rebase: the fingerprint differs from the pre-SM662 baseline by exactly the two lines of the action added since, and narrowing a gate still moves exactly one row | SM662 |
 | MR-54 | Nav edit line should be one modal with both boxes | The shared modal takes a `fields` list rather than nav growing its own dialog; `prompt` stays the single-box shorthand so no caller changed | — |
+| MR-68 | Plugin Manager: overlapping rows | My MR-53 grid did it. Those rows have THREE parts (controls, name+description, end badge) in a two-column grid, so the third wrapped to an implicit row and the text ran over the checkbox. `.mg-plugin-row` already carried the right three-column template and was not being used | — |
+| MR-69 | Plugin Config issues, and Form Handler still a narrow right column | The card carried `.mg-plugin-card mg-row` - a card is not a row - so it inherited the row grid and its stacked contents were laid out as columns of a line. It stacks now, each part as wide as the card | — |
+| MR-70 | Briefs Status says "running" and leaves no message | It DID answer; the result was wiped after five seconds. Right for "Done.", wrong for anything that reports something. The line stays until the next action replaces it | — |
+| MR-71 | Group lines still list every bundle | The earlier fix was never written: the script carrying it aborted on a later anchor, and the whole batch was discarded together. It is a count with the names in the tooltip | — |
+| MR-72 | Sessions & keys still scrolls; device should wrap | Those tables are `.audit-table`, not `.mg-table` - so the wrap rules I added named a class Sessions does not use. Both classes now, with `anywhere` for the user-agent column, which has no spaces to break on | — |
+| MR-73 | Fields modal still narrow | Adopting the design side's sheets reverted MR-44 and MR-53, because both were made AFTER the package was sent. Re-applied, and verified in the SERVED css rather than the source | — |
+| MR-74 | Plugin buttons now aligned | Confirmed by the release manager | — |
+
 
 # Open
 

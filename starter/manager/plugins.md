@@ -40,7 +40,11 @@ function renderPluginRegistry(plugins) {
   if (!plugins.length) { container.innerHTML = '<p class="mg-empty">No plugins discovered.</p>'; return; }
   var html = '<div class="mg-list">';
   plugins.forEach(function (p) {
-    html += '<div class="mg-row' + (p.core ? ' mg-plugin-core' : '') + '" data-script="' + esc(p._script) + '">';
+    // .mg-plugin-row, not the generic .mg-row: this line has THREE parts
+    // (controls, name and description, the end badge) and that class carries
+    // the template for them. On the two-column .mg-row the third wrapped to a
+    // second implicit row and the description ran over the checkbox.
+    html += '<div class="mg-plugin-row' + (p.core ? ' mg-plugin-core' : '') + '" data-script="' + esc(p._script) + '">';
     // Control column: the enable toggle, with Configure stacked beneath it when
     // enabled (so enabling never shifts the row across a column).
     html += '<div class="mg-plugin-ctl">';

@@ -1068,10 +1068,17 @@ body.mg-sheet-open { overflow: hidden; }
    edit form - became one squeezed flex child against an empty left half. It
    wraps onto its own full-width line instead, which is the same shape as the
    row-plus-expander idiom every listing now uses. */
-.mg-plugin-card { flex-wrap: wrap; }
+/* The card STACKS. It briefly carried .mg-row as well, which made it a grid
+   and laid its contents out as columns of a line - the Form Handler's whole
+   configuration squeezed into a narrow right-hand column with the left half
+   empty. Its parts are a title, a description, a group of actions and the
+   panels those open: one under the next, each as wide as the card. */
+.mg-plugin-card { display: block; }
 .mg-plugin-card > .mg-card-body,
 .mg-plugin-card > .mg-handler-edit-form,
-.mg-plugin-card > .mg-submissions-panel { flex: 1 0 100%; min-width: 0; }
+.mg-plugin-card > .mg-submissions-panel { width: 100%; min-width: 0; }
+/* The action group is the one row inside it. */
+.mg-plugin-card > .mg-wizard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 
 /* A CHECKBOX BELONGS BESIDE ITS LABEL. .mg-field stacks label above control,
    which is right for a text box and wrong for a checkbox: the box landed on
@@ -1109,8 +1116,14 @@ body.mg-sheet-open { overflow: hidden; }
    than the overflow it was fixing. Cells break at sensible points; a long
    user-agent has spaces to break on, and break-word still splits an unbroken
    token when there is no alternative. */
-.mg-table th { white-space: nowrap; }
-.mg-table td { overflow-wrap: break-word; }
+/* BOTH table classes. These named .mg-table only, and Sessions, Audit and
+   Users use .audit-table - so the device column went on refusing to wrap and
+   the row went on scrolling, while the rule that would have fixed it sat two
+   files away applying to something else. */
+.mg-table th, .audit-table th { white-space: nowrap; }
+.mg-table td, .audit-table td { overflow-wrap: break-word; }
+/* The long one: a user-agent has no spaces to break on for most of its length. */
+.audit-table td { overflow-wrap: anywhere; }
 .mg-table-wrap { overflow-x: auto; }
 
 /* The groups list is sectioned by what a group IS - a role you assign, a

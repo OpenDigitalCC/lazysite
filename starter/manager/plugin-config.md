@@ -240,7 +240,10 @@ function renderPlugins(plugins) {
 // that has since been destroyed.
 function renderPluginCard(plugin) {
   var hasConfig = !!(plugin.config_schema && plugin.config_schema.length);
-  var html = '<div class="mg-plugin-card mg-row" id="plugin-' + esc(plugin.id) + '">';
+  // A CARD IS NOT A ROW. Carrying both meant the card inherited the row grid,
+  // so its stacked contents - title, description, the action group and the
+  // full-width panels below them - were laid out as columns of a line.
+  var html = '<div class="mg-plugin-card" id="plugin-' + esc(plugin.id) + '">';
   html += '<div class="mg-plugin-title">' + esc(plugin.name) + '</div>';
   html += '<div class="mg-plugin-desc">' + esc(plugin.description) + '</div>';
   // The group opens unconditionally, because Configure and the per-plugin
@@ -492,7 +495,15 @@ function runAction_go(plugin, action, params) {
     else if (action.on_complete === 'open_url' && data[action.result_key]) {
       window.open(data[action.result_key], '_blank');
     }
-    setTimeout(function() { status.textContent = ''; }, 5000);
+    // THE RESULT STAYS. It used to be wiped after five seconds, which is
+    // right for "Done." and wrong for everything that reports something: the
+    // Briefs Status button said "Running...", then briefly gave its answer,
+    // then left an empty line - so the button looked like it did nothing.
+    //
+    // Nothing needs tidying away: the line is replaced by "Running..." the
+    // next time an action runs, and .mg-status:empty hides it when there is
+    // nothing to say. An answer that removes itself while you are reading it
+    // is worse than one that waits to be replaced.
   })
   .catch(function(e) {
     mgShowWarning('Error: ' + e.message, true);
