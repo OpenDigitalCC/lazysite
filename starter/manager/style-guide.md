@@ -412,12 +412,13 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-header"><span class="mg-sg-tag">.mg-header</span><div class="mg-header-inner"><span class="mg-sg-tag">.mg-header-inner</span></div>
 <div class="mg-header-tools"><span class="mg-sg-tag">.mg-header-tools</span></div></div>
 </div>
-<h3 class="mg-sg-fam">mg-perms <span class="mg-sg-count">3</span></h3>
+<h3 class="mg-sg-fam">mg-perms <span class="mg-sg-count">4</span></h3>
 <p class="mg-sg-note">Used by <code>files.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-perms-cell"><span class="mg-sg-tag">.mg-perms-cell</span></div>
 <div class="mg-perms-head"><span class="mg-sg-tag">.mg-perms-head</span></div>
 <div class="mg-perms-title"><span class="mg-sg-tag">.mg-perms-title</span></div>
+<div class="mg-acl-body"><span class="mg-sg-tag">.mg-acl-body</span> the access rule, separated from the row's own actions above it</div>
 </div>
 <h3 class="mg-sg-fam">mg-preview <span class="mg-sg-count">3</span></h3>
 <p class="mg-sg-note">Used by <code>edit.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>

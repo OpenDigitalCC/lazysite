@@ -21,8 +21,20 @@ query_params:
 #ed-main.mg-editor-main { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 #ed-editor-pane.mg-editor-pane { display: flex; flex-direction: column; min-width: 0; }
 .mg-stack-section { display: flex; flex-direction: column; min-height: 0; }
-#ed-meta-section { flex: 0 0 24vh; min-height: 48px; }
-#ed-content-section { flex: 1 1 auto; min-height: 20vh; }
+/* A collapsed section is its summary bar and nothing more; an open one takes
+   the space it needs. Without this the flex-basis applies either way and a
+   closed section still reserves 24vh of empty pane. */
+details.mg-stack-section > summary { cursor: pointer; list-style: none; }
+details.mg-stack-section > summary::-webkit-details-marker { display: none; }
+details.mg-stack-section > summary::before { content: '\25B8'; margin-right: 0.35rem;
+  display: inline-block; transition: transform 0.12s; }
+details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
+#ed-meta-section { min-height: 0; flex: 0 0 auto; }
+#ed-meta-section[open] { flex: 0 0 24vh; min-height: 48px; }
+#ed-content-section { flex: 0 0 auto; min-height: 0; }
+#ed-content-section[open] { flex: 1 1 auto; min-height: 20vh; }
+#ed-perms-section { flex: 0 0 auto; }
+#ed-perms-section[open] { max-height: 46vh; overflow: auto; }
 .mg-stack-header { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.25rem 0.5rem;
   font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--mg-text-muted, #6b7280); background: var(--mg-surface-alt, #f3f4f6); }
@@ -80,15 +92,19 @@ query_params:
 <div class="mg-field"><label style="width:60px;">search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
 </div>
 </details>
-<div id="ed-meta-section" class="mg-stack-section">
-<div class="mg-stack-header">Metadata<span class="mg-stack-hint">YAML front matter</span></div>
+<details id="ed-meta-section" class="mg-stack-section" ontoggle="edRefreshEditors()">
+<summary class="mg-stack-header">Metadata<span class="mg-stack-hint">YAML front matter</span></summary>
 <div id="ed-yaml-cm" class="mg-cm-yaml"></div>
-</div>
+</details>
 <div id="ed-vsplit" class="mg-vsplit" title="Drag to resize Metadata / Content"></div>
-<div id="ed-content-section" class="mg-stack-section">
-<div class="mg-stack-header">Content<span class="mg-stack-hint">Markdown</span></div>
+<details id="ed-content-section" class="mg-stack-section" ontoggle="edRefreshEditors()" open>
+<summary class="mg-stack-header">Content<span class="mg-stack-hint">Markdown</span></summary>
 <div id="ed-content-cm" class="mg-cm-content"></div>
-</div>
+</details>
+<details id="ed-perms-section" class="mg-stack-section" ontoggle="loadEditorPerms()">
+<summary class="mg-stack-header">Access<span class="mg-stack-hint">owner, and who may read or write this file</span></summary>
+<div id="ed-perms-body" class="mg-expand-body">Loading&hellip;</div>
+</details>
 </div>
 <div id="ed-divider" class="mg-editor-divider" title="Drag to resize"></div>
 <div id="ed-preview-pane" class="mg-preview-pane">
@@ -487,6 +503,130 @@ function showCacheNotice(mdPath) {
 // Non-JSON files hide the preview card entirely. The raw editor
 // remains the authoritative write surface; the preview is
 // display-only and re-rendered after a successful save.
+
+// --- Access, in the editor -------------------------------------------------
+//
+// The same ownership and rights the Files listing shows behind its expander,
+// brought to where the file is being edited: changing who may read a page
+// should not mean leaving it, finding it in a listing and opening a different
+// panel. It reuses window.mgRights (SM678) rather than growing a second rights
+// editor, and loads on FIRST open only - a section nobody expands costs no
+// request.
+var edPermsLoaded = false;
+
+function loadEditorPerms() {
+  var sec = document.getElementById('ed-perms-section');
+  if (!sec || !sec.open) return;
+  // CodeMirror measures itself when its pane resizes; opening or closing a
+  // section changes the other panes, so both are refreshed either way.
+  edRefreshEditors();
+  if (edPermsLoaded) return;
+  edPermsLoaded = true;
+
+  var body = document.getElementById('ed-perms-body');
+  if (!filePath) { body.textContent = 'Save the file first.'; return; }
+  var dir = filePath.replace(/\/?[^\/]*$/, '');
+
+  Promise.all([
+    fetch(API + '?action=list&path=' + encodeURIComponent(dir || '/')).then(function (r) { return r.json(); }),
+    fetch(API + '?action=principals').then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false }; })
+  ]).then(function (res) {
+    var list = res[0], pr = res[1];
+    if (!list || !list.ok) { body.textContent = (list && list.error) || 'Could not read this folder.'; return; }
+    var me = null, entries = list.entries || [];
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].path === filePath) { me = entries[i]; break; }
+    }
+    if (!me) { body.textContent = 'This file is not in the listing yet.'; return; }
+    edPermsRender(me, (pr && pr.ok && pr) || { users: [], groups: [] });
+  }).catch(function (e) { body.textContent = 'Could not load access: ' + e.message; });
+}
+
+function edPermsRender(f, pr) {
+  var body = document.getElementById('ed-perms-body');
+  var names = []
+    .concat((pr.users || []).map(function (u) { return typeof u === 'string' ? u : u.name; }))
+    .concat((pr.groups || []).map(function (g) { return '@' + (typeof g === 'string' ? g : g.name); }));
+
+  var opts = '<option value="">(no owner)</option>';
+  for (var i = 0; i < names.length; i++) {
+    opts += '<option value="' + esc(names[i]) + '"' + (f.owner === names[i] ? ' selected' : '') + '>' + esc(names[i]) + '</option>';
+  }
+
+  // One chip per principal that has any right on this file.
+  var have = {}, chips = '';
+  (f.read || []).forEach(function (n) { have[n] = have[n] || {}; have[n].r = 1; });
+  (f.write || []).forEach(function (n) { have[n] = have[n] || {}; have[n].w = 1; });
+  Object.keys(have).sort().forEach(function (n) {
+    chips += (window.mgRights ? mgRights.chip(n, !!have[n].r, !!have[n].w)
+                              : '<span class="mg-chip" data-name="' + esc(n) + '">' + esc(n) + '</span>');
+  });
+
+  var add = '<option value="">+ add person or @group&hellip;</option>';
+  for (var j = 0; j < names.length; j++) {
+    if (!have[names[j]]) add += '<option value="' + esc(names[j]) + '">' + esc(names[j]) + '</option>';
+  }
+
+  body.innerHTML =
+      '<div class="mg-perms-owner"><label>Owner</label>'
+    +   '<select class="mg-perm-owner">' + opts + '</select></div>'
+    + '<div class="mg-perms-rights-label">People &amp; groups with access</div>'
+    + '<div class="mg-rights">' + chips + '</div>'
+    + '<div class="mg-rights-add"><select class="mg-rights-pick" onchange="edAddPrincipal(this)">' + add + '</select></div>'
+    + '<div class="mg-perms-hint">Toggle <b>r</b> / <b>w</b> per person. Nobody listed = open within the account scope; '
+    +   'no owner and nobody listed clears the rule.</div>'
+    + '<div class="mg-perms-actions">'
+    +   '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(filePath) + '">&#128340; Audit</a>'
+    +   '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="edSavePerms()">Save access</button>'
+    + '</div>';
+}
+
+function edAddPrincipal(sel) {
+  var name = sel.value;
+  if (!name) return;
+  sel.value = '';
+  var host = document.getElementById('ed-perms-body').querySelector('.mg-rights');
+  if (!host) return;
+  host.insertAdjacentHTML('beforeend',
+    window.mgRights ? mgRights.chip(name, true, false)
+                    : '<span class="mg-chip" data-name="' + esc(name) + '">' + esc(name) + '</span>');
+  var opt = sel.querySelector('option[value="' + name.replace(/"/g, '') + '"]');
+  if (opt) opt.parentNode.removeChild(opt);
+}
+
+function edSavePerms() {
+  var body = document.getElementById('ed-perms-body');
+  var owner = (body.querySelector('.mg-perm-owner') || {}).value || '';
+  var read = [], write = [];
+  var chips = body.querySelectorAll('.mg-rights .mg-chip');
+  for (var i = 0; i < chips.length; i++) {
+    var name = chips[i].getAttribute('data-name');
+    var on = chips[i].querySelectorAll('.mg-chip-right.on');
+    for (var j = 0; j < on.length; j++) {
+      if (on[j].getAttribute('data-right') === 'r') read.push(name);
+      if (on[j].getAttribute('data-right') === 'w') write.push(name);
+    }
+  }
+  var action = (!owner && !read.length && !write.length) ? 'acl-remove' : 'acl-set';
+  var payload = action === 'acl-set' ? { owner: owner, read: read, write: write } : {};
+  fetch(API + '?action=' + action + '&path=' + encodeURIComponent(filePath), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.ok) { showStatus((d && d.error) || 'Could not save access', true); return; }
+    showStatus(action === 'acl-remove' ? 'Access rule removed.' : 'Access saved.');
+  }).catch(function (e) { showStatus('Could not save access: ' + e.message, true); });
+}
+
+// Both editors re-measure when a section opens or closes, or CodeMirror keeps
+// the height it had when its pane was a different size.
+function edRefreshEditors() {
+  setTimeout(function () {
+    if (window.yamlCm) yamlCm.refresh();
+    if (window.contentCm) contentCm.refresh();
+  }, 0);
+}
 
 function esc(s) {
   return String(s == null ? '' : s)
