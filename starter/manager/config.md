@@ -82,7 +82,7 @@ var SITE_SCHEMA = [
   // this setting existed.
   { key: 'manager_style', label: 'Manager style', type: 'select',
     options: ['classic', 'accessible', 'modern'], default: 'classic',
-    group: 'Appearance of the manager',
+    group: 'Manager theme',
     preview: true,
     note: 'How the manager itself looks. This changes nothing about the site you publish - only the admin pages you are reading now. Preview a style before committing to it: the preview shows every component in that style, so a style that leaves something unstyled is visible before you choose it.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
@@ -326,7 +326,7 @@ function previewStyle(name) {
   wrap.innerHTML =
       '<div class="mg-modal-overlay"></div>'
     + '<div class="mg-modal-in" style="width:min(64rem,94vw);height:82vh;display:flex;flex-direction:column;">'
-    +   '<div class="mg-modal-msg"><strong>' + escHtml(name) + '</strong> &mdash; every manager component in this style. '
+    +   '<div class="mg-modal-msg"><strong>' + esc(name) + '</strong> &mdash; every manager component in this style. '
     +     'Nothing is saved by looking.</div>'
     +   '<iframe src="/manager/style-guide?style=' + encodeURIComponent(name) + '" '
     +     'title="Manager style preview" '
@@ -503,6 +503,8 @@ function saveSiteSettings(e) {
 }
 
 function saveSiteSettings_go(values) {
+  var styleChanged = ( values.manager_style !== undefined
+                    && values.manager_style !== loadedValues.manager_style );
   var status = document.getElementById('site-status');
   status.className = 'mg-status';
   status.textContent = 'Saving...';
@@ -552,6 +554,15 @@ function saveSiteSettings_go(values) {
     clearSiteDirty();
     status.className = 'mg-status mg-status-success';
     status.textContent = 'Saved.';
+    // The manager sheet is chosen server-side and linked in the layout, so a
+    // style change is invisible until the page is fetched again - on the very
+    // page that would show it. Reload, rather than leave an operator looking
+    // at the old style wondering whether Save worked.
+    if (styleChanged) {
+      status.textContent = 'Saved - reloading in the new style...';
+      setTimeout(function() { location.reload(); }, 600);
+      return;
+    }
     setTimeout(function() { status.textContent = ''; status.className = 'mg-status'; }, 3000);
   }).catch(function(e) {
     mgShowWarning('Error: ' + e.message, true);

@@ -884,7 +884,7 @@ function loadDomains() {
       // (edit + the domain actions) lives in the config sheet, so the row never
       // sprouts a dropdown or an inline edit panel. The table scrolls inside its
       // own box (overflow-x) so a wide value never pushes the page sideways.
-      var html = '<div style="overflow-x:auto;"><table class="mg-table" style="min-width:0;"><thead><tr><th>Domain</th>';
+      var html = '<div class="mg-table-wrap"><table class="mg-table" style="min-width:0;"><thead><tr><th>Domain</th>';
       DISPLAY_KEYS.forEach(function (k) { html += '<th>' + esc(label(k)) + '</th>'; });
       html += '<th></th></tr></thead><tbody>';
       rows.forEach(function (row) {
@@ -1003,7 +1003,7 @@ function loadLangStatus() {
         + '<span style="color:var(--mg-success)">current</span>, '
         + '<span style="color:var(--mg-warning)">stale</span> (source changed since translating) or '
         + '<span style="color:var(--mg-text-light)">missing</span>. Translate the sibling root at the same path to fill gaps.</p>';
-      html += '<div style="overflow-x:auto;"><table class="mg-table" style="min-width:0;"><thead><tr>'
+      html += '<div class="mg-table-wrap"><table class="mg-table" style="min-width:0;"><thead><tr>'
         + '<th>Language</th><th>Host</th><th>Coverage</th><th>Current</th><th>Stale</th><th>Missing</th></tr></thead><tbody>';
       (d.roots || []).forEach(function (root) {
         html += '<tr><td><strong>' + esc(root.lang || '?') + '</strong></td>'

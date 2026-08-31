@@ -1015,6 +1015,52 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-submissions-table th:first-child { width: 1.5rem; }
 .mg-sub-cb { margin: 0; }
 
+/* ---- Reported from the live manager, 0.11.8 ---- */
+
+/* A plugin's detail is NOT a column beside its row. .mg-plugin-card is a flex
+   row, so the Form Handler's whole configuration - three handler groups and an
+   edit form - became one squeezed flex child against an empty left half. It
+   wraps onto its own full-width line instead, which is the same shape as the
+   row-plus-expander idiom every listing now uses. */
+.mg-plugin-card { flex-wrap: wrap; }
+.mg-plugin-card > .mg-card-body,
+.mg-plugin-card > .mg-handler-edit-form,
+.mg-plugin-card > .mg-submissions-panel { flex: 1 0 100%; min-width: 0; }
+
+/* A CHECKBOX BELONGS BESIDE ITS LABEL. .mg-field stacks label above control,
+   which is right for a text box and wrong for a checkbox: the box landed on
+   its own row underneath, reading as an unrelated control. Reported on Site
+   settings and visible again in the handler edit form. */
+.mg-field:has(> .mg-chk),
+.mg-field:has(> label > input[type="checkbox"]) {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+.mg-field:has(> .mg-chk) > label,
+.mg-field:has(> label > input[type="checkbox"]) > label { font-weight: 600; }
+
+/* The info marker had no affordance and no room: a bare glyph, hard against
+   whatever preceded it. It is a control, so it looks like one. */
+.mg-info {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.35em; height: 1.35em; margin-left: 0.4em;
+    border: 1px solid var(--mg-border); border-radius: var(--mg-radius-pill);
+    line-height: 1; font-size: 0.95em;
+}
+.mg-info:hover, .mg-info:focus { border-color: var(--mg-accent); background: var(--mg-accent-bg); }
+
+/* "Turn these on" read as prose because it sat inline against its note with
+   nothing between them. */
+.mg-config-preset { margin-top: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* A long user-agent pushed the row's buttons off the right-hand edge. The cell
+   wraps, and the table can scroll rather than overflow the page. */
+.mg-table { table-layout: auto; }
+.mg-table td, .mg-table th { overflow-wrap: anywhere; }
+.mg-table-wrap { overflow-x: auto; }
+
 /* --- Wizard */
 .mg-wizard { background: var(--mg-surface-alt); border: 1px solid var(--mg-border); padding: 16px; margin-top: 12px; }
 .mg-wizard-title { font-family: var(--mg-font-heading); font-weight: 600; font-size: var(--mg-text-lg); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; color: var(--mg-text); }

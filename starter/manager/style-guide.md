@@ -728,6 +728,12 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-submissions-panel"><span class="mg-sg-tag">.mg-submissions-panel</span>
 <table class="mg-submissions-table"><tbody><tr><td><span class="mg-sg-tag">.mg-submissions-table</span></td></tr></tbody></table></div>
 </div>
+<h3 class="mg-sg-fam">mg-table <span class="mg-sg-count">2</span></h3>
+<p class="mg-sg-note">Wrap a table in <code>.mg-table-wrap</code> so a wide one scrolls inside its own box instead of pushing the row's buttons off the right-hand edge &mdash; which is what a long user-agent did to the Sessions table.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-table-wrap"><span class="mg-sg-tag">.mg-table-wrap</span>
+<table class="mg-table"><tbody><tr><td><span class="mg-sg-tag">.mg-table</span></td></tr></tbody></table></div>
+</div>
 <h3 class="mg-sg-fam">mg-theme <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">

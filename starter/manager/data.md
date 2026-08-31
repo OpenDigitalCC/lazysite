@@ -66,7 +66,7 @@ search: false
     </div>
     </div>
   </div>
-  <div style="overflow-x:auto;">
+  <div class="mg-table-wrap">
     <table class="mg-table" id="rows-table"><thead></thead><tbody></tbody></table>
   </div>
   </div>

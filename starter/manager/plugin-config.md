@@ -806,7 +806,7 @@ function showSubmissionTable(filePath, formName) {
          + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="bulkDeleteSubmissions()">Delete selected</button>'
          + '</div>';
 
-      h += '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr>'
+      h += '<div class="mg-table-wrap"><table class="mg-table mg-submissions-table"><thead><tr>'
          + '<th><input type="checkbox" title="Select all" onclick="subsToggleAll(this)"></th><th>Status</th>';
       cols.forEach(function(c) { h += '<th>' + esc(c) + '</th>'; });
       h += '<th></th></tr></thead><tbody>';
