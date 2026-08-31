@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.11.8
-     imported: 2026-08-30
+     engine-version: 0.11.9
+     imported: 2026-08-31
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite-sites/AUTHORING-PRACTICE.md sha256=1d8e0dd07ccb7e6a487191eeacf132ece1dbabce9155ca19901cfdc8f9fbcf5d modified=2026-08-28
      source: /srv/projects/lazysite-apps/APP-PRACTICE.md sha256=8a0249245da56abbf75c7438122b8d15c1eafb5854653d202b57982c77d7eccc modified=2026-08-28
-     body-sha256: aa475c2b30c29c191e8ace15c5009195a2f78b47a5bf0fcf491a3b6ff34a77fc
+     body-sha256: b70f10ad47fdcc5cd7d36bd1751da99ef6f6324cb0ea2cadb76a033bcdda61fd
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.11.8**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.11.9**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1410,7 +1410,7 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-08-30** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-08-31** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
