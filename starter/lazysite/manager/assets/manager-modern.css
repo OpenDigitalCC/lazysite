@@ -905,6 +905,11 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-rights-pick { font-size: var(--mg-text-sm); min-width: 16em; }
 .mg-perms-hint { margin: 10px 0; font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
 .mg-perms-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* The export row and the rule that follows it are two subjects in one card,
+   and they sat flush against each other with nothing between - reported as
+   "no spacing between export buttons and owner". */
+.mg-perms-actions + .mg-acl-body { margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid var(--mg-border-light); }
 .mg-perms-actions .mg-perms-save { margin-left: auto; }
 
 /* --- Onboarding / connector setup */
@@ -1070,7 +1075,13 @@ body.mg-sheet-open { overflow: hidden; }
 /* A long user-agent pushed the row's buttons off the right-hand edge. The cell
    wraps, and the table can scroll rather than overflow the page. */
 .mg-table { table-layout: auto; }
-.mg-table td, .mg-table th { overflow-wrap: anywhere; }
+/* HEADERS DO NOT WRAP. `overflow-wrap: anywhere` on a th breaks mid-WORD, so a
+   narrow checkbox column turned "Required" into "Re qui re d" - which is worse
+   than the overflow it was fixing. Cells break at sensible points; a long
+   user-agent has spaces to break on, and break-word still splits an unbroken
+   token when there is no alternative. */
+.mg-table th { white-space: nowrap; }
+.mg-table td { overflow-wrap: break-word; }
 .mg-table-wrap { overflow-x: auto; }
 
 /* --- Wizard */

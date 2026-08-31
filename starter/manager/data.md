@@ -7,7 +7,7 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. A table is <strong>closed until it is published</strong>: until its descriptor says <code>public: true</code>, an anonymous visitor sees nothing, not even that it exists. What you see here is what the store holds, whoever may read it.</p>
+<div class="mg-note mg-note-info">Tables this site declares and holds &mdash; a product list, an events calendar, a directory. A table is <strong>closed until it is published</strong>: until its descriptor says <code>public: true</code>, an anonymous visitor sees nothing, not even that it exists. What you see here is what the store holds, whoever may read it.</div>
 
 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
 <button class="mg-btn" onclick="loadTables()">Refresh</button>
@@ -15,7 +15,7 @@ search: false
 <span id="table-count" style="font-size:0.85em;color:var(--mg-text-muted);"></span>
 </div>
 
-<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</p>
+<div class="mg-note mg-note-info"><strong>JSON</strong> is the exact copy &mdash; types survive, and it is the one that goes back in. <strong>CSV</strong> is for a spreadsheet: it has no types, cannot tell an unset value from an empty one, and cells that a spreadsheet would run as formulas are prefixed with an apostrophe to make them safe, which changes those values.</div>
 
 <div class="mg-list" id="table-list">
 <div class="mg-row"><span class="mg-file-name">Loading...</span></div>
@@ -80,7 +80,7 @@ search: false
      the render path uses, so a refusal here is the refusal a page would get,
      named by field and rule. Saving never migrates: the plan below says what
      a migration WOULD do, and the operator decides. -->
-<div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;max-width:48rem;">
+<div id="descriptor-panel" class="mg-card" style="display:none;margin-top:18px;max-width:min(64rem, 96vw);">
   <div class="mg-card-header"><span class="mg-card-title" id="descriptor-title"></span></div>
   <div class="mg-card-body">
   <!-- SM502 U-4: THE FORM IS A SECOND DOOR ONTO THE TEXT. The YAML stays
@@ -97,7 +97,7 @@ search: false
   <textarea id="descriptor-text" class="mg-inp" rows="18" spellcheck="false" style="display:none;width:100%;font-family:monospace;font-size:0.9em;"></textarea>
   <div id="descriptor-error" class="mg-status" style="margin-top:8px;"></div>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-    <button class="mg-btn mg-btn-primary" onclick="saveDescriptor()">Save descriptor</button>
+    <button class="mg-btn mg-btn-primary" id="descriptor-save" onclick="saveDescriptor()">Create table</button>
     <button class="mg-btn" onclick="planMigration()">What would migrating do?</button>
     <button class="mg-btn" onclick="closeDescriptor()">Cancel</button>
   </div>
@@ -545,26 +545,50 @@ var DESC = { table: null, lost: [] };
    commented starter shape and saves through the same data-table-save the
    editor uses, so validation and the migrate plan behave exactly as for an
    existing table. */
-function declareTable() {
-  var name = prompt('Name of the new table (letters, digits, underscore):');
-  if (name === null) return;
-  name = name.replace(/^\s+|\s+$/g, '');
-  if (!/^[a-z][a-z0-9_]*$/.test(name)) {
-    showStatus('A table name is lowercase letters, digits and underscores, starting with a letter.', true);
-    return;
-  }
+function declareTable(why) {
+  mgModal({
+    prompt: true,
+    msg: (why ? why + '\n\n' : '')
+       + 'Name for the new table. Lowercase letters, digits and underscores, '
+       + 'starting with a letter - for example orders or price_list. '
+       + 'Hyphens and spaces are not allowed.',
+    ok: 'Continue',
+    value: ''
+  }).then(function (raw) {
+    if (raw === null) return;
+    var name = String(raw).replace(/^\s+|\s+$/g, '');
+    if (!name.length) return;
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+      // Re-ask, carrying the reason, rather than dropping a toast the
+      // operator is not looking at and abandoning the flow.
+      declareTable('"' + name + '" is not a valid table name.');
+      return;
+    }
+    declareTableNamed(name);
+  });
+}
+
+function declareTableNamed(name) {
   DESC.table = name;
+  DESC.isNew = true;
+  setDescriptorAction();
   DESC.lost  = [];
   document.getElementById('descriptor-title').textContent = 'Declare ' + name;
   document.getElementById('descriptor-error').textContent = '';
   document.getElementById('plan-panel').style.display = 'none';
   showModal('descriptor-panel', closeDescriptor);
   var starter = { title: name.charAt(0).toUpperCase() + name.slice(1), key: 'id',
-                  fields: { id: { type: 'text' }, name: { type: 'text' } } };
+                  fields: { name: { type: 'text' } } };
   buildDescForm(starter);
   document.getElementById('descriptor-text').value = emitYaml(readDescForm());
   descTab('form');
-  showStatus('Declare the fields, then Save. Migrating afterwards creates the table.');
+  showStatus('Describe the fields, then Create the table.');
+}
+
+/* The panel's own action, named for what this pass through it does. */
+function setDescriptorAction() {
+  var b = document.getElementById('descriptor-save');
+  if (b) b.textContent = DESC.isNew ? 'Create table' : 'Save changes';
 }
 
 /* --- SM502 U-4: the descriptor form ------------------------------------ */
@@ -627,11 +651,15 @@ function buildDescForm(shape) {
     + '<label>Timestamps</label><input type="checkbox" id="desc-ts"' + (shape.timestamps ? ' checked' : '') + '>'
     + '<label>Indexes</label><input class="mg-inp" id="desc-indexes" placeholder="one per line: area, street" value="' + escHtml((shape.indexes || []).map(function(ix) { return ix.join(', '); }).join('\n')) + '">'
     + '</div>'
-    + '<table class="mg-table" id="desc-fields"><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Unique</th><th>Default</th><th>Options</th><th></th></tr></thead><tbody>';
+    + '<div class="mg-table-wrap"><table class="mg-table" id="desc-fields"><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Unique</th><th>Default</th><th>Options</th><th></th></tr></thead><tbody>';
   names.forEach(function(n) { h += fieldRow(n, shape.fields[n]); });
-  h += '</tbody></table>'
+  h += '</tbody></table></div>'
     + '<button class="mg-btn mg-btn-sm" style="margin-top:6px;" onclick="addDescField()">Add a field</button>'
-    + '<p style="font-size:0.85em;color:var(--mg-text-muted);margin:8px 0 0;">The key field, if not automatic, is required and unique by implication. Saving from here regenerates the YAML; comments in it are dropped.</p>';
+    + '<p style="font-size:0.85em;color:var(--mg-text-muted);margin:8px 0 0;">'
+    + 'The key field identifies a row, so it must be filled in and no two rows '
+    + 'may share a value. Choose <em>automatic</em> and the system fills it in.'
+    + '<br>Saving from this form rewrites the YAML, and any comments you added '
+    + 'to it are lost - edit the YAML tab directly if you want to keep them.</p>';
   document.getElementById('descriptor-form').innerHTML = h;
 }
 
@@ -827,7 +855,7 @@ function renderTableAcl(table, card, acl, key) {
     + '<div class="mg-perms-hint mg-muted">Rule key: <code>' + escHtml(key) + '</code></div>'
     + '<div class="mg-perms-actions">'
     +   '<button class="mg-btn mg-btn-primary" onclick="saveTableAcl(this,\'' + escHtml(table) + '\')">Save</button> '
-    +   '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(key) + '" title="This rule\'s audit history">&#128340; Audit</a>'
+    +   '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(table) + '" title="Everything recorded about this table">&#128340; Audit</a>'
     + '</div>';
 }
 
@@ -883,6 +911,8 @@ function saveTableAcl(btn, table) {
 
 function openDescriptor(table) {
   DESC.table = table;
+  DESC.isNew = false;
+  setDescriptorAction();
   DESC.lost  = [];
   document.getElementById('descriptor-title').textContent = 'Fields of ' + table;
   document.getElementById('descriptor-error').textContent = '';
@@ -936,8 +966,16 @@ function saveDescriptor() {
       setDescError(d.error + (d.field ? ' (field: ' + d.field + ')' : ''));
       return;
     }
-    showStatus('Descriptor saved.' + (d.migrate_required ? ' The stored table does not match it yet - see what migrating would do.' : ''));
+    if (DESC.isNew && d.migrate_required) {
+      // Straight through: create it and say so. No plan, no migration word.
+      createStoredTable();
+      return;
+    }
+    showStatus('Changes saved.');
     loadTables();
+    // For a table that EXISTS, the plan panel says what would change and asks
+    // for a decision. Announcing it in advance describes a step the operator
+    // has not chosen yet.
     if (d.migrate_required) planMigration();
   })
   .catch(function(e) { setDescError('Could not save: ' + e); });
@@ -970,7 +1008,7 @@ function planMigration() {
       // time it was certain to be read was the one time it was irrelevant.
       // Held back and prepended below, once we know a button will be offered.
       var html = '';
-      if (d.create) html += '<p>The stored table does not exist yet. <strong>Migrate</strong> creates it.</p>';
+      if (d.create) html += '<p>This table has been described but not created yet. <strong>Create it</strong> to start storing rows.</p>';
       if (d.additive && d.additive.length) {
         html += '<p>Migrate will apply, keeping every row:</p><ul>';
         d.additive.forEach(function(w) { html += '<li>' + escHtml(w) + '</li>'; });
@@ -1001,7 +1039,12 @@ function planMigration() {
       if (!d.create && !(d.additive && d.additive.length) && !(d.blocked && d.blocked.length)) {
         html += '<p>The stored table already matches the descriptor. Nothing to do.</p>';
       } else if (d.create || (d.additive && d.additive.length)) {
-        document.getElementById('plan-migrate-btn').style.display = '';
+        var mb = document.getElementById('plan-migrate-btn');
+        mb.style.display = '';
+        // The button names the act. Creating a table that does not exist is
+        // not a migration, and calling it one is what made the operator ask
+        // "when i create a table, why migrate?".
+        mb.textContent = d.create ? 'Create table' : 'Migrate';
       }
 
       // The explainer earns its place only when one of the two is actually on
@@ -1014,6 +1057,24 @@ function planMigration() {
       body.innerHTML = html;
     })
     .catch(function(e) { document.getElementById('plan-error').textContent = 'Could not plan: ' + e; });
+}
+
+// The create half of what the server calls a migration. Same endpoint; the
+// difference is that there is nothing to lose, so nothing to confirm.
+function createStoredTable() {
+  fetch(API + '?action=data-migrate&table=' + encodeURIComponent(DESC.table), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) { setDescError(d.error || 'the table could not be created'); return; }
+    DESC.isNew = false;
+    setDescriptorAction();
+    showStatus('Table ' + DESC.table + ' created.');
+    loadTables();
+    closeDescriptor();
+  })
+  .catch(function(e) { setDescError('Could not create the table: ' + e); });
 }
 
 function runMigrate() {

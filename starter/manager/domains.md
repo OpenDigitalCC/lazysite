@@ -11,7 +11,7 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<p style="font-size:0.85em;color:var(--mg-text-muted);margin:0 0 12px;">
+<div class="mg-note mg-note-info">
 Your site is always served at its default address. This page is for the
 <strong>additional domains</strong> you serve from this one instance. Each can be
 a first&#8209;class site &mdash; its own home page, sitemap, feeds and search &mdash;
@@ -23,7 +23,7 @@ side here. In the table below a grey value is inherited from the default site; a
 solid value is this domain's own. Use <strong>Preview</strong> to see a domain
 before its DNS is live, and <strong>Check</strong> to verify that DNS, HTTPS and
 routing are configured so the domain reaches this instance.
-</p>
+</div>
 
 <div style="border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:10px 12px;margin-bottom:12px;">
   <label style="font-size:0.9em;">This server's public IP address(es) <span style="color:var(--mg-text-light);font-weight:400">&mdash; optional</span><br>
