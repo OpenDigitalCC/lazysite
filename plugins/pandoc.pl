@@ -101,7 +101,17 @@ sub describe {
                     . 'publishes your letterhead to anyone who guesses the path.',
             },
         ],
-        actions => [
+        # Enabling the plugin makes its brand folder, so the place Status
+        # tells the operator to put a brand actually exists. Without it the
+        # advice named a directory that was not there, and nothing said so.
+        on_enable => 'init',
+        actions   => [
+            { id => 'init',
+                label => 'Create the brand folder',
+                run   => 'action',
+                note  => 'Makes lazysite/brands/ if it is missing, with a note '
+                    . 'in it saying what a brand folder holds.',
+            },
             { id => 'status',
                 label => 'Status',
                 run   => 'action',
@@ -306,6 +316,42 @@ sub plugin_status {
     };
 }
 
+# The folder, and a note in it. An empty directory tells an operator nothing;
+# a README beside it says what belongs there, in the place they are standing
+# when they wonder.
+sub plugin_init {
+    my ($docroot) = @_;
+    my $dir = "$docroot/lazysite/brands";
+    require File::Path;
+    File::Path::make_path($dir)                          unless -d $dir;
+    return { ok => 0, error => "could not create $dir" } unless -d $dir;
+
+    my $readme = "$dir/README.md";
+    if ( !-e $readme && open my $fh, '>', $readme ) {
+        print {$fh} <<'NOTE';
+# Brands
+
+One folder per brand, each holding the template and any logo or font it uses.
+A page chooses its brand in its own front matter:
+
+    ---
+    title: A report
+    brand: house
+    ---
+
+This folder sits under `lazysite/`, which is never served - so a template or a
+logo here is not published to the web. Manage it on the Files page like any
+other folder.
+NOTE
+        close $fh;
+    }
+    return {
+        ok      => 1,
+        message => 'lazysite/brands/ is ready. Add one folder per brand; '
+            . 'the README there says what goes in one.'
+    };
+}
+
 sub run {
     my (@argv) = @_;
     my %opt;
@@ -320,6 +366,10 @@ sub run {
     }
     my $docroot = $opt{docroot} // $ENV{DOCUMENT_ROOT} // '';
     my $act     = $opt{action}  // '';
+    if ( $act eq 'init' ) {
+        print encode_json( plugin_init($docroot) );
+        return 0;
+    }
     if ( $act eq 'status' ) {
         print encode_json( plugin_status($docroot) );
         return 0;

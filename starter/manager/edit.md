@@ -30,7 +30,11 @@ details.mg-stack-section > summary::before { content: '\25B8'; margin-right: 0.3
   display: inline-block; transition: transform 0.12s; }
 details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 #ed-meta-section { min-height: 0; flex: 0 0 auto; }
-#ed-meta-section[open] { flex: 0 0 24vh; min-height: 48px; }
+/* Sized by its CONTENT up to a ceiling, not to a fixed band. Six lines of
+   front matter took 24vh either way, so the pane ended in dead space with a
+   rule under it and the content pane started lower than it needed to. */
+#ed-meta-section[open] { flex: 0 0 auto; min-height: 48px; max-height: 40vh; }
+#ed-meta-section[open] .CodeMirror { height: auto; min-height: 3rem; max-height: 36vh; }
 #ed-content-section { flex: 0 0 auto; min-height: 0; }
 #ed-content-section[open] { flex: 1 1 auto; min-height: 20vh; }
 #ed-perms-section { flex: 0 0 auto; }
@@ -45,6 +49,20 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 #ed-vsplit.mg-vsplit { flex: 0 0 6px; cursor: row-resize; background: var(--mg-border, #d1d5db); }
 #ed-vsplit.mg-vsplit:hover { background: var(--mg-text-light, #9ca3af); }
 #ed-preview-pane.mg-preview-pane { display: flex; flex-direction: column; min-width: 0; }
+
+/* THE SWITCH EXISTS ONLY WHERE THE PANES CANNOT SHARE. Above 1000px both fit
+   and the divider does the job; below it, half of a narrow window is unusable
+   twice over, so one pane is shown at a time and this chooses which. */
+.mg-pane-switch { display: none; }
+@media (max-width: 1000px) {
+    .mg-pane-switch { display: flex; gap: 6px; padding: 6px 8px;
+        border-bottom: 1px solid var(--mg-border); background: var(--mg-surface-alt); }
+    #ed-main.mg-editor-main { flex-direction: column; }
+    #ed-divider.mg-editor-divider { display: none; }
+    #editor-root[data-pane="edit"] #ed-preview-pane { display: none; }
+    #editor-root[data-pane="preview"] #ed-editor-pane { display: none; }
+    #ed-editor-pane.mg-editor-pane, #ed-preview-pane.mg-preview-pane { flex: 1 1 auto; min-height: 0; }
+}
 #ed-preview-frame { flex: 1 1 auto; min-height: 50vh; width: 100%; border: 0; }
 #ed-save-btn.dirty { background:var(--mg-accent); color:var(--mg-accent-text); border-color:var(--mg-accent); font-weight:600; }
 #ed-filepath a { color:var(--mg-accent); text-decoration:none; }
@@ -106,9 +124,13 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 <div id="ed-perms-body" class="mg-expand-body">Loading&hellip;</div>
 </details>
 </div>
+<div id="ed-pane-switch" class="mg-pane-switch">
+  <button type="button" class="mg-btn mg-btn-sm" id="ed-pane-edit" onclick="edPane('edit')">Edit</button>
+  <button type="button" class="mg-btn mg-btn-sm" id="ed-pane-preview" onclick="edPane('preview')">Preview</button>
+</div>
 <div id="ed-divider" class="mg-editor-divider" title="Drag to resize"></div>
 <div id="ed-preview-pane" class="mg-preview-pane">
-<div class="mg-preview-toolbar"><span>Preview</span><span id="ed-preview-status" style="font-style:italic;">Save to preview</span><button class="mg-btn mg-btn-sm" onclick="refreshPreview()">Refresh</button></div>
+<div class="mg-preview-toolbar"><span>Preview</span><span id="ed-preview-status" style="font-style:italic;">Save to preview</span><button class="mg-btn mg-btn-sm" onclick="refreshPreview()">Reload preview</button></div>
 <iframe id="ed-preview-frame" class="mg-preview-frame" src="about:blank"></iframe>
 </div>
 </div>
@@ -621,6 +643,28 @@ function edSavePerms() {
 
 // Both editors re-measure when a section opens or closes, or CodeMirror keeps
 // the height it had when its pane was a different size.
+// NARROW IS ONE PANE AT A TIME. Side by side, each pane gets half of a window
+// that was already too narrow for one - so the editor and the preview were both
+// unusable rather than one being usable. The switch appears only where the
+// panes cannot share, and the choice is remembered for the session.
+function edPane(which) {
+  var root = document.getElementById('editor-root');
+  if (!root) return;
+  root.setAttribute('data-pane', which);
+  try { sessionStorage.setItem('mg-ed-pane', which); } catch (e) {}
+  var e = document.getElementById('ed-pane-edit');
+  var p = document.getElementById('ed-pane-preview');
+  if (e) e.classList.toggle('mg-btn-primary', which === 'edit');
+  if (p) p.classList.toggle('mg-btn-primary', which === 'preview');
+  edRefreshEditors();
+}
+
+(function () {
+  var want = 'edit';
+  try { want = sessionStorage.getItem('mg-ed-pane') || 'edit'; } catch (e) {}
+  document.addEventListener('DOMContentLoaded', function () { edPane(want); });
+})();
+
 function edRefreshEditors() {
   setTimeout(function () {
     if (window.yamlCm) yamlCm.refresh();

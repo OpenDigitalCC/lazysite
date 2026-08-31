@@ -212,7 +212,7 @@
     font-size: 18px; line-height: 1; cursor: pointer;
 }
 .mg-scrim { display: none; }
-@media (max-width: 720px) {
+@media (max-width: 1000px) {
     .mg-nav-burger { display: inline-flex; align-items: center; justify-content: center; }
     .mg-sidebar {
         position: fixed; z-index: 300; top: var(--mg-header-h); left: 0; bottom: 0;
