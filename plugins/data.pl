@@ -16,13 +16,20 @@
 # application and is out of scope; the BACKLOG sketch that named those schemas
 # is superseded by SM410.
 #
-# WHAT IS AND IS NOT HERE YET. The typed core is built and tested
-# (Lazysite::Data::{Descriptor,SQLite,Value,Schema,Export,Connect}). This file
-# currently declares the plugin and answers --describe; the capability, the
-# control-API actions and the MCP tools are the next commit, and until they
-# exist nothing routes here. That order is deliberate: the declaration is what
-# the parity lints read, so it goes in first and the surfaces are added against
-# it rather than the other way round.
+# WHAT IS HERE. The typed core (Lazysite::Data::{Descriptor,SQLite,Value,
+# Schema,Export,Connect}), the manage_data and write_data capabilities, the
+# control-API actions and the MCP tools are all built and routed - shipped
+# across 0.11.5 and 0.11.6, with the write-side allow-list corrected in SM682.
+# This file declares the plugin and answers --describe.
+#
+# The declaration going in FIRST was deliberate and worth keeping in mind when
+# adding a surface: the parity lints read it, so it is the thing new surfaces
+# are added against rather than the other way round.
+#
+# (This comment said the surfaces were "the next commit" and that nothing
+# routed here, for three releases after they did. A header that describes an
+# intention rather than the code is read as fact by the next person, so it is
+# stated in the past tense now.)
 
 use strict;
 use warnings;

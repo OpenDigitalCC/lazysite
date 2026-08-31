@@ -6,11 +6,11 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<p class="mg-muted">
+<div class="mg-note mg-note-info">
 Backups are whole-site snapshots for disaster recovery &mdash; the full-system
 kind includes configuration and secrets. Day-to-day <b>content versioning</b>
 (per-file history, diff and restore) lives in the <b>Content history</b> plugin.
-</p>
+</div>
 
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Content backups</span>

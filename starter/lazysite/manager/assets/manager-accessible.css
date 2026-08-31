@@ -1250,7 +1250,7 @@ body.mg-sheet-open { overflow: hidden; }
 
 .mg-nav-group { font-size: 15px; color: var(--mg-text); }
 
-.mg-muted, .mg-field-note, .mg-row-meta, .mg-card-subtitle { font-size: 16px; }
+.mg-muted, .mg-row-meta, .mg-card-subtitle { font-size: 16px; }
 
 .mg-config-group, .mg-section-label, .mg-handler-group-label, .mg-wizard-section-label, .mg-fm-section summary, .mg-jsonl-table thead th, .mg-file-table th, .audit-table th, .mg-wizard-title { font-family: var(--mg-font); text-transform: none; letter-spacing: 0; font-weight: 700; }
 

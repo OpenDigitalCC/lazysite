@@ -4,7 +4,7 @@ auth: manager
 search: false
 ---
 
-<p class="mg-config-help">Enable or disable plugins. Configure an enabled plugin on the <a href="/manager/plugin-config">Plugin Config</a> page.</p>
+<div class="mg-note mg-note-info">Enable or disable plugins. Configure an enabled plugin on the <a href="/manager/plugin-config">Plugin Config</a> page.</div>
 
 <div id="plugin-status" class="mg-status"></div>
 <div id="plugin-registry">Loading&hellip;</div>

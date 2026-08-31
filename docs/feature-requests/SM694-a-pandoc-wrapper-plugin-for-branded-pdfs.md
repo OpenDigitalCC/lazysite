@@ -133,6 +133,29 @@ exist, the second is the one that needs the boundary work.
 5. ~~Named brand sets or one per site~~ **One folder per site**, one subfolder
    per brand, under the configured `brand_dir`.
 
+# A brand folder in the document root is published
+
+Found by the release manager asking a plain question: "is this in docroot? if
+so, is it excluded from served pages?"
+
+It was, and it was not. The default `brand_dir` was `brand` - a folder in the
+document root - so every template, font and logo in it answered an anonymous
+GET with **200**, measured on the dev server. An operator's letterhead, and
+whatever a brand's template contains, published to anyone who guesses the path.
+
+The default is now `lazysite/brands`, which returns 404 to the public and is
+still managed from the Files page - so the original intent holds (an operator
+maintains a logo the way they maintain a page) without the publication. The
+plugin declares it as `storage`, so a site package carries it.
+
+The plugin is renamed **Branded PDF creation**: "PDF export (pandoc)" named the
+tool rather than the job, and named the wrong tool.
+
+Its Status action returned a bare `ok`, which the manager renders as "Done" -
+that says the button worked, not what it found. It now reports whether
+md-to-pdf is installed, which version answered, where it is, and which brands
+exist.
+
 # The residual risk, recorded rather than closed
 
 The plan assumed this plugin would drive pandoc and could therefore pin

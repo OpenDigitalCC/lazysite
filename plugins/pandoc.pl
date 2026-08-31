@@ -63,7 +63,7 @@ my $MAX_INPUT_BYTES = 512 * 1024;
 sub describe {
     return {
         id          => 'pandoc',
-        name        => 'PDF export (pandoc)',
+        name        => 'Branded PDF creation',
         version     => '1',
         description => 'Convert a page to a branded PDF through md-to-pdf, the '
             . 'pandoc wrapper installed on this server. Brand assets live in '
@@ -82,25 +82,31 @@ sub describe {
             # would let the plugin enable on a host that has pandoc and not the
             # wrapper, which is the state `bins` exists to prevent.
             bins => ['md-to-pdf'],
+
+            # The brand folder is this plugin's storage, under lazysite/ where
+            # nothing is served.
+            storage => ['lazysite/brands/'],
         },
         config_file   => 'lazysite/pandoc.conf',
         config_schema => [
             { key => 'brand_dir',
                 label   => 'Where brand assets live',
                 type    => 'text',
-                default => 'brand',
-                note    => 'A folder in the site files holding one subfolder '
-                    . 'per brand. Content, not engine state: an operator edits '
-                    . 'a logo the way they edit a page, with the same ACLs and '
-                    . 'the same history.',
+                default => 'lazysite/brands',
+                note    => 'A folder holding one subfolder per brand, each with '
+                    . 'its template and any logo or font it uses. Manage it on '
+                    . 'the Files page like any other folder. It sits under '
+                    . 'lazysite/ so it is NOT served: a brand folder in the '
+                    . 'document root answers an anonymous request, which '
+                    . 'publishes your letterhead to anyone who guesses the path.',
             },
         ],
         actions => [
             { id => 'status',
                 label => 'Status',
                 run   => 'action',
-                note  => 'Which pandoc was found, its version, and which '
-                    . 'brands are present.',
+                note  => 'Checks that the md-to-pdf converter is installed and '
+                    . 'answers, reports its version, and lists the brands found.',
             },
         ],
     };
@@ -149,7 +155,7 @@ sub _supports_no_viewer {
 # the value is joined to a directory and a caller must not choose the location.
 sub _brands {
     my ( $docroot, $dir ) = @_;
-    $dir = 'brand' unless defined $dir && length $dir;
+    $dir = 'lazysite/brands' unless defined $dir && length $dir;
     return [] if $dir =~ m{(?:\A|/)\.\.(?:/|\z)};
     my $root = "$docroot/$dir";
     return [] unless -d $root;
@@ -171,7 +177,7 @@ sub convert {
     my $docroot = $o{docroot} // '';
     my $rel     = $o{path}    // '';
     my $brand   = $o{brand};
-    my $dir     = $o{brand_dir} // 'brand';
+    my $dir     = $o{brand_dir} // 'lazysite/brands';
 
     my $bin = _converter_path();
     return { ok => 0, error => 'md-to-pdf is not installed on this server' }
@@ -269,14 +275,31 @@ sub convert {
 
 sub plugin_status {
     my ($docroot) = @_;
-    my $bin = _converter_path();
+    my $bin       = _converter_path();
+    my $ver       = _converter_version($bin);
+    my $brands    = _brands( $docroot, 'lazysite/brands' );
+
+    # A SENTENCE, not a bare ok. The manager renders an action's result, and a
+    # status that answered only `ok:1` showed as "Done" - which says the button
+    # worked, not what it found.
+    my $msg = !$bin
+        ? 'md-to-pdf is not installed on this server, so this plugin cannot convert anything.'
+        : sprintf(
+        'md-to-pdf %s is installed and answering at %s. %s',
+        ( defined $ver ? $ver : '(version unknown)' ), $bin,
+        ( @{$brands}
+            ? 'Brands found: ' . join( ', ', @{$brands} ) . '.'
+            : 'No brands yet - add a folder under lazysite/brands/ on the Files page.' )
+        );
+
     return {
         ok        => 1,
+        message   => $msg,
         available => $bin ? JSON::PP::true : JSON::PP::false,
         converter => $bin,
-        version   => _converter_version($bin),
+        version   => $ver,
         no_viewer => _supports_no_viewer($bin) ? JSON::PP::true : JSON::PP::false,
-        brands    => _brands( $docroot, 'brand' ),
+        brands    => $brands,
     };
 }
 

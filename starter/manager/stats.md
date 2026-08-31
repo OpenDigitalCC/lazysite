@@ -34,11 +34,11 @@ search: false
 <span class="mg-card-title">Blocked addresses</span>
 </div>
 <div class="mg-card-body">
-<p class="mg-muted">A blocked address is <strong>refused the site</strong> &mdash; it
+<div class="mg-note mg-note-info">A blocked address is <strong>refused the site</strong> &mdash; it
 receives 403 and is served nothing, so it is an access control rather than a
 reporting filter. The list and per-address unblock live with the plugin that
 does the blocking:
-<a href="/manager/plugin-config">Plugin Config &rarr; Bad-URL auto-blocker</a>.</p>
+<a href="/manager/plugin-config">Plugin Config &rarr; Bad-URL auto-blocker</a>.</div>
 </div>
 </div>
 

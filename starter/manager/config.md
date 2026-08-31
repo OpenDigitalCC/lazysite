@@ -9,7 +9,7 @@ search: false
 <div id="site-status" class="mg-status"></div>
 </section>
 
-<p class="mg-config-help">Manage plugins on the <a href="/manager/plugins">Plugin Manager</a> page (enable/disable) and the <a href="/manager/plugin-config">Plugin Config</a> page (settings).</p>
+<div class="mg-note mg-note-info">Manage plugins on the <a href="/manager/plugins">Plugin Manager</a> page (enable/disable) and the <a href="/manager/plugin-config">Plugin Config</a> page (settings).</div>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';

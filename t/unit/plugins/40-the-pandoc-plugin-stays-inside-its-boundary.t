@@ -60,6 +60,14 @@ subtest 'the argument list is built here, never by a caller' => sub {
         'the viewer is suppressed' )
         or diag( 'On a server there is no viewer to open, and a converter that '
             . 'tries to open one blocks the request until it is killed.' );
+    unlike( $code, qr/default\s*=>\s*'brand'/,
+        'the brand folder is not a bare docroot directory' )
+        or diag( 'A folder named brand/ in the document root is SERVED: the '
+            . 'templates, fonts and logos answer an anonymous request. Keep '
+            . 'the default under lazysite/, which is not served and which the '
+            . 'Files page still manages.' );
+    like( $code, qr{lazysite/brands},
+        'brands default to a path under lazysite/' );
     like( $code, qr/MD_TO_PDF_BRANDS/,
         'the brands base is pinned to this site' )
         or diag( 'The wrapper resolves brands from an environment variable, a '
@@ -71,7 +79,11 @@ subtest 'it converts, and the refusals refuse' => sub {
     plan skip_all => 'no md-to-pdf on this host' unless main::_converter_path();
 
     my $d = tempdir( CLEANUP => 1 );
-    make_path( "$d/lazysite/cache", "$d/brand/house", "$d/docs" );
+    # SM694 follow-up: brands live UNDER lazysite/, which is not served. In the
+    # document root every template, font and logo answered an anonymous GET
+    # with 200 - measured on the dev server - which publishes an operator's
+    # letterhead to anyone who guesses the path.
+    make_path( "$d/lazysite/cache", "$d/lazysite/brands/house", "$d/docs" );
     open my $f, '>', "$d/docs/page.md" or die $!;
     # Front matter, because that is where the wrapper reads title and brand.
     print {$f} "---\ntitle: A Test Page\nbrand: plain\n---\n\n"
