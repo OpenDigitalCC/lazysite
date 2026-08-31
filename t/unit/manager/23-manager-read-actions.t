@@ -243,7 +243,12 @@ open my $p2, '>', "$d/blog/post.md" or die $!; print $p2 "# Post\n"; close $p2;
     open my $api, '<', TestHelper::repo_root() . '/lazysite-manager-api.pl' or die $!;
     my $api_src = do { local $/; <$api> };
     close $api;
-    like( $api_src, qr/'domains-list'\s*=>\s*sub\s*\{\s*\$_\[0\]->\{manage_domains\}/,
+    # SM662 made the gate a declarative table, so there is no `sub { ... }` to
+    # match here any more. Read as data, through the same helper the gate
+    # tests use - a regex for the old spelling asserts how the check is
+    # WRITTEN, and passes or fails on that rather than on who may call it.
+    my %caps = TestHelper::gate_caps($api_src);
+    ok( $caps{'domains-list'} && $caps{'domains-list'}{manage_domains},
         'domains-list is gated to manage_domains for token clients (SM160)' );
 }
 

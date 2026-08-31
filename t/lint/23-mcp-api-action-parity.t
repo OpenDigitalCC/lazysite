@@ -25,7 +25,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper             qw(repo_root);
+use TestHelper             qw(repo_root gate_caps);
 use Lazysite::Capabilities qw(describe action_keys);
 
 my $root = repo_root();

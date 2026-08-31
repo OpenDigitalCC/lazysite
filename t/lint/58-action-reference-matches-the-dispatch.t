@@ -27,7 +27,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper                    qw(repo_root);
+use TestHelper                    qw(repo_root gate_caps);
 use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
@@ -50,12 +50,6 @@ my @known       = sort split /\s+/, $known_src;
 # and it cost an hour. A declared list cannot fail that way, which is most of
 # why the table was made declarative.
 my %need = gate_caps($src);
-while ( $need_src =~ /^\s*'([a-z0-9_-]+)'\s*=>\s*sub \{(.*)$/mg ) {
-    my ( $a, $body ) = ( $1, $2 );
-    my @caps = $body =~ /\$_\[0\]->\{(\w+)\}/g;
-    my %seen;
-    $need{$a} = [ grep { !$seen{$_}++ } @caps ];
-}
 
 my ( %branch, @cur, $depth );
 for my $i ( 0 .. $#lines ) {
@@ -86,8 +80,12 @@ subtest 'and requires what the token gate requires' => sub {
     for my $a (@known) {
         my $spec = $Lazysite::ControlApi::Actions::ACTION{$a} or next;
         if ( exists $need{$a} ) {
-            is_deeply( [ sort @{ $spec->{caps} // [] } ], [ sort @{ $need{$a} } ],
-                "$a: capabilities match \%need" );
+            # SM662: gate_caps hands back a SET per action, so the comparison
+            # is against its keys. The old array shape died here as an
+            # "Not an ARRAY reference", which took the whole file with it.
+            is_deeply( [ sort @{ $spec->{caps} // [] } ],
+                [ sort keys %{ $need{$a} } ],
+                "$a: capabilities match the token gate" );
         }
         else {
             # The state a caller cannot discover any other way, and the reason
@@ -138,8 +136,13 @@ subtest 'introspection, like the map it accompanies' => sub {
     # it behind a capability would put the answer behind the question.
     like( $src, qr/%introspection\s*\n?\s*=\s*\([^)]*'actions-list'\s*=>\s*1/s,
         'actions-list is in the introspection set' );
-    like( $src, qr/'actions-list'\s*=>\s*sub \{ 1 \}/,
-        'and needs no capability in %need' );
+    # Read as DATA, not as source text: SM662 turned the gate into a table, so
+    # `sub { 1 }` is no longer written anywhere and a regex for it asserted the
+    # shape of the old code rather than the openness of the action.
+    ok( exists $need{'actions-list'} && !keys %{ $need{'actions-list'} },
+        'and needs no capability' )
+        or diag( 'An agent needs the reference before it knows what it may '
+            . 'call. A capability here puts the answer behind the question.' );
 };
 
 # --- 5. what it hands back is subset by grant --------------------------------

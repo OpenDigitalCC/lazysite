@@ -954,6 +954,13 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-code-token code.mg-code-stale { color: var(--mg-text-light); text-decoration: line-through; }
 
 /* --- Nav manager (drag list) */
+/* MR-49: a row of controls above a list. Two pages emitted this class and
+   NOTHING defined it - nav.md carried `display:flex;gap:8px` as an inline
+   style and domains.md a bare margin, so the same component was two
+   different things and neither was in the guide. It wraps by default: it is
+   a row of buttons, and a button that has run off the side of a phone is a
+   control the reader does not have. */
+.mg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .mg-nav-item { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 10px; background: var(--mg-surface); border: 1px solid var(--mg-border); margin-bottom: 4px; font-size: 14px; }
 .mg-nav-item.dragging { opacity: 0.4; border-style: dashed; }
 .nav-drop-zone { height: 4px; margin: 1px 0; transition: height 0.1s; }
@@ -1303,3 +1310,77 @@ body.mg-sheet-open { overflow: hidden; }
 /* classic ink for the SM-DS2 additions */
 .mg-group-section > summary { font-family: var(--mg-font); text-transform: none; letter-spacing: 0.02em; font-size: 13px; font-weight: 700; }
 .mg-form-dense .mg-field > label { padding-top: 6px; }
+/* ============================================================ MR-49
+   The header could not fit a phone. Every item in it declined to shrink -
+   the brand, the palette button and the tools row are all flex-shrink: 0 -
+   so the row's min-content width, 737px, became the document's, and EVERY
+   manager page carried a horizontal scrollbar at 420px. Measured, not
+   guessed: documentElement.scrollWidth against clientWidth, sixteen pages.
+
+   These live at the END of the sheet deliberately. The first attempt put
+   them beside the drawer rules near the top, where `.mg-palette-btn`'s own
+   display rule - 400 lines further down, same specificity - quietly won and
+   the button stayed 192px wide. Source order is the whole reason this
+   block is here rather than there.
+
+   Nothing rewraps; each rule drops the item that has stopped earning its
+   width, in the order it stops earning it. */
+/* 740, not the 720 used just above for form stacking: the header's
+   min-content width is 737px, so 720 is seventeen pixels too late and the
+   overflow this block exists to remove would survive between the two. */
+@media (max-width: 740px) {
+    /* The trailing "Lazysite Manager" title, 155px of it. The site's own
+       brand is already on the left and the page has an H1: this repeats
+       what the reader can see, twice over. */
+    .mg-header-tools .mg-brand { display: none; }
+    /* The shortcut hint, on a device with no Ctrl key. */
+    .mg-palette-btn kbd { display: none; }
+}
+@media (max-width: 560px) {
+    /* .mg-row is `minmax(0, 1fr) auto` - everything that describes the row,
+       then everything that acts on it. On a phone the second column is
+       squeezed below its own content and CLIPS: a group row read "1
+       capabili . 0 membe", cut mid-word, which is worse than either
+       wrapping or scrolling because nothing signals that text is missing.
+       One column instead, so the second cell sits under the first. */
+    .mg-row { grid-template-columns: minmax(0, 1fr); }
+    .mg-row > :last-child { justify-self: start; }
+    /* The group list is .mg-acc-line, a nowrap flex row: name, chips,
+       roll-up, then the counts pushed right by margin-left: auto. At 420px
+       the counts were squeezed below their own text and CLIPPED - a row
+       read "1 capabili . 0 membe", cut mid-word, with nothing to say text
+       was missing. The line wraps and the counts take the next line; the
+       spacer keeps them there rather than trailing the chips. */
+    .mg-acc-line { flex-wrap: wrap; }
+    .mg-acc-tags { margin-left: 0; }
+    /* A nav row is a label, a URL and up to five small buttons, and on a
+       phone the buttons ran off the side of the card - Delete first, the
+       one that should be hardest to reach by accident.
+       Wrapping the row was the first fix and it worked, but a wrapped row
+       drops its buttons under the drag handle, which reads as a mistake.
+       The row stays on one line and the URL gives up the space instead:
+       flex-wrap and shrink-to-fit are alternatives, not partners - a row
+       allowed to wrap will wrap rather than shrink anything. */
+    /* The editor's toolbar is a fixed-height row inside a position: fixed
+       root, so its overflow never produced a scrollbar to complain about -
+       Preview, View page and Download simply sat off the right edge of a
+       320px screen with no way to reach them. Silent, and worse than a
+       scrollbar. It scrolls sideways instead of growing: the editor's own
+       height is fixed, so a wrapped toolbar would eat the text area. */
+    .mg-editor-toolbar { overflow-x: auto; }
+    /* A URL is one long unbroken token, so without this it sets the row's
+       min-content width and the wrap above buys nothing. It truncates
+       rather than breaking mid-path: a URL split across two lines is no
+       more readable than an elided one, and this way most rows still fit
+       on a single line - a wrapped row drops its buttons under the drag
+       handle, which reads as an accident rather than a layout. The full
+       value is one tap away in the edit modal. */
+    .mg-nav-url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* The account name goes before Sign out does: at this width the choice
+       is which one, and the control the reader might need is the one that
+       ENDS the session. Who they are signed in as is on Users. */
+    .mg-user { display: none; }
+    /* The palette is opened by a keyboard shortcut this device does not
+       have, and the drawer beside it holds the same destinations. */
+    .mg-palette-btn { display: none; }
+}

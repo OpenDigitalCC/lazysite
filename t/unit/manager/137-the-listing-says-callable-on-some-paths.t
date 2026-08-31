@@ -45,7 +45,13 @@ our %TOOLS;
     # The note must be built from the tool's OWN declared capability, not a
     # literal - otherwise it names the wrong capability for some tools and
     # nobody notices, because it reads plausibly either way.
-    my ($block) = $src =~ /_path_only_for\( \$name, \$TOOLS\{\$name\}, \$caps \) \) \{(.*?)\n        \}/s;
+    # Anchored on `defined $caps &&`, which is the NOTE's call site. There is
+    # a second call to the same predicate - the partition that splits a
+    # listing into anywhere/path-only - and it comes first in the file, so an
+    # unanchored match read that block instead and asserted the note's rule
+    # against three lines that push a name onto an array.
+    my ($block) = $src
+        =~ /defined \$caps && _path_only_for\( \$name, \$TOOLS\{\$name\}, \$caps \) \) \{(.*?)\n        \}/s;
     ok( defined $block, 'the note block was found' ) or BAIL_OUT('cannot read it');
     like( $block, qr/\$TOOLS\{\$name\}\{cap\}/,
         'the note names the tool\'s own capability, not a hardcoded one' )

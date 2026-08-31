@@ -32,6 +32,11 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+# The engine's own lib as well as the test lib: the capability vocabulary is
+# read from the store rather than copied here. The gate's `prove -l` supplies
+# it; naming it means this file also runs on its own, which is when it is
+# being debugged.
+use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root gate_predicates);
 
 my $root = repo_root();

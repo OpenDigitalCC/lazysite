@@ -79,8 +79,13 @@ subtest 'the dev server carries every sheet, not just one' => sub {
     my $dev = "$root/tools/lazysite-server.pl";
     plan skip_all => 'no dev server' unless -f $dev;
     my $d = do { open my $fh, '<', $dev or die $!; local $/; <$fh> };
-    like( $d, qr/glob\(.*manager-\*\.css/,
-        'it copies all the shipped sheets' )
+    # The assertion is that the copy is not narrowed to ONE file. It used to
+    # name `manager-*.css`, which was the spelling at the time; the server has
+    # since widened to the whole assets directory, because fonts.css and its
+    # faces fell through the sheet-shaped gap. Asserting the outcome rather
+    # than the glob keeps this from failing the next time it widens.
+    like( $d, qr{glob\("\$LAZYSITE_DIR/manager/assets/\*"\)},
+        'it copies the whole assets directory, not one sheet' )
         or diag( 'Copying only the active one makes a style switch appear to '
             . 'do nothing on the dev server while working on a real install. A '
             . 'difference between the two is the worst kind of bug to chase, '

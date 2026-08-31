@@ -40,6 +40,7 @@ search: false
 
 </div>
 
+<div class="mg-table-wrap">
 <table class="mg-table">
 <thead>
 <tr>
@@ -54,6 +55,7 @@ search: false
 <tr><td colspan="5">Loading...</td></tr>
 </tbody>
 </table>
+</div>
 <div id="file-pager" class="mg-pager"></div>
 
 </div>

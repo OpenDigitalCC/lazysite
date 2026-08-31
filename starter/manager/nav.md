@@ -16,7 +16,7 @@ search: false
   <span id="nav-inherit-note" class="mg-muted" style="display:none;font-size:0.8em;"></span>
 </div>
 
-<div class="mg-toolbar" style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+<div class="mg-toolbar">
 <button class="mg-btn" id="add-toggle" onclick="toggleAdd()">+ Add menu item</button>
 <span style="flex:1;"></span>
 <span id="nav-dirty" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>

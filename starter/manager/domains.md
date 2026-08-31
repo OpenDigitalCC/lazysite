@@ -32,7 +32,7 @@ routing are configured so the domain reaches this instance.
   <div style="font-size:0.8em;color:var(--mg-text-muted);margin-top:2px;">Used by <strong>Check</strong> to confirm a domain points to this server. Comma&#8209;separate several. Leave blank to auto&#8209;detect (from your site address, or the server's own address) &mdash; set it when this server sits behind a proxy or NAT.</div>
 </div>
 
-<div class="mg-toolbar" style="margin-bottom:12px;">
+<div class="mg-toolbar">
   <button class="mg-btn" onclick="openCreateSheet()">Add domain</button>
 </div>
 

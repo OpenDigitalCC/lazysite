@@ -4,7 +4,7 @@ title: A PDF is rendered on demand and kept until its source moves, and a docume
 raised: 2026-08-31
 raised-by: release manager
 area: plugins
-status: candidate
+status: shipped
 ---
 
 # The request
@@ -76,9 +76,14 @@ output is compared against.
 
 # What to settle before building
 
-1. ~~Where the cache lives~~ **`lazysite/cache/pdf/`**: not served, and already
-   swept by the cache page. It must be sweepable - a stale PDF that nothing can
-   clear is worse than a slow one.
+1. ~~Where the cache lives~~ **`lazysite/cache/pdf/`**: not served.
+
+   **Correction, found while building:** the claim that the cache page already
+   swept it was wrong. That sweep clears `lazysite/cache/hosts` - the rendered
+   pages - and nothing touches this folder. So the plugin that fills it empties
+   it: a **Clear** action on the Plugin Manager page, deleting only the `.pdf`
+   files it wrote and reporting how many. That is also the answer to the one
+   case a date comparison cannot see (below).
 2. ~~Whether a part is ACL-checked~~ **DECIDED by the release manager: REFUSE.**
    A part is a content file with its own rule, so a document naming a file the
    reader may not read is refused - it does not silently omit the part, and it
@@ -103,3 +108,28 @@ output is compared against.
 [[SM694]] (the converter this extends), [[SM666]] (a persistent runtime, if
 rendering ever leaves the request), [[SM579]] (the workflow question, which is
 the same "long job in a short request" problem).
+
+# What shipped, and what did not
+
+**Shipped in 0.11.9**, in `plugins/pandoc.pl`, covered by
+`t/unit/plugins/41` (eleven sabotages, eleven caught):
+
+- `parts:` in front matter, a flat ordered list, passed to the converter in
+  document order;
+- every part checked exactly as the document is - inside the docroot,
+  Markdown, present - each guard proved by a case only that guard can refuse;
+- a part the caller may not read **refuses** the document and names the part;
+- the PDF kept in `lazysite/cache/pdf/` and reused while it post-dates every
+  input, where the inputs are the document, its parts, and the brand folder;
+- **Clear**, so the folder is sweepable.
+
+**Not built, and deliberately:** nothing serves a PDF yet. `convert()` is the
+library entry point and has no production caller, so the ACL refusal is proved
+by test rather than in the field - the reader's authority arrives as the
+`may_read` argument, and the route that will pass it does not exist. The
+**Rebuild** button the cache section imagined is not built either; **Clear**
+covers the same case for now, one folder rather than one document.
+
+A route is its own filing: it needs the capability question answered (who may
+convert what), and it is the point at which SM666 stops being optional for a
+long document.

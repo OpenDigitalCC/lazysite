@@ -173,7 +173,10 @@ function groupSummaryInner(g) {
   // are in the tooltip for the moment somebody wants them.
   var rollup = ups.length
     ? ' <span class="mg-rollup" title="Belongs to ' + escHtml(ups.join(', '))
-      + ' - and is granted everything they hold">&#8599; in '
+      // The outward arrow is the STYLESHEET's, added by .mg-rollup::before
+      // when the design side took the marker on. Emitting one here too put
+      // two of them on every roll-up line.
+      + ' - and is granted everything they hold">in '
       + ups.length + ' bundle' + (ups.length === 1 ? '' : 's') + '</span>'
     : '';
 

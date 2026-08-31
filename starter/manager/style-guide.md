@@ -795,6 +795,11 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-rwflag-g"><span class="mg-sg-tag">.mg-rwflag-g</span></div>
 </div>
+<h3 class="mg-sg-fam">mg-toolbar <span class="mg-sg-count">1</span></h3>
+<p class="mg-sg-note">A row of controls above a list - Add, Refresh, a filter. It wraps, so on a narrow screen the controls stack rather than leaving the page.</p>
+<div class="mg-sg-demo mg-sg-family">
+<div class="mg-toolbar"><span class="mg-sg-tag">.mg-toolbar</span><button class="mg-btn">Add</button><button class="mg-btn mg-btn-sm">Refresh</button></div>
+</div>
 <h3 class="mg-sg-fam">mg-sec <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">

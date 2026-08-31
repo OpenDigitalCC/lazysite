@@ -31,7 +31,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root gate_caps);
 
 my $root = repo_root();
 my $api  = do {
@@ -45,24 +45,34 @@ my $mcp = do {
     <$fh>;
 };
 
-# The gate predicates, read from the table rather than from prose about it.
-my ($need) = $api =~ /\n( *my %need = \(.*?\n *\);)/s;
-ok( $need, 'the token gate table was found' )
-    or BAIL_OUT('no %need - nothing below compares anything');
+# The gate, read as DATA. SM662 made the token gate a declarative table, so
+# the regex that used to find `my %need = (` finds nothing - and this file
+# BAILED OUT, taking the rest of the run with it. Read through the same helper
+# every other gate test uses, so the next change to the table's shape is one
+# edit rather than five.
+my %need_caps = gate_caps($api);
+ok( scalar keys %need_caps, 'the token gate table was found' )
+    or BAIL_OUT('no gate table - nothing below compares anything');
 my ($cookie) = $api =~ /\n( *my %COOKIE_CAP = \(.*?\n *\);)/s;
 ok( $cookie, 'the cookie gate table was found' ) or BAIL_OUT('no %COOKIE_CAP');
 
-for my $t ( [ 'token', $need ], [ 'cookie', $cookie ] ) {
-    my ( $which, $tbl ) = @{$t};
-    for my $act (qw(form-submissions form-list)) {
-        my ($line) = $tbl =~ /^\s*'\Q$act\E'\s*=>\s*(.+)$/m;
-        ok( defined $line, "$which gate names $act" ) or next;
-        like( $line, qr/read_submissions/,
-            "$which: $act needs read_submissions" );
-        unlike( $line, qr/manage_forms/,
-            "$which: $act does NOT accept manage_forms - the capability is "
-                . "definition-only now" );
-    }
+for my $act (qw(form-submissions form-list)) {
+    my $caps = $need_caps{$act};
+    ok( $caps, "token gate names $act" ) or next;
+    ok( $caps->{read_submissions}, "token: $act needs read_submissions" );
+    ok( !$caps->{manage_forms},
+        "token: $act does NOT accept manage_forms - the capability is "
+            . 'definition-only now' );
+}
+
+# The cookie gate is still source text, so it is still read as text.
+for my $act (qw(form-submissions form-list)) {
+    my ($line) = $cookie =~ /^\s*'\Q$act\E'\s*=>\s*(.+)$/m;
+    ok( defined $line, "cookie gate names $act" ) or next;
+    like( $line, qr/read_submissions/, "cookie: $act needs read_submissions" );
+    unlike( $line, qr/manage_forms/,
+        "cookie: $act does NOT accept manage_forms - the capability is "
+            . 'definition-only now' );
 }
 
 # --- SM660: and the DESTRUCTIVE verbs need the read they destroy ------------

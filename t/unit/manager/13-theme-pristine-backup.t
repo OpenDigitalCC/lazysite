@@ -8,7 +8,12 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
+# ../../lib from t/unit/manager is t/lib, the TEST library. The engine's own
+# lib reaches @INC from the gate's `prove -l`, so this file is fine there and
+# died only when run on its own - which is exactly when someone is debugging
+# it. Naming both costs nothing and removes the trap.
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Themes   ();
 use Lazysite::Manager::Artifact ();
 

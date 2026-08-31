@@ -179,8 +179,13 @@ my $css = do {
 # BOTH the card markup and the classes the script emits. An earlier version of
 # this check scanned only the script, and a bad class on the day picker - which
 # lives in the card - sailed through it.
+# To the NEXT card, or to the end of the page - whichever comes first. Ending
+# only at a following card made this check depend on the journeys card not
+# being last, and when it became last the isolation silently failed: the class
+# sweep below then scanned the script alone, which is the exact hole the note
+# above says this check was widened to close.
 my ($card) = $page
-    =~ m{(<div class="mg-card">\s*<div class="mg-card-header">\s*<span class="mg-card-title">Visitor journeys.*?)<div class="mg-card">}s;
+    =~ m{(<div class="mg-card">\s*<div class="mg-card-header">\s*<span class="mg-card-title">Visitor journeys.*?)(?:<div class="mg-card">|\z)}s;
 ok( length( $card // '' ), 'the journeys card markup can be isolated' );
 
 my %used = map { $_ => 1 } ( ( $journeys . ( $card // '' ) ) =~ /class="([^"]*mg-[^"]*)"/g );

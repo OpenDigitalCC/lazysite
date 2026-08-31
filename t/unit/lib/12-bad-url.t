@@ -9,7 +9,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";      # t/lib
 use lib "$FindBin::Bin/../../../lib";   # repo lib
-use Lazysite::BadUrl qw(is_bad_url is_blocked record_and_check list_blocks unblock);
+use Lazysite::BadUrl qw(is_bad_url is_blocked record_and_check list_blocks block unblock);
 
 # --- detection --------------------------------------------------------------
 ok( is_bad_url('/wp-login.php'),        'wp-login.php is a probe' );
@@ -52,6 +52,46 @@ is( $b2, 0, 'hits outside the rolling window do not count toward the threshold' 
 ok(  unblock( $d, '9.9.9.9' ),  'unblock removes the IP' );
 ok( !is_blocked( $d, '9.9.9.9' ), 'IP no longer blocked after unblock' );
 ok( !unblock( $d, '9.9.9.9' ),  'unblocking an absent IP is a no-op (false)' );
+
+# --- a hand block says WHO, and the API writes a trail ----------------------
+# SM704 added blocking by hand. An automatic block is explained by the hits
+# that caused it; a hand block has no such record, so the row carries the
+# account that made it - the question an operator asks about a blocked address
+# is "who blocked this, and when". t/unit/lib/16 checks the ACTION is
+# classified as one that must audit; this checks the two halves that make the
+# answer possible.
+{
+    my $d2 = tempdir( CLEANUP => 1 );
+    make_path("$d2/lazysite/cache");
+    ok( block( $d2, '5.5.5.5', by => 'manager' ), 'an address can be blocked by hand' );
+    ok( is_blocked( $d2, '5.5.5.5' ), 'and it is blocked' );
+    my $rows = list_blocks($d2);
+    is( $rows->{'5.5.5.5'}{by}, 'manager', 'the row records WHO blocked it' )
+        or diag( 'Without it the trail says an address was blocked and the '
+            . 'blocklist says nothing about who, so the two cannot be joined.' );
+    ok( !block( $d2, '5.5.5.5', by => 'manager' ),
+        'blocking an already-blocked address is a no-op, not an error' );
+    ok( !block( $d2, 'not an address', by => 'manager' ),
+        'and a pattern is not an address' )
+        or diag( 'This value reaches a file the request path reads on every '
+            . 'hit. A pattern here is a rule nobody wrote.' );
+
+    # The API half: the dispatch that exposes this must write the trail entry.
+    my $api = do {
+        open my $fh, '<', "$FindBin::Bin/../../../lazysite-manager-api.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($branch) = $api =~ /elsif \( \$action eq 'bad-url-block' \) \{(.*?)\nelsif /s;
+    ok( defined $branch, 'the bad-url-block branch was found' );
+    like( $branch, qr/log_event\(\s*'INFO',\s*'bad-url-block'/,
+        'blocking an address by hand writes an audit entry' )
+        or diag( 'Its sibling bad-url-unblock audits. A block that leaves no '
+            . 'trace is the half of the pair an operator most needs to '
+            . 'account for - somebody is being refused the site.' );
+    like( $branch, qr/user\s*=>\s*\$auth_user/,
+        'and the entry names the account that did it' );
+}
 
 # --- built-in patterns stay in sync with the stats noise set ----------------
 my $stats = do { open my $f, '<', "$FindBin::Bin/../../../plugins/stats.pl"; local $/; <$f> };

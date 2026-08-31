@@ -26,13 +26,29 @@ my $src = do {
     <$fh>;
 };
 
+# SM699 moved every page-local rule into the shipped sheets, and this panel
+# became the SHARED .mg-sheet rather than a .mg-rows-modal of its own. The
+# outcome asserted here is unchanged - an overlay, fixed, scrolling inside
+# itself - but two of the three facts now live in the stylesheet, so that is
+# where they are read from. Left as it was, this test asserted the absence of
+# page-local CSS was a fault.
+my $css = do {
+    open my $fh, '<',
+        repo_root() . '/starter/lazysite/manager/assets/manager-classic.css'
+        or die $!;
+    local $/;
+    <$fh>;
+};
+
 subtest 'the panel is an overlay, not a block below' => sub {
-    like( $src, qr/id="rows-panel" class="mg-rows-modal"/,
-        'the panel carries the modal class' );
-    like( $src, qr/\.mg-rows-modal \{[^}]*position:fixed/,
+    like( $src, qr/id="rows-panel" class="mg-sheet"/,
+        'the panel is the shared sheet component' )
+        or diag( 'A panel with a class of its own is a second modal idiom, '
+            . 'which is how the manager ended up with two expanders.' );
+    like( $css, qr/\.mg-sheet \{[^}]*position: fixed/,
         'which is fixed over the page' )
         or diag( 'A block that merely has a border is still below the fold.' );
-    like( $src, qr/\.mg-rows-sheet \{[^}]*overflow:auto/,
+    like( $css, qr/\.mg-sheet \{[^}]*overflow: auto/,
         'and scrolls INSIDE itself' )
         or diag( 'Otherwise a long table scrolls the page underneath, which is '
             . 'the confusion being fixed.' );
