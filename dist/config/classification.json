@@ -242,6 +242,7 @@
     "^tools/gen-capability-docs\\.pl$",
     "^tools/import-field-practice\\.pl$",
     "^tools/gen-manpages\\.pl$",
+    "^tools/manager-layout-check\\.js$",
     "^man/",
     "^website/",
     "^githooks/",
