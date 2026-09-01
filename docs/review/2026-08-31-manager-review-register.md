@@ -1,6 +1,6 @@
 ---
 title: "Manager review, 2026-08-30/31: every item the release manager raised, and where it got to"
-subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Sixty-one done, four open. DONE items are on claude/expander-roles. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
+subtitle: "One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Ninety-four done, two open. The done rows landed across the 0.11.9 cut; MR-97 came after it and is on claude/copy-button-colour. OPEN items are the backlog this review produced - nothing here is closed by having been read, and MR-53 carries a proposal rather than a change because it affects every listing."
 brand: plain
 standard-margins: true
 ---
@@ -115,6 +115,7 @@ Refs are quotable: `MR-01` and so on.
 | MR-94 | "Create the brand folder" says the same thing however often you press it | It now says whether it made the folder or found it, and what is in it | — |
 | MR-95 | Sign out buttons should carry red | Both do. They end something for somebody, and one ends it everywhere | — |
 | MR-96 | "Did it save?" - the descriptor form | It had. The modal stays open because a migration decision is pending, and "Changes saved." went to the status line BEHIND it, so the only visible thing was the button just pressed. The plan panel now opens by saying the description is saved and what has not happened yet; with nothing pending the modal closes | — |
+| MR-97 | Copy buttons are hard to find | They had no modifier, because the three that existed all describe what a button does TO the site - commit, rewrite, destroy. Copy takes something OUT of the page onto the clipboard, so it fell through to the plain default. `mg-btn-copy` is the accent hue in the outline treatment, on all seven (all on `users.md`) | `t/lint/96` |
 
 
 # Open

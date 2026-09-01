@@ -565,7 +565,7 @@ function accountSettingsHtml(row) {
     var davUrl = DAV_BASE + (scope ? scope.replace(/\/+$/, '') : '');
     var wd = '<div class="mg-line"><span class="mg-line-lbl">URL</span>' +
       '<code class="mg-code" id="dav-' + ue + '">' + escHtml(davUrl) + '</code>' +
-      '<button class="mg-btn mg-btn-sm" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
+      '<button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<span class="mg-muted">' +
@@ -976,7 +976,7 @@ function generateCredential(user) {
         panel.style.display = '';
         panel.innerHTML = '<strong>Credential (shown once &mdash; store it now):</strong> ' +
           '<code class="mg-cred-value">' + escHtml(d.token) + '</code> ' +
-          '<button class="mg-btn mg-btn-sm" onclick="copyCred(\'' + escHtml(user) + '\')">Copy</button>';
+          '<button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyCred(\'' + escHtml(user) + '\')">Copy</button>';
       }
       showStatus('Credential generated for "' + user + '".');
     })
@@ -1066,7 +1066,7 @@ function showConnector(user) {
         ' connector, and verify it is active by running whoami.&rdquo;</i></li>' +
         '<li>When it asks you to sign in, paste this one-time connect code:' +
         '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
-        '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button>' +
+        '<button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyConnectCode(\'' + ue + '\')">Copy</button>' +
         '<button class="mg-btn mg-btn-change mg-btn-sm" id="cc-regen-' + ue + '" onclick="regenerateConnectCode(\'' + ue + '\')">Regenerate</button></div>' +
         '<span class="mg-muted" id="cc-life-' + ue + '">Single-use.</span></li>' +
         '</ol>' +
@@ -1170,7 +1170,7 @@ function revealPrompt(user) {
       '<div class="mg-onb-head"><strong>Step 2 &mdash; paste this to the agent</strong> ' +
       '<span class="mg-muted">(no secret &mdash; safe in chat)</span></div>' +
       '<textarea class="mg-onb" readonly rows="7">' + escHtml(box._prompt) + '</textarea>' +
-      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div>' +
+      '<div class="mg-line"><button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div>' +
       // SM200: the agent's tool list is fixed when a chat opens, so a connector
       // finished mid-conversation only surfaces in a fresh chat.
       '<div class="mg-muted" style="font-size:12px;margin-top:0.4rem">&#128161; If the agent ' +
@@ -1198,7 +1198,7 @@ function showOnboarding(user) {
       box._text = d.onboarding;
       box.style.display = '';
       box.innerHTML = '<textarea class="mg-onb" readonly rows="12">' + escHtml(d.onboarding) + '</textarea>' +
-        '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyOnboarding(\'' + escHtml(user) + '\')">Copy</button>' +
+        '<div class="mg-line"><button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyOnboarding(\'' + escHtml(user) + '\')">Copy</button>' +
         '<button class="mg-btn mg-btn-sm" onclick="downloadOnb(\'' + escHtml(user) + '\')">Download .md</button>' +
         '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button></div>' +
         '<div class="mg-muted" style="font-size:0.8em;margin-top:0.25rem">Single-use, expires in 24h. ' +
@@ -1356,7 +1356,7 @@ function setupLink(user, reset) {
       show('<div class="mg-muted">' + (reset ? 'Current credential revoked. ' : '') + what +
         ' Single-use, expires in 24h &mdash; copy it now.</div>' +
         '<code class="mg-code" id="setuplink-' + user + '">' + escHtml(link) + '</code>' +
-        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'setuplink-' + user + '\')">Copy</button>');
+        '<button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyText(\'setuplink-' + user + '\')">Copy</button>');
     })
     .catch(function(e) { show('<span class="mg-status-error">Error: ' + escHtml(e.message) + '</span>'); });
 }
@@ -1432,7 +1432,7 @@ function setup2fa(user) {
       show('<div class="mg-muted">Scan this with an authenticator app (Google Authenticator, Aegis, 1Password&hellip;), then enter a code below to confirm. 2FA is <b>not on</b> until you confirm.</div>' +
         '<div class="mg-qr" id="mfaqr-' + user + '"><span class="mg-muted">rendering QR&hellip;</span></div>' +
         '<div class="mg-line"><span class="mg-line-lbl">Secret</span><code class="mg-code" id="mfasec-' + user + '">' + escHtml(d.secret) + '</code>' +
-        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfasec-' + user + '\')">Copy</button>' +
+        '<button class="mg-btn mg-btn-sm mg-btn-copy" onclick="copyText(\'mfasec-' + user + '\')">Copy</button>' +
         '<span class="mg-help" title="Can\'t scan? Add the account manually in your app with this secret.">&#9432;</span></div>' +
         '<div class="mg-line"><span class="mg-line-lbl">Confirm</span>' +
         '<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="mg-inp" id="mfacode-' + user + '" placeholder="6-digit code">' +

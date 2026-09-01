@@ -24,12 +24,13 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
 </div>
 
 <h2 class="mg-sg-h">Buttons</h2>
-<p class="mg-sg-note">One button element with modifiers. A destructive action uses <code>mg-btn-danger</code> and must ALSO be confirmed - the colour is a warning, not the guard.</p>
+<p class="mg-sg-note">One button element with modifiers. A destructive action uses <code>mg-btn-danger</code> and must ALSO be confirmed - the colour is a warning, not the guard. The modifiers say what a button does TO the site - commit, rewrite, destroy - except <code>mg-btn-copy</code>, which takes something OUT of the page onto the clipboard and is the one retrieval action with a colour of its own.</p>
 <div class="mg-sg-demo">
 <button class="mg-btn">Default</button>
 <button class="mg-btn mg-btn-primary">Primary</button>
 <button class="mg-btn mg-btn-outline">Outline</button>
 <button class="mg-btn mg-btn-danger">Delete</button>
+<button class="mg-btn mg-btn-copy">Copy</button>
 <button class="mg-btn mg-btn-sm">Small</button>
 </div>
 

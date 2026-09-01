@@ -265,6 +265,18 @@
 .mg-btn-change:hover { background: var(--mg-accent2-fill); border-color: var(--mg-accent2-fill); color: #fff; }
 .mg-btn-danger { background: var(--mg-surface); border-color: var(--mg-danger); color: var(--mg-danger); }
 .mg-btn-danger:hover { background: var(--mg-danger-bg); border-color: var(--mg-danger); color: var(--mg-danger-deep); }
+/* MR-97: A COPY BUTTON IS RETRIEVAL, and had no modifier because the three that
+   existed all describe what a button does TO the site - commit, rewrite,
+   destroy. Copy takes something OUT of the page onto the clipboard, so it fell
+   through to the plain default and became the hardest control to find on the
+   one page carrying seven of them.
+
+   Accent hue in the OUTLINE treatment mg-btn-danger established, not a tinted
+   fill: .mg-btn[aria-pressed="true"] is already accent-bg + accent border, and
+   a copy button wearing that would read as a toggle that is switched on. */
+.mg-btn-copy { background: var(--mg-surface); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
+.mg-btn-copy:hover { background: var(--mg-accent-bg); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
+
 .mg-btn-sm { min-height: var(--mg-ctl-sm); padding: 0 10px; font-size: var(--mg-text-sm); }
 .mg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
