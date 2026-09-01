@@ -99,3 +99,51 @@ seen from the authoring side. Protecting `<script>` from TT wholesale would
 answer both, and is refused separately there: the layout catalogue has zero
 interpolations inside `<script>`, but the starter tree has two, and one of them
 is the manager's own editor, which would stop knowing which file it is editing.
+
+# Decided (release manager, 2026-09-01)
+
+**Escape at the stash, AND document the `data-` attribute idiom.** Both, not
+either. The stash escaping removes the failure mode where a page is wrong by
+omission - the `query.*` precedent, which has held. The idiom is what makes
+script context actually correct rather than merely non-fatal, because escaping
+alone converts `O'Brien` from a syntax error into the corrupted literal
+`O&#39;Brien`. The two shipped pages are fixed to match.
+
+Accepted cost: a page that correctly writes `| html` on `auth_name` will
+double-escape, exactly the wart `query.*` already carries. A display bug, not a
+security one. An idempotent `| html` filter was considered and rejected - it
+would fix both families at once, but every page's `| html` would then behave
+non-standardly for the next reader.
+
+**Scope: all four `auth_*` uniformly.** `auth_user` and `auth_groups` are
+already constrained at creation (`[a-zA-Z0-9_.-]` and `[A-Za-z0-9_-]`), so it is
+a no-op for them, and one rule is cheaper to hold than a per-variable exception
+table. It also covers the case the creation-time constraint never sees: a
+trusted proxy supplying these headers directly.
+
+**SM673 is gated on this.** A visitor proposing their own display name is what
+makes `auth_name` attacker-controlled. The dependency is invisible from SM673's
+side and must not be left to a future reviewer to rediscover.
+
+# THE IMPLEMENTATION CONSTRAINT, and it is the whole risk here
+
+**`auth_*` is not `query.*`.** A query value is only ever rendered. `auth_user`
+and `auth_groups` are ALSO the inputs to access control:
+
+| Site | What it decides |
+| --- | --- |
+| `lazysite-processor.pl:1018-1019` | the ACL identity and its groups |
+| `:1226-1231` | `_is_manager` - whether the manager UI opens |
+| `:2007` | the manager request gate |
+| `:6389` | the editor flag in the render context |
+
+So the escaping **must be applied where the TT render vars are assembled**
+(beside `query => $query`), and **not** where the auth result is constructed
+(`:509-512`, `:520-523`, `:551-554`). Escaping at the auth boundary would make
+an ACL comparison test an escaped value against an unescaped users file.
+
+That failure is SM702's shape exactly - it fails CLOSED, so it presents as a
+lockout rather than a leak, and every test whose fixture user has no character
+needing escaping would pass. **The regression test therefore needs a user whose
+name or group contains a character the escaper touches**, proving authorization
+still resolves for them while the rendered value is escaped.
