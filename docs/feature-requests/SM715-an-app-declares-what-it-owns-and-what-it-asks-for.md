@@ -55,6 +55,36 @@ carries: the seed key and the app version that introduced the row. The
 behaviour that uses them is Phase 3; **the reservation is here**, because a
 descriptor population written without them cannot be given them later.
 
+# The install path is derived from the namespace, not chosen
+
+**An app installs at `_apps/<namespace>/` under the docroot.** The manifest
+declares the namespace; the path follows from it and an author does not pick it.
+
+**The reason is collision with the operator's own content.** A free-choice
+subfolder puts an app at `/shop` or `/events` - exactly the names a site already
+uses or will want - and the first collision is discovered by an operator whose
+page has been shadowed. A reserved root means an app can never take a name the
+operator might want, and an operator can see at a glance which parts of their
+tree are theirs.
+
+`_apps/` is a NEW reserved root, and it is not `lazysite/`. The existing
+reserved tree is not served as content, and an app's pages must be. Nothing in
+the engine blocks an underscore-prefixed path, so `_apps/` serves as ordinary
+content today; the reservation is a convention this phase establishes and the
+register (SM716) enforces.
+
+Two consequences worth stating now:
+
+- **`owns.subfolder` becomes derived rather than declared.** Validation refuses
+  a manifest that names a path outside its own `_apps/<namespace>/`.
+- **Self-reference gets easier to check.** An app's own links and descriptors
+  can be validated against a path that is knowable from the namespace alone,
+  which is the first of SM722's expected failure classes.
+
+On a multi-site instance `_apps/` is per-docroot, so two domains may hold
+different apps. **SM611** (a table belongs to a site, not the instance) is the
+same question for the tables and is unbuilt.
+
 # The slots that are inert on purpose
 
 Triggers, timers, realtime channels and egress are **declared and validated

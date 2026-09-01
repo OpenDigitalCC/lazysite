@@ -96,6 +96,21 @@ Refusals are visible
   version, and the apps list says *update available* with what is blocked and
   why.
 
+An app installs at a reserved path
+: `_apps/<namespace>/` under the docroot. The manifest declares the namespace;
+  the path follows and an author does not pick it. **The reason is collision
+  with the operator's own content** - a free-choice subfolder takes `/shop` or
+  `/events`, and the collision is found by an operator whose page has been
+  shadowed. `_apps/` is a new reserved root, not `lazysite/`, because the
+  existing reserved tree is not served as content and an app's pages must be.
+
+App installation state is file-based
+: The namespace register is a file in the reserved tree, **not** a table under
+  the data plugin. A plugin-held register is unreadable exactly when a dormant
+  plugin makes install need it (SM675), and an install system that fails on a
+  fresh instance fails in the case it exists for. App **tables** remain the data
+  plugin's; the record of what exists is readable without it.
+
 An app has no server-side code
 : It reaches the server only through `lazysite-data.pl`, the control API and the
   form handlers. **No phase weakens this**, and the one place it would be
@@ -158,11 +173,14 @@ inherit whatever it decides; nothing here should assume SQLite specifics.
 
 # Open items - the operator decides, not the implementer
 
+**Resolved 2026-09-01**: register storage is a file in the reserved tree, and an
+app installs at `_apps/<namespace>/`. Both are in the settled list above.
+
+
 Each is named in its phase and repeated here so none is answered by default.
 
 | Item | Phase | Note |
 | --- | --- | --- |
-| Register storage: reserved-tree file, or data-plugin table | SM716 | Prepare for either. See the SM675 caution above |
 | The bulk-seed size cap (a number) | SM717 | Above it, the data is the operator's to import |
 | Whether an operator-facing data import already exists to reuse | SM717 | Answer **before** estimating the phase |
 | Publisher-prefixed namespaces | SM715 | Deferred; does not alter the design |

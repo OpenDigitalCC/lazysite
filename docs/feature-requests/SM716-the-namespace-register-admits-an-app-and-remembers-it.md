@@ -52,14 +52,35 @@ Data belongs to the installing instance
   every table.** The author cannot take data back by licence change,
   deprecation or delisting. This is why the tombstone exists at all.
 
-# Open items - the operator decides
+# Decided: the register is a file in the reserved tree
 
-- **Register storage: a file in the reserved tree, or a table under the data
-  plugin.** Implementation prepares for either; **do not decide by default.**
-  Note for whoever decides: a data-plugin table makes the register subject to
-  the plugin's own enabled state, which SM675 established refuses before it
-  reads grants - so a dormant plugin would make the register unreadable at
-  exactly the moment install needs it.
+**Operator decision, 2026-09-01: file-based, to reduce risk.** The register is a
+file in the reserved tree. It is **not** a table under the data plugin, and this
+is settled rather than open.
+
+The reasoning that was already on this filing is what the decision follows: a
+data-plugin table makes the register subject to the plugin's own enabled state,
+and SM675 established that a dormant capability refuses before it reads grants -
+so a dormant plugin would make the register unreadable at exactly the moment
+install needs to read it. An install system that cannot function on an instance
+whose data plugin is off is an install system that fails on a fresh instance,
+which is the case it exists for.
+
+**The general principle, applying beyond this filing: app installation state
+lives in files, not behind a plugin.** Where a later phase needs to record
+something about an installed app, the default is the reserved tree.
+
+The register still records app TABLES, and those remain the data plugin's. The
+distinction is that the record of what exists is readable without the plugin,
+while the data itself is not.
+
+# The path check is now narrow
+
+Since SM715 derives the install path from the namespace, the subfolder check is
+no longer "does this arbitrary path collide with anything in the docroot" but
+"is `_apps/<namespace>/` free". That is a smaller check on a smaller surface,
+and it cannot be defeated by an author choosing a clever path.
+
 
 # Related
 
