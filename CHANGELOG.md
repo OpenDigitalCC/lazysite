@@ -44,6 +44,44 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM709 (PENDING) **the auth variables are escaped where they enter the render,
+  and the admin bar is escaped at its sink.** Found while sizing SM708's
+  "protect `<script>`" option, which turned out to be the less interesting half.
+  Two families of variable reached the TT stash with different safety properties
+  and nothing marking the difference: `query.*` escaped at parse time with five
+  entities including the single quote, `auth_user`/`auth_name`/`auth_email`/
+  `auth_groups` straight from `X-Remote-*` and escaped nowhere. Both documented
+  in the same list, identical to an author.
+
+  **A live unescaped sink came out of it.** `_inject_admin_bar` concatenated the
+  display name directly into HTML - no template, so no filter to be wrong -
+  and that bar is injected into every non-manager page for a manager-level
+  viewer. Self-XSS only, since the name is the viewer's own, which is why it is
+  a defect rather than an incident. The stash escaping would NOT have reached
+  it: the bar reads `%AUTH_CONTEXT` directly.
+
+  **The constraint carried the whole risk.** `%AUTH_CONTEXT` is also the input
+  to access control - the ACL identity and its groups, `_is_manager`, the
+  manager request gate, the editor flag. Escaping it at the auth boundary, which
+  is the obvious place, would test an escaped value against an unescaped users
+  file: SM702's shape exactly, failing CLOSED as a lockout and invisible to any
+  test whose fixture user has no character needing escaping. So the escaping is
+  applied where the render vars are assembled and nowhere else, beside the
+  identical treatment SEC-2026-07 already gives `page_title`. The regression
+  test's user is called `o'brien` for that reason, and the admin bar appearing
+  at all is its authorisation assertion.
+
+  The two shipped pages that interpolated into `<script>` now read from a `data-`
+  attribute instead, which fixes a second bug on the way: inside `<script>` no
+  HTML entity is decoded, so `| html` over an already-escaped query value meant
+  a search for `it's` searched for `it&amp;#39;s`. `docs/auth.md` gains the
+  idiom, and says plainly that these values are escaped already and that
+  `| html` on them is wrong. Accepted cost, on the release manager's decision: a
+  page that already writes `| html` on `auth_name` will double-escape.
+
+  SM673 is gated on this and says so at the top of its own filing - a visitor
+  proposing their own display name is what makes this attacker-controlled.
+
 ## 0.11.9 - EDGE: ninety-four items from a live manager review, a lockout that failed closed, and a document that refuses to be quietly shortened (2026-08-31)
 
 **0.11.8 shipped a visual layer. This is what that layer produced when a person

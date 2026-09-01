@@ -535,6 +535,52 @@ Example in a view template:
 [% END %]
 ```
 
+### These values are escaped for you
+
+All five are HTML-escaped where they enter the page, so the example above is
+safe with no filter and **you should not add `| html` to them**. Doing so
+escapes an already-escaped value, and a display name of `O'Brien` renders as
+`O&#39;Brien` on the page.
+
+The same is true of `[% query.<name> %]`.
+
+### Do not interpolate them into a `<script>` block
+
+This does not work, and the way it fails is not obvious:
+
+```
+<script>
+  var me = '[% auth_name %]';   // WRONG
+</script>
+```
+
+A browser decodes no HTML entities inside `<script>`, so the escaping that makes
+these values safe in a page arrives in your JavaScript as literal entity text -
+`O&#39;Brien` rather than `O'Brien`. `| html` does not fix it and makes it
+worse. There is no filter that is right here.
+
+**Put the value in an attribute and read it from there.** The HTML parser
+decodes the escaping when it reads the attribute, so JavaScript receives the
+real characters:
+
+```
+<div id="viewer" data-user="[% auth_user %]" data-name="[% auth_name %]"></div>
+<script>
+  var el = document.getElementById('viewer');
+  var me = el.dataset.name || el.dataset.user;
+</script>
+```
+
+This is the idiom for **any** value a page's script needs from the request or
+the viewer, and it is what the shipped `search-results` page and the manager's
+editor both use.
+
+A second reason to prefer it: a literal `[%` anywhere in a page - including
+inside a regular expression in your own script - is read as a template directive
+and fails the parse, and the whole page then renders with **every** `[% %]`
+un-substituted. Keeping template syntax out of your script blocks avoids that
+entirely.
+
 ## Custom 403 page
 
 Create `403.md` in the docroot. These context variables are available:

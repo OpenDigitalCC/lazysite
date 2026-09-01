@@ -79,7 +79,7 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 
 <div class="mg-editor-toolbar">
 <a href="/manager/files" class="mg-btn mg-btn-sm mg-editor-back" title="Back to Files (Esc)">&#8592; Files</a>
-<span id="ed-filepath" class="mg-editor-path">[% query.path | html %]</span>
+<span id="ed-filepath" class="mg-editor-path" data-path="[% query.path %]" data-new="[% query.new %]">[% query.path %]</span>
 <span id="ed-lock-dot" class="mg-lock-dot" title=""></span>
 <span id="ed-lock-label" style="font-size:0.8rem;color:var(--mg-text-muted);"></span>
 <span style="flex:1;"></span>
@@ -159,8 +159,15 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var filePath = '[% query.path | html %]';
-var isNew = '[% query.new | html %]' === '1';
+// SM709: from the toolbar element's data attributes, not interpolated into
+// this script. Inside <script> no HTML entity is decoded, so a path or flag
+// carrying an escaped character arrived here as the entity text; in an
+// attribute the parser decodes it and JS gets the real value. See the note in
+// starter/docs/auth.md - this is the idiom for every value a page's script
+// needs from the request or the viewer.
+var edPathEl = document.getElementById('ed-filepath');
+var filePath = edPathEl.dataset.path || '';
+var isNew = (edPathEl.dataset.new || '') === '1';
 // Exiting the editor should return to the file's OWN folder, not the Files root.
 var backFolder = filePath ? filePath.replace(/\/?[^\/]*$/, '') : '';
 var backUrl = '/manager/files' + (backFolder ? '?path=' + encodeURIComponent(backFolder) : '');

@@ -6456,6 +6456,44 @@ sub render_content {
         %AUTH_CONTEXT,
         %PAYMENT_CONTEXT,
         %PREVIEW_CONTEXT,    # SM071: preview override wins over site layout/theme
+
+        # SM709: ESCAPE THE AUTH VARIABLES HERE, and only here.
+        #
+        # Same treatment, and the same reasoning, as page_title below: the single
+        # point they enter the stash, so every layout and every page emits them
+        # safely even when it interpolates them without a `| html` filter - which
+        # is what the shipped example in docs/auth.md does, and what an author
+        # copying it will do.
+        #
+        # THEY WERE THE ONLY UNESCAPED FAMILY IN THE STASH. query.* is escaped in
+        # parse_query_string, page_title/page_subtitle four lines down; auth_* came
+        # straight from X-Remote-* and was escaped nowhere. Two families sat here
+        # with different safety properties, documented in one list, and nothing
+        # told an author which was which.
+        #
+        # WHY NOT AT THE AUTH BOUNDARY, which is the obvious place and is wrong.
+        # %AUTH_CONTEXT is ALSO the input to access control - the ACL identity and
+        # its groups, _is_manager, the manager request gate, the editor flag above.
+        # Escaping it there would test an escaped value against an unescaped users
+        # file. That fails CLOSED, so it presents as a lockout rather than a leak,
+        # and it is invisible to any test whose fixture user has no character
+        # needing escaping - SM702's shape exactly. %AUTH_CONTEXT stays raw; only
+        # this rendering copy is escaped.
+        #
+        # auth_user and auth_groups are constrained at creation ([a-zA-Z0-9_.-] and
+        # [A-Za-z0-9_-]) so escaping them is a no-op today. They are escaped anyway:
+        # one rule is cheaper to hold than a per-variable exception table, and the
+        # constraint is not applied at all when a trusted proxy supplies the header.
+        auth_user   => _esc_html( $AUTH_CONTEXT{auth_user} ),
+        auth_name   => _esc_html( $AUTH_CONTEXT{auth_name} ),
+        auth_email  => _esc_html( $AUTH_CONTEXT{auth_email} ),
+        auth_groups => [
+            map { _esc_html($_) } @{
+                ref $AUTH_CONTEXT{auth_groups} eq 'ARRAY'
+                ? $AUTH_CONTEXT{auth_groups}
+                : []
+            }
+        ],
             # SEC-2026-07 (H5): escape the author-controllable front-matter fields
             # HERE, at the single point they enter the stash, so EVERY layout - the
             # bundled fallback/manager layouts AND every third-party/library layout
@@ -7404,7 +7442,13 @@ sub _inject_admin_bar {
 
         my $user = $vars->{auth_name} || $vars->{auth_user} || '';
         if ($user) {
-            $manager_tools .= '<span style="margin-left:auto;">' . $user . '</span>';
+            # SM709: _esc_html AT THE SINK, because this is string concatenation
+            # and not a template - there is no filter to get wrong and no stash
+            # escaping to inherit. This reads %AUTH_CONTEXT directly (below), so
+            # the escaping applied where the TT stash is built does not reach it.
+            # A display name permits quotes and angle brackets: cmd_user_settings_set
+            # strips only \r\n\t and caps at 64.
+            $manager_tools .= '<span style="margin-left:auto;">' . _esc_html($user) . '</span>';
             $manager_tools .= '<a href="/cgi-bin/lazysite-auth.pl?action=logout" style="color:#888;text-decoration:none;">Sign out</a>';
         }
     }

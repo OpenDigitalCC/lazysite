@@ -7,6 +7,24 @@ status: partial
 status-note: "PARTIAL (PENDING). THE APPROVAL VERB SHIPS: `account-approve` creates the account with NO password, places it in every group flagged to take registrations, and mints the claim link - one step for what was three, and the operator never sees a password. Registration stays INVITATION-ONLY: nothing public creates an account and SM268's ruling is intact, since this is called BY an operator looking at a submission. THE TRAP IS AVOIDED rather than hit: the pending state is the SUBMISSION the forms pipeline already stores, not a disabled account - cmd_claim_create refuses a disabled account outright. WHICH GROUP THEY LAND IN IS A GROUP FLAG, at the release manager's direction: 'add anonymous user registrations to this group', ticked on the Groups page where the operator can see what that group grants while deciding. It began as a lazysite.conf key and that was worse - a config file is a thing somebody has to be told about. More than one group may carry it and an approved account joins all of them. SETTING IT PASSES THE SAME CEILING as granting the group's capabilities one at a time: it is the strongest conferral in the system, deciding what a person nobody has met holds, and ticking a box must not route around SM195. SM647 and SM682 answered the same question for allowed_groups and writable_by; this is the third. Nothing flagged means an approved account joins nothing, which is the safe default because no shipped group grants only a login. Sabotage-verified six ways across both halves. REMAINING: the operator calls this from the CLI or the API, not from a button on the submission - wiring one needs the form to say which fields are the username and address, or the operator to type them."
 ---
 
+# BLOCKED ON SM709 - read this before building the public half
+
+**The remaining work here makes a display name attacker-controlled, and that is
+the input SM709 is about.** Nothing in SM709 was exploitable while display names
+were operator-set; a visitor proposing their own is exactly what changes that.
+
+SM709 is now fixed - `auth_*` is escaped where it enters the render stash, and
+the admin bar is escaped at its sink - so this is a dependency to VERIFY rather
+than one to wait for. Before the public half of this filing ships, prove it
+against a registration whose proposed display name carries `<`, `'` and `"`:
+the name must render escaped everywhere it is shown, and the account must still
+authorise. `t/integration/77` is the shape of that proof.
+
+The reason this is written here rather than left to a reviewer: the dependency
+is invisible from this filing's side. Nothing about "a visitor asks for an
+account" suggests a rendering boundary, and the connection was only obvious from
+the other end.
+
 # What exists today, and why it is invitation-only
 
 Registration is by invitation. An operator creates the account (`add`,

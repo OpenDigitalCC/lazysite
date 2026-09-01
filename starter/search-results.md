@@ -7,7 +7,7 @@ query_params:
   - q
 ---
 
-<div id="search-container">
+<div id="search-container" data-query="[% query.q %]">
 <style>
 .search-result { border-bottom: 1px solid #eee; padding: 1rem 0; margin-bottom: 0.5rem; }
 .search-result h2 { font-size: 1.1rem; margin: 0 0 0.3rem; }
@@ -185,8 +185,13 @@ mark { background: #fff3cd; padding: 0.1em 0; }
       });
   }
 
-  // Search query from URL parameter
-  var searchQuery = '[% query.q | html %]'.trim();
+  // SM709: read the term from a data ATTRIBUTE, not interpolated into this
+  // script. Inside <script> the browser decodes no HTML entities, so the
+  // `| html %]` this used to carry escaped a value that was ALREADY escaped in
+  // parse_query_string - a search for it's searched for it&amp;#39;s. In an
+  // attribute the parser decodes the single escaping and hands JS the real
+  // characters, which is why the attribute is the idiom and the filter is not.
+  var searchQuery = (document.getElementById('search-container').dataset.query || '').trim();
 
   // Run search on page load
   document.addEventListener('DOMContentLoaded', function() {

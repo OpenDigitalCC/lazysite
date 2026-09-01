@@ -4,7 +4,8 @@ title: The script block is an escaping context the engine does not model
 raised: 2026-09-01
 raised-by: engine (found while sizing SM708's "protect <script>" option)
 area: security
-status: candidate
+status: shipped
+status-note: "SHIPPED. auth_user/auth_name/auth_email/auth_groups are escaped where they enter the TT render stash - beside the identical treatment SEC-2026-07 gives page_title - and NOT at the auth boundary, which is the obvious place and would compare an escaped value against an unescaped users file (SM702's shape: fails closed as a lockout, invisible to any fixture user with nothing to escape). A LIVE UNESCAPED SINK was found doing it: _inject_admin_bar concatenated the display name straight into HTML with no template and so no filter to be wrong, on every non-manager page for a manager-level viewer - self-XSS only, since the name is the viewer's own, and NOT reached by the stash escaping because the bar reads %AUTH_CONTEXT directly. It is escaped at the sink. The two shipped pages that interpolated into <script> read from a data- attribute now, which also fixes a search for it's searching for it&amp;#39;s. docs/auth.md carries the idiom and says | html on these values is wrong. t/integration/77 proves both halves and was sabotage-verified against each; its fixture user is o'brien so a future leak into the decision path fails the suite rather than the fleet. NOT DONE, deliberately: a | js filter (option 2) - a filter an author must remember is the mechanism that already failed. SM708 stays open and separate."
 ---
 
 # The short version
