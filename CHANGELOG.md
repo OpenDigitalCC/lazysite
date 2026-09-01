@@ -44,11 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM702 (PENDING) **a capability held through nesting was never granted.**
-  Reported from a live manager: an account in `site-admins` was told "Manager
-  access not permitted", though the shipped groups put `site-admins` inside
-  `ch-ui` and `ch-ui` holds `ui`. `local $/` in `_groups_grant_cap` is scoped to
-  the enclosing BLOCK - the whole sub - so it was still undef when
+## 0.11.9 - EDGE: ninety-four items from a live manager review, a lockout that failed closed, and a document that refuses to be quietly shortened (2026-08-31)
+
+**0.11.8 shipped a visual layer. This is what that layer produced when a person
+actually used it.** Ninety-four items were raised across several live-manager
+sessions and are recorded one per row, with what was done or why it was not, in
+`docs/review/2026-08-31-manager-review-register.md`. Most are closed here.
+
+- SM702 shipped (1d39616b) **a capability held through nesting was never
+  granted.** Reported from a live manager: an account in `site-admins` was told
+  "Manager access not permitted", though the shipped groups put `site-admins`
+  inside `ch-ui` and `ch-ui` holds `ui`. `local $/` in `_groups_grant_cap` is
+  scoped to the enclosing BLOCK - the whole sub - so it was still undef when
   `_group_closure` ran, and `_group_membership_map`'s `while (<$fh>)` took the
   entire groups file as ONE line. Measured: 21 groups parsed normally, 1 in
   slurp mode. The parent table was empty and nothing nested resolved.
@@ -57,15 +64,66 @@ Naming the commit: AFTER it lands, never before
   user in a group holding the capability directly, so the whole suite passed.
   The regression test grants a capability ONLY through nesting.
 
-- SM701 shipped (896bcede, 5bb25b1e) **the fleet rollout reports a table, not a transcript.**
-  Raised by the release manager: "install/deploy is now very noisy, reporting an
-  ever longer collection of information." A candidate appeared in as many as
-  four places, none of them complete, and every phase of every site streamed in
-  full. It now prints ONE table - domain, user, version, channel, in scope - then
-  only warnings and failures, each attributed to its site, then a summary table
-  of what happened. `--verbose` restores the transcript. **A failing site still
-  prints everything captured**, because a summary that says "failed" without
-  saying why moves the operator's work into a second run.
+- SM706 shipped (83d86a05, e83ccc27, a345df58) **a page is rendered to PDF on
+  demand and kept until one of its sources moves.** The render is cached in
+  `lazysite/cache/pdf/` and served again only while it post-dates every input;
+  touching any part re-renders on the next request, and the plugin gained a
+  `clear` action for forcing it. **The part that matters is the refusal**: a
+  document composed of parts, where a part cannot be read, is refused **by
+  name** rather than handed over quietly missing a section. A short PDF looks
+  like a finished PDF, which is the whole reason this could not be left to the
+  reader to notice. Eleven sabotages of the composition path are caught by
+  `t/unit/plugins/41`.
+
+- **The review round itself** (e83ccc27, 9c341533, a0e9993c, 2fe879b3,
+  05fd34e8, b6d06161, 9e6731a4, 284b8a9a, 318882ac, 35266eba, 63055124,
+  67d307df, 62eeb991, 83b6408e, d421b81d) closes the great majority of the
+  register: one expander idiom instead of four, listing rows on a grid, the
+  drawer keeping focus, narrow widths down to 560px, the data table's
+  configuration modal rebuilt around what an operator is actually choosing, and
+  the word for who may read a table changed to one that names them.
+
+  **Three of these fixes changed nothing at all, silently, and each looked
+  correct in review.** An inline `style=` attribute beat every rule written to
+  replace it. A rule set `flex-direction` on an element the dense form makes a
+  **grid**, where flex properties do nothing - and when that was corrected the
+  box still stacked, because grid auto-placement does not go backwards. Narrow
+  width rules sat four hundred lines above the base rule they had to beat, at
+  equal specificity, and lost. None of the three is visible by reading the diff;
+  all three read as fixed. That is the entire fix-one-expose-another loop the
+  release manager asked about, and it had no conflicting requirement behind it.
+
+  What now catches them: `t/lint/108` holds a per-page ceiling on inline styles
+  (342 across nineteen pages, ratcheting down) because they are the mechanism by
+  which fixed defects come back, and `tools/manager-layout-check.js` checks a
+  rendered page for the five failures a source read cannot see - page fits,
+  control on screen, checkbox beside its label, table fits, no clipped text.
+
+- SM703 shipped (c43f28c4, 312f159c) **a blocked address is an access control,
+  so it lives with the plugin that does the blocking.** Measured rather than
+  argued: a blocked address is refused the site with a 403, which makes it a
+  control and not a reporting filter. An address can now be blocked by hand,
+  and the page stops explaining an absence it cannot account for.
+
+- SM697 shipped (f0fea51d) **the twelve remaining unstyled classes are paid off,
+  and the guard that had gone silent works again.** 0.11.8 left twelve
+  enumerated as known debt behind a lint; the lint had stopped failing for a new
+  one, which is the more serious half of this entry.
+
+- SM699 shipped (a983ba49) **the 107 button labels are reconciled to the
+  vocabulary.** 0.11.8 wrote the vocabulary down; this applies it, so an
+  operator who learns one page does not relearn the next.
+
+- SM701 shipped (896bcede, 5bb25b1e, fa81fe52) **the fleet rollout reports a
+  table, not a transcript.** Raised by the release manager: "install/deploy is
+  now very noisy, reporting an ever longer collection of information." A
+  candidate appeared in as many as four places, none of them complete, and every
+  phase of every site streamed in full. It now prints ONE table - domain, user,
+  version, channel, in scope - then only warnings and failures, each attributed
+  to its site, then a summary table of what happened. `--verbose` restores the
+  transcript. **A failing site still prints everything captured**, because a
+  summary that says "failed" without saying why moves the operator's work into a
+  second run.
 
   **The defect found while doing it matters more than the tidying.** The scope
   loop ends each iteration with `set -e`, so errexit is on for the rest of the
@@ -75,6 +133,38 @@ Naming the commit: AFTER it lands, never before
   SM344's "ROLLOUT FAILED - a retry is meaningful" verdict could never be
   reached. Latent because installs succeed. Now guarded with the same explicit
   `set +e`/`set -e` pair the scope loop already uses.
+
+- SM653 shipped (e4c0ef04) **`whoami` says WHERE a tool can be called, not just
+  that it exists.** A listing that names a tool without naming the paths it is
+  reachable on tells a caller it has an access it may not have.
+
+- SM654 partial (7e25fb8c) **the control-API unlocks map is linted against the
+  code it describes, and it found one on its first run.** Still hand-kept and
+  now checked, rather than derived; deriving it is the remaining step.
+
+- SM662 partial (60d48f3c, 41ef9326) **six lint suites read the capability gate
+  as data, through one helper.** Each had parsed the sub bodies with its own
+  regex - the duplication the filing is about, now removed from the tests as
+  well as the code. `ControlApi::Actions` and the unlocks map remain hand-kept
+  copies, and the status-note now says which half is done.
+
+- SM639 and SM640 shipped (3151ed8e) **the plugin wizard stops moving under the
+  operator**, which is what let the handler section be hosted inside it.
+
+- MR-57 (05fd34e8) **a directory URL without its trailing slash redirects**, as
+  production already did - the dev server did not, so a link that worked live
+  broke locally.
+
+- Docs: SM707 (a0e9993c) filed as a candidate - **a brand template is executable
+  input.** The brand folder is now reachable in Files, which it was not while
+  re-uploading to it warned about overwriting; `.tex`, `.latex`, `.sty`, `.cls`
+  and `.lua` in it are refused, because that text reaches `xelatex` and
+  `\input{/etc/passwd}` would be read as the CGI user. `-shell-escape` is not
+  passed and was checked. The wider answer - a brand template that can be
+  authored safely - is not built. SM646 (cf64489b) was retitled so it names its
+  subject before its symptom. The practice briefing is stamped for this release
+  (e41875f1), and the review register moved to `docs/review/`, where reviews
+  already live (de920212).
 
 ## 0.11.8 - EDGE: a manager style an operator chooses, a guide that is the stylesheet's contract, and a page that can become a PDF (2026-08-30)
 
