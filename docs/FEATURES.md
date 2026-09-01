@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.11.0"
+subtitle: "Everything lazysite has and does, and why - as of v0.11.9"
 brand: plain
 ---
 
@@ -1758,6 +1758,83 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.11.9** (2026-08-31, EDGE) - **Ninety-four items from a live manager
+  review, and a lockout that failed closed.** 0.11.8 shipped a visual layer;
+  this is what that layer produced when a person used it, recorded one row per
+  piece of feedback in `docs/review/`. **The defect that mattered most was not
+  visual**: `local $/` scoped to a block rather than its sub meant the groups
+  file was read as ONE line, so twenty-one groups became one and no nested group
+  ever resolved - an account in `site-admins` was told "Manager access not
+  permitted" though the shipped groups grant it through two levels. It failed
+  CLOSED, a lockout rather than a leak, and every existing test put its user in
+  a group holding the capability directly. **A composed document is refused, not
+  quietly shortened**: a page rendered to PDF whose parts cannot all be read
+  names the part and refuses, because a short PDF looks exactly like a finished
+  one. The render is cached until one of its sources moves. Also: one expander
+  idiom instead of four, narrow widths to 560px, blocked addresses moved to the
+  plugin that does the blocking, and `whoami` saying WHERE a tool is callable.
+  **Three fixes in this round changed nothing at all, silently** - an inline
+  `style=` beating the sheet, a flex rule on an element the dense form makes a
+  grid, and rules four hundred lines above what they had to beat - so a lint now
+  holds a per-page ceiling on inline styles and a browser check looks at what
+  rendered rather than at the source.
+- **0.11.8** (2026-08-30, EDGE) - **A manager style an operator chooses, and a
+  guide that is the stylesheet's contract.** Three sheets - `classic`, `modern`,
+  `accessible` - selected by config, with `classic` the shipped default so an
+  instance that never touches the setting sees the manager it had. The style
+  guide is a page demonstrating every component, and a lint makes it a contract
+  in BOTH directions: a class the guide names must have a rule, and a rule the
+  sheet defines must appear in the guide - the second direction being how the
+  manager came to have two expander idioms unnoticed. Barlow is bundled as 21
+  `woff2` faces with its licence: no CDN, so an operator's manager does not
+  phone a third party to render. A page can also become a branded PDF, and the
+  data endpoint emits UTF-8 bytes and counts them - a familyhq holiday had been
+  rendering as `Je?ne f?d?ral` because a character string reached a layer-less
+  STDOUT.
+- **0.11.7** (2026-08-29, STABLE) - **The feedback loop repaired, and three
+  answers that were confidently wrong.** A lint now renders every manager page
+  and checks the elements its script fetches actually survive - the gate had
+  been unable to see a page at all, which is how a blank page shipped twice. A
+  brief says WHEN it was true rather than implying now. An empty history says
+  why it is empty instead of looking like a page nobody has edited. And
+  `verify_token`'s drift was explained rather than absorbed into a new baseline,
+  with a counter that can see it next time.
+- **0.11.6** (2026-08-29, BETA) - **Two surfaces that disagreed about who may
+  write.** `write_data` now honours a table's access rule, which the manager UI
+  had been applying and the control API had not - the same question answered two
+  ways by two code paths, which is the shape this release is about. The history
+  overview applies the ACL to every entry rather than to the page it is shown
+  on. An HTML comment stopped discarding the markup that followed it.
+- **0.11.5** (2026-08-28, EDGE) - **An app's own users can write their own
+  rows.** The row-level case the data plugin had not covered: an application's
+  users, not the site's operators, writing to a table under a rule that names
+  them. A visitor can be approved into a group in one step rather than three,
+  and the operator never handles a password. A data table says who can read it,
+  and a capability whose plugin is switched off says so instead of appearing
+  available.
+- **0.11.4** (2026-08-28, EDGE) - **Access control measured rather than reasoned
+  about, and the instruments that did the measuring.** What every capability
+  gate decides became a table that tests read as data, rather than a fact
+  restated in each suite's own regex. A cookie-side gate can be proved by a
+  test for the first time. A seeded group can be put back from its own row, a
+  destructive verb needs the read it destroys, and a refused domain host says
+  WHICH thing was wrong rather than that something was.
+- **0.11.3** (2026-08-27, EDGE) - **Access control that is honest about itself,
+  and one confinement gap closed.** A scopeless grant reaches no domain's table,
+  where it had reached all of them. The vocabulary was settled and applied
+  throughout: sysop is the app, sysadmin is the host, manager is the UI - three
+  words that had been used interchangeably in an area where being approximate is
+  expensive. A person has a name and an account has a login, and they stopped
+  being the same field. The unlocks map is linted against the gate it describes.
+- **0.11.2** (2026-08-26, EDGE) - **Roles an operator recognises, and
+  `bind_form` finally has an inverse.** Binding a form wrote a change nothing
+  could undo without editing the file by hand. The manager says the site is
+  unwritable on its next write rather than failing silently, and a fleet of
+  healthy sites stops reporting as though something were wrong.
+- **0.11.1** (2026-08-26, STABLE) - **A tool run under sudo becomes the site
+  owner before it writes.** Files created as root in a tree the web server must
+  write to - the failure appearing later, somewhere else, as a permission error
+  on a file nobody remembered creating.
 - **0.11.0** (2026-08-26, STABLE) - **The release that checked its own
   instruments.** Four gates were found giving the wrong answer, and all four
   had been invisible because they either passed when they should not or failed
