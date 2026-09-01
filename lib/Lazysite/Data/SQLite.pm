@@ -165,14 +165,25 @@ sub create_table_sql {
         push @cols, $col;
     }
 
-    if ( !$d->{auto_key} ) {
-        push @cols, '  PRIMARY KEY (' . _ident( $d->{key} ) . ')';
-    }
-
+    # SM725: TIMESTAMPS BEFORE THE TABLE CONSTRAINT, and the order is the bug.
+    #
+    # A table-level constraint must follow every column definition. These two
+    # were appended AFTER the PRIMARY KEY (...) clause below, which SQLite
+    # rejects with `near "created_at": syntax error` - so a named-key table
+    # declaring timestamps could not be created at all.
+    #
+    # It only failed on the named-key path. An auto key emits PRIMARY KEY inline
+    # on the id COLUMN, not as a table constraint, so appending after it is
+    # harmless - which is exactly why the reporting site had one working table
+    # and one that refused, and why this survived since the option shipped.
     if ( $d->{timestamps} ) {
         # Maintained by the plugin, which is why a descriptor declaring them
         # is refused at load.
         push @cols, '  created_at TEXT', '  updated_at TEXT';
+    }
+
+    if ( !$d->{auto_key} ) {
+        push @cols, '  PRIMARY KEY (' . _ident( $d->{key} ) . ')';
     }
 
     return "CREATE TABLE IF NOT EXISTS $table (\n" . join( ",\n", @cols ) . "\n)";

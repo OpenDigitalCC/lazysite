@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM725 shipped (PENDING) **a named-key table declaring `timestamps: true`
+  could not be created.** Reported by the jpm data agent: `create failed -
+  DBD::SQLite::db do failed: near "created_at": syntax error`. The generated
+  DDL appended `created_at`/`updated_at` AFTER the table-level `PRIMARY KEY
+  (...)` clause, and **a table constraint must follow every column
+  definition** - so SQLite refused, naming the first token it did not expect
+  rather than the ordering that caused it.
+
+  **It failed only on the named-key path**, which is why it survived from the
+  day the option shipped: an auto key emits `PRIMARY KEY` inline on the id
+  COLUMN, so nothing has to come after it. The reporting site had one table of
+  each shape and only one refused, which is precisely what the reporter
+  observed. `t/unit/data/50` now generates the DDL for three descriptor shapes
+  and **executes** each against a real SQLite handle - the defect was that
+  valid-looking SQL was invalid, so a string comparison written from the same
+  misunderstanding would have agreed with it.
+
 ## 0.11.10 - BETA: the auth variables are escaped where they enter the render, and two refusals that say what the caller needs to know (2026-09-01)
 
 **Promoted to beta because 0.11.9's review round was tested and passed** - the
