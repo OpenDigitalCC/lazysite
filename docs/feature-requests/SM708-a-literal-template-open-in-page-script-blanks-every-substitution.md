@@ -4,7 +4,8 @@ title: A literal template open in page script blanks every substitution on the p
 raised: 2026-09-01
 raised-by: site agent (familyhq.explore), filed to the dev inbox 2026-08-31
 area: rendering
-status: candidate
+status: partial
+status-note: "PARTIAL. DEFECT 2 IS ANSWERED AT THE WRITE PATH: a page whose template body does not parse is REFUSED before it is saved, by _page_parse_refusal at write_file, replace_text and _create_page. The refusal had to be built before the save rather than as a _validate_page issue, because issues on that path are ADVISORY - action_save runs first and the issues are attached to the result, so the page would already be on disk. Only /parse error/ refuses; a missing INCLUDE is a file error and may resolve at render. Fenced AND four-space-indented code blocks are stripped first, because the processor protects <pre><code> and starter/docs/ai-briefing-layouts documents [% INCLUDE %] in an indented block. Swept before shipping: 827 markdown files, zero refused. WHAT REMAINS: (a) the RENDER-time fallback is unchanged - it is still whole-body and still says so only in a log, so a page reaching the render path another way still voids every substitution; (b) the check covers MCP writes ONLY - the manager UI editor and WebDAV do not call _validate_page, so a page written through either is unguarded. DEFECT 1, protecting <script> from TT wholesale, is REFUSED rather than pending: the layout catalogue has zero interpolations inside <script> but the starter tree has two, one being the manager's own editor, which would stop knowing which file it is editing. SM709 is the same boundary seen from the security side and shipped separately."
 ---
 
 # What happens

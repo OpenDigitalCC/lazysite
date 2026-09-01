@@ -4,7 +4,7 @@ title: A control-API refusal names the action, not the capability it needs
 raised: 2026-09-01
 raised-by: edge-testing agent (0.11.9 regression round 2)
 area: control-api
-status: candidate
+status: shipped
 ---
 
 # What happens

@@ -44,6 +44,36 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM708 partial (PENDING) **a page whose template does not parse is refused at
+  the write.** Reported by the site agent: a literal `[%` in page JavaScript -
+  in a regular expression written to detect an un-interpolated template - fails
+  the TT parse, and the processor's fallback is WHOLE-BODY, so every `[% %]` on
+  the page renders literally and the only signal is one ERROR log line.
+
+  **The refusal had to be built before the save, not as a validation issue.**
+  `write_file` calls `action_save` FIRST and attaches issues to the result, so a
+  page carrying one is already on disk when the caller reads about it. Advisory
+  is right for most issue kinds and wrong for this one. Guarded at the three
+  points a caller supplies body text; deliberately not at `_create_form`, or at
+  copy and rename, where refusing a MOVE would strand the page.
+
+  **Most of the work is not refusing the wrong thing.** Fenced and
+  four-space-indented code blocks are stripped, because the processor already
+  protects `<pre><code>` - which is why this never bit a documentation page -
+  and `starter/docs/ai-briefing-layouts` documents `[% INCLUDE %]` in an
+  indented block. Only a parse error refuses; a missing INCLUDE is a file error
+  and may resolve at render. **Swept before shipping: 827 markdown files, zero
+  refused.** Still open: the render-time fallback is unchanged, and the check
+  covers MCP writes only - the manager editor and WebDAV do not validate.
+
+- SM712 shipped (PENDING) **a capability refusal names the capability.**
+  "Insufficient capability for data-tables" now says which capability would
+  grant it. The value was already in scope: `%need_caps` holds action to
+  capability list, and the predicates the gate uses are derived from it a dozen
+  lines above the refusal. The MCP twin has always named it; this was one of two
+  hand-kept copies not using a fact both hold, which is SM662 in miniature. An
+  arrayref is ANY-OF, so the separator is "or".
+
 - SM709 (PENDING) **the auth variables are escaped where they enter the render,
   and the admin bar is escaped at its sink.** Found while sizing SM708's
   "protect `<script>`" option, which turned out to be the less interesting half.
