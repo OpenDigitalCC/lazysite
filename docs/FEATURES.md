@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.11.9"
+subtitle: "Everything lazysite has and does, and why - as of v0.11.10"
 brand: plain
 ---
 
@@ -1758,6 +1758,28 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.11.10** (2026-09-01, BETA) - **The auth variables are escaped where they
+  enter the render, and two refusals that say what the caller needs to know.**
+  Promoted to beta because the 0.11.9 review round was tested and passed - the
+  nested-group lockout proved on a real server with a grant reaching the
+  capability only through a parent group, which is the one shape that could
+  prove it. **The security fix was found while sizing something else**:
+  `query.*` had been escaped at parse time for a long time, while `auth_user`,
+  `auth_name`, `auth_email` and `auth_groups` came straight from the
+  `X-Remote-*` headers and were escaped nowhere - two families in the same
+  stash, documented in the same list, indistinguishable to an author. Found
+  doing it: the admin bar concatenated the display name straight into HTML,
+  with no template and so no filter to be wrong. The escaping went where the
+  render variables are assembled and **not** at the auth boundary, because
+  those same values are the input to access control and escaping them there
+  would test an escaped value against an unescaped users file - a lockout
+  rather than a leak, and invisible to any test whose fixture user has no
+  character needing escaping. **A page whose template does not parse is now
+  refused at the write**, where the author can still fix it, rather than
+  rendering with every variable dead and one line in a log; 827 shipped pages
+  were swept to prove the refusal catches only what it should. A capability
+  refusal names the capability. Copy buttons have a colour of their own, being
+  retrieval rather than commit, change or destroy.
 - **0.11.9** (2026-08-31, EDGE) - **Ninety-four items from a live manager
   review, and a lockout that failed closed.** 0.11.8 shipped a visual layer;
   this is what that layer produced when a person used it, recorded one row per

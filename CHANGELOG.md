@@ -44,7 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM708 partial (PENDING) **a page whose template does not parse is refused at
+## 0.11.10 - BETA: the auth variables are escaped where they enter the render, and two refusals that say what the caller needs to know (2026-09-01)
+
+**Promoted to beta because 0.11.9's review round was tested and passed** - the
+nested-group lockout (SM702) proved on the real server with a grant that reached
+the capability only through a parent group, capability gating proved with a
+credential lacking the capability, and UTF-8 round-tripped byte-exact both ways.
+This carries that work, plus the security fix found while sizing a related filing.
+
+- SM708 partial (3506f158, f6353112) **a page whose template does not parse is refused at
   the write.** Reported by the site agent: a literal `[%` in page JavaScript -
   in a regular expression written to detect an un-interpolated template - fails
   the TT parse, and the processor's fallback is WHOLE-BODY, so every `[% %]` on
@@ -66,7 +74,7 @@ Naming the commit: AFTER it lands, never before
   refused.** Still open: the render-time fallback is unchanged, and the check
   covers MCP writes only - the manager editor and WebDAV do not validate.
 
-- SM712 shipped (PENDING) **a capability refusal names the capability.**
+- SM712 shipped (3506f158, f6353112) **a capability refusal names the capability.**
   "Insufficient capability for data-tables" now says which capability would
   grant it. The value was already in scope: `%need_caps` holds action to
   capability list, and the predicates the gate uses are derived from it a dozen
@@ -74,7 +82,7 @@ Naming the commit: AFTER it lands, never before
   hand-kept copies not using a fact both hold, which is SM662 in miniature. An
   arrayref is ANY-OF, so the separator is "or".
 
-- SM709 (PENDING) **the auth variables are escaped where they enter the render,
+- SM709 shipped (92c69e61, 6f89b953, 0d4d170d) **the auth variables are escaped where they enter the render,
   and the admin bar is escaped at its sink.** Found while sizing SM708's
   "protect `<script>`" option, which turned out to be the less interesting half.
   Two families of variable reached the TT stash with different safety properties
@@ -111,7 +119,7 @@ Naming the commit: AFTER it lands, never before
 
   SM673 is gated on this and says so at the top of its own filing - a visitor
   proposing their own display name is what makes this attacker-controlled.
-- SM711 partial (PENDING) **a failed plugin toggle named the opposite action.**
+- SM711 partial (f9b4a9d6) **a failed plugin toggle named the opposite action.**
   Found by the edge-testing agent on 0.11.9: enabling the Branded PDF plugin on
   a host without `md-to-pdf` produced "Failed to **disable** Branded PDF
   creation". `togglePlugin` reverts the checkbox and then reads it to choose the
