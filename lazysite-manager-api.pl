@@ -1128,10 +1128,25 @@ if ($token_auth) {
     }
     unless ( $check->( \%token_caps ) ) {
         # Audit the denied attempt (was invisible before).
+        # SM712: NAME THE CAPABILITY, not just the action. The refusal used to
+        # say only which action was refused, so a caller had to fetch and read
+        # the whole capability description to learn that `data-tables` wants
+        # `manage_data`. The MCP twin has always said "(needs $need)"; this is
+        # the same fact, held in the same scope, that one of two hand-kept
+        # copies was not using. SM662 is the general form of that.
+        #
+        # ANY-OF, per the declaration %need is derived from a dozen lines above:
+        # an arrayref means any ONE of these grants the action, which is why the
+        # separator is "or" and not a comma.
+        my $d     = $need_caps{$action};
+        my $names = ref $d ? join( ' or ', @$d ) : '';
         _refuse(
-            { ok => 0, error => "Insufficient capability for $action. Call "
-                    . "describe-capabilities to see what your account holds and what each "
-                    . "capability unlocks." },
+            { ok => 0,
+                error => "Insufficient capability for $action"
+                    . ( length $names ? " (needs $names)" : '' )
+                    . ". Call describe-capabilities to see what your account "
+                    . "holds and what each capability unlocks."
+            },
             'api', 'denied: capability' );
     }
 
