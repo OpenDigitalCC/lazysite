@@ -90,7 +90,13 @@ function togglePlugin(input, script, name) {
     input.disabled = false;
     if (!data.ok) {
       input.checked = !input.checked;
-      warn('Failed to ' + (input.checked ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
+      // SM711: the VERB COMES FROM THE ACTION, not from the checkbox. The line
+      // above puts the checkbox back, so reading it here named the state it was
+      // reverted TO - a failed enable reported "Failed to disable". An operator
+      // reading that while trying to enable concludes the UI has lost track of
+      // the switch, and the real reason, which is in this same banner, gets read
+      // as noise. `action` was computed before the revert and is the truth.
+      warn('Failed to ' + (action === 'plugin-enable' ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
     } else {
       // A plugin may run a setup/teardown step with its toggle (on_enable /
       // on_disable) - its outcome IS the news, so show it here.

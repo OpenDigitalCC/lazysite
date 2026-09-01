@@ -4,7 +4,8 @@ title: A failed plugin toggle names the opposite verb, and the audit row carries
 raised: 2026-09-01
 raised-by: edge-testing agent (0.11.9 regression round 2)
 area: manager-ui
-status: candidate
+status: partial
+status-note: "PARTIAL. THE VERB IS FIXED: the message now derives from `action`, computed before the revert, instead of from the checkbox the line above puts back. HALF 2 REMAINS: the audit row for a refused toggle is still `plugin-enable / pandoc / fail` with no reason, while the banner beside it carries the full explanation. That is the release manager's 'the logged error doesn't say which dep is missing' and it is not a one-line change - the reason has to be carried into the audit entry's detail at the point of refusal. The refusal TEXT itself is good and is quoted in this filing so it does not get 'improved' by someone reading only the defect list."
 ---
 
 # Two defects on one journey

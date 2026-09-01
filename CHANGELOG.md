@@ -81,6 +81,18 @@ Naming the commit: AFTER it lands, never before
 
   SM673 is gated on this and says so at the top of its own filing - a visitor
   proposing their own display name is what makes this attacker-controlled.
+- SM711 partial (PENDING) **a failed plugin toggle named the opposite action.**
+  Found by the edge-testing agent on 0.11.9: enabling the Branded PDF plugin on
+  a host without `md-to-pdf` produced "Failed to **disable** Branded PDF
+  creation". `togglePlugin` reverts the checkbox and then reads it to choose the
+  verb, so the message always described the state it was put back to rather than
+  the action that failed. The verb now comes from `action`, computed before the
+  revert. Not cosmetic: an operator reading "failed to disable" while trying to
+  enable concludes the UI has lost track of the switch, and the real reason -
+  which is in the same banner, and is good - gets read as noise. **The audit
+  half is not done**: a refused toggle still logs `plugin-enable / pandoc / fail`
+  with no reason, which is the release manager's "the logged error doesn't say
+  which dep is missing".
 
 ## 0.11.9 - EDGE: ninety-four items from a live manager review, a lockout that failed closed, and a document that refuses to be quietly shortened (2026-08-31)
 
