@@ -72,7 +72,7 @@ my %ACTION_INFO = (
                     acl-get acl-set acl-remove
                     data-table-acl-get data-table-acl-set data-table-acl-remove
                     brief-read briefs-list
-                    nav-read pages) ],
+                    nav-read page-pdf pages) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files

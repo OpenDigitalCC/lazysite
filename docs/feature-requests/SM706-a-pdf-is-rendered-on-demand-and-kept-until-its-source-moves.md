@@ -4,8 +4,8 @@ title: A PDF is rendered on demand and kept until its source moves, and a docume
 raised: 2026-08-31
 raised-by: release manager
 area: plugins
-status: partial
-status-note: "REOPENED by SM732. The composed-document refusal, the may_read part check and the cache are all built and unit-tested - and UNREACHABLE: convert() has no caller on any surface and format=pdf appears nowhere in the tree. What shipped and works is the dependency refusal: a host without md-to-pdf is told so by name and the plugin stays off, proved on edge twice. What does not exist is any way to ASK for a PDF. Needs a decision on where the render is triggered from before any more code."
+status: shipped
+status-note: "SM732 WIRED THE CALLER and the render is reachable. Reopened first because: The composed-document refusal, the may_read part check and the cache are all built and unit-tested - and UNREACHABLE: convert() has no caller on any surface and format=pdf appears nowhere in the tree. What shipped and works is the dependency refusal: a host without md-to-pdf is told so by name and the plugin stays off, proved on edge twice. What does not exist is any way to ASK for a PDF. Needs a decision on where the render is triggered from before any more code."
 ---
 
 # The request

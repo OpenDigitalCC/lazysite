@@ -196,6 +196,10 @@ our %ACTION = (
     'nav-save' => { caps => ['manage_nav'], params => [ { name => 'items', in => 'body' }, { name => 'host', in => 'query_or_body' } ] },
     'notices'      => { caps => ['notifications'], params => [] },
     'notices-seen' => { caps => undef,             params => [] },
+    # SM732: the PDF render, which SM706 shipped with no caller at all.
+    # manage_content because converting a page is reading it in another format -
+    # the plugin's own reasoning, and the reason it declares no capability.
+    'page-pdf' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' } ] },
     'pages' => { caps => [ 'manage_content', 'manage_nav' ], params => [] },    # SM568
     'plugin-action' => { caps => undef, params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
     'plugin-disable' => { caps => undef, params => [ { name => 'script', in => 'body' } ] },

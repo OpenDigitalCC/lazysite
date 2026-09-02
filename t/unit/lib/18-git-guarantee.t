@@ -161,6 +161,11 @@ my %EXEMPT = (
         'stores an uploaded package under lazysite/backups/ - not versioned content',
     'API::action_site_backup_inspect' => 'read-only',
     'API::action_site_backup_download' => 'read-only (streams a package; no content write)',
+    # SM732: a PDF is a RENDER of content, not a change to it. It writes only
+    # into lazysite/cache/pdf/, which is a cache the plugin's own Clear action
+    # empties - nothing in the content tree moves, so there is nothing for the
+    # content history to record.
+    'API::action_page_pdf' => 'read-only (renders a page; writes only the PDF cache)',
     'API::action_site_backup_delete'   =>
         'removes a package under lazysite/backups/ - not versioned content',
     'API::action_site_export_primary' =>

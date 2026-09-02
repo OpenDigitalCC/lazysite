@@ -4,7 +4,8 @@ title: "SM732: the PDF render has no caller"
 subtitle: "SM706 shipped a plugin that converts a page to a branded PDF, refuses a composed document whose parts cannot all be read, and caches the result. Nothing calls it. Verified in the engine tree: convert() has no caller on any surface, and format=pdf appears nowhere at all."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED. The trigger is a control-API action, page-pdf, gated manage_content on BOTH the token and cookie sides - token-available because the plugin's own reasoning is that converting a page is reading it in another format, and because that is what makes the composed-document behaviour testable at last. It calls convert() IN PROCESS: plugin-action accepts only a declared choice, deliberately, so an arbitrary page path cannot travel that way - and an in-process call keeps the same guarantee for a better reason, the path being a Perl argument that never sees a shell. Registration took SEVEN points, exactly as SM662 said it would, and the parity lints found every one of them. MCP is recorded as UNDECIDED rather than skipped: MCP has no convention for returning a binary body, and inventing one while supplying a missing caller would turn one omission into two decisions."
 ---
 
 # What is missing
@@ -75,6 +76,31 @@ its filing never named it.
 Then the wiring, and then the test the two plans have been waiting to run:
 `whole` with all parts readable expects one PDF containing both; `broken`
 expects a refusal naming the missing part rather than a shortened PDF.
+
+# Built
+
+`page-pdf` on the control API. `manage_content` on both gates. The path is
+passed to `convert()` **in process**, so it never reaches a shell - the same
+guarantee `plugin-action` gets by refusing arbitrary arguments, for a better
+reason.
+
+**Seven registration points**, which is what SM662 said adding an action costs,
+and the parity lints named every one: the action list, the cookie gate, the
+token gate, `ControlApi::Actions`, the capability's `unlocks`, the MCP-parity
+decision, the audit classification and the write-path registry. Not one was
+found by reading; each was a failing test naming what was missing.
+
+**The load is safe and that was tested, not assumed.** The plugin is a program
+with no package, guarded by `run(@ARGV) unless caller`, and `do` sets a caller
+frame - so loading defines its subs without executing it. A plugin that ran on
+load would print JSON into the middle of an HTTP response, which would look like
+a corrupt download rather than a bug.
+
+**Two of my own tests were wrong before they were right**, both caught by lints
+rather than by me: one matched backticks inside a comment, and one built a shell
+command string with an array in it, which `t/lint/40` refuses. The second fix
+made the test better - real argv rather than a local override, so the guard is
+tested under the condition it actually guards against.
 
 # Related
 

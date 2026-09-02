@@ -200,7 +200,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     layouts-available layouts-install layouts-manifest
     layouts-release-contents layouts-releases layouts-repo-get
     layouts-repo-set list lock migrate-to-local mkdir move nav-read
-    nav-save notices notices-seen pages plugin-action plugin-disable
+    nav-save notices notices-seen page-pdf pages plugin-action plugin-disable
     plugin-enable plugin-list plugin-read plugin-save preview preview-clear
     preview-grant principals protected-sections read recent-changes renew-lock
     rotate-auth-secret save session-revoke sessions-list site-backup-apply
@@ -519,7 +519,7 @@ my %MUTATING = map { $_ => 1 } qw(
     theme-delete theme-rename theme-upload layout-activate layout-delete
     layout-install layouts-install layouts-repo-set artifact-backups-delete
     preview-grant preview-clear nav-save handler-save handler-delete
-    form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action
+    form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
     lock unlock renew-lock notices-seen regenerate-registries
     domain-add domain-set domain-remove
     session-revoke user-revoke key-revoke
@@ -759,9 +759,9 @@ if ( !$token_auth ) {
         'form-submission-delete'       => 'manage_forms+read_submissions',  # SM187, SM660
         'form-submission-confirm'      => 'manage_forms+read_submissions',  # SM216, SM660
         'form-submissions-delete-bulk' => 'manage_forms+read_submissions',  # SM187, SM660
-        'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
-        'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
-        'plugin-action' => 'manage_config', 'analyse_visitors' => 'analytics',
+        'plugin-enable' => 'manage_config', 'plugin-disable' => 'manage_config',
+        'plugin-read'   => 'manage_config', 'plugin-save'    => 'manage_config',
+        'plugin-action' => 'manage_config', 'page-pdf' => 'manage_content', 'analyse_visitors' => 'analytics',
         # SEC-2026-07 (C1): the account-management action requires a user-mgmt
         # capability to be reached at all - a content-only account could
         # previously reset any password (incl. the admin's). A delegated
@@ -910,6 +910,7 @@ if ($token_auth) {
             # with a manage_domains token, same as the CLI/UI.
             # SM447: token clients are the point of the data plugin - an agent
             # populating a table is the primary use, not an afterthought.
+        'page-pdf'                   => [qw(manage_content)],
         'data-tables'                => [qw(manage_data)],
         'data-table'                 => [qw(manage_data)],
         'data-rows'                  => [qw(manage_data)],
@@ -2039,6 +2040,22 @@ elsif ( $action eq 'plugin-save' ) {
     my $req = _json_body();
     $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {} );
 }
+elsif ( $action eq 'page-pdf' ) {
+    # SM732: THE RENDER, WIRED. SM706 built convert() and shipped it with no
+    # caller: the composed-document refusal, the per-part ACL check and the
+    # cache were all reachable only from a unit test. This is the route.
+    #
+    # NOT A PLUGIN ACTION. plugin-action accepts only a `choice` from a declared
+    # list, deliberately - "nothing request-controlled ever reaches the command
+    # line". A page path is arbitrary, so it cannot travel that way. Calling
+    # convert() IN PROCESS keeps the same guarantee for a different reason: the
+    # path is a Perl argument and never sees a shell at all.
+    #
+    # manage_content, per the plugin's own reasoning: converting a page is
+    # reading it in another format, so it rides on the capability that already
+    # governs reading content rather than inventing one.
+    $result = action_page_pdf( $params{path} );
+}
 elsif ( $action eq 'plugin-action' ) {
     my $req = _json_body();
     $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id},
@@ -2961,6 +2978,78 @@ sub action_site_backup_download {
     print "Cache-Control: no-store, private\r\n";
     print "\r\n";
     open my $fh, '<', $pkg or return { ok => 0, error => 'Cannot read the package' };
+    binmode $fh;
+    my $buf;
+    while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }
+    close $fh;
+    return { ok => 1, streamed => 1 };
+}
+
+# SM732: render a page to a branded PDF and stream it back.
+#
+# Returns { streamed => 1 } after the body, like action_site_backup_download
+# above; any refusal comes back as ordinary JSON so a caller can read WHY - and
+# for a composed document that reason names the part, which is the whole point
+# of SM706 and was until now unreachable.
+sub action_page_pdf {
+    my ($rel) = @_;
+    return { ok => 0, error => 'a page path is required' }
+        unless defined $rel && length $rel;
+
+    my $plugin = "$DOCROOT/../plugins/pandoc.pl";
+    $plugin = "$DOCROOT/plugins/pandoc.pl" unless -f $plugin;
+    return { ok => 0, error => 'The Branded PDF plugin is not installed' }
+        unless -f $plugin;
+
+    # The plugin decides everything about the conversion. This supplies only
+    # what it cannot reach for: the docroot, and an answer to "may this reader
+    # read that path?" - the content ACL, as SM706 asked for it.
+    # The plugin is a PROGRAM, and declares no package - but it guards its own
+    # entry point with `run(@ARGV) unless caller`, and `do` sets a caller frame.
+    # So loading it defines its subs without executing it, which was tested
+    # rather than assumed: a plugin that ran on load would print JSON into the
+    # middle of this response.
+    my $loaded = do $plugin;
+    return { ok => 0, error => "The Branded PDF plugin could not be loaded: $@" }
+        if $@;
+    return { ok => 0, error => 'The Branded PDF plugin could not be loaded' }
+        unless $loaded;
+
+    # Resolved at run time, because the sub does not exist until the line above.
+    my $conv = main->can('convert')
+        or return { ok => 0, error => 'The Branded PDF plugin has no converter' };
+
+    my $out = eval {
+        $conv->(
+            docroot  => $DOCROOT,
+            path     => $rel,
+            may_read => sub { !_acl_denied( $_[0], 'read', $auth_user ) },
+        );
+    };
+    return { ok => 0, error => "PDF render failed: $@" } if $@;
+    return { ok => 0, error => 'The PDF plugin returned nothing' }
+        unless ref $out eq 'HASH';
+    return $out unless $out->{ok} && $out->{pdf} && -f $out->{pdf};
+
+    my $size = ( stat $out->{pdf} )[7] // 0;
+    ( my $safe = $rel ) =~ s{.*/}{};
+    $safe               =~ s/\.md\z//;
+    $safe               =~ s/[\r\n"\\]//g;
+    $safe .= '.pdf';
+    log_event( 'INFO', 'page-pdf', 'page rendered to PDF',
+        path => $rel, bytes => $size, cached => ( $out->{cached} ? 1 : 0 ),
+        user => $auth_user );
+
+    binmode STDOUT;
+    local $| = 1;
+    print "Status: 200 OK\r\n";
+    print "Content-Type: application/pdf\r\n";
+    print "Content-Length: $size\r\n";
+    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
+    print "Cache-Control: no-store, private\r\n";
+    print "\r\n";
+    open my $fh, '<', $out->{pdf}
+        or return { ok => 0, error => 'Cannot read the rendered PDF' };
     binmode $fh;
     my $buf;
     while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }

@@ -206,7 +206,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         file-download file-upload file-zip-download form-targets-save git-init
         git-restore handler-delete handler-save layout-activate layout-delete
         layout-install layouts-install layouts-repo-set
-        migrate-to-local mkdir move nav-save notices-seen
+        migrate-to-local mkdir move nav-save notices-seen page-pdf
         key-revoke plugin-action plugin-disable plugin-enable plugin-save
         rotate-auth-secret save session-revoke theme-activate theme-delete
         theme-rename theme-upload user-revoke users

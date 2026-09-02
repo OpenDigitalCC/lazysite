@@ -86,6 +86,30 @@ Naming the commit: AFTER it lands, never before
   refused the second until it was documented - the direction of that contract
   which catches a component nobody wrote down. **Not done**: every other page
   with a save, and a lint that enforces the behaviours rather than the classes.
+- SM732 shipped (PENDING) **the PDF render has a caller.** SM706 built
+  `convert()` - the composed-document refusal, the per-part ACL check, the cache
+  - and shipped it with nothing invoking it. `t/unit/plugins/41` passed
+  throughout: eleven sabotages of a function nothing called. Two field rounds
+  reported the positive path "not proved" for environmental reasons, and **the
+  deferral hid the gap**.
+
+  `page-pdf` on the control API, `manage_content` on both gates,
+  token-available - because the plugin's own reasoning is that converting a page
+  is reading it in another format, and because that is what finally makes the
+  composed-document behaviour testable. It calls `convert()` **in process**:
+  `plugin-action` accepts only a declared choice, deliberately, so an arbitrary
+  page path cannot travel that way, and an in-process call keeps that guarantee
+  for a better reason - the path is a Perl argument that never sees a shell.
+
+  **Registration took seven points, exactly as SM662 said it would**, and the
+  parity lints named every one rather than any being found by reading. MCP is
+  recorded as UNDECIDED rather than skipped: it has no convention for returning
+  a binary body, and inventing one while supplying a missing caller would turn
+  one omission into two decisions.
+
+  The general defect is filed with it: **nothing checks that a plugin's declared
+  capability is reachable.** A lint asking whether every function a plugin
+  describes has a route would have failed the day SM706 landed.
 
 - SM725 shipped (PENDING) **a named-key table declaring `timestamps: true`
   could not be created.** Reported by the jpm data agent: `create failed -

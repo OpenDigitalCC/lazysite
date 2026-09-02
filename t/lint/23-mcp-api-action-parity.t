@@ -193,6 +193,16 @@ my %API_ONLY = (
     # has no named twin because set_permissions with empty read/write lists
     # clears a rule - a twin would be a second spelling of the same operation.
     'acl-remove' => 'set_permissions with empty lists is the MCP spelling',
+    # SM732: the PDF render. UNDECIDED for MCP, recorded rather than left
+    # silent. The action STREAMS a binary body, and MCP has no established
+    # convention here for returning one - a twin would have to invent one (a
+    # path the caller then fetches by another route, or a base64 blob), and
+    # inventing an MCP binary convention while merely supplying a missing
+    # caller is how one omission becomes two decisions. An agent composing a
+    # document is SM706's own use case, so this should probably exist; it
+    # wants deciding on its merits rather than as a side effect.
+    'page-pdf' => 'undecided: MCP has no convention for returning a binary body',
+
     # SM687: a table's access rule. UNDECIDED for MCP, recorded rather than
     # left silent. get_permissions/set_permissions take a PATH, and a table is
     # addressed by NAME - so an MCP twin means either overloading those tools
