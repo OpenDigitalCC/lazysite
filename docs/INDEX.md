@@ -143,6 +143,7 @@ Multi-release workplans: what is sequenced, and what each phase unlocks.
 | Document | What it is |
 | --- | --- |
 | [`apps-portability-workplan.md`](apps-portability-workplan.md) - Apps portability and the marketplace: workplan | SM715-SM723, sequenced. Eight core phases chipped away alongside ordinary releases until the round trip passes, which is critical mass; the marketplac... |
+| [`next-release.md`](next-release.md) - The next release: what is queued, and what stable needs after it | 0.11.11 beta, then a stable. What each item is, what decides it, and what is deliberately held back. Kept here rather than in a conversation, because ... |
 
 # docs/compliance
 
@@ -217,4 +218,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*102 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*103 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
