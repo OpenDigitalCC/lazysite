@@ -21,7 +21,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
-    raw_html_page_refusal processor_path brief_write_refusal);
+    raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal);
 
 our $DOCROOT;    # set by the script
 
@@ -331,7 +331,7 @@ sub outside_all_scopes {
 # disk, just no longer reachable through the file surface).
 our @LAZYSITE_OPEN_PREFIXES
     = ( 'lazysite/forms/submissions/', 'lazysite/layouts/', 'lazysite/brands/' );
-our @LAZYSITE_OPEN_EXACT    = ('lazysite/nav.conf');
+our @LAZYSITE_OPEN_EXACT = ('lazysite/nav.conf');
 
 sub _is_carveout {
     my ($rel) = @_;
@@ -872,6 +872,79 @@ sub raw_html_page_refusal {
         . "ordinary page, author Markdown and let the layout and theme style it. "
         . "For a genuine data artifact, use a non-script content type such as "
         . "application/json.";
+}
+
+# SM729: THE PAGE-PARSE GUARD LIVES HERE, beside raw_html_page_refusal, because
+# both stacks write pages and a guard in one script cannot reach the other.
+#
+# WHY IT MOVED. SM708 built this as a private sub in lazysite-mcp.pl, so the
+# WebDAV PUT path never saw it - proved in the field on 0.11.10, where a
+# deliberately unparseable body was ACCEPTED over WebDAV on an auth-enabled site
+# that interpolates auth variables, and therefore renders with every
+# substitution dead. Nobody had decided WebDAV should be exempt; the guard was
+# simply in a file WebDAV cannot reach.
+#
+# SM189 had already settled the pattern one function above: a content refusal
+# belongs in this module, both write paths call it, and the DAV path refuses
+# BEFORE the rename so nothing lands on disk. This finishes that pattern rather
+# than inventing a second one - which is SM430's argument generally, one answer
+# per operation wherever it is invoked.
+sub page_parse_issues {
+    my ($body) = @_;
+    my $issues = [];
+    return () unless defined $body && $body =~ /\[%/;
+
+    # Strip what the processor protects, plus anything ambiguous.
+    my ( @keep, $in_fence );
+    for my $line ( split /\n/, $body ) {
+        if ( $line =~ /^[ \t]{0,3}(?:```|~~~)/ ) { $in_fence = !$in_fence; next }
+        next if $in_fence;
+        next if $line =~ /^(?: {4}|\t)/;    # indented code block
+        push @keep, $line;
+    }
+    my $text = join "\n", @keep;
+    $text =~ s/`[^`\n]*`//g;                     # inline code
+    return () unless $text =~ /\[%/;
+
+    # Lazily loaded: the MCP script does not otherwise need Template, and a host
+    # without it should lose the CHECK rather than gain a false refusal.
+    return () unless eval { require Template; 1 };
+
+    my $tt  = eval { Template->new( {} ) } or return;
+    my $out = '';
+    return () if $tt->process( \$text, {}, \$out );
+
+    my $err = $tt->error // '';
+    return () unless $err =~ /parse error/;
+
+    my $line = ( $err =~ /line (\d+)/ ) ? $1 + 0 : undef;
+    ( my $detail = $err ) =~ s/\s+/ /g;
+    $detail =~ s/^file error - //;
+    push @$issues, {
+        kind => 'template-parse',
+        ( defined $line ? ( line => $line ) : () ),
+        message =>
+            "the page's template syntax does not parse, so EVERY [% %] on it "
+            . "would render literally - not only the one at fault. The engine "
+            . "falls back to the raw body on a parse error, which is why the page "
+            . "would still appear, with every variable dead. Commonest cause: a "
+            . "literal [% in page JavaScript, often in a regular expression "
+            . "written to detect an un-interpolated template. Put the value in a "
+            . "data- attribute and read it from there instead, or split the "
+            . "literal. Parser said: $detail",
+    };
+    return @$issues;
+}
+
+# The write-path refusal, shared by both stacks. Returns a message or undef.
+sub page_parse_refusal {
+    my ( $path, $content ) = @_;
+    return undef unless defined $path    && $path    =~ /\.md$/i;
+    return undef unless defined $content && $content =~ /\[%/;
+    my $body = $content;
+    $body =~ s/\A---\n.*?\n---\n//s;
+    my @issues = page_parse_issues($body);
+    return @issues ? $issues[0]{message} : undef;
 }
 
 # =========================================================================

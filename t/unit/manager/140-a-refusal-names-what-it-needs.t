@@ -30,18 +30,16 @@ subtest 'SM712: the control-API refusal names the capability' => sub {
 };
 
 subtest 'SM708: the template-parse check refuses the real case only' => sub {
-    my $src = do {
-        open my $fh, '<', "$root/lazysite-mcp.pl" or die $!;
-        local $/; <$fh>;
-    };
-    my ($sub) = $src =~ /(sub _check_template_parses \{.*?\n\})/s;
-    ok( $sub, 'the check is present and extractable' ) or return;
-
-    eval "sub _fm_line_offset { 0 } $sub 1" or die $@;
+    # SM729: the check moved to Lazysite::Manager::Common, so that BOTH write
+    # stacks reach it - it was private to lazysite-mcp.pl and WebDAV could not.
+    # This test follows it there; t/unit/manager/141 owns the reach itself.
+    require Lazysite::Manager::Common;
+    ok( Lazysite::Manager::Common->can("page_parse_issues"),
+        'the check is published by the shared module' ) or return;
 
     my $refused = sub {
         my @issues;
-        _check_template_parses( \@issues, '', $_[0] );
+        push @issues, Lazysite::Manager::Common::page_parse_issues($_[0]);
         return scalar @issues;
     };
 

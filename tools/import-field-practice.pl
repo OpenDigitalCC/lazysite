@@ -110,6 +110,43 @@ $engine_version ||= default_engine_version();
 
 my $doc = build_doc();
 
+# SM731: REFUSE TO PUBLISH A CLIENT'S NAME.
+#
+# This document ships to EVERY lazysite installation. Its sources are field
+# notes written by an agent working on real client sites, so the natural way to
+# make a point is to name the site it was learned on - and the 2026-09-02 import
+# carried two: a named client site with a comparative judgement about the
+# quality of its markup, and a client project named as the origin of a ruling.
+#
+# The guard is here rather than in the source trees because those belong to
+# another agent, and because a rule enforced at the boundary cannot be forgotten
+# by whoever writes the next note. The lesson always survives redaction: "one
+# site does X, another does Y" carries the same weight as naming them.
+{
+    my @IDENT = qw(
+        familyhq jpm jpmorris marriage-morris thisisus outsourcify cloudient
+        dhcf dito odysseytimeship theunited harmony2050 mackintosh mm-gallery
+        kestrel oldbarn old-barn sovereign hygge ispadmin nextcloud
+    );
+    my ( @found, $ln );
+    for my $line ( split /\n/, $doc ) {
+        $ln++;
+        for my $id (@IDENT) {
+            push @found, "  line $ln: $id  ->  " . substr( $line, 0, 88 )
+                if $line =~ /\b\Q$id\E\b/i;
+        }
+    }
+    if (@found) {
+        die "import-field-practice.pl: REFUSING to write $OUT - the practice "
+            . "sources name a client, and this document ships to every site.\n"
+            . join( "\n", @found ) . "\n\n"
+            . "Redact in the SOURCE (the notes belong to the site agent - file "
+            . "to its inbox), then re-run. The point being made almost always "
+            . "survives: name the shape, not the site.\n";
+    }
+}
+
+
 if ($to_stdout) { print $doc }
 else {
     open my $fh, '>', $OUT or die "import-field-practice.pl: $OUT: $!\n";

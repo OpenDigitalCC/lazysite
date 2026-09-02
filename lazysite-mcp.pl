@@ -2108,61 +2108,7 @@ sub _check_fences {
 # nor to copy_file or rename (the content already passed this gate when it was
 # written, and refusing a MOVE because of it would strand the page).
 sub _page_parse_refusal {
-    my ( $path, $content ) = @_;
-    return undef unless defined $path    && $path    =~ /\.md$/i;
-    return undef unless defined $content && $content =~ /\[%/;
-    my $body = $content;
-    $body =~ s/\A---\n.*?\n---\n//s;
-    my @issues;
-    _check_template_parses( \@issues, '', $body );
-    return undef unless @issues;
-    return { ok => 0, error => $issues[0]{message}, kind => 'template-parse' };
-}
-
-sub _check_template_parses {
-    my ( $issues, $fm, $body ) = @_;
-    return unless defined $body && $body =~ /\[%/;
-
-    # Strip what the processor protects, plus anything ambiguous.
-    my ( @keep, $in_fence );
-    for my $line ( split /\n/, $body ) {
-        if ( $line =~ /^[ \t]{0,3}(?:```|~~~)/ ) { $in_fence = !$in_fence; next }
-        next if $in_fence;
-        next if $line =~ /^(?: {4}|\t)/;    # indented code block
-        push @keep, $line;
-    }
-    my $text = join "\n", @keep;
-    $text =~ s/`[^`\n]*`//g;                  # inline code
-    return unless $text =~ /\[%/;
-
-    # Lazily loaded: the MCP script does not otherwise need Template, and a host
-    # without it should lose the CHECK rather than gain a false refusal.
-    return unless eval { require Template; 1 };
-
-    my $tt  = eval { Template->new( {} ) } or return;
-    my $out = '';
-    return if $tt->process( \$text, {}, \$out );
-
-    my $err = $tt->error // '';
-    return unless $err =~ /parse error/;
-
-    my $line = ( $err =~ /line (\d+)/ ) ? $1 + _fm_line_offset($fm) : undef;
-    ( my $detail = $err ) =~ s/\s+/ /g;
-    $detail =~ s/^file error - //;
-    push @$issues, {
-        kind => 'template-parse',
-        ( defined $line ? ( line => $line ) : () ),
-        message =>
-            "the page's template syntax does not parse, so EVERY [% %] on it "
-            . "would render literally - not only the one at fault. The engine "
-            . "falls back to the raw body on a parse error, which is why the page "
-            . "would still appear, with every variable dead. Commonest cause: a "
-            . "literal [% in page JavaScript, often in a regular expression "
-            . "written to detect an un-interpolated template. Put the value in a "
-            . "data- attribute and read it from there instead, or split the "
-            . "literal. Parser said: $detail",
-    };
-    return;
+    return Lazysite::Manager::Common::page_parse_refusal(@_);
 }
 
 sub _check_db_bindings {
@@ -2418,7 +2364,7 @@ sub _validate_page {
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_fences( \@warnings, $fm, $body );
-    _check_template_parses( \@issues, $fm, $body );
+    push @issues, Lazysite::Manager::Common::page_parse_issues($body);
     _check_db_bindings( \@issues, \@warnings, $fm );
     _check_form_rules( \@issues, $content );
     _check_html_in_page( \@warnings, $body, $h );

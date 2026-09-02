@@ -550,6 +550,33 @@ sub do_put {
             }
         }
     }
+    # SM729: and the page-parse guard, the same way. SM708 built it on the
+    # manager/MCP path only, so an unparseable page was ACCEPTED here - measured
+    # in the field on 0.11.10, on an auth-enabled site where such a page renders
+    # with every [% %] dead. Nobody exempted WebDAV; the guard was in a file this
+    # one cannot reach.
+    #
+    # THE WHOLE BODY, not a bounded head. A parse failure can be anywhere,
+    # unlike front matter. That is affordable here and only here: the streamed
+    # write above already enforced the size cap, so $tmp is bounded by
+    # construction and is local - this reads a file that is already on disk and
+    # already partly read.
+    #
+    # Refused BEFORE the rename, so nothing lands, and 415 rather than 400: the
+    # request was well formed, its CONTENT is what cannot be served.
+    {
+        require Lazysite::Manager::Common;
+        if ( open my $bf, '<:encoding(UTF-8)', $tmp ) {
+            my $body = do { local $/; <$bf> };
+            close $bf;
+            if ( my $err
+                = Lazysite::Manager::Common::page_parse_refusal( $a{rel}, $body ) )
+            {
+                unlink $tmp;
+                return send_status( 415, body => "$err\n" );
+            }
+        }
+    }
     unless ( rename $tmp, $r->{abs} ) {
         my $e = $!;
         unlink $tmp;
