@@ -44,7 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM734 shipped (PENDING) **theme assets reach every content root.** A
+## 0.11.11 - BETA: refusals that name what the caller can act on, a render that was never reachable, and CSS a content-root domain had never received (2026-09-02)
+
+**The theme of this one is the refusal.** Four separate reports came back from the
+field saying, in different words, that the engine had declined to do something and
+not said why - a blocked upload, a database error, a capability gate, a page that
+would not parse. Each is answered here, and the pattern is the same in every case:
+**the reason was already known at the point of refusal and thrown away.**
+
+Two of the entries are worse than that. SM732's PDF render had no caller at all -
+eleven sabotages passing against a function nothing invoked - and SM734's theme
+assets had never reached a content-root domain on any release since the mirror
+existed. Both were found from outside, by an agent testing the running fleet.
+
+- SM734 shipped (c9e8ceec) **theme assets reach every content root.** A
   multi-site domain with a `content_root` serves `/lazysite-assets/` from THAT
   root - the vhost points its document root there, so the request is a static
   file the engine never sees - while activation mirrored only into `$DOCROOT`.
@@ -67,7 +80,7 @@ Naming the commit: AFTER it lands, never before
   **The preview could not have shown this** and cannot show the fix: it renders
   through the engine while the live host serves a static file, so it passed
   throughout the defect's life. The outcome test has to use the live host.
-- SM730 shipped (PENDING) **a blocked upload names the rule.** It answered
+- SM730 shipped (3748549b) **a blocked upload names the rule.** It answered
   "Blocked target" and named neither the rule nor the extension, in the same
   field session where a capability refusal read "(needs manage_data)" - the same
   kind of event answered to very different standards, and the weaker one where
@@ -80,7 +93,7 @@ Naming the commit: AFTER it lands, never before
   SM707's reasoning - a template's text reaches the typesetter - so an operator
   can tell the refusal is deliberate rather than broken.
 
-- SM713 shipped (PENDING) **a data error stops naming the server.** A failed row
+- SM713 shipped (3748549b) **a data error stops naming the server.** A failed row
   save returned `DBD::SQLite::db do failed: ... at /home/ispadmin/web/<site>/...
   line 453` - an absolute path carrying the hosting account, a source file and
   line, and the driver's vocabulary, of which only "no such table" was
@@ -88,7 +101,7 @@ Naming the commit: AFTER it lands, never before
   rule for what a caller may see is a rule and a rule written eight times
   disagrees with itself. The full string still reaches the log.
 
-- SM728 partial (PENDING) **a control declares its impact, so rules about it can
+- SM728 partial (fd4a3b0d) **a control declares its impact, so rules about it can
   be checked.** The behaviour-rule inventory found the same gap under most of
   the unenforceable rules: there was no SUBJECT. "A destructive action must also
   be confirmed" cannot be checked while "a destructive action" is not something
@@ -109,7 +122,7 @@ Naming the commit: AFTER it lands, never before
   what is wrong. 199 controls remain undeclared behind a per-page ratchet; that
   conversion is a separate decision.
 
-- SM726 partial (PENDING) **a save behaves the same way everywhere, and it is
+- SM726 partial (005fa031) **a save behaves the same way everywhere, and it is
   written down.** Reported from the live manager: the Domains sheet gave no
   warning when changes were unsaved, and a save that took seconds reported
   "saved" to the page status line BEHIND the open sheet, so it read as nothing
@@ -130,7 +143,7 @@ Naming the commit: AFTER it lands, never before
   refused the second until it was documented - the direction of that contract
   which catches a component nobody wrote down. **Not done**: every other page
   with a save, and a lint that enforces the behaviours rather than the classes.
-- SM732 shipped (PENDING) **the PDF render has a caller.** SM706 built
+- SM732 shipped (3f164a6f) **the PDF render has a caller.** SM706 built
   `convert()` - the composed-document refusal, the per-part ACL check, the cache
   - and shipped it with nothing invoking it. `t/unit/plugins/41` passed
   throughout: eleven sabotages of a function nothing called. Two field rounds
@@ -155,7 +168,7 @@ Naming the commit: AFTER it lands, never before
   capability is reachable.** A lint asking whether every function a plugin
   describes has a route would have failed the day SM706 landed.
 
-- SM725 shipped (PENDING) **a named-key table declaring `timestamps: true`
+- SM725 shipped (b134fd0d) **a named-key table declaring `timestamps: true`
   could not be created.** Reported by the jpm data agent: `create failed -
   DBD::SQLite::db do failed: near "created_at": syntax error`. The generated
   DDL appended `created_at`/`updated_at` AFTER the table-level `PRIMARY KEY

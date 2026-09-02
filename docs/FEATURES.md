@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.11.10"
+subtitle: "Everything lazysite has and does, and why - as of v0.11.11"
 brand: plain
 ---
 
@@ -1758,6 +1758,27 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.11.11** (2026-09-02, BETA) - **Refusals that name what the caller can act
+  on, a render that was never reachable, and CSS a whole class of domain had
+  never received.** Four reports came back from the field saying, in different
+  words, that the engine had declined to do something and not said why - a
+  blocked upload answering only "Blocked target", a database error returning an
+  absolute server path and the driver's own vocabulary, a capability gate naming
+  the action but not the capability, a page that would not parse. **In every
+  case the reason was already known at the point of refusal and thrown away.**
+  Two entries are worse than a poor message. **The PDF render had no caller at
+  all**: SM706 shipped the composed-document refusal, the per-part access check
+  and the cache, and nothing on any surface invoked them - eleven sabotages
+  passing against a function nobody could reach. **And theme assets had never
+  reached a domain with its own content root**: such a domain serves
+  `/lazysite-assets/` from that root while activation wrote only to the docroot,
+  so it has been unstyled since the day it was created, on every release since
+  the asset mirror existed. Both were found from outside, by an agent testing
+  the running fleet, and neither could have been found by reading the code -
+  which is the argument for that testing rather than a remark about it. Also:
+  the practice documents move into the repository that ships them, with a guard
+  that refuses to publish a client's name, and a generated index so the
+  documentation can be discovered without being read.
 - **0.11.10** (2026-09-01, BETA) - **The auth variables are escaped where they
   enter the render, and two refusals that say what the caller needs to know.**
   Promoted to beta because the 0.11.9 review round was tested and passed - the
