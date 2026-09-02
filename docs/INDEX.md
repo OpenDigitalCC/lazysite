@@ -45,7 +45,7 @@ Top-level references: the manuals an operator, developer or implementor reads en
 | [`ACCESSIBILITY.md`](ACCESSIBILITY.md) - lazysite - accessibility statement | Conformance target and known state for the manager UI and shipped themes |
 | [`DECLARATION-OF-CONFORMITY.md`](DECLARATION-OF-CONFORMITY.md) - lazysite - Declaration of Conformity | EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - draft for the 0.8.0 stable release |
 | [`DEVELOPER.md`](DEVELOPER.md) - lazysite - Developer guide | For someone changing lazysite's code. |
-| [`FEATURES.md`](FEATURES.md) - Lazysite - Complete Feature Reference | Everything lazysite has and does, and why - as of v0.11.11 |
+| [`FEATURES.md`](FEATURES.md) - Lazysite - Complete Feature Reference | Everything lazysite has and does, and why - as of v0.11.12 |
 | [`IMPLEMENTOR.md`](IMPLEMENTOR.md) - lazysite - Implementor guide | For someone installing or integrating lazysite. |
 | [`MANUAL-CHECKS-WALKTHROUGH.md`](MANUAL-CHECKS-WALKTHROUGH.md) - Four checks on the site manager | A guided walk through four things that must work when a person clicks them. About 20 minutes. No technical knowledge needed - if you can sign in, you ... |
 | [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md) - lazysite - What the test suite cannot check | The areas where a green gate proves nothing, why each one is out of reach, and the manual pass that covers it |

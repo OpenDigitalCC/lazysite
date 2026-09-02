@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.11.11"
+subtitle: "Everything lazysite has and does, and why - as of v0.11.12"
 brand: plain
 ---
 
@@ -1758,6 +1758,28 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.11.12** (2026-09-02, BETA) - **The composed document works on real pages,
+  and the gate learns when not to run.** The previous release made the PDF render
+  reachable at all; the field pass found it worked only on parts carrying no
+  front matter, which is not what composing a document out of existing pages
+  means - a part that is a page has front matter, and several of them killed the
+  typesetter. A part behind a read ACL was also reported as missing rather than
+  refused, even to a reader authorised to read it, because the existence check
+  looked only where a public file lives and ran before the permission check - so
+  the refusal that feature exists for had never once fired. **The more useful
+  finding was why none of this failed the gate**: the fixtures composed from
+  parts with no front matter and passed no resolver, so neither fault could
+  appear in them. A fixture that describes an easier case than the real one does
+  not fail - it passes, and keeps passing, and makes the suite look like
+  coverage. The other two entries answer the question that produced that: what
+  should run, and when. The coverage stage - two hours and twenty minutes of a
+  two-and-a-half hour cut, and no discovery at all - now skips when every input
+  that decides it is byte-identical to a run that passed, which fires on a
+  promotion and correctly does not between two real releases. And there is a
+  tier to run before a branch leaves your hands, chosen from timings rather than
+  taste: four of the 110 lint files account for 65 of 88.8 seconds and the other
+  102 run in 14.6 seconds combined, so 93% of the lints cost 16% of the time -
+  and measured across this project's history, the lints are where the finds are.
 - **0.11.11** (2026-09-02, BETA) - **Refusals that name what the caller can act
   on, a render that was never reachable, and CSS a whole class of domain had
   never received.** Four reports came back from the field saying, in different

@@ -44,7 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM736 shipped (PENDING) **coverage is skipped when every input that decides it
+## 0.11.12 - BETA: the composed document works on real pages, and the gate learns when not to run (2026-09-02)
+
+**A short cut, and two of its three entries are about the tests rather than the
+product.** 0.11.11 made the PDF render reachable; the field pass found it worked
+only on parts that carry no front matter - which is not what composing a document
+out of existing pages means. The fixtures had described an easier case than the
+real one, so eleven sabotages passed against a shape the feature is not for.
+
+The other two answer the question that produced that finding: **what should run,
+and when.** Coverage - two hours and twenty minutes of a two-and-a-half hour cut,
+and no discovery at all - now skips when every input that decides it is unchanged.
+And there is a tier to run before a branch leaves your hands, chosen from timings:
+93% of the lints cost 16% of the time, and the lints are where the finds are.
+
+- SM736 shipped (db70a246) **coverage is skipped when every input that decides it
   is unchanged.** The stage took **two hours and twenty minutes** on the 0.11.11
   cut against eleven minutes for the entire correctness suite - about 85% of a
   release, spent re-deriving an answer that cannot have changed.
@@ -66,7 +80,7 @@ Naming the commit: AFTER it lands, never before
   Where it fires: not between two releases, which always change something in
   `lib/` or `t/`. **On a promotion** - a stable cut from the same commit as the
   beta that passed differs only in the version stamp, which is not in the set.
-- SM737 shipped (PENDING) **a tier to run before a branch leaves your hands.**
+- SM737 shipped (c1719fff) **a tier to run before a branch leaves your hands.**
   Nothing sat between finishing work and offering it for review, so the first
   thing to notice a lint failure was the release gate - hours later, and arriving
   with a release attached, so the choice was to hold the cut or fix in a hurry.
@@ -85,7 +99,7 @@ Naming the commit: AFTER it lands, never before
   `docs/architecture/test-tiers.md` recording what each is capable of finding,
   why selection is for the inner loop and never for the gate, and - plainly -
   the three defects this month that no tier could have found.
-- SM738 shipped (PENDING) **a composed document is made of real pages.** Three
+- SM738 shipped (9291e359) **a composed document is made of real pages.** Three
   faults found from outside on 0.11.11, hours after SM732 made the render
   reachable. **The parts arrived as whole documents**: each was handed to the
   converter unchanged, so a part that is a real page brought its own front
