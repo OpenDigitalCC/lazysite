@@ -8,6 +8,27 @@ status: partial
 status-note: "PARTIAL. THE CONTRACT IS WRITTEN and the exemplar is done: the style guide carries the six behaviours as a normative section, .mg-dirty and .mg-sheet-foot exist on all three sheets, and Domains implements all six. WHAT REMAINS is every other page with a save - Site settings, Users, Groups, Data, Plugin Config, Nav, Appearance - none of which has been brought to the contract. Nothing enforces it yet either: t/lint/96 holds the CLASSES, but no lint checks that a page with a save marks dirty fields or reports in its own modal. That lint is the next step and is what stops this drifting back."
 ---
 
+
+# Decided: the conversion goes on the next EDGE cut
+
+**Release manager, 2026-09-02.** The mechanism and its documentation land
+whenever they land; **the page conversions ride an edge cut, not a beta one.**
+
+The reasoning, recorded so it is not relitigated: the last change that touched
+every manager page - the 0.11.8 design pass - produced ninety-five review items
+in the round that followed, and three of its fixes changed nothing at all,
+silently. Our own gate is weakest on exactly this class: 75% of those ninety-five
+items had no test, `t/lint/96` holds classes rather than behaviours, and coverage
+counts statements. A beta is about half the fleet.
+
+So: **build on a branch, cut edge, have the site agent walk it, then promote.**
+That is the ladder working as designed rather than a concession.
+
+**The conversion is done against a check, not against a memory.** The ratchet
+exists first, so each page converted is verified as it lands rather than
+reviewed by eye afterwards. Converting first and enforcing later is how the two
+expander idioms happened.
+
 # What was asked
 
 Reported by the release manager, 2026-09-02, from the live manager:

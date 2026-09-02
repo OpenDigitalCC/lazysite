@@ -8,6 +8,27 @@ status: partial
 status-note: "PARTIAL BY DESIGN. THE MECHANISM IS BUILT AND ENFORCED: six impacts, styled from the attribute in all three sheets, documented in the style guide, and t/lint/109 holds four rules that could not previously be asked - the vocabulary is closed, a declared impact does not wear another's class, a destroying control reaches a confirmation, and an editing control marks the form dirty. All four sabotage-verified. sessions.md is converted as the exemplar (4 of 4). WHAT REMAINS: 199 controls across 17 pages, held at a measured per-page ceiling that may fall and never rise - the t/lint/95 and t/lint/108 treatment, chosen because converting 234 controls in one change is the wide untestable UI edit that produced ninety-five review items last time. Conversion is deliberately NOT scheduled here; the release manager asked for the mechanism and the documentation first, then a decision about where to apply it."
 ---
 
+
+# Decided: the conversion goes on the next EDGE cut
+
+**Release manager, 2026-09-02.** The mechanism and its documentation land
+whenever they land; **the page conversions ride an edge cut, not a beta one.**
+
+The reasoning, recorded so it is not relitigated: the last change that touched
+every manager page - the 0.11.8 design pass - produced ninety-five review items
+in the round that followed, and three of its fixes changed nothing at all,
+silently. Our own gate is weakest on exactly this class: 75% of those ninety-five
+items had no test, `t/lint/96` holds classes rather than behaviours, and coverage
+counts statements. A beta is about half the fleet.
+
+So: **build on a branch, cut edge, have the site agent walk it, then promote.**
+That is the ladder working as designed rather than a concession.
+
+**The conversion is done against a check, not against a memory.** The ratchet
+exists first, so each page converted is verified as it lands rather than
+reviewed by eye afterwards. Converting first and enforcing later is how the two
+expander idioms happened.
+
 # The problem this solves
 
 `docs/architecture/manager-behaviour-rules.md` inventoried the manager's rules
