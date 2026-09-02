@@ -316,14 +316,35 @@ sub convert {
     # THE PARTS, IF ANY. Each is checked exactly as the document itself was:
     # inside the docroot, Markdown, and present.
     my @sources = ($rel);
+    # The primary resolves the same way its parts do.
+    my $prim_abs = ref $o{resolve} eq 'CODE' ? $o{resolve}->($rel) : "$docroot/$rel";
+    return { ok => 0, error => 'no such page' } unless defined $prim_abs && -f $prim_abs;
+    my @source_abs = ($prim_abs);
     for my $part ( @{ _parts_of( $docroot, $rel ) } ) {
         ( my $prel = $part ) =~ s{\A/+}{};
         return { ok => 0, error => "invalid part '$part'" }
             if $prel =~ m{(?:\A|/)\.\.(?:/|\z)} || $prel =~ /\0/;
         return { ok => 0, error => "a part must be Markdown: '$part'" }
             unless $prel =~ /\.md\z/;
+        # SM738: RESOLVE FIRST, then ask whether the reader may have it.
+        #
+        # This was `-f "$docroot/$prel"`, which is only where a PUBLIC file
+        # lives. Putting a read ACL on a part MOVES it into the private store,
+        # so the check failed for everyone - including a reader authorised to
+        # read it - and it failed BEFORE the may_read branch below, which
+        # therefore never fired at all. Two faults from one line: an authorised
+        # reader could not compose a gated part, and the refusal a denied reader
+        # got said "no such part" when the part exists and they may not read it.
+        #
+        # The resolver is PASSED IN, like may_read and for the same reason: the
+        # private store's layout is the engine's business, and a plugin that
+        # learned it would be a second copy of that knowledge. Without one, the
+        # public path is the answer, which is what a standalone run wants.
+        my $pabs = ref $o{resolve} eq 'CODE'
+            ? $o{resolve}->($prel)
+            : ( -f "$docroot/$prel" ? "$docroot/$prel" : undef );
         return { ok => 0, error => "no such part: '$part'" }
-            unless -f "$docroot/$prel";
+            unless defined $pabs && -f $pabs;
 
         # REFUSED, NOT OMITTED - the release manager's decision. A document
         # naming a file the reader may not read is refused and says WHICH:
@@ -339,7 +360,8 @@ sub convert {
                     . 'read. It is refused rather than built without that '
                     . 'part, so what you get is never quietly incomplete.' };
         }
-        push @sources, $prel;
+        push @sources,    $prel;
+        push @source_abs, $pabs;
     }
 
     my $brands_base = "$docroot/$dir";
@@ -369,8 +391,45 @@ sub convert {
     return { ok => 0, error => 'could not prepare a working directory' }
         unless -d $work;
 
-    # Every source, in the order the document gave them.
-    my @cmd = ( $bin, '--no-viewer', map { "$docroot/$_" } @sources );
+    # SM738: THE PARTS CONTRIBUTE A BODY, NOT A DOCUMENT.
+    #
+    # Every source was passed straight to the converter, which concatenates
+    # them - so a document composed of REAL PAGES arrived carrying one YAML
+    # front-matter block per part and the typesetter died. It worked only when
+    # the parts had no front matter, which is not what the feature is for: the
+    # whole point is composing a document out of pages that already exist.
+    #
+    # The PRIMARY keeps its front matter - that is where title, brand and the
+    # parts list live. Each PART is copied into the scratch directory with its
+    # front matter removed, and those copies are what the converter reads. The
+    # originals are untouched; nothing is written back into the content tree.
+    my @inputs = ( $source_abs[0] );
+    for my $i ( 1 .. $#source_abs ) {
+        my $src = $source_abs[$i];
+        open my $in, '<:encoding(UTF-8)', $src
+            or do {
+            File::Path::remove_tree($work);
+            return { ok => 0, error => "could not read part '$sources[$i]'" };
+            };
+        my $body = do { local $/; <$in> };
+        close $in;
+        # The same front-matter shape the processor recognises, and only at the
+        # head of the file - a --- rule further down is a horizontal rule and
+        # part of the document.
+        $body =~ s/\A---\s*\n.*?\n---\s*\n//s;
+        ( my $safe = $sources[$i] ) =~ s{[^A-Za-z0-9._-]+}{_}g;
+        my $dst = "$work/part-$i-$safe";
+        open my $out, '>:encoding(UTF-8)', $dst
+            or do {
+            File::Path::remove_tree($work);
+            return { ok => 0, error => 'could not stage a part for conversion' };
+            };
+        print {$out} $body;
+        close $out;
+        push @inputs, $dst;
+    }
+
+    my @cmd = ( $bin, '--no-viewer', @inputs );
 
     my $pid = fork();
     unless ( defined $pid ) {
@@ -410,7 +469,16 @@ sub convert {
         my $why = '';
         if ( open my $l, '<', "$work/.out" ) { local $/; $why = <$l> // ''; close $l }
         File::Path::remove_tree($work);
+        # SM738: the converter's chatter names absolute paths on this host -
+        # /home/<account>/web/<site>/... and the scratch directory - and a
+        # caller can act on none of it. Same rule as SM713 one surface over:
+        # what crosses the wire is what the reader can use; the full text goes
+        # to the log.
         $why =~ s/\s+/ /g;
+        $why =~ s{\S*/[^\s]*}{}g;                    # anything path-shaped
+        $why =~ s/\bon \w+day \d+ \w+ \d{4}\b//i;    # the wrapper's date stamp
+        $why =~ s/\s{2,}/ /g;
+        $why =~ s/^[\s:,-]+|[\s:,-]+$//g;
         return { ok => 0,
             error => 'the conversion did not produce a document'
                 . ( length $why ? ": " . substr( $why, -200 ) : '' ) };

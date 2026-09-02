@@ -85,6 +85,24 @@ Naming the commit: AFTER it lands, never before
   `docs/architecture/test-tiers.md` recording what each is capable of finding,
   why selection is for the inner loop and never for the gate, and - plainly -
   the three defects this month that no tier could have found.
+- SM738 shipped (PENDING) **a composed document is made of real pages.** Three
+  faults found from outside on 0.11.11, hours after SM732 made the render
+  reachable. **The parts arrived as whole documents**: each was handed to the
+  converter unchanged, so a part that is a real page brought its own front
+  matter and the typesetter died - it worked only when parts had none, which is
+  not what "compose a document out of existing pages" means. **A gated part was
+  missing rather than refused**: the existence check looked only where a public
+  file lives, so a read ACL made the part invisible even to a reader authorised
+  to read it, and it ran BEFORE the may_read branch, which therefore never fired
+  at all. **And the failure named the host** - same rule as SM713 one surface
+  over.
+
+  **Why the gate missed all three is the more useful finding.**
+  `t/unit/plugins/41` composes from parts with no front matter and passes no
+  resolver, so neither fault could appear in it: eleven sabotages against a
+  shape the feature is not for. A fixture describing an easier case than the
+  real one does not fail - it passes, and keeps passing, and makes the suite
+  look like coverage.
 
 ## 0.11.11 - BETA: refusals that name what the caller can act on, a render that was never reachable, and CSS a content-root domain had never received (2026-09-02)
 

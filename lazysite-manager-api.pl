@@ -3024,6 +3024,19 @@ sub action_page_pdf {
             docroot  => $DOCROOT,
             path     => $rel,
             may_read => sub { !_acl_denied( $_[0], 'read', $auth_user ) },
+
+            # SM738: WHERE a file lives is the engine's business, not the
+            # plugin's. A read ACL moves content into the private store, and the
+            # plugin used to look only in the docroot - so a gated part was
+            # "no such part" even to a reader authorised to read it, and the
+            # may_read refusal above could never fire. The plugin asks; this
+            # answers, the same way it answers may_read.
+            resolve => sub {
+                my ($rel) = @_;
+                require Lazysite::Private;
+                my ($abs) = Lazysite::Private::resolve( $DOCROOT, $rel );
+                return $abs;
+            },
         );
     };
     return { ok => 0, error => "PDF render failed: $@" } if $@;
