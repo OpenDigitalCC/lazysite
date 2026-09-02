@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM736 shipped (PENDING) **coverage is skipped when every input that decides it
+  is unchanged.** The stage took **two hours and twenty minutes** on the 0.11.11
+  cut against eleven minutes for the entire correctness suite - about 85% of a
+  release, spent re-deriving an answer that cannot have changed.
+
+  It is a pure function of the eight gated CGIs, the library they call into,
+  every test that exercises them, and the floor config. When that set is
+  byte-identical to a run that passed, the stage is skipped.
+
+  **Absence refuses, four ways**: no record, an unreadable record, a different
+  digest, or a recorded FAILURE all mean it runs. The only path to a skip is a
+  positive match against a pass, and each was proved by trying it.
+
+  **The correctness suite is not skipped and the argument does not reach it.** A
+  gate result is a fact about a tree AT A TIME - date-sensitive tests are a known
+  class here - while coverage is structural. `t/lint/111` keeps the digest's file
+  list identical to the measured one, because a digest of the wrong files would
+  license a skip silently.
+
+  Where it fires: not between two releases, which always change something in
+  `lib/` or `t/`. **On a promotion** - a stable cut from the same commit as the
+  beta that passed differs only in the version stamp, which is not in the set.
+
 ## 0.11.11 - BETA: refusals that name what the caller can act on, a render that was never reachable, and CSS a content-root domain had never received (2026-09-02)
 
 **The theme of this one is the refusal.** Four separate reports came back from the

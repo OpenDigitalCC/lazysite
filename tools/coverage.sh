@@ -100,6 +100,39 @@ fi
 # inode-heavy (a directory per instrumented subprocess), and release.sh already
 # refuses to stage where inodes are short. More workers past a point buys
 # contention.
+# SM736: SKIP WHEN THE INPUTS ARE BYTE-IDENTICAL TO A RUN THAT ALREADY PASSED.
+#
+# Coverage is a pure function of the measured CGIs, the library they call into,
+# every test that exercises them, and the floor config. tools/coverage-inputs.pl
+# digests exactly that set. If the digest matches a recorded PASSING run, the
+# percentage cannot have moved and re-deriving it buys nothing - at two hours
+# and twenty minutes on the 0.11.11 cut, that is 85% of a release.
+#
+# ABSENCE REFUSES. No record, an unreadable record, a different digest, or a
+# recorded failure all mean the stage RUNS. The only path to a skip is a
+# positive match against a pass.
+#
+# THE CORRECTNESS SUITE IS NOT SKIPPED and this argument does not extend to it:
+# a gate result is a fact about a tree AT A TIME, and date-sensitive tests are a
+# known class here. Coverage is structural and does not have that property.
+COVER_RECORD="$ROOT/dist/config/coverage-last.json"
+COVER_DIGEST=$(perl "$ROOT/tools/coverage-inputs.pl" 2>/dev/null | awk '{print $1}')
+if [ "${LAZYSITE_COVER_FORCE:-}" != "1" ] && [ -n "$COVER_DIGEST" ] && [ -f "$COVER_RECORD" ]; then
+    prev=$(perl -MJSON::PP -e '
+        local $/; open my $f, "<", $ARGV[0] or exit 0;
+        my $j = eval { JSON::PP->new->decode(<$f>) } or exit 0;
+        exit 0 unless ($j->{result} // "") eq "pass";
+        print $j->{inputs_digest} // "";
+    ' "$COVER_RECORD" 2>/dev/null)
+    if [ -n "$prev" ] && [ "$prev" = "$COVER_DIGEST" ]; then
+        echo "coverage: SKIPPED - every input that decides coverage is byte-identical" >&2
+        echo "coverage:   to a run that passed. digest $COVER_DIGEST" >&2
+        echo "coverage:   Re-run anyway with LAZYSITE_COVER_FORCE=1." >&2
+        echo "coverage: all measured production CGIs at or above the floor (from the recorded run)"
+        exit 0
+    fi
+fi
+
 JOBS=${LAZYSITE_COVER_JOBS:-4}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 # `+ignore,^/tmp/` KEEPS THE INSTRUMENT OUT OF EPHEMERAL COPIES.
@@ -232,4 +265,13 @@ if [ "$1" = "--check" ]; then
         exit 1
     fi
     echo "coverage: all measured production CGIs at or above ${floor}% statements / ${branch_floor}% branches (target 75%)"
+    # Record the pass against the digest of what produced it. Written only on a
+    # PASS - a failed run must never license a skip.
+    if [ -n "${COVER_DIGEST:-}" ]; then
+        printf '{\n  "inputs_digest": "%s",\n  "result": "pass",\n  "floor": "%s",\n  "branch_floor": "%s",\n  "host": "%s",\n  "captured": "%s"\n}\n' \
+            "$COVER_DIGEST" "$floor" "$branch_floor" "$(hostname)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > "$COVER_RECORD"
+        echo "coverage: recorded against digest $COVER_DIGEST" >&2
+    fi
+
 fi
