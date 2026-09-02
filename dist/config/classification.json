@@ -192,6 +192,7 @@
     "^docs/reference/",
     "^docs/review/",
     "^docs/plans/",
+    "^docs/practice/",
     "^docs/compliance/",
     "^security/",
     "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES|SECURITY|ACCESSIBILITY|RELIABILITY|DECLARATION-OF-CONFORMITY|MANUAL-CHECKS|PATH-TO-STABLE)\\.md$",

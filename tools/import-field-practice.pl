@@ -54,8 +54,19 @@ my $ROOT = dirname( dirname( abs_path($0) ) );
 
 # The canonical sources. Defaults, not constants: an operator re-importing from
 # a checkout elsewhere passes --sites/--apps rather than editing this file.
-my $SITES_SRC = '/srv/projects/lazysite-sites/AUTHORING-PRACTICE.md';
-my $APPS_SRC  = '/srv/projects/lazysite-apps/APP-PRACTICE.md';
+# SM733: THE SOURCES LIVE IN THIS REPO NOW.
+#
+# They were read from the site agent's own trees, which made the shipped
+# briefing depend on two paths outside the repository - SM597 filed that as
+# coupling every gate to a file it does not own, and it is also how the
+# 2026-09-02 client names reached the import boundary before anyone with
+# custody of the shipped artefact could see them.
+#
+# The site agent still MAINTAINS them; the release side is custodian of what
+# ships. That split is the point: whoever answers for the published document
+# holds the copy that gets published.
+my $SITES_SRC = "$ROOT/docs/practice/authoring-practice.md";
+my $APPS_SRC  = "$ROOT/docs/practice/app-practice.md";
 my $OUT       = "$ROOT/starter/docs/ai-briefing-practice.md";
 
 # Sections that are instructions to the AUTHOR of the source, not practice. They
