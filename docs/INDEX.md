@@ -90,6 +90,7 @@ How a part of the system is shaped, and why it is shaped that way.
 | [`render-path-separation.md`](render-path-separation.md) - Render-path separation | At its core, lazysite is a Markdown-to-HTML renderer. |
 | [`security.md`](security.md) - Security | lazysite's security model has three layers. |
 | [`test-coverage.md`](test-coverage.md) - Test coverage | The suite is pure core-Perl. |
+| [`test-tiers.md`](test-tiers.md) - Test tiers: what to run when, and why | Four tiers, chosen from measurements rather than intuition - what each costs, what each is capable of finding, and the one thing none of them can do. ... |
 
 # docs/reference
 
@@ -218,4 +219,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*103 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*104 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

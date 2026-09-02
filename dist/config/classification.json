@@ -251,6 +251,7 @@
     "^man/",
     "^website/",
     "^githooks/",
+    "^scripts/pre-review\\.sh$",
     "^scripts/install-hooks\\.sh$"
   ],
   "overrides": [],

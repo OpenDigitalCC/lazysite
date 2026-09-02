@@ -66,6 +66,25 @@ Naming the commit: AFTER it lands, never before
   Where it fires: not between two releases, which always change something in
   `lib/` or `t/`. **On a promotion** - a stable cut from the same commit as the
   beta that passed differs only in the version stamp, which is not in the set.
+- SM737 shipped (PENDING) **a tier to run before a branch leaves your hands.**
+  Nothing sat between finishing work and offering it for review, so the first
+  thing to notice a lint failure was the release gate - hours later, and arriving
+  with a release attached, so the choice was to hold the cut or fix in a hurry.
+
+  **The tiers come from timings, not taste.** Four of the 110 lint files account
+  for 65 of 88.8 seconds; the other 102 run in 14.6 seconds combined. 93% of the
+  lints for 16% of the time - that distribution is the fast tier.
+
+  **And the fast tier is not the shallow one.** Of 739 test files ever added, 94%
+  arrived with the code they test and are regression insurance; of the 43 written
+  against code that already existed - the only shape that can discover anything -
+  53% are lints. Every gate failure hit across one long session was a lint, not
+  one a unit test.
+
+  `scripts/pre-review.sh [fast|review|suite]`, with
+  `docs/architecture/test-tiers.md` recording what each is capable of finding,
+  why selection is for the inner loop and never for the gate, and - plainly -
+  the three defects this month that no tier could have found.
 
 ## 0.11.11 - BETA: refusals that name what the caller can act on, a render that was never reachable, and CSS a content-root domain had never received (2026-09-02)
 
