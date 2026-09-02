@@ -67,6 +67,26 @@ Naming the commit: AFTER it lands, never before
   **The preview could not have shown this** and cannot show the fix: it renders
   through the engine while the live host serves a static file, so it passed
   throughout the defect's life. The outcome test has to use the live host.
+- SM730 shipped (PENDING) **a blocked upload names the rule.** It answered
+  "Blocked target" and named neither the rule nor the extension, in the same
+  field session where a capability refusal read "(needs manage_data)" - the same
+  kind of event answered to very different standards, and the weaker one where
+  there is no `describe-capabilities` to fall back on.
+
+  **The blockers already knew.** Both logged WHY and returned a bare `1`. They
+  return the reason now; every caller uses them in boolean context, so a truthy
+  string changes nothing for them and gives the ones that report to a person
+  something to report. The brand-folder refusal in particular now carries
+  SM707's reasoning - a template's text reaches the typesetter - so an operator
+  can tell the refusal is deliberate rather than broken.
+
+- SM713 shipped (PENDING) **a data error stops naming the server.** A failed row
+  save returned `DBD::SQLite::db do failed: ... at /home/ispadmin/web/<site>/...
+  line 453` - an absolute path carrying the hosting account, a source file and
+  line, and the driver's vocabulary, of which only "no such table" was
+  actionable. **One cleaner rather than eight edited call sites**, because the
+  rule for what a caller may see is a rule and a rule written eight times
+  disagrees with itself. The full string still reaches the log.
 
 - SM728 partial (PENDING) **a control declares its impact, so rules about it can
   be checked.** The behaviour-rule inventory found the same gap under most of

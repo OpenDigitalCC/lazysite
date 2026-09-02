@@ -30,9 +30,11 @@ subtest 'the store directory is inside its own carve-out' => sub {
         0, 'the directory itself is not blocked' );
     is( is_blocked_path('lazysite/forms/submissions/contact.jsonl'),
         0, 'and a store file under it stays reachable (unchanged)' );
-    is( is_blocked_path('lazysite/auth'), 1, 'the auth tree stays blocked (control)' );
-    is( is_blocked_path('lazysite/forms/submissionsX'),
-        1, 'a sibling name-superset is NOT carved out (boundary-safe)' );
+    my $auth_why = is_blocked_path('lazysite/auth');
+    ok( $auth_why, 'the auth tree stays blocked (control)' );
+    like( $auth_why, qr/lazysite\/auth/, 'and the refusal names the path (SM730)' );
+    ok( is_blocked_path('lazysite/forms/submissionsX'),
+        'a sibling name-superset is NOT carved out (boundary-safe)' );
 };
 
 subtest 'the directory answers to the same capability as its files' => sub {

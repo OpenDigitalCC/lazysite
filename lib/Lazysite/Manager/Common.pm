@@ -368,7 +368,7 @@ sub is_blocked_path {
     for my $blocked (@BLOCKED_PATHS) {
         if ( $rel_path eq $blocked ) {
             log_event( 'WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user );
-            return 1;
+            return "'$rel_path' is on this site's blocked-path list.";
         }
     }
     # SEC-2026-07 (H4): the SENSITIVE part of the lazysite/ management tree is
@@ -381,12 +381,16 @@ sub is_blocked_path {
     # manage_themes/manage_nav + dav_scope, not by this path blocklist.
     if ( $rel_path =~ m{\Alazysite/} && !_is_carveout($rel_path) ) {
         log_event( 'WARN', $action, 'blocked lazysite tree', path => $rel_path, user => $auth_user );
-        return 1;
+        return "'$rel_path' is inside the reserved lazysite/ tree, which the "
+            . 'file surfaces do not write. The parts a partner legitimately '
+            . 'manages - layouts, themes, nav and form submissions - are '
+            . 'carve-outs reached by their own capabilities.';
     }
     # SEC-2026-07: never write/serve an executable or server-config extension.
     if ( $rel_path =~ $DANGEROUS_RE ) {
         log_event( 'WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user );
-        return 1;
+        return "'$rel_path' has an executable or server-config extension, "
+            . 'which is never written or served whatever the folder.';
     }
 
     # A BRAND TEMPLATE IS EXECUTABLE INPUT, and the brand folder is otherwise
@@ -408,7 +412,11 @@ sub is_blocked_path {
     {
         log_event( 'WARN', $action, 'blocked brand template via manager',
             path => $rel_path, user => $auth_user );
-        return 1;
+        return "a brand template cannot be uploaded here. Its text reaches the "
+            . 'PDF typesetter, so a file that can name another file could read '
+            . 'one - .tex, .latex, .sty, .cls and .lua are refused in the brand '
+            . 'folder for that reason, deliberately and permanently. Brand '
+            . 'assets that are only data - fonts, logos, images - are accepted.';
     }
     return 0;
 }
@@ -748,6 +756,17 @@ sub upload_limits {
     return $_upload_limits_cache;
 }
 
+# SM730: THESE RETURN A REASON, not a bare 1.
+#
+# Every caller uses them in boolean context, so a truthy string changes nothing
+# for them and gives the ones that report to a person something to report. The
+# upload path answered "Blocked target" and named neither the rule nor the
+# extension, in the same session where a capability refusal read "(needs
+# manage_data)" - the same kind of event answered to very different standards,
+# and the weaker one in the place with less context to fall back on.
+#
+# The reason was already known here and thrown away: both blockers log WHY and
+# then returned 1.
 sub is_blocked_config {
     my ( $rel_path, $check_extensions ) = @_;
 
@@ -767,7 +786,8 @@ sub is_blocked_config {
             log_event( 'WARN', $action, 'blocked by config (path)',
                 path => $rel_path, prefix => $prefix,
                 user => $auth_user );
-            return 1;
+            return "'$prefix' is a blocked path on this site, so '$rel_path' "
+                . 'cannot be written there.';
         }
     }
 
@@ -782,7 +802,10 @@ sub is_blocked_config {
                     'blocked by config (extension)',
                     path => $rel_path, extension => $lc,
                     user => $auth_user );
-                return 1;
+                return ".$lc files are not accepted here. This folder refuses "
+                    . 'them because their contents are executed rather than '
+                    . 'served - a brand template reaches the PDF typesetter, '
+                    . 'so a file that can name another file could read one.';
             }
         }
     }

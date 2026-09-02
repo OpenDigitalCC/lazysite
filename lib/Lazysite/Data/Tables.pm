@@ -141,7 +141,7 @@ sub list_tables {
             );
         }
         my $raw = eval { YAML::PP->new->load_file($file) };
-        return _err( "table '$name': the descriptor is not valid YAML - $@",
+        return _err( "table '$name': the descriptor is not valid YAML - " . _clean_db_error($@),
             table => $name )
             unless defined $raw && !$@;
 
@@ -264,10 +264,10 @@ sub _read_rows_loaded {
         unless $observed->{exists};
 
     my ( $sql, $binds ) = eval { select_sql( $d, %opt ) };
-    return _err( "table '$name': $@", table => $name ) if $@;
+    return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
 
     my $rows = eval { $dbh->selectall_arrayref( $sql, { Slice => {} }, @{$binds} ) };
-    return _err( "table '$name': the query failed - $@", table => $name ) if $@;
+    return _err( "table '$name': the query failed - " . _clean_db_error($@), table => $name ) if $@;
 
     # SM502 U-1: the listing knows its total. select_sql has ALWAYS capped at
     # 200 rows by default, so a big table silently showed one page with
@@ -312,6 +312,31 @@ sub _record_history {
         'schema history write failed - the change itself succeeded',
         op => $op, error => "$@" );
     return;
+}
+
+# SM713: what a CALLER is told about a database failure.
+#
+# Reported from the field: a failed row save returned
+#   DBD::SQLite::db do failed: no such table: ... at
+#   /home/ispadmin/web/<site>/cgi-bin/../lib/Lazysite/Data/Tables.pm line 453
+# - an absolute path carrying the hosting account name and the site's directory
+# layout, a source file and line number, and the driver's own vocabulary, of
+# which only "no such table" is actionable and it is buried in the middle.
+#
+# ONE CLEANER, not eight edited call sites: the rule for what a caller may see
+# is a rule, and a rule written eight times disagrees with itself (SM578). The
+# FULL string still reaches the log, where an operator debugging the engine
+# looks for it. This only decides what crosses the wire.
+sub _clean_db_error {
+    my ($err) = @_;
+    return 'the database refused the operation' unless defined $err && length $err;
+    my $e = "$err";
+    $e =~ s/\s+at\s+\S+\s+line\s+\d+\.?//g;                # file and line
+    $e =~ s/^\s*DB[DI]::\w+::\w+\s+\w+\s+failed:\s*//i;    # driver vocabulary
+    $e =~ s/\s+/ /g;
+    $e =~ s/^\s+|\s+$//g;
+    $e =~ s/[.\s]+\z//;
+    return length $e ? $e : 'the database refused the operation';
 }
 
 sub _now_iso {
@@ -417,12 +442,12 @@ sub apply_schema {
     my @done;
     for my $sql ( @{ $plan->{create} } ) {
         eval { $dbh->do($sql); 1 }
-            or return _err( "table '$name': create failed - $@", table => $name );
+            or return _err( "table '$name': create failed - " . _clean_db_error($@), table => $name );
         push @done, 'create';
     }
     for my $step ( @{ $plan->{additive} } ) {
         eval { $dbh->do( $step->{sql}, undef, @{ $step->{binds} } ); 1 }
-            or return _err( "table '$name': $step->{why} failed - $@",
+            or return _err( "table '$name': $step->{why} failed - " . _clean_db_error($@),
             table => $name );
         push @done, $step->{why};
     }
@@ -451,7 +476,7 @@ sub insert_row {
     return $bad if $bad;
     my ( $sql, $binds ) = insert_sql( $d, $values );
     eval { $dbh->do( $sql, undef, @{$binds} ); 1 }
-        or return _err( "table '$name': the insert failed - $@", table => $name );
+        or return _err( "table '$name': the insert failed - " . _clean_db_error($@), table => $name );
     # The assigned key, for an auto-key table - a caller that has just created a
     # row and cannot address it has to guess.
     my $key
@@ -467,9 +492,9 @@ sub update_row {
         = _write_prep( $docroot, $name, $input, partial => 1 );
     return $bad if $bad;
     my ( $sql, $binds ) = eval { update_sql( $d, $key_value, $values ) };
-    return _err( "table '$name': $@", table => $name ) if $@;
+    return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };
-    return _err( "table '$name': the update failed - $@", table => $name ) if $@;
+    return _err( "table '$name': the update failed - " . _clean_db_error($@), table => $name ) if $@;
     # 0 rows is NOT an error and NOT a success. The caller asked to change a
     # row that is not there, and reporting "ok" would let a UI say saved.
     return _err( "table '$name': no row with that key", table => $name,
@@ -485,9 +510,9 @@ sub delete_row {
     my ( $dbh, $nowrite ) = _writer( $docroot, $name );
     return $nowrite if $nowrite;
     my ( $sql, $binds ) = eval { delete_sql( $d, $key_value ) };
-    return _err( "table '$name': $@", table => $name ) if $@;
+    return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };
-    return _err( "table '$name': the delete failed - $@", table => $name ) if $@;
+    return _err( "table '$name': the delete failed - " . _clean_db_error($@), table => $name ) if $@;
     return _err( "table '$name': no row with that key", table => $name,
         kind => 'no_such_row' )
         unless $n && $n > 0;

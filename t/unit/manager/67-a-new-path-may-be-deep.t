@@ -43,8 +43,8 @@ subtest 'the security posture is unchanged' => sub {
     # is_blocked_path still governs: the deep-path fix must not have opened
     # the lazysite tree.
     require Lazysite::Manager::Common;
-    is( Lazysite::Manager::Common::is_blocked_path('lazysite/auth/secret'),
-        1, 'the lazysite tree stays blocked' );
+    ok( Lazysite::Manager::Common::is_blocked_path('lazysite/auth/secret'),
+        'the lazysite tree stays blocked' );
 
     # H3: a sibling whose name is a string-superset of the docroot must still
     # be outside. Simulate with a symlink escaping sideways.

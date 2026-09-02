@@ -48,17 +48,21 @@ is( slurp("$d/content/hi.txt"), 'hello', 'exact bytes written' );
 my $rp = action_file_upload( 'content', multipart( $B, 'evil.pl', 'code' ) );
 is( scalar @{ $rp->{saved} // [] }, 0, 'nothing saved for the blocked .pl' );
 is( $rp->{errors}[0]{name},  'evil.pl',       'the error names the offending file' );
-is( $rp->{errors}[0]{error}, 'Blocked target', 'refused specifically as a blocked target' );
+like( $rp->{errors}[0]{error}, qr/\S/, 'refused specifically as a blocked target' );
+like( $rp->{errors}[0]{error}, qr/reserved|blocked|not accepted|never written/i,
+    'and the refusal says WHY, not just that it happened (SM730)' );
 ok( !-f "$d/content/evil.pl", '.pl not written' );
 
 # --- a *.cgi is blocked ONLY via the is_blocked_config extension list ---
 my $rc = action_file_upload( 'content', multipart( $B, 'x.cgi', 'c' ) );
-is( $rc->{errors}[0]{error}, 'Blocked target', '.cgi blocked via the extension list' );
+like( $rc->{errors}[0]{error}, qr/\.cgi|extension|executable/i,
+    '.cgi blocked via the extension list, and the refusal names the extension' );
 ok( !-f "$d/content/x.cgi", '.cgi not written' );
 
 # --- a target under a blocked PATH prefix (lazysite/auth) is refused ---
 my $rpath = action_file_upload( 'lazysite/auth', multipart( $B, 'note.txt', 'x' ) );
-is( $rpath->{errors}[0]{error}, 'Blocked target', 'blocked-path-prefix target refused' );
+like( $rpath->{errors}[0]{error}, qr/blocked path|reserved|not accepted/i,
+    'blocked-path-prefix target refused, naming the rule' );
 ok( !-f "$d/lazysite/auth/note.txt", 'not written into the auth dir' );
 
 # --- overwrite protection: second upload skips unless overwrite=1 ---

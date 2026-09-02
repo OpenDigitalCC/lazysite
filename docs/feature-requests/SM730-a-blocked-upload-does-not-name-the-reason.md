@@ -4,7 +4,7 @@ title: "SM730: a blocked upload says \"Blocked target\" without naming the reaso
 subtitle: "The brand-folder extension guard fires correctly on the real upload path - proved in the field at last - but its refusal says only that something was blocked, where the capability refusals beside it name the rule. The same defect SM712 fixed one surface up."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 ---
 
 # The guard works

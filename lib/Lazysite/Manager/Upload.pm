@@ -275,10 +275,13 @@ sub action_file_upload {
         my $rel_target  = $v->{rel};
         my $full_target = $v->{full};
 
-        if ( is_blocked_path($rel_target)
+        # SM730: name the rule. The blockers return a reason now, and an
+        # operator who has legitimately prepared a template needs to know the
+        # refusal is deliberate and permanent - otherwise the next move is to
+        # try to work around it.
+        if ( my $why = is_blocked_path($rel_target)
             || is_blocked_config( $rel_target, 1 ) ) {
-            push @errors, { name => $fname,
-                error => 'Blocked target' };
+            push @errors, { name => $fname, error => $why };
             next;
         }
 
