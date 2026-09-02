@@ -4,7 +4,8 @@ title: "SM736: coverage is skipped when every input that decides it is unchanged
 subtitle: "The coverage stage took two hours and twenty minutes on the 0.11.11 cut, against eleven minutes for the entire correctness suite - 85% of a release, spent re-deriving an answer that cannot have changed. It is a pure function of a knowable input set, so when that set is byte-identical to a run that passed, it is skipped."
 brand: plain
 standard-margins: true
-status: shipped
+status: partial
+status-note: "PARTIAL, and the gap was mine. The mechanism is built and correct - it declined to skip on the 0.11.12 cut because the inputs had changed, which is right - but coverage.sh wrote its record relative to ITS OWN root, which during a release is the staging clone, and release.sh deletes that when it finishes. So the record went into a directory that no longer existed and the skip could never fire. Measured after 0.11.12: the file was simply not in the origin repo. SM736b has release.sh carry it back, the same way it already carries GATE-LOG, and t/lint/111 asserts the carry-back happens AFTER the coverage gate passed. The skip itself has still never fired - the first real test is the next build whose inputs are unchanged."
 ---
 
 # The measurement that prompted it

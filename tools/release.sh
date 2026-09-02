@@ -652,6 +652,25 @@ if [ "$COV_STATUS" -ne 0 ]; then
     exit 1
 fi
 
+# SM736b: CARRY THE COVERAGE RECORD BACK, or the feature is inert.
+#
+# coverage.sh writes dist/config/coverage-last.json relative to ITS OWN root,
+# which during a release is the staging clone - and the staging clone is deleted
+# when the build finishes. So the record was written into a directory that no
+# longer exists, and the skip it exists to license could never fire. Measured
+# after the 0.11.12 cut: the file was simply not in the origin repo.
+#
+# The same shape as GATE-LOG below, and for the same reason: a fact established
+# inside the staging clone is worth nothing unless it is carried out of it. Left
+# UNCOMMITTED like GATE-LOG, so the operator lands it with everything else
+# rather than the release churning git.
+COV_RECORD="$STAGE/dist/config/coverage-last.json"
+if [ -f "$COV_RECORD" ]; then
+    mkdir -p "$ORIGIN/dist/config"
+    cp "$COV_RECORD" "$ORIGIN/dist/config/coverage-last.json"
+    echo "==> coverage record carried back to dist/config/coverage-last.json"
+fi
+
 # --- build the release manifest ---
 # release-manifest.json is generated, not tracked (SM065), so the fresh
 # clone has none. Build it from the staged tree before the SBOM gate
@@ -936,4 +955,9 @@ fi
 printf "    gate:    %s files, %s tests\n" "$GATE_FILES" "$GATE_TESTS"
 echo ""
 echo "==> UNCOMMITTED: docs/releases/GATE-LOG.md gained a row for $VERSION."
+if [ -f "$ORIGIN/dist/config/coverage-last.json" ]; then
+    echo "==> UNCOMMITTED: dist/config/coverage-last.json records this run's"
+    echo "    coverage against the digest of what produced it. Commit it, or the"
+    echo "    next identical build re-derives an answer it already has."
+fi
 echo "    Commit it, or the next promotion review has no record of what was gated."

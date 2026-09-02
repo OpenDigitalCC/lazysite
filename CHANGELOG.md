@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM736 partial (PENDING) **the coverage record has to survive the build that
+  wrote it.** Found immediately after the 0.11.12 cut, in the feature shipped one
+  release earlier: `coverage.sh` writes its record relative to ITS OWN root,
+  which during a release is the staging clone - and release.sh deletes that when
+  it finishes. So the record went into a directory that no longer existed and
+  **the skip could never fire**. The file was simply not in the origin repo.
+
+  The mechanism itself was correct throughout - it declined to skip on that cut
+  because the inputs had changed, which is right. It was the output that was
+  discarded, which is worse than no mechanism: it reports success and does
+  nothing. release.sh now carries the record back the same way it already
+  carries GATE-LOG, and `t/lint/111` asserts the carry-back happens AFTER the
+  coverage gate passed rather than before it.
+
+  **The skip has still never fired.** The first real test is the next build
+  whose inputs are unchanged.
+
 ## 0.11.12 - BETA: the composed document works on real pages, and the gate learns when not to run (2026-09-02)
 
 **A short cut, and two of its three entries are about the tests rather than the

@@ -72,4 +72,30 @@ subtest 'a pass is recorded only after the floors are met' => sub {
         'the below-floor exit comes FIRST, so a failing run never records a pass' );
 };
 
+subtest 'the record survives the build that wrote it' => sub {
+    # SM736b: coverage.sh writes the record relative to ITS OWN root, which
+    # during a release is the staging clone - and release.sh deletes that when
+    # it finishes. The record was therefore written into a directory that no
+    # longer existed and the skip could never fire. Measured after 0.11.12: the
+    # file was simply not in the origin repo.
+    #
+    # A mechanism whose output is discarded is worse than no mechanism: it
+    # reports success and does nothing, which is the shape of SM732 one floor
+    # down.
+    my $rel = do {
+        open my $fh, '<', "$root/tools/release.sh" or die $!;
+        local $/; <$fh>;
+    };
+    like( $rel, qr/COV_RECORD="\$STAGE\/dist\/config\/coverage-last\.json"/,
+        'release.sh looks for the record in the staging clone' );
+    like( $rel, qr/cp "\$COV_RECORD" "\$ORIGIN\/dist\/config\/coverage-last\.json"/,
+        'and carries it back to the origin, where the next build will read it' );
+
+    my $carry = index( $rel, 'COV_RECORD="$STAGE' );
+    my $clean = index( $rel, 'stage_disposition' );
+    cmp_ok( $carry, '>', -1, 'the carry-back is present' );
+    cmp_ok( $carry, '>', $clean,
+        'and runs after the coverage gate has passed, not before it' );
+};
+
 done_testing();
