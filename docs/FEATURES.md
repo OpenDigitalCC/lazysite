@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.11.12"
+subtitle: "Everything lazysite has and does, and why - as of v0.12.0"
 brand: plain
 ---
 
@@ -1758,6 +1758,30 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.12.0** (2026-09-02, STABLE) - **The first stable since 0.11.7, and a minor
+  bump rather than a patch because the line between them is not a set of fixes.**
+  Six beta cuts in five days, every one tested from outside on a running fleet,
+  and the same pattern held each time: **the defects that mattered were invisible
+  to a green gate.** A PDF render with no caller at all - eleven sabotage tests
+  passing against a function nothing invoked. Theme assets that had never reached
+  a domain with its own content root, on every release since the asset mirror
+  existed. A write guard present on one stack and absent on the other. A composed
+  document that worked only on parts carrying no front matter, because the
+  fixtures had described an easier case than the feature itself. And a protective
+  refusal that had never executed once in its life. None was found by running the
+  tests; all were found by an agent using the software on a real host. So the
+  other half of this release is the machinery for noticing: a control declares
+  its **impact**, so "red destroys" and "a destructive action confirms" can be
+  checked rather than only written down; six **save behaviours** are a contract
+  with Domains as the exemplar; the documentation has an **index** so it can be
+  discovered without being read; there is a **tier to run before a branch leaves
+  your hands**, chosen from timings; the coverage stage stops re-deriving an
+  answer it already has; and an **error-string lint** earned by three separate
+  leaks now catches the class at its source. One thing is deliberately not fixed
+  and **not accepted**: `verify_token_ms` sits at about 1.48x its baseline on a
+  quiet host, the cause understood and gated by a work counter, and the timing
+  baseline is left un-recaptured because accepting it would make the slower
+  number the definition of correct and clear the warning on the way out.
 - **0.11.12** (2026-09-02, BETA) - **The composed document works on real pages,
   and the gate learns when not to run.** The previous release made the PDF render
   reachable at all; the field pass found it worked only on parts carrying no

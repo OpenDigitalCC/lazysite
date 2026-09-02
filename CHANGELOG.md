@@ -44,7 +44,37 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM739 shipped (PENDING) **an error string says nothing about the host.** Three
+## 0.12.0 - STABLE: the first stable since 0.11.7, and what six betas taught about where defects are actually found (2026-09-02)
+
+**A minor bump rather than a patch, because the line between 0.11.7 and here is
+not a set of fixes - it is a change in how this project finds things.** Six beta
+cuts in five days, each tested from outside on a running fleet, and the pattern
+held every time: the defects that mattered were invisible to a green gate.
+
+**A PDF render with no caller at all** - eleven sabotage tests passing against a
+function nothing invoked. **Theme assets that had never reached a domain with its
+own content root**, on every release since the asset mirror existed. **A write
+guard present on one stack and absent on the other.** **A composed document that
+worked only on parts carrying no front matter** - because the fixtures had
+described an easier case than the feature. **A protective refusal that had never
+executed once in its life.** None of these was found by running the tests; all
+were found by an agent using the software on a real host.
+
+So the other half of this release is the machinery for noticing: an impact
+declaration so that rules about colour and confirmation can be checked at all, six
+save behaviours written down as a contract, a documentation index, a tier to run
+before a branch leaves your hands, a coverage stage that stops re-deriving an
+answer it already has, and an error-string lint earned by three separate leaks.
+
+**One thing is deliberately not fixed and not accepted.** `verify_token_ms` sits
+at about 1.48x its baseline on a quiet host. The cause is understood - every
+credential check compiles `tools/lazysite-users.pl` - and `work_users_tool_statements`
+gates the size that drives it. The timing baseline is **not** re-captured and the
+regression is **not** accepted, on the release manager's decision: accepting would
+make the slower number the definition of correct and clear the warning on the way
+out, erasing the only remaining signal that this ever drifted. SM685 carries it.
+
+- SM739 shipped (d1c9b1ea) **an error string says nothing about the host.** Three
   leaks in three passes: a data error carrying an absolute path and the driver's
   vocabulary (SM713); the composed-PDF failure carrying `/home/<account>/...`
   (SM738); and then SM738's own fix, on the very next pass, letting the date back
@@ -67,7 +97,7 @@ Naming the commit: AFTER it lands, never before
   the second and third. **A cheap check proposed by whoever keeps finding the
   same class of defect is worth building the first time it is suggested.**
 
-- SM736 partial (PENDING) **the coverage record has to survive the build that
+- SM736 partial (b9465e9a) **the coverage record has to survive the build that
   wrote it.** Found immediately after the 0.11.12 cut, in the feature shipped one
   release earlier: `coverage.sh` writes its record relative to ITS OWN root,
   which during a release is the staging clone - and release.sh deletes that when
