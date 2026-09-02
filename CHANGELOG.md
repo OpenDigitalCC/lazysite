@@ -44,6 +44,30 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM734 shipped (PENDING) **theme assets reach every content root.** A
+  multi-site domain with a `content_root` serves `/lazysite-assets/` from THAT
+  root - the vhost points its document root there, so the request is a static
+  file the engine never sees - while activation mirrored only into `$DOCROOT`.
+  Such a domain **never received its CSS**: 200 on the docroot host, 404 on its
+  own, for every theme, on every release since the mirror existed. Reported from
+  the field; assume such a domain was never styled rather than that it
+  regressed.
+
+  **The module already knew how.** `_host_content_root` had read these conf
+  lines since SM315 - for cache invalidation. The asset mirror seven hundred
+  lines above hardcoded the docroot.
+
+  n copies rather than a front-end rule, on the release manager's decision:
+  **SM286 refuses asking anything of the front end**, and a theme's assets are
+  small while activation is rare. A content root that cannot be written is
+  reported rather than fatal - the docroot mirror is already there and the
+  primary host serves, so refusing the whole activation would take a working
+  site down for a broken sibling.
+
+  **The preview could not have shown this** and cannot show the fix: it renders
+  through the engine while the live host serves a static file, so it passed
+  throughout the defect's life. The outcome test has to use the live host.
+
 - SM728 partial (PENDING) **a control declares its impact, so rules about it can
   be checked.** The behaviour-rule inventory found the same gap under most of
   the unenforceable rules: there was no SUBJECT. "A destructive action must also

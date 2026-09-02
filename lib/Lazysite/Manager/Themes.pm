@@ -994,7 +994,36 @@ sub _mirror_theme_assets {
     # this look like the hard case.
     _write_theme_tokens( $tdir, $dest );
 
-    return { mirrored => $n, dest => $dest, expected => $src };
+    # SM734: and into every content root this instance serves, because a domain
+    # with one serves /lazysite-assets/ from THERE and never sees the docroot
+    # copy. Reported from the field: 200 on the docroot host, 404 on the
+    # content-root host, for every theme.
+    #
+    # A failure here does NOT fail the activation. The docroot mirror is
+    # already written and the primary host works; a content root that cannot be
+    # written is a per-domain fault, and refusing the whole activation would
+    # take a working site down for a broken sibling. It is reported instead, so
+    # the acknowledgement the operator is already reading says which domain did
+    # not get its assets.
+    my ( @also, @failed );
+    for my $cr ( _all_content_roots() ) {
+        my $cdest = "$DOCROOT/$cr/lazysite-assets/$layout/$theme";
+        eval {
+            make_path($cdest) unless -d $cdest;
+            my $crc = system( 'cp', '-r', "$src/.", $cdest );
+            die "cp exited $crc\n" if $crc != 0;
+            push @also, $cr;
+            1;
+        } or push @failed, $cr;
+    }
+
+    return {
+        mirrored => $n,
+        dest     => $dest,
+        expected => $src,
+        ( @also   ? ( also_mirrored => \@also )   : () ),
+        ( @failed ? ( mirror_failed => \@failed ) : () ),
+    };
 }
 
 sub _validate_theme_dir {
@@ -1650,6 +1679,42 @@ sub _install_theme_from_dir {
 sub _cleanup_tmp {
     my ($dir) = @_;
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-theme-\d+$};
+}
+
+# SM734: EVERY content root this instance serves, distinct, docroot excluded.
+#
+# A domain with a content_root serves /lazysite-assets/ from THAT root - the
+# vhost points its document root there, so the request is a static file the
+# engine never sees. Theme activation mirrored only into $DOCROOT, so such a
+# domain never received its CSS: 200 on the docroot host, 404 on its own, for
+# every theme. Reported from the field, and true on every release since the
+# mirror existed - such a domain was never styled rather than having regressed.
+#
+# THE FIX IS n COPIES, and that was a decision rather than an oversight. The
+# alternative - one copy in the docroot, reached by a front-end rule - asks
+# something of the front end, which SM286 refuses as standing policy. A theme's
+# assets are small and activation is rare, so the cost of copying is the cheap
+# side of that trade.
+#
+# Reads the same conf lines as _host_content_root below, because a second parser
+# would eventually disagree with it about what a content root is.
+sub _all_content_roots {
+    my %seen;
+    if ( open my $fh, '<:raw', _lz() . "/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^(?:alias\.[^\s:]+\.)?content_root\s*:\s*(\S+)/;
+            my $cr = $1;
+            next unless length $cr;
+            # A relative path under the docroot, one segment at a time. A
+            # content_root is operator-written config, but it names a directory
+            # this code is about to create, so it is checked rather than trusted.
+            next if $cr =~ m{\A/} || $cr =~ m{(?:\A|/)\.\.(?:/|\z)} || $cr =~ /\0/;
+            $seen{$cr} = 1;
+        }
+        close $fh;
+    }
+    my @roots = sort keys %seen;
+    return @roots;
 }
 
 # The content root a host serves (its alias.<host>.content_root override, else

@@ -4,7 +4,8 @@ title: "SM734: theme assets compile to the docroot, so a content-root domain nev
 subtitle: "A multi-site domain with a non-empty content_root renders unstyled however many times its theme is activated, while the manager preview shows it correctly. Reported and proved on edge; the module already knows how to resolve a host's content root and does not use it here."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED with the content-root option, on the release manager's decision - n copies rather than a front-end rule, because SM286 refuses asking anything of the front end and a theme's assets are small while activation is rare. _all_content_roots() reads the same conf lines as _host_content_root, which had known how since SM315 and was used only for cache invalidation. A content root that cannot be written is REPORTED, not fatal: the docroot mirror is already there and the primary host serves, so refusing the whole activation would take a working site down for a broken sibling. Traversal and absolute paths are refused - operator-written config, but it names a directory this code creates. NOT YET PROVED IN THE FIELD: the outcome test must use the LIVE host, because the preview renders through the engine while the live host serves a static file and passed throughout this defect's life."
 ---
 
 # What happens
