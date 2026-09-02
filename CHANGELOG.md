@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM726 partial (PENDING) **a save behaves the same way everywhere, and it is
+  written down.** Reported from the live manager: the Domains sheet gave no
+  warning when changes were unsaved, and a save that took seconds reported
+  "saved" to the page status line BEHIND the open sheet, so it read as nothing
+  having happened.
+
+  Six behaviours are now normative in the style guide - a changed control marks
+  itself, unsaved changes are stated, leaving warns, feedback appears where the
+  action was taken, an in-flight save says so, and a finished save resolves the
+  modal. Domains implements all six as the exemplar.
+
+  **The slowness had the same root as the silence.** `saveDomain` counted fields
+  that EXISTED rather than fields altered, and chained one round trip per
+  editable key whether or not it had changed - a dozen requests to save one
+  edit. Tracking what changed fixed the feedback and most of the delay together.
+
+  Reused rather than invented: `mg-dirty-note` already existed as an ORPHAN,
+  used only by the guide's own listing. Two classes are new, and `t/lint/96`
+  refused the second until it was documented - the direction of that contract
+  which catches a component nobody wrote down. **Not done**: every other page
+  with a save, and a lint that enforces the behaviours rather than the classes.
+
 - SM725 shipped (PENDING) **a named-key table declaring `timestamps: true`
   could not be created.** Reported by the jpm data agent: `create failed -
   DBD::SQLite::db do failed: near "created_at": syntax error`. The generated

@@ -210,6 +210,31 @@ or Cancel closes it.</span>
   </div>
 </div>
 
+<h2 class="mg-sg-h">Saving &mdash; the six behaviours</h2>
+<p class="mg-sg-note"><strong>These are not suggestions.</strong> Every control that writes a stored value follows all six, on every page, so that an operator who learns one asking has learned them all. Where a page disagrees with this section, the page is wrong. SM726.</p>
+
+<p class="mg-sg-note"><strong>1. A changed control marks itself.</strong> On change it gains <code>mg-dirty</code>, an outline. It loses it when the value is saved, or returns to what it was. The outline draws outside the box, so marking a field never reflows the form around it.</p>
+
+<p class="mg-sg-note"><strong>2. Unsaved changes are stated, not implied.</strong> While anything is dirty, a <code>mg-dirty-note</code> sits beside the Save saying so. The outline says WHICH; the note says THAT. A note alone, on a form of a dozen fields, is barely better than silence.</p>
+
+<p class="mg-sg-note"><strong>3. Leaving with unsaved changes warns.</strong> Esc, the overlay, Cancel and the close control all warn while dirty, and the warning names what is lost. A modal that discards an operator's typing silently is the one failure here that cannot be undone.</p>
+
+<p class="mg-sg-note"><strong>4. Feedback appears where the action was taken.</strong> An action started in a modal reports IN that modal &mdash; a <code>mg-status</code> inside it. Writing to the page's status line puts the answer behind the thing the operator is looking at, which reads as nothing having happened.</p>
+
+<p class="mg-sg-note"><strong>5. A save in flight says so, and cannot be repeated.</strong> The button disables and says what is happening. A save that takes seconds and looks idle gets pressed again.</p>
+
+<p class="mg-sg-note"><strong>6. A finished save resolves the modal.</strong> Either it closes, or it shows the confirmation in place and stops being dirty. It never simply stays open looking exactly as it did before it succeeded.</p>
+
+<div class="mg-sg-demo">
+<label class="mg-field"><span>Unchanged</span><input class="mg-inp" value="www.example.com"></label>
+<label class="mg-field"><span>Changed &mdash; <code>.mg-dirty</code></span><input class="mg-inp mg-dirty" value="new.example.com"></label>
+<div class="mg-dirty-note">2 changes not saved</div>
+<div class="mg-status mg-status-success">Saved www.example.com</div>
+<span class="mg-muted">The outline, the note and the in-modal status are the
+three parts. A page using one without the others is following the letter of this
+section and not its point.</span>
+</div>
+
 <h2 class="mg-sg-h">Inputs and configuration fields</h2>
 <p class="mg-sg-note">A read-only value is shown as a value, never as a disabled input that looks editable. A note explains a field; a help line explains a page.</p>
 <div class="mg-sg-demo">
@@ -453,12 +478,13 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-handler-submissions"><span class="mg-sg-tag">.mg-handler-submissions</span></div>
 <div class="mg-handler-wizard"><span class="mg-sg-tag">.mg-handler-wizard</span> the add-handler form, in the group it belongs to &mdash; one slot per group, so nothing is moved to open it</div>
 </div>
-<h3 class="mg-sg-fam">mg-sheet <span class="mg-sg-count">7</span></h3>
+<h3 class="mg-sg-fam">mg-sheet <span class="mg-sg-count">8</span></h3>
 <p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-sheet"><span class="mg-sg-tag">.mg-sheet</span><div class="mg-sheet-body"><span class="mg-sg-tag">.mg-sheet-body</span></div>
 <div class="mg-sheet-close"><span class="mg-sg-tag">.mg-sheet-close</span></div>
 <div class="mg-sheet-head"><span class="mg-sg-tag">.mg-sheet-head</span></div>
+<div class="mg-sheet-foot"><span class="mg-sg-tag">.mg-sheet-foot</span></div>
 <div class="mg-sheet-open"><span class="mg-sg-tag">.mg-sheet-open</span></div>
 <div class="mg-sheet-panel"><span class="mg-sg-tag">.mg-sheet-panel</span></div>
 <div class="mg-sheet-sub"><span class="mg-sg-tag">.mg-sheet-sub</span></div></div>

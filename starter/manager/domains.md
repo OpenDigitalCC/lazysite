@@ -52,6 +52,13 @@ routing are configured so the domain reaches this instance.
       <button type="button" class="mg-sheet-close" onclick="closeConfig()" aria-label="Close settings">&times;</button>
     </div>
     <div class="mg-sheet-body" id="cfg-sheet-body"></div>
+    <!-- SM726 behaviour 4: an action started in this sheet reports HERE.
+         showStatus() writes to the page status line, which sits BEHIND the
+         sheet - so a save that worked read as nothing having happened. -->
+    <div class="mg-sheet-foot">
+      <div id="cfg-dirty" class="mg-dirty-note" hidden></div>
+      <div id="cfg-status" class="mg-status"></div>
+    </div>
   </div>
 </div>
 
@@ -362,7 +369,7 @@ function domainSettingsHtml(row, isCreate) {
 
   // Save is the primary action, sitting under the field groups.
   h += '<div class="mg-line" style="margin-top:4px;">'
-     + '<button class="mg-btn mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(host)) + ')">Save changes</button></div>';
+     + '<button class="mg-btn mg-btn-primary" id="cfg-save-' + esc(host) + '" onclick="saveDomain(' + esc(JSON.stringify(host)) + ')">Save changes</button></div>';
 
   // --- Tools (a footer group): the domain actions as buttons. Export appears
   // only when a content folder is set (as before); Delete is the danger action,
@@ -389,6 +396,18 @@ function renderConfigSheet(host) {
   document.getElementById('cfg-sheet-title').innerHTML =
     'Configuring ' + esc(host) + ' <span class="mg-sheet-sub">' + esc(croot) + '</span>';
   document.getElementById('cfg-sheet-body').innerHTML = domainSettingsHtml(row);
+
+  // SM726: record what each field HELD when the sheet opened, so "changed"
+  // means changed from this, not "the field exists". renderConfigSheet is also
+  // called after a save reloads the list underneath, which is exactly when the
+  // originals must be re-taken - otherwise the freshly saved values would still
+  // read as dirty.
+  CFG_ORIG = {};
+  EDIT_KEYS.forEach(function (k) {
+    cfgTrack(document.getElementById('e-' + host + '-' + k));
+  });
+  cfgMark();
+
   var sheet = document.getElementById('cfg-sheet');
   sheet.hidden = false;
   document.body.classList.add('mg-sheet-open');
@@ -604,7 +623,19 @@ function createDomain() {
   });
 }
 
-function closeConfig() {
+function closeConfig(force) {
+  // Behaviour 3: leaving with unsaved changes warns, and the warning names what
+  // is lost. Every route out of this sheet comes through here - the close
+  // control, the backdrop and Esc - so the guard is written once.
+  if (!force) {
+    var n = (typeof cfgDirtyCount === 'function') ? cfgDirtyCount() : 0;
+    if (n > 0) {
+      var what = n === 1 ? '1 change' : n + ' changes';
+      if (!confirm('Close without saving?\n\n' + what
+          + ' to this domain will be lost.')) { return; }
+    }
+  }
+  CFG_ORIG = {};
   currentConfigHost = null;
   var sheet = document.getElementById('cfg-sheet');
   if (sheet) sheet.hidden = true;
@@ -706,15 +737,89 @@ function browserProbe(host) {
 function closeCheck() { document.getElementById('domain-check-overlay').style.display = 'none'; }
 function closePreview() { document.getElementById('domain-preview-overlay').style.display = 'none'; }
 
+// SM726: THE SIX SAVE BEHAVIOURS, as the style guide sets them out. This page is
+// the exemplar; every other page with a save is expected to match it.
+//
+// The dirty map is keyed by the field's element id and holds the value the field
+// had when the sheet opened. A field equal to its original is NOT dirty, so
+// typing a change and typing it back leaves nothing marked - which is what an
+// operator means by "I did not change anything".
+var CFG_ORIG = {};
+
+function cfgTrack(el) {
+  if (!el || !el.id) return;
+  CFG_ORIG[el.id] = cfgValueOf(el);
+}
+
+// One reader for both shapes on this page: an ordinary input, and the token
+// picker whose value is its pills. A second reader would disagree with the
+// writer in saveDomain the first time either changed.
+function cfgValueOf(el) {
+  if (!el) return '';
+  if (PICK_KEYS && el.querySelectorAll && el.classList && el.classList.contains('mg-token-box')) {
+    var picked = [];
+    Array.prototype.forEach.call(el.querySelectorAll('.mg-token'), function (t) {
+      picked.push(t.getAttribute('data-val'));
+    });
+    return picked.join(',');
+  }
+  return (el.value == null ? '' : String(el.value)).trim();
+}
+
+// Behaviours 1 and 2: the control marks itself, and the count is stated.
+function cfgMark() {
+  var n = 0;
+  Object.keys(CFG_ORIG).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var changed = cfgValueOf(el) !== CFG_ORIG[id];
+    var target = el.classList.contains('mg-token-box') ? el : el;
+    if (changed) { target.classList.add('mg-dirty'); n++; }
+    else { target.classList.remove('mg-dirty'); }
+  });
+  var note = document.getElementById('cfg-dirty');
+  if (note) {
+    note.hidden = (n === 0);
+    note.textContent = n === 0 ? ''
+      : (n === 1 ? '1 change not saved' : n + ' changes not saved');
+  }
+  return n;
+}
+
+function cfgDirtyCount() { return cfgMark(); }
+
+// Behaviour 4: feedback lands in the sheet, not behind it.
+function cfgStatus(msg, kind) {
+  var el = document.getElementById('cfg-status');
+  if (!el) return;
+  el.className = 'mg-status' + (kind ? ' mg-status-' + kind : '');
+  el.textContent = msg || '';
+}
+
 function saveDomain(host) {
   var chain = Promise.resolve();
   var changed = 0;
+
+  // Behaviour 5: in flight, and not twice. The chain below is one round trip
+  // PER KEY, so a wide edit takes seconds; a Save that looks idle for seconds
+  // gets pressed again.
+  var btn = document.getElementById('cfg-save-' + host);
+  if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Saving...'; }
+  cfgStatus('Saving ' + host + '...');
+
   var setKey = function (key, value) {
     chain = chain.then(function () { return post('domain-set', { host: host, key: key, value: value }); });
   };
   EDIT_KEYS.forEach(function (k) {
     var inp = document.getElementById('e-' + host + '-' + k);
     if (!inp) return;
+
+    // SM726: ONLY WHAT CHANGED. This used to post every editable key on every
+    // save - `changed` counted fields PRESENT, not fields altered - which is
+    // most of why the save took seconds. The dirty map already knows.
+    var id = inp.id;
+    if (Object.prototype.hasOwnProperty.call(CFG_ORIG, id)
+        && cfgValueOf(inp) === CFG_ORIG[id]) { return; }
     changed++;
     if (PICK_KEYS[k]) {
       // Token picker: the comma-list is the pills in the container.
@@ -731,7 +836,22 @@ function saveDomain(host) {
     }
   });
   chain.then(function () {
-    if (changed) { showStatus('Saved ' + host); loadDomains(); }
+    if (btn) { btn.disabled = false; if (btn.dataset.label) btn.textContent = btn.dataset.label; }
+    if (!changed) { cfgStatus('Nothing had changed.'); return; }
+
+    // Behaviour 6: a finished save RESOLVES the sheet. The saved fields stop
+    // being dirty because their originals are now what they hold, so the note
+    // clears itself rather than being cleared by hand - one source of truth.
+    EDIT_KEYS.forEach(function (k) {
+      var inp = document.getElementById('e-' + host + '-' + k);
+      if (inp && inp.id) { CFG_ORIG[inp.id] = cfgValueOf(inp); }
+    });
+    cfgMark();
+    cfgStatus('Saved ' + host, 'success');
+    loadDomains();
+  }).catch(function (e) {
+    if (btn) { btn.disabled = false; if (btn.dataset.label) btn.textContent = btn.dataset.label; }
+    cfgStatus((e && e.message) || 'Could not save the domain.', 'error');
   });
 }
 
@@ -774,14 +894,17 @@ function editField(host, k, row, isCreate) {
     EDIT_OPTIONS[k].forEach(function (o) {
       opts += '<option value="' + esc(o) + '"' + (o === own ? ' selected' : '') + '>' + esc(o) + '</option>';
     });
-    field = '<select id="e-' + esc(host) + '-' + esc(k) + '" style="' + full + '">' + opts + '</select>';
+    field = '<select id="e-' + esc(host) + '-' + esc(k) + '" onchange="cfgMark()" style="' + full + '">' + opts + '</select>';
   } else {
     var ph = (row[k + '_inherited'] && effective)
       ? ' placeholder="' + esc(effective) + ' (inherited)"' : '';
     // SM259: the create sheet's content-folder box drives the seed option's
     // visibility, so it needs a handler the edit sheet does not.
     var oi = (isCreate && k === 'content_root') ? ' oninput="syncSeedVisible()"' : '';
-    field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + oi + ' style="' + full + '">';
+    // SM726 behaviour 1: the control marks itself. On the emitter, not bound
+    // afterwards, so a field added to EDIT_KEYS later cannot forget to do it.
+    field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + oi
+      + ' oninput="cfgMark()" onchange="cfgMark()" style="' + full + '">';
 
     // SM437: on the CREATE sheet the content folder is CHOSEN, not typed.
     //

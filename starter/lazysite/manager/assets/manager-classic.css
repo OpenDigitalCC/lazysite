@@ -629,6 +629,18 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-sheet-close { margin-left: auto; background: none; border: 1px solid transparent; color: var(--mg-text-muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 8px; }
 .mg-sheet-close:hover { color: var(--mg-text); border-color: var(--mg-border); }
 .mg-sheet-body { padding: 8px 16px 16px; overflow: auto; }
+/* SM726: the sheet's own foot, where an action started in the sheet reports.
+   It is OUTSIDE .mg-sheet-body because the body is rewritten on every open, and
+   a status the close handler wipes is a status nobody reads. Sticky to the
+   bottom for the same reason the head is sticky to the top: on a long form the
+   answer must not be somewhere the operator has to scroll to find. */
+.mg-sheet-foot {
+    position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px;
+    padding: 8px 16px; background: var(--mg-surface);
+    border-top: 1px solid var(--mg-border); min-height: 20px;
+}
+.mg-sheet-foot:has(> [hidden]:only-child), .mg-sheet-foot:empty { border-top: none; }
+
 body.mg-sheet-open { overflow: hidden; }
 .mg-palette-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; background: rgba(0,0,0,0.45); }
 .mg-palette { width: min(34rem, calc(100vw - 32px)); background: var(--mg-surface); border: 1px solid var(--mg-border); box-shadow: var(--mg-shadow-lg); overflow: hidden; }
@@ -954,6 +966,19 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-no-password-warn { font-size: var(--mg-text-sm); color: var(--mg-warning); display: flex; align-items: center; gap: 5px; font-weight: 500; }
 .mg-no-password-warn a { color: var(--mg-warning); text-decoration: underline; }
 .mg-dirty-note { color: var(--mg-warning); font-size: var(--mg-text-sm); font-weight: 600; }
+/* SM726: A CHANGED CONTROL SAYS SO, and it is the control that says it.
+   A note alone ("changes not saved") tells an operator that SOMETHING is
+   unsaved without saying WHAT, which on a form of a dozen fields is barely
+   better than silence. The outline marks the fields; the note beside the Save
+   says the state. Neither is sufficient alone.
+   Outline rather than a border or a background: it draws OUTSIDE the box, so
+   marking a field cannot move anything or resize a grid cell, and a form does
+   not reflow as it is typed into. */
+.mg-dirty, .mg-dirty:focus {
+    outline: 2px solid var(--mg-accent2);
+    outline-offset: 1px;
+}
+
 
 /* --- Legacy badges (map onto the .mg-tag family) */
 .mg-badge { display: inline-flex; align-items: center; padding: 1px 7px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; border: 1px solid var(--mg-border); background: var(--mg-surface); color: var(--mg-text-muted); white-space: nowrap; flex: none; }
