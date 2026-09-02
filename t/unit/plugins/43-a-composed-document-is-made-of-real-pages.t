@@ -61,23 +61,23 @@ subtest 'a part is resolved before the reader is asked about it' => sub {
         'and without one the public path is the answer, for a standalone run' );
 };
 
-subtest 'the converter error does not name the host' => sub {
-    my ($block) = $src =~ /(SM738: the converter's chatter.*?substr\( \$why, -200 \))/s;
-    ok( $block, 'the cleaning block is present' ) or return;
+subtest 'the converter failure says nothing about the host at all' => sub {
+    # SM739 replaced SM738's sanitising with fixed text. The field pass found
+    # what a denylist over somebody else's output will always find: the date
+    # came back, inside an echoed command line this time, along with the pandoc
+    # invocation and a mojibake byte of stderr. A filter is only ever as good as
+    # the last thing that got past it.
+    #
+    # So this asserts the stronger property - nothing from the converter is
+    # interpolated at all - rather than that a particular leak was patched.
+    like( $src, qr/the document could not be produced/,
+        'the failure is a fixed sentence' );
+    like( $src, qr/log_event\(\s*'WARN',[^)]*'pdf conversion failed'/s,
+        'and the converter output goes to the log, where it belongs' );
 
-    # Prove the substitutions on the string the field actually saw.
-    my $why = "did not produce a document: lic_html/lazysite/cache/pandoc-3227817-x/Whole.pdf "
-        . "in /home/ispadmin/web/edge.explore.lazysite.io/public_html/lazysite/cache/pandoc-x/ "
-        . "on Wednesday 02 September 2026";
-    $why =~ s/\s+/ /g;
-    $why =~ s{\S*/[^\s]*}{}g;
-    $why =~ s/\bon \w+day \d+ \w+ \d{4}\b//i;
-    $why =~ s/\s{2,}/ /g;
-    $why =~ s/^[\s:,-]+|[\s:,-]+$//g;
-
-    unlike( $why, qr{/home/|ispadmin|public_html|cache/pandoc},
-        'no absolute path survives' );
-    unlike( $why, qr/Wednesday|September 2026/, 'nor the wrapper date stamp' );
+    my ($block) = $src =~ /(the document could not be produced.{0,200})/s;
+    unlike( $block, qr/\$why/,
+        'the caller-facing message interpolates none of the converter output' );
 };
 
 subtest 'the caller supplies the resolver' => sub {

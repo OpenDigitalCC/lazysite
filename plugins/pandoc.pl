@@ -474,14 +474,30 @@ sub convert {
         # caller can act on none of it. Same rule as SM713 one surface over:
         # what crosses the wire is what the reader can use; the full text goes
         # to the log.
-        $why =~ s/\s+/ /g;
-        $why =~ s{\S*/[^\s]*}{}g;                    # anything path-shaped
-        $why =~ s/\bon \w+day \d+ \w+ \d{4}\b//i;    # the wrapper's date stamp
-        $why =~ s/\s{2,}/ /g;
-        $why =~ s/^[\s:,-]+|[\s:,-]+$//g;
+        # SM739: THE CALLER IS TOLD NOTHING ABOUT THE HOST, and the way to
+        # guarantee that is to send nothing FROM the host.
+        #
+        # SM738 tried to sanitise the converter's chatter - strip path-shaped
+        # tokens, strip a date phrasing. The field pass found what a filter of
+        # that shape will always find: the date came back, this time inside an
+        # echoed command line (--metadata=date:"Wednesday 02 September 2026"),
+        # along with the pandoc invocation itself and a mojibake byte of stderr.
+        #
+        # A denylist over somebody else's output is a losing position: every
+        # release of the converter may phrase something new, and the filter is
+        # only ever as good as the last thing that got past it. So the message
+        # is now FIXED TEXT, and the converter's output goes where it belongs -
+        # the log, where an operator debugging the engine will look for it and
+        # where no HTTP client can read it.
+        #
+        # The caller loses nothing they could act on: none of pandoc's chatter
+        # told them how to fix their document.
+        log_event( 'WARN', $rel, 'pdf conversion failed',
+            exit => $status, output => substr( $why, -2000 ) )
+            if defined &log_event;
         return { ok => 0,
-            error => 'the conversion did not produce a document'
-                . ( length $why ? ": " . substr( $why, -200 ) : '' ) };
+            error => 'the document could not be produced. The converter '
+                . 'refused it; the reason is in the site log.' };
     }
     # Kept, so an unchanged document is never rendered twice.
     require File::Copy;

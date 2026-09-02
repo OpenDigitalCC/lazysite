@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM739 shipped (PENDING) **an error string says nothing about the host.** Three
+  leaks in three passes: a data error carrying an absolute path and the driver's
+  vocabulary (SM713); the composed-PDF failure carrying `/home/<account>/...`
+  (SM738); and then SM738's own fix, on the very next pass, letting the date back
+  through **inside an echoed command line**.
+
+  The third is the argument: **a filter over another program's output is only
+  ever as good as the last thing that got past it.** The converter failure is
+  fixed text now, and its output goes to the log. `t/lint/112` checks the SOURCE
+  - a caller-facing error interpolating a path, a driver prefix or an echoed
+  command - which is where the decision is made, and would have caught all three
+  without a running instance.
+
+  **And the two-reader fixture** (`t/unit/plugins/44`) for the refusal that had
+  never executed once in its life. One reader is not enough: testing only the
+  denied reader passes just as well when the part is invisible to everybody,
+  which is the state that hid this for a release.
+
+  Recorded with it, because the lesson is about the queue rather than the code:
+  the field agent proposed this lint after the first leak and repeated it after
+  the second and third. **A cheap check proposed by whoever keeps finding the
+  same class of defect is worth building the first time it is suggested.**
+
 - SM736 partial (PENDING) **the coverage record has to survive the build that
   wrote it.** Found immediately after the 0.11.12 cut, in the feature shipped one
   release earlier: `coverage.sh` writes its record relative to ITS OWN root,
