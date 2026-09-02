@@ -278,6 +278,34 @@
 .mg-btn-copy:hover { background: var(--mg-accent-bg); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
 
 .mg-btn-sm { min-height: var(--mg-ctl-sm); padding: 0 10px; font-size: var(--mg-text-sm); }
+/* SM728: IMPACT IS DECLARED, AND THE APPEARANCE IS DERIVED FROM IT.
+   `steel confirms, copper changes, red destroys` was a rule nothing could
+   check, because nothing enumerated what an action DOES. A modifier class is
+   an appearance an author chooses; data-impact is a statement about the act,
+   written where the control is written.
+   THE SELECTOR IS THE POINT. Styling from the attribute means the declaration
+   and the appearance cannot disagree - a control declared destroy is red
+   BECAUSE it is declared destroy, not because someone also remembered the
+   class. The modifier classes remain as aliases while pages convert; t/lint/109
+   fails if a control declares one impact and wears another's class.
+   THE VOCABULARY IS CLOSED: commit, change, destroy, retrieve, inert. */
+.mg-btn[data-impact="commit"] {
+    background: var(--mg-accent-fill); border-color: var(--mg-accent-fill);
+    color: var(--mg-accent-text); font-weight: 600;
+}
+.mg-btn[data-impact="commit"]:hover { background: var(--mg-accent-hover); border-color: var(--mg-accent-hover); color: var(--mg-accent-text); }
+.mg-btn[data-impact="change"] {
+    background: var(--mg-accent2-bg); border-color: var(--mg-accent2);
+    color: var(--mg-accent2-deep); font-weight: 600;
+}
+.mg-btn[data-impact="change"]:hover { background: var(--mg-accent2-fill); border-color: var(--mg-accent2-fill); color: #fff; }
+.mg-btn[data-impact="destroy"] { background: var(--mg-surface); border-color: var(--mg-danger); color: var(--mg-danger); }
+.mg-btn[data-impact="destroy"]:hover { background: var(--mg-danger-bg); border-color: var(--mg-danger); color: var(--mg-danger-deep); }
+.mg-btn[data-impact="retrieve"] { background: var(--mg-surface); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
+.mg-btn[data-impact="retrieve"]:hover { background: var(--mg-accent-bg); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
+/* inert needs no rule: it is the base .mg-btn, and saying so is the point -
+   a control that changes nothing stored should look like it changes nothing. */
+
 .mg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ============================================================ Forms

@@ -1503,7 +1503,7 @@ function renderFormTargets(formName, currentTargets) {
       html += '<option value="' + esc(h.id) + '"' + (h.id === hid ? ' selected' : '') + '>' + esc(label) + '</option>';
     });
     html += '</select>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTarget(\'' + esc(formName) + '\',' + idx + ')">&times;</button>';
+    html += '<button class="mg-btn mg-btn-sm" data-impact="edit" onclick="deleteTarget(\'' + esc(formName) + '\',' + idx + ')">&times;</button>';
     html += '</div>';
   });
 

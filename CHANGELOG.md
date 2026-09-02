@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM728 partial (PENDING) **a control declares its impact, so rules about it can
+  be checked.** The behaviour-rule inventory found the same gap under most of
+  the unenforceable rules: there was no SUBJECT. "A destructive action must also
+  be confirmed" cannot be checked while "a destructive action" is not something
+  the code can enumerate, so the rule was written down, agreed and unheld.
+
+  `data-impact` declares the act where the control is written - commit, change,
+  edit, destroy, retrieve, inert - and **the appearance is derived from it**, so
+  a control is red BECAUSE it is declared destroying rather than because someone
+  also remembered the class. `t/lint/109` holds four rules that could not
+  previously be asked, all sabotage-verified, including the two that matter:
+  **a destroying control reaches a confirmation**, and **an editing control
+  marks the form dirty** (which is where this meets SM726).
+
+  **The first control examined against the vocabulary did not fit it.**
+  `deleteTarget` wore the destroying colour for an act that destroys nothing
+  until the form is saved. The vocabulary grew a sixth value rather than forcing
+  it - a control that fits none is a signal, and sometimes the vocabulary is
+  what is wrong. 199 controls remain undeclared behind a per-page ratchet; that
+  conversion is a separate decision.
+
 - SM726 partial (PENDING) **a save behaves the same way everywhere, and it is
   written down.** Reported from the live manager: the Domains sheet gave no
   warning when changes were unsaved, and a save that took seconds reported

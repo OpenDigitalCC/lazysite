@@ -210,6 +210,22 @@ or Cancel closes it.</span>
   </div>
 </div>
 
+<h2 class="mg-sg-h">Impact &mdash; what a control does, declared</h2>
+<p class="mg-sg-note"><strong>A control declares its impact where it is written</strong>, and its appearance is derived from that. <code>steel confirms, copper changes, red destroys</code> was a rule nothing could check, because nothing enumerated what an action DOES. A modifier class is an appearance an author picks; <code>data-impact</code> is a statement about the act. SM728.</p>
+<p class="mg-sg-note"><strong>The vocabulary is closed.</strong> Five values, and a control that fits none of them is a control whose purpose is not yet clear enough to build.</p>
+<div class="mg-sg-demo">
+<button class="mg-btn" data-impact="commit">Save</button>
+<button class="mg-btn" data-impact="change">Apply</button>
+<button class="mg-btn" data-impact="edit">Remove from list</button>
+<button class="mg-btn" data-impact="destroy">Delete</button>
+<button class="mg-btn" data-impact="retrieve">Copy</button>
+<button class="mg-btn" data-impact="inert">Cancel</button>
+</div>
+<p class="mg-sg-note"><code>commit</code> writes what the operator has entered. <code>change</code> puts a prepared thing into effect or rewrites stored state. <code>destroy</code> destroys, <strong>and must reach a confirmation</strong> &mdash; the colour is a warning, not the guard. <code>retrieve</code> takes something out of the page, to the clipboard or a file. <code>edit</code> changes what WILL be saved without writing anything &mdash; removing a row from an unsaved list &mdash; and must therefore mark the form dirty. <code>inert</code> changes nothing at all: navigating, opening, cancelling, toggling a panel.</p>
+<p class="mg-sg-note"><strong>Two impacts may share an appearance, deliberately.</strong> <code>edit</code> and <code>inert</code> both look like a plain control, because neither writes anything &mdash; but the rules differ, and the declaration is what lets them. The vocabulary is finer-grained than the palette on purpose: it describes the ACT, and appearance is only one of the things derived from it.</p>
+<p class="mg-sg-note"><strong>Where the sixth value came from.</strong> The vocabulary started at five. The first real control examined against it &mdash; a Remove on an unsaved list of form targets &mdash; fitted none of them, and had been wearing the destroying colour for an act that destroys nothing until the form is saved. Rather than force it into <code>inert</code>, the vocabulary grew. A control that fits no value is still the signal this section says it is; sometimes it is the vocabulary that is wrong.</p>
+<p class="mg-sg-note"><strong>Why an attribute and not a class.</strong> Styling from the attribute means the declaration and the appearance cannot disagree: a control is red BECAUSE it is declared destroy, not because someone also remembered the class. It also gives a checker a subject &mdash; <code>t/lint/109</code> can ask whether a destroying control confirms, which no lint could ask before, because "a destructive action" was not something the code could enumerate.</p>
+
 <h2 class="mg-sg-h">Saving &mdash; the six behaviours</h2>
 <p class="mg-sg-note"><strong>These are not suggestions.</strong> Every control that writes a stored value follows all six, on every page, so that an operator who learns one asking has learned them all. Where a page disagrees with this section, the page is wrong. SM726.</p>
 

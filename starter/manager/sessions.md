@@ -61,7 +61,7 @@ The nuclear option: rotating the signing secret invalidates every cookie in
 circulation, including your own, and everyone must sign in again. Use this if
 a credential may have leaked.
 </p>
-<button class="mg-btn mg-btn-danger" onclick="rotateAuthSecret()">Log out all users</button>
+<button class="mg-btn" data-impact="destroy" onclick="rotateAuthSecret()">Log out all users</button>
 </div>
 </div>
 
@@ -120,9 +120,9 @@ function renderSessions(d) {
       '<td class="mg-cell-actions">' +
       // Red: both END something for somebody, and the second ends it
       // everywhere. They sat in the same plain button as Download.
-      '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeSession(\'' + escHtml(s.sid) + '\',\'' +
+      '<button class="mg-btn mg-btn-sm" data-impact="destroy" onclick="revokeSession(\'' + escHtml(s.sid) + '\',\'' +
         escHtml(s.user) + '\',' + (s.current ? 'true' : 'false') + ')">Sign out</button> ' +
-      '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeUser(\'' + escHtml(s.user) + '\')">Sign out everywhere</button>' +
+      '<button class="mg-btn mg-btn-sm" data-impact="destroy" onclick="revokeUser(\'' + escHtml(s.user) + '\')">Sign out everywhere</button>' +
       '</td></tr>';
   });
   h += '</tbody></table></div>';
@@ -307,7 +307,7 @@ function renderKeys(d) {
       // the flag for exactly this moment.
       (k.interactive
         ? '<span class="mg-row-meta">interactive - manage on the <a href="/manager/users">Users page</a></span>'
-        : '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>') +
+        : '<button class="mg-btn mg-btn-sm" data-impact="destroy" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>') +
       '</td></tr>';
   });
   h += '</tbody></table></div>';
