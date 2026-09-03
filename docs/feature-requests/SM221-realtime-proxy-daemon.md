@@ -6,6 +6,8 @@ status: candidate
 status-note: "Design + analysis written 2026-07-27 at the operator's request. NOT built. Recommends WebSocket as the transport (WebRTC only for a genuinely peer-to-peer phase 4), a manager-first phasing, and a new `realtime` CHANNEL capability with its own killswitch. Several decisions are deliberately left open at the end - this is a design to argue with, not a plan to execute. Supersedes the streaming half of SM103 phase 2 (SSE) and would carry SM103's phase-3 presence ambition."
 ---
 
+> **A module of [[SM666]], the persistent runtime.** Reduced 2026-09-03 by the release manager: the supervisor is built first and this becomes the WebSocket transport plugin. The analysis here stands - the transport choice, the authentication model, the `realtime` capability, and the rule that a transport is never a second write plane. Two things change: it is no longer the whole programme, and its per-SITE recommendation is superseded by one runtime per INSTANCE. Open decision 6 is settled by construction.
+
 # SM221 - real-time proxy daemon
 
 ## Why

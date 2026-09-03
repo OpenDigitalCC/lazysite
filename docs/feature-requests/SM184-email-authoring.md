@@ -6,6 +6,8 @@ status: candidate
 status-note: "candidate 2026-07-20, backlog. Large: an inbound-email gateway + a sender-trust (DKIM/DMARC) auth system + an AI authoring step + a private-preview round-trip. Phased; the trust design is the gating decision. No code yet."
 ---
 
+> **A module of [[SM666]], the persistent runtime.** Depends on it, as of 2026-09-03. The inbound-email gateway is a listener, which is what the runtime provides. This does NOT make the filing smaller: its own gating decision is the sender-trust design (DKIM/DMARC/SPF), and that is unchanged and remains the hard part. Recorded so the dependency is visible rather than discovered.
+
 # SM184 - Publish pages by email
 
 ## Why
