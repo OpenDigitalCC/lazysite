@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal brief_write_refusal load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -547,6 +547,24 @@ sub action_save {
     # the WebDAV PUT path enforces the same guard in lazysite-dav.pl.
     if ( my $err = raw_html_page_refusal($content) ) {
         return { ok => 0, error => $err, kind => 'raw-content-refused' };
+    }
+
+    # SM748: a page whose template body does not parse is refused HERE, at the
+    # choke point, rather than in one caller.
+    #
+    # SM708 built this check inline in lazysite-mcp.pl and its own note said the
+    # manager editor and WebDAV were left unguarded. SM729 closed the WebDAV
+    # half; nobody closed the other, so `action=save` - the path
+    # /manager/edit actually saves through - accepted an unparseable body with
+    # ok:true for four releases while WebDAV answered 415 to the same bytes.
+    #
+    # It belongs beside the SM189 guard above for the reason SM189's comment
+    # already gives: MCP write_file and create_page route through action_save,
+    # so one call here covers the manager, the control API and MCP, and only
+    # the separate WebDAV stack needs its own. A guard in a caller protects
+    # that caller; a guard here protects whoever is added next.
+    if ( my $err = page_parse_refusal( $result->{rel}, $content ) ) {
+        return { ok => 0, error => $err, kind => 'template-parse-refused' };
     }
 
     # SM504: a .brief write refuses once the briefs plugin owns the record on

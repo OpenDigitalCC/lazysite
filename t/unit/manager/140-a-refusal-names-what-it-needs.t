@@ -84,23 +84,29 @@ subtest 'SM708: the refusal happens BEFORE the write, not after it' => sub {
     # result, so a page carrying an issue is already on disk. A parse failure
     # must not be reported that way, because the page renders every variable
     # literally and the author who can fix it is present at the write.
-    ok( $src =~ /sub _page_parse_refusal/, 'the pre-write guard exists' );
+    # SM748 MOVED THE GUARD, and this subtest moved with it.
+    #
+    # It used to assert three inline guards in lazysite-mcp.pl, each sitting
+    # above its own action_save. That was true, and it was the defect: guarding
+    # the CALLER meant the control API - which calls the same action_save from
+    # the same shared module - was never covered, so `action=save` accepted an
+    # unparseable body for four releases while WebDAV refused it.
+    #
+    # The property is unchanged: the refusal happens BEFORE the write, not as
+    # an advisory attached afterwards. Only its location changed, from three
+    # callers to the one function they all go through. t/unit/manager/141 owns
+    # the reach; what is asserted here is that MCP no longer carries a private
+    # copy of a shared rule.
+    unlike( $src, qr/sub _page_parse_refusal/,
+        'MCP no longer defines a private parse guard' );
+    unlike( $src, qr/_page_parse_refusal\(/,
+        'and no longer calls one - action_save carries it' );
 
-    # Every guard must sit ABOVE its action_save, or it is a report again.
-    my @lines = split /\n/, $src;
-    my ( @guards, @saves );
-    for my $i ( 0 .. $#lines ) {
-        push @guards, $i if $lines[$i] =~ /_page_parse_refusal\(/;
-        push @saves,  $i if $lines[$i] =~ /action_save\(/;
-    }
-    cmp_ok( scalar @guards, '>=', 3,
-        'guarded at the three content-authoring entry points' );
-
-    for my $g (@guards) {
-        my ($next) = grep { $_ > $g } @saves;
-        ok( defined $next && $next - $g < 8,
-            "the guard at line @{[ $g + 1 ]} precedes a write within a few lines" );
-    }
+    # The advisory path is a different thing and stays: _validate_page reports
+    # issues without refusing, which is right for a validator and wrong for a
+    # write.
+    like( $src, qr/page_parse_issues/,
+        'the ADVISORY use survives, because a validator reports rather than refuses' );
 };
 
 done_testing();

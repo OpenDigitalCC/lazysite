@@ -54,23 +54,71 @@ subtest 'it refuses what it should and accepts what it should' => sub {
         'a non-markdown path is not a page and is not checked' );
 };
 
-subtest 'both write stacks consult it' => sub {
-    my %src;
-    for my $f (qw(lazysite-dav.pl lazysite-mcp.pl)) {
-        open my $fh, '<', "$root/$f" or die "$f: $!";
-        $src{$f} = do { local $/; <$fh> };
-        close $fh;
-    }
+subtest 'the guard is called from the CHOKE POINT, and nowhere else but DAV' => sub {
 
-    like( $src{'lazysite-mcp.pl'}, qr/Lazysite::Manager::Common::page_parse_refusal/,
-        'the MCP write path calls the shared guard' );
-    like( $src{'lazysite-dav.pl'}, qr/Lazysite::Manager::Common::page_parse_refusal/,
-        'the WebDAV PUT path calls the shared guard' );
+    # SM748 REWROTE THIS SUBTEST, and the reason is the point of it.
+    #
+    # It used to open two named files - lazysite-dav.pl and lazysite-mcp.pl -
+    # and assert each called the guard. Both did, so it passed, for two
+    # releases, while `action=save` accepted unparseable bodies. THREE callers
+    # write pages; it read two of them, and neither was the one at fault.
+    #
+    # A hand-written list of filenames can only ever be as complete as the day
+    # somebody wrote it. So this walks the TREE instead and asserts a property
+    # that a new caller cannot quietly fail: the guard lives at the shared
+    # choke point every manager, control-API and MCP write passes through, and
+    # the only other call site is the separate WebDAV stack.
+    #
+    # If a fourth surface appears, it either routes through action_save and
+    # inherits the guard, or it adds a third call site and fails here - which
+    # is the conversation we want to have.
 
-    # The MCP script must not carry its own copy any more, or the two could
-    # disagree - which is the whole defect, one level down.
-    unlike( $src{'lazysite-mcp.pl'}, qr/sub _check_template_parses/,
-        'the MCP script no longer carries its own copy of the check' );
+    my @sites;
+    my $walk;
+    $walk = sub {
+        my ($dir) = @_;
+        opendir my $dh, $dir or return;
+        for my $e ( sort readdir $dh ) {
+            next if $e =~ /\A\.\.?\z/;
+            next if $e eq '.git' or $e eq 't' or $e eq 'tmp' or $e eq 'dist';
+            my $p = "$dir/$e";
+            if ( -d $p ) { $walk->($p); next }
+            next unless $e =~ /\.(?:pl|pm)\z/;
+            next if $p =~ m{lib/Lazysite/Manager/Common\.pm\z};    # the definition
+            open my $fh, '<', $p or next;
+            my $s = do { local $/; <$fh> };
+            close $fh;
+            ( my $rel = $p ) =~ s{^\Q$root\E/}{};
+            push @sites, $rel if $s =~ /page_parse_refusal\s*\(/;
+        }
+        closedir $dh;
+    };
+    $walk->($root);
+
+    is_deeply(
+        [ sort @sites ],
+        [ 'lazysite-dav.pl', 'lib/Lazysite/Manager/Files.pm' ],
+        'exactly two call sites: the shared choke point, and the separate DAV stack'
+    ) or diag( "found: " . join( ', ', sort @sites ) );
+
+    # The choke point is action_save specifically - the function the manager
+    # UI, the control API and MCP all write through.
+    my $files = do {
+        open my $fh, '<', "$root/lib/Lazysite/Manager/Files.pm" or die $!;
+        local $/; <$fh>;
+    };
+    my ($body) = $files =~ /sub action_save \{(.*?)\n\}/s;
+    ok( defined $body, 'action_save is present in the shared module' );
+    like( $body, qr/page_parse_refusal/,
+        'and it consults the guard itself, so its callers inherit it' );
+
+    # Ordering: the refusal must precede the write, or the page is already on
+    # disk when we complain about it - SM708's own reasoning.
+    my $guard = index( $body, 'page_parse_refusal' );
+    my $write = index( $body, 'write_file_checked' );
+    cmp_ok( $guard, '>', -1, 'the guard is in action_save' );
+    cmp_ok( $write, '>', -1, 'and so is the write' );
+    cmp_ok( $guard, '<', $write, 'the guard runs BEFORE the write' );
 };
 
 subtest 'the DAV path refuses before anything lands on disk' => sub {

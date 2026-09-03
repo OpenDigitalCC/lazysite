@@ -580,9 +580,6 @@ my %TOOLS = (
             required => [ 'path', 'content' ], additionalProperties => JSON::PP::false },
         run => sub {
             my ( $a, $user ) = @_;
-            if ( my $refusal = _page_parse_refusal( $a->{path}, $a->{content} ) ) {
-                return $refusal;
-            }
             my $r = action_save( $a->{path}, $user, $a->{content}, undef );
             # Validate-on-write: surface front-matter / form / public-data issues
             # in the write result so the agent sees them without a second call.
@@ -1012,10 +1009,7 @@ my %TOOLS = (
             my $count = @parts - 1;
             return { ok => 0, error => 'text not found in ' . ( $a->{path} // '' ) } unless $count;
             my $content = join( ( defined $a->{new} ? $a->{new} : '' ), @parts );
-            if ( my $refusal = _page_parse_refusal( $a->{path}, $content ) ) {
-                return $refusal;
-            }
-            my $s = action_save( $a->{path}, $user, $content, undef );
+            my $s       = action_save( $a->{path}, $user, $content, undef );
             $s->{replacements} = $count if ref $s eq 'HASH' && $s->{ok};
             return $s;
         },
@@ -2057,59 +2051,6 @@ sub _check_fences {
     return;
 }
 
-# SM708: A PAGE WHOSE TEMPLATE BODY CANNOT BE PARSED IS REFUSED HERE, because
-# the alternative is that it renders wrong forever and says so only in a log.
-#
-# WHAT GOES WRONG AT RENDER. Page bodies are TT-processed. A literal `[%` that
-# is not a valid directive fails the parse, and lazysite-processor.pl's fallback
-# is WHOLE-BODY: it emits the raw body, so EVERY `[% %]` on the page comes out
-# un-substituted, not just the span that failed. The page still renders. The
-# only signal is one ERROR log line. Reported from familyhq, where a JavaScript
-# guard written to detect an un-interpolated template - `/\[%/.test(u)` -
-# contained the literal `[%` that broke the parse, and then blanked the very
-# variable it was protecting.
-#
-# WHY IT IS CHECKED HERE AND NOT AT RENDER. At render there is nothing useful to
-# do: refusing to serve would take a live page down over an authoring mistake.
-# At write time the author is present and can fix it, which is the whole value.
-#
-# TWO THINGS THIS DELIBERATELY DOES NOT DO.
-#
-# It does not refuse on a NON-PARSE error. `[% INCLUDE missing.tt %]` fails
-# here with a file error but may resolve at render, where INCLUDE_PATH is set.
-# Only /parse error/ is refused - which is exactly the failure this filing is
-# about, and nothing wider.
-#
-# It does not look inside code blocks. The processor lifts <pre><code> and
-# <code> out before TT runs, so a literal `[%` in a code block is already safe -
-# which is why this never bit a documentation page. Both FENCED and
-# FOUR-SPACE-INDENTED blocks are stripped here: starter/docs/ai-briefing-layouts
-# documents `[% INCLUDE ... %]` in an INDENTED block, and a checker that handled
-# only fences would refuse a page we ship. The stripping is deliberately
-# over-eager - any line indented four spaces goes - because over-stripping means
-# checking less, while under-stripping means refusing a page that renders fine.
-# SM708: THE REFUSAL, as distinct from the report.
-#
-# _validate_page's issues are ADVISORY on the write path: write_file calls
-# action_save FIRST and attaches the issues to the result, so a page with an
-# issue is already on disk by the time the caller reads about it. That is a
-# reasonable contract for most issue kinds - an un-titled page is worth saving
-# and worth mentioning - but it is the wrong one here, because a page whose
-# template does not parse renders EVERY variable on it literally, and the author
-# who could fix it in one edit is present at exactly this moment.
-#
-# So this refuses BEFORE the write, and only for this one issue kind. Widening
-# it to refuse on any issue would change the contract for every other check on
-# the same path, which is not this filing's business.
-#
-# Applied at the three points where a caller supplies page body text:
-# write_file, replace_text and _create_page. Deliberately NOT applied to
-# _create_form (the body is generated from structured fields, not authored),
-# nor to copy_file or rename (the content already passed this gate when it was
-# written, and refusing a MOVE because of it would strand the page).
-sub _page_parse_refusal {
-    return Lazysite::Manager::Common::page_parse_refusal(@_);
-}
 
 sub _check_db_bindings {
     my ( $issues, $warnings, $fm ) = @_;
@@ -3233,9 +3174,6 @@ sub _create_page {
     $fm .= "---\n";
     my $body = defined $a->{body} ? $a->{body} : '';
     $body .= "\n" unless $body eq '' || $body =~ /\n\z/;
-    if ( my $refusal = _page_parse_refusal( "/$slug.md", $fm . $body ) ) {
-        return $refusal;
-    }
     return action_save( "/$slug.md", $user, $fm . $body, undef );
 }
 
