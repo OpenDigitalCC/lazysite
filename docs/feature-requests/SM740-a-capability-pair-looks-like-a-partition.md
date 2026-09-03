@@ -39,6 +39,46 @@ it is false.
 The agent who filed this reads capability output for a living and reached the
 wrong conclusion from correct data. That is the test a presentation fails.
 
+
+# Decided 2026-09-03: presentation only, and the gate is left alone
+
+The release manager first chose to **make `write_data` gate something
+distinct** - to change the model so `manage_data` no longer admits
+`data-row-save` on its own. That decision is **reversed**, on the analysis
+below, and this filing is now the presentation fix only.
+
+## What checking the gate map changed
+
+`manage_data` alone admits: reading rows, writing rows (through the ANY-OF),
+saving table definitions, and running migrations. It does **not** admit dropping
+a table - `data-table-drop` requires `housekeeping`. So the easy argument for
+leaving the model alone ("a table administrator can destroy everything anyway")
+is weaker than it first looks, and was not used.
+
+The argument that decides it is the other one: **what deployment actually wants
+table administration without row writes?**
+
+Nobody has asked for one. The report that produced this filing was not "I need
+this role and cannot have it". It was "I withheld `write_data` and expected
+writes to stop" - **a false expectation created by the output, not a permissive
+gate.**
+
+So the model change would address a different problem from the one observed,
+and it would cost a breaking change to every grant currently relying on
+`manage_data` for row writes.
+
+## Where the split will earn itself
+
+Not here, and probably later: the apps line ([[SM715]]-[[SM723]]) is the first
+place where an app's **schema ownership** and its **runtime writes** are
+plausibly different identities. If the partition is introduced there it arrives
+with a real use case and a migration story, rather than as a breaking change in
+search of one.
+
+Recorded so that whoever meets this question next does not re-derive the whole
+argument: **the presentation was the defect; the partition is a feature, and it
+needs a customer.**
+
 # What would fix it
 
 The output has to say which capabilities **imply** others. Sketch, not a
