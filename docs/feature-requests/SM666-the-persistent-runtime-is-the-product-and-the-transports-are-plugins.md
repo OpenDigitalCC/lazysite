@@ -507,6 +507,38 @@ Deliberately small enough to be boring, and shippable on its own:
 Everything else in the register waits for a contract that has been proved by
 something running.
 
+
+# The SM222 debt, taken deliberately
+
+Decided 2026-09-03: phase 1 does **not** wait for [[SM222]]. It implements
+start, stop and status for itself, in its own way, and that is accepted as debt
+to be unwound when SM222 lands.
+
+Recorded here rather than left implicit, because undocumented debt is
+indistinguishable from an oversight six months later - and because the thing
+owed should be written down while it is still obvious.
+
+**What is owed, precisely:**
+
+- The daemon's own **start / stop / status verbs**, which phase 1 will define
+  locally, move onto SM222's shared contract.
+- The **desired-versus-runtime split** phase 1 derives for itself - desired from
+  the plugin's enabled state, runtime from whether the child is alive - becomes
+  SM222's vocabulary rather than the daemon's private one.
+- The **crash-loop verdict**, where a service failing every two seconds reports
+  as failed rather than running, generalises to SM222's health verdicts. This is
+  the one worth protecting: it is a correctness property, not a spelling, and it
+  must survive the migration rather than be re-derived by it.
+
+**What is NOT deferred**, and must be right in phase 1 regardless: disabled
+means the process never starts. That is a security property - an unintended
+long-lived process holding credentials - and it is not the kind of thing to
+implement approximately and fix later. SM409 already provides the born-disabled
+state; supervision honouring it is phase 1's job and not SM222's.
+
+The distinction is the point of this note. **The lifecycle VOCABULARY can be
+temporary. The lifecycle GUARANTEE cannot.**
+
 # The four questions, all answered 2026-09-03
 
 1. ANSWERED 2026-09-03 - OWN PROCESS per service, see above. **Does a SERVICE run in the supervisor's process or its own?** In-process is
