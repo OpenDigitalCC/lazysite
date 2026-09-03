@@ -5,7 +5,7 @@ status: candidate
 status-note: "not scoped; Stuart will brief properly when ready to action"
 ---
 
-> **A module of [[SM666]], the persistent runtime.** Depends on it, as of 2026-09-03. ActivityPub needs two things this repository has never had: an inbox that can be POSTed to by a stranger, and a delivery queue that retries. The first is the runtime's local socket behind the existing proxy; the second is the scheduler plus [[SM579]]'s outbound policy. So syndication is not blocked on scoping - it is blocked on the runtime, and it becomes tractable in phases 3-4 rather than being a programme of its own.
+> **A service of [[SM666]], the persistent runtime.** Depends on it, as of 2026-09-03. ActivityPub needs two things this repository has never had: an inbox that can be POSTed to by a stranger, and a delivery queue that retries. The first is the runtime's local socket behind the existing proxy; the second is the scheduler plus [[SM579]]'s outbound policy. So syndication is not blocked on scoping - it is blocked on the runtime, and it becomes tractable in phases 3-4 rather than being a programme of its own.
 
 CANDIDATE - Social syndication (consumer + publisher)
 ======================================================
