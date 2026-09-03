@@ -417,13 +417,70 @@ identity the work was actually done as, so a row written at 03:00 is
 indistinguishable in kind from one written by a person at noon, and answerable
 by the same question: who was this, and what were they allowed to do.
 
+
+# Each service gets its own process
+
+Decided 2026-09-03, closing open question 1 - the last one. **The supervisor
+runs a child process per service.** Not one process hosting all of them.
+
+The reason is the one the question named: an XMPP library having a bad day must
+not take down the browser sockets, and a service that leaks or wedges must be
+restartable without stopping the rest. `SM142`/`SM139`'s per-site FastCGI pool
+is the local precedent, and it is the same argument.
+
+It also makes [[SM222]]'s desired-versus-runtime split fall out rather than need
+building: **desired** is what the configuration says, **runtime** is whether the
+child is alive. The supervisor knows both without asking anybody, which is
+precisely the distinction SM222 exists to make reportable.
+
+## What this obliges
+
+**A restart policy, decided rather than improvised.** Backoff, and a crash loop
+that is recognised as a crash loop. A service failing every two seconds must
+report as **failed**, not as running - reporting a flapping child as healthy
+would rebuild, in the daemon, the exact dishonesty SM222 was filed about.
+
+**IPC becomes a real surface.** With services in separate processes, the
+envelope described above crosses a process boundary to reach them. Routing a
+message to a service is now inter-process rather than a function call, and that
+boundary needs the same discipline as any other: a message carries its target,
+an unresolvable target fails closed, and no service may address another site's
+context.
+
+**Phase 1 pays for this up front, and should.** One service still means
+supervisor plus one child, which is slightly more work than hosting the
+scheduler in-process. It is worth it: the contract is proved with real process
+isolation by its first implementation, rather than being retrofitted when a
+second service arrives and discovers the contract assumed a shared address
+space.
+
+## Two kinds of user, and they are not the same thing
+
+Worth stating plainly, because conflating them would be easy and expensive.
+
+**The OS user** is what the daemon and its children run as on the host - a
+single system account owned by the deployment. It is a filesystem and process
+concern.
+
+**The job's user** is a lazysite identity in the capability model, holding
+`run_jobs` and whatever the job's actions require. It is an authorisation
+concern.
+
+A job running as the lazysite user `jobs-nightly` does **not** imply a Unix
+account of that name, and the capability gate is not a filesystem permission.
+The daemon's OS identity says what the process may touch on disk; the job's
+lazysite identity says what the work may do in the application. Neither
+substitutes for the other, and a change to one is not a change to the other.
+
+**`run_jobs` is confirmed** as the capability's name.
+
 # What phase 1 actually is
 
 Deliberately small enough to be boring, and shippable on its own:
 
 1. A supervised process that starts, stops, reports status through SM222's
    verbs, and logs. No protocol, no socket, no egress.
-2. A plugin contract with one implementation.
+2. A service contract with one implementation, running as its own child.
 3. A scheduler: declarative jobs, a tick, a run record, and an audit row per
    run carrying a real identity.
 4. Shipped DISABLED per ADR 0009, where disabled means the process never
@@ -433,9 +490,9 @@ Deliberately small enough to be boring, and shippable on its own:
 Everything else in the register waits for a contract that has been proved by
 something running.
 
-# Open, and worth deciding before anything is built
+# The four questions, all answered 2026-09-03
 
-1. STILL OPEN, and now the only one. **Does a SERVICE run in the supervisor's process or its own?** In-process is
+1. ANSWERED 2026-09-03 - OWN PROCESS per service, see above. **Does a SERVICE run in the supervisor's process or its own?** In-process is
    cheaper and lets a crash take everything down; a child per plugin isolates
    an XMPP library's bad day from the browser sockets. The FastCGI pool pattern
    (SM142/SM139) is the local precedent for the second.
