@@ -313,13 +313,14 @@ sub _missing_deps {
     my @bins = @{ $desc->{owns}{bins} || [] };
     return undef unless @deps || @bins;
 
-    my @absent;
+    my ( @absent, @bare );
     for my $m (@deps) {
         next unless $m =~ /\A[A-Za-z][\w:]*\z/;            # never interpolate a name
         ( my $file = "$m.pm" ) =~ s{::}{/}g;
         next if eval { require $file; 1 };
         ( my $pkg = lc $m ) =~ s{::}{-}g;
         push @absent, "$m (Debian: lib$pkg-perl)";
+        push @bare,   $m;
     }
 
     for my $b (@bins) {
@@ -330,16 +331,33 @@ sub _missing_deps {
         next unless $b =~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
         next if _bin_on_path($b);
         push @absent, "$b (a program, not a Perl module - Debian: $b)";
+        push @bare,   $b;
     }
 
     return undef unless @absent;
 
-    return
-        'This plugin needs '
+    my $msg
+        = 'This plugin needs '
         . join( ', ', @absent )
         . ' and they are not installed. It would enable and then fail on every '
         . 'request that used them, so it has been left off - install them and '
         . 'enable it again.';
+
+    # SM711 half 2: the BARE NAMES come back alongside the prose.
+    #
+    # The audit row for a refused toggle said `plugin-enable / pandoc / fail`
+    # with no reason - or, once a kind existed, `missing_deps`, which names the
+    # CLASS of problem and not the thing that is missing. The release manager's
+    # complaint was exactly that: "the logged error doesn't say which dep is
+    # missing". The banner beside it carried the full explanation, so the
+    # information existed and only the record lacked it.
+    #
+    # The prose cannot be reused for the trail: it is three sentences with
+    # install advice in the middle, which is right for a person reading a
+    # banner and wrong for a column an auditor scans. So the names travel
+    # separately rather than being parsed back out of the sentence they were
+    # formatted into.
+    return ( $msg, \@bare );
 }
 
 sub action_plugin_enable {
@@ -382,8 +400,18 @@ sub action_plugin_enable {
     # depend on this site's lazysite.conf and the write between them is
     # invisible to it.
     my $desc = _describe($full);
-    if ( my $missing = _missing_deps( $script, $full, $desc ) ) {
-        return { ok => 0, kind => 'missing_deps', error => $missing };
+    my ( $missing, $absent ) = _missing_deps( $script, $full, $desc );
+    if ($missing) {
+        # SM711 half 2: `audit_detail` is the short, scannable form for the
+        # trail. `error` stays the operator's sentence, because a banner and an
+        # audit column want different things - and deriving one from the other
+        # would mean parsing prose we had just finished formatting.
+        return {
+            ok           => 0,
+            kind         => 'missing_deps',
+            error        => $missing,
+            audit_detail => 'missing_deps: ' . join( ', ', @{ $absent || [] } ),
+        };
     }
 
     my $r = _update_plugins_conf( $script, 'add' );

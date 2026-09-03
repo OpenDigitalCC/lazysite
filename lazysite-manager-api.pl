@@ -2327,8 +2327,16 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         my $ok = ref $result eq 'HASH' && $result->{ok};
         # On failure, record a short reason (kind, else the error text) as the
         # detail field so the audit can show WHY it failed.
+        # SM711 half 2: audit_detail FIRST. `kind` names the class of
+        # failure - `missing_deps` - and the class was never the question. The
+        # release manager's complaint was that the log did not say WHICH
+        # dependency was missing, while the banner beside it did, so the
+        # information existed and only the record lacked it. A result that
+        # knows the specifics says so; everything else keeps the old order.
         my $detail = $ok ? ''
-            : ( ref $result eq 'HASH' ? ( $result->{kind} || $result->{error} || '' ) : '' );
+            : ( ref $result eq 'HASH'
+            ? ( $result->{audit_detail} || $result->{kind} || $result->{error} || '' )
+            : '' );
 
         # SM465: an acl-set records WHAT THE RULE BECAME, and what it was.
         #

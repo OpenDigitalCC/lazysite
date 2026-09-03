@@ -4,8 +4,8 @@ title: A failed plugin toggle names the opposite verb, and the audit row carries
 raised: 2026-09-01
 raised-by: edge-testing agent (0.11.9 regression round 2)
 area: manager-ui
-status: partial
-status-note: "PARTIAL. THE VERB IS FIXED: the message now derives from `action`, computed before the revert, instead of from the checkbox the line above puts back. HALF 2 REMAINS: the audit row for a refused toggle is still `plugin-enable / pandoc / fail` with no reason, while the banner beside it carries the full explanation. That is the release manager's 'the logged error doesn't say which dep is missing' and it is not a one-line change - the reason has to be carried into the audit entry's detail at the point of refusal. The refusal TEXT itself is good and is quoted in this filing so it does not get 'improved' by someone reading only the defect list."
+status: shipped
+status-note: "PARTIAL. THE VERB IS FIXED: the message now derives from `action`, computed before the revert, instead of from the checkbox the line above puts back. HALF 2 IS DONE 2026-09-03 - see the note at the end of this filing. Previously: HALF 2 REMAINS: the audit row for a refused toggle is still `plugin-enable / pandoc / fail` with no reason, while the banner beside it carries the full explanation. That is the release manager's 'the logged error doesn't say which dep is missing' and it is not a one-line change - the reason has to be carried into the audit entry's detail at the point of refusal. The refusal TEXT itself is good and is quoted in this filing so it does not get 'improved' by someone reading only the defect list."
 ---
 
 # Two defects on one journey
@@ -59,3 +59,26 @@ later back to reproduce the failure to find out what it was.
 An outcome test on the refusal path asserting the banner text contains the verb
 of the ATTEMPTED action, not the resulting checkbox state - and that the audit
 entry for a refused toggle carries a non-empty reason.
+
+# Half 2, shipped 2026-09-03
+
+The audit row for a refused toggle now names what is missing.
+
+`_missing_deps` returns the bare names alongside the operator's sentence,
+`action_plugin_enable` puts them in `audit_detail` as
+`missing_deps: YAML::PP, pandoc`, and the dispatcher's audit block prefers
+`audit_detail` over `kind`. The row that said `missing_deps` now says which.
+
+**The prose is not reused, and that is the decision.** The operator's message
+is three sentences with install advice in the middle - right for a banner,
+wrong for a column an auditor scans. Deriving the trail's version from it would
+have meant parsing prose we had just finished formatting, which is cheap and
+wrong in the way this project keeps finding: a dependency's own wording becoming
+something else's data. So the names travel separately.
+
+`t/unit/manager/152` covers both halves, because neither is visible from the
+other file: that the check returns bare names for BOTH kinds of dependency - a
+Perl module and a program - and that the dispatcher actually prefers the
+detail. Its second assertion strips comments first, because the block it reads
+explains `audit_detail` in prose and a search that cannot tell code from prose
+about code would have passed on the explanation alone.

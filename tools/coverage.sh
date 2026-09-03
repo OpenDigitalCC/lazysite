@@ -115,7 +115,18 @@ fi
 # THE CORRECTNESS SUITE IS NOT SKIPPED and this argument does not extend to it:
 # a gate result is a fact about a tree AT A TIME, and date-sensitive tests are a
 # known class here. Coverage is structural and does not have that property.
-COVER_RECORD="$ROOT/dist/config/coverage-last.json"
+# The record's path is overridable ONLY so that the skip can be tested.
+#
+# It could not be, before: the path was hard-coded, so proving the skip fires
+# meant planting a matching record in the real repository - and a test killed
+# between planting and restoring would leave a record that makes a REAL release
+# skip its coverage gate. That is a bad thing to risk in order to test a
+# shortcut whose whole purpose is to be safe.
+#
+# So t/unit/tools/76 points this at a temporary file and proves the decision
+# without touching the repository. Nothing else sets it; release.sh does not,
+# and the default is the only path any build uses.
+COVER_RECORD="${LAZYSITE_COVER_RECORD:-$ROOT/dist/config/coverage-last.json}"
 COVER_DIGEST=$(perl "$ROOT/tools/coverage-inputs.pl" 2>/dev/null | awk '{print $1}')
 if [ "${LAZYSITE_COVER_FORCE:-}" != "1" ] && [ -n "$COVER_DIGEST" ] && [ -f "$COVER_RECORD" ]; then
     prev=$(perl -MJSON::PP -e '
