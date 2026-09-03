@@ -264,12 +264,28 @@ to when there is no request to say no to, and it is why the daemon cannot
 inherit the current behaviour SM222 documents, where a disabled service still
 spawns, reads its config and only then refuses.
 
-**SM409 is the dependency.** ADR 0009 pulls "making `enabled` real" forward
-ahead of everything else precisely because a disabled plugin that still executes
-is a standing defect. The daemon is the case where that defect stops being
-wasteful and becomes unsafe - an unintended long-lived process holding
-credentials is a different order of problem from an unintended CGI refusal - so
-the runtime must not ship before `enabled` means what it says.
+**SM409 is not a dependency - it is already the mechanism.** CORRECTED
+2026-09-03: an earlier version of this section said the runtime must not ship
+until SM409 made `enabled` real. SM409 **shipped on 2026-08-19**, to the
+semantic the release manager set at the time: contract-declaring plugins under
+ADR 0009 are gated and **born disabled**, while legacy plugins stay untouched
+until each one's own migration.
+
+The runtime is a new ADR 0009 plugin, so it inherits both halves for free. It is
+born disabled because that is what a conforming plugin now is, and its `enabled`
+state is really consulted rather than displayed.
+
+**What remains is ours, and it is small but load-bearing: supervision must
+honour the flag.** SM409 gates *execution* - a disabled plugin's actions are
+refused. For a CGI that is the whole of it, because execution only happens when
+a request arrives. A daemon executes by existing, so the supervisor must read
+the enabled state and **decline to start the process at all**, rather than
+starting it and refusing work.
+
+That is the piece SM222 describes from the other side: today a disabled service
+still spawns, reads its config and only then refuses. Harmless for a CGI,
+incoherent for a daemon - an unintended long-lived process holding credentials
+is a different order of problem from an unintended CGI refusal.
 
 # It ships as a plugin, and it comes disabled
 
@@ -484,8 +500,9 @@ Deliberately small enough to be boring, and shippable on its own:
 3. A scheduler: declarative jobs, a tick, a run record, and an audit row per
    run carrying a real identity.
 4. Shipped DISABLED per ADR 0009, where disabled means the process never
-   starts - which needs SM409 (making `enabled` real) first, not a config flag
-   on top of it.
+   starts. SM409 already makes an ADR 0009 plugin born disabled with a real
+   enabled state; what phase 1 adds is SUPERVISION honouring it, so the
+   process is never started rather than started and made to refuse.
 
 Everything else in the register waits for a contract that has been proved by
 something running.
