@@ -4,7 +4,7 @@ title: "SM741: the save guard refuses what the renderer tolerates"
 subtitle: "A page whose template does not parse renders happily through the raw fallback, and has done for months. Since SM708 it cannot be saved. So a page can exist that no operator is able to edit - including to fix it."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 ---
 
 # The moment this fills

@@ -44,6 +44,88 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.12.1 - STABLE: the guard that refused pages it should have accepted, and what the count found that the case did not (2026-09-03)
+
+**A patch release with one code change in it, filed and fixed inside a day,
+because the field agent asked a question I could answer and I checked the answer
+instead of asserting it.**
+
+The 0.12.0 plan asked how many pre-existing pages the SM708 parse guard would
+refuse. The agent could not reach a stable site to count, so I ran it locally
+across every tree in reach: 495 markdown files carrying `[%`, seven refused.
+**Five of the seven were pages that parse.**
+
+Two things came out of that which the original case could not have shown. The
+first is the defect below. The second is about method: SM708, SM729 and their
+fixtures were all correct about the case they described, and the case was not
+the population. **A rule that is right about the example it was written from can
+still be wrong about most of what it meets** - and only counting shows it.
+
+The measurement also corrected me twice, which is worth recording because both
+corrections went the same direction. I first reported 469 files as the number at
+risk, which was the wrong question - carrying `[%` is harmless if it parses. I
+then reported four affected pages of a live application when the four were
+snapshot and build variants of two page names, of which **one** is deployed. The
+field agent caught the second. Files are not pages, and I stated the count
+before I had done that step.
+
+- SM744 shipped (fbe0bf05, 92555c84) **the parse guard stops eating directives
+  that span lines.** `page_parse_issues` strips Markdown code before parsing, so
+  that a `[% %]` shown as an example is not read as a directive. The
+  indented-code half of that rule fired on any four-space indent with no idea
+  whether it was inside a directive - so the continuation lines of a multi-line
+  `[%# comment %]` were dropped, and the closing `%]` went with them. The
+  truncated comment then swallowed the directive that followed, and that
+  directive's `END` was reported as unexpected thirty lines below.
+
+  **The page parsed. The renderer served it. Only the guard's copy failed.**
+
+  An indented line is now a Markdown code block only where one may begin - after
+  a blank line - which a directive's continuation never follows. The stripper
+  needs to know no template syntax to tell them apart. A blank line does not
+  close an indented block, because Markdown lets one resume across a blank.
+
+  Re-measured over the same 495 files: **false refusals 5 to 0, genuine failures
+  2 to 2.** Both survivors are CHANGELOGs, which nobody saves through the
+  manager - so on the evidence available, the guard's entire observed effect on
+  real content had been to refuse saves it should have allowed.
+
+  What it cost while it stood: the refusal is a 415 on WebDAV as well as a
+  refusal in the manager, so an affected page could not be edited by any
+  supported route - **including to remove the construct the guard objected to**,
+  which was never the problem. One live page, no visitor symptom, discovered
+  only when its author tried to save. A silent edit-block is a bad failure mode
+  precisely because nothing looks wrong.
+
+  `t/unit/manager/150` carries the case and, deliberately, the things around it
+  that must not break: a real indented example still stripped however unbalanced
+  (what the old rule existed for - `ai-briefing-layouts` ships one), an indented
+  block surviving a blank line inside it, and SM708's original refusal still
+  firing. **That last fixture is borrowed verbatim from `t/unit/manager/140`.**
+  The first draft invented its own page JavaScript, and when it failed, the
+  shipped guard turned out not to refuse that body either - so it was not a
+  regression, it was a fixture asserting nothing. Same shape as SM738's
+  front-matter-free parts: a fixture describing an easier case than the real one
+  does not fail, it passes.
+
+  This largely dissolves SM741, which asked whether a save should be refused
+  when it leaves an already-unparseable page no worse. On the measured evidence
+  that question is close to hypothetical - no served page in reach is genuinely
+  unparseable - and it gets asked again against whatever survives.
+
+Filed and not built, all from the 0.12.0 field passes: **SM740** (`whoami`
+presents `manage_data` and `write_data` as independent booleans when they are
+ANY-OF halves of one right, so withholding the weaker one enforces nothing);
+**SM741**; **SM742** (a constraint failure reads as SQLite's sentence rather
+than ours); **SM743** (`auth_name` has no producer on the native auth path, so a
+user's `display_name` reaches no render sink and the admin bar always shows the
+login - which also means SM709's escaping guards a sink unreachable on most of
+the fleet, and therefore untested); **SM745** and **SM746** (a credential cannot
+reach an agent without passing through a transcript, and the connector drop that
+keeps forcing it).
+
+`verify_token_ms` remains **reported and not accepted**, unchanged from 0.12.0.
+
 ## 0.12.0 - STABLE: the first stable since 0.11.7, and what six betas taught about where defects are actually found (2026-09-02)
 
 **A minor bump rather than a patch, because the line between 0.11.7 and here is

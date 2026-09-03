@@ -4,7 +4,7 @@ title: "SM742: a constraint failure reads as prose, not as driver text"
 subtitle: "SM713 stopped data errors naming the server. What survives the cleaner is still the driver's own sentence - 'UNIQUE constraint failed: table.column' - which is not a leak, but is the database talking to the caller in its own voice."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 ---
 
 # The moment this fills

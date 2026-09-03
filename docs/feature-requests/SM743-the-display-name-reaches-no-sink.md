@@ -4,7 +4,7 @@ title: "SM743: the display name reaches no sink"
 subtitle: "A user has a display_name. The admin bar is written to prefer it. Nothing connects the two - auth_name is populated only from an upstream header, so on any site using lazysite's own auth the field is stored, editable, and consumed by nothing."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 ---
 
 # The moment this fills

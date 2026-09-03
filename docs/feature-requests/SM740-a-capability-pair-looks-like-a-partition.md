@@ -4,7 +4,7 @@ title: "SM740: a capability pair looks like a partition when it is a hierarchy"
 subtitle: "whoami presents manage_data and write_data as two independent booleans. They are ANY-OF halves of one right, so withholding the weaker one changes nothing - and the presentation is what invites an operator to think it does."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 ---
 
 # The moment this fills

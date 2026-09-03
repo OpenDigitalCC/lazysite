@@ -4,7 +4,7 @@ title: "SM745: a credential reaches an agent without passing through a transcrip
 subtitle: "The brief says a key that appears in any transcript is spent. The only easy way to give one to an agent is to paste it into the conversation. So the rule is broken every time it is followed, and the fix is to make the secure path the easy one."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 ---
 
 # The moment this fills

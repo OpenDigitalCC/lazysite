@@ -4,7 +4,7 @@ title: "SM746: the edge MCP connector drops mid-session"
 subtitle: "Twice in one week every edge tool vanished from a live session with no action from the agent. Reported, not diagnosed - I have no logs from the incidents. Recorded because the workaround is pasting credentials into chat, so an intermittent reliability fault is quietly buying us a standing security cost."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 ---
 
 # The report

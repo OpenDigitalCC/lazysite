@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.12.0"
+subtitle: "Everything lazysite has and does, and why - as of v0.12.1"
 brand: plain
 ---
 
@@ -1757,6 +1757,25 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.12.1** (2026-09-03, STABLE) - **A patch carrying one code change, because
+  a count found something the case could not.** The 0.12.0 plan asked how many
+  pre-existing pages the template-parse guard would refuse; the field agent
+  could not reach a stable site to answer, so the count was run across every
+  tree in reach. 495 files carrying `[%`, seven refused - and **five of the
+  seven were pages that parse.** The guard strips Markdown code before parsing
+  so that an example is not read as a directive, but its indented-code half
+  fired on any four-space indent with no idea whether it was inside a
+  directive, so the continuation lines of a multi-line `[%# comment %]` were
+  dropped along with the closing `%]`; the truncated comment then swallowed the
+  directive after it. The page parsed and the renderer served it - only the
+  guard's copy failed, and an affected page could not be saved by any supported
+  route, **including to remove the construct that was never the problem.** An
+  indented line is now a code block only where one may begin, after a blank
+  line, which a directive continuation never follows. **False refusals 5 to 0.**
+  The lesson under it is about method rather than parsing: the rule and its
+  fixtures were correct about the case they were written from, and **the case
+  was not the population.**
 
 - **0.12.0** (2026-09-02, STABLE) - **The first stable since 0.11.7, and a minor
   bump rather than a patch because the line between them is not a set of fixes.**
