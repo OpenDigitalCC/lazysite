@@ -214,6 +214,63 @@ then refuses, is exactly the class of thing a supervised runtime should stop
 being true.
 
 
+
+# It conforms to ADR 0009, and that settles most of the shape
+
+Instructed 2026-09-03: the runtime adheres to **[[0009-plugin-contract]]**. It is
+not a special case, and it does not get its own idea of what "disabled" means.
+
+That decides more than it looks, because ADR 0009 already specifies most of what
+a plugin must declare. The runtime's `--describe` carries the same `owns` block:
+
+    owns => {
+        config_keys  => [...],                 # the runtime's own settings
+        storage      => ['lazysite/daemon/'],  # schedules, run records, state
+        endpoints    => [],                    # NONE in phase 1 - no socket
+        capabilities => [...],                 # one per hosted component
+        deps         => ['IO::Async', ...],    # SBOM gate cross-checks these
+    }
+
+Four consequences follow without further design:
+
+**`storage` makes its state back up by declaration.** Schedules and run records
+participate in content backups and site packages because they are declared, not
+because somebody remembered an exclude list.
+
+**`deps` cannot be undeclared.** `libio-async-perl`, if it is used, is declared
+here and cross-checked against `sbom-deps.json` by the gate. A daemon quietly
+adding a module fails the build.
+
+**`endpoints` is empty in phase 1**, which is the declaration form of "no socket
+yet" - and when phase 2 adds one it is declared rather than discovered.
+
+**Capabilities registered by the runtime walk the same nine parity points** as
+core ones. The contract does not exempt a plugin from the lints; it makes the
+lints find it.
+
+## Disabled means off, and for a daemon that is stronger than the ADR's own case
+
+ADR 0009 states the rule as: *a disabled plugin executes nothing and says so,
+with the house refusal shape.* For a CGI plugin, "off" is enforced at dispatch -
+a request arrives and is refused.
+
+**A daemon has no dispatch to refuse at.** Nothing arrives; the process either
+exists or it does not. So conforming here means the stronger thing: **disabled
+means the process never starts** - no supervision, no socket, no connections,
+nothing scheduled, no state touched.
+
+This is the same rule, not a different one. It is what "off means off" reduces
+to when there is no request to say no to, and it is why the daemon cannot
+inherit the current behaviour SM222 documents, where a disabled service still
+spawns, reads its config and only then refuses.
+
+**SM409 is the dependency.** ADR 0009 pulls "making `enabled` real" forward
+ahead of everything else precisely because a disabled plugin that still executes
+is a standing defect. The daemon is the case where that defect stops being
+wasteful and becomes unsafe - an unintended long-lived process holding
+credentials is a different order of problem from an unintended CGI refusal - so
+the runtime must not ship before `enabled` means what it says.
+
 # It ships as a plugin, and it comes disabled
 
 Decided 2026-09-03. The runtime is delivered as a lazysite **plugin**, and it is
@@ -276,8 +333,9 @@ Deliberately small enough to be boring, and shippable on its own:
 2. A plugin contract with one implementation.
 3. A scheduler: declarative jobs, a tick, a run record, and an audit row per
    run carrying a real identity.
-4. Shipped DISABLED, where disabled means no process at all - which is the
-   SM222 work, not a config flag on top of it.
+4. Shipped DISABLED per ADR 0009, where disabled means the process never
+   starts - which needs SM409 (making `enabled` real) first, not a config flag
+   on top of it.
 
 Everything else in the register waits for a contract that has been proved by
 something running.
