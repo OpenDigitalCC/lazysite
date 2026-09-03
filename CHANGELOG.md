@@ -44,6 +44,141 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.0 - EDGE: a runtime that holds work the request path cannot, and three guards that were not where they said they were (2026-09-03)
+
+**A minor bump because this adds a thing the engine did not have: a supervised
+process.** Everything before it happened inside a request. SM666 phase 1 is a
+per-instance runtime that starts, supervises services in their own child
+processes, and stops - carrying a scheduler, so that maintenance stops
+attaching itself to whichever visitor is unlucky (SM340 measured what that
+costs: a 3.5-second stats export on somebody's page view).
+
+**It ships disabled and nothing runs when this deploys.** Two switches must both
+be on - the systemd unit, instantiated by the host operator, and the plugin,
+enabled by the site's sysop - and an instance with either off exits without
+creating so much as a state directory. That was decided for safety and turns out
+to be what makes it scale: on a Hestia host with hundreds of sites, what runs is
+the number that deliberately turned it on.
+
+**The other half of the release is three guards that were not where they claimed
+to be**, and the pattern connecting them is worth more than any of them
+individually: **a rule enforced in a CALLER protects that caller. A rule at the
+choke point protects whoever is added next.** SM748 found the parse guard
+sitting in one caller of a shared function while the primary editing path went
+unguarded for four releases. SM744 found the same guard refusing pages it should
+have accepted. And a capability-ownership lint turned out to be reading one line
+of its input.
+
+- SM666 phase 1 shipped (c3ea3368, fa968ebd) **the persistent runtime.** A
+  supervisor whose own job is small and boring, one service - the scheduler -
+  running as its own child, and the ADR 0009 declaration that makes the whole
+  thing born disabled.
+
+  **Disabled means the process never starts.** For a CGI plugin "off" is
+  enforced at dispatch, because a request arrives to refuse. A daemon has no
+  dispatch: nothing arrives, and the process either exists or it does not. So
+  `t/unit/daemon/01`'s strongest assertion is not that a disabled runtime did no
+  work but that it **created no state directory**, because doing so is the first
+  half of starting.
+
+  **A job runs as a user, never as `system`**, and fails closed in every
+  direction. Two gates: the identity must hold the new `run_jobs` capability -
+  which confers no ability of its own - and the job's action faces the ordinary
+  capability gate unchanged. A `system:` identity is refused BY NAME rather than
+  falling through to "unknown account", which is true and is the wrong reason to
+  give somebody who wrote `system:root` deliberately. The audit row names the
+  real account, so a row written at 03:00 answers the same question as one
+  written by a person at noon.
+
+  **A flapping child reports FAILED, not running**, and the unit uses
+  `Restart=on-failure` rather than the pool's `always` - because a disabled
+  runtime exits 0 on purpose and `always` would hot-loop it on every instance
+  with the plugin off, which is the common case.
+
+  Two things the build found. A refusal was consuming the schedule slot, so
+  fixing a misconfiguration silently took a full interval to take effect. And
+  `t/lint/76` was **reading one line of each plugin's description**: backticks in
+  list context return a list of LINES, every existing plugin printed compact
+  JSON so the first line was the whole document, and the first plugin to
+  pretty-print vanished from the capability-ownership check with nothing
+  failing. `plugins/daemon.pl` deliberately still pretty-prints, so the fixed
+  path has a live subject.
+
+  Not done, and named in the filing rather than only here: no fleet provisioning
+  flag, and **nothing has run on a real host** - the privilege drop is exercised
+  only in its unprivileged branch, because the suite is not root.
+
+- SM748 shipped (cf7623f2) **the parse guard moves to the choke point.** The
+  manager's `action=save` - what `/manager/edit` actually posts to - accepted an
+  unparseable body with `ok:true` while WebDAV answered 415 to the same bytes.
+
+  **Not a regression: SM708's own note said so when it shipped**, that the check
+  covered MCP writes only. SM729 then closed the WebDAV half, named WebDAV,
+  and left the other. A known gap was half-closed, and the half left open was the
+  one an operator uses.
+
+  Nothing caught it because `t/unit/manager/141` was titled *reaches both write
+  stacks* and read two named files, neither of which was the one at fault. It now
+  **walks the tree** and asserts the guard's call sites are exactly the choke
+  point and the DAV stack. Mutation-checked: with the guard removed the new test
+  fails, and the old one passed in exactly that state.
+
+- SM744 shipped (in 0.12.1, completed here by SM708's correction) - and its
+  record is corrected: SM708 no longer tells a reader the manager editor is
+  unguarded.
+
+- SM742 shipped (8e689be3) **a constraint failure reads as our sentence.**
+  SM713 stopped these errors naming the server; what survived was still SQLite's
+  own wording, which is not a leak but is a dependency talking to a caller.
+  Four shapes map onto our prose and the row-write sites carry the offending
+  column as data, so a form can highlight a field without parsing anyone's
+  sentence. Everything unrecognised falls through untouched - the fallback is
+  protected as carefully as the mapping, because a translator that handles four
+  cases and mangles the fifth is worse than one that handles none.
+
+- SM743 shipped (8e689be3) **the display name reaches the render.**
+  `display_name` was stored, editable, and read by nothing; `auth_name` had one
+  producer, an upstream proxy header. On a site using lazysite's own auth there
+  was no path between them, which is why SM709's escaping has guarded an
+  unreachable value since 0.11.10 and why the field agent could not test it on
+  edge OR on a stable site.
+
+  The first draft called the shared helper from the processor, which is
+  module-free by design (ADR 0001), inside an `eval` - so it would have died,
+  been swallowed, and made every display name `''` for ever. **A feature that
+  ships, appears to work, and does nothing**, which is a poor way to fix a dead
+  field. Caught by reading why the local `_groups_grant_cap` beside it exists.
+
+- SM711 half 2 shipped (002451c4) **a refused plugin toggle says which
+  dependency is missing.** The row said `missing_deps` - the class of failure,
+  never the thing absent - while the banner beside it carried the explanation.
+  More relevant now than when filed: the daemon is a plugin an operator will
+  enable.
+
+- SM736 closed (002451c4, 77257ee6) **the coverage skip has now fired.** The
+  carry-back is proved on two consecutive cuts, but the skip BRANCH needs two
+  builds with byte-identical inputs and no cut has produced that - so it was
+  unrun in the field and untested, which is the state SM732 was in. It could not
+  be tested, and that was the real defect: the record path was hard-coded, so
+  proving the skip meant planting a matching record in the repository where a
+  killed test would leave a REAL release skipping its coverage gate.
+
+  The refusals are asserted as carefully as the skip: absence, a corrupt record,
+  a different digest and a **recorded failure** all run the stage.
+
+- SM265 phase 0 shipped (df04d39c) **a single-file app is served byte-for-byte**,
+  asserted with and without an ACL store. `llm_proxy` is absorbed into SM579
+  rather than deferred, because a model call is an outbound call whose remote
+  service happens to be a model.
+
+Filed and not built: **SM740** (presentation only - the gate is left alone, and
+the partition is a feature that needs a customer), **SM745** and **SM746**,
+**SM747**, and SM579's **three invocation modes** - scheduled, authenticated, or
+public with input the implementor has bounded - where the engine enforces who
+may invoke and how often, and the implementor bounds what is sent.
+
+`verify_token_ms` remains **reported and not accepted**, unchanged since 0.12.0.
+
 ## 0.12.1 - STABLE: the guard that refused pages it should have accepted, and what the count found that the case did not (2026-09-03)
 
 **A patch release with one code change in it, filed and fixed inside a day,

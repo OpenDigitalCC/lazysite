@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.12.1"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.0"
 brand: plain
 ---
 
@@ -1757,6 +1757,29 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.13.0** (2026-09-03, EDGE) - **A minor bump because the engine gains
+  something it did not have: a supervised process.** Everything before this
+  happened inside a request. SM666 phase 1 is a per-instance persistent runtime
+  that starts, supervises services in their own child processes and stops,
+  carrying a **scheduler** so that maintenance stops attaching itself to
+  whichever visitor is unlucky. **It ships disabled and nothing runs when this
+  deploys** - two switches must both be on, the systemd unit and the plugin, and
+  an instance with either off exits without creating a state directory. That was
+  decided for safety and turns out to be what makes it scale: on a host with
+  hundreds of sites, what runs is the number that deliberately turned it on. A
+  scheduled job runs as a real account holding the new `run_jobs` capability,
+  never as `system`, and fails closed in every direction. The other half of the
+  release is **three guards that were not where they claimed to be**, and the
+  pattern connecting them is worth more than any of them individually: a rule
+  enforced in a CALLER protects that caller, while a rule at the choke point
+  protects whoever is added next. The manager's save path had gone unguarded for
+  four releases because the check lived in one caller of a shared function; a
+  capability-ownership lint turned out to be reading one line of each plugin's
+  description; and a coverage shortcut's central branch had never run at all.
+  Also: constraint failures read as our sentence rather than the driver's, and a
+  user's display name finally reaches the page - which is what makes SM709's
+  escaping testable for the first time since it shipped.
 
 - **0.12.1** (2026-09-03, STABLE) - **A patch carrying one code change, because
   a count found something the case could not.** The 0.12.0 plan asked how many
