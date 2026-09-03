@@ -86,6 +86,63 @@ The spec says a yes would have made Deliverables 1, 2 and 5 "new actions on an
 existing surface rather than a new surface". The answer is no, so the fifth
 surface is real work rather than a set of additional actions.
 
+
+# Rescoped 2026-09-03: the date is gone, and llm_proxy leaves
+
+Two changes from the release manager, and together they make this a smaller
+filing than it has been since it was raised.
+
+**The September project is delayed.** This is no longer date-driven, and it
+should not displace [[SM666]] phase 1 in the queue on urgency grounds. The
+workflow it describes is still wanted; the deadline that made it lead is not
+there.
+
+**`llm_proxy` moves to [[SM579]].** A model call is not a distinct kind of thing
+- it is an outbound call whose remote service happens to be a model, and it
+belongs with the connector line under one set of invocation modes and one set of
+caps, rather than as its own surface answering the same questions separately.
+Deliverable 1 is therefore **absorbed**, not deferred.
+
+What remains here is genuinely browser-shaped: `app_state`, the raw asset
+serving (now proved by `t/integration/78`), and the session question below.
+
+# The session token, reconsidered
+
+The spec's own words settle more of this than the filing previously reflected.
+**The users are facilitators, not anonymous participants** - "minted per
+facilitator per retreat", "carries a facilitator identity so the quota and the
+log mean something", four or five facilitators to fifteen participants. The
+participants are the subjects of the work, not operators of the app. Nobody
+anonymous ever drives it.
+
+And the spec sets a hard gate independent of tokens: **the app path itself must
+sit behind authentication**, because a named person's answers on an open URL is
+called the one genuinely unacceptable outcome.
+
+Those two together mean **a facilitator's browser already carries a lazysite
+session**. That session can authorise the server-side calls and scope the state,
+which is invocation mode 2 in SM579's terms - a logged-in user holding the
+capability - and needs no new credential type.
+
+A dedicated browser token earns its place only for what a login session cannot
+do: a **narrower verb set** than the facilitator's full grant, a **lifetime
+independent of login** (the spec asks for twelve hours, renewable), and a
+**quota identity** so model spend is attributable per retreat rather than per
+person. All three are worth having. **None is a prerequisite**, which is the
+correction: deliverable 4 was reading as a blocker and is not one.
+
+# A sequencing error in the original build order
+
+Recorded because it would have been built as written: the spec puts `llm_proxy`
+in phase 1 and the session token in phase 2. Taken literally that ships **an
+unauthenticated proxy on an operator's model key** and adds the authorisation
+afterwards.
+
+Under SM579's modes that cannot happen - a connector declares which modes it
+permits, and there is no mode that means "anyone who finds the URL". The
+ordering problem dissolves once the model call is a connector rather than a
+bespoke endpoint, which is the second argument for moving it.
+
 ## The four deliverables
 
 None of these is built. Summarised from the spec; the spec itself is the detail,

@@ -158,6 +158,82 @@ That last point is worth holding onto when the daemon does arrive. The
 service is slow, so it is not scaffolding to be thrown away - it is the design,
 and the daemon only removes the polling.
 
+
+# How an egress call may be invoked (release manager, 2026-09-03)
+
+**This is the rule that decides the design, and it applies to every outbound
+call regardless of what is at the other end.** A webhook, a REST connector, an
+Odoo query ([[SM747]]) and a model call are **the same shape**: something in the
+site causes this instance to talk to somewhere else. The differences are in the
+payload, not in the risk.
+
+The risk is not "what does the remote service do". It is **who can cause the
+call to happen**. Three modes are sanctioned, and nothing else is:
+
+**1. Pre-set, invoked by the timer.** The scheduler ([[SM666]]) calls it. No
+caller-supplied input reaches the remote service at all - the job is engine code
+and its parameters are configuration. This is the safest mode by construction,
+because there is no request to abuse.
+
+**2. Invoked by a logged-in user who holds the capability for it.** Attributable
+to a person, rate-limitable per identity, revocable by removing a grant. The
+ordinary authenticated case.
+
+**3. Backing a public service, with bounded input.** A public form may trigger
+it. This is the mode that can be abused, and the bounding is what makes it
+safe - the input must be **canned** rather than free.
+
+## Why the third mode is guidance and not enforcement
+
+The distinction that matters is one the engine cannot see.
+
+A form field offering a **select with fixed options** is bounded: the set of
+things that can reach the remote service is finite and chosen by the
+implementor. A **free textbox** is not bounded: whatever a visitor types goes
+outward.
+
+Both are just form fields. **We cannot police which one an implementor uses**,
+and pretending otherwise would be a check that passes while the hazard walks
+past it - the shape this project has met repeatedly. So for the input itself,
+what we owe is **guidance in the practice docs**, stated plainly and with the
+select-versus-textbox example, because that is the form the decision actually
+takes for whoever is building.
+
+## What IS enforceable, and therefore should be built
+
+Guidance alone would be an abdication. The mode itself is declarable, and a
+declaration can be enforced:
+
+- **A connector declares which modes it permits.** One configured as
+  scheduled-only **refuses a request-time invocation**, and one configured for
+  authenticated use refuses an anonymous one. That is a real gate, checkable
+  without knowing anything about the payload.
+- **The public mode is opt-in and never the default.** A connector reachable
+  from a public form says so explicitly in its configuration, so the dangerous
+  mode requires a deliberate act rather than an omission.
+- **Rate and spend caps apply in every mode**, because they do not depend on
+  knowing whether the input was bounded. This is what stands between a
+  free-textbox mistake and an unbounded bill.
+
+So the division is: **the engine enforces WHO may invoke and HOW OFTEN; the
+implementor bounds WHAT is sent, and we tell them how.**
+
+## What this absorbs
+
+**The model call is not a separate feature.** [[SM265]]'s `llm_proxy` deliverable
+- a server-side proxy so the key never reaches the browser - is a connector of
+this kind whose remote service happens to be a model. It belongs here, under
+these three modes and these caps, rather than as its own surface with its own
+answer to the same questions.
+
+That is also the shape of the spend problem. A model call charged to an
+operator-held key, reachable from a public form with a free textbox, is exactly
+mode 3 without bounding - and the cap is the control that makes it survivable
+rather than the guidance.
+
+[[SM747]]'s per-site rate cap (OB5) is the same control seen from the Odoo end,
+and should be this one rather than a second implementation.
+
 ## What this needs decided before anything is built
 
 1. **Where does the answer live?** A data table row is the obvious home - it is

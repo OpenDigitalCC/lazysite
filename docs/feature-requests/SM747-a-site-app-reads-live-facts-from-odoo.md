@@ -87,6 +87,17 @@ that the fault's own text is logged rather than returned verbatim.
 Available quantity by product, lot and location; sales-order and picking state
 by S/O name; whether an order was validated in Odoo since the last export.
 
+# Invocation modes (2026-09-03)
+
+OB5's per-site rate cap is not this filing's to invent. [[SM579]] now carries
+the rule for every outbound call - scheduled by the timer, invoked by a
+logged-in user holding the capability, or backing a public service with input
+the implementor has bounded - together with the caps that apply in all three.
+
+An Odoo query is one of those calls. It takes SM579's modes, SM579's caps and
+SM579's declaration, rather than a second implementation of the same controls
+with a different name.
+
 # Provenance
 
 Drafted as `lazysite-plugin-filing.md` and filed 2026-09-03 at the release
