@@ -218,6 +218,7 @@ var PERM_LABELS = {
   ui: 'Manager UI', webdav: 'WebDAV', api: 'API', mcp: 'MCP',
   manage_content: 'Content', manage_nav: 'Navigation', manage_forms: 'Forms',
   manage_themes: 'Themes', manage_layouts: 'Layouts', manage_data: 'Data tables', write_data: 'Data rows (named tables only)', manage_briefs: 'Authoring briefs',
+  run_jobs: 'Run scheduled jobs',
   housekeeping: 'Housekeeping (recoverable)', purge: 'Purge (irreversible)',
   manage_domains: 'Domains & site packages', manage_config: 'Config + plugins',
   manage_services: 'Services (WebDAV/MCP/OAuth switches)',

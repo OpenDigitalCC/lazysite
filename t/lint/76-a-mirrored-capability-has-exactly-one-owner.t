@@ -44,7 +44,17 @@ plan skip_all => 'no plugins directory' unless -d $plugins;
 # Every capability every plugin claims, and who claims it.
 my %claimed_by;
 for my $f ( sort glob "$plugins/*.pl" ) {
-    my $d = eval { decode_json(`$^X \Q$f\E --describe 2>/dev/null`) };
+    # SM666: SCALAR FIRST, and this is not style. Backticks in LIST context
+    # return a list of LINES, so `decode_json(`...`)` passed decode_json only
+    # the first line of the output. Every plugin that existed when this was
+    # written printed compact single-line JSON, so the first line was the whole
+    # document and the bug was invisible. The first plugin to pretty-print its
+    # --describe simply vanished from this check - a capability-ownership lint
+    # that under-reports and says nothing, which is the failure mode it exists
+    # to prevent in others.
+    my $raw = `$^X \Q$f\E --describe 2>/dev/null`;
+    my $d   = eval { decode_json($raw) };
+
     next unless ref $d eq 'HASH' && ref $d->{owns} eq 'HASH';
     my $id = $d->{id} // ( $f =~ s{.*/}{}r );
     push @{ $claimed_by{$_} }, $id

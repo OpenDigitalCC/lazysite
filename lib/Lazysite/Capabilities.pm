@@ -309,6 +309,20 @@ my %ACTION_INFO = (
             mcp => [qw(read_brief append_brief list_briefs)],
         },
     },
+    run_jobs => {
+        title => 'Be the account the scheduler runs timed jobs as. This is not '
+            . 'permission to DO anything in particular - a job\'s own action '
+            . 'faces the ordinary capability gate unchanged, so an account '
+            . 'holding only this can carry a job and still be refused the work. '
+            . 'It is the separate question of whether an account may be used by '
+            . 'the runtime at all, asked so that a job cannot be attached to an '
+            . 'account nobody meant to carry one. A job never runs as `system`, '
+            . 'because a timer that can call anything is a second write plane '
+            . 'wearing a clock. Declared by the daemon plugin, so it is '
+            . 'grantable only where that plugin is installed.',
+        grants => 'Lets the persistent runtime act as this account when it runs a scheduled job. It confers no ability of its own - whatever the job does still needs the capability for that action, and every run is recorded against this account by name.',
+        unlocks => {},
+    },
     # SM591: THE LATERAL GRANTS. Deletion and tidying are the same job wherever
     # they happen, so they answer these rather than the module capability that
     # lets a partner USE the module. Which tier an action joins is SM587's copy

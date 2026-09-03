@@ -3,7 +3,8 @@ title: "SM666: the persistent runtime is the thing to build, and WebSocket, XMPP
 subtitle: "Release manager, 2026-08-28: 'possibly the persistent daemon separates from the websockets and xmpp, and is standalone, and they become plugins' - and it should carry a scheduler, so it can call timed functions"
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PHASE 1 BUILT 2026-09-03: the supervisor, the scheduler as its first service running as its own child, the ADR 0009 declaration that makes the runtime born disabled, and run_jobs through every capability parity point. Disabled means the process never starts - asserted by t/unit/daemon/01, whose strongest check is that no state directory is created. A job runs as a user holding run_jobs and never as system, failing closed in every direction, with the audit row naming the real account. WHAT REMAINS FOR PHASE 1: no systemd unit ships and nothing starts the runtime on a real host - tools/lazysited.pl is what a unit would exec, and that unit plus its packaging are the outstanding work. WHAT REMAINS BEYOND: phases 2-4 (the local socket and proxy mapping, WebSocket via SM221, federation via SM090) and the SM222 debt, which is the local lifecycle verbs moving onto the shared contract when SM222 lands."
 ---
 
 # The decision this takes
@@ -538,6 +539,80 @@ state; supervision honouring it is phase 1's job and not SM222's.
 
 The distinction is the point of this note. **The lifecycle VOCABULARY can be
 temporary. The lifecycle GUARANTEE cannot.**
+
+
+# Phase 1, built
+
+Shipped as described, with the four decisions of 2026-09-03 in place. What
+exists:
+
+**`plugins/daemon.pl`** - the ADR 0009 declaration. `contract => 1`, so it is
+born disabled and its enabled state is really consulted. Declares
+`storage: lazysite/daemon/` (schedules and run records travel with a backup),
+`endpoints: []` (the declaration form of "no socket yet"), `capabilities:
+run_jobs`, and no deps.
+
+**`lib/Lazysite/Daemon/Supervisor.pm`** - the gate, the registry, the child
+management and the status verbs.
+
+**`lib/Lazysite/Daemon/Service/Scheduler.pm`** - the first service, and the job
+identity.
+
+**`tools/lazysited.pl`** - the entry point systemd runs, with the standard
+module-locating bootstrap (`t/lint/59`).
+
+**`run_jobs`** as a capability: in `@CAP_KEYS`, in `lazysite-check`, and in both
+manager grids - the parity points a new capability has to walk, each of which
+had its own lint waiting.
+
+## What the tests hold
+
+`t/unit/daemon/01` is the security property: **disabled means no process**. Its
+strongest assertion is not "did no work" but that a disabled runtime **creates
+no state directory** - because doing so is the first half of starting. It also
+pins the vocabulary: desired `down` reads as `stopped`, but desired `up` with no
+process reads as **not-started**, which is a different fact and an operator
+needs the difference.
+
+`t/unit/daemon/02` is the job identity. Every refusal is asserted with the same
+weight as the success: no configured account, a `system:` identity refused **by
+name** (rather than falling through to "unknown account", which is true and is
+the wrong reason to give someone who wrote `system:root` deliberately), and an
+account with capabilities but without `run_jobs`. Plus the audit point: the
+record names **the real user**, not `scheduler`.
+
+## Two things the build found
+
+**A refusal was consuming the schedule slot.** The first version recorded
+`last_run` on a refusal, so a job refused for want of an account waited a full
+interval after the operator fixed the configuration, with nothing saying why. A
+refusal is a statement about the configuration, not about the work, and the work
+has not been done. `last_run` now moves only when the job actually ran, refusals
+record separately, and the WARN is written only when the reason CHANGES - a
+misconfigured daemon writing the same line every tick trains an operator to
+ignore the log that is trying to tell them something.
+
+**A capability-ownership lint was silently under-reading.** `t/lint/76`
+enumerated plugin capabilities with `decode_json(`...`)`, and backticks in LIST
+context return a list of LINES - so only the first reached the decoder. Every
+plugin that existed printed compact single-line JSON, so the first line was the
+whole document and the bug was invisible. This plugin pretty-prints, and
+therefore **vanished from the ownership check** with no test failing. The lint
+is fixed; `plugins/daemon.pl` deliberately keeps pretty-printing so something
+real exercises the fixed path.
+
+The same construct appears in four other tests. Those were left alone on
+purpose: their subjects are fixed and known, so they would fail LOUDLY. `lint/76`
+enumerates every plugin, so an unknown future subject disappears SILENTLY - and
+that difference is the whole reason to fix one and file the others.
+
+## Still to do before it can run anywhere
+
+Phase 1 is the machinery, not a deployment. **No systemd unit ships yet** and
+nothing starts the runtime on a real host; `tools/lazysited.pl` is the thing a
+unit would exec. That, and the packaging that installs it, are the remaining
+phase-1 work - the code is testable without them, which is why they are not in
+this commit.
 
 # The four questions, all answered 2026-09-03
 

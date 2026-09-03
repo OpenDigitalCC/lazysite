@@ -51,6 +51,11 @@
       "bucket": "code"
     },
     {
+      "pattern": "^tools/lazysited\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysited.pl",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/lazysite-fix-perms\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-fix-perms.pl",
       "bucket": "code"

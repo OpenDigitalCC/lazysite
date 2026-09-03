@@ -56,6 +56,7 @@ var ACTIONS = [
   ['manage_data', 'Data tables'],
   ['write_data', 'Data rows (named tables only)'],
   ['manage_briefs', 'Authoring briefs (write)'],
+  ['run_jobs', 'Run scheduled jobs'],
   ['housekeeping', 'Housekeeping'],
   ['purge', 'Purge'],
   ['manage_domains', 'Domains & site packages'],
