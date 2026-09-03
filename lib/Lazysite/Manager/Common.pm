@@ -918,11 +918,45 @@ sub page_parse_issues {
     return () unless defined $body && $body =~ /\[%/;
 
     # Strip what the processor protects, plus anything ambiguous.
-    my ( @keep, $in_fence );
+    #
+    # SM744: an indented line is a Markdown code block ONLY where one can
+    # begin - after a blank line. The rule used to fire on any four-space
+    # indent, which ate the continuation lines of a multi-line directive:
+    #
+    #     [%# a comment whose text runs on
+    #         and whose closing tag is over here %]
+    #     [%- FOREACH x IN xs -%]
+    #
+    # dropping lines 2-3 took the closing %] with them, so the truncated
+    # comment swallowed the FOREACH and its END was reported as unexpected
+    # far below. The page parsed; only this copy of it did not. Five of the
+    # seven refusals measured across every reachable tree were that, and all
+    # five were real pages.
+    #
+    # A directive's continuation never follows a blank line, so requiring one
+    # separates the two cases without the stripper needing to know any
+    # template syntax.
+    my ( @keep, $in_fence, $in_indent_code );
+    my $prev_blank = 1;    # the top of the body is a place a block may begin
     for my $line ( split /\n/, $body ) {
-        if ( $line =~ /^[ \t]{0,3}(?:```|~~~)/ ) { $in_fence = !$in_fence; next }
+        if ( $line =~ /^[ \t]{0,3}(?:```|~~~)/ ) {
+            $in_fence   = !$in_fence;
+            $prev_blank = 0;
+            next;
+        }
         next if $in_fence;
-        next if $line =~ /^(?: {4}|\t)/;    # indented code block
+
+        my $blank = $line =~ /^\s*$/ ? 1 : 0;
+        if ( $line =~ /^(?: {4}|\t)/ && ( $in_indent_code || $prev_blank ) ) {
+            $in_indent_code = 1;
+            $prev_blank     = 0;
+            next;
+        }
+
+        # A blank line does not close an indented block - indented lines may
+        # resume after it - but any other unindented line does.
+        $in_indent_code = 0 unless $blank;
+        $prev_blank     = $blank;
         push @keep, $line;
     }
     my $text = join "\n", @keep;

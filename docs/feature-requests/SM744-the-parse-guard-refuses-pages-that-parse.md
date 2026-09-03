@@ -4,7 +4,7 @@ title: "SM744: the parse guard refuses pages that parse"
 subtitle: "SM708 strips four-space-indented lines as code blocks before parsing. A multi-line TT directive whose continuation lines are indented loses its middle - including its closing %] - so the guard reports a parse error on a page the renderer serves perfectly. Five of the seven refusals across every tree we can reach are false, and the two that are not are CHANGELOGs."
 brand: plain
 standard-margins: true
-status: open
+status: shipped
 ---
 
 # The defect
@@ -80,6 +80,34 @@ construct is not the problem.
 
 Four of the five are pages of a live application. Its author cannot save an edit
 to them.
+
+# What shipped
+
+The second option. An indented line is now treated as a Markdown code block
+only where one may begin - **after a blank line** - which a directive's
+continuation line never follows. The stripper needs to know no template syntax
+to tell the two apart.
+
+A blank line does not close an indented block, because Markdown lets one resume
+across a blank; only an unindented, non-blank line does.
+
+Re-running the measurement against the fixed module, over the same 495 files:
+
+| | Before | After |
+| --- | --- | --- |
+| False refusals | 5 | **0** |
+| Genuine parse failures | 2 | 2 |
+
+Both survivors are still the CHANGELOGs, still correctly refused.
+
+`t/unit/manager/150` carries the case, and deliberately carries more than the
+one bug: that a real indented example is still stripped however unbalanced (the
+behaviour the old rule existed for, and which `ai-briefing-layouts` ships), that
+an indented block survives a blank line inside it, and that SM708's original
+refusal still fires. That last fixture is borrowed verbatim from
+`t/unit/manager/140` rather than invented - the first draft invented its own
+JavaScript, which the **shipped** guard did not refuse either, so it would have
+asserted nothing.
 
 # The correction
 
