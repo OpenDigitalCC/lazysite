@@ -1,0 +1,70 @@
+# lazysited@.service - the lazysite persistent runtime, one per instance
+# (SM666 phase 1). Instance name = the site, normally its domain, the same
+# convention as lazysite@.service:
+#   systemctl enable --now lazysited@example.com
+#
+# THE PATTERN IS lazysite@.service's, deliberately. Identity lives in
+# /etc/lazysite/daemon/%i.conf (DOCROOT=, USER=) because systemd cannot
+# template User= from an instance name and the instance name is a domain, not
+# a Unix account. The unit starts the runtime as root, and lazysited.pl drops
+# to USER before loading any daemon code. Unlike the pool there is nothing here
+# that NEEDS root - phase 1 binds no socket - so root exists only long enough
+# to become the site's user.
+#
+# THERE ARE TWO SWITCHES, AND THAT IS INTENDED.
+#   1. This unit, enabled by the host operator.
+#   2. The `daemon` plugin, enabled by the site's sysop in the manager.
+# Both must be on for anything to run. The manager has no root, so enabling the
+# plugin cannot start a service - and the runtime reports that honestly rather
+# than pretending: `lazysited --docroot DIR --status` answers desired=up with
+# runtime=not-started, which tells an operator exactly which of the two
+# switches is missing.
+#
+# ON A HOST WITH HUNDREDS OF SITES, the cost at rest is nothing. An
+# uninstantiated unit does not exist; an instantiated one whose plugin is
+# disabled exits immediately without creating so much as a state directory.
+# What runs is the number of sites that have deliberately turned this on, not
+# the number of sites installed.
+#
+# WHY Restart=on-failure AND NOT always, which is where this differs from the
+# pool and the difference matters: a runtime whose plugin is disabled exits 0,
+# on purpose. Under Restart=always systemd would restart it forever - a hot
+# loop on every site that has the unit enabled and the plugin off, which is the
+# common case. lazysited exits 0 for "disabled" and for a clean stop, and
+# non-zero only for a real failure, so on-failure is correct for all three.
+
+[Unit]
+Description=lazysite persistent runtime (%i)
+Documentation=man:lazysite(1)
+After=network.target
+ConditionPathExists=/etc/lazysite/daemon/%i.conf
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/lazysite/daemon/%i.conf
+ExecStart=/usr/bin/perl /usr/share/lazysite/tools/lazysited.pl \
+    --docroot ${DOCROOT} --user ${USER}
+Restart=on-failure
+RestartSec=5
+
+# The supervisor's own restart handling covers a SERVICE dying; this covers the
+# supervisor itself. A runtime that cannot start at all should not be retried
+# tightly - the usual cause is configuration, which restarting will not fix.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# SEC-2026-07 (L-SYSTEMD), matching the pool: root is dropped inside the
+# process, so these directives shrink the blast radius of the long-running
+# child rather than impeding anything. ProtectSystem=full leaves /usr, /boot
+# and /etc read-only; docroots live under /home|/var|/srv and stay writable,
+# which the scheduler needs for its run records.
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

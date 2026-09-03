@@ -117,6 +117,48 @@ and deregisters the site. It NEVER deletes the docroot; to take the
 domain off lazysite, also switch its web template back
 (`v-change-web-domain-tpl <user> <domain> default`).
 
+The persistent runtime, on a host with many sites
+-------------------------------------------------
+
+SM666 ships a per-instance runtime that holds work the request path
+cannot - a scheduler now, transports later. It is templated the same
+way as the FastCGI pool:
+
+    /etc/lazysite/daemon/<domain>.conf     DOCROOT= and USER=
+    systemctl enable --now lazysited@<domain>
+
+THERE ARE TWO SWITCHES AND BOTH MUST BE ON. This unit, enabled by you;
+and the `daemon` plugin, enabled by the site's sysop on the Plugin
+Manager page. The plugin is born disabled (ADR 0009), and the manager
+has no root, so enabling it cannot start a service. That is deliberate
+rather than an oversight, and the runtime reports it honestly:
+
+    lazysited --docroot <docroot> --status
+
+answers `desired: up` with `runtime: not-started` when the plugin is on
+and the unit is not, so you can see which switch is missing.
+
+WHAT IT COSTS ON A HOST WITH HUNDREDS OF SITES: nothing, until somebody
+turns it on. An uninstantiated unit does not exist. An instantiated one
+whose plugin is disabled exits immediately, without creating so much as
+a state directory - and the unit uses `Restart=on-failure`, not
+`always`, precisely so that exit is respected rather than restarted in
+a loop. What runs is the number of sites that deliberately enabled it.
+
+The runtime never runs as root. The unit starts it as root only because
+systemd cannot template `User=` from an instance name and the instance
+name is a domain; lazysited drops to USER before loading any daemon
+code. Started by hand it must be run as that user, or as root with
+--user; it refuses to run the site's scheduled jobs as root.
+
+A scheduled job additionally runs as a lazysite ACCOUNT - set
+`daemon_job_user` in the site's daemon config, and give that account
+`run_jobs`. A purpose-made account is preferred to a person's: a
+person's rotates, changes and eventually leaves. No account, or an
+account without `run_jobs`, means no job runs, and the refusal is
+recorded with its reason.
+
+
 Upgrades
 --------
 

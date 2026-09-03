@@ -38,6 +38,7 @@ my %opt;
 for my $i ( 0 .. $#ARGV ) {
     $opt{docroot} = $ARGV[ $i + 1 ] if $ARGV[$i] eq '--docroot';
     $opt{status}  = 1               if $ARGV[$i] eq '--status';
+    $opt{user}    = $ARGV[ $i + 1 ] if $ARGV[$i] eq '--user';
     $opt{help}    = 1               if $ARGV[$i] =~ /\A(?:-h|--help)\z/;
 }
 
@@ -45,7 +46,7 @@ if ( $opt{help} ) {
     print <<'USAGE';
 lazysited - the lazysite persistent runtime (SM666)
 
-  lazysited --docroot DIR      run the supervisor (systemd runs this)
+  lazysited --docroot DIR [--user U]   run the supervisor (systemd runs this)
   lazysited --docroot DIR --status   report desired and runtime state
   lazysited --help
 
@@ -58,6 +59,61 @@ USAGE
 my $docroot = $opt{docroot} // $ENV{LAZYSITE_DOCROOT} // $ENV{DOCUMENT_ROOT};
 unless ( defined $docroot && length $docroot && -d $docroot ) {
     print STDERR "lazysited: no usable docroot (--docroot DIR)\n";
+    exit 2;
+}
+
+# --- drop privileges -------------------------------------------------------
+#
+# The unit starts this as root for ONE reason: systemd cannot template `User=`
+# from an instance name, and the instance name is the site (normally its
+# domain), which is not a Unix user. lazysite-pool.pl has the same problem and
+# solves it the same way, so this follows that code rather than inventing a
+# second privilege-drop.
+#
+# UNLIKE THE POOL, there is nothing here that NEEDS root - phase 1 binds no
+# socket. Root exists only long enough to become the site's user, and this runs
+# before the supervisor is even loaded, so no daemon code executes privileged.
+#
+# Started unprivileged AS the target user (an operator debugging by hand), it
+# skips the drop. Started unprivileged as somebody ELSE it refuses, because
+# running the site's jobs as the wrong account is exactly the confusion the
+# capability model is trying to prevent one layer up.
+if ( defined $opt{user} && length $opt{user} ) {
+    my ( $uid, $gid ) = ( getpwnam $opt{user} )[ 2, 3 ];
+    unless ( defined $uid ) {
+        print STDERR "lazysited: USER $opt{user} does not exist\n";
+        exit 2;
+    }
+
+    if ( $> == 0 ) {
+        require POSIX;
+        $) = "$gid $gid";
+        $( = $gid;
+        unless ( POSIX::setuid($uid) ) {
+            print STDERR "lazysited: setuid $uid failed: $!\n";
+            exit 2;
+        }
+        if ( $> == 0 || $< == 0 ) {
+            print STDERR "lazysited: privilege drop failed (still root)\n";
+            exit 2;
+        }
+    }
+    elsif ( $> != $uid ) {
+        my $me = getpwuid($>);
+        printf STDERR
+            "lazysited: started as %s but USER=%s; start as root (the unit "
+            . "does) or as %s\n",
+            ( defined $me ? $me : "uid$>" ), $opt{user}, $opt{user};
+        exit 2;
+    }
+}
+elsif ( $> == 0 ) {
+    # No USER given and we are root. Refuse rather than run the site's
+    # scheduled jobs as root - which would hand every job the one identity the
+    # capability model cannot constrain.
+    print STDERR
+        "lazysited: refusing to run as root without --user; a job must not "
+        . "run with root's privileges\n";
     exit 2;
 }
 

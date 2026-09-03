@@ -25,6 +25,10 @@ docs/reference/host-dependencies.md usr/share/lazysite/docs/reference
 # enable/start at package install time, so no maintscript is needed -
 # dh_installsystemd still sees it in the staged tree for housekeeping.
 debian/lazysite@.service usr/lib/systemd/system
+# SM666 phase 1 runtime template unit, installed the same way and for the
+# same reason: a template unit has no instance to enable at package install
+# time. Both switches stay off until somebody turns them on.
+debian/lazysited@.service usr/lib/systemd/system
 docs/compliance/OPERATIONS-TEMPLATE.md usr/share/lazysite/docs/compliance
 docs/compliance/COMPLIANCE-MAINTENANCE-TEMPLATE.md usr/share/lazysite/docs/compliance
 docs/compliance/OBLIGATIONS.md usr/share/lazysite/docs/compliance

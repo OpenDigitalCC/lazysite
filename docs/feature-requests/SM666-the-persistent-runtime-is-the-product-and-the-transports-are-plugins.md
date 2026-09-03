@@ -4,7 +4,7 @@ subtitle: "Release manager, 2026-08-28: 'possibly the persistent daemon separate
 brand: plain
 standard-margins: true
 status: partial
-status-note: "PHASE 1 BUILT 2026-09-03: the supervisor, the scheduler as its first service running as its own child, the ADR 0009 declaration that makes the runtime born disabled, and run_jobs through every capability parity point. Disabled means the process never starts - asserted by t/unit/daemon/01, whose strongest check is that no state directory is created. A job runs as a user holding run_jobs and never as system, failing closed in every direction, with the audit row naming the real account. WHAT REMAINS FOR PHASE 1: no systemd unit ships and nothing starts the runtime on a real host - tools/lazysited.pl is what a unit would exec, and that unit plus its packaging are the outstanding work. WHAT REMAINS BEYOND: phases 2-4 (the local socket and proxy mapping, WebSocket via SM221, federation via SM090) and the SM222 debt, which is the local lifecycle verbs moving onto the shared contract when SM222 lands."
+status-note: "PHASE 1 BUILT 2026-09-03: the supervisor, the scheduler as its first service running as its own child, the ADR 0009 declaration that makes the runtime born disabled, and run_jobs through every capability parity point. Disabled means the process never starts - asserted by t/unit/daemon/01, whose strongest check is that no state directory is created. A job runs as a user holding run_jobs and never as system, failing closed in every direction, with the audit row naming the real account. WHAT REMAINS FOR PHASE 1: the templated unit lazysited@.service now ships (Restart=on-failure, not always - a disabled runtime exits 0 and always would hot-loop it on every instance with the plugin off). Outstanding: the fleet provisioning flag on lazysite-hestia-domain, and the fact that nothing has run on a real host - the privilege drop is exercised only in its unprivileged branch because the suite is not root. WHAT REMAINS BEYOND: phases 2-4 (the local socket and proxy mapping, WebSocket via SM221, federation via SM090) and the SM222 debt, which is the local lifecycle verbs moving onto the shared contract when SM222 lands."
 ---
 
 # The decision this takes
@@ -606,13 +606,80 @@ purpose: their subjects are fixed and known, so they would fail LOUDLY. `lint/76
 enumerates every plugin, so an unknown future subject disappears SILENTLY - and
 that difference is the whole reason to fix one and file the others.
 
+
+## The systemd unit, and what hundreds of instances actually cost
+
+The question that decided this: under Hestia there may be hundreds of lazysite
+instances. One daemon per instance sounds like hundreds of daemons.
+
+**It is not, and the reason is the born-disabled decision.** Two switches must
+both be on: the unit, instantiated by the host operator, and the plugin,
+enabled by the site's sysop. An uninstantiated unit does not exist. An
+instantiated one whose plugin is off exits immediately without creating a state
+directory. **What runs is the number of sites that deliberately turned it on**,
+not the number installed - so the decision taken for safety turns out to be
+what makes the model scale.
+
+`debian/lazysited@.service` follows `lazysite@.service` exactly rather than
+inventing a pattern: identity in `/etc/lazysite/daemon/%i.conf` (`DOCROOT=`,
+`USER=`), `ConditionPathExists` so an unconfigured instance is inert, and the
+same SEC-2026-07 sandbox directives.
+
+**Per-instance is also forced rather than merely chosen.** Under Hestia each
+site is a separate Unix user. A single host-level daemon multiplexing all sites
+would need root and would cross exactly the isolation boundary Hestia exists to
+provide.
+
+### The one line that differs from the pool, and why
+
+**`Restart=on-failure`, not `Restart=always`.**
+
+The pool uses `always` and is right to. Here it would be a hot loop: a runtime
+whose plugin is disabled exits **0**, on purpose, and `always` would restart it
+forever - on every site with the unit enabled and the plugin off, which is the
+common case. lazysited exits 0 for "disabled" and for a clean stop, non-zero
+only for real failure, so `on-failure` is correct in all three.
+
+`t/unit/daemon/03` pins both halves, because neither is any use alone and
+neither is visible from reading one file: the unit's `Restart=` line, and that
+a disabled runtime really does exit 0 and leave nothing behind. **It is a cheap
+test for an expensive mistake** - the loop would appear only on a real host, at
+scale, on the sites that had NOT turned the runtime on.
+
+### Root, and the account a job runs as
+
+The unit starts lazysited as root for one reason: systemd cannot template
+`User=` from an instance name, and the instance name is a domain. lazysited
+drops to `USER` before loading any daemon code - unlike the pool, nothing here
+NEEDS root, since phase 1 binds no socket. It refuses to run as root without
+`--user`, because running a site's scheduled jobs with root's privileges would
+hand every job the one identity the capability model cannot constrain.
+
+That is the OS user. The lazysite account a job runs as is a separate thing
+(`daemon_job_user` plus `run_jobs`), and the two are not interchangeable.
+
+### The fleet path, not yet built
+
+`lazysite-hestia-domain add <user> <domain> --fcgi` already writes the pool conf
+and enables its unit. The daemon's equivalent belongs in the same place - a
+`--daemon` flag writing `/etc/lazysite/daemon/<domain>.conf` and enabling
+`lazysited@<domain>` - so that a fleet is provisioned by tooling rather than by
+hand on hundreds of hosts. **Not built.** The unit and its documentation are
+here; the provisioning flag is the next piece.
 ## Still to do before it can run anywhere
 
-Phase 1 is the machinery, not a deployment. **No systemd unit ships yet** and
-nothing starts the runtime on a real host; `tools/lazysited.pl` is the thing a
-unit would exec. That, and the packaging that installs it, are the remaining
-phase-1 work - the code is testable without them, which is why they are not in
-this commit.
+The unit now ships (see the section above), so what remains is narrower than it
+was:
+
+**The fleet provisioning flag.** `lazysite-hestia-domain add <user> <domain>
+--fcgi` writes the pool conf and enables its unit; the daemon needs the same
+treatment, or a host with hundreds of sites is configured by hand. Not built.
+
+**Nothing has run on a real host.** Every assertion here is from tests and from
+reading the pool's pattern. The privilege drop in particular is exercised only
+in its unprivileged branch, because the suite does not run as root - so the
+setuid path itself is inherited from `lazysite-pool.pl` rather than proved here,
+and it wants a real instance before anybody trusts it.
 
 # The four questions, all answered 2026-09-03
 
