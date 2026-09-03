@@ -50,12 +50,17 @@ sub write_record {
     return $f;
 }
 
-# Run coverage.sh with the record pointed somewhere harmless. A SKIP returns
-# fast; anything else would start an instrumented suite, so the runs that must
-# NOT skip are checked by reading the decision rather than by waiting for them.
+# Run coverage.sh with the record pointed somewhere harmless, in DECIDE-ONLY
+# mode so that a must-not-skip case never starts an instrumented suite.
+#
+# The first version let them start and killed each after eight seconds. That
+# wasted a minute, and worse, it left a cover_db-suite.log in the working tree -
+# which duly got committed. A test that dirties the repository to prove a
+# shortcut is safe has traded one hazard for another.
 sub decision {
     my ($record) = @_;
-    my $out = `LAZYSITE_COVER_RECORD=\Q$record\E timeout 8 bash \Q$cov\E 2>&1`;
+    my $out
+        = `LAZYSITE_COVER_RECORD=\Q$record\E LAZYSITE_COVER_DECIDE_ONLY=1 bash \Q$cov\E 2>&1`;
     return $out // '';
 }
 
@@ -101,7 +106,8 @@ subtest 'an unreadable or absent record runs the stage' => sub {
 subtest 'FORCE overrides a legitimate skip' => sub {
     my $rec = write_record(
         qq({"inputs_digest":"$digest","result":"pass","floor":"75"}));
-    my $out = `LAZYSITE_COVER_FORCE=1 LAZYSITE_COVER_RECORD=\Q$rec\E timeout 8 bash \Q$cov\E 2>&1`;
+    my $out
+        = `LAZYSITE_COVER_FORCE=1 LAZYSITE_COVER_RECORD=\Q$rec\E LAZYSITE_COVER_DECIDE_ONLY=1 bash \Q$cov\E 2>&1`;
     unlike( $out // '', qr/coverage: SKIPPED/,
         'an operator who says measure it anyway is obeyed' );
 };

@@ -144,6 +144,22 @@ if [ "${LAZYSITE_COVER_FORCE:-}" != "1" ] && [ -n "$COVER_DIGEST" ] && [ -f "$CO
     fi
 fi
 
+# DECIDE-ONLY, for the test that proves the skip. Past this point the script
+# starts an instrumented suite, which takes over an hour and writes cover_db/
+# and a suite log into the tree.
+#
+# t/unit/tools/76 needs the DECISION, not the run. Without this it had to start
+# a real run for each must-not-skip case and kill it on a timeout - eight
+# seconds of wasted instrumentation apiece, and a cover_db-suite.log left in
+# the working tree, which is exactly how a build artefact ended up in a commit.
+#
+# Nothing but that test sets it. It is checked here rather than earlier so the
+# skip path above is genuinely exercised on the way past.
+if [ "${LAZYSITE_COVER_DECIDE_ONLY:-}" = "1" ]; then
+    echo "coverage: WOULD RUN - no recorded pass matches digest $COVER_DIGEST" >&2
+    exit 0
+fi
+
 JOBS=${LAZYSITE_COVER_JOBS:-4}
 echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 # `+ignore,^/tmp/` KEEPS THE INSTRUMENT OUT OF EPHEMERAL COPIES.
