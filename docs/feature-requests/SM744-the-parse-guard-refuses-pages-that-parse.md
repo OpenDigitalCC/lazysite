@@ -61,7 +61,7 @@ by re-parsing each without the indented-code rule:
 
 | | Count | Which |
 | --- | --- | --- |
-| **False refusals** - the page parses | **5** | `xi/marketing/lazysite/site/contact.md`, and four pages of the learning app (`build/index.md`, `live-snapshot2/catalogue.md`, `logout-ux/catalogue.md`, `p5/index.md`) |
+| **False refusals** - the file parses | **5** | `xi/marketing/lazysite/site/contact.md`, and four files of the learning app (`build/index.md`, `live-snapshot2/catalogue.md`, `logout-ux/catalogue.md`, `p5/index.md`) - which are variants of two page names, and **one** live page. See "What it costs". |
 | Genuine parse failures | 2 | `lazysite/CHANGELOG.md`, and a copy of it in a scratch rig |
 
 **Every one of the false refusals is a real site page. Neither of the genuine
@@ -78,8 +78,26 @@ The refusal is a **415 on WebDAV PUT** (SM729) and a refusal in the manager
 including, pointedly, to remove the construct the guard objects to, since the
 construct is not the problem.
 
-Four of the five are pages of a live application. Its author cannot save an edit
-to them.
+Four of the five files belong to a live application - but **files are not
+pages**, and the first version of this filing conflated them.
+
+Those four are snapshot and build variants of **two** page names, `index` and
+`catalogue`, under the app's `_work` directories. The field agent checked which
+correspond to what is actually deployed:
+
+- **`catalogue` - affected.** The live snapshot carries the construct.
+- **`index` - not affected.** The deployed page is clean; the indented `[%#`
+  survives only in older build iterations (`build/index.md`, `p5/index.md`),
+  having already been edited out of the live page.
+
+**So the distinct live page that cannot be saved is one, not four.** The fifth
+false refusal, `xi/marketing/lazysite/site/contact.md`, is a separate site's
+page and its deployed state is unconfirmed.
+
+The nature and the severity are unchanged - one silently uneditable live page,
+no visitor symptom, discovered only when an author tries to save. The count is
+smaller and the record should say so. I measured files on disk and reported them
+as pages; that step was not mine to skip.
 
 # What shipped
 
