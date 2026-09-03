@@ -161,6 +161,38 @@ domains must refuse work it cannot attribute to a site. If a job or a request
 cannot be resolved to a domain, it fails closed rather than defaulting to the
 primary.
 
+
+# Addressing is an envelope concern, not an infrastructure one
+
+Confirmed 2026-09-03, explicitly: **each lazysite instance has exactly one
+daemon**, and that daemon serves all of the instance's domains. Not one per
+domain, and not more than one per instance.
+
+The follow-on decision matters more than it looks. Message routing needs to be
+able to target a particular domain or subdomain - and that is carried **in the
+envelope**, not by running a process per domain.
+
+Stated as a rule, because the opposite is the mistake it would be easy to drift
+into: a request to address one site is never a reason to start a second runtime.
+Wanting per-domain delivery is an addressing feature; wanting per-domain
+isolation would be an infrastructure decision, and this filing has taken the
+opposite one deliberately.
+
+Three consequences follow, and they are the design work this creates:
+
+**Every message carries its target.** A WebSocket frame, a scheduled job, an
+XMPP stanza and an ActivityPub delivery all need a target domain in the envelope
+- not inferred from a connection, a config default or whichever site happened to
+be loaded. Inference is what makes cross-site leakage a one-line mistake.
+
+**An absent or unresolvable target fails closed**, per the boundary rule above.
+It does not fall back to the primary domain, which is the tempting default and
+the wrong one: the primary is precisely the site with the most to lose.
+
+**A subscriber may only be addressed within its own site.** The envelope says
+where a message is going; it does not by itself grant the right to send there.
+Routing and authorisation stay separate, or the envelope becomes a capability.
+
 # The module register
 
 The daemon is the request. These are its modules, each staying its own filing
