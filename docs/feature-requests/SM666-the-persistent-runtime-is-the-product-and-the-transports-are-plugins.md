@@ -213,6 +213,60 @@ saying because SM222's key finding, that a disabled service still spawns and
 then refuses, is exactly the class of thing a supervised runtime should stop
 being true.
 
+
+# It ships as a plugin, and it comes disabled
+
+Decided 2026-09-03. The runtime is delivered as a lazysite **plugin**, and it is
+**disabled on install**. An operator turns it on deliberately; an existing
+instance that upgrades gets nothing new running.
+
+That is the right default for a long-lived process that holds credentials and
+state, and it makes the whole programme opt-in rather than something every site
+inherits because it shipped.
+
+## "Disabled" has to mean off, and today it does not
+
+This is where the decision bites, and it is worth stating rather than
+discovering.
+
+[[SM222]]'s key finding is that **a disabled service is not actually off**: the
+web server still routes to it, the CGI still spawns, reads its config and only
+then refuses - and the refusal contract is inconsistent between services. For a
+CGI that is wasteful. **For a supervised daemon it would be incoherent**: a
+disabled daemon that starts, connects, holds a socket and then declines to work
+is not disabled, it is running with its output suppressed.
+
+So the daemon cannot adopt the current meaning of disabled. Disabled must mean
+**no process, no socket, no connections, nothing scheduled** - and the status
+verb must be able to say "off because an operator turned it off" distinctly from
+"off because it crashed", which is exactly the desired-versus-runtime split
+SM222 already proposes.
+
+The daemon is therefore not merely SM222's first consumer. **It is the case that
+forces SM222 to be honest**, and the two should be scheduled together rather
+than the daemon inheriting a lifecycle contract that does not yet mean what it
+says.
+
+## Two things are now called plugin, and they are nested
+
+The runtime is a **lazysite plugin** in the existing `plugins/*.pl` sense. It
+hosts **daemon plugins** - scheduler, WebSocket, XMPP - in a new sense, with a
+different lifecycle, a different contract and a different failure model.
+
+This makes open question 3 more pressing rather than less. One word now covers
+an outer thing and the inner things it contains, and a reader meeting
+"disable the plugin" has to know which layer is meant before they can predict
+what stops. Disabling the outer one stops everything; disabling an inner one
+stops one transport.
+
+SM662's shape is the warning: one concept described in several places drifts,
+and the cost lands on whoever reads it later. **The naming should be settled
+before the contract has users**, because it is free now and a rename across two
+lifecycles later is not.
+
+Neither name is chosen here. What is recorded is that the collision exists, is
+structural rather than cosmetic, and belongs with question 3.
+
 # What phase 1 actually is
 
 Deliberately small enough to be boring, and shippable on its own:
@@ -222,6 +276,8 @@ Deliberately small enough to be boring, and shippable on its own:
 2. A plugin contract with one implementation.
 3. A scheduler: declarative jobs, a tick, a run record, and an audit row per
    run carrying a real identity.
+4. Shipped DISABLED, where disabled means no process at all - which is the
+   SM222 work, not a config flag on top of it.
 
 Everything else in the register waits for a contract that has been proved by
 something running.
@@ -237,7 +293,7 @@ something running.
    that acts as `system` is unconstrained by the capability model, which is
    exactly what the model exists to prevent. A job identity with a real grant is
    the safer shape and a larger piece of work.
-3. **Is the plugin contract the SAME contract as `plugins/*.pl`?** The engine
+3. SHARPER NOW that the runtime is itself a lazysite plugin - see above; the word covers an outer thing and the inner things it contains. **Is the plugin contract the SAME contract as `plugins/*.pl`?** The engine
    already has a plugin word, and reusing it for something with a completely
    different lifecycle would be the sixth place a reader has to learn a
    distinction that is not written down (SM662's shape).
