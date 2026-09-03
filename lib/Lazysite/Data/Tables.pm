@@ -327,9 +327,135 @@ sub _record_history {
 # is a rule, and a rule written eight times disagrees with itself (SM578). The
 # FULL string still reaches the log, where an operator debugging the engine
 # looks for it. This only decides what crosses the wire.
+# SM742: a constraint failure reads as OUR sentence, not the driver's.
+#
+# SM713 stopped these errors naming the server, and did. What survived the
+# cleaner was still SQLite's own wording - "UNIQUE constraint failed:
+# table.column" - which is not a leak, because the table and column are the
+# caller's own, but is a DEPENDENCY talking directly to a caller.
+#
+# Two reasons that matters, and neither is tidiness. The wording belongs to
+# SQLite, so anything built against it - a form highlighting the offending
+# field, an importer naming the row that collided - is parsing text we do not
+# control, and it breaks silently the day the backend or the phrasing changes.
+# And the information is structured: the driver knows which column failed, and
+# passing the sentence through as an opaque string throws that away.
+#
+# FOUR SHAPES ARE RECOGNISED, and everything else falls through to the general
+# cleaner untouched. The fallback matters more than the mapping: a translator
+# that handles four cases and mangles the fifth is worse than one that handles
+# none, because the fifth is the one nobody anticipated and it is now
+# unreadable as well as unexpected.
+#
+# Returns ( $sentence, $column ) - $column undef when the driver did not name
+# one (FOREIGN KEY never does), so a caller can highlight a field without
+# parsing prose, ours or SQLite's.
+sub _constraint_error {
+    my ($err) = @_;
+    return () unless defined $err && length $err;
+
+    # STRIP THE FILE AND LINE FIRST. The driver appends " at <path> line N." to
+    # its message, so a capture that runs to the end of the line swallows it -
+    # which is exactly what the first version did: "products.code at
+    # /home/.../Tables.pm line 572." parsed as no column at all, every shape
+    # fell through, and the cleaner emitted the driver's sentence unchanged
+    # while looking like it had translated nothing on purpose.
+    $err =~ s/\s+at\s+\S+\s+line\s+\d+\.?//g;
+
+    # "UNIQUE constraint failed: t.a" or, for a composite key, "t.a, t.b".
+    if ( $err =~ /UNIQUE constraint failed:\s*([^\n]+)/i ) {
+        my @cols = _constraint_columns($1);
+        return () unless @cols;
+        my $list = _english_list( \@cols );
+        return @cols > 1
+            ? ( "a row with this combination of $list already exists", $cols[0] )
+            : ( "a row with this $list already exists", $cols[0] );
+    }
+
+    if ( $err =~ /NOT NULL constraint failed:\s*([^\n]+)/i ) {
+        my @cols = _constraint_columns($1);
+        return () unless @cols;
+        return ( $cols[0] . ' is required', $cols[0] );
+    }
+
+    # SQLite names no column for a foreign key. Saying which one would be a
+    # guess, and a guess pointed at a field is worse than no field at all.
+    if ( $err =~ /FOREIGN KEY constraint failed/i ) {
+        return ( 'this refers to a row that does not exist', undef );
+    }
+
+    if ( $err =~ /CHECK constraint failed:\s*([^\n]+)/i ) {
+        my $what = $1;
+        $what =~ s/\s+\z//;
+        my @cols = _constraint_columns($what);
+
+        # A CHECK's name is often the constraint's, not a column's - so the
+        # sentence names it without claiming it is a field.
+        return @cols
+            ? ( $cols[0] . ' is outside the values this table allows', $cols[0] )
+            : ( "the value breaks the table's '$what' rule", undef );
+    }
+
+    return ();
+}
+
+# "t.a, t.b" -> ("a", "b"). The table prefix is dropped: the caller asked about
+# one table and repeating its name in every field is noise.
+#
+# THE PREFIX IS REQUIRED, and that is the whole discriminator. SQLite writes
+# `table.column` when a constraint is about a column, and a BARE NAME when a
+# CHECK is named for itself - so `CHECK constraint failed: positive_total` is a
+# rule's name, not a field. Without this rule the two are the same string, and
+# the first version reported `positive_total` as a column: a form would then
+# have highlighted an input that does not exist, which is worse than showing no
+# field at all.
+#
+# A driver that emitted bare column names would lose them here and fall through
+# to the general cleaner. That is the safe direction to be wrong in - the
+# caller gets the original sentence rather than a confident mislabelling.
+sub _constraint_columns {
+    my ($raw) = @_;
+    my @out;
+    for my $part ( split /\s*,\s*/, $raw ) {
+        $part =~ s/\A\s+|\s+\z//g;
+        next unless $part =~ /\A[A-Za-z_][A-Za-z0-9_]*\.([A-Za-z_][A-Za-z0-9_]*)\z/;
+        push @out, $1;
+    }
+    return @out;
+}
+
+sub _english_list {
+    my ($items) = @_;
+    return $items->[0] if @$items == 1;
+    my @c    = @$items;
+    my $last = pop @c;
+    return join( ', ', @c ) . " and $last";
+}
+
+# The offending column as a key/value PAIR, for splicing into _err's %extra -
+# empty when the driver named no column, so nothing has to test for undef at
+# the call site and no error grows a `field => undef` that a caller might read
+# as "a field, unnamed".
+#
+# Only the ROW-WRITE sites use it. Those are the ones a form reaches, and a
+# form is the thing that can act on knowing which input was refused; a
+# migration or a descriptor load has no field to highlight.
+sub _constraint_field {
+    my ($err) = @_;
+    my ( undef, $col ) = _constraint_error($err);
+    return () unless defined $col;
+    return ( field => $col );
+}
+
 sub _clean_db_error {
     my ($err) = @_;
     return 'the database refused the operation' unless defined $err && length $err;
+
+    # SM742: a recognised constraint answers in our words. Anything else falls
+    # through to the general cleaning below, unchanged.
+    my ($sentence) = _constraint_error($err);
+    return $sentence if defined $sentence;
+
     my $e = "$err";
     $e =~ s/\s+at\s+\S+\s+line\s+\d+\.?//g;                # file and line
     $e =~ s/^\s*DB[DI]::\w+::\w+\s+\w+\s+failed:\s*//i;    # driver vocabulary
@@ -476,7 +602,8 @@ sub insert_row {
     return $bad if $bad;
     my ( $sql, $binds ) = insert_sql( $d, $values );
     eval { $dbh->do( $sql, undef, @{$binds} ); 1 }
-        or return _err( "table '$name': the insert failed - " . _clean_db_error($@), table => $name );
+        or return _err( "table '$name': the insert failed - " . _clean_db_error($@),
+        table => $name, _constraint_field($@) );
     # The assigned key, for an auto-key table - a caller that has just created a
     # row and cannot address it has to guess.
     my $key
@@ -494,7 +621,9 @@ sub update_row {
     my ( $sql, $binds ) = eval { update_sql( $d, $key_value, $values ) };
     return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };
-    return _err( "table '$name': the update failed - " . _clean_db_error($@), table => $name ) if $@;
+    return _err( "table '$name': the update failed - " . _clean_db_error($@),
+        table => $name, _constraint_field($@) )
+        if $@;
     # 0 rows is NOT an error and NOT a success. The caller asked to change a
     # row that is not there, and reporting "ok" would let a UI say saved.
     return _err( "table '$name': no row with that key", table => $name,
@@ -512,7 +641,9 @@ sub delete_row {
     my ( $sql, $binds ) = eval { delete_sql( $d, $key_value ) };
     return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };
-    return _err( "table '$name': the delete failed - " . _clean_db_error($@), table => $name ) if $@;
+    return _err( "table '$name': the delete failed - " . _clean_db_error($@),
+        table => $name, _constraint_field($@) )
+        if $@;
     return _err( "table '$name': no row with that key", table => $name,
         kind => 'no_such_row' )
         unless $n && $n > 0;

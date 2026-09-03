@@ -4,7 +4,7 @@ title: "SM742: a constraint failure reads as prose, not as driver text"
 subtitle: "SM713 stopped data errors naming the server. What survives the cleaner is still the driver's own sentence - 'UNIQUE constraint failed: table.column' - which is not a leak, but is the database talking to the caller in its own voice."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 ---
 
 # The moment this fills
@@ -55,6 +55,56 @@ none.
 Where an error names a column, returning it as a field alongside the message
 would let a form highlight it without parsing prose - ours or SQLite's.
 
+
+# What shipped
+
+`_constraint_error` recognises four shapes and returns a sentence plus, where
+the driver named one, the column. `_clean_db_error` consults it first and falls
+through to SM713's general cleaning for everything else. The three ROW-WRITE
+sites - insert, update, delete - additionally carry `field`, because those are
+the ones a form reaches and a form is the thing that can act on knowing which
+input was refused.
+
+| Driver | Ours |
+| --- | --- |
+| `UNIQUE constraint failed: products.code` | a row with this code already exists |
+| `UNIQUE constraint failed: stock.product, stock.location` | a row with this combination of product and location already exists |
+| `NOT NULL constraint failed: orders.customer` | customer is required |
+| `FOREIGN KEY constraint failed` | this refers to a row that does not exist |
+| `CHECK constraint failed: items.quantity` | quantity is outside the values this table allows |
+| `CHECK constraint failed: positive_total` | the value breaks the table's 'positive_total' rule |
+
+## Three decisions inside it
+
+**A composite key says COMBINATION.** Naming only the first of two columns
+would send an author to fix a field that is not, by itself, the problem.
+
+**FOREIGN KEY claims no column.** SQLite does not say which key failed, and a
+guess pointed at a field is worse than no field: the author edits the wrong
+input and sees the same error again.
+
+**The table prefix is the discriminator, and it is required.** SQLite writes
+`table.column` when a constraint concerns a column and a BARE NAME when a CHECK
+is named for itself - so `positive_total` is a rule's name, not a field. Without
+that rule the two strings are identical, and the first version reported
+`positive_total` as a column: a form would have highlighted an input that does
+not exist. A driver emitting bare column names would lose them here and fall
+through to the general cleaner, which is the safe direction to be wrong in.
+
+## What the test protects
+
+The **fallback**, as carefully as the mapping. `no such table: widgets` and
+`database is locked` must arrive exactly as SM713 left them, `undef` and `''`
+must still answer something showable, and a row whose CONTENT mentions a
+constraint must not be rewritten as though it failed one.
+
+## A bug the test caught
+
+The first version captured to end of line, which swallowed the driver's
+` at <path> line N` suffix - so `products.code at /home/.../Tables.pm line 572`
+parsed as no column, every shape fell through, and the cleaner emitted SQLite's
+sentence unchanged while looking like it had deliberately translated nothing.
+The file and line are now stripped before matching.
 # Could a lint have caught it
 
 No, and worth saying so plainly: `t/lint/112` checks that a caller-facing error

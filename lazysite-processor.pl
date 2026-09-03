@@ -556,6 +556,64 @@ sub check_auth {
     };
 }
 
+# SM743: the display name for an account, or '' when it has none.
+#
+# DELIBERATE local copy of Lazysite::Auth::Settings::display_name_for, for the
+# same reason _groups_grant_cap below is one: the processor's render path is
+# module-free by design (ADR 0001), so it cannot import the shared helper. Keep
+# the two in sync - raw-octets read, decode_json, and the same '' on every
+# failure.
+#
+# A FIRST DRAFT CALLED THE SHARED HELPER INSIDE AN eval AND WOULD HAVE BEEN
+# INERT. The module is not loaded here, so the call would have died, the eval
+# would have swallowed it, and every display name would silently have been ''
+# - a feature that ships, appears to work, and does nothing. That is the exact
+# shape of SM732's unreachable render and SM743's own dead field, which is a
+# poor way to fix a dead field.
+#
+# MEMOISED ON THE FILE'S IDENTITY, not on a clock, following SM334's settings
+# cache and the descriptor cache: a rewrite changes mtime or size, so the key
+# misses and the value is re-read. Under the FastCGI pool (SM142) this process
+# serves many requests, and reading and decoding user-settings.json on every
+# authenticated render is exactly the per-request cost SM663 and SM685 were
+# about. A stat is not.
+{
+    my %_dn_cache;
+
+    sub _display_name_for {
+        my ($user) = @_;
+        return '' unless defined $user && length $user;
+
+        my $f  = "$LAZYSITE_DIR/auth/user-settings.json";
+        my @st = stat $f;
+        return '' unless @st;
+
+        my $key = "$f:$st[9]:$st[7]";
+        my $all = $_dn_cache{$key};
+
+        unless ($all) {
+            # THE SLURP IS SCOPED TO THE READ, for the reason spelled out
+            # below in _groups_grant_cap: a `local $/;` left in effect at a
+            # sub's top level silently changed how a LATER function read a
+            # different file, and cost every nested group its capabilities.
+            {
+                open my $fh, '<:raw', $f or return '';
+                local $/;
+                my $raw = <$fh>;
+                close $fh;
+                $all = eval { decode_json($raw) };
+            }
+            return '' unless ref $all eq 'HASH';
+            %_dn_cache = () if keys %_dn_cache > 4;
+            $_dn_cache{$key} = $all;
+        }
+
+        return '' unless ref $all->{$user} eq 'HASH';
+        my $n = $all->{$user}{display_name};
+        return defined $n ? $n : '';
+    }
+}
+
 # SM095: does any of these groups carry capability $cap (from groups-settings.json)?
 # DELIBERATE local copy of Lazysite::Auth::Settings::groups_grant_cap - the
 # processor's render path is module-free by design, so it cannot import the
@@ -2480,10 +2538,36 @@ sub main {
         }
 
         # Set auth context for TT rendering
+        #
+        # SM743: auth_name gets its FIRST producer on the native auth path.
+        #
+        # It had exactly one before - the X-Remote-Name header, set by an
+        # upstream proxy doing external authentication - and nothing anywhere
+        # set $auth_result->{auth_name}, so on a site using lazysite's own auth
+        # this was permanently ''. Meanwhile the admin bar is written to prefer
+        # a display name over the login, and `display_name` was a stored,
+        # editable setting whose only reader in the whole tree was the users
+        # tool that wrote it. An operator could set it, watch it save, and never
+        # see it anywhere.
+        #
+        # The header still WINS where one is present: a deployment behind
+        # header auth has an upstream that knows who this is, and its answer
+        # should not be second-guessed by a local record.
+        #
+        # RAW, not escaped. Both sinks escape - SM709 at the point the TT stash
+        # is built, and again at the admin bar, which reads %AUTH_CONTEXT
+        # directly - so escaping here would double-escape and put `O&#39;Brien`
+        # on the page. This is also what finally makes SM709's escaping
+        # reachable: it has guarded a value nothing on our fleet could populate.
+        my $native_name = $auth_result->{auth_name};
+        if ( !defined $native_name || !length $native_name ) {
+            $native_name = _display_name_for( $auth_result->{auth_user} );
+        }
+
         %AUTH_CONTEXT = (
             authenticated => $auth_result->{authenticated} // 0,
             auth_user     => $auth_result->{auth_user}     // '',
-            auth_name     => $auth_result->{auth_name}     // '',
+            auth_name     => $native_name                  // '',
             auth_email    => $auth_result->{auth_email}    // '',
             auth_groups   => $auth_result->{auth_groups}   // [],
             no_password   => $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0,
@@ -6494,12 +6578,12 @@ sub render_content {
                 : []
             }
         ],
-            # SEC-2026-07 (H5): escape the author-controllable front-matter fields
-            # HERE, at the single point they enter the stash, so EVERY layout - the
-            # bundled fallback/manager layouts AND every third-party/library layout
-            # we cannot edit - emits them safely even when it interpolates them
-            # without a `| html` filter. $meta->{...} stays raw for the search index
-            # and page scan, which never render it as HTML.
+        # SEC-2026-07 (H5): escape the author-controllable front-matter fields
+        # HERE, at the single point they enter the stash, so EVERY layout - the
+        # bundled fallback/manager layouts AND every third-party/library layout
+        # we cannot edit - emits them safely even when it interpolates them
+        # without a `| html` filter. $meta->{...} stays raw for the search index
+        # and page scan, which never render it as HTML.
         page_title    => _esc_html( $meta->{title} ),
         page_subtitle => _esc_html( $meta->{subtitle} ),
 

@@ -12,7 +12,7 @@ use Lazysite::Util qw(log_event secure_write_perms);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
-    caps_for groups_grant_cap site_grants_manager
+    caps_for display_name_for groups_grant_cap site_grants_manager
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS);
@@ -381,6 +381,34 @@ sub site_grants_manager {
 # across them, each capability explicit (no per-user grants, no inheritance). The
 # interactive-login gate still reads the per-account `ui` flag until phase (c2)
 # wires it to the `ui` capability here.
+# SM743: the display name for an account, or '' when it has none.
+#
+# The field was stored, editable and read by NOTHING. `display_name` had one
+# reader in the whole tree - the users tool, which is also its only writer - so
+# an operator could set it, watch it save, and never see it again. Meanwhile
+# the admin bar is written to prefer a display name over the login
+# (lazysite-processor.pl, `$vars->{auth_name} || $vars->{auth_user}`) and
+# `auth_name` had one producer: the X-Remote-Name header, set by an upstream
+# proxy. On a site using lazysite's own auth there was no path between them.
+#
+# RAW, DELIBERATELY. Escaping happens at the sinks - SM709 escapes where the
+# TT stash is built and again at the admin bar, which reads %AUTH_CONTEXT
+# directly - so escaping here would double-escape and render `O'Brien` as
+# `O&#39;Brien` on the page. The value that travels is the value the operator
+# typed.
+#
+# read_settings is memoised on the settings file's identity, so this is a hash
+# lookup on any request that has already resolved capabilities, which every
+# authenticated request has.
+sub display_name_for {
+    my ($user) = @_;
+    return '' unless defined $user && length $user;
+    my $s = read_settings();
+    return '' unless ref $s eq 'HASH' && ref $s->{$user} eq 'HASH';
+    my $n = $s->{$user}{display_name};
+    return defined $n ? $n : '';
+}
+
 sub caps_for {
     my ($user) = @_;
     my $gc     = _group_caps($user);

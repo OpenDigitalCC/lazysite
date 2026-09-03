@@ -4,7 +4,7 @@ title: "SM743: the display name reaches no sink"
 subtitle: "A user has a display_name. The admin bar is written to prefer it. Nothing connects the two - auth_name is populated only from an upstream header, so on any site using lazysite's own auth the field is stored, editable, and consumed by nothing."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 ---
 
 # The moment this fills
@@ -74,6 +74,61 @@ So SM709 escaped the variable that actually needed it. The finding here is not
 that the escaping is wrong; it is that the one sink that can be attacked is
 unreachable on most of the fleet, and therefore untested.
 
+
+# What shipped
+
+`display_name` now reaches `auth_name` on the native auth path, so the admin
+bar shows what it was always written to prefer and the field stops being
+stored, editable and consumed by nothing.
+
+**Two readers, deliberately.** `Lazysite::Auth::Settings::display_name_for` is
+the shared one. The processor keeps its own `_display_name_for`, because ADR
+0001 makes its render path module-free by design - the same reason
+`_groups_grant_cap` is a local copy of the shared helper beside it.
+
+**The header still wins.** A deployment behind header auth has an upstream that
+knows who this is, and its answer is not second-guessed by a local record; the
+fallback runs only when `auth_name` arrives absent or empty.
+
+**The value travels RAW.** SM709 escapes at the point the TT stash is built and
+again at the admin bar, which reads `%AUTH_CONTEXT` directly. Both escape from
+the raw value - correct, and only correct while what is stored is raw. Escaping
+here would double it and render `O'Brien & Sons` as `O&#39;Brien &amp; Sons` on
+the page.
+
+**Memoised on the file's identity**, following SM334's settings cache: a
+rewrite changes mtime or size, the key misses, the value is re-read. Under the
+FastCGI pool this process serves many requests, and reading and decoding
+user-settings.json on every authenticated render is exactly the per-request
+cost SM663 and SM685 were about. A stat is not.
+
+# The draft that would have shipped inert
+
+The first version called the shared helper from the processor inside an `eval`.
+The module is not loaded there, so the call would have died, the eval would have
+swallowed it, and **every display name would silently have been ''** - a
+feature that ships, appears to work, and does nothing.
+
+That is the same shape as SM732's render with no caller and as this filing's own
+defect, which makes it a poor way to fix a dead field. It was caught by reading
+why `_groups_grant_cap` exists rather than by a test, so the test now asserts
+the local reader exists and that the shared one is NOT called.
+
+That assertion needed a second correction of its own: it first searched the
+whole file and failed on the processor's own COMMENT, which names the shared
+helper in prose to explain why it is not called. A source check that cannot tell
+code from prose about code reports the explanation as the defect. Comments are
+stripped first.
+
+# What this unblocks
+
+SM709's escaping has shipped since 0.11.10 guarding a value nothing on our fleet
+could populate - the field agent could not test it at all, on edge or on a
+stable site, because no native-auth deployment had a path to `auth_name`.
+
+It is now reachable on any site with a user who has a display name. **The thing
+to look for is the double-escape**, because that is what the two sinks make
+possible and it is visible at a glance: an admin bar reading `O&#39;Brien`.
 # The decision
 
 **Populate `auth_name` from `display_name` on the native auth path** - the bar
