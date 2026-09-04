@@ -1512,8 +1512,38 @@ sub effective_settings {
     }
     return {
         groups => \@mygroups,
-        webdav => $caps->{webdav}                  ? JSON::PP::true() : JSON::PP::false(),
-        ui     => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
+
+        # EVERY CAPABILITY, FROM THE ONE LIST. This was twenty-five
+        # hand-written lines of identical shape, scattered through the hash,
+        # and the list they mirrored was @CAP_KEYS - so the only thing keeping
+        # them in step was somebody remembering. SM666 found out what that
+        # costs: `run_jobs` reached caps_for and not this map, which is a grant
+        # that resolves and then reports as absent, so an operator would grant
+        # it, see no sign of it, and grant it again.
+        #
+        # It also cost a release. Adding the missing line grew
+        # tools/lazysite-users.pl by one statement, and this file is COMPILED ON
+        # EVERY CREDENTIAL CHECK - which is what drives verify_token_ms (SM685).
+        # The work counter caught it and refused the build, correctly. Deriving
+        # the map removes twenty-five statements where adding one had been
+        # refused, so the file is smaller than before the capability existed.
+        #
+        # The comments those lines carried are not lost, they are answered:
+        # SM447's manage_data, SM576's manage_briefs, SM591's housekeeping and
+        # purge, SM682's write_data and SM666's run_jobs each said, in slightly
+        # different words, that a capability reaching caps_for but not this map
+        # does nothing on every surface that reports what an account holds.
+        # That is now true by construction rather than by repetition.
+        #
+        # TWO KEYS ARE NOT DERIVABLE and stay written out below: `ui`, which
+        # comes from $s with an inverted default and means "interactive login
+        # is allowed", and `manager_ui`, which is $caps->{ui} under another
+        # name (SM127). They are the only entries where the mapping is not the
+        # identity, and they are excluded here rather than special-cased inside
+        # the map so that the derivation has no exceptions to get wrong.
+        ( map { $_ => $caps->{$_} ? JSON::PP::true() : JSON::PP::false() }
+            grep { $_ ne 'ui' } @CAP_KEYS ),
+        ui => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
         # SM127: manager UI ACCESS - the `ui` capability GRANTED BY A GROUP (real
         # manager access), distinct from the default-on `ui` flag above (which just
         # means "interactive login is allowed"). The transport gates use this to
@@ -1535,27 +1565,20 @@ sub effective_settings {
         top_level => ( defined $s->{managed_by} && length $s->{managed_by} ) ? JSON::PP::false() : JSON::PP::true(),
         scope_independent => $s->{scope_independent} ? JSON::PP::true() : JSON::PP::false(),
         scope_ceiling     => \@ceiling,    # SM233: who is capping, in walk order
-        create_sub_users => $caps->{create_sub_users} ? JSON::PP::true() : JSON::PP::false(),
-        delegate_sub_user_creation => $caps->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
-        disabled       => $s->{disabled}          ? JSON::PP::true() : JSON::PP::false(),
-        manage_themes  => $caps->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
-        manage_layouts => $caps->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
+        disabled          => $s->{disabled} ? JSON::PP::true() : JSON::PP::false(),
         # SM447: the data plugin's capability. Added here at the same time as
         # @CAP_KEYS, because the two must move together - SEC-2026-07 (F3) is
         # what happens when they do not, and t/unit/users/21 is what makes
         # sure they do.
-        manage_data => $caps->{manage_data} ? JSON::PP::true() : JSON::PP::false(),
         # SM682: the narrow row-write grant, added here in the same commit as
         # @CAP_KEYS for the reason directly above. F3 is what happens otherwise:
         # a grant that resolves and then does nothing on every surface reading
         # this map.
-        write_data => $caps->{write_data} ? JSON::PP::true() : JSON::PP::false(),
         # SM576 part 1: the briefs plugin's capability, added here in the same
         # commit as @CAP_KEYS for the reason directly above - a capability that
         # reaches caps_for but not this map is a grant that resolves and then
         # does nothing on every surface that reads effective_settings, which is
         # what SEC-2026-07 (F3) was.
-        manage_briefs => $caps->{manage_briefs} ? JSON::PP::true() : JSON::PP::false(),
         # SM666: the daemon plugin's capability, here for the reason the two
         # comments around it both give - a capability that reaches caps_for but
         # not this map is a grant that resolves and then does nothing on every
@@ -1565,36 +1588,19 @@ sub effective_settings {
         # that reports what an account holds - the manager's user page, whoami
         # - would have shown the grant as absent. An operator would grant
         # run_jobs, see no sign of it, and grant it again.
-        run_jobs => $caps->{run_jobs} ? JSON::PP::true() : JSON::PP::false(),
         # SM591: the two lateral tiers, here for the same reason as every
         # other capability above - one that reaches caps_for and not this map
         # is a grant that resolves and then does nothing.
-        housekeeping  => $caps->{housekeeping}  ? JSON::PP::true() : JSON::PP::false(),
-        purge         => $caps->{purge}         ? JSON::PP::true() : JSON::PP::false(),
-        manage_config => $caps->{manage_config} ? JSON::PP::true() : JSON::PP::false(),
         # SM633: the service switches, here in the same commit as @CAP_KEYS for
         # the reason every neighbour above gives - t/unit/users/21 is what
         # caught this one missing, which is the test doing its job.
-        manage_services => $caps->{manage_services} ? JSON::PP::true() : JSON::PP::false(),
         # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
         # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained
         # list - so those grants were dormant on every surface that reads
         # effective_settings (the cookie manager gate _user_caps, the Users page).
         # A non-sysop read_submissions or manage_domains grant silently did
         # nothing. Surfaced now; t/unit/users/21 pins @CAP_KEYS <-> this map.
-        manage_domains => $caps->{manage_domains} ? JSON::PP::true() : JSON::PP::false(),
-        feedback       => $caps->{feedback}       ? JSON::PP::true() : JSON::PP::false(),
-        read_submissions => $caps->{read_submissions} ? JSON::PP::true() : JSON::PP::false(),
-        analytics      => $caps->{analytics}      ? JSON::PP::true() : JSON::PP::false(),
-        audit          => $caps->{audit}          ? JSON::PP::true() : JSON::PP::false(),
-        notifications  => $caps->{notifications}  ? JSON::PP::true() : JSON::PP::false(),
-        manage_content => $caps->{manage_content} ? JSON::PP::true() : JSON::PP::false(),
-        manage_nav     => $caps->{manage_nav}     ? JSON::PP::true() : JSON::PP::false(),
-        manage_forms   => $caps->{manage_forms}   ? JSON::PP::true() : JSON::PP::false(),
         # SM095: channel capabilities (api/mcp) + user administration. Group-only.
-        api          => $caps->{api}          ? JSON::PP::true() : JSON::PP::false(),
-        mcp          => $caps->{mcp}          ? JSON::PP::true() : JSON::PP::false(),
-        manage_users => $caps->{manage_users} ? JSON::PP::true() : JSON::PP::false(),
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or a sysop-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
