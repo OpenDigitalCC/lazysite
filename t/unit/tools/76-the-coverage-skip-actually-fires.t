@@ -34,12 +34,26 @@ my $inp  = "$root/tools/coverage-inputs.pl";
 
 plan skip_all => 'no coverage tooling' unless -f $cov && -f $inp;
 
-# The digest of this tree, from the tool the script itself uses.
-my $digest = `$^X \Q$inp\E 2>/dev/null`;
-($digest) = ( $digest // '' ) =~ /\A(\S+)/;
-plan skip_all => 'no digest available' unless defined $digest && length $digest;
-
 my $dir = tempdir( CLEANUP => 1 );
+
+# THE DIGEST IS ASKED OF THE SCRIPT, not computed alongside it.
+#
+# The first version ran tools/coverage-inputs.pl itself and planted the answer,
+# assuming coverage.sh would compute the same thing. That assumption FAILED A
+# RELEASE: under the instrumented suite the two disagreed, the skip did not
+# fire, and subtest 1 failed - while passing standalone every time. I could not
+# reproduce it afterwards either, which is the point: the digest covers every
+# .t, .pm and .pl under t/ and lib/, and a full parallel suite is not a quiet
+# tree to take a fingerprint of.
+#
+# So the equality is not assumed. DECIDE_ONLY prints the digest the script
+# actually saw, and that is what gets planted - which tests the same property
+# (a matching record on a pass skips) without depending on two independent
+# walks of a moving tree agreeing.
+my $probe = run_coverage( record => "$dir/nothing-here.json" );
+my ($digest) = $probe =~ /digest\s+(\S+)/;
+plan skip_all => 'coverage.sh reported no digest' unless defined $digest;
+
 
 sub write_record {
     my ($json) = @_;
@@ -57,11 +71,31 @@ sub write_record {
 # wasted a minute, and worse, it left a cover_db-suite.log in the working tree -
 # which duly got committed. A test that dirties the repository to prove a
 # shortcut is safe has traded one hazard for another.
+# PERL5OPT IS CLEARED, and this file failed a release by not doing it.
+#
+# This test runs coverage.sh from inside the suite, and the suite sometimes
+# runs UNDER coverage.sh. Inherited, the outer run's Devel::Cover follows every
+# process this one starts - so the digest the inner script computed did not
+# match the one this test had computed, the skip did not fire, and subtest 1
+# failed. It passed standalone every time.
+#
+# t/tools/60 had already met this, solved it the same way, and written down the
+# rule: A HARNESS THAT TESTS A HARNESS HAS TO STAND OUTSIDE THE ONE IT IS
+# TESTING. I wrote a second one without reading the first.
+sub run_coverage {
+    my (%a) = @_;
+    local $ENV{PERL5OPT}                   = '';
+    local $ENV{HARNESS_PERL_SWITCHES}      = '';
+    local $ENV{LAZYSITE_COVER_RECORD}      = $a{record};
+    local $ENV{LAZYSITE_COVER_DECIDE_ONLY} = 1;
+    local $ENV{LAZYSITE_COVER_FORCE}       = $a{force} ? 1 : '';
+    my $out = qx(bash \Q$cov\E 2>&1);
+    return $out // '';
+}
+
 sub decision {
     my ($record) = @_;
-    my $out
-        = `LAZYSITE_COVER_RECORD=\Q$record\E LAZYSITE_COVER_DECIDE_ONLY=1 bash \Q$cov\E 2>&1`;
-    return $out // '';
+    return run_coverage( record => $record );
 }
 
 subtest 'a matching digest on a PASSING run skips' => sub {
@@ -106,8 +140,7 @@ subtest 'an unreadable or absent record runs the stage' => sub {
 subtest 'FORCE overrides a legitimate skip' => sub {
     my $rec = write_record(
         qq({"inputs_digest":"$digest","result":"pass","floor":"75"}));
-    my $out
-        = `LAZYSITE_COVER_FORCE=1 LAZYSITE_COVER_RECORD=\Q$rec\E LAZYSITE_COVER_DECIDE_ONLY=1 bash \Q$cov\E 2>&1`;
+    my $out = run_coverage( record => $rec, force => 1 );
     unlike( $out // '', qr/coverage: SKIPPED/,
         'an operator who says measure it anyway is obeyed' );
 };
