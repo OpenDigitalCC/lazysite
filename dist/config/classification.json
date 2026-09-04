@@ -573,6 +573,16 @@
       "why": "as ../lib - the auth MODULES; the auth STORE is {LAZYSITE}/auth and is 2770"
     },
     {
+      "path": "{DOCROOT}/../lib/Lazysite/Daemon",
+      "mode": "0755",
+      "why": "as ../lib - SM666's persistent runtime. Code, not state: the runtime's STATE is {LAZYSITE}/daemon, declared by the plugin's owns.storage"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite/Daemon/Service",
+      "mode": "0755",
+      "why": "as ../lib - one module per daemon service"
+    },
+    {
       "path": "{DOCROOT}/../lib/Lazysite/Manager",
       "mode": "0755",
       "why": "as ../lib"

@@ -1556,6 +1556,16 @@ sub effective_settings {
         # does nothing on every surface that reads effective_settings, which is
         # what SEC-2026-07 (F3) was.
         manage_briefs => $caps->{manage_briefs} ? JSON::PP::true() : JSON::PP::false(),
+        # SM666: the daemon plugin's capability, here for the reason the two
+        # comments around it both give - a capability that reaches caps_for but
+        # not this map is a grant that resolves and then does nothing on every
+        # surface reading effective_settings. For this one the failure would
+        # have been quiet in the opposite direction to the obvious guess: the
+        # SCHEDULER reads caps_for and would have worked, while every surface
+        # that reports what an account holds - the manager's user page, whoami
+        # - would have shown the grant as absent. An operator would grant
+        # run_jobs, see no sign of it, and grant it again.
+        run_jobs => $caps->{run_jobs} ? JSON::PP::true() : JSON::PP::false(),
         # SM591: the two lateral tiers, here for the same reason as every
         # other capability above - one that reaches caps_for and not this map
         # is a grant that resolves and then does nothing.
