@@ -233,6 +233,7 @@
     "^tools/lazysite-apache-vhost\\.pl$",
     "^tools/lazysite-nginx-vhost\\.pl$",
     "^debian/",
+    "^download/",
     "^starter/.*\\.html$",
     "^starter/lazysite/auth/\\.gitkeep$",
     "^starter/lazysite/forms/contact\\.conf$",
