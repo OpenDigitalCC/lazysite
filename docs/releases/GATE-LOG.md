@@ -53,3 +53,4 @@ travel inside the artefact, in `release-manifest.json` under `validated`.
 | 0.11.12 | beta | `4ceb95218de8ee9da71cf8727d061c5816cf3d2e` | 747 | 12294 | 2026-09-02 15:49 |
 | 0.12.0 | stable | `b6b284746ee48c661c3ec614583787635bcc65fb` | 749 | 12334 | 2026-09-02 19:38 |
 | 0.12.1 | stable | `e707caabe22ed9ca124f0284841cd300be0ffcde` | 750 | 12350 | 2026-09-03 09:52 |
+| 0.13.0 | edge | `fcba4ef957bbf69c3002a2a266ffdaba1c4c8fc1` | 760 | 12414 | 2026-09-04 16:58 |
