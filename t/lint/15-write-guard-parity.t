@@ -96,6 +96,7 @@ my %EXEMPT = (
     action_form_submissions_delete_bulk => 'submission store, ids validated',
     action_create_theme     => 'themes dir, name validated by the theme rules',
     action_theme_rename     => 'themes dir, both names validated',
+    action_theme_copy       => 'themes dir, both names validated',
     action_theme_upload     => 'themes dir, archive members validated on extract',
     action_cache_invalidate => 'render cache, engine-named paths',
 

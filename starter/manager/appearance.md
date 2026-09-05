@@ -209,6 +209,9 @@ function renderInstalled(layouts, byLayout) {
         html += '<button class="mg-btn mg-btn-sm" onclick="previewTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Preview</button>';
       }
       if (isActiveL) {
+        // SM749: the theme being served is read-only everywhere; Copy is the
+        // first step of the only way to change it (copy, edit, activate).
+        html += '<button class="mg-btn mg-btn-sm" data-impact="commit" onclick="copyTheme(\'' + escHtml(t) + '\')">Copy</button>';
         if (isActiveT) {
           html += '<button class="mg-btn mg-btn-sm" onclick="deactivateTheme()">Deactivate</button>';
         } else {
@@ -325,6 +328,19 @@ function deactivateTheme() {
       .then(function(r){ return r.json(); }).then(function(d) {
         if (!d.ok) { showStatus(d.error, true); return; }
         showStatus('Theme deactivated.'); loadAll();
+      }).catch(function(e){ showStatus('Error: ' + e.message, true); });
+  });
+}
+
+function copyTheme(name) {
+  mgPrompt('Copy theme "' + name + '" as:', name + '-copy').then(function(dest) {
+    if (!dest) return;
+    fetch(API + '?action=theme-copy&path=' + encodeURIComponent(name), { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_name: dest }) })
+      .then(function(r){ return r.json(); }).then(function(d) {
+        if (!d.ok) { showStatus(d.error, true); return; }
+        showStatus('Theme "' + name + '" copied as "' + d.name + '". Edit the copy, then activate it.'); loadAll();
       }).catch(function(e){ showStatus('Error: ' + e.message, true); });
   });
 }

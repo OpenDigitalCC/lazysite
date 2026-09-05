@@ -220,6 +220,7 @@ my %EXEMPT = (
     'Themes::action_artifact_validate' => 'read-only',
     'Themes::action_theme_delete'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_rename'      => 'layout/theme artifact write (capture-swept)',
+    'Themes::action_theme_copy'        => 'layout/theme artifact write (capture-swept)',    # SM749
     'Themes::action_theme_upload'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_cache_invalidate'  =>
         'removes generated *.html - excluded from the versioned set',

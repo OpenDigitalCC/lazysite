@@ -229,6 +229,7 @@ our %ACTION = (
     'site-backup-upload' => { caps => ['manage_domains'], params => [] },
     'site-export-primary' => { caps => ['manage_content'], params => [ { name => 'data_tables', in => 'body' } ] },
     'theme-activate' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query' }, { name => 'theme', in => 'query' } ] },
+    'theme-copy' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query' }, { name => 'new_name', in => 'body' }, { name => 'layout', in => 'body' } ] },
     'theme-delete' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query' } ] },
     'theme-list' => { caps => [ 'manage_themes', 'manage_layouts' ], params => [] },
     'theme-rename' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'new_name', in => 'body' } ] },

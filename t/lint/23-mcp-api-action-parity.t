@@ -115,6 +115,7 @@ my %PAIR = (
     'layout-delete'         => 'delete_layout',
     'layouts-manifest'      => 'list_layout_catalogue',
     'theme-activate'        => 'activate_theme',
+    'theme-copy'            => 'copy_theme',
     # SM262: paired, but NOT identical - the MCP tool is always restricted to
     # themes the caller created, while the API action restricts only for token
     # clients and leaves the manager UI's cookie session unrestricted. Same

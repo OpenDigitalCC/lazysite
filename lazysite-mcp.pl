@@ -39,7 +39,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_git_history action_git_history_summary action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all
-    action_theme_tokens action_create_theme theme_config_issues
+    action_theme_tokens action_create_theme action_theme_copy theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list);
 use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
@@ -1140,6 +1140,25 @@ my %TOOLS = (
             $p{description} = $a->{description} if defined $a->{description};
             $p{tags}        = $a->{tags}        if defined $a->{tags};
             action_create_theme( \%p );
+        },
+    },
+    copy_theme => {
+        description => 'Copy an installed theme to a new name under the same layout - the FIRST step of changing a live theme. The theme being served is read-only on every surface (write_file into it is refused), so: copy_theme, edit the copy with write_file / replace_text under its path, then activate_theme. The copy carries the source\'s files and asset mirror, is named as its own theme, and is yours to delete_theme. Nothing changes on the live site until you activate.',
+        cap         => 'manage_themes',
+        inputSchema => {
+            type       => 'object',
+            properties => {
+                theme => { type => 'string', description => 'the theme to copy (its directory name)' },
+                new_name => { type => 'string', description => 'the name for the copy ([A-Za-z0-9_-]+, lower-cased)' },
+                layout => { type => 'string', description => 'the layout both live under; default the active layout' },
+            },
+            required             => [ 'theme', 'new_name' ],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub {
+            my $a = $_[0];
+            return action_theme_copy( $a->{theme}, $a->{new_name},
+                { layout => $a->{layout} } );
         },
     },
     activate_layout => {
@@ -3399,6 +3418,7 @@ my %ANNOTATE = (
     theme_tokens          => [ 1, 0, 0 ],
     activate_theme        => [ 0, 0, 1 ],
     create_theme          => [ 0, 0, 1 ],
+    copy_theme            => [ 0, 0, 1 ],    # SM749: a copy changes nothing live
     activate_layout       => [ 0, 0, 1 ],
     list_layout_catalogue => [ 1, 0, 0 ],
     install_layout        => [ 0, 0, 1 ],
@@ -3863,6 +3883,7 @@ elsif ( $method eq 'tools/call' ) {
             : $name eq 'replace_text'    ? 'edit'
             : $name eq 'create_page'     ? 'create'
             : $name eq 'create_theme'    ? 'theme-create'
+            : $name eq 'copy_theme'      ? 'theme-copy'
             : $name eq 'delete_file'     ? 'delete'
             : $name eq 'delete_page'     ? 'delete'
             : $name eq 'rename_page'     ? 'move'

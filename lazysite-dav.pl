@@ -1532,6 +1532,20 @@ sub authorise_layout {
     my $active_layout = $conf->{active_layout} // '';
     my $active_theme  = $conf->{active_theme}  // '';
 
+    # SM749: the artefact BEING SERVED is read-only - the rule and its message
+    # live in Manager::Common and the choke point (Files.pm) asks the same
+    # function, so the three surfaces answer alike and the answer names the
+    # workflow (copy, edit, activate) rather than a way round within WebDAV.
+    # This stack reads its own pointers and passes them; the rule is pure.
+    if ($is_write) {
+        require Lazysite::Manager::Common;
+        if ( my $err = Lazysite::Manager::Common::active_artifact_refusal(
+                $rel, $active_layout, $active_theme ) )
+        {
+            return _deny( 403, $err );
+        }
+    }
+
     # The all-layouts container: read-only navigation with either capability.
     return _deny( 403, 'lazysite/layouts is a read-only container; write inside a specific layout (lazysite/layouts/<layout>/)' )
         if $is_write && $rel eq 'lazysite/layouts';
@@ -1552,8 +1566,6 @@ sub authorise_layout {
         my $theme = $1;
         return _deny( 403, 'installing or editing a theme requires the manage_themes capability' )
             unless $can_themes;
-        return _deny( 403, "the active theme ($active_theme) is read-only over WebDAV; switch the active theme first, or edit a non-active one" )
-            if $is_write && $layout eq $active_layout && $theme eq $active_theme;
         return undef;
     }
 
@@ -1564,16 +1576,12 @@ sub authorise_layout {
         return undef unless $is_write;
         return _deny( 403, 'authoring layout structure requires the manage_layouts capability' )
             unless $can_layouts;
-        return _deny( 403, "the active layout ($active_layout) is read-only over WebDAV; switch the active layout first" )
-            if $layout eq $active_layout;
         return undef;
     }
 
     # layout.tt and other layout-level assets.
     return _deny( 403, 'editing layout files requires the manage_layouts capability' )
         unless $can_layouts;
-    return _deny( 403, "the active layout ($active_layout) is read-only over WebDAV; switch the active layout first" )
-        if $is_write && $layout eq $active_layout;
     return undef;
 }
 

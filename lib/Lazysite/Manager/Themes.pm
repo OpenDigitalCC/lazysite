@@ -31,7 +31,8 @@ our @EXPORT_OK = qw(
     action_theme_tokens action_create_theme theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list
-    action_layout_activate action_theme_delete action_theme_rename
+    action_layout_activate action_theme_delete action_theme_rename action_theme_copy
+    active_layout_and_theme
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
@@ -75,6 +76,11 @@ sub _write_conf_content {
 # through the one rule (Domains::presentation_value): a name passes, anything
 # else is refused to unset. Empty is what an unconfigured site returns already,
 # and the refusal is logged once naming the value.
+# The published name (SM749): Files.pm asks this from another package, and a
+# fully qualified call to an underscore sub is what perlcritic refuses. The
+# in-package callers and the importers keep the old name.
+sub active_layout_and_theme { return _read_active_layout_and_theme() }
+
 sub _read_active_layout_and_theme {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my $layout = '';
@@ -1473,6 +1479,92 @@ sub action_theme_rename {
     rename $old_assets, $new_assets if -d $old_assets;
 
     return { ok => 1, old => $old_name, new => $new_name };
+}
+
+# SM749: copy a theme, so "copy, edit, activate" is one verb on every surface.
+#
+# Before this the workflow the active-theme refusal names had no first step: a
+# partner could create_theme (scaffolded from the LAYOUT DEFAULT's css, not from
+# the theme they wanted to change) and then copy_file one file at a time, and a
+# sysop had no button at all. A refusal that names a workflow nobody can
+# perform in one move is SM750's defect with extra steps.
+#
+# Within the active layout, like rename. The copy is a plain directory copy
+# plus the asset mirror if one exists; theme.json's name is rewritten so the
+# copy does not claim to be its source; the creator registry records the
+# copier, so delete_theme's "yours to remove" rule applies to the copy as to a
+# theme made by create_theme. Not pristine (SM176): a copy exists to be edited.
+sub action_theme_copy {
+    my ( $from, $to, $opts ) = @_;
+    $opts ||= {};
+    $from =~ s/[^a-zA-Z0-9_-]//g if defined $from;
+    $to   =~ s/[^a-zA-Z0-9_-]//g if defined $to;
+    $to = lc( $to // '' );
+    return { ok => 0, kind => 'validation', error => 'Invalid name' }
+        unless defined $from && length $from && length $to;
+    return { ok => 0, kind => 'validation', error => 'The copy needs a different name' }
+        if $from eq $to;
+
+    my ( $active_layout, undef ) = _read_active_layout_and_theme();
+    my $layout = $opts->{layout};
+    $layout = $active_layout unless defined $layout && length $layout;
+    return { ok => 0, kind => 'validation', error => 'No active layout set' }
+        unless length $layout;
+    return { ok => 0, kind => 'validation',
+        error => "layout '$layout' must match [A-Za-z0-9_-]+" }
+        unless $layout =~ /^[A-Za-z0-9_-]+$/;
+
+    my $themes_dir = _lz() . "/layouts/$layout/themes";
+    return { ok => 0, kind => 'not-found', error => "Theme '$from' not found" }
+        unless -d "$themes_dir/$from";
+    return { ok => 0, kind => 'exists', error => "Theme '$to' already exists" }
+        if -d "$themes_dir/$to";
+
+    my $rc = system( 'cp', '-r', "$themes_dir/$from", "$themes_dir/$to" );
+    if ( $rc != 0 ) {
+        log_event( 'ERROR', 'theme-copy', 'cp failed',
+            from => $from, to => $to, rc => ( $rc >> 8 ) );
+        return { ok => 0, error => 'Copy failed' };
+    }
+
+    # The copy is its own theme: name it, and say where it came from.
+    my $json = "$themes_dir/$to/theme.json";
+    if ( -f $json ) {
+        my $data = eval {
+            open my $fh, '<:utf8', $json or die $!;
+            local $/;
+            decode_json(<$fh>);
+        };
+        if ( ref $data eq 'HASH' ) {
+            $data->{name}        = $to;
+            $data->{copied_from} = $from;
+            my $raw = JSON::PP->new->canonical->pretty->encode($data);
+            open my $fh, '>:utf8', $json or return { ok => 0, error => 'Copy failed (theme.json)' };
+            print {$fh} $raw;
+            close $fh;
+        }
+    }
+
+    my $from_assets = "$DOCROOT/lazysite-assets/$layout/$from";
+    my $to_assets   = "$DOCROOT/lazysite-assets/$layout/$to";
+    if ( -d $from_assets && !-d $to_assets ) {
+        system( 'cp', '-r', $from_assets, $to_assets ) == 0
+            or log_event( 'WARN', 'theme-copy', 'cp assets failed', to => $to );
+    }
+
+    my $user = ( defined $auth_user && length $auth_user ) ? $auth_user : 'unknown';
+    _record_theme_creator( $layout, $to, $user );
+
+    log_event( 'INFO', 'theme-copy', 'theme copied',
+        layout => $layout, from => $from, to => $to, user => $user );
+    return {
+        ok     => 1,
+        layout => $layout,
+        from   => $from,
+        name   => $to,
+        path   => "lazysite/layouts/$layout/themes/$to",
+        next => "edit the copy, then activate it: activate_theme / theme-activate '$to'",
+    };
 }
 
 sub action_theme_upload {

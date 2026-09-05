@@ -92,7 +92,7 @@ my %ACTION_INFO = (
         # read_nav and list_pages sit under manage_content). Listed under
         # both, as form-submissions is under manage_forms and read_submissions.
         unlocks => {
-            api    => [qw(nav-read nav-save pages)],
+            api => [qw(nav-read nav-save pages)],
             # SM654 (U-3): read_nav declares cap => 'manage_nav' in %TOOLS, the
             # gate admits it, and it returns the nav - and this said set_nav
             # only. Measured by the site agent; t/lint/90 now refuses the shape.
@@ -173,10 +173,10 @@ my %ACTION_INFO = (
             # SM457: these are gated on [manage_themes, manage_layouts] -
             # EITHER admits - so both must name them. A partner holding only
             # one was admitted and never told.
-            api => [ qw(theme-activate theme-list themes-for-layout themes-list-all
+            api => [ qw(theme-activate theme-copy theme-list themes-for-layout themes-list-all
                     artifact-manifest artifact-validate preview-grant theme-delete
                     layouts-available layouts-manifest) ],
-            mcp => [qw(list_themes theme_tokens activate_theme create_theme delete_theme)],
+            mcp => [qw(list_themes theme_tokens activate_theme create_theme copy_theme delete_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
     },

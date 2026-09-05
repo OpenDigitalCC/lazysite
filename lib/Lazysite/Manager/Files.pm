@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -452,6 +452,36 @@ sub action_read {
 # the channel could not express. The two text-only steps are skipped because they
 # cannot apply: raw_html_page_refusal parses front matter, and alias indexing
 # reads Markdown.
+# SM749: a write into the theme or layout being served is refused HERE, at the
+# choke point, on every write verb - save, binary save, delete, mkdir, move and
+# copy - so the manager, the control API and MCP all answer as WebDAV always
+# has. The rule and its message are Common's; this reads the active pointers
+# the way the rest of the manager does (Themes owns that reader) and asks.
+# Themes is REQUIRED at runtime because it uses this module for its locks; a
+# compile-time `use` in both directions would be a cycle.
+sub _active_artifact_guard {
+    my (@rels) = @_;
+    return undef unless grep { defined && m{^/?lazysite/layouts/} } @rels;
+    require Lazysite::Manager::Themes;
+
+    # A caller that set this module's docroot and not Themes' (a tool, a test)
+    # would otherwise read pointers from nowhere and the rule would never fire.
+    no warnings 'once';
+    local $Lazysite::Manager::Themes::DOCROOT
+        = length( $Lazysite::Manager::Themes::DOCROOT // '' )
+        ? $Lazysite::Manager::Themes::DOCROOT
+        : $DOCROOT;
+    my ( $layout, $theme )
+        = Lazysite::Manager::Themes::active_layout_and_theme();
+    for my $rel (@rels) {
+        next unless defined $rel;
+        if ( my $err = active_artifact_refusal( $rel, $layout, $theme ) ) {
+            return { ok => 0, error => $err, kind => 'active-artifact-refused' };
+        }
+    }
+    return undef;
+}
+
 sub action_save_binary {
     my ( $rel_path, $username, $bytes ) = @_;
 
@@ -464,6 +494,7 @@ sub action_save_binary {
     # an upload, exactly as it does to the multipart upload path.
     return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel}, 1 );
+    if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     my $limits = load_upload_limits();
     my $max    = $limits->{max_bytes} // ( 10 * 1024 * 1024 );
@@ -539,6 +570,7 @@ sub action_save {
         if is_blocked_path( $result->{rel} );
     return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
+    if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
     # + a script-capable content_type). It bypasses the layout/theme, is served as
@@ -687,6 +719,7 @@ sub action_delete {
         if is_blocked_path( $result->{rel} );
     return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
+    if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM074: per-file ACL write gate (sysops bypass).
     if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
@@ -779,6 +812,7 @@ sub action_mkdir {
         if is_blocked_path( $result->{rel} );
     return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
+    if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     my $full = $result->{full};
     return { ok => 0, error => "Path already exists" } if -e $full;
@@ -808,6 +842,7 @@ sub action_move {
         return { ok => 0, error => "Path is blocked", kind => 'blocked' }
             if is_blocked_path($r) || is_blocked_config($r);
     }
+    if ( my $g = _active_artifact_guard( $s->{rel}, $d->{rel} ) ) { return $g }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
     return { ok => 0, error => "Source not found" } unless -e $src_full;
@@ -964,6 +999,9 @@ sub action_copy {
         return { ok => 0, error => "Path is blocked", kind => 'blocked' }
             if is_blocked_path($r) || is_blocked_config($r);
     }
+    # Only the DESTINATION is a write: copying a file OUT of the theme being
+    # served is how a sysop starts a copy by hand, and reading it is fine.
+    if ( my $g = _active_artifact_guard( $d->{rel} ) ) { return $g }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
     return { ok => 0, error => "Source not found" } unless -e $src_full;

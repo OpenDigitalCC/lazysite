@@ -21,7 +21,8 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
-    raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal);
+    raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
+    active_artifact_refusal);
 
 our $DOCROOT;    # set by the script
 
@@ -865,6 +866,65 @@ sub brief_write_refusal {
         . "record instead: append_brief over MCP, or brief-append on the "
         . 'control API, with {path, entry}. Reading an existing sidecar still '
         . 'works.';
+}
+
+# SM749: the theme or layout BEING SERVED is read-only, on every surface.
+#
+# WebDAV has refused a write into the active theme since SM071; the manager,
+# the control API and MCP wrote it without comment, through action_save, which
+# had never heard of the rule. Same write, refused on one surface and accepted
+# on two, and the theme under visitors changed either way. That is SM748's
+# shape with the surfaces reversed: a rule in one CALLER protects that caller.
+#
+# The rule is right, and the release manager confirmed the intent: a live theme
+# changes by COPY, EDIT, ACTIVATE. A theme apply is atomic - the pointer moves
+# once, the mirror is rebuilt once - and a stream of single-file writes into
+# the directory being rendered is not; a visitor between two of them gets half
+# of each. So the rule lives here, beside the other content-write rules, and is
+# consulted by the choke point and by the DAV stack, which is what t/lint/114
+# holds for every rule in this family.
+#
+# THE MESSAGE NAMES THE WORKFLOW, NOT AN ESCAPE. The old DAV text offered two
+# ways round within WebDAV ("switch the active theme first, or edit a
+# non-active one"); a partner agent read it and concluded that theme editing
+# needed a different surface - reasoning correctly from a message that said
+# what was refused and not what to do. Now every surface refuses, there is one
+# right answer, and this is it. Pure: the caller passes the active pointers,
+# so the two stacks read their own configuration and share the rule.
+#
+# Returns the refusal text, or undef when $rel is not inside the active theme
+# or the active layout (including any path that is not under lazysite/layouts).
+sub active_artifact_refusal {
+    my ( $rel, $active_layout, $active_theme ) = @_;
+    return undef unless defined $rel;
+    $rel =~ s{^/+}{};
+    my ( $layout, $rest ) = $rel =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
+    return undef unless defined $layout;
+    $rest          //= '';
+    $active_layout //= '';
+    $active_theme  //= '';
+    return undef unless length $active_layout && $layout eq $active_layout;
+
+    if ( $rest =~ m{^themes/([^/]+)} ) {
+        my $theme = $1;
+        return undef unless length $active_theme && $theme eq $active_theme;
+        return "the active theme '$theme' (layout '$layout') is being served "
+            . 'and is read-only on every surface. To change a live theme: copy it '
+            . "(copy_theme over MCP, theme-copy on the control API, or Copy on the "
+            . 'manager Themes page), edit the copy, then activate the copy '
+            . '(activate_theme / theme-activate). A theme apply is atomic; a file '
+            . 'written into the theme being rendered is not.';
+    }
+
+    # The layout's own files (layout.tt, its assets) and its structure. A
+    # layout has no copy verb - it is installed from a release - so the
+    # workflow is install-or-edit-another, then activate.
+    return "the active layout '$layout' is being served and is read-only on "
+        . 'every surface. To change a live layout: install the new version '
+        . 'under another name (install_layout / layout-install) or edit a '
+        . 'layout that is not active, then activate it (activate_layout / '
+        . 'layout-activate). A layout apply is atomic; a file written into the '
+        . 'layout being rendered is not.';
 }
 
 sub raw_html_page_refusal {

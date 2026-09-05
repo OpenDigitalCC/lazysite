@@ -209,7 +209,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         migrate-to-local mkdir move nav-save notices-seen page-pdf
         key-revoke plugin-action plugin-disable plugin-enable plugin-save
         rotate-auth-secret save session-revoke theme-activate theme-delete
-        theme-rename theme-upload user-revoke users
+        theme-rename theme-copy theme-upload user-revoke users
         site-backup-create site-backup-upload site-backup-apply site-backup-delete
         site-backup-download
         site-export-primary form-submission-delete form-delete

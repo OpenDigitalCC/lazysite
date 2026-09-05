@@ -51,7 +51,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_git_show action_git_restore action_git_init
     action_regenerate_registries);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
-    action_layout_activate action_theme_delete action_theme_rename action_theme_upload
+    action_layout_activate action_theme_delete action_theme_rename action_theme_copy action_theme_upload
     action_cache_list action_cache_invalidate _read_active_layout_and_theme
     action_artifact_manifest action_artifact_validate);
 use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
@@ -206,7 +206,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     rotate-auth-secret save session-revoke sessions-list site-backup-apply
     site-backup-create site-backup-delete site-backup-download
     site-backup-inspect site-backup-upload site-export-primary
-    theme-activate theme-delete theme-list theme-rename themes-for-layout
+    theme-activate theme-copy theme-delete theme-list theme-rename themes-for-layout
     themes-list-all theme-upload unlock user-revoke users version whoami
 );
 
@@ -516,7 +516,7 @@ my %MUTATING = map { $_ => 1 } qw(
     git-init cache-invalidate acl-set acl-remove config-set bad-url-block bad-url-unblock
     brief-append briefs-migrate brief-delete
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
-    theme-delete theme-rename theme-upload layout-activate layout-delete
+    theme-delete theme-rename theme-copy theme-upload layout-activate layout-delete
     layout-install layouts-install layouts-repo-set artifact-backups-delete
     preview-grant preview-clear nav-save handler-save handler-delete
     form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
@@ -720,9 +720,10 @@ if ( !$token_auth ) {
         # cookie-only - SM591 changes WHICH grant reaches it, not whether a
         # token can.
         'backup-delete'    => 'purge',
-        'backup-download'  => 'manage_config',  'backup-list'     => 'manage_config',
-        'theme-activate'   => 'manage_themes',  'theme-delete'    => 'manage_themes',
-        'theme-rename'     => 'manage_themes',  'theme-upload'    => 'manage_themes',
+        'backup-download'  => 'manage_config', 'backup-list'  => 'manage_config',
+        'theme-activate'   => 'manage_themes', 'theme-delete' => 'manage_themes',
+        'theme-rename'     => 'manage_themes', 'theme-upload' => 'manage_themes',
+        'theme-copy'       => 'manage_themes',
         'layout-activate'  => 'manage_layouts', 'layout-delete'   => 'manage_layouts',
         'layout-install'   => 'manage_layouts', 'layouts-install' => 'manage_layouts',
         'layouts-repo-set' => 'manage_layouts',
@@ -900,10 +901,14 @@ if ($token_auth) {
         'artifact-manifest' => [qw(manage_themes manage_layouts)],
         'artifact-validate' => [qw(manage_themes manage_layouts)],
         'theme-activate'    => [qw(manage_themes)],
-        'layout-activate'   => [qw(manage_layouts)],
-        'preview-grant'     => [qw(manage_themes manage_layouts)],
-        'config-set'        => [qw(manage_config)],
-        'config-read'       => [qw(manage_config)],    # SM122: read a safe subset
+
+        # SM749: the first step of copy-edit-activate, on the channel whose
+        # refusal names it. A copy changes nothing live.
+        'theme-copy'      => [qw(manage_themes)],
+        'layout-activate' => [qw(manage_layouts)],
+        'preview-grant'   => [qw(manage_themes manage_layouts)],
+        'config-set'      => [qw(manage_config)],
+        'config-read'     => [qw(manage_config)],    # SM122: read a safe subset
             # SM160: domain management + the portable site-package family are the
             # manage_domains capability (carved out of manage_config), so an
             # orchestrating control panel drives the lazysite side of a deploy
@@ -1974,6 +1979,10 @@ elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backu
 elsif ( $action eq 'theme-rename' ) {
     my $req = _json_body();
     $result = action_theme_rename( $path, $req->{new_name} );
+}
+elsif ( $action eq 'theme-copy' ) {
+    my $req = _json_body();
+    $result = action_theme_copy( $path, $req->{new_name}, { layout => $req->{layout} } );
 }
 elsif ( $action eq 'theme-upload' ) { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'layouts-releases' ) { $result = action_layouts_releases() }

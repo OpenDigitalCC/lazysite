@@ -171,6 +171,7 @@ tone: medium
 `site-backup-upload` | manage_domains |  
 `site-export-primary` | manage_content | data_tables (body)
 `theme-activate` | manage_themes | path (query), theme (query)
+`theme-copy` | manage_themes | path (query), new_name (body), layout (body)
 `theme-delete` | manage_themes | path (query)
 `theme-list` | manage_themes / manage_layouts |  
 `theme-rename` | cookie only | path (query), new_name (body)
