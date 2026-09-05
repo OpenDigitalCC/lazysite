@@ -22,6 +22,7 @@ Toolkit / Archive::Zip / DB_File.
 | `lazysite-dav.pl` | the WebDAV (class 1+2) publishing endpoint with its own Basic auth |
 | `tools/lazysite-users.pl` | the account/credential CLI (also called as an API by the others) |
 | `install.pl` / `tools/build-manifest.pl` / `tools/manifest-to-sbom.pl` | install + release tooling |
+| `tools/lazysited.pl` + `lib/Lazysite/Daemon/` | the persistent runtime (SM666): a supervisor, one child per service, a scheduler running engine jobs as a `run_jobs` account; born disabled (ADR 0009), `lazysited@.service` per site |
 
 **Dual-mode dispatch (SM142).** The processor detects a FastCGI listen
 socket on fd 0 (the spawn-fcgi convention, used by the SM139
@@ -33,6 +34,21 @@ single-shot path, byte-identical to before. Both paths share
 dependency. When adding request-scoped state, reset it in
 `reset_request_state` - state isolation across consecutive pool requests is
 pinned over the real FCGI protocol via `t/lib/MiniFcgi.pm`.
+
+**The persistent runtime (SM666).** Since 0.13.0 a site may run a second per-site
+process beside the pool: `tools/lazysited.pl` starts `Lazysite::Daemon::Supervisor`,
+which forks one child per service in `services()` (phase 1: the scheduler),
+restarts a dying one with backoff until a ceiling, and reports through the
+`Lazysite::Lifecycle` contract. **A job is engine code**: the closed table
+`%JOBS` in `Daemon/Service/Scheduler.pm` names each with `every` (seconds),
+`needs` (the capability the same work costs through the manager - the test reads
+it from the manager API's gate table, so a job cannot need less) and `run` (a
+body in `Daemon/Jobs.pm` taking `docroot` and `actor`, returning
+`{ ok, detail }`, `{ ok => 0, error }`, or dying). Jobs run as the configured
+`daemon_job_user`, which must exist and hold `run_jobs`; a refusal is recorded,
+not a run. No configuration can add a job. The run record
+(`lazysite/daemon/scheduler-runs.json`) is the operator's only view of what a
+job did, so `detail` carries numbers. Tests: `t/unit/daemon/`.
 
 Capabilities are channel x action grants carried by **groups**
 (`lazysite/auth/groups-settings.json`, edited on the manager Groups page; see

@@ -4,7 +4,8 @@ title: "SM753: backup_retention is read by three parsers with two defaults, and 
 subtitle: "Found while choosing the scheduler's first real jobs (SM666, 0.13.1). The manager keeps 10 by default, the installer and the theme store keep 3, the same key names all of them - and the manager's rotation leaves the .sha256 sidecar behind. Not made a scheduled job until it has one reading."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL 2026-09-05 (0.13.1, commit ce7e2754): the sidecar half is built - the manager's backup rotation and backup-delete retire the .sha256 with the archive it describes (t/unit/manager/156). The one-reader half - one parser of backup_retention with one default, which today is 10 in the manager and 3 in the installer and the theme store - waits on the release manager's call on which default wins, and a scheduled rotation stays deliberately unbuilt until then."
 ---
 
 # What was found

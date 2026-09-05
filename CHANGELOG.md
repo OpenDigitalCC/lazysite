@@ -44,6 +44,97 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.1 - EDGE: the runtime does real work, the theme being served is read-only everywhere, and a refusal says what to do (2026-09-05)
+
+**The scheduler carries the maintenance it was built for.** 0.13.0 shipped a
+heartbeat and said the real jobs would follow once the machinery had somewhere
+to run. Two arrive, each doing work the engine already did opportunistically -
+on the back of a visitor's page view, or not at all - and each needing exactly
+the capability the manager charges for the same work: an hourly statistics
+rollup (SM343's closed-day rule now runs whether or not anyone opens the Stats
+page), and an hourly sweep of expired sessions. `lazysite-hestia-domain add
+--daemon` provisions the runtime the way `--fcgi` provisions the pool.
+
+**An eight-dimension review of the service before this cut found the
+supervisor's restart path inverted** (`docs/review/0.13.1-daemon/`): a dying
+service was restarted every two seconds for ever, uncounted, and reported `on`,
+because `kill 0` succeeds on a zombie and the reap loop forgot the child before
+the failure branch saw it. No test had run the supervisor enabled. SM755 fixes
+it with the reproduction as the test, plus the other findings the review
+measured: one supervisor per docroot, orphan adoption with pid-and-start-time
+proof, a stop deadline, a torn record logged, disabling the plugin stops a
+running runtime. Supervisor coverage went from 45.7% to 91.3%.
+
+**The theme or layout being served is read-only on every surface, and the
+only way to change it is copy, edit, activate.** SM749 moves the rule WebDAV
+alone had into the choke point, gives the workflow its first verb
+(`copy_theme` / `theme-copy` / Copy), and makes the refusal say the workflow
+rather than a way round. SM756 finishes the release manager's ruling: an update
+to the served artefact - a theme upload with update, a layout install with
+force, the asset mirror on activation - is built beside it and switched in with
+two renames, never written into it.
+
+**A refusal carries cause and remedy, in the answer and in the trail** (SM750).
+Every content-write rule returns a one-line `kind: cause - remedy` beside the
+caller's sentence; the three dispatchers prefer it; `Path is blocked` and
+`Invalid path` are gone in favour of sentences that echo the path and name the
+rule. `t/lint/115` holds the shape and a ceiling on bare verdicts that can only
+go down.
+
+- SM666 (53df9a44) the real jobs: `stats-rollup` (hourly, needs `analytics`)
+  and `sessions-sweep` (hourly, needs `manage_users`); `needs` read from the
+  manager API's gate table by the test so a job cannot need less than the
+  manager charges
+- SM666 (50753813) `lazysite-hestia-domain add ... --daemon` writes
+  `/etc/lazysite/daemon/<domain>.conf` and enables `lazysited@`; `remove`
+  retires both units; `lazysite-common` creates the directory
+- SM222 (199beac8, d239a4d9, 247d2e24) the lifecycle contract, `Lazysite::Lifecycle`, with the
+  daemon as first consumer: `off|starting|on|degraded|inconsistent|failed`,
+  the verdict derived in one place, a remedy whenever unhealthy
+- SM752 (08de995e) the daemon Status action can load its module; `t/lint/59`
+  covers `plugins/`
+- SM751 (aa92df6d) SM742's NOT NULL translation recorded as unreachable through
+  every supported insert path
+- SM755 (e5c0ea47) the supervisor counts exits, backs off, fails at the
+  ceiling, holds a lock, adopts a proven orphan, stops with a deadline, and
+  re-reads the gate; a mistyped job account is refused as a typo
+- SM749 (097871fa) the active artefact rule at the choke point on every write
+  verb; `copy_theme` / `theme-copy` / Copy; `t/lint/114` holds every
+  content-write rule to both stacks
+- SM750 (02ec65aa) refusals carry `audit_detail`; WebDAV audits denied writes;
+  `t/lint/115`
+- SM756 (e2082670) an update to the served theme or layout installs beside and
+  switches in; the asset mirror switches too, and content-root mirrors now
+  carry `theme-tokens.css`
+- SM753 (ce7e2754) the manager's backup rotation and delete retire the `.sha256`
+  sidecar with the archive
+- SM714 (81b40a02) a `tools/list` reduced to introspection says why in the two
+  descriptions it returns; the connector instructions and the ai-partner
+  bootstrap state the rule
+- F8.4 (1878a176) `lazysite-common` ships a postinst/postrm running
+  `daemon-reload` - dh_installsystemd generates nothing for a package whose
+  only units are templates
+- Docs (1b105224, ce7e2754): `docs/review/0.13.1-daemon/` (2 PASS / 4 WARN / 2 REFUSE at
+  53df9a44, both cleared); SECURITY.md trust boundary 8 and a
+  significant-change entry for the scheduled actor; OPERATOR.md's runtime
+  section; the Hestia README's measured cost; SM753, SM754, SM756 filed;
+  SM751/SM752 written
+- SM724 (d5691f32) **a user has a start page** - yours to set, or a user
+  manager's; `manager:<page>` or `domain:<host>|<path>`, chosen from what THAT
+  account can reach, re-checked at every sign-in; unset lands on the manager
+  with the account sheet open, which is new; an explicit `next` still wins
+- SM740 (774c5459) `write_data`'s hierarchy under `manage_data` is declared
+  (`implied_by`), shown in `describe_capabilities`, and both whoamis say which
+  false values a stronger grant satisfies; `t/lint/117` holds that a
+  declaration is true and that an undeclared subsumption is exempted with a
+  reason
+- SM754 (774c5459), half: `TestHelper::site_tempdir()` and `t/lint/118`'s
+  ceiling (471, only down) on tests handing a bare tempdir to the engine
+- Records, in the pre-cut pass: SM741 superseded by SM744/SM748/SM750 (the release
+  manager's ruling); SM729's stale `candidate` corrected to shipped
+- Not in this cut: SM579 (connectors, 0.13.2 after a real-host run), SM666
+  phase 2, the rest of SM753 and SM754
+
 ## 0.13.0 - EDGE: a runtime that holds work the request path cannot, and three guards that were not where they said they were (2026-09-03)
 
 **A minor bump because this adds a thing the engine did not have: a supervised

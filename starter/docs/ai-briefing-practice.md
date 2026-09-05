@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.13.0
-     imported: 2026-09-03
+     engine-version: 0.13.1
+     imported: 2026-09-05
      agent: the lazysite site agent (Claude Code)
-     source: /srv/tmp/ls-precut13/docs/practice/authoring-practice.md sha256=428c608a192afcf683dfb84ab931966c5036b6d368c7803bd3a0e479f0fe597f modified=2026-09-03
-     source: /srv/tmp/ls-precut13/docs/practice/app-practice.md sha256=3c3646fdcc929d7e238fb95a799359dc3fbd060410a9344ccee01ad03acf2445 modified=2026-09-03
-     body-sha256: 9ba298f376bef4c62fd53e3832a457ba42c72f5382bd19e20d712e652c2e9bf1
+     source: /srv/tmp/ls-cut/docs/practice/authoring-practice.md sha256=428c608a192afcf683dfb84ab931966c5036b6d368c7803bd3a0e479f0fe597f modified=2026-09-05
+     source: /srv/tmp/ls-cut/docs/practice/app-practice.md sha256=3c3646fdcc929d7e238fb95a799359dc3fbd060410a9344ccee01ad03acf2445 modified=2026-09-05
+     body-sha256: 3d517bfb8738b7db89e812065687e7be0234e48bfb658f7df8c46007c01828be
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.13.0**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.13.1**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1564,12 +1564,12 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-09-03** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-09-05** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
-| `/srv/tmp/ls-precut13/docs/practice/authoring-practice.md` | sites and content | 2026-09-03 |
-| `/srv/tmp/ls-precut13/docs/practice/app-practice.md` | apps and data | 2026-09-03 |
+| `/srv/tmp/ls-cut/docs/practice/authoring-practice.md` | sites and content | 2026-09-05 |
+| `/srv/tmp/ls-cut/docs/practice/app-practice.md` | apps and data | 2026-09-05 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 

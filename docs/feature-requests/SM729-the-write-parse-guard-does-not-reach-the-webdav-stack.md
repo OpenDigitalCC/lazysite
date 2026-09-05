@@ -4,7 +4,8 @@ title: "SM729: the write-parse guard does not reach the WebDAV stack"
 subtitle: "SM708 refuses an unparseable page on the MCP write path. Proved in the field: the same body is accepted over WebDAV, on a site where it genuinely renders wrong. Recorded as SM708's known limit; now measured, and needing a decision rather than an assumption."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 0.11.11 (the DAV stack calls Common::page_parse_refusal before the publishing rename - t/unit/manager/141 pins both call sites); this record was left at candidate and corrected at the 0.13.1 pre-cut pass, the SM708 defect in its own file. SM748 later moved the same guard to the choke point."
 ---
 
 # What was proved

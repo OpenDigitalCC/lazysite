@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.0"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.1"
 brand: plain
 ---
 
@@ -1758,6 +1758,32 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.1** (2026-09-05, EDGE) - **The runtime does real work, the theme
+  being served is read-only everywhere, and a refusal says what to do.** The
+  scheduler carries the maintenance it was built for: an hourly statistics
+  rollup (SM343's closed-day rule now runs whether or not anyone opens the Stats
+  page) and an hourly sweep of expired sessions, each running as the `run_jobs`
+  account and needing exactly the capability the manager charges for the same
+  work; `lazysite-hestia-domain add --daemon` provisions the runtime the way
+  `--fcgi` provisions the pool. **An eight-dimension review of the service
+  before this cut** (`docs/review/0.13.1-daemon/`) found the supervisor's
+  restart path inverted - a dying service restarted for ever and reported `on` -
+  and SM755 fixed it with the reproduction as the test, plus a lock, orphan
+  adoption, a stop deadline and a gate re-read while running. **Copy, edit,
+  activate is the only way to change a live theme or layout**: SM749 moves the
+  active-artefact rule to the choke point on every write verb and gives the
+  workflow its first verb (`copy_theme`); SM756 makes an update to the served
+  artefact - a theme upload, a layout install, the asset mirror itself - install
+  beside it and switch in with two renames, never a write into the directory
+  being rendered. **A refusal carries cause and remedy** (SM750): every
+  content-write rule returns a `kind: cause - remedy` line for the trail beside
+  the caller's sentence, `Path is blocked` and `Invalid path` are gone, and
+  `t/lint/115` holds the shape. Also: a user has a **start page** (SM724 - yours
+  to set, or a user manager's; unset lands on the manager with your account
+  sheet open); a `tools/list` reduced to introspection says why (SM714);
+  `write_data`'s hierarchy under `manage_data` is declared and shown (SM740);
+  the package tells systemd its units changed (F8.4); snapshots retire their
+  sidecars (SM753); and a test docroot sits one level down (SM754, half).
 - **0.13.0** (2026-09-03, EDGE) - **A minor bump because the engine gains
   something it did not have: a supervised process.** Everything before this
   happened inside a request. SM666 phase 1 is a per-instance persistent runtime
