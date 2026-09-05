@@ -29,6 +29,29 @@ use strict;
 use warnings;
 use JSON::PP ();
 
+BEGIN {
+    # Locate the Lazysite module tree relative to this script, the same way
+    # every tool does. Without it `require Lazysite::Daemon::Supervisor` below
+    # dies, and a plugin action that dies prints NOTHING TO STDOUT - so the
+    # manager reports "Action produced no output" and an operator asking why
+    # nothing is happening is told nothing at all.
+    #
+    # That is exactly what shipped in 0.13.0 and the field found it in the
+    # state the release is proudest of: plugin enabled, runtime not started -
+    # the moment the Status button exists for.
+    #
+    # t/lint/59 asserts this property for everything under tools/ and its own
+    # comment says it "asserts the property rather than the six files". The
+    # property is not about tools: it is about any script the manager runs as
+    # a SUBPROCESS, which is every plugin. The lint now covers plugins/ too.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 sub describe {
     return {
         id          => 'daemon',
