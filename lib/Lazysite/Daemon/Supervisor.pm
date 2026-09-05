@@ -35,6 +35,7 @@ package Lazysite::Daemon::Supervisor;
 use strict;
 use warnings;
 use POSIX               ();
+use Time::HiRes         ();
 use Lazysite::Util      qw(log_event);
 use Lazysite::Lifecycle qw(lifecycle_status);
 
@@ -147,6 +148,37 @@ sub _alive {
     return kill( 0, $pid ) ? 1 : 0;
 }
 
+# A pid is reused. The 0.13.1 daemon review (D5 experiment 8) wrote the test's
+# own pid into scheduler.pid and status() said `on`: `kill 0` proves a process
+# exists, not that it is ours. The kernel's process start time (field 22 of
+# /proc/PID/stat, in clock ticks since boot) is fixed for the life of a pid and
+# differs for its next holder, so the supervisor records it at spawn and every
+# liveness question asks for both. Where /proc is not readable the check falls
+# back to the pid alone, which is what it was.
+sub _start_ticks {
+    my ($pid) = @_;
+    open my $fh, '<', qq{/proc/$pid/stat} or return undef;
+    my $line = <$fh>;
+    close $fh;
+    return undef unless defined $line;
+
+    # comm may contain spaces and parentheses; everything after the last ')'
+    # is the fixed-order field list, starting at field 3.
+    my ($rest) = $line =~ /\)\s+(.*)\z/s;
+    return undef unless defined $rest;
+    my @f = split /\s+/, $rest;
+    return $f[19];    # field 22 overall = index 19 after fields 1-2
+}
+
+sub _is_ours {
+    my ( $pid, $started_ticks ) = @_;
+    return 0 unless _alive($pid);
+    return 1 unless defined $started_ticks;
+    my $now_ticks = _start_ticks($pid);
+    return 1 unless defined $now_ticks;    # no /proc: pid is all we have
+    return $now_ticks eq $started_ticks ? 1 : 0;
+}
+
 # --- status --------------------------------------------------------------
 
 # SM222's shape, and now SM222's CODE - the debt SM666 recorded is paid here.
@@ -174,21 +206,28 @@ sub status {
     my @svc;
     my $any_running = 0;
     my $any_died    = 0;
+    my $any_pending = 0;    # a restart is due
 
     for my $s ( services() ) {
         my $pid   = _read_pid( $root, $s->{name} );
-        my $alive = _alive($pid);
+        my $st    = _read_state( $root, $s->{name} );
+        my $alive = _is_ours( $pid, $st->{start_ticks} );
         $any_running ||= $alive;
 
-        # A recorded pid that is not alive is a service that DIED, which the
-        # contract calls `failed` - distinct from one that was never started,
-        # because an operator's next move differs.
+        # SM755. The verdict comes from what the supervisor RECORDED, not from
+        # guessing at a pid. A recorded pid that is not alive used to read as
+        # `failed`; it is `failed` only when the supervisor has given up
+        # (past the ceiling), and `starting` while a restart is pending - the
+        # contract's word for "not running, and something is about to do
+        # something about it". Never started at all is `inconsistent`.
         my $verdict
-            = !$enabled    ? 'off'
-            : $alive       ? 'on'
-            : defined $pid ? 'failed'
-            :                'inconsistent';
-        $any_died ||= ( $verdict eq 'failed' );
+            = !$enabled                           ? 'off'
+            : $alive                              ? 'on'
+            : $st->{failed}                       ? 'failed'
+            : ( defined $pid && $st->{next_try} ) ? 'starting'
+            :                                       'inconsistent';
+        $any_died    ||= ( $verdict eq 'failed' );
+        $any_pending ||= ( $verdict eq 'starting' );
 
         push @svc,
             lifecycle_status(
@@ -197,13 +236,31 @@ sub status {
             desired_on => $enabled,
             running    => $alive,
             verdict    => $verdict,
-            ( defined $pid ? ( detail => { pid => $pid } ) : () ),
+            ( defined $pid || $st->{fails}
+                ? ( detail => {
+                        ( defined $pid ? ( pid => $pid ) : () ),
+                        ( $st->{fails}
+                            ? ( consecutive_failures => $st->{fails} )
+                            : () ),
+                } )
+                : ()
+            ),
             ( $verdict eq 'failed'
-                ? ( message =>
-                        "$s->{name} was started and is no longer running",
-                    remedy =>
-                        'see the site log; the supervisor restarts a service '
-                        . 'until it keeps failing, then reports it failed'
+                ? ( message => "$s->{name} kept dying and the supervisor has "
+                        . "stopped restarting it ($st->{fails} consecutive "
+                        . 'failures)',
+                    remedy => 'see the site log for why it dies; restart the '
+                        . 'host service (systemctl restart lazysited@<domain>) '
+                        . 'once the cause is fixed'
+                    )
+                : ()
+            ),
+            ( $verdict eq 'starting'
+                ? ( message => "$s->{name} exited and a restart is due at "
+                        . POSIX::strftime( '%H:%M:%S', localtime $st->{next_try} )
+                        . " (failure $st->{fails})",
+                    remedy => 'wait for the restart; if this repeats, see the '
+                        . 'site log for why the service exits'
                     )
                 : ()
             ),
@@ -228,6 +285,13 @@ sub status {
         desired_on => $enabled,
         running    => $any_running,
         ( $any_died ? ( verdict => 'degraded' ) : () ),
+        ( !$any_died && $any_pending && !$any_running
+            ? ( verdict => 'starting',
+                message => 'a service exited and the supervisor is about to restart it',
+                remedy  => 'wait; the per-service verdict below says when'
+                )
+            : ()
+        ),
         ( !$enabled
             ? ( message =>
                     'the daemon plugin is disabled, so no process is started' )
@@ -244,7 +308,7 @@ sub status {
         # operator reads first - the Status button shows the unit before its
         # services, and a remedy that says "check the host service" when the
         # actual answer is one command is the SM750 defect at one remove.
-        ( $enabled && !$any_running && !$any_died
+        ( $enabled && !$any_running && !$any_died && !$any_pending
             ? ( remedy =>
                     'the plugin is enabled but the host service is not '
                     . 'running - a host operator instantiates it with '
@@ -269,6 +333,34 @@ sub status {
 # disabled runtime exits 0 without creating a state directory, opening a file
 # or spawning anything. "Started, then did nothing" would leave a process
 # holding this instance's identity for no reason.
+#
+# SM755 - THE REAP IS THE EXIT EVENT. The first version counted a failure only
+# when it noticed a child gone BEFORE reaping it, and `kill 0` succeeds on a
+# zombie - so the reap always won, the failure count never moved, the backoff
+# never applied, the ceiling was unreachable, and a service that died at once
+# was forked again every two seconds for ever while status() said `on`. That
+# is the flapping-child-reported-healthy dishonesty property 3 above promises
+# to avoid, built into the code that promised it. Now every exit is counted in
+# ONE place, the reap loop, with the exit status in the log line; the backoff
+# is applied to the next start; past the ceiling the service is FAILED, once,
+# with a state file status() reads.
+#
+# A service that ran for a while before dying is not flapping. Its failure
+# count starts again, so a rare crash over months cannot creep up to the
+# ceiling and stop a healthy service from being restarted.
+#
+# THE GATE IS RE-READ WHILE RUNNING (F1.2 of the 0.13.1 daemon review). The
+# unit and the README both say both switches must be on for anything to run;
+# a sysop disabling the plugin in the manager must therefore stop the jobs,
+# not merely prevent the next start. Checked every $GATE_EVERY seconds rather
+# than every second, because it is a file read per instance and the host may
+# have hundreds. Off means stop the children and exit 0 - the exit code the
+# unit already treats as "disabled, do not restart".
+our $GATE_EVERY   = 10;    # seconds between re-reads of the enabled gate
+our $STEADY_AFTER = 60;    # a service alive this long has stopped flapping
+our $FAIL_CEILING = 6;     # 2^6 * base; past this many exits a service is FAILED
+our $LOCK_FH;              # the supervisor lock, held for its life (see _acquire_lock)
+
 sub run {
     my (%opt) = @_;
     my $root = _docroot( $opt{docroot} );
@@ -280,61 +372,138 @@ sub run {
     }
 
     _ensure_state_dir($root);
+
+    # ONE SUPERVISOR PER DOCROOT. The review's experiment 6 started a second
+    # supervisor on a docroot whose first had been killed -9: it spawned a
+    # second scheduler beside the orphaned first, overwrote the pid file, and
+    # status() reported one healthy service while two ran the same jobs against
+    # the same files. An advisory lock on a file in the state directory is held
+    # for the supervisor's life; a second supervisor is refused with exit 3,
+    # which Restart=on-failure will retry within its limit and then give up on,
+    # and the log says which pid holds it.
+    my $lock = _acquire_lock($root);
+    unless ($lock) {
+        log_event( 'ERROR', 'daemon',
+            'not starting: another supervisor holds the lock for this docroot' );
+        return 3;
+    }
+
     log_event( 'INFO', 'daemon', 'supervisor starting',
         services => scalar( () = services() ) );
 
+    # ADOPT BY STOPPING. A service left over from a supervisor that died without
+    # stopping its children (kill -9, OOM) is still ours - same docroot, same
+    # jobs - and starting a fresh one beside it is the duplication above. It is
+    # stopped, deliberately and with a log line, before a fresh one is started
+    # under this supervisor's care.
+    for my $s ( services() ) {
+        my $old = _read_pid( $root, $s->{name} );
+        my $st  = _read_state( $root, $s->{name} );
+
+        # Only with the start-time proof. A pid alone could be ANY process the
+        # site user owns by now, and the one thing worse than a duplicate
+        # scheduler is a supervisor that kills something else.
+        next unless defined $st->{start_ticks}
+            && _is_ours( $old, $st->{start_ticks} );
+        log_event( 'WARN', 'daemon',
+            'stopping an orphaned service from a previous supervisor',
+            service => $s->{name}, pid => $old );
+        kill 'TERM', $old;
+        _wait_gone( $old, 10 ) or kill 'KILL', $old;
+    }
+
     my %child;       # name => pid
+    my %since;       # name => epoch the current child started
     my %fails;       # name => consecutive failures
     my %next_try;    # name => epoch before which we do not restart
+    my %failed;      # name => 1 once past the ceiling (logged once)
     my $running = 1;
 
     local $SIG{TERM} = sub { $running = 0 };
     local $SIG{INT}  = sub { $running = 0 };
 
     my $backoff_base = _conf_number( $root, 'daemon_restart_backoff', 5 );
-    my $ceiling      = 6;    # 2^6 * base; past this a service is FAILED
+    my $gate_checked = time;
 
     while ($running) {
-        for my $s ( services() ) {
-            my $name = $s->{name};
-            next if $child{$name} && _alive( $child{$name} );
 
-            # It was running and is not now.
-            if ( $child{$name} ) {
-                $fails{$name}++;
+        # 1. Reap. An exit is counted here and only here.
+        while ( ( my $gone = waitpid( -1, POSIX::WNOHANG() ) ) > 0 ) {
+            my $status = $?;
+            for my $name ( keys %child ) {
+                next unless $child{$name} == $gone;
                 delete $child{$name};
-                log_event( 'WARN', 'daemon', 'service exited',
-                    service => $name, consecutive_failures => $fails{$name} );
-            }
 
-            if ( ( $fails{$name} // 0 ) > $ceiling ) {
-                # FAILED, and it stays failed. A service restarted forever is
-                # reported as running by anything that only asks "is a process
-                # there", which is the report an operator must not be given.
-                next;
-            }
-
-            my $wait = $next_try{$name} // 0;
-            next if time < $wait;
-
-            my $pid = _spawn( $s, $root );
-            if ($pid) {
-                $child{$name}    = $pid;
-                $next_try{$name} = 0;
-                log_event( 'INFO', 'daemon', 'service started',
-                    service => $name, pid => $pid );
-            }
-            else {
+                my $ran = time - ( $since{$name} // time );
+                $fails{$name} = 0 if $ran >= $STEADY_AFTER;
                 $fails{$name}++;
-                $next_try{$name}
-                    = time + $backoff_base * ( 2**( $fails{$name} - 1 ) );
+
+                my $wait = $backoff_base * ( 2**( $fails{$name} - 1 ) );
+                $next_try{$name} = time + $wait;
+                log_event( 'WARN', 'daemon', 'service exited',
+                    service              => $name,
+                    exit                 => $status >> 8,
+                    signal               => $status & 127,
+                    ran_seconds          => $ran,
+                    consecutive_failures => $fails{$name},
+                    retry_in             => $wait );
+                _write_state( $root, $name,
+                    { fails => $fails{$name}, next_try => $next_try{$name} } );
             }
         }
 
-        # Reap, and notice a service that has gone.
-        while ( ( my $gone = waitpid( -1, POSIX::WNOHANG() ) ) > 0 ) {
-            for my $n ( keys %child ) {
-                delete $child{$n} if $child{$n} == $gone;
+        # 2. The gate, periodically.
+        if ( time - $gate_checked >= $GATE_EVERY ) {
+            $gate_checked = time;
+            unless ( should_run($root) ) {
+                log_event( 'INFO', 'daemon',
+                    'stopping: the daemon plugin has been disabled' );
+                last;
+            }
+        }
+
+        # 3. Start what should be running and is not.
+        for my $s ( services() ) {
+            my $name = $s->{name};
+            next if $child{$name};
+            next if $failed{$name};
+
+            if ( ( $fails{$name} // 0 ) > $FAIL_CEILING ) {
+                # FAILED, and it stays failed. A service restarted forever is
+                # reported as running by anything that only asks "is a process
+                # there", which is the report an operator must not be given.
+                $failed{$name} = 1;
+                log_event( 'ERROR', 'daemon', 'service failed - not restarting',
+                    service => $name, consecutive_failures => $fails{$name} );
+                _write_state( $root, $name,
+                    { fails => $fails{$name}, failed => 1 } );
+                next;
+            }
+
+            next if time < ( $next_try{$name} // 0 );
+
+            my $pid = _spawn( $s, $root );
+            if ($pid) {
+                $child{$name} = $pid;
+                $since{$name} = time;
+                delete $next_try{$name};
+                _write_state( $root, $name,
+                    { fails => $fails{$name} // 0,
+                        started     => $since{$name},
+                        start_ticks => _start_ticks($pid),
+                    } );
+                log_event( 'INFO', 'daemon', 'service started',
+                    service => $name, pid => $pid,
+                    ( $fails{$name} ? ( attempt => $fails{$name} + 1 ) : () ) );
+            }
+            else {
+                # fork itself failed: counted like an exit, so the same backoff
+                # governs a host that is out of processes.
+                $fails{$name}++;
+                $next_try{$name}
+                    = time + $backoff_base * ( 2**( $fails{$name} - 1 ) );
+                log_event( 'ERROR', 'daemon', 'could not start service',
+                    service => $name, consecutive_failures => $fails{$name} );
             }
         }
 
@@ -352,19 +521,25 @@ sub _spawn {
     return undef unless defined $pid;
 
     if ( $pid == 0 ) {
-        # Child: become the service and never return.
-        eval {
-            $s->{start}->( docroot => $root );
-            1;
-        } or do {
+        # The lock is the SUPERVISOR's. A child that inherited the open
+        # descriptor would keep the lock alive after the supervisor died, and
+        # the next supervisor would be refused by an orphan it should adopt.
+        close $LOCK_FH if $LOCK_FH;
+
+        # Child: become the service and never return. Its exit code is the
+        # service's - run() returns one - so the supervisor's log line can say
+        # how it ended. A die is exit 1, distinct from a clean 0.
+        my $rc = eval { $s->{start}->( docroot => $root ) };
+        unless ( defined $rc ) {
             # The message is fixed text. A service's death can carry a path or
             # a driver's vocabulary in $@, and SM739 earned the rule that a
             # caller-facing string says nothing about the host - the detail
             # goes to the log, where an operator can reach it.
             log_event( 'ERROR', 'daemon', 'service died',
                 service => $s->{name}, detail => 'see the site log' );
-        };
-        POSIX::_exit(0);
+            $rc = 1;
+        }
+        POSIX::_exit( $rc =~ /\A\d+\z/ ? $rc : 1 );
     }
 
     _write_pid( $root, $s->{name}, $pid );
@@ -380,16 +555,97 @@ sub _write_pid {
     return;
 }
 
+# What the supervisor knows about a service that a pid cannot say: how many
+# times it has died in a row, when it will be tried again, whether it has been
+# given up on. status() reads this so `starting` and `failed` are the
+# supervisor's words, not a guess from a stale pid.
+sub _state_file {
+    my ( $root, $name ) = @_;
+    return _state_dir($root) . "/$name.state.json";
+}
+
+sub _write_state {
+    my ( $root, $name, $state ) = @_;
+    my $f   = _state_file( $root, $name );
+    my $tmp = "$f.tmp.$$";
+    require JSON::PP;
+    open my $fh, '>', $tmp or return;
+    print {$fh} JSON::PP->new->canonical->encode($state);
+    unless ( close $fh )       { unlink $tmp; return }
+    unless ( rename $tmp, $f ) { unlink $tmp; return }
+    return;
+}
+
+sub _read_state {
+    my ( $root, $name ) = @_;
+    my $f = _state_file( $root, $name );
+    open my $fh, '<', $f or return {};
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $d = eval { JSON::PP->new->decode($raw) };
+    return ref $d eq 'HASH' ? $d : {};
+}
+
+# TERM every child, give them $STOP_DEADLINE seconds together, then KILL what is
+# left. The first version waited without a deadline, so a job stuck in a
+# subprocess held the supervisor's own shutdown until systemd's TimeoutStopSec
+# killed the whole cgroup - with no log line of its own to say which service.
+our $STOP_DEADLINE = 30;
+
 sub _stop_children {
     my ( $child, $root ) = @_;
     for my $name ( keys %$child ) {
         kill 'TERM', $child->{$name};
     }
+    my $until = time + $STOP_DEADLINE;
     for my $name ( keys %$child ) {
-        waitpid( $child->{$name}, 0 );
+        my $pid  = $child->{$name};
+        my $left = $until - time;
+        unless ( _wait_gone( $pid, $left > 0 ? $left : 0 ) ) {
+            log_event( 'WARN', 'daemon',
+                'service did not stop within the deadline; killing it',
+                service => $name, pid => $pid, deadline => $STOP_DEADLINE );
+            kill 'KILL', $pid;
+            waitpid( $pid, 0 );
+        }
         unlink _pid_file( $root, $name );
+        unlink _state_file( $root, $name );
     }
     return;
+}
+
+# Wait up to $seconds for $pid to be reaped (our child) or to vanish (not our
+# child). Returns 1 when it is gone.
+sub _wait_gone {
+    my ( $pid, $seconds ) = @_;
+    my $until = time + $seconds;
+    while (1) {
+        my $r = waitpid( $pid, POSIX::WNOHANG() );
+        return 1 if $r == $pid || $r == -1 && !kill( 0, $pid );
+        return 1 unless kill 0, $pid;
+        return 0 if time >= $until;
+        Time::HiRes::sleep(0.1);
+    }
+}
+
+# --- the lock ---------------------------------------------------------------
+
+sub _lock_file {
+    my ($root) = @_;
+    return _state_dir($root) . q{/supervisor.lock};
+}
+
+sub _acquire_lock {
+    my ($root) = @_;
+    require Fcntl;
+    open my $fh, '>>', _lock_file($root) or return 0;
+    unless ( flock( $fh, Fcntl::LOCK_EX() | Fcntl::LOCK_NB() ) ) {
+        close $fh;
+        return 0;
+    }
+    $LOCK_FH = $fh;
+    return 1;
 }
 
 # --- config --------------------------------------------------------------

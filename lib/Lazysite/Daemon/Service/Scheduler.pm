@@ -117,10 +117,19 @@ sub resolve_job_user {
     require Lazysite::Auth::Settings;
     local $Lazysite::Auth::Settings::AUTH_DIR = "$root/lazysite/auth";
 
+    # An account that is not in the user store is a typo or a deleted user,
+    # and the remedy for either is not "grant run_jobs". The first version
+    # asked caps_for and tested for a non-hash, which caps_for never returns
+    # (every capability key, 0 or 1) - so the branch was dead and a mistyped
+    # name was refused as "does not hold run_jobs": true, and the wrong reason
+    # to give someone who needs to fix a spelling. The 0.13.1 daemon review
+    # found it (D1 F1.3); account_names() is the reader both the audit trail
+    # and the manager use to ask the same question.
+    return ( undef, "the configured job account '$user' does not exist - "
+            . 'daemon_job_user must name an account in the user store' )
+        unless Lazysite::Auth::Settings::account_names()->{$user};
+
     my $caps = Lazysite::Auth::Settings::caps_for($user);
-    return ( undef, "the configured job account '$user' does not exist or "
-            . 'holds no capabilities' )
-        unless ref $caps eq 'HASH';
 
     return ( undef, "the job account '$user' does not hold run_jobs" )
         unless $caps->{run_jobs};
@@ -145,6 +154,11 @@ sub _state_file {
     return "$root/lazysite/daemon/scheduler-runs.json";
 }
 
+# A record that exists and does not parse is reported, not swallowed. It reads
+# as empty - every job due at once - which is the safe direction (better a
+# rollup twice than never), but the review's experiment 10 found that happened
+# in silence, and a file somebody corrupted is a fact an operator should be
+# told once.
 sub _read_runs {
     my ($root) = @_;
     my $f = _state_file($root);
@@ -153,7 +167,11 @@ sub _read_runs {
     close $fh;
     require JSON::PP;
     my $d = eval { JSON::PP->new->decode($raw) };
-    return ref $d eq 'HASH' ? $d : {};
+    return $d if ref $d eq 'HASH';
+    log_event( 'WARN', 'scheduler',
+        'the run record is unreadable and is treated as empty - every job '
+            . 'is due now', file => 'lazysite/daemon/scheduler-runs.json' );
+    return {};
 }
 
 # Temp and rename, with the close checked. The first version truncated the
@@ -282,7 +300,10 @@ sub tick {
         push @done, { job => $name, outcome => 'ok', actor => $user };
     }
 
-    _write_runs( $root, $runs );
+    # Nothing due means nothing changed, and a rewrite that changes nothing is
+    # a rename per tick per site for no reader (review D4: 300 renames a minute
+    # across a 300-site host at the default tick, all of them no-ops).
+    _write_runs( $root, $runs ) if @done;
     return \@done;
 }
 

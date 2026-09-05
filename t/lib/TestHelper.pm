@@ -17,7 +17,7 @@ our @EXPORT_OK = qw(
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
     run_processor run_script run_dav
     setup_dav_site dav_users_tool setup_multi_domain_site
-    grant_caps revoke_caps
+    grant_caps add_account revoke_caps
     env_passthrough
     repo_manifest_guard repo_root_lock
     run_cmd
@@ -206,6 +206,20 @@ sub grant_caps {
     return $group;
 }
 
+# An account that EXISTS: a line in lazysite/auth/users. grant_caps writes only
+# the group side, which is enough for a capability lookup and not for anything
+# that asks whether the account is real (the scheduler's job identity does,
+# SM755). The credential is a placeholder; nothing in a unit test logs in as it.
+sub add_account {
+    my ( $docroot, $user ) = @_;
+    my $dir = "$docroot/lazysite/auth";
+    make_path($dir) unless -d $dir;
+    open my $fh, '>>', "$dir/users" or die "users: $!";
+    print {$fh} "$user:x\n";
+    close $fh;
+    return;
+}
+
 sub revoke_caps {
     my ( $docroot, $user, @caps ) = @_;
     _gc_set_caps( $docroot, "role-$user", { map { $_ => 0 } @caps } );
@@ -272,7 +286,7 @@ sub _gc_set_caps {
 # Returns: ( action => { cap => 1, ... } ), an EMPTY hash meaning the action
 # needs no capability.
 sub gate_caps {
-    my ($src) = @_;
+    my ($src)   = @_;
     my ($block) = $src =~ /\n( *my \%need_caps = \(.*?\n *\);)/s
         or return ();
     my %decl;
@@ -703,10 +717,10 @@ sub setup_multi_domain_site {
 
     my %dom = (
         primary => { host => 'primary.test', root => '' },
-        alpha   => { host => 'alpha.test',   root => 'sites/alpha',
-            layout => 'alpha-layout', theme => 'alpha-theme',
+        alpha   => { host => 'alpha.test', root => 'sites/alpha',
+            layout   => 'alpha-layout', theme => 'alpha-theme',
             nav_file => 'lazysite/nav-alpha.conf' },
-        beta      => { host => 'beta.test',  root => 'sites/beta' },
+        beta      => { host => 'beta.test',      root => 'sites/beta' },
         alpha_sub => { host => 'sub.alpha.test', root => 'sites/alpha/inner' },
     );
 

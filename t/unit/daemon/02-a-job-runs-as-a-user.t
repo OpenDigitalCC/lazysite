@@ -25,7 +25,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper                           qw(grant_caps);
+use TestHelper                           qw(grant_caps add_account);
 use Lazysite::Daemon::Service::Scheduler ();
 
 my $root = tempdir( CLEANUP => 1 );
@@ -72,7 +72,23 @@ subtest 'a system identity is refused by name' => sub {
         'and the refusal explains WHY, not just that it was refused' );
 };
 
+subtest 'an account that does not exist is refused as a typo, not as a missing grant' => sub {
+    # SM755 / review F1.3. caps_for answers for ANY name (every key, 0 or 1),
+    # so the first version refused a mistyped account as 'does not hold
+    # run_jobs' - true, and the wrong remedy. Only a group is granted here,
+    # never an account: the store does not know 'jobs-nigthly'.
+    grant_caps( $root, 'jobs-nigthly', qw(run_jobs) );
+    set_job_user('jobs-nigthly');
+    my ( $user, $why )
+        = Lazysite::Daemon::Service::Scheduler::resolve_job_user(
+        docroot => $root );
+    ok( !defined $user, 'an unknown account never resolves' );
+    like( $why, qr/does not exist/, 'and the reason is that it does not exist' );
+    unlike( $why, qr/run_jobs/, 'not that it lacks a grant it was in fact given' );
+};
+
 subtest 'an account without run_jobs may not carry a job' => sub {
+    add_account( $root, 'nobody' );
     grant_caps( $root, 'nobody', qw(ui manage_content) );
     set_job_user('nobody');
     my ( $user, $why )
@@ -84,6 +100,7 @@ subtest 'an account without run_jobs may not carry a job' => sub {
 };
 
 subtest 'an account holding run_jobs resolves' => sub {
+    add_account( $root, 'jobs-nightly' );
     grant_caps( $root, 'jobs-nightly', qw(run_jobs) );
     set_job_user('jobs-nightly');
     my ( $user, $why )
@@ -139,6 +156,7 @@ subtest 'a refusal is not a run, so fixing the config takes effect at once' => s
     my $r1 = Lazysite::Daemon::Service::Scheduler::tick( docroot => $fresh );
     is( $r1->[0]{outcome}, 'refused', 'first tick: refused, no account' );
 
+    add_account( $fresh, 'jobs-fixed' );
     grant_caps( $fresh, 'jobs-fixed', qw(run_jobs) );
     open my $c2, '>', "$fresh/lazysite/daemon.conf" or die $!;
     print {$c2} "daemon_job_user: jobs-fixed\n";

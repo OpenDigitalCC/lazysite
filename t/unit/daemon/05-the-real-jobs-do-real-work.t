@@ -27,7 +27,7 @@ use FindBin;
 use JSON::PP ();
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper                           qw(grant_caps repo_root);
+use TestHelper                           qw(grant_caps add_account repo_root);
 use Lazysite::Daemon::Service::Scheduler ();
 use Lazysite::Auth::Settings             qw(@CAP_KEYS);
 
@@ -108,6 +108,7 @@ subtest 'each need is the capability the manager charges for the same work' => s
 
 subtest 'run_jobs alone runs the heartbeat and is refused the rest, by name' => sub {
     my $root = site();
+    add_account( $root, 'jobs-thin' );
     grant_caps( $root, 'jobs-thin', qw(run_jobs) );
     set_job_user( $root, 'jobs-thin' );
 
@@ -130,6 +131,7 @@ subtest 'run_jobs alone runs the heartbeat and is refused the rest, by name' => 
 
 subtest 'sessions-sweep: the reader\'s rule, applied on a clock' => sub {
     my $root = site();
+    add_account( $root, 'jobs-users' );
     grant_caps( $root, 'jobs-users', qw(run_jobs manage_users) );
     set_job_user( $root, 'jobs-users' );
 
@@ -192,6 +194,7 @@ subtest 'sessions-sweep: the reader\'s rule, applied on a clock' => sub {
 
 subtest 'stats-rollup: runs the plugin the way the manager does' => sub {
     my $root = site();
+    add_account( $root, 'jobs-stats' );
     grant_caps( $root, 'jobs-stats', qw(run_jobs analytics) );
     set_job_user( $root, 'jobs-stats' );
 
@@ -231,6 +234,7 @@ subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub 
     # statistics that day. Here nobody reads anything: one hit yesterday, one
     # tick, and the day file exists.
     my $root = site();
+    add_account( $root, 'jobs-stats' );
     grant_caps( $root, 'jobs-stats', qw(run_jobs analytics) );
     set_job_user( $root, 'jobs-stats' );
 
@@ -240,7 +244,7 @@ subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub 
     my $day  = sprintf '%04d-%02d-%02d',            $ymd[0] + 1900, $ymd[1] + 1, $ymd[2];
     open my $fh, '>', "$root/lazysite/logs/$file" or die $!;
     print {$fh} JSON::PP::encode_json(
-        { t => $yday, ip => '203.0.113.9', m => 'GET', p => 'https://gh.072103.xyz/', s => 200, ua => 'Mozilla/5.0', r => '' } ),
+        { t => $yday, ip => '203.0.113.9', m => 'GET', p => q{/}, s => 200, ua => 'Mozilla/5.0', r => '' } ),
         "\n";
     close $fh;
 
@@ -255,6 +259,7 @@ subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub 
 
 subtest 'a job that reports failure is recorded with its reason' => sub {
     my $root = site();
+    add_account( $root, 'jobs-stats' );
     grant_caps( $root, 'jobs-stats', qw(run_jobs analytics) );
     set_job_user( $root, 'jobs-stats' );
 
