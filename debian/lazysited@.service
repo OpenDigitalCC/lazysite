@@ -16,9 +16,9 @@
 #   2. The `daemon` plugin, enabled by the site's sysop in the manager.
 # Both must be on for anything to run. The manager has no root, so enabling the
 # plugin cannot start a service - and the runtime reports that honestly rather
-# than pretending: `lazysited --docroot DIR --status` answers desired=up with
-# runtime=not-started, which tells an operator exactly which of the two
-# switches is missing.
+# than pretending: `lazysited --docroot DIR --status` answers desired=on with
+# verdict=inconsistent and a remedy naming this unit, which tells an
+# operator exactly which of the two switches is missing (SM222's contract).
 #
 # ON A HOST WITH HUNDREDS OF SITES, the cost at rest is nothing. An
 # uninstantiated unit does not exist; an instantiated one whose plugin is

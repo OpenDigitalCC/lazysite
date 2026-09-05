@@ -570,9 +570,9 @@ had its own lint waiting.
 `t/unit/daemon/01` is the security property: **disabled means no process**. Its
 strongest assertion is not "did no work" but that a disabled runtime **creates
 no state directory** - because doing so is the first half of starting. It also
-pins the vocabulary: desired `down` reads as `stopped`, but desired `up` with no
-process reads as **not-started**, which is a different fact and an operator
-needs the difference.
+pins the vocabulary, now SM222's: desired `off` reads as verdict `off`, but
+desired `on` with no process reads as **inconsistent**, which is a different
+fact and an operator needs the difference - and carries a remedy.
 
 `t/unit/daemon/02` is the job identity. Every refusal is asserted with the same
 weight as the success: no configured account, a `system:` identity refused **by

@@ -135,8 +135,10 @@ rather than an oversight, and the runtime reports it honestly:
 
     lazysited --docroot <docroot> --status
 
-answers `desired: up` with `runtime: not-started` when the plugin is on
-and the unit is not, so you can see which switch is missing.
+answers `desired: on` with `verdict: inconsistent` when the plugin is on
+and the unit is not - switched on and not running - and its
+`remedy` names the systemctl command above, so you can see which
+switch is missing and what to do about it.
 
 WHAT IT COSTS ON A HOST WITH HUNDREDS OF SITES: nothing, until somebody
 turns it on. An uninstantiated unit does not exist. An instantiated one
