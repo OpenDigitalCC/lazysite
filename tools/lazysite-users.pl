@@ -387,7 +387,16 @@ if ($API_MODE) {
             group-create group-delete group-nest settings-set token
         );
         my $actor = $req->{actor};
+
+        # SM724: the ONE account setting a user may set for themselves - their
+        # start page. It grants, confines and audits nothing (a preference, as
+        # display_name is), so self-service costs the model nothing; every
+        # other settings-set stays a manage_users act.
+        my $self_start_page = $action eq 'settings-set' && ( $req->{key} // '' ) eq 'start_page'
+            && defined $actor && defined $req->{username} && $actor eq $req->{username};
+
         if ( $ACTOR_FORBIDDEN{$action}
+            && !$self_start_page
             && defined $actor
             && length $actor
             && $actor ne 'local' )
@@ -1678,7 +1687,7 @@ sub cmd_set_cli {
 
 sub cmd_set {
     my ( $user, $key, $value, %opt ) = @_;
-    die "Usage: set USERNAME (ui|comment|email|expires_at|token_ttl) VALUE\n"
+    die "Usage: set USERNAME (ui|display_name|comment|email|expires_at|token_ttl|start_page) VALUE\n"
         unless defined $user && length $user && defined $key && length $key;
 
     my %users = read_users();
@@ -1735,6 +1744,14 @@ sub cmd_set {
         if ( length $n ) { $all->{$user}{display_name} = $n }
         else             { delete $all->{$user}{display_name} }
     }
+    elsif ( $key eq 'start_page' ) {
+        # SM724: where a sign-in with no destination lands. The rule - two kinds,
+        # reachability from THIS account's grants, refusal by reason - is the
+        # module's; this file compiles on every credential check (SM685) and
+        # carries the call only.
+        require Lazysite::Manager::StartPage;
+        Lazysite::Manager::StartPage::apply_start_page( $all, $user, $value, $DOCROOT );
+    }
     elsif ( $key eq 'comment' ) {
         # Free-text sysop annotation (single line, length-capped).
         my $c = defined $value ? "$value" : '';
@@ -1777,7 +1794,7 @@ sub cmd_set {
     }
     else {
         die "Unknown setting '$key' (expected ui, display_name, comment, "
-            . "email, expires_at, or token_ttl; dav_scope/home_domain were "
+            . "start_page, email, expires_at, or token_ttl; dav_scope/home_domain were "
             . "retired in 0.7.26 - confinement lives on the domain)\n";
     }
 
@@ -5171,8 +5188,9 @@ Commands:
                               [--group NAME]
   settings USERNAME           Show a user's access-mechanism settings
   set USERNAME KEY VALUE      Set an account-shaped field: ui (on/off),
-                              comment, email, expires_at, token_ttl (30d / 24h /
-                              90m or bare seconds; empty clears to the default).
+                              display_name, comment, email, expires_at,
+                              token_ttl (30d / 24h / 90m or bare seconds), or
+                              start_page (manager:<page> | domain:<host>|<path>).
                               dav_scope/home_domain were retired in 0.7.26 -
                               confine a user by registering the DOMAIN with its
                               own content root and naming the user's group in

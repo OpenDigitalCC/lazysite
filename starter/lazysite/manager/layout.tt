@@ -599,7 +599,7 @@
         <button type="button" class="mg-notif-btn" onclick="mgToggleNotif()" title="Notifications" aria-label="Notifications">&#128276;<span class="mg-notif-badge" id="mg-notif-badge" hidden>0</span></button>
         <div class="mg-notif-panel" id="mg-notif-panel" hidden></div>
       </div>
-      <span class="mg-user">[% auth_name || auth_user %]</span>
+      <button type="button" class="mg-user mg-user-btn" onclick="mgOpenAccount()" title="Your account" aria-label="Your account">[% auth_name || auth_user %]</button>
       [% IF no_password %]
       <span class="mg-note mg-note-warn">
         &#9888; No password set.
@@ -607,6 +607,17 @@
       </span>
       [% END %]
       <a href="/cgi-bin/lazysite-auth.pl?action=logout" class="mg-signout">Sign out</a>
+      <!-- SM724: the signed-in user's own account sheet. Where a sign-in with no
+           destination lands (?account=1), and reachable from the name above. -->
+      <div id="mg-account-sheet" class="mg-sheet" hidden onclick="if(event.target===this)mgCloseAccount()">
+        <div class="mg-sheet-panel" role="dialog" aria-label="Your account">
+          <div class="mg-sheet-head">
+            <span class="mg-sheet-title">Your account <span class="mg-sheet-sub">[% auth_user %]</span></span>
+            <button type="button" class="mg-sheet-close" onclick="mgCloseAccount()" aria-label="Close">&times;</button>
+          </div>
+          <div class="mg-sheet-body" id="mg-account-body"></div>
+        </div>
+      </div>
       [% END %]
       <a href="/manager" class="mg-brand">Lazysite Manager</a>
     </div>

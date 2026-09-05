@@ -316,7 +316,15 @@ sub handle_login {
         && ( read_conf_key('manager') // '' ) eq 'enabled'
         && _login_is_manager($groups_str) )
     {
-        $next = '/manager/';
+        # SM724: the account's START PAGE, when it set one and can still reach
+        # it; otherwise the manager with its own account sheet open, saying why
+        # when a set page could not be honoured. Only for an arrival with no
+        # destination - an explicit next was honoured above and is not here.
+        # The module validates a domain target against the domains this
+        # instance serves, which is why the result is not put through
+        # sanitise_next: a chosen page on another of our own hosts is exactly
+        # what that guard exists to refuse from a caller.
+        $next = _start_page_landing($username);
     }
 
     binmode( STDOUT, ':utf8' );
@@ -1229,6 +1237,24 @@ sub _login_is_manager {
     my @ug = grep { length } split /\s*,\s*/, ( $groups_str // '' );
     return 1 if groups_grant_cap( 'ui', @ug );
     return Lazysite::Auth::Settings::site_grants_manager() ? 0 : 1;
+}
+
+# SM724: where a manager lands with no destination. Fails to the plain manager
+# root if the module cannot answer, so a defect here can never keep someone
+# out.
+sub _start_page_landing {
+    my ($username) = @_;
+    my $url = eval {
+        require Lazysite::Manager::StartPage;
+        no warnings 'once';
+        local $Lazysite::Manager::StartPage::DOCROOT = $DOCROOT;
+        my $r = Lazysite::Manager::StartPage::resolve_start_page($username);
+        log_event( 'INFO', $username, 'start page unreachable, landing on the fallback',
+            reason => $r->{unreachable} )
+            if $r->{unreachable};
+        $r->{url};
+    };
+    return ( defined $url && length $url ) ? $url : '/manager/';
 }
 
 # --- Utilities ---

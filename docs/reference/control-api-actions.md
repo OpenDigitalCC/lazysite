@@ -170,6 +170,8 @@ tone: medium
 `site-backup-inspect` | manage_domains | name (query), host (query)
 `site-backup-upload` | manage_domains |  
 `site-export-primary` | manage_content | data_tables (body)
+`start-page` | cookie only | username (query)
+`start-page-set` | cookie only | username (body), value (body)
 `theme-activate` | manage_themes | path (query), theme (query)
 `theme-copy` | manage_themes | path (query), new_name (body), layout (body)
 `theme-delete` | manage_themes | path (query)

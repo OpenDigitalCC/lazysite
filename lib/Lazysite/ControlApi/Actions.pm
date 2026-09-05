@@ -243,6 +243,8 @@ our %ACTION = (
     # SM671: `plugins=0` omits the plugin catalogue, which is 82% of the answer
     # on a bare site. Opt-out rather than opt-in, so an existing client reading
     # `plugins` keeps seeing it.
+    'start-page' => { caps => undef, params => [ { name => 'username', in => 'query' } ] },
+    'start-page-set' => { caps => undef, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body' } ] },
     'whoami' => { caps => [], params => [ { name => 'plugins', in => 'query' } ] },
 );
 

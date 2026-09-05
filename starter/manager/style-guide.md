@@ -948,10 +948,11 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-undo-bar"><span class="mg-sg-tag">.mg-undo-bar</span></div>
 </div>
-<h3 class="mg-sg-fam">mg-user <span class="mg-sg-count">1</span></h3>
+<h3 class="mg-sg-fam">mg-user <span class="mg-sg-count">2</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-user"><span class="mg-sg-tag">.mg-user</span></div>
+<button type="button" class="mg-user mg-user-btn"><span class="mg-sg-tag">.mg-user-btn</span> the signed-in name, which opens the account sheet (SM724)</button>
 </div>
 
 <script>

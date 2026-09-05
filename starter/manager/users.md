@@ -515,6 +515,11 @@ function accountSettingsHtml(row) {
     '" placeholder="' + ue + ' (shown in place of the login; the login is still listed beside it)">' +
     '<button class="mg-btn mg-btn-sm" onclick="saveDisplayName(\'' + ue + '\')">Save name</button>' +
     '<span class="mg-status" id="dnmsg-' + ue + '"></span></div>';
+  // SM724: where this account lands at sign-in. The control is the shared one
+  // (manager-chrome.js) and is filled after the sheet renders, from the API,
+  // which computes the choices from THIS account's grants - not the viewer's.
+  gen += '<div class="mg-line"><span class="mg-line-lbl">Start page</span>' +
+    '<span class="mg-inp-wide" id="start-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
@@ -795,6 +800,7 @@ function renderConfigSheet(user) {
     'Configuring ' + escHtml(user) +
     ' <span class="mg-sheet-sub">' + (ui ? 'human' : 'AI') + ' &middot; ' + lineage + '</span>';
   document.getElementById('cfg-sheet-body').innerHTML = accountSettingsHtml(row);
+  if (window.mgStartPageControl) { mgStartPageControl(document.getElementById('start-' + user), user); }
   var sheet = document.getElementById('cfg-sheet');
   sheet.hidden = false;
   document.body.classList.add('mg-sheet-open');

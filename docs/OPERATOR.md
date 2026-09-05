@@ -268,6 +268,14 @@ systemctl restart lazysited@<domain>
 - **Users/credentials:** the manager Users page, or
   `tools/lazysite-users.pl` on the shell. The operator never sets a user's
   password - issue a setup link or token; the user provisions their own.
+- **Start page (SM724):** where an account lands when it signs in without a
+  destination - a manager page it can reach, or a chosen page on a domain this
+  instance serves. A user sets their own from their name in the manager header
+  (the account sheet); a user manager sets anyone's from the Users page or
+  `lazysite-users set <user> start_page manager:files`. Unset lands on the
+  manager with the account sheet open; a start page that stops being reachable
+  lands there too, flagged, rather than on a refusal. A link followed to sign in
+  still wins.
 - **Sessions:** the manager **Sessions** page (needs the Users & groups
   permission) lists live sessions (user, signed in, IP, device) and signs out
   one session or all of a user's sessions; rotating the signing secret (Users

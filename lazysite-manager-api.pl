@@ -208,6 +208,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     site-backup-inspect site-backup-upload site-export-primary
     theme-activate theme-copy theme-delete theme-list theme-rename themes-for-layout
     themes-list-all theme-upload unlock user-revoke users version whoami
+    start-page start-page-set
 );
 
 # SM230: the control API is not callable from a browser page, by design. Its
@@ -508,7 +509,7 @@ if ( $action eq 'csrf-token' ) {
 # whoever is asking.
 #
 my %MUTATING = map { $_ => 1 } qw(
-    form-delete
+    form-delete start-page-set
     data-migrate data-row-save data-row-delete data-table-save
     data-table-acl-set data-table-acl-remove
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
@@ -517,6 +518,7 @@ my %MUTATING = map { $_ => 1 } qw(
     brief-append briefs-migrate brief-delete
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
     theme-delete theme-rename theme-copy theme-upload layout-activate layout-delete
+    start-page-set
     layout-install layouts-install layouts-repo-set artifact-backups-delete
     preview-grant preview-clear nav-save handler-save handler-delete
     form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
@@ -1264,7 +1266,7 @@ if ($token_auth) {
 # do. SM508: briefs-list skips as a read; brief-delete is audited - removing a
 # record of intent is exactly what a trail should remember.
 my %skip = map { $_ => 1 } qw(
-    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors
+    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page
     cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
     layouts-available layouts-releases layouts-repo-get layouts-release-contents
     handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
@@ -2108,6 +2110,11 @@ elsif ( $action eq 'analyse_visitors' ) {
         trails => $params{trails} );
 }
 elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plugins} ) }
+elsif ( $action eq 'start-page' ) { $result = action_start_page( $params{username} ) }
+elsif ( $action eq 'start-page-set' ) {
+    my $req = _json_body();
+    $result = action_start_page_set( $req->{username}, $req->{value} );
+}
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350
 elsif ( $action eq 'preview-public' ) {                                            # SM282
@@ -2299,6 +2306,14 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 
     # SM141/SM145: the revokes carry their target in the POST body - name it
     # (a sid prefix / the username) instead of the meaningless '/' path.
+    # SM724: a start-page change is about an ACCOUNT, and the trail should say
+    # whose - especially since a user may set their own.
+    if ( $action eq 'start-page-set' ) {
+        my $b = _json_body();
+        my $u = ( ref $b eq 'HASH' ? $b->{username} : undef ) // $auth_user;
+        $u =~ s/[^a-zA-Z0-9_.-]//g;
+        $aud_target = $u;
+    }
     if ( $action eq 'session-revoke' || $action eq 'user-revoke' || $action eq 'key-revoke' ) {
         my $b = _json_body();
         if ( $action eq 'session-revoke' ) {
@@ -3822,6 +3837,57 @@ sub _action_effects {
         ( $DESTRUCTIVE{$name}    ? ( destructive => JSON::PP::true() )    : () ),
         ( $CHANGES_ACCESS{$name} ? ( changes_access => JSON::PP::true() ) : () ),
     };
+}
+
+# SM724: the start page - read (the current value and the choices THIS account
+# can reach) and set. Self-service for one's own account; another account's
+# needs manage_users. The choices are computed from the TARGET's grants, never
+# the caller's: an operator building the list from what they can see would
+# offer pages the subject cannot open, which is a sign-in that lands on a 403.
+sub _start_page_subject {
+    my ($username) = @_;
+    my $u = defined $username && length $username ? $username : $auth_user;
+    $u =~ s/[^a-zA-Z0-9_.-]//g;
+    return ( undef, { ok => 0, kind => 'forbidden',
+            error => "Setting another account's start page needs the 'Users & groups' "
+                . 'permission; you may set your own.' } )
+        if $u ne $auth_user && !_user_caps($auth_user)->{manage_users};
+    return ( $u, undef );
+}
+
+sub action_start_page {
+    my ($username) = @_;
+    my ( $u, $refused ) = _start_page_subject($username);
+    return $refused if $refused;
+    require Lazysite::Manager::StartPage;
+    no warnings 'once';
+    local $Lazysite::Manager::StartPage::DOCROOT = $DOCROOT;
+    my $current = Lazysite::Manager::StartPage::current_start_page($u);
+    my $r       = Lazysite::Manager::StartPage::resolve_start_page($u);
+    return {
+        ok       => 1,
+        username => $u,
+        current  => $current,
+        landing  => $r->{url},
+        ( $r->{unreachable} ? ( unreachable => $r->{unreachable} ) : () ),
+        choices  => Lazysite::Manager::StartPage::start_page_choices($u),
+        fallback => Lazysite::Manager::StartPage::fallback_landing(),
+    };
+}
+
+sub action_start_page_set {
+    my ( $username, $value )   = @_;
+    my ( $u,        $refused ) = _start_page_subject($username);
+    return $refused if $refused;
+    my $r = users_api( {
+            action   => 'settings-set',
+            username => $u,
+            key      => 'start_page',
+            value    => ( $value // '' ),
+            actor    => $auth_user,
+    } );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, username => $u, start_page => ( $value // '' ) };
 }
 
 sub action_whoami {

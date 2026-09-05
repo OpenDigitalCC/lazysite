@@ -4,7 +4,8 @@ title: "SM724: a user has a default page to land on"
 subtitle: "Users are shared between the manager and the app, and nothing says where a given one belongs. An operator sets a default page per user - a manager page, or a domain - and an unset default falls back to the user's own page."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "DECIDED 2026-09-05 by the release manager and BUILT the same day (claude/sm724-a-user-has-a-start-page, 0.13.1). The three open items: the FALLBACK is the manager with the user's own account sheet open (/manager/?account=1 - the sheet is new, in the manager header, on every page; the 'own user page' the request named did not exist and this is it); the USER OR A USER MANAGER may set it (self-service is the one account setting a user may set for themselves, exempted by name in the users tool's actor rule; another account's needs manage_users); a domain target is a CHOSEN PAGE on that domain (domain:<host>|<path>). Stored as two kinds; a domain checked by name against the domains this instance serves, never by character class; choices computed from the TARGET account's grants and confinement (Lazysite::Manager::StartPage, whose %PAGES table t/lint/116 pins to the nav's own conditionals); refused at set time by reason; re-checked at every sign-in and falling back FLAGGED (&start=unreachable) when a grant has gone. An explicit next still wins. Surfaces: the account sheet (manager-chrome.js, every manager page), the Users page editor sheet, the control API start-page / start-page-set, the users tool. Tests: t/unit/manager/157 (module + tool), 158 (API, self vs manager, the trail), t/unit/auth/18 (the door), t/lint/116."
 ---
 
 # What is asked
