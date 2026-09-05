@@ -19,7 +19,7 @@ use Cwd             qw(realpath);
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal load_upload_limits outside_all_scopes);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal refusal_detail load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -187,7 +187,16 @@ sub action_list {
 
     my $fs_path = "$lroot$dir_path";
     my $real    = realpath($fs_path);
-    return { ok => 0, error => "Invalid path" }
+    return {
+        ok    => 0,
+        kind  => 'invalid-path',
+        error => "'$dir_path' is not a folder this site can list: it does not exist, "
+            . 'or it resolves outside the site tree.',
+        audit_detail => refusal_detail(
+            'invalid-path', "'$dir_path' is not a listable folder",
+            'list an existing folder inside the site'
+        ),
+        }
         unless $real
         && ( $real eq $lroot || index( $real, "$lroot/" ) == 0 )    # SEC-2026-07 (H3)
         && -d $real;
@@ -208,10 +217,8 @@ sub action_list {
     # the traversal rather than another string test.
     my $canon = $real eq $lroot ? q{} : substr( $real, length($lroot) + 1 );
     if ( length $canon ) {
-        return { ok => 0, error => 'Path is blocked', kind => 'blocked' }
-            if is_blocked_path($canon);
-        return { ok => 0, error => 'Path is blocked by config', kind => 'blocked-config' }
-            if is_blocked_config($canon);
+        if ( my $why = is_blocked_path($canon) ) { return _blocked( $canon, $why, 'blocked' ) }
+        if ( my $why = is_blocked_config($canon) ) { return _blocked( $canon, $why, 'blocked-config' ) }
     }
     # The listing reports the canonical location, so a `..` spelling cannot be
     # used to make the response describe a directory by a name it does not have.
@@ -400,15 +407,15 @@ sub action_read {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
-        if is_blocked_config( $result->{rel} );
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
 
     if ( my $d = _acl_denied( $result->{rel}, 'read', $username ) ) { return $d }
 
     my $full = $result->{full};
-    return { ok => 0, error => "File not found", kind => 'not-found' } unless -f $full;
+    return _refused( 'not-found', "'$result->{rel}' does not exist as a file",
+        'list_files or the Files page shows what is there' )
+        unless -f $full;
 
     # SM019: refuse to load binary files as text. The editor handles
     # the binary=1 response by showing a download panel; decoding a
@@ -459,6 +466,43 @@ sub action_read {
 # the way the rest of the manager does (Themes owns that reader) and asks.
 # Themes is REQUIRED at runtime because it uses this module for its locks; a
 # compile-time `use` in both directions would be a cycle.
+# SM750: a refusal that echoes the caller's path and names the fix, with the
+# same `kind: cause - remedy` line for the trail that the content rules leave.
+# "File not found" told an agent nothing it did not know; "'pages/abuot.md'
+# does not exist as a file" tells it which of its own arguments to look at.
+sub _refused {
+    my ( $kind, $cause, $remedy ) = @_;
+    return {
+        ok           => 0,
+        kind         => $kind,
+        error        => "$cause. " . ucfirst($remedy) . '.',
+        audit_detail => refusal_detail( $kind, $cause, $remedy ),
+    };
+}
+
+# SM750: a blocked path says WHICH rule and echoes the path. is_blocked_path and
+# is_blocked_config have always composed the sentence ("'x' is inside the
+# reserved lazysite/ tree, which the file surfaces do not write...") and every
+# caller here threw it away for "Path is blocked" - a verdict with no cause,
+# which is the fourth filing of one class this week. The caller's own path is
+# safe to echo (SM739 forbids HOST paths; this is the path they sent).
+sub _blocked {
+    my ( $rel, $why, $kind ) = @_;
+    # the first clause: up to a full stop followed by space or end (never the
+    # dot inside a file name), or a ", which" / ", so" continuation
+    my ($cause) = $why =~ /\A(.*?)(?:\.(?=\s|\z)|,\s+which|,\s+so)/s;
+    $cause //= $why;
+    return {
+        ok           => 0,
+        error        => $why,
+        kind         => $kind,
+        audit_detail => refusal_detail( $kind, $cause,
+            $kind eq 'blocked-config'
+            ? 'the site\'s blocked_paths setting governs it'
+            : 'write ordinary content elsewhere, or use the carve-out\'s own action' ),
+    };
+}
+
 sub _active_artifact_guard {
     my (@rels) = @_;
     return undef unless grep { defined && m{^/?lazysite/layouts/} } @rels;
@@ -475,8 +519,8 @@ sub _active_artifact_guard {
         = Lazysite::Manager::Themes::active_layout_and_theme();
     for my $rel (@rels) {
         next unless defined $rel;
-        if ( my $err = active_artifact_refusal( $rel, $layout, $theme ) ) {
-            return { ok => 0, error => $err, kind => 'active-artifact-refused' };
+        if ( my ( $err, $why ) = active_artifact_refusal( $rel, $layout, $theme ) ) {
+            return { ok => 0, error => $err, kind => 'active-artifact-refused', audit_detail => $why };
         }
     }
     return undef;
@@ -488,12 +532,10 @@ sub action_save_binary {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $result->{rel} );
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
     # check_extensions => 1: the operator's configurable blocked list applies to
     # an upload, exactly as it does to the multipart upload path.
-    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
-        if is_blocked_config( $result->{rel}, 1 );
+    if ( my $why = is_blocked_config( $result->{rel}, 1 ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     my $limits = load_upload_limits();
@@ -566,10 +608,8 @@ sub action_save {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
-        if is_blocked_config( $result->{rel} );
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
@@ -577,8 +617,8 @@ sub action_save {
     # plain text (ADR 0006), and evades the no-CDN guard. Because MCP write_file /
     # create_page route through action_save, this covers the manager save AND MCP;
     # the WebDAV PUT path enforces the same guard in lazysite-dav.pl.
-    if ( my $err = raw_html_page_refusal($content) ) {
-        return { ok => 0, error => $err, kind => 'raw-content-refused' };
+    if ( my ( $err, $why ) = raw_html_page_refusal($content) ) {
+        return { ok => 0, error => $err, kind => 'raw-content-refused', audit_detail => $why };
     }
 
     # SM748: a page whose template body does not parse is refused HERE, at the
@@ -595,15 +635,15 @@ sub action_save {
     # so one call here covers the manager, the control API and MCP, and only
     # the separate WebDAV stack needs its own. A guard in a caller protects
     # that caller; a guard here protects whoever is added next.
-    if ( my $err = page_parse_refusal( $result->{rel}, $content ) ) {
-        return { ok => 0, error => $err, kind => 'template-parse-refused' };
+    if ( my ( $err, $why ) = page_parse_refusal( $result->{rel}, $content ) ) {
+        return { ok => 0, error => $err, kind => 'template-parse-refused', audit_detail => $why };
     }
 
     # SM504: a .brief write refuses once the briefs plugin owns the record on
     # this site. Covers the manager save AND MCP (write_file / create_page
     # route through here), exactly as the SM189 guard above does.
-    if ( my $err = brief_write_refusal( $result->{rel} ) ) {
-        return { ok => 0, error => $err, kind => 'brief-sidecar-refused' };
+    if ( my ( $err, $why ) = brief_write_refusal( $result->{rel} ) ) {
+        return { ok => 0, error => $err, kind => 'brief-sidecar-refused', audit_detail => $why };
     }
 
     # SM581: a path ending `lazysite/nav.conf` that is not the resolved nav for
@@ -612,10 +652,10 @@ sub action_save {
     # created:1 with a full cache rebuild - a success indistinguishable from the
     # write that would have worked, for a file nothing reads. Nav owns the rule;
     # it names set_nav and the host argument that reaches the real file.
-    if ( my $err = _with_nav(
+    if ( my ( $err, $why ) = _with_nav(
             sub { Lazysite::Manager::Nav::nav_write_refusal( $result->{rel} ) } ) )
     {
-        return { ok => 0, error => $err, kind => 'nav-not-here' };
+        return { ok => 0, error => $err, kind => 'nav-not-here', audit_detail => $why };
     }
 
     my $full = $result->{full};
@@ -715,10 +755,8 @@ sub action_delete {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
-        if is_blocked_config( $result->{rel} );
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM074: per-file ACL write gate (sysops bypass).
@@ -734,7 +772,8 @@ sub action_delete {
         my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
         closedir $dh;
         if (@entries) {
-            return { ok => 0, error => "Directory is not empty" };
+            return _refused( 'not-empty', "'$result->{rel}' is a folder with entries in it",
+                'delete its entries first, or move them' );
         }
         rmdir $full
             or return { ok => 0, error => "Cannot remove directory: $!" };
@@ -746,7 +785,9 @@ sub action_delete {
         return { ok => 1, path => $rel_path };
     }
 
-    return { ok => 0, error => "File not found", kind => 'not-found' } unless -f $full;
+    return _refused( 'not-found', "'$result->{rel}' does not exist as a file",
+        'list_files or the Files page shows what is there' )
+        unless -f $full;
 
     unlink $full or return { ok => 0, error => "Cannot delete: $!" };
 
@@ -808,14 +849,14 @@ sub action_mkdir {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
-        if is_blocked_config( $result->{rel} );
+    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     my $full = $result->{full};
-    return { ok => 0, error => "Path already exists" } if -e $full;
+    return _refused( 'exists', "'$result->{rel}' already exists",
+        'choose another name, or use what is there' )
+        if -e $full;
 
     my ( $mok, $merr ) = _mkpath_checked($full);
     return { ok => 0, error => $merr } unless $mok;
@@ -839,14 +880,18 @@ sub action_move {
     return $d unless $d->{ok};
 
     for my $r ( $s->{rel}, $d->{rel} ) {
-        return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-            if is_blocked_path($r) || is_blocked_config($r);
+        if ( my $why = is_blocked_path($r) ) { return _blocked( $r, $why, 'blocked' ) }
+        if ( my $why = is_blocked_config($r) ) { return _blocked( $r, $why, 'blocked-config' ) }
     }
     if ( my $g = _active_artifact_guard( $s->{rel}, $d->{rel} ) ) { return $g }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
-    return { ok => 0, error => "Source not found" } unless -e $src_full;
-    return { ok => 0, error => "Target already exists" } if -e $dst_full;
+    return _refused( 'not-found', "source '$s->{rel}' does not exist",
+        'check the path with list_files' )
+        unless -e $src_full;
+    return _refused( 'exists', "target '$d->{rel}' already exists",
+        'choose another target, or delete it first' )
+        if -e $dst_full;
 
     # Refuse a live foreign lock on the source (mirror action_save).
     my $lock_file = _lock_file( $s->{rel} );         # SM527: canonical key
@@ -890,7 +935,8 @@ sub action_move {
                 . 'protected entries separately first' }
             if ( $d->{store} // '' ) eq 'private';
         my $priv_dst = Lazysite::Private::private_path( $DOCROOT, $d->{rel} );
-        return { ok => 0, error => "Target already exists" }
+        return _refused( 'exists', "target '$d->{rel}' already exists in the protected store",
+            'choose another target, or delete it first' )
             if !defined $priv_dst || -e $priv_dst;
         my $priv_dir = dirname($priv_dst);
         eval { make_path($priv_dir) unless -d $priv_dir };    # croaks (SM296)
@@ -996,17 +1042,23 @@ sub action_copy {
     return $d unless $d->{ok};
 
     for my $r ( $s->{rel}, $d->{rel} ) {
-        return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-            if is_blocked_path($r) || is_blocked_config($r);
+        if ( my $why = is_blocked_path($r) ) { return _blocked( $r, $why, 'blocked' ) }
+        if ( my $why = is_blocked_config($r) ) { return _blocked( $r, $why, 'blocked-config' ) }
     }
     # Only the DESTINATION is a write: copying a file OUT of the theme being
     # served is how a sysop starts a copy by hand, and reading it is fine.
     if ( my $g = _active_artifact_guard( $d->{rel} ) ) { return $g }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
-    return { ok => 0, error => "Source not found" } unless -e $src_full;
-    return { ok => 0, error => "Source is a directory" } if -d $src_full;
-    return { ok => 0, error => "Target already exists" } if -e $dst_full;
+    return _refused( 'not-found', "source '$s->{rel}' does not exist",
+        'check the path with list_files' )
+        unless -e $src_full;
+    return _refused( 'is-a-directory', "'$s->{rel}' is a folder, and copy takes one file",
+        'copy the files inside it one at a time, or copy_theme for a theme' )
+        if -d $src_full;
+    return _refused( 'exists', "target '$d->{rel}' already exists",
+        'choose another target, or delete it first' )
+        if -e $dst_full;
 
     # Per-file ACL: READ access on the source (operators bypass).
     if ( my $deny = _acl_denied( $s->{rel}, 'read', $username ) ) { return $deny }
@@ -1049,10 +1101,10 @@ sub action_copy {
 sub action_migrate_to_local {
     my ( $rel, $username ) = @_;
     my $s = validate_path($rel);
-    return $s unless $s->{ok};
+    return $s                                      unless $s->{ok};
     return { ok => 0, error => 'Not a .url page' } unless $s->{rel} =~ /\.url$/;
-    return { ok => 0, error => 'Path is blocked', kind => 'blocked' }
-        if is_blocked_path( $s->{rel} ) || is_blocked_config( $s->{rel} );
+    if ( my $why = is_blocked_path( $s->{rel} ) ) { return _blocked( $s->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $s->{rel} ) ) { return _blocked( $s->{rel}, $why, 'blocked-config' ) }
 
     my $url_full = $s->{full};
     return { ok => 0, error => 'Source not found' } unless -f $url_full;
@@ -1610,8 +1662,8 @@ sub action_acl_get {
 
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $r->{rel} ) || is_blocked_config( $r->{rel} );
+    if ( my $why = is_blocked_path( $r->{rel} ) ) { return _blocked( $r->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $r->{rel} ) ) { return _blocked( $r->{rel}, $why, 'blocked-config' ) }
     my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
     unless ( may_read_any_rule() ) {    # SM464: read-any; write stays owner-only
         return { ok => 0, error => "Not the owner of this file" }
@@ -1844,8 +1896,8 @@ sub action_acl_set {
         $r = validate_path($rel_path);
         return $r unless $r->{ok};
         $rel = _acl_norm( $r->{rel} );
-        return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-            if is_blocked_path($rel) || is_blocked_config($rel);
+        if ( my $why = is_blocked_path($rel) ) { return _blocked( $rel, $why, 'blocked' ) }
+        if ( my $why = is_blocked_config($rel) ) { return _blocked( $rel, $why, 'blocked-config' ) }
     }
 
     my $acls     = load_acls();
@@ -2275,8 +2327,8 @@ sub action_acl_remove {
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path($rel) || is_blocked_config($rel);
+    if ( my $why = is_blocked_path($rel) ) { return _blocked( $rel, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config($rel) ) { return _blocked( $rel, $why, 'blocked-config' ) }
     my $acls     = load_acls();
     my $existing = $acls->{$rel};
     return { ok => 1, path => $r->{rel}, removed => 0 } unless $existing;
@@ -2315,10 +2367,8 @@ sub _git_target {
     my ( $rel_path, $username ) = @_;
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path( $r->{rel} );
-    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
-        if is_blocked_config( $r->{rel} );
+    if ( my $why = is_blocked_path( $r->{rel} ) ) { return _blocked( $r->{rel}, $why, 'blocked' ) }
+    if ( my $why = is_blocked_config( $r->{rel} ) ) { return _blocked( $r->{rel}, $why, 'blocked-config' ) }
     if ( my $deny = _acl_denied( $r->{rel}, 'read', $username ) ) { return $deny }
     return $r;
 }

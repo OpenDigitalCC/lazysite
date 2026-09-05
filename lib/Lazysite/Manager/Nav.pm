@@ -37,7 +37,7 @@ use strict;
 use warnings;
 use File::Basename            qw(dirname);
 use File::Path                qw(make_path);
-use Lazysite::Manager::Common qw(write_file_checked);
+use Lazysite::Manager::Common qw(write_file_checked refusal_detail);
 use Lazysite::Manager::Themes qw(action_cache_invalidate);
 use Exporter 'import';
 
@@ -139,12 +139,12 @@ sub resolved_nav_files {
 # Returns the message, or undef when the write is fine.
 sub nav_write_refusal {
     my ($rel) = @_;
-    return undef unless defined $rel && length $rel;
+    return unless defined $rel && length $rel;
     $rel =~ s{^/+}{};
-    return undef unless $rel =~ m{(?:^|/)lazysite/nav\.conf$};
+    return unless $rel =~ m{(?:^|/)lazysite/nav\.conf$};
 
     my $navs = resolved_nav_files();
-    return undef if $navs->{$rel};
+    return if $navs->{$rel};
 
     my %nav_of;
     for my $path ( keys %$navs ) {
@@ -165,17 +165,23 @@ sub nav_write_refusal {
 
     if ( length $host ) {
         my $theirs = $nav_of{$host} // 'lazysite/nav.conf';
-        return "$why It sits under the content root of $host, whose navigation "
+        my $err    = "$why It sits under the content root of $host, whose navigation "
             . "resolves to $theirs. Change a site's navigation with set_nav and "
             . "its `host` argument - set_nav with host: $host - which resolves "
             . 'that domain\'s nav_file for you.';
+        return wantarray
+            ? ( $err, refusal_detail( 'nav-not-here', "$rel is not $host\'s navigation ($theirs is)", "set_nav with host: $host" ) )
+            : $err;
     }
 
     my $known = join ', ', sort keys %$navs;
-    return "$why Change a site's navigation with set_nav and its `host` "
+    my $err   = "$why Change a site's navigation with set_nav and its `host` "
         . 'argument, or omit `host` for the primary site; set_nav resolves the '
         . "domain's nav_file for you. The navigation files this instance "
         . "actually reads are: $known.";
+    return wantarray
+        ? ( $err, refusal_detail( 'nav-not-here', "$rel is no configured domain's navigation", 'set_nav, with host for a secondary domain' ) )
+        : $err;
 }
 
 sub action_nav_read {

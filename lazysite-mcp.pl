@@ -3859,8 +3859,11 @@ elsif ( $method eq 'tools/call' ) {
     # capability gates (so a caller without the capability is told that, not
     # given a schema critique of a call it was never allowed to make).
     if ( my $bad = validate_args( $name, $tool, $args ) ) {
+        # SM750: the trail said `invalid arguments` and not which. validate_args
+        # composes the sentence that names the argument and the shape it failed;
+        # the trail gets the same sentence, on one line.
         audit_log( $user, $name, ( $args->{path} // '' ), $ENV{REMOTE_ADDR} // '',
-            'fail', 'mcp', 'invalid arguments' );
+            'fail', 'mcp', "invalid arguments: $bad" );
         rpc_error( $id, -32602, $bad );
     }
 
@@ -3890,9 +3893,15 @@ elsif ( $method eq 'tools/call' ) {
             : $name eq 'move_file'       ? 'move'
             : $name eq 'submit_feedback' ? 'feedback'
             :                              $name;
-        my $aok    = ref $out eq 'HASH' && $out->{ok};
+        my $aok = ref $out eq 'HASH' && $out->{ok};
+        # SM750 / SM711 half 2: audit_detail FIRST - the `kind: cause - remedy`
+        # line a refusal composes - then the class, then the sentence. The same
+        # order the control API uses, so the two token channels leave the same
+        # trail for the same refusal.
         my $detail = $aok ? ''
-            : ( ref $out eq 'HASH' ? ( $out->{kind} || $out->{error} || '' ) : '' );
+            : ( ref $out eq 'HASH'
+            ? ( $out->{audit_detail} || $out->{kind} || $out->{error} || '' )
+            : '' );
         audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
             ( $aok ? 'ok' : 'fail' ), 'mcp', $detail );
     }

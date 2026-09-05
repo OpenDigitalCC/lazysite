@@ -35,7 +35,8 @@ ok( action_mkdir('content/sub')->{ok}, 'mkdir creates a directory' );
 ok( -d "$d/content/sub",               'directory exists on disk' );
 my $mk = action_mkdir('../escape');
 ok( !$mk->{ok}, 'traversal mkdir rejected' );
-like( $mk->{error}, qr/Invalid path/, 'rejected specifically as an invalid path' );
+like( $mk->{error}, qr/not a valid path.*'\.\.' segment/, 'rejected specifically as an invalid path, naming the segment (SM750)' );
+is( $mk->{kind}, 'invalid-path', 'with the kind the trail records' );
 
 # --- delete + blocked reason ---
 open my $f, '>', "$d/content/x.md" or die $!;

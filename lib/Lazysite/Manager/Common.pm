@@ -22,7 +22,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
-    active_artifact_refusal);
+    active_artifact_refusal refusal_detail);
 
 our $DOCROOT;    # set by the script
 
@@ -96,7 +96,9 @@ our $DANGEROUS_RE = do { my $alt = join '|', @DANGEROUS_EXT; qr/\.(?:$alt)\z/i }
 # within DOCROOT). Returns { ok, full, rel } or { ok=>0, error }.
 sub validate_path {
     my ($rel_path) = @_;
-    return { ok => 0, error => "No path" } unless $rel_path;
+    return { ok => 0, kind => 'invalid-path', error => 'No path was given. Every file action needs a docroot-relative path such as pages/about.md.',
+        audit_detail => 'invalid-path: no path given - send a docroot-relative path' }
+        unless $rel_path;
 
     $rel_path =~ s{^/+}{};
 
@@ -109,7 +111,9 @@ sub validate_path {
     # -> operator-cookie forgery, and writes into lazysite/). Rejecting ".." here
     # closes it at the source; deriving the canonical rel from the resolved path
     # below is the belt-and-braces that also collapses symlink pivots.
-    return { ok => 0, error => "Invalid path" }
+    return { ok => 0, kind => 'invalid-path',
+        error => "'$rel_path' is not a valid path: it contains a '..' segment. Paths are docroot-relative and forward (pages/about.md), never climbing.",
+        audit_detail => refusal_detail( 'invalid-path', "'$rel_path' contains a .. segment", 'send a docroot-relative forward path' ) }
         if $rel_path =~ m{(?:\A|/)\.\.(?:/|\z)};
 
     my $full = "$DOCROOT/$rel_path";
@@ -200,7 +204,9 @@ sub validate_path {
         my $pfull = defined $proot
             ? Lazysite::Private::private_path( $DOCROOT, $rel_path )
             : undef;
-        return { ok => 0, error => "Invalid path" }
+        return { ok => 0, kind => 'invalid-path',
+            error => "'$rel_path' is inside a protected section but this site has no private store to hold it - run: lazysite check --fix",
+            audit_detail => refusal_detail( 'invalid-path', "'$rel_path' is protected and the private store is missing", 'lazysite check --fix' ) }
             unless defined $proot && defined $pfull;
 
         # SM510: the same nearest-existing-ancestor walk as the docroot
@@ -209,7 +215,9 @@ sub validate_path {
         my $panchor = $pfull;
         $panchor = dirname($panchor) until -e $panchor;
         my $preal = realpath($panchor);
-        return { ok => 0, error => "Invalid path" }
+        return { ok => 0, kind => 'invalid-path',
+            error => "'$rel_path' resolves outside the site (through a symlink or a mount) and is refused. Paths must stay inside the site's own tree.",
+            audit_detail => refusal_detail( 'invalid-path', "'$rel_path' resolves outside the site", 'use a path inside the site tree' ) }
             unless $preal && ( $preal eq $proot || index( $preal, "$proot/" ) == 0 );
 
         my $pcanon
@@ -844,28 +852,64 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 # for a long time, and a site still on sidecars must keep working
 # indefinitely. Reads are untouched (B4): an existing sidecar stays
 # readable so an agent can see what is there before migrating it.
+# SM750: WHAT A REFUSAL MUST SAY. Two forms of the same fact:
+#
+#   error        - the caller's sentence(s): what was refused, why, and what to
+#                  do instead. Long is fine; the reader is a person or an agent
+#                  deciding its next call.
+#   audit_detail - one scannable line for the trail: `kind: cause - remedy`.
+#                  Short, no host paths (SM739), and complete enough that a
+#                  reader of the log does not have to find the caller's screen
+#                  to learn what happened. The dispatchers prefer it over `kind`
+#                  (SM711 half 2), which is how `raw-content-refused` alone
+#                  stopped being what the trail said.
+#
+# Every content-write rule below returns BOTH in list context and the error
+# alone in scalar context, so the choke point can record the detail and the
+# DAV stack's existing scalar calls are untouched. t/lint/115 holds the shape:
+# for each rule, a triggering input yields a detail of exactly this form.
+sub refusal_detail {
+    my ( $kind, $cause, $remedy ) = @_;
+    for ( $cause, $remedy ) { $_ //= ''; s/\s+/ /g; s/\s+\z//; s/\.\z// }
+    return "$kind: $cause - $remedy";
+}
+
+# THE EARLY RETURNS IN THESE RULES ARE BARE `return`, not `return undef`: in
+# list context `undef` is a one-element list, and the choke point's
+# `if ( my ($e, $d) = rule() )` would read every accepted write as a refusal
+# with an undefined error. Found by t/unit/mcp/05 the first time it was tried.
+sub _refusal {
+    my ( $error, $kind, $cause, $remedy ) = @_;
+    return wantarray ? ( $error, refusal_detail( $kind, $cause, $remedy ) ) : $error;
+}
+
 sub brief_write_refusal {
     my ($rel) = @_;
-    return undef unless defined $rel && $rel =~ /\.brief\z/;
+    return unless defined $rel && $rel =~ /\.brief\z/;
     require Lazysite::Manager::Plugins;
     # The api and mcp set Common's $DOCROOT in their setup blocks; the DAV
     # process never does - it carries the docroot in the environment. An
     # empty docroot must read as "cannot tell", never as "disabled": no
     # refusal, the write proceeds, exactly as before SM504.
     my $droot = ( defined $DOCROOT && length $DOCROOT ) ? $DOCROOT : ( $ENV{DOCUMENT_ROOT} // '' );
-    return undef unless length $droot;
+    return unless length $droot;
     # SM557: the package is require'd at runtime, so this file mentions the
     # variable once by design - t/lint/04 refuses the 'used only once' warning.
     no warnings 'once';
     local $Lazysite::Manager::Plugins::DOCROOT = $droot;
-    return undef
+    return
         unless eval { Lazysite::Manager::Plugins::plugin_enabled('plugins/briefs.pl') };
-    return 'This site holds briefs in the brief store, not in .brief sidecar '
-        . 'files - a sidecar written here would be an inert file no listing '
-        . 'shows and no migration imports, a note nobody reads. Append to the '
-        . "record instead: append_brief over MCP, or brief-append on the "
-        . 'control API, with {path, entry}. Reading an existing sidecar still '
-        . 'works.';
+    return _refusal(
+        'This site holds briefs in the brief store, not in .brief sidecar '
+            . 'files - a sidecar written here would be an inert file no listing '
+            . 'shows and no migration imports, a note nobody reads. Append to the '
+            . "record instead: append_brief over MCP, or brief-append on the "
+            . 'control API, with {path, entry}. Reading an existing sidecar still '
+            . 'works.',
+        'brief-sidecar-refused',
+        'this site keeps briefs in the brief store, not .brief sidecars',
+        'append_brief / brief-append with {path, entry}'
+    );
 }
 
 # SM749: the theme or layout BEING SERVED is read-only, on every surface.
@@ -896,65 +940,81 @@ sub brief_write_refusal {
 # or the active layout (including any path that is not under lazysite/layouts).
 sub active_artifact_refusal {
     my ( $rel, $active_layout, $active_theme ) = @_;
-    return undef unless defined $rel;
+    return unless defined $rel;
     $rel =~ s{^/+}{};
     my ( $layout, $rest ) = $rel =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
-    return undef unless defined $layout;
+    return unless defined $layout;
     $rest          //= '';
     $active_layout //= '';
     $active_theme  //= '';
-    return undef unless length $active_layout && $layout eq $active_layout;
+    return unless length $active_layout && $layout eq $active_layout;
 
     if ( $rest =~ m{^themes/([^/]+)} ) {
         my $theme = $1;
-        return undef unless length $active_theme && $theme eq $active_theme;
-        return "the active theme '$theme' (layout '$layout') is being served "
-            . 'and is read-only on every surface. To change a live theme: copy it '
-            . "(copy_theme over MCP, theme-copy on the control API, or Copy on the "
-            . 'manager Themes page), edit the copy, then activate the copy '
-            . '(activate_theme / theme-activate). A theme apply is atomic; a file '
-            . 'written into the theme being rendered is not.';
+        return unless length $active_theme && $theme eq $active_theme;
+        return _refusal(
+            "the active theme '$theme' (layout '$layout') is being served "
+                . 'and is read-only on every surface. To change a live theme: copy it '
+                . "(copy_theme over MCP, theme-copy on the control API, or Copy on the "
+                . 'manager Themes page), edit the copy, then activate the copy '
+                . '(activate_theme / theme-activate). A theme apply is atomic; a file '
+                . 'written into the theme being rendered is not.',
+            'active-artifact-refused',
+            "theme '$theme' is the one being served",
+            'copy_theme / theme-copy, edit the copy, then activate it'
+        );
     }
 
     # The layout's own files (layout.tt, its assets) and its structure. A
     # layout has no copy verb - it is installed from a release - so the
     # workflow is install-or-edit-another, then activate.
-    return "the active layout '$layout' is being served and is read-only on "
-        . 'every surface. To change a live layout: install the new version '
-        . 'under another name (install_layout / layout-install) or edit a '
-        . 'layout that is not active, then activate it (activate_layout / '
-        . 'layout-activate). A layout apply is atomic; a file written into the '
-        . 'layout being rendered is not.';
+    return _refusal(
+        "the active layout '$layout' is being served and is read-only on "
+            . 'every surface. To change a live layout: install the new version '
+            . 'under another name (install_layout / layout-install) or edit a '
+            . 'layout that is not active, then activate it (activate_layout / '
+            . 'layout-activate). A layout apply is atomic; a file written into the '
+            . 'layout being rendered is not.',
+        'active-artifact-refused',
+        "layout '$layout' is the one being served",
+        'install or edit another layout, then activate it'
+    );
 }
 
 sub raw_html_page_refusal {
     my ($content) = @_;
-    return undef unless defined $content;
-    return undef unless $content =~ /\A---\s*\n(.*?)\n---\s*\n/s;    # front-matter block
+    return unless defined $content;
+    return unless $content =~ /\A---\s*\n(.*?)\n---\s*\n/s;    # front-matter block
     my $fm = $1;
-    return undef
+    return
         unless $fm =~ /^api\s*:\s*true\b/mi || $fm =~ /^raw\s*:\s*true\b/mi;
     my ($ct) = $fm =~ /^content_type\s*:\s*(.+?)\s*$/mi;
-    return undef
+    return
         unless defined $ct
         && $ct =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i;
+    my $key = ( $fm =~ /^api\s*:\s*true\b/mi ) ? 'api' : 'raw';
     # SM228: name the alternative, not only the prohibition. The reader here is
     # usually someone who wants a self-contained HTML file served unchanged, and
     # `raw:` is the front-matter key whose name invites exactly that. The answer -
     # publish it as a STATIC FILE, which lazysite serves byte-for-byte and which
     # accepts .html/.js on every authoring channel - is a different mechanism, and
     # nothing previously connected the two.
-    return
+    return _refusal(
         "This page declares a raw HTML content type ($ct), which a content page "
-        . "may not use: raw HTML/SVG bypasses the layout and theme and is served "
-        . "as plain text (ADR 0006), and external CSS/font/CDN links are refused. "
-        . "What to do instead: to publish a self-contained HTML file unchanged, "
-        . "write it as a STATIC FILE (e.g. app/index.html) - a .html with no .md "
-        . "source is served byte-for-byte, with no Markdown pipeline, layout or "
-        . "theme, and .html/.js are writable on every authoring channel. For an "
-        . "ordinary page, author Markdown and let the layout and theme style it. "
-        . "For a genuine data artifact, use a non-script content type such as "
-        . "application/json.";
+            . "may not use: raw HTML/SVG bypasses the layout and theme and is served "
+            . "as plain text (ADR 0006), and external CSS/font/CDN links are refused. "
+            . "What to do instead: to publish a self-contained HTML file unchanged, "
+            . "write it as a STATIC FILE (e.g. app/index.html) - a .html with no .md "
+            . "source is served byte-for-byte, with no Markdown pipeline, layout or "
+            . "theme, and .html/.js are writable on every authoring channel. For an "
+            . "ordinary page, author Markdown and let the layout and theme style it. "
+            . "For a genuine data artifact, use a non-script content type such as "
+            . "application/json.",
+        'raw-content-refused',
+        "front matter has $key: true with content_type $ct",
+        'publish a self-contained HTML file as a static .html, or author '
+            . 'Markdown and let the layout and theme style it'
+    );
 }
 
 # SM729: THE PAGE-PARSE GUARD LIVES HERE, beside raw_html_page_refusal, because
@@ -1056,12 +1116,22 @@ sub page_parse_issues {
 # The write-path refusal, shared by both stacks. Returns a message or undef.
 sub page_parse_refusal {
     my ( $path, $content ) = @_;
-    return undef unless defined $path    && $path    =~ /\.md$/i;
-    return undef unless defined $content && $content =~ /\[%/;
+    return unless defined $path    && $path    =~ /\.md$/i;
+    return unless defined $content && $content =~ /\[%/;
     my $body = $content;
     $body =~ s/\A---\n.*?\n---\n//s;
     my @issues = page_parse_issues($body);
-    return @issues ? $issues[0]{message} : undef;
+    return unless @issues;
+    my ($said) = $issues[0]{message} =~ /Parser said: (.*)\z/s;
+    return _refusal(
+        $issues[0]{message},
+        'template-parse-refused',
+        'the page template does not parse'
+            . ( defined $issues[0]{line} ? " (line $issues[0]{line})" : '' )
+            . ( defined $said            ? ": $said"                  : '' ),
+        'fix the template syntax; a literal [% in page JavaScript belongs in a '
+            . 'data- attribute'
+    );
 }
 
 # =========================================================================

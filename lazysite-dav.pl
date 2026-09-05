@@ -53,6 +53,8 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
 # dispatcher into the response so a refused partner knows what to fix. Declared
 # here so it is in scope at both the call site and the authorise() subs below.
 our $DENY_REASON;
+our $REFUSAL_DETAIL; # SM750: the `kind: cause - remedy` line a 415 refusal leaves for the audit
+our $DENY_DETAIL;    # SM750: the same, for a 403 whose rule composes one
 
 my $LAZYSITE_DIR = defined $DOCROOT ? Lazysite::Paths::lazysite_dir($DOCROOT) : undef; # SM293
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -183,6 +185,16 @@ sub main {
         # than retrying blindly. Plain body for a human/curl; a stable
         # X-Lazysite-Deny-Reason header for a machine client to parse.
         my $body = defined $reason ? "Forbidden: $reason\n" : "Forbidden\n";
+
+        # SM750: a denied WRITE is a fact for the trail, with its reason - the
+        # API and MCP audit their forbidden attempts; this stack logged them and
+        # did not record them, so a partner's refused PUT was invisible to the
+        # sysop reading the audit page.
+        audit_log( $user, lc($method), $rel, $ip, 'fail', 'dav',
+            defined $DENY_DETAIL ? $DENY_DETAIL
+            : defined $reason    ? "forbidden: $reason"
+            :                      "http $code" )
+            if $is_write;
         return send_status( $code, body => $body,
             ( defined $reason ? ( headers => ["X-Lazysite-Deny-Reason: $reason"] ) : () ) );
     }
@@ -243,8 +255,11 @@ sub main {
         : $method eq 'COPY'   ? 'copy'
         :                       lc($method);
     my $ok = defined $code && $code < 400;
-    audit_log( $user, $act, $target, $ip,
-        ( $ok ? 'ok' : 'fail' ), 'dav', ( $ok ? '' : "http $code" ) );
+    # SM750: a refusal that knows its cause and remedy says so in the trail;
+    # everything else keeps the status line.
+    my $detail = $ok ? '' : ( $REFUSAL_DETAIL // "http $code" );
+    $REFUSAL_DETAIL = undef;
+    audit_log( $user, $act, $target, $ip, ( $ok ? 'ok' : 'fail' ), 'dav', $detail );
     return $code;
 }
 
@@ -512,7 +527,8 @@ sub do_put {
     # only require, which sits after this wire) - so load it here first; the
     # probe that found this met "Undefined subroutine" with the sub defined.
     require Lazysite::Manager::Common;
-    if ( my $err = Lazysite::Manager::Common::brief_write_refusal( $a{rel} ) ) {
+    if ( my ( $err, $why ) = Lazysite::Manager::Common::brief_write_refusal( $a{rel} ) ) {
+        $REFUSAL_DETAIL = $why;
         return send_status( 415, body => "$err\n" );
     }
 
@@ -544,8 +560,9 @@ sub do_put {
             my $head = '';
             read( $hf, $head, 16384 );
             close $hf;
-            if ( my $err = Lazysite::Manager::Common::raw_html_page_refusal($head) ) {
+            if ( my ( $err, $why ) = Lazysite::Manager::Common::raw_html_page_refusal($head) ) {
                 unlink $tmp;
+                $REFUSAL_DETAIL = $why;
                 return send_status( 415, body => "$err\n" );
             }
         }
@@ -569,10 +586,11 @@ sub do_put {
         if ( open my $bf, '<:encoding(UTF-8)', $tmp ) {
             my $body = do { local $/; <$bf> };
             close $bf;
-            if ( my $err
+            if ( my ( $err, $why )
                 = Lazysite::Manager::Common::page_parse_refusal( $a{rel}, $body ) )
             {
                 unlink $tmp;
+                $REFUSAL_DETAIL = $why;
                 return send_status( 415, body => "$err\n" );
             }
         }
@@ -1408,12 +1426,13 @@ sub acl_allows {
 # A partner that gets "Forbidden" with no detail resorts to trial and error
 # (the reported theme-install pain). Set the reason just before returning the
 # code; the dispatcher reads $DENY_REASON into the body + X-Lazysite-Deny-Reason.
-sub _deny { $DENY_REASON = $_[1]; return $_[0]; }
+sub _deny { ( $DENY_REASON, $DENY_DETAIL ) = ( $_[1], $_[2] ); return $_[0]; }
 
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
     $DENY_REASON = undef;    # cleared here; set by _deny(), read by the caller
+    $DENY_DETAIL = undef;
 
     # SM072: lazysite/nav.conf is agent-editable over WebDAV, gated by the
     # dedicated `manage_nav` capability - the SAME capability the control-API
@@ -1539,10 +1558,10 @@ sub authorise_layout {
     # This stack reads its own pointers and passes them; the rule is pure.
     if ($is_write) {
         require Lazysite::Manager::Common;
-        if ( my $err = Lazysite::Manager::Common::active_artifact_refusal(
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::active_artifact_refusal(
                 $rel, $active_layout, $active_theme ) )
         {
-            return _deny( 403, $err );
+            return _deny( 403, $err, $why );
         }
     }
 

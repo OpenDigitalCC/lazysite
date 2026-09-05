@@ -95,8 +95,10 @@ my $rd = mapi( $d, REQUEST_METHOD => 'GET',
     QUERY_STRING          => 'action=read&path=/lazysite/forms/smtp.conf',
     HTTP_X_REMOTE_USER    => 'local',
     LAZYSITE_AUTH_TRUSTED => 1 );
-ok( !$rd->{ok} && ( $rd->{error} // '' ) =~ /block/i,
-    'F3: manager read of forms/smtp.conf refused' );
+ok( !$rd->{ok} && ( $rd->{kind} // '' ) eq 'blocked',
+    'F3: manager read of forms/smtp.conf refused as blocked' );
+like( $rd->{error} // '', qr/reserved lazysite\/ tree/,
+    'F3: and the refusal names the tree (SM750), not only a verdict' );
 unlike( encode_json($rd), qr/hunter2/, 'F3: the SMTP password is never returned' );
 
 # F4 - cannot clobber an existing passwordless account.
