@@ -1,0 +1,17 @@
+#!/bin/sh
+# lazysite-common.postrm - the pair of the postinst (F8.4): after the unit files
+# are removed, systemd should stop knowing them. Purge only touches what
+# dpkg does not; this package keeps no state of its own outside /etc/lazysite.
+set -e
+
+case "$1" in
+    remove|purge)
+        if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+            systemctl --system daemon-reload >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

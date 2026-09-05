@@ -1,0 +1,28 @@
+#!/bin/sh
+# lazysite-common.postinst - F8.4 of the 0.13.1 daemon review.
+#
+# Both systemd units this package ships - lazysite@.service (the FastCGI pool)
+# and lazysited@.service (the persistent runtime) - are TEMPLATES, and
+# dh_installsystemd generates no maintainer-script snippets for a package whose
+# only units are templates (measured: debhelper 13.24, compat 13, an
+# uninstantiated pkgx@.service produces no postinst, no daemon-reload). So an
+# upgrade that changed either unit file was not seen by systemd until an
+# operator ran daemon-reload by hand, and nothing told them to.
+#
+# This does the one thing that snippet would have done: tell systemd the unit
+# files changed. It does NOT restart instances - which sites restart, and when,
+# is the operator's call (README.Debian says how), and a package upgrade must
+# not take a fleet's runtimes down at once.
+set -e
+
+case "$1" in
+    configure)
+        if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+            systemctl --system daemon-reload >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
