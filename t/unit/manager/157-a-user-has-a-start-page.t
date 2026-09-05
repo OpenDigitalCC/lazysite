@@ -25,14 +25,12 @@ use IPC::Open2 qw(open2);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root grant_caps revoke_caps);
+use TestHelper qw(repo_root grant_caps revoke_caps site_tempdir);
 use Lazysite::Manager::StartPage qw(parse_start_page validate_start_page start_page_choices resolve_start_page fallback_landing);
 
 my $root = repo_root();
 my $utl  = "$root/tools/lazysite-users.pl";
-my $t    = tempdir( CLEANUP => 1 );
-mkdir "$t/site";
-my $d = "$t/site/public_html";
+my $d    = site_tempdir();    # SM754: one level down, so sibling writes go with it
 make_path( "$d/lazysite/auth", "$d/lazysite/logs", "$d/sites/shop", "$d/sites/blog" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} <<'CONF';

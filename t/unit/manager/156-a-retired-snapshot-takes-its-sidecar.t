@@ -10,12 +10,12 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(site_tempdir);
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Backups qw(action_backup_create action_backup_delete _apply_retention);
 
-my $t = tempdir( CLEANUP => 1 );
-mkdir "$t/site";
-my $d = "$t/site/public_html";
+my $d = site_tempdir();    # SM754: one level down, so sibling writes go with it
 make_path("$d/lazysite/logs");
 open my $fh, '>', "$d/index.html" or die $!;
 print {$fh} "<h1>x</h1>\n";

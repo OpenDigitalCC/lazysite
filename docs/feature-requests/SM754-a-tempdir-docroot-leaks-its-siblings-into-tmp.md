@@ -4,7 +4,8 @@ title: "SM754: a test that uses a bare tempdir as a docroot leaks the docroot's 
 subtitle: "The engine writes beside the docroot - the private store at <docroot>-lazysite-private, the Hestia layout's plugins/ tools/ lib/ at ../ - and File::Temp cleans only the directory it made. /tmp on the dev host holds 15,386 entries and 356 MB of them, and a leaked /tmp/plugins/stats.pl made a 'plugin not found' assertion pass for the wrong reason."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "HALF BUILT 2026-09-05 (claude/sm740-sm754-and-the-pre-cut-pass, 0.13.1): TestHelper::site_tempdir() puts a test docroot one level down so every sibling write lands inside what CLEANUP removes; t/lint/118 counts tests still handing a bare tempdir to the engine as a docroot against a ceiling that only goes down (471 at ship, from 476 - five fixtures converted). The conversion of the rest is the other half, and the dev host's /tmp has not been cleared: both remain open and the ceiling is how they stay visible."
 ---
 
 # What was found

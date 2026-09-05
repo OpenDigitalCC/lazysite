@@ -17,7 +17,7 @@ use JSON::PP                 ();
 use Lazysite::Util           ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface);
+our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface implied_by implications);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -242,8 +242,20 @@ my %ACTION_INFO = (
     # the operator already trusted with row-writes elsewhere, and SM682 records
     # the SM647 remedy for that residue.
     write_data => {
-        title  => 'Write rows in data tables that name your group, and nothing else.',
-        grants =>
+        title => 'Write rows in data tables that name your group, and nothing else.',
+
+        # SM740: a HIERARCHY, declared. manage_data admits every action this
+        # unlocks (the gate is ANY-OF, SM662), so an account holding manage_data
+        # loses nothing when this is withheld - and two sibling booleans in
+        # whoami said otherwise. The field read them as a partition, withheld
+        # this to stop row writes, and watched a row land. Declared here, not
+        # derived from the unlock lists: manage_services' one unlock is also in
+        # manage_config's and is NOT implied (config-set needs both for a
+        # service key - an AND), so subsumption alone would lie. t/lint/117
+        # holds that a declaration is true and that every undeclared
+        # subsumption is exempted with its reason.
+        implied_by => ['manage_data'],
+        grants     =>
             'Insert, update and delete ROWS in the data tables whose `writable_by` names one of your groups - and no others. It does NOT declare, alter, migrate or drop a table, and it reaches no table that does not name you. Grant this to an app\'s own users where `manage_data` (every table on the instance, plus schema control) would be far too wide.',
         unlocks => {
             api => [qw(data-row-save data-row-delete)],
@@ -652,12 +664,44 @@ sub _scan_docs {
 # `holds` disagreeing with observable behaviour is exactly the confusion this
 # block exists to remove. Needs a docroot to read the killswitches; without one
 # the dormancy answer is simply omitted rather than guessed.
+# SM740: the declared hierarchy. implied_by($cap) lists the capabilities that
+# admit everything $cap unlocks; implications($caps) says, for an account, which
+# withheld capabilities are nonetheless satisfied and by what - so whoami can
+# print a false that does not read as a withholding.
+sub implied_by {
+    my ($cap) = @_;
+    my $i = ( $ACTION_INFO{$cap} || {} )->{implied_by} || [];
+    return @$i;
+}
+
+sub implications {
+    my ($caps) = @_;
+    $caps ||= {};
+    my %out;
+    for my $k (@CAP_KEYS) {
+        next if $caps->{$k};
+        my ($by) = grep { $caps->{$_} } implied_by($k);
+        next unless defined $by;
+        $out{$k} = {
+            satisfied_by => $by,
+            note => "$k is false above because it was not granted directly; $by is "
+                . "held and admits everything $k unlocks, so this account can do all of "
+                . "it. Withholding $k here changes nothing.",
+        };
+    }
+    return \%out;
+}
+
 sub _holds_why {
     my ( $caps, $docroot ) = @_;
     my %why;
     for my $k (@CAP_KEYS) {
         if ( !$caps->{$k} ) {
-            $why{$k} = 'not granted to this account. The capability exists in '
+            my ($by) = grep { $caps->{$_} } implied_by($k);
+            $why{$k} = defined $by
+                ? "not granted directly, but SATISFIED by $by, which admits everything "
+                . "$k unlocks - withholding $k from this account changes nothing (SM740)."
+                : 'not granted to this account. The capability exists in '
                 . 'lazysite - ask the sysop to grant it.';
             next;
         }
@@ -762,10 +806,18 @@ sub describe {
         # capabilities and the generated capability map all get the same
         # words. A second copy written for the UI alone would be the shape of
         # defect this project keeps filing.
+        my @imp = @{ $info->{implied_by} || [] };
         $capabilities{$a} = {
-            title   => $info->{title},
-            grants  => ( $info->{grants} // '' ),
+            title  => $info->{title},
+            grants => ( $info->{grants} // '' )
+                . ( @imp
+                ? ' IMPLIED BY ' . join( ' / ', @imp ) . ': an account holding '
+                    . ( @imp > 1 ? 'any of those' : $imp[0] )
+                    . ' may already do everything this unlocks, so withholding this from '
+                    . 'such an account changes nothing. Grant THIS, alone, for the lower level of privilege.'
+                : '' ),
             unlocks => $info->{unlocks},
+            ( @imp ? ( implied_by => \@imp ) : () ),
         };
     }
 
@@ -796,6 +848,9 @@ sub describe {
                 . 'for a grant. See "why" for the reason each false is false.',
             capabilities => { map { $_ => ( $caps->{$_} ? $T : $F ) } @CAP_KEYS },
             why          => _holds_why( $caps, $opt{docroot} ),
+
+            # SM740: the pairs where a false above is not a withholding.
+            implied => implications($caps),
         };
     }
 

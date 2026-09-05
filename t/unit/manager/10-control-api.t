@@ -601,4 +601,20 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     }
 }
 
+# SM740: two capabilities that are a HIERARCHY were shown as two independent
+# booleans, and the field withheld the weaker one expecting writes to stop.
+# whoami now says which false values are satisfied by a stronger grant.
+{
+    uapi( $d, { action => 'add', username => 'tabler', password => 'x' } );
+    grant_caps( $d, 'tabler', 'ui', 'api', 'manage_data' );    # NOT write_data
+    my $w = mapi( $d, QUERY_STRING => 'action=whoami',
+        HTTP_X_REMOTE_USER => 'tabler', HTTP_X_REMOTE_GROUPS => 'role-tabler' );
+    ok( !$w->{capabilities}{write_data}, 'write_data reads false - not granted directly' );
+    is( $w->{implied}{write_data}{satisfied_by}, 'manage_data',
+        'and the implied block says manage_data satisfies it' );
+    like( $w->{implied}{write_data}{note}, qr/changes nothing/,
+        'saying what withholding write_data achieves for this account: nothing' );
+    ok( !exists $w->{implied}{manage_data}, 'the stronger right is not implied by anything' );
+}
+
 done_testing();

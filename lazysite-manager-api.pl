@@ -3948,6 +3948,11 @@ sub action_whoami {
         # and no test noticed, because the test pinned the derivation and
         # neither surface's emission. t/integration/69 now pins both.
         reachable => reachability($s),
+        # SM740: which capabilities reported false above are nonetheless SATISFIED
+        # by a stronger one this account holds - manage_data admits everything
+        # write_data unlocks - so a false never reads as a withholding. The same
+        # derivation the MCP whoami uses.
+        implied => Lazysite::Capabilities::implications($s),
         # SM612: WHICH TRANSPORTS THIS INSTANCE HAS SWITCHED ON, beside what
         # the grant holds. Reported as its own block rather than folded into
         # `reachable`, for two reasons found by trying the other way: services

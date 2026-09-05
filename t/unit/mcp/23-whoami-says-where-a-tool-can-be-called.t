@@ -65,4 +65,15 @@ subtest 'and it says what path_only MEANS' => sub {
         'and how to widen it' );
 };
 
+# SM740: the twin block. Both whoamis derive `implied` from the same function,
+# so a partner switching surface reads the same answer to "what does withholding
+# this achieve" - the SM288 rule for every field the two share.
+subtest 'both whoamis carry the SM740 implied block from one derivation' => sub {
+    like( $src, qr/implied\s*=>\s*Lazysite::Capabilities::implications\(\$caps\)/,
+        'MCP whoami: implied from Capabilities::implications' );
+    my $api = do { open my $fh, '<', "$FindBin::Bin/../../../lazysite-manager-api.pl" or die $!; local $/; <$fh> };
+    like( $api, qr/implied\s*=>\s*Lazysite::Capabilities::implications\(\$s\)/,
+        'control-API whoami: the same function' );
+};
+
 done_testing();

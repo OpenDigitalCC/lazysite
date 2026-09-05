@@ -29,12 +29,10 @@ use JSON::PP   ();
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 BEGIN { $ENV{LAZYSITE_API_LOAD_ONLY} = 1 }
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 my $root = repo_root();
-my $t    = tempdir( CLEANUP => 1 );
-mkdir "$t/site";
-my $tmp = "$t/site/public_html";
+my $tmp  = site_tempdir();    # SM754: one level down, so sibling writes go with it
 make_path("$tmp/lazysite/layouts/studio/themes/live/assets");
 make_path("$tmp/lazysite/layouts/studio/themes/draft/assets");
 make_path("$tmp/lazysite/layouts/other/themes/live");

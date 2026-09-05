@@ -12,6 +12,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     gate_caps gate_predicates
+    site_tempdir
     repo_root processor_path
     load_processor silence_stdout
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
@@ -198,6 +199,28 @@ sub env_passthrough {
 # putting them in a per-user role group carrying those caps; revoke by clearing
 # them. Writes the auth files DIRECTLY (no users-tool subprocess) - the suite makes
 # thousands of these, and forking the tool each time exhausts resources.
+# SM754: a docroot for a test, ONE LEVEL DOWN from the temporary directory that
+# CLEANUP removes.
+#
+# The engine writes beside a docroot by design - the private store at
+# <docroot>-lazysite-private (t/lint/51), the Hestia layout's plugins/ tools/
+# lib/ at ../ - and File::Temp cleans only the directory it made. A bare
+# tempdir() docroot therefore leaks its siblings into /tmp: 15,386 entries and
+# 356 MB on the dev host when this was written, and one of them - a leaked
+# /tmp/plugins/stats.pl - made a "plugin not found" assertion pass for the
+# wrong reason (t/unit/daemon/05, where this was first done by hand).
+#
+# Returns the docroot path; everything the engine writes beside it lands
+# inside the tempdir and goes with it. Pass a name for the leaf (default
+# public_html, the Hestia shape) when a test cares what the docroot is called.
+sub site_tempdir {
+    my (%o) = @_;
+    my $t   = File::Temp::tempdir( CLEANUP => 1 );
+    my $d   = "$t/site/" . ( $o{leaf} // 'public_html' );
+    make_path($d);
+    return $d;
+}
+
 sub grant_caps {
     my ( $docroot, $user, @caps ) = @_;
     my $group = "role-$user";

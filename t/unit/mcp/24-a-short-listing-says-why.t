@@ -17,13 +17,12 @@ use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2 qw(open2);
 use File::Temp qw(tempdir);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(site_tempdir);
 
 my $root = "$FindBin::Bin/../../..";
 my $mcp  = "$root/lazysite-mcp.pl";
-my $t    = tempdir( CLEANUP => 1 );
-mkdir "$t/site";
-my $d = "$t/site/public_html";
-mkdir $d;
+my $d    = site_tempdir();           # SM754: one level down, so sibling writes go with it
 mkdir "$d/lazysite";
 mkdir "$d/lazysite/auth";
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;

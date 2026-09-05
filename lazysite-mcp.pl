@@ -462,6 +462,9 @@ my %TOOLS = (
                 # from the same derivation - so the two surfaces cannot
                 # disagree about which door is open (SM288).
                 reachable => Lazysite::Capabilities::reachability($caps),
+                # SM740: the twin of the API whoami's block - which false values above
+                # are not withholdings, because a stronger grant satisfies them.
+                implied => Lazysite::Capabilities::implications($caps),
                 # SM612: the twin of the API whoami's block - which transports
                 # this INSTANCE has switched on, beside what the grant holds.
                 services => {

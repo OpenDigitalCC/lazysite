@@ -14,7 +14,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps revoke_caps env_passthrough);
+use TestHelper qw(repo_root grant_caps revoke_caps env_passthrough site_tempdir);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -47,9 +47,7 @@ sub run_auth {
     return $out // '';
 }
 
-my $t = tempdir( CLEANUP => 1 );
-mkdir "$t/site";
-my $d = "$t/site/public_html";
+my $d = site_tempdir();    # SM754: one level down, so sibling writes go with it
 make_path( "$d/lazysite/auth", "$d/lazysite/logs", "$d/sites/shop" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Test\nsite_url: https://main.example\nmanager: enabled\nalias_hosts: shop.example\nalias.shop.example.content_root: sites/shop\n";

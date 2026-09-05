@@ -4,7 +4,8 @@ title: "SM740: a capability pair looks like a partition when it is a hierarchy"
 subtitle: "whoami presents manage_data and write_data as two independent booleans. They are ANY-OF halves of one right, so withholding the weaker one changes nothing - and the presentation is what invites an operator to think it does."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "BUILT 2026-09-05 (claude/sm740-sm754-and-the-pre-cut-pass, 0.13.1), presentation only as decided 2026-09-03. The hierarchy is DECLARED: write_data carries implied_by => [manage_data] in Capabilities.pm - declared rather than derived from the unlock lists, because manage_services' one unlock is also manage_config's and is NOT a hierarchy (config-set needs both for a service key), so subsumption alone would lie. describe_capabilities appends IMPLIED BY manage_data to write_data's grants sentence and carries implied_by as a field; holds.why says SATISFIED by manage_data instead of not granted; both whoamis carry an implied block from one derivation (Capabilities::implications) naming what satisfies each false and saying that withholding it changes nothing. The gate is untouched. t/lint/117 holds that every declared implication is backed by the unlock lists on every channel and that every undeclared subsumption is exempted with its reason - the lint the field proposed, made ANY-OF-aware."
 ---
 
 # The moment this fills
