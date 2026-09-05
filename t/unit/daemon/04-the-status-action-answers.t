@@ -35,13 +35,15 @@ plan skip_all => 'no daemon plugin' unless -f $plugin;
 
 sub status_for {
     my ($docroot) = @_;
+
     # PERL5OPT cleared for the same reason t/tools/60 clears it: this may run
     # inside a coverage run, and the inner process should not inherit it.
     local $ENV{PERL5OPT}              = '';
     local $ENV{HARNESS_PERL_SWITCHES} = '';
     local $ENV{PERL5LIB}              = '';
-    return scalar
-        qx($^X \Q$plugin\E --action status --docroot \Q$docroot\E 2>/dev/null);
+    return
+      scalar
+      qx($^X \Q$plugin\E --action status --docroot \Q$docroot\E 2>/dev/null);
 }
 
 sub site {
@@ -63,38 +65,58 @@ subtest 'enabled but not started - the state the field found empty' => sub {
 
     ok( defined $out && length $out,
         'the action produces OUTPUT - this returned nothing in 0.13.0' )
-        or return;
+      or return;
 
     my $st = eval { JSON::PP->new->decode($out) };
     ok( ref $st eq 'HASH', 'and it is JSON the manager can render' )
-        or do { diag($out); return };
+      or do { diag($out); return };
 
-    is( $st->{desired}, 'up',
-        'desired: up - the plugin is enabled, which the manager knows' );
-    is( $st->{services}[0]{runtime}, 'not-started',
-        'runtime: not-started - and NOT a claim to be running' );
-    like( $st->{reason}, qr/enabled/, 'with a reason in words' );
+    # SM222's vocabulary: desired is what the configuration says, verdict is
+    # what the runtime is doing, and when they disagree the verdict SAYS so.
+    is( $st->{desired}, 'on',
+        'desired: on - the plugin is enabled, which the manager knows' );
+    is( $st->{verdict}, 'inconsistent',
+            'verdict: inconsistent - switched on and not running, NOT a claim '
+          . 'to be running' );
+    is( $st->{services}[0]{verdict},
+        'inconsistent', 'and the scheduler service says the same of itself' );
+    ok( !$st->{healthy}, 'which is not a healthy state' );
+    like(
+        $st->{message},
+        qr/not running/,
+        'with a message in words an operator can read'
+    );
+    like(
+        $st->{remedy},
+        qr/systemctl enable --now lazysited\@/,
+        'and a remedy that names the command, not "check the host service"'
+    );
 };
 
 subtest 'disabled - the other half of the same question' => sub {
     my $out = status_for( site() );
     ok( defined $out && length $out, 'still answers when the plugin is off' )
-        or return;
+      or return;
 
     my $st = eval { JSON::PP->new->decode($out) };
     ok( ref $st eq 'HASH', 'as JSON' ) or do { diag($out); return };
 
-    is( $st->{desired}, 'down', 'desired: down' );
-    like( $st->{reason}, qr/disabled/,
+    is( $st->{desired}, 'off', 'desired: off' );
+    is( $st->{verdict}, 'off', 'verdict: off - off is what was asked for' );
+    ok( $st->{healthy},        'so it is healthy, and carries no remedy' );
+    ok( !exists $st->{remedy}, 'no remedy on a healthy status' );
+    like( $st->{message}, qr/disabled/,
         'and says the plugin is disabled, which is why nothing runs' );
 };
 
 subtest 'the action is declared, so the button exists to be pressed' => sub {
+
     # A status action that works but is not advertised is as useless to an
     # operator as one that is advertised and does not work.
     local $ENV{PERL5OPT}              = '';
     local $ENV{HARNESS_PERL_SWITCHES} = '';
     local $ENV{PERL5LIB}              = '';
+
     # SCALAR FIRST. `qx` as an argument is in LIST context and returns a list
     # of LINES, so decode would get only "{" - which is the bug this session
     # fixed in t/lint/76 and which I then wrote again here, three hours later,
