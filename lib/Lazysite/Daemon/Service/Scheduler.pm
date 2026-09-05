@@ -31,6 +31,7 @@ use strict;
 use warnings;
 use Lazysite::Util               qw(log_event);
 use Lazysite::Daemon::Supervisor ();
+use Lazysite::Daemon::Jobs       ();
 
 our $VERSION = '0.1';
 
@@ -44,10 +45,17 @@ our $VERSION = '0.1';
 # `run`    - a coderef taking (%ctx). It performs the work; it does NOT decide
 #            whether it is allowed to, which is checked before it is called.
 #
-# Phase 1 ships ONE job, deliberately. The point of the phase is the machinery
-# - the identity, the gate, the record - and a second job proves none of it
-# twice. The maintenance work SM340 named (retention sweeps, token expiry,
-# stats rollups) arrives once this has run somewhere real.
+# 0.13.0 shipped ONE job, deliberately: the heartbeat proved the identity, the
+# gate and the record with nothing else to go wrong. 0.13.1 adds the work
+# SM666 named as the reason a scheduler exists at all - the maintenance that
+# ran on the back of a visitor's page view, or did not run. The bodies live
+# in Lazysite::Daemon::Jobs; this table is the set, the schedule and the gate.
+#
+# `needs` IS THE CAPABILITY THE SAME WORK COSTS THROUGH THE MANAGER. The
+# stats export is what analyse_visitors runs, and analyse_visitors is gated
+# on analytics; the session registry is listed and revoked under
+# manage_users. A job that needed less than the manager asks for the same
+# work would be the scheduled-work exemption this module exists to refuse.
 our %JOBS = (
     'daemon-heartbeat' => {
         every => 300,
@@ -56,6 +64,27 @@ our %JOBS = (
             my (%ctx) = @_;
             return { ok => 1, detail => 'alive' };
         },
+    },
+
+    # Close the day, flush and expire the trails, trim the export cache - on a
+    # clock, so a day file is complete whether or not anyone read the
+    # statistics that day (SM343), and so the visitor who happens to arrive
+    # first does not pay for the ingest (SM340). Hourly: the export is
+    # incremental against its cache, and the first run after midnight UTC is
+    # the one that closes the day.
+    'stats-rollup' => {
+        every => 3600,
+        needs => 'analytics',
+        run   => \&Lazysite::Daemon::Jobs::stats_rollup,
+    },
+
+    # Expire the session registry and the revocation list without waiting for
+    # a login to do it. A row older than the session lifetime describes a
+    # cookie that can no longer verify, and carries an IP and a user agent.
+    'sessions-sweep' => {
+        every => 3600,
+        needs => 'manage_users',
+        run   => \&Lazysite::Daemon::Jobs::sessions_sweep,
     },
 );
 
@@ -127,13 +156,19 @@ sub _read_runs {
     return ref $d eq 'HASH' ? $d : {};
 }
 
+# Temp and rename, with the close checked. The first version truncated the
+# file in place, which on a crash or a full disk leaves a torn record - and a
+# torn record reads as an empty one, so every job would run again at once.
+# The engine writes its JSON this way everywhere else; the daemon does too.
 sub _write_runs {
     my ( $root, $runs ) = @_;
-    my $f = _state_file($root);
+    my $f   = _state_file($root);
+    my $tmp = "$f.tmp.$$";
     require JSON::PP;
-    open my $fh, '>:utf8', $f or return 0;
+    open my $fh, '>:utf8', $tmp or return 0;
     print {$fh} JSON::PP->new->canonical->pretty->encode($runs);
-    close $fh;
+    unless ( close $fh )       { unlink $tmp; return 0 }
+    unless ( rename $tmp, $f ) { unlink $tmp; return 0 }
     return 1;
 }
 
@@ -216,7 +251,28 @@ sub tick {
             next;
         }
 
-        $runs->{$name} = { last_run => $now, outcome => 'ok', actor => $user };
+        # A body that returns ok => 0 completed and is reporting that the work
+        # could not be done - the stats plugin missing, a file that would not
+        # write. Distinct from dying, and carrying its own reason, which the
+        # record keeps verbatim: an operator reading it should not have to
+        # find the log line to learn which.
+        if ( ref $res eq 'HASH' && !$res->{ok} ) {
+            my $why = $res->{error} // 'the job reported failure without a reason';
+            $runs->{$name} = { last_run => $now, outcome => 'error',
+                reason => $why, actor => $user };
+            log_event( 'ERROR', 'scheduler', 'job failed',
+                job => $name, actor => $user, reason => $why );
+            push @done, { job => $name, outcome => 'error', reason => $why };
+            next;
+        }
+
+        # `detail` is what the job did, in numbers where it has them - the
+        # record is the only place an operator can see that a rollup closed a
+        # day or a sweep removed nothing.
+        $runs->{$name} = { last_run => $now, outcome => 'ok', actor => $user,
+            ( ref $res eq 'HASH' && defined $res->{detail}
+                ? ( detail => $res->{detail} )
+                : () ) };
 
         # The audit row names the REAL user. Not 'scheduler', not 'system' -
         # so a row written at 03:00 answers the same question as one written by

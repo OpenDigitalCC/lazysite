@@ -21,7 +21,7 @@ use warnings;
 use JSON::PP       qw(encode_json decode_json);
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
-our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revoke);
+our @EXPORT_OK = qw(action_sessions_list action_session_revoke action_user_revoke sweep_expired);
 
 our $LAZYSITE_DIR = '';
 our $auth_user    = '';
@@ -149,6 +149,83 @@ sub action_user_revoke {
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', $auth_user, 'all sessions revoked for user', user => $username );
     return { ok => 1, user => $username };
+}
+
+
+# SM666: the registry's retention, as a callable.
+#
+# Until now the ONLY thing that pruned sessions.jsonl was a login: the auth
+# wrapper rewrites the file when it appends a fresh line and finds a stale one.
+# That is a retention that runs when there is new data to write - and a site
+# nobody signs in to for a month keeps a month of expired rows, each carrying
+# a visitor's IP and user agent (lazysite-check names them as personal data),
+# for no reason a reader could defend. The stats plugin states the rule this
+# breaks: a retention that only runs when there is fresh data is not a
+# retention.
+#
+# The rule applied is the reader's own (action_sessions_list): a row older
+# than the session lifetime is dead by definition, because no cookie it
+# describes can still verify. Revocations get the same treatment through the
+# writer that already prunes them, so the two files age out together.
+#
+# Returns { ok, removed, kept, revocations_pruned } for the record; the caller
+# is the scheduler, which names the actor in its own audit row.
+sub sweep_expired {
+    my $now    = time();
+    my $cutoff = $now - _cookie_max();
+    my $path   = _registry_path();
+
+    my @keep;
+    my $removed = 0;
+    if ( open my $rfh, '<:raw', $path ) {
+        while ( my $l = <$rfh> ) {
+            my ($t) = $l =~ /"t":(\d+)/;
+            if ( defined $t && $t <= $cutoff ) { $removed++; next }
+            push @keep, $l;
+        }
+        close $rfh;
+    }
+
+    if ($removed) {
+        my $tmp = "$path.tmp.$$";
+        open my $wfh, '>:raw', $tmp
+            or return { ok => 0, error => "Cannot write $tmp: $!" };
+        chmod 0o660, $tmp;
+        print {$wfh} @keep;
+        unless ( close $wfh ) {
+            my $e = $!;
+            unlink $tmp;
+            return { ok => 0, error => "Cannot finish $tmp: $e" };
+        }
+        unless ( rename $tmp, $path ) {
+            my $e = $!;
+            unlink $tmp;
+            return { ok => 0, error => "Cannot replace $path: $e" };
+        }
+    }
+
+    # revoked.json prunes on write. Count what the write will drop so the
+    # record says so, and write only when there is something to drop - a
+    # rewrite that changes nothing is a modification time that lies.
+    my $pruned = 0;
+    if ( -f _revoked_path() ) {
+        my $rev = _read_revoked();
+        for my $bucket (qw(sids not_before)) {
+            $pruned += grep { ( $rev->{$bucket}{$_} || 0 ) < $cutoff }
+                keys %{ $rev->{$bucket} };
+        }
+        if ($pruned) {
+            my ( $ok, $err ) = _write_revoked($rev);
+            return { ok => 0, error => $err } unless $ok;
+        }
+    }
+
+    return {
+        ok                 => 1,
+        removed            => $removed,
+        kept               => scalar @keep,
+        revocations_pruned => $pruned,
+    };
 }
 
 1;

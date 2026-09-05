@@ -4,7 +4,7 @@ subtitle: "Release manager, 2026-08-28: 'possibly the persistent daemon separate
 brand: plain
 standard-margins: true
 status: partial
-status-note: "PHASE 1 BUILT 2026-09-03: the supervisor, the scheduler as its first service running as its own child, the ADR 0009 declaration that makes the runtime born disabled, and run_jobs through every capability parity point. Disabled means the process never starts - asserted by t/unit/daemon/01, whose strongest check is that no state directory is created. A job runs as a user holding run_jobs and never as system, failing closed in every direction, with the audit row naming the real account. WHAT REMAINS FOR PHASE 1: the templated unit lazysited@.service now ships (Restart=on-failure, not always - a disabled runtime exits 0 and always would hot-loop it on every instance with the plugin off). Outstanding: the fleet provisioning flag on lazysite-hestia-domain, and the fact that nothing has run on a real host - the privilege drop is exercised only in its unprivileged branch because the suite is not root. WHAT REMAINS BEYOND: phases 2-4 (the local socket and proxy mapping, WebSocket via SM221, federation via SM090) and the SM222 debt, which is the local lifecycle verbs moving onto the shared contract when SM222 lands."
+status-note: "PHASE 1 COMPLETE 2026-09-05, pending a real host: the scheduler carries two real jobs (an hourly stats rollup under analytics, an hourly session-registry sweep under manage_users - each needing exactly what the manager charges for the same work), and lazysite-hestia-domain add --daemon writes the unit's conf and enables it, so an operator provisions the runtime the way they provision the pool. Still true: nothing has run on a real host, and the privilege drop is proved only in its unprivileged branch. An eight-dimension review of the service (docs/review/0.13.1-daemon/) precedes the 0.13.1 cut. EARLIER, 2026-09-03: the supervisor, the scheduler as its first service running as its own child, the ADR 0009 declaration that makes the runtime born disabled, and run_jobs through every capability parity point. Disabled means the process never starts - asserted by t/unit/daemon/01, whose strongest check is that no state directory is created. A job runs as a user holding run_jobs and never as system, failing closed in every direction, with the audit row naming the real account. WHAT REMAINS FOR PHASE 1: the templated unit lazysited@.service now ships (Restart=on-failure, not always - a disabled runtime exits 0 and always would hot-loop it on every instance with the plugin off). Outstanding: the fleet provisioning flag on lazysite-hestia-domain, and the fact that nothing has run on a real host - the privilege drop is exercised only in its unprivileged branch because the suite is not root. WHAT REMAINS BEYOND: phases 2-4 (the local socket and proxy mapping, WebSocket via SM221, federation via SM090) and the SM222 debt, which is the local lifecycle verbs moving onto the shared contract when SM222 lands."
 ---
 
 # The decision this takes
@@ -607,6 +607,79 @@ enumerates every plugin, so an unknown future subject disappears SILENTLY - and
 that difference is the whole reason to fix one and file the others.
 
 
+## 0.13.1: the real jobs, and what the survey of opportunistic maintenance found
+
+Phase 1 shipped one job and said why. Before adding the real ones, the engine
+was surveyed for everything that currently runs "opportunistically" - on the
+back of a request, or from a CLI verb, or not at all - since a job that
+reinvented work the engine already does would be a second implementation of it.
+What the survey found, area by area:
+
+- **Stats rollups and the export cache.** Both happen inside
+  `plugins/stats.pl --export`, which runs only when the Stats page is opened or
+  `analyse_visitors` is called. That is SM343's finding restated as a schedule:
+  a closed day was written once more after it closed only if somebody looked.
+  The export also flushes and expires visitor trails and trims the export
+  cache. **This is the ready-made job**: the plugin is a standalone script
+  taking `--docroot`, and the manager API already runs it as a subprocess.
+- **Session and token expiry.** Entirely lazy - checked at use, never
+  collected. The one sweep that existed, of `sessions.jsonl`, ran only when a
+  login appended a fresh row; a site nobody signs in to for a month kept a month
+  of expired rows carrying IP and user agent. `revoked.json` prunes on write,
+  and a write happens only on a revocation.
+- **Access-log retention.** `_access_prune` runs on the first request of a new
+  UTC day, inside the processor, which is module-free by ADR 0001. It is already
+  once-a-day and cheap; it stays where it is.
+- **Backup rotation.** Runs after a successful backup and nowhere else. The
+  survey also found `backup_retention` read by THREE parsers with two defaults
+  (the manager's 10, the installer's 3) and the manager's rotation leaving
+  `.sha256` sidecars behind. A timer deleting a sysop's backups is a new
+  behaviour, and one to build on a single reading of the key - so it is not a
+  phase 1 job and is filed separately rather than absorbed.
+
+So two jobs, chosen because they are work the engine already does for a
+capability the manager already names:
+
+**`stats-rollup`** - hourly, needs `analytics`. Runs
+`plugins/stats.pl --export --index --docroot ROOT` in list form with
+`LAZYSITE_ACTING_USER` set to the job account, exactly as `analyse_visitors`
+does. `--index` because the export does the same work whichever view it prints,
+and the index is the smallest. The first run after midnight UTC is the one that
+closes the day. `t/unit/daemon/05` runs the REAL plugin against one hit dated
+yesterday and asserts the durable day file exists with nobody having read the
+statistics - SM343's failure, made impossible by a clock.
+
+**`sessions-sweep`** - hourly, needs `manage_users`. Applies the session
+reader's own rule (`action_sessions_list`: a row older than the session
+lifetime describes a cookie that can no longer verify) to the registry, and
+prunes `revoked.json` through the writer that already does so. Lives in
+`Lazysite::Manager::Sessions::sweep_expired` beside the reader whose rule it
+applies. Writes only when there is something to remove: a rewrite that changes
+nothing is a modification time that lies.
+
+**`needs` is the capability the manager charges for the same work**, and the
+test reads that from the manager API's own gate table rather than restating it:
+`analyse_visitors` is gated on `analytics`; `sessions-list` on `manage_users`.
+A job needing less would be the scheduled-work exemption the scheduler exists to
+refuse. A job account holding `run_jobs` alone runs the heartbeat and is refused
+the other two BY NAME of the missing capability - and per the 0.13.0 rule, the
+refusal does not consume the slot, so a grant takes effect on the next tick.
+
+A body returning `ok => 0` is now recorded as an error with its reason verbatim
+(the plugin missing, a non-zero exit), distinct from a body that died; a
+successful body's `detail` (days indexed; rows removed and kept) goes on the run
+record, because that record is the only place an operator can see that a rollup
+closed a day or a sweep removed nothing.
+
+**One defect fixed in passing:** the scheduler's run record was written by
+truncating in place, so a crash mid-write left a torn file - which reads as an
+empty one, so every job would run again at once. Temp-and-rename with the close
+checked, as the engine writes JSON everywhere else.
+
+**One found by the new test:** `my ( @keep, $removed ) = ( (), 0 )` - the array
+slurps the list, so `$removed` was undef and `@keep` began with a `0`. The
+sweep's byte-for-byte assertion on the kept row caught it before anything ran.
+
 ## The systemd unit, and what hundreds of instances actually cost
 
 The question that decided this: under Hestia there may be hundreds of lazysite
@@ -671,9 +744,13 @@ here; the provisioning flag is the next piece.
 The unit now ships (see the section above), so what remains is narrower than it
 was:
 
-**The fleet provisioning flag.** `lazysite-hestia-domain add <user> <domain>
---fcgi` writes the pool conf and enables its unit; the daemon needs the same
-treatment, or a host with hundreds of sites is configured by hand. Not built.
+**The fleet provisioning flag - BUILT 2026-09-05.** `lazysite-hestia-domain add
+<user> <domain> --daemon` writes `/etc/lazysite/daemon/<domain>.conf` (the two
+keys the unit consumes, and `t/tools/66` holds that they are the only two) and
+enables `lazysited@<domain>`; `remove` retires it beside the pool;
+`lazysite-common` now creates the directory, without which the writer refused
+on every fresh host. The tool says, in three places, that this is one of two
+switches.
 
 **Nothing has run on a real host.** Every assertion here is from tests and from
 reading the pool's pattern. The privilege drop in particular is exercised only

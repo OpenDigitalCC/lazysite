@@ -61,9 +61,13 @@ sub describe {
             . 'inside the stack, and later the transports that need something '
             . 'permanently connected. It owns no protocol of its own - each '
             . 'capability is a SERVICE running as its own child, so one '
-            . 'service failing does not stop the others. Ships disabled: an '
-            . 'operator turns it on deliberately, and until then no process '
-            . 'runs at all.',
+            . 'service failing does not stop the others. The scheduler '
+            . 'carries an hourly statistics rollup (closing each day without '
+            . 'anyone opening the Stats page), an hourly sweep of expired '
+            . 'sessions, and a heartbeat; each runs as the configured job '
+            . 'account and only with the capability the same work needs in '
+            . 'the manager. Ships disabled: an operator turns it on '
+            . 'deliberately, and until then no process runs at all.',
         version     => '0.1',
         config_file => 'lazysite/daemon.conf',
 
