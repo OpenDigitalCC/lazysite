@@ -53,7 +53,19 @@ subtest 'a composite key says so rather than naming one column' => sub {
         'the field is the first, as somewhere for a form to focus' );
 };
 
-subtest 'NOT NULL' => sub {
+subtest 'NOT NULL - the mapping only; see 53 for whether it can occur' => sub {
+    # THIS PROVES THE TRANSLATION AND NOT THE OCCURRENCE, and the difference
+    # was found in the field. A partner agent testing 0.13.0 reached UNIQUE
+    # easily and reported that they could not reach NOT NULL at all.
+    #
+    # They were right. SQLite.pm emits NOT NULL for a `required` field and for
+    # a non-auto key; Value.pm refuses both before any SQL runs. So on every
+    # path this engine offers, the string below cannot arrive - the branch is a
+    # safety net for a store altered outside lazysite, not live behaviour.
+    #
+    # t/unit/data/53 pins that, and this subtest's title says so, because a
+    # green assertion here would otherwise read as coverage of a path that does
+    # not exist. That is SM732's whole lesson and it was written the same week.
     my $e = "NOT NULL constraint failed: orders.customer$AT";
     is( clean($e), 'customer is required', 'plain, and in the imperative' );
     is( field($e), 'customer',             'named' );
