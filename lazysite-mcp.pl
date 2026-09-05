@@ -3509,8 +3509,39 @@ sub _tool_callable {
     return 0;
 }
 
+# SM714: WHY a listing is short, said in the listing.
+#
+# tools/list over the bearer path returned whoami and describe_capabilities and
+# nothing else, with no nextCursor, and the partner concluded the MCP surface
+# was nearly empty. It was not: the listing is filtered to what the presenting
+# credential may call (SM196/SM210), and a caller with no recognised credential,
+# or an account without `mcp`, or an interactive manager account, is shown the
+# introspection pair only. That is the design, and it was invisible from
+# outside - the same falsehood SM653 fixed from the other end (a tool listed
+# without saying where it can be called), so it is fixed the same way: in the
+# description, which is what the caller reads.
+sub _listing_reduced_because {
+    my ($caps) = @_;
+    return 'no credential was recognised - none was sent, or the token is '
+        . 'unknown, revoked or rotated out. Send a valid bearer '
+        . "('<partner-id>:<lzs_ token>') and this listing shows every tool your "
+        . "account's capabilities reach"
+        unless defined $caps;
+    return 'this is an interactive manager account (it holds ui and manager_ui), '
+        . 'and MCP tools are refused to interactive accounts by design; a '
+        . 'partner token belongs to a dedicated non-interactive account'
+        if $caps->{manager_ui} && $caps->{ui};
+    return 'your account does not hold the mcp capability, which is the channel '
+        . 'grant for calling tools here. Ask the sysop to grant mcp (plus the '
+        . 'capabilities for the work); call whoami to see what you hold and '
+        . 'describe_capabilities to see what each grant unlocks'
+        unless $caps->{mcp};
+    return undef;
+}
+
 sub tool_list {
     my ($caps) = @_;
+    my $reduced = _listing_reduced_because($caps);
 
     # SM196: when $caps is defined (a resolved session), filter to the tools this
     # session may invoke. SM210: when $caps is undef there is NO resolved identity
@@ -3533,6 +3564,12 @@ sub tool_list {
         # silently, and the caller this is for is a language model reading the
         # description. One place, not two.
         my $desc = $TOOLS{$name}{description};
+        if ( defined $reduced ) {
+            $desc = "THIS LISTING IS REDUCED TO INTROSPECTION: $reduced. "
+                . 'The tools named in the connector instructions and in '
+                . 'describe_capabilities exist on this server; they appear here once '
+                . 'your credential reaches them. -- ' . $desc;
+        }
         if ( defined $caps && _path_only_for( $name, $TOOLS{$name}, $caps ) ) {
             $desc .= ' NOTE: with your current grant this tool is callable only'
                 . ' on theme and layout paths; elsewhere it will be refused.'
@@ -3639,7 +3676,12 @@ if ( $method eq 'initialize' ) {
             capabilities    => { tools => { listChanged => JSON::PP::false } },
             serverInfo      => { name  => 'lazysite-mcp', version => $VERSION },
             instructions    =>
-                'You are connected to a lazysite site as a maintenance agent. Before '
+                'You are connected to a lazysite site as a maintenance agent. '
+                . 'tools/list shows only the tools your credential can call: if it lists '
+                . 'just whoami and describe_capabilities, their descriptions say why (no '
+                . 'recognised credential, an account without the mcp capability, or an '
+                . 'interactive manager account) and the tools named below appear once your '
+                . 'grants reach them - call whoami first. Before '
                 . 'creating or restructuring pages, read the site briefing '
                 . '/docs/ai-briefing-building-sites: keep content (Markdown), layout and '
                 . 'theme separate, and never put ordinary pages in raw mode (api:true / '

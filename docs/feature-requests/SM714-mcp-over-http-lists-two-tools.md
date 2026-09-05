@@ -4,7 +4,8 @@ title: MCP over HTTP lists two tools where describe_capabilities describes many
 raised: 2026-09-01
 raised-by: edge-testing agent (0.11.9 token-surface regression)
 area: mcp
-status: candidate
+status: shipped
+status-note: "DECIDED AND BUILT 2026-09-05 (claude/sm714-a-short-listing-says-why, 0.13.1). The two-tool listing is the DESIGN, not a bug: tools/list is filtered to what the presenting credential may call (SM196/SM210), so no recognised credential, an account without mcp, or an interactive manager account is shown the introspection pair only. The defect was that nothing said so from outside. Fixed as SM653 was, in the description the caller reads: a reduced listing prefixes whoami and describe_capabilities with THIS LISTING IS REDUCED TO INTROSPECTION and the specific reason and remedy (no credential / unknown token; account lacks mcp; interactive manager account), and says the tools named elsewhere exist and appear once the credential reaches them. The connector instructions state the rule before naming any tool; the ai-partner bootstrap states it in the mcp mode sentence - the filing's cheapest useful step. t/unit/mcp/25 holds all three, and that a full listing carries no prefix."
 ---
 
 # What happens

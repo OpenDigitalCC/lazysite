@@ -8134,7 +8134,10 @@ sub _ai_partner_doc {
     $modes{mcp} =
         'Remote MCP server at the mcp endpoint exposing the maintenance verbs as tools; '
         . "add as a connector with bearer auth '<partner-id>:<lzs_ token>'. Best for an "
-        . 'MCP-capable agent; one file per write call.'
+        . 'MCP-capable agent; one file per write call. tools/list is filtered to what '
+        . 'the presenting credential may call: with no credential, or an account '
+        . 'without the mcp capability, it lists only whoami and describe_capabilities, '
+        . 'and their descriptions say why (SM714).'
         if $mcp;
 
     return {
