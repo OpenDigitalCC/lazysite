@@ -275,6 +275,12 @@ sub _apply_retention {
         map { [ $_, ( stat "$dir/$_" )[9] // 0 ] } @mine;
     for my $old ( @by_age[ $keep .. $#by_age ] ) {
         next unless unlink "$dir/$old";
+
+        # SM753 / SM183: the integrity sidecar retires with the artefact it
+        # describes. install.pl's rotation has always done this; the manager's
+        # left a .sha256 for every snapshot it expired, describing an archive
+        # that no longer existed.
+        unlink "$dir/$old.sha256" if -f "$dir/$old.sha256";
         log_event( 'INFO', 'backup-retention', 'expired old snapshot',
             file => $old, kind => $kind, keep => $keep );
     }
@@ -310,6 +316,7 @@ sub action_backup_delete {
     return { ok => 0, kind => 'not-found', error => 'Backup not found' } unless -f $full;
 
     unlink $full or return { ok => 0, error => "Could not delete the backup: $!" };
+    unlink "$full.sha256" if -f "$full.sha256";    # SM753: and its sidecar
     log_event( 'INFO', 'backup-delete', 'snapshot removed',
         file => $name, user => $auth_user );
     return { ok => 1, name => $name };

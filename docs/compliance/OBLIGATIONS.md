@@ -45,8 +45,8 @@ tone: medium
 text: 5
 ---
 Declaration of Conformity finalised and signed | at each stable cut | next stable | OPEN | docs/DECLARATION-OF-CONFORMITY.md - stamped 0.8.0, unsigned, while 0.9.4, 0.9.10 and 0.10.0 stable have shipped
-Significant-change register entry per triggering release | at each release | 0.10.9 done | met | docs/SECURITY.md - entry added 2026-08-13 for SM286/SM293
-Threat model current with the architecture | at each release | 0.10.9 done | met | docs/architecture/security.md, docs/SECURITY.md - private store + front door added 2026-08-14
+Significant-change register entry per triggering release | at each release | 0.13.1 (pre-cut) | met | docs/SECURITY.md - entry added 2026-09-05 for SM666/SM755 (the scheduled actor); previous 2026-08-13 for SM286/SM293
+Threat model current with the architecture | at each release | 0.13.1 (pre-cut) | met | docs/SECURITY.md trust boundary 8 (the scheduled actor) added 2026-09-05; docs/architecture/security.md + SECURITY.md private store and front door 2026-08-14
 SBOM regenerated and shipped | at each release | every release | met | strict gate, tools/manifest-to-sbom.pl --strict
 Annex VII technical file kept current | continuous; complete before CE marking | 2027-12-11 | STARTED | docs/compliance/TECHNICAL-FILE.md - index form
 Signed releases (Sigstore/cosign) | before CE marking; cannot be applied retroactively | 2027-12-11 | OPEN | docs/POLICY.md - every unsigned release is permanently unattestable

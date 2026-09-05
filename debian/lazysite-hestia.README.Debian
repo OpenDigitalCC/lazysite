@@ -151,6 +151,13 @@ a state directory - and the unit uses `Restart=on-failure`, not
 `always`, precisely so that exit is respected rather than restarted in
 a loop. What runs is the number of sites that deliberately enabled it.
 
+AND WHAT A RUNNING ONE COSTS (measured, 0.13.1 review): two Perl
+processes, the supervisor and the scheduler, about 10 MB PSS each once
+the shared perl pages are apportioned (23 MB naive RSS per instance).
+Three hundred enabled sites is roughly 3 GB PSS. The idle loops do no
+I/O; the hourly statistics rollup is about half a second of CPU per
+site once warm, and four to five seconds once, at first enable.
+
 The runtime never runs as root. The unit starts it as root only because
 systemd cannot template `User=` from an instance name and the instance
 name is a domain; lazysited drops to USER before loading any daemon

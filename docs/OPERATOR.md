@@ -197,6 +197,60 @@ systemctl restart lazysite@<domain>
 The auth wrapper, manager traffic and all cgi-bin/dav endpoints stay on the
 plain-CGI path; only anonymous visitor pages are pooled.
 
+### The persistent runtime (lazysited)
+
+Since 0.13.0 a site may run a second per-site process, the persistent runtime
+(SM666): a supervisor and, under it, a scheduler that runs the engine's
+maintenance jobs on a clock rather than on the back of a visitor's page view -
+the hourly statistics rollup (which closes each day whether or not anyone opens
+the Stats page, SM343) and the hourly sweep of expired sessions. It is
+templated exactly like the pool:
+
+```
+/etc/lazysite/daemon/<domain>.conf     DOCROOT= and USER=
+systemctl enable --now lazysited@<domain>
+```
+
+or, on Hestia, `lazysite-hestia-domain add <user> <domain> --daemon`, which
+writes the conf and enables the unit. `remove` retires it beside the pool.
+
+**Two switches, both needed.** The unit is yours; the `daemon` plugin is the
+site's, enabled by its sysop on the Plugin Manager page and born disabled
+(ADR 0009). With the plugin off the unit starts, exits 0 and stays quiet, so
+enabling it at onboarding costs nothing; with the unit off, the manager's
+Status button says `desired: on`, `verdict: inconsistent`, and its remedy names
+the `systemctl` line. Disabling the plugin while the runtime is running stops
+it within ten seconds. What it says about itself:
+
+```bash
+lazysited --docroot <docroot> --status      # desired / verdict / remedy per service
+```
+
+**Jobs run as an account, never as root or `system`.** The sysop names a
+`daemon_job_user` in the plugin's config and gives that account the `run_jobs`
+capability plus whatever the job needs (`analytics` for the rollup,
+`manage_users` for the sweep) - a purpose account, not a person's. No account,
+or one lacking a capability, means the job is refused with the reason in the
+run record, `lazysite/daemon/scheduler-runs.json`, which is also where a job's
+last outcome and counts are kept.
+
+**Cost at rest.** Two Perl processes per site, about 10 MB PSS each after the
+shared pages are apportioned (23 MB naive RSS); 300 instances is roughly 3 GB
+PSS. The idle loops do no I/O. The rollup is about 0.5 s of CPU per site per
+hour once warm (4-5 s once, at first enable, to ingest the existing log).
+
+**Upgrades.** Since 0.13.1 the package runs `systemctl daemon-reload` on
+install, upgrade and removal, so a changed unit file is seen at once (before
+that, both units being templates, debhelper generated nothing - F8.4 in
+`docs/review/0.13.1-daemon/`). A RUNNING instance keeps its old code until
+you restart it; the package never restarts one for you, because which sites
+restart, and when, is your call. Restart instances after an engine upgrade the
+way you restart pools:
+
+```bash
+systemctl restart lazysited@<domain>
+```
+
 ## Logs and audit
 
 - Application logs: `lazysite/logs/`.

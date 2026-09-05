@@ -35,6 +35,13 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
    which surface handles a request. Where deployed, the routing table becomes
    one point of correctness for every request rather than a rule per URL class.
    See `architecture/security.md` - "The front door".
+8. **The scheduled actor** (SM666, 0.13.0-0.13.1) -> a long-lived,
+   privilege-dropped process acting on a clock with a capability-holding
+   account and NO request. Two gates: the account must hold `run_jobs`, and
+   each job faces the ordinary capability gate for the work it does. The job
+   set is engine code; no configuration can add one. `daemon_job_user` is a
+   delegation - a `manage_config` holder names which `run_jobs` account acts -
+   bounded by that closed set.
 
 ## STRIDE assessment
 
@@ -878,3 +885,65 @@ verdict
 : accepted. No ahead-of-schedule third-party engagement required: the new path
   is a fork within an existing trust boundary, bounded by a timeout, and adds
   no new identity, capability or external interface.
+
+### 2026-09-05 - SM666/SM755 (0.13.0-0.13.1): a scheduled actor without a request
+
+what changed
+: **SM666 phase 1** adds a per-site persistent runtime: a supervisor
+  (`tools/lazysited.pl`, `lazysited@.service`) and under it a scheduler that
+  runs engine maintenance on a clock - the statistics rollup and the expired
+  session sweep in 0.13.1 - as a lazysite ACCOUNT, with no request behind it.
+  It ships as an ADR 0009 plugin, born disabled, where disabled means the
+  process never starts. **SM755**, from the 0.13.1 eight-dimension review
+  (`docs/review/0.13.1-daemon/`), corrected the supervisor's restart path
+  before the service reached a host.
+
+threat delta
+: A new long-lived process, privilege-dropped like the pool, that acts
+  WITHOUT a request - so the request-path controls (the two-signal trust gate,
+  the `X-Remote-*` contract, per-request capability resolution) do not apply
+  to it by construction and something else must. Elevation of privilege is the
+  question that moves: a timer that can call anything is a second write plane
+  wearing a clock. Denial of service moves too: a process restarted for ever
+  is a fork every two seconds per misconfigured site, and two supervisors on
+  one docroot would run the same jobs against the same files. No new external
+  interface, no listener, no egress (phase 1 by decision), no new
+  authentication method.
+
+controls
+: the identity gate fails closed in every direction - no account, a `system:`
+  identity refused by name, an account lacking `run_jobs`, an account lacking
+  the job's own capability (`analytics`, `manage_users`) - and a refusal does
+  not consume the schedule slot. The job set is a closed table in engine code;
+  `t/unit/daemon/02` writes a job into the daemon's config and asserts the set
+  is unchanged. `needs` per job is read by `t/unit/daemon/05` from the manager
+  API's own gate table, so a job cannot need less than the manager charges for
+  the same work. Every subprocess is list-form; the actor travels in
+  `LAZYSITE_ACTING_USER` as the API sends it. The privilege drop is the
+  pool's, verbatim, with a check that both real and effective uid left 0, and
+  root without `--user` is refused. SM755: exits counted with backoff and a
+  ceiling (FAILED, once, with a state file), the enabled gate re-read every
+  10 s so disabling the plugin stops the runtime, one supervisor per docroot
+  by advisory lock, an orphan adopted only with pid AND kernel start-time
+  proof, a 30 s stop deadline then KILL, a torn run record logged. The unit
+  carries the SEC-2026-07 sandbox set (`NoNewPrivileges`, `ProtectSystem=full`,
+  `PrivateTmp`, `PrivateDevices`, `RestrictSUIDSGID`, `ProtectKernelTunables`,
+  `ProtectControlGroups`). The sessions sweep REMOVES personal data (IP, UA on
+  expired registry rows) on a clock; the run record carries counts, not
+  contents.
+
+residual risk
+: the daemon has not yet run on a real host under the unit; the privilege
+  drop is proved in its unprivileged branch and by the pool's precedent
+  (`docs/review/0.13.1-daemon/dimension-5`, F5.8). `daemon_job_user` lets a
+  `manage_config` holder point the scheduler at any existing `run_jobs`
+  account, including a person's; the consequences are bounded by the closed
+  job set, and the plugin's config note says a purpose account is preferred
+  and why. Memory at rest is ~10 MB PSS per instance, two processes; a
+  300-site host pays ~3 GB.
+
+verdict
+: accepted. No ahead-of-schedule third-party engagement required: no new
+  external interface, authentication method or dependency; the new actor acts
+  through the existing capability model with a second gate in front of it.
+  Trigger review at phase 2 (the local socket), which IS a new interface.

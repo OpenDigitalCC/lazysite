@@ -20,8 +20,12 @@ Consequences:
   the Perl modules it touches. The processor's static dependencies add
   up to ~50ms on the machine measured below.
 - **Simple deployment.** The processor is a single script dropped into
-  `cgi-bin/`. Apache or any other CGI-capable server runs it. No
-  daemon, no process manager, no listening socket owned by lazysite.
+  `cgi-bin/`. Apache or any other CGI-capable server runs it. The
+  request path has no daemon, no process manager and no listening socket
+  owned by lazysite. (Two optional per-site processes exist beside it -
+  the FastCGI pool, SM142, and the persistent runtime, SM666 - and
+  neither sits in a request: the pool serves them, the runtime never
+  sees one. A site that enables neither runs exactly as described here.)
 - **Request isolation is free.** One request crashing cannot corrupt
   another's state, because there is no shared state to corrupt. A
   rogue page that dies in the middle of rendering affects only that
