@@ -18,8 +18,8 @@ use Lazysite::Manager::Common  qw(_write_conf_key);
 use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan)
 use Lazysite::Paths            ();
 use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
-    _snapshot_artifact _prune_backups _mirror_theme_assets action_layout_activate
-    _read_json_file);
+    _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for
+    _mirror_theme_assets action_layout_activate _read_json_file);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -1094,16 +1094,39 @@ sub _install_layout_from_dir {
                         . join( ', ', @differs ) . '). Re-install with update to '
                         . 'overwrite.' };
             }
-            # update: snapshot the existing layout (recoverable), then overwrite
-            # the layout files. themes/ is left untouched.
-            _snapshot_artifact( _lz() . "/layouts", $layout_name );
-            _prune_backups( _lz() . "/layouts", $layout_name );
-            if ( my $e = _copy_rel_files( $layout_source, $target_dir, \@rel_files,
+            # SM756: an update is built BESIDE the layout and switched in, never
+            # written into the directory being rendered. The staging copy is the
+            # current layout - themes/ and all, so the site's installed and
+            # edited themes travel unchanged - with the release's files laid
+            # over it; then two renames: the old directory steps aside (kept as
+            # the snapshot when it was edited, removed when pristine) and the
+            # staged one takes its name. A request between the renames finds
+            # nothing for a microsecond; it never finds half of each.
+            my $staging = _staging_for($target_dir);
+            system( 'rm', '-rf', $staging ) if -e $staging;
+            my $rc = system( 'cp', '-r', $target_dir, $staging );
+            if ( $rc != 0 ) {
+                system( 'rm', '-rf', $staging );
+                log_event( 'ERROR', $action_label, 'cp layout (stage) failed',
+                    layout => $layout_name, rc => ( $rc >> 8 ) );
+                return { ok => 0, error => "Update failed (staging layout $layout_name)" };
+            }
+            if ( my $e = _copy_rel_files( $layout_source, $staging, \@rel_files,
                     $action_label, $layout_name, 'cp layout (update) failed',
                     'Update' ) )
             {
+                system( 'rm', '-rf', $staging );
                 return $e;
             }
+            my $keep = _snapshot_wanted( _lz() . "/layouts", $layout_name );
+            my ( $ok, $err ) = _swap_in( $staging, $target_dir, $keep );
+            unless ($ok) {
+                system( 'rm', '-rf', $staging );
+                log_event( 'ERROR', $action_label, 'layout switch failed',
+                    layout => $layout_name, error => $err );
+                return { ok => 0, error => "Update failed (switching layout $layout_name in)" };
+            }
+            _prune_backups( _lz() . "/layouts", $layout_name );
             log_event( 'INFO', $action_label, 'layout updated',
                 name => $layout_name, files => join( ',', @differs ), user => $user );
             return { ok => 1, action => 'updated' };

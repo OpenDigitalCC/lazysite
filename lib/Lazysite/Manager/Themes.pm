@@ -36,7 +36,7 @@ our @EXPORT_OK = qw(
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
-    _snapshot_artifact _prune_backups _mirror_theme_assets _mirror_warning
+    _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for _mirror_theme_assets _mirror_warning
     _read_json_file
 );
 
@@ -968,13 +968,27 @@ sub _mirror_theme_assets {
         };
     }
 
-    make_path($dest) unless -d $dest;
-    my $rc = system( 'cp', '-r', "$src/.", $dest );
+    # SM756: the mirror is what every browser fetches main.css from. Build the
+    # new one beside it and switch it in, so no request fetches half a theme.
+    my $staging = _staging_for($dest);
+    system( 'rm', '-rf', $staging ) if -e $staging;
+    make_path( dirname($dest) ) unless -d dirname($dest);
+    my $rc = system( 'cp', '-r', $src, $staging );
     if ( $rc != 0 ) {
+        system( 'rm', '-rf', $staging );
         log_event( 'WARN', $action, 'theme asset mirror failed',
             layout => $layout, theme => $theme, rc => ( $rc >> 8 ) );
         return { mirrored => 0, dest => $dest, expected => $src,
             reason => 'the copy into the web asset mirror failed' };
+    }
+    _write_theme_tokens( $tdir, $staging );
+    my ( $sw_ok, $sw_err ) = _swap_in( $staging, $dest, undef );
+    unless ($sw_ok) {
+        system( 'rm', '-rf', $staging );
+        log_event( 'WARN', $action, 'theme asset mirror switch failed',
+            layout => $layout, theme => $theme, error => $sw_err );
+        return { mirrored => 0, dest => $dest, expected => $src,
+            reason => 'the web asset mirror could not be switched in' };
     }
 
     # Count what is actually THERE now, rather than what we believed we copied.
@@ -997,8 +1011,8 @@ sub _mirror_theme_assets {
     # NO FLASH. A <link> in <head> blocks paint until it loads, which is what
     # makes this safe where moving a SCRIPT prelude out of head would not be -
     # scripts and stylesheets fail differently, and conflating them is what made
-    # this look like the hard case.
-    _write_theme_tokens( $tdir, $dest );
+    # this look like the hard case. (SM756: written into the staged mirror
+    # above, so it switches in with the assets it belongs with.)
 
     # SM734: and into every content root this instance serves, because a domain
     # with one serves /lazysite-assets/ from THERE and never sees the docroot
@@ -1015,9 +1029,14 @@ sub _mirror_theme_assets {
     for my $cr ( _all_content_roots() ) {
         my $cdest = "$DOCROOT/$cr/lazysite-assets/$layout/$theme";
         eval {
-            make_path($cdest) unless -d $cdest;
-            my $crc = system( 'cp', '-r', "$src/.", $cdest );
+            # SM756: the same build-beside-and-switch as the docroot mirror.
+            my $cstage = _staging_for($cdest);
+            system( 'rm', '-rf', $cstage ) if -e $cstage;
+            make_path( dirname($cdest) ) unless -d dirname($cdest);
+            my $crc = system( 'cp', '-r', $dest, $cstage );
             die "cp exited $crc\n" if $crc != 0;
+            my ( $cok, $cerr ) = _swap_in( $cstage, $cdest, undef );
+            unless ($cok) { system( 'rm', '-rf', $cstage ); die "$cerr\n" }
             push @also, $cr;
             1;
         } or push @failed, $cr;
@@ -1106,30 +1125,82 @@ sub _read_pristine {
     return ( defined $d && $d =~ /\A[0-9a-f]{64}\z/ ) ? $d : undef;
 }
 
-sub _snapshot_artifact {
+# SM756 split this into the DECISION (is a snapshot wanted, and where) and the
+# copy, because the atomic switch below keeps the old directory by RENAMING it
+# to the snapshot name rather than copying first and overwriting after. Same
+# rules, one place: no snapshot of a pristine artefact (SM176), none when the
+# last snapshot already holds this content.
+sub _snapshot_wanted {
     my ( $parent, $name ) = @_;
     my $src = "$parent/$name";
-    return unless -d $src;
-    my $base = _backup_base($name);
-    my $cur  = _artifact_digest($src);
-    # SM176: a theme unchanged since it was installed (still at its pristine
-    # baseline) has no edits worth preserving - switching away from it must not
-    # snapshot it. Themes installed before this baseline existed fall through to
-    # the last-backup check below (unchanged pre-SM176 behaviour).
+    return undef unless -d $src;
+    my $base     = _backup_base($name);
+    my $cur      = _artifact_digest($src);
     my $pristine = _read_pristine( $parent, $name );
-    return if defined $pristine && $pristine eq $cur;
-    # Only snapshot when something actually CHANGED since the last backup. Just
-    # trying themes on and off (which edits nothing) must not spawn a pile of
-    # identical snapshots.
+    return undef if defined $pristine && $pristine eq $cur;
     if ( my $latest = _latest_backup_dir( $parent, $base ) ) {
-        # $latest ne $src: when the source IS itself a backup dir, don't compare
-        # it to itself (that would always "match" and wrongly skip).
-        return if $latest ne $src && $cur eq _artifact_digest($latest);
+        return undef if $latest ne $src && $cur eq _artifact_digest($latest);
     }
     my $dst = "$parent/$base-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
-    return if -e $dst;
-    system( 'cp', '-r', $src, $dst );
+    return undef if -e $dst;
+    return $dst;
 }
+
+sub _snapshot_artifact {
+    my ( $parent, $name ) = @_;
+    my $dst = _snapshot_wanted( $parent, $name ) or return;
+    system( 'cp', '-r', "$parent/$name", $dst );
+}
+
+# SM756: THE SWITCH. A new version of an artefact that is being served is built
+# BESIDE it and switched in with rename(2), never written into it.
+#
+# The release manager's ruling: "nothing works on an active theme or layout,
+# they load new and switch in. it should be atomic, and common on all
+# surfaces." SM749 closed every file write into the active artefact; the two
+# whole-artefact paths - a theme upload with update, a layout install with
+# force - still `cp -r`'d over the directory being rendered, which is a
+# sequence of file replacements and a request between two of them renders half
+# of each. The mirror the browsers fetch from was written the same way, by
+# activation itself.
+#
+# Two renames: the old directory steps aside, the staged one takes its name.
+# A path lookup between them finds nothing for a microsecond and falls back;
+# it never finds a mixture, which is the property that matters. A rename is
+# atomic within one filesystem, and staging is always a sibling of its target.
+# The old directory is kept under the snapshot name when a snapshot is wanted
+# (an edited theme) and removed otherwise (a pristine one, SM176) - so the
+# snapshot IS the previous directory, not a copy of it.
+#
+# Returns ( 1 ) or ( 0, $error ). On a failed second rename the old directory
+# is put back, so a failure leaves the site as it was.
+sub _swap_in {
+    my ( $staging, $target, $keep_old_as ) = @_;
+    my $aside = "$target.swap-out.$$";
+    if ( -e $target ) {
+        rename $target, $aside
+            or return ( 0, "cannot move the current version aside: $!" );
+    }
+    unless ( rename $staging, $target ) {
+        my $e = $!;
+        rename $aside, $target if -e $aside;
+        return ( 0, "cannot switch the new version in: $e" );
+    }
+    if ( -e $aside ) {
+        if ( defined $keep_old_as ) {
+            rename $aside, $keep_old_as
+                or system( 'rm', '-rf', $aside );    # cannot keep it: do not leave it
+        }
+        else {
+            system( 'rm', '-rf', $aside );
+        }
+    }
+    return (1);
+}
+
+# The staging name for an artefact directory: a sibling, so the rename stays
+# on one filesystem, and named so a listing reader can tell it is in flight.
+sub _staging_for { return "$_[0].installing.$$" }
 
 sub _prune_backups {
     my ( $parent, $name ) = @_;
@@ -1715,35 +1786,59 @@ sub _install_theme_from_dir {
         # missing one, which is why the template updated and its stylesheet did
         # not.
         #
-        # Snapshot first, so an operator who edited the theme still has it. That
-        # is what the rename was protecting, and the protection is kept rather
-        # than traded away - _snapshot_artifact is a no-op on a theme still at
-        # its pristine baseline (SM176), so an unedited theme costs nothing.
-        for my $l (@clean_layouts) {
-            _snapshot_artifact( "$lz/layouts/$l/themes", $theme_name );
-        }
+        # SM756: the update is built BESIDE the theme and switched in below -
+        # never written into the directory being rendered. The snapshot of an
+        # edited theme is the old directory itself, renamed at the switch, and a
+        # pristine one (SM176) is simply removed; nothing is copied first and
+        # overwritten after.
     }
 
     my @installed;
     for my $l (@clean_layouts) {
-        my $dest = "$lz/layouts/$l/themes/$install_name";
-        make_path($dest);
-        my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
+        my $dest    = "$lz/layouts/$l/themes/$install_name";
+        my $staging = -d $dest ? _staging_for($dest) : $dest;
+        system( 'rm', '-rf', $staging ) if $staging ne $dest && -e $staging;
+        make_path($staging);
+        my $rc = system( "cp", "-r", "$extract_dir/.", $staging );
         if ( $rc != 0 ) {
+            system( 'rm', '-rf', $staging ) if $staging ne $dest;
             log_event( 'ERROR', $action_label, 'cp failed',
                 path => $dest, rc => ( $rc >> 8 ) );
             return { ok => 0,
                 error => "Install failed (cp theme files to $l)" };
         }
+        if ( $staging ne $dest ) {
+            my $keep = _snapshot_wanted( "$lz/layouts/$l/themes", $install_name );
+            my ( $ok, $err ) = _swap_in( $staging, $dest, $keep );
+            unless ($ok) {
+                system( 'rm', '-rf', $staging );
+                log_event( 'ERROR', $action_label, 'theme switch failed',
+                    path => $dest, error => $err );
+                return { ok => 0, error => "Update failed (switching the new theme in for $l)" };
+            }
+            _prune_backups( "$lz/layouts/$l/themes", $install_name );
+        }
 
-        # Nested asset path: /lazysite-assets/LAYOUT/THEME/
+        # Nested asset path: /lazysite-assets/LAYOUT/THEME/ - built beside and
+        # switched in the same way, because it is what the browser fetches.
         if ( -d "$extract_dir/assets" ) {
             my $assets_dest = "$DOCROOT/lazysite-assets/$l/$install_name";
-            make_path($assets_dest);
-            $rc = system( "cp", "-r", "$extract_dir/assets/.", $assets_dest );
+            my $astage      = _staging_for($assets_dest);
+            system( 'rm', '-rf', $astage ) if -e $astage;
+            make_path( dirname($assets_dest) );
+            $rc = system( "cp", "-r", "$extract_dir/assets", $astage );
             if ( $rc != 0 ) {
+                system( 'rm', '-rf', $astage );
                 log_event( 'WARN', $action_label, 'cp assets failed',
                     path => $assets_dest, rc => ( $rc >> 8 ) );
+            }
+            else {
+                my ( $aok, $aerr ) = _swap_in( $astage, $assets_dest, undef );
+                unless ($aok) {
+                    system( 'rm', '-rf', $astage );
+                    log_event( 'WARN', $action_label, 'asset mirror switch failed',
+                        path => $assets_dest, error => $aerr );
+                }
             }
         }
 

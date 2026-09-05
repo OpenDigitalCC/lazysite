@@ -4,7 +4,8 @@ title: "SM756: an update to the theme or layout being served installs beside it 
 subtitle: "The release manager's ruling, 2026-09-05: 'what we want is atomic theme/layout changes, so nothing works on an active theme or layout, they load new and switch in. it should be atomic, and common on all surfaces.' SM749 closed the file-write surfaces; two whole-artefact paths still write in place over the active one, and this filing takes them."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "BUILT 2026-09-05 on claude/sm756-update-installs-beside-and-switches for 0.13.1. Themes::_swap_in is the switch: the staged directory is a sibling of its target, the old directory steps aside by rename and the staged one takes its name by rename; the old is KEPT under the snapshot name when a snapshot is wanted (_snapshot_wanted, the SM176 rule split from the copy) and removed otherwise, so the snapshot is the previous directory itself. Used by the theme update (_install_theme_from_dir, per layout), the layout force-update (_install_layout_from_dir: the staging copy is the current layout with themes/ and all, the release laid over it), and the asset mirror the browsers fetch from (_mirror_theme_assets, docroot and every content root - which also means content-root mirrors now carry theme-tokens.css, which they never had). One path for active and non-active alike: the earlier sentence below about a non-active artefact keeping the in-place update is superseded - one code path is simpler and the switch costs nothing. t/unit/manager/155 holds: the served directory's inode changes exactly once, the old directory is untouched until it steps aside (instrumented at the switch), the snapshot is the old inode, themes travel with a layout update, no staging is left behind, and no cp-over-the-served-directory remains in either module."
 ---
 
 # The ruling
@@ -53,8 +54,9 @@ the manager's upload and install buttons, and MCP `install_layout` all route
 through the two `_install_*_from_dir` functions, so the change is in two places
 and every surface inherits it - the same shape SM748 and SM749 argued for.
 
-**A non-active artefact keeps the in-place update.** Nothing is rendering it;
-the atomicity argument does not apply, and the snapshot still protects an edit.
+**One path for active and non-active alike** (decided in the build): the switch
+costs nothing, and one code path is simpler than a branch on whether anything
+is rendering the directory.
 
 # What to hold
 
