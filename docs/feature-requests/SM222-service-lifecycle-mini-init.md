@@ -2,8 +2,8 @@
 title: "SM222 - Mini init: a uniform start / stop / status contract for services and plugins"
 subtitle: "Make 'off' actually off rather than a refusal from a process that still ran, give every service and plugin the same lifecycle verbs, and make status report enough to act on"
 brand: plain
-status: candidate
-status-note: "Design + analysis written 2026-07-27 at the operator's request. NOT built. SUPERSEDES SM209 (merged 2026-08-08): SM209's intent-versus-availability split is absorbed as a third state (desired/runtime, paused defaulting to up so back-compat is free), and its controlling-process proposal is recorded as considered and declined. Key finding: a disabled service is NOT fully off today - the web server still routes to it and the CGI still spawns, reads the conf and only then refuses (404), and the refusal contract is inconsistent (token-exchange answers 200 {ok:0,code:service_disabled} where the others 404). Recommends generalising the content-history health verdict vocabulary, which already proves the model. Explicitly does NOT propose a process supervisor - systemd keeps that job."
+status: partial
+status-note: "PARTIAL 2026-09-05: THE CONTRACT IS BUILT. Lazysite::Lifecycle defines the common shape and the daemon is its first conforming consumer, which pays the debt SM666 recorded when it implemented desired-versus-runtime locally. The vocabulary is content-history's generalised rather than a new one; the verdict is derived in ONE place so units cannot drift apart on what inconsistent means; and a remedy is required whenever the verdict is not healthy, because SM712, SM730, SM749 and SM750 are four filings in one week about naming a state without naming an action. WHAT REMAINS: the existing services (WebDAV, control API, MCP, OAuth, token exchange) migrate one per SM, following ADR 0009 rather than one wide edit, since SM726 and SM728 both record what a wide simultaneous conversion costs. THE SUBSTANTIVE CALL IS UNTOUCHED: open decision 1, L2 routing, remains the operator's and did not bind the exemplar, because the daemon has no routed endpoint in phase 1. ORIGINALLY, and true until today: Design + analysis written 2026-07-27 at the operator's request. NOT built then. SUPERSEDES SM209 (merged 2026-08-08): SM209's intent-versus-availability split is absorbed as a third state (desired/runtime, paused defaulting to up so back-compat is free), and its controlling-process proposal is recorded as considered and declined. Key finding: a disabled service is NOT fully off today - the web server still routes to it and the CGI still spawns, reads the conf and only then refuses (404), and the refusal contract is inconsistent (token-exchange answers 200 {ok:0,code:service_disabled} where the others 404). Recommends generalising the content-history health verdict vocabulary, which already proves the model. Explicitly does NOT propose a process supervisor - systemd keeps that job."
 ---
 
 # SM222 - mini init (service + plugin lifecycle)
@@ -308,6 +308,68 @@ disagree.
 - Disabling a service never changes what a *disabled* service already returned
   to an authorised caller of another service (no cross-talk).
 
+
+# The contract, built 2026-09-05 - exemplar-first
+
+`Lazysite::Lifecycle` defines the common shape and the daemon is its FIRST
+CONFORMING CONSUMER. The existing services - WebDAV, control API, MCP, OAuth,
+token exchange - migrate afterwards, one per SM, exactly as the plugins did
+under ADR 0009. A contract extracted from one real consumer beats one designed
+in the abstract and retrofitted five times.
+
+The daemon was chosen because its lifecycle is the least ambiguous in the
+system: it is a process, so "running" is a fact rather than an interpretation.
+It was also the unit already carrying a recorded debt to this filing - SM666
+implemented desired-versus-runtime locally on the understanding that it moved
+here when this landed. **That debt is paid.**
+
+## What the verdicts are, and where they came from
+
+`off` `starting` `on` `degraded` `inconsistent` `failed`
+
+**Not a new vocabulary.** `Lazysite::Git::health` has derived `verdict` and
+`healthy` over exactly this problem since content-history shipped, and this
+filing's own text says that model is what proves the design. Generalising it was
+the honest move; a second vocabulary beside it would have been the sixth place a
+reader learns one distinction.
+
+**The verdict is derived in ONE place**, from what the caller knows - desired,
+running - rather than by each unit deciding for itself. That is the property
+worth protecting: a shared word meaning different things per surface is worse
+than no shared word.
+
+**A caller may assert a verdict it knows better than the derivation can.** A
+unit that tried to start and could not knows `failed`; nothing about
+desired-versus-running distinguishes that from never having tried.
+
+## Two decisions inside the shape
+
+**Off-because-you-turned-it-off is HEALTHY**, and carries no remedy. Reporting a
+deliberate off as a problem trains an operator to ignore the panel, which is how
+a real failure goes unnoticed.
+
+**A remedy is required whenever the verdict is not healthy.** That is not
+defensive: SM712, SM730, SM749 and SM750 are four filings in one week about
+messages naming a state without naming an action. A status that says
+`inconsistent` and stops is the same defect in a different surface - and the
+daemon's own case proves the point, because the field met exactly that state and
+had to ask what to do next. It now answers with the command.
+
+## What is NOT built, and why
+
+**L2 routing - open decision 1, the substantive call - is untouched.** Whether
+to accept a web-server reload coupling and design a privileged helper, or keep
+"fully off" at L1 plus discovery suppression, remains the operator's. It does
+not bind the exemplar: the daemon has no routed endpoint in phase 1, so nothing
+here forces the answer.
+
+**The existing services are not migrated.** SM726 and SM728 both record what a
+wide simultaneous UI conversion costs; this follows the same rule, one unit per
+SM, each with the tests its own surface needs.
+
+**Open decisions 2, 3 and 4 are deferred** - the refusal contract, plugin
+`stop` semantics, and whether `status` needs its own capability. None binds a
+single consumer, and each is better answered with a second one in hand.
 ## Open decisions (for the operator)
 
 1. **L2 routing**: accept the web-server reload coupling (and design the

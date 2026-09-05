@@ -74,26 +74,39 @@ subtest 'run() on a disabled site starts nothing and touches nothing' => sub {
         'no state directory is created - it did not begin to start' );
 };
 
-subtest 'status reports desired and runtime separately' => sub {
-    # SM222's split, locally implemented. Reporting one of them is how an
-    # operator comes to believe a service is off when it is running, or
-    # running when it is dead.
+subtest 'status reports desired and verdict separately' => sub {
+    # SM222's split, and now SM222's contract - the debt this file's own
+    # comments recorded is paid. `up`/`down` became `on`/`off` and the runtime
+    # word became a VERDICT, because one vocabulary across every managed unit
+    # is the point of having a contract at all.
     set_plugins();
     my $off = Lazysite::Daemon::Supervisor::status($root);
-    is( $off->{desired}, 'down', 'disabled reads as desired: down' );
-    like( $off->{reason}, qr/disabled/, 'and says why, in words' );
-    is( $off->{services}[0]{runtime}, 'stopped',
-        'with nothing running' );
+    is( $off->{desired}, 'off', 'disabled reads as desired: off' );
+    is( $off->{verdict}, 'off', 'and the verdict agrees - nothing is wrong' );
+    is( $off->{healthy}, 1,
+        'off-because-you-turned-it-off is HEALTHY, not a problem to report' );
+    like( $off->{message}, qr/disabled/, 'and says why, in words' );
 
     set_plugins('daemon.pl');
     my $on = Lazysite::Daemon::Supervisor::status($root);
-    is( $on->{desired}, 'up', 'enabled reads as desired: up' );
+    is( $on->{desired}, 'on', 'enabled reads as desired: on' );
 
-    # Desired up, nothing started yet - and the vocabulary distinguishes that
-    # from "stopped". An operator who has just enabled it needs to see
-    # not-started rather than a word implying somebody turned it off.
-    is( $on->{services}[0]{runtime}, 'not-started',
-        'desired up with no process is NOT-STARTED, not stopped' );
+    # THE DISAGREEMENT IS THE REPORTED FACT. Enabled and not running was
+    # `not-started` - a word that describes the process. `inconsistent`
+    # describes the RELATIONSHIP between what the config says and what is true,
+    # which is what an operator is actually asking about when they wonder why
+    # nothing is happening.
+    is( $on->{verdict}, 'inconsistent',
+        'enabled with no process is INCONSISTENT, not merely stopped' );
+    is( $on->{healthy}, 0, 'and it is not healthy' );
+
+    # SM750's class: a state without an action is half an answer. The field
+    # met this exact state and had to ask what to do next.
+    like( $on->{remedy}, qr/systemctl enable --now lazysited/,
+        'the remedy names the command that resolves it' );
+
+    is( $on->{services}[0]{verdict}, 'inconsistent',
+        'and the service says the same' );
 };
 
 done_testing();

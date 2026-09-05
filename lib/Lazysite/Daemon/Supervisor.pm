@@ -24,14 +24,19 @@ package Lazysite::Daemon::Supervisor;
 #    two seconds as healthy would rebuild inside the daemon the exact
 #    dishonesty SM222 was filed about.
 #
-# SM222 DEBT, taken deliberately and recorded in SM666: the lifecycle verbs
-# here are local. When SM222 lands they move onto its shared contract, and the
-# desired/runtime vocabulary and the crash-loop verdict go with them. The
-# VOCABULARY is temporary; the guarantee in property 1 is not.
+# SM222 DEBT: PAID. The lifecycle verbs here were local, taken deliberately so
+# phase 1 did not wait for the shared contract and written down as owed. The
+# contract is Lazysite::Lifecycle now, and this is its first conforming
+# consumer - so `up`/`down` are `on`/`off`, and the crash-loop verdict is the
+# contract's `failed` rather than a word only this file understood.
+#
+# The distinction the debt note drew held: the VOCABULARY was temporary and has
+# been replaced; the guarantee in property 1 was not, and is unchanged.
 use strict;
 use warnings;
-use POSIX          ();
-use Lazysite::Util qw(log_event);
+use POSIX               ();
+use Lazysite::Util      qw(log_event);
+use Lazysite::Lifecycle qw(lifecycle_status);
 
 our $VERSION = '0.1';
 
@@ -144,41 +149,114 @@ sub _alive {
 
 # --- status --------------------------------------------------------------
 
-# SM222's shape, locally implemented: DESIRED is what the configuration says,
-# RUNTIME is what is actually true. Reporting only one of them is how an
-# operator ends up believing a service is off when it is running, or running
-# when it is dead.
+# SM222's shape, and now SM222's CODE - the debt SM666 recorded is paid here.
+#
+# This was a local implementation of desired-versus-runtime, taken deliberately
+# so phase 1 did not wait for the shared contract, and written down as owed. The
+# contract now exists in Lazysite::Lifecycle and the daemon is its first
+# conforming consumer, which is the exemplar-first shape ADR 0009 used for
+# plugins.
+#
+# WHAT CHANGED, and it is not only vocabulary. The old `runtime` field mixed two
+# questions: `died` and `not-started` are both "not running", but one is a
+# failure and the other is a configuration that has not been acted on. The
+# contract separates DESIRED from VERDICT, so the disagreement is the reported
+# fact rather than something a reader infers from two words.
+#
+# `up`/`down` become `on`/`off` because the contract says so and one vocabulary
+# is the point. `not-started` becomes `inconsistent` - switched on and not
+# running, which is precisely what it always meant and now says.
 sub status {
     my ($docroot) = @_;
     my $root      = _docroot($docroot);
-    my $desired   = should_run($root) ? 'up' : 'down';
+    my $enabled   = should_run($root) ? 1 : 0;
 
     my @svc;
+    my $any_running = 0;
+    my $any_died    = 0;
+
     for my $s ( services() ) {
         my $pid   = _read_pid( $root, $s->{name} );
         my $alive = _alive($pid);
+        $any_running ||= $alive;
 
-        # A recorded pid that is not alive is not "stopped" - it is a service
-        # that died. Saying "stopped" would lose the distinction an operator
-        # needs, which is whether somebody turned it off or something killed
-        # it.
-        my $runtime =
-            $alive             ? 'running'
-            : defined $pid     ? 'died'
-            : $desired eq 'up' ? 'not-started'
-            :                    'stopped';
+        # A recorded pid that is not alive is a service that DIED, which the
+        # contract calls `failed` - distinct from one that was never started,
+        # because an operator's next move differs.
+        my $verdict
+            = !$enabled    ? 'off'
+            : $alive       ? 'on'
+            : defined $pid ? 'failed'
+            :                'inconsistent';
+        $any_died ||= ( $verdict eq 'failed' );
 
-        push @svc, { name => $s->{name}, runtime => $runtime,
-            ( defined $pid ? ( pid => $pid ) : () ) };
+        push @svc,
+            lifecycle_status(
+            unit       => $s->{name},
+            kind       => 'service',
+            desired_on => $enabled,
+            running    => $alive,
+            verdict    => $verdict,
+            ( defined $pid ? ( detail => { pid => $pid } ) : () ),
+            ( $verdict eq 'failed'
+                ? ( message =>
+                        "$s->{name} was started and is no longer running",
+                    remedy =>
+                        'see the site log; the supervisor restarts a service '
+                        . 'until it keeps failing, then reports it failed'
+                    )
+                : ()
+            ),
+            ( $verdict eq 'inconsistent'
+                ? ( message => "$s->{name} has not been started",
+                    remedy =>
+                        'the plugin is enabled but the host service is not '
+                        . 'running - a host operator instantiates it with '
+                        . 'systemctl enable --now lazysited@<domain>'
+                    )
+                : ()
+            ),
+            );
     }
 
+    # The runtime's own verdict, over its services. A supervisor with a dead
+    # service is not healthy even if the supervisor itself is fine, which is
+    # the reading an operator wants and the one a per-process check misses.
+    my $whole = lifecycle_status(
+        unit       => 'daemon',
+        kind       => 'plugin',
+        desired_on => $enabled,
+        running    => $any_running,
+        ( $any_died ? ( verdict => 'degraded' ) : () ),
+        ( !$enabled
+            ? ( message =>
+                    'the daemon plugin is disabled, so no process is started' )
+            : ()
+        ),
+        ( $any_died
+            ? ( message => 'the runtime is up with a service that has failed',
+                remedy => 'see the per-service verdicts below'
+                )
+            : ()
+        ),
+
+        # THE TOP-LEVEL REMEDY CARRIES THE COMMAND, because it is the line an
+        # operator reads first - the Status button shows the unit before its
+        # services, and a remedy that says "check the host service" when the
+        # actual answer is one command is the SM750 defect at one remove.
+        ( $enabled && !$any_running && !$any_died
+            ? ( remedy =>
+                    'the plugin is enabled but the host service is not '
+                    . 'running - a host operator instantiates it with '
+                    . 'systemctl enable --now lazysited@<domain>' )
+            : ()
+        ),
+    );
+
     return {
-        ok      => 1,
-        plugin  => $PLUGIN,
-        desired => $desired,
-        reason  => $desired eq 'down'
-        ? 'the daemon plugin is disabled, so no process is started'
-        : 'the daemon plugin is enabled',
+        ok     => 1,
+        plugin => $PLUGIN,
+        %{$whole},
         services => \@svc,
     };
 }
