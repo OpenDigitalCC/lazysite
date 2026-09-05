@@ -6,3 +6,6 @@ etc/lazysite/sites.d
 # Per-site FastCGI pool env files consumed by lazysite@.service
 # (DOCROOT=, USER=, GROUP=, WORKERS=, MAX_REQUESTS=).
 etc/lazysite/pools
+# Per-site runtime env files consumed by lazysited@.service (DOCROOT=, USER=);
+# written by lazysite-hestia-domain add --daemon (SM666).
+etc/lazysite/daemon

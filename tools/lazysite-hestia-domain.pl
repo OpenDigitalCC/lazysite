@@ -6,8 +6,8 @@
 # The hook-shaped provisioning command: it runs AS ROOT by design, because
 # it is the panel-side integrator - the piece that does the few things only
 # root can do on a Hestia box (lay out the 0551-locked domain root, hand
-# the docroot to the web-server group, write the host-side registry and
-# pool files, enable the systemd pool unit) and then DROPS to the site
+# the docroot to the web-server group, write the host-side registry, pool
+# and daemon files, enable the systemd units) and then DROPS to the site
 # user for everything that writes into the site tree. The drop is explicit
 # and early: after the bounded root layout pass, every site-tree write
 # happens under `sudo -n -u <panel-user>`, keeping the SM139 principle
@@ -15,7 +15,7 @@
 #
 # Verbs:
 #   add USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi]
-#                   [--workers N] [--max-requests N]
+#                   [--workers N] [--max-requests N] [--daemon]
 #   remove DOMAIN
 #   list
 #
@@ -46,6 +46,9 @@ my $REGISTRY_DIR = length( $ENV{LAZYSITE_REGISTRY_DIR} // '' )
 my $POOLS_DIR = length( $ENV{LAZYSITE_POOLS_DIR} // '' )
     ? $ENV{LAZYSITE_POOLS_DIR}
     : '/etc/lazysite/pools';
+my $DAEMON_DIR = length( $ENV{LAZYSITE_DAEMON_DIR} // '' )
+    ? $ENV{LAZYSITE_DAEMON_DIR}
+    : '/etc/lazysite/daemon';
 my $WEB_GROUP = length( $ENV{LAZYSITE_WEB_GROUP} // '' )
     ? $ENV{LAZYSITE_WEB_GROUP}
     : 'www-data';
@@ -76,20 +79,25 @@ panel context) and drops to the site user for every site-tree write.
 
 Verbs:
   add USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi]
-                  [--workers N] [--max-requests N]
+                  [--workers N] [--max-requests N] [--daemon]
         Prepare the Hestia domain layout as root (locked domain root,
         docroot group/setgid), then provision the site AS THE PANEL USER
         (sudo -u USER lazysite provision), register it in
         /etc/lazysite/sites.d/, and with --fcgi write
         /etc/lazysite/pools/DOMAIN.conf and enable lazysite@DOMAIN.
+        With --daemon write /etc/lazysite/daemon/DOMAIN.conf and enable
+        lazysited@DOMAIN, the site's persistent runtime (SM666); it
+        does nothing until the site's sysop also enables the `daemon`
+        plugin - the unit is the host's switch, the plugin the site's.
         Afterwards apply BOTH templates yourself - the Apache one that
         carries the access rules, and the nginx proxy in front of it,
         which otherwise answers static requests before Apache sees them:
           v-change-web-domain-tpl       USER DOMAIN lazysite-cgi|lazysite-fcgi yes
           v-change-web-domain-proxy-tpl USER DOMAIN lazysite-proxy
   remove DOMAIN
-        Stop and disable the lazysite@DOMAIN pool (if any), remove the
-        pool config and the registry entry. NEVER deletes the docroot -
+        Stop and disable the lazysite@DOMAIN pool and the lazysited@DOMAIN
+        runtime (whichever exist), remove their configs and the registry
+        entry. NEVER deletes the docroot -
         the site files stay; switch the domain's web template back in
         Hestia to take it off lazysite.
   list
@@ -101,6 +109,7 @@ Environment (host-layout overrides):
   LAZYSITE_HESTIA_HOME    Hestia home base (default /home)
   LAZYSITE_REGISTRY_DIR   site registry (default /etc/lazysite/sites.d)
   LAZYSITE_POOLS_DIR      pool configs (default /etc/lazysite/pools)
+  LAZYSITE_DAEMON_DIR     daemon configs (default /etc/lazysite/daemon)
   LAZYSITE_WEB_GROUP      web-server group (default www-data)
 
 Full documentation: man lazysite-hestia-domain.
@@ -161,16 +170,29 @@ sub pool_conf_path {
     return "$POOLS_DIR/$domain.conf";
 }
 
+sub daemon_conf_path {
+    my ($domain) = @_;
+    return "$DAEMON_DIR/$domain.conf";
+}
+
 # ---------- add ----------
 
 sub cmd_add {
-    my %o = ( channel => '', policy => '', fcgi => 0, workers => 2, max_requests => 500 );
+    my %o = (
+        channel      => '',
+        policy       => '',
+        fcgi         => 0,
+        daemon       => 0,
+        workers      => 2,
+        max_requests => 500
+    );
     # GetOptions first (it permutes options out of @ARGV), positionals after,
     # so `add --fcgi USER DOMAIN` and `add USER DOMAIN --fcgi` both work.
     Getopt::Long::GetOptions(
         'channel=s'      => \$o{channel},
         'policy=s'       => \$o{policy},
         'fcgi'           => \$o{fcgi},
+        'daemon'         => \$o{daemon},
         'workers=i'      => \$o{workers},
         'max-requests=i' => \$o{max_requests},
     ) or usage(2);
@@ -293,7 +315,31 @@ sub cmd_add {
                 . "#   systemctl restart lazysite\@$domain\n"
         );
         print "==> pool config: $conf\n";
-        enable_pool($domain);
+        enable_unit( 'lazysite', $domain,
+            "pool enabled: lazysite\@$domain (socket /run/lazysite/$domain.sock)" );
+    }
+
+    # --- persistent runtime (SM666) - the host's half of two switches ---
+    # The conf carries the same two keys the pool's does, because the unit
+    # has the same problem: systemd cannot template User= from an instance
+    # name that is a domain. lazysited drops to USER before loading any
+    # daemon code. The OTHER switch is the `daemon` plugin, the site's own
+    # and born disabled (ADR 0009); with the plugin off the unit starts,
+    # exits 0 and stays quiet, which is why it is safe to enable here.
+    if ( $o{daemon} ) {
+        my $conf = daemon_conf_path($domain);
+        write_kv_file(
+            $conf,
+            [ [ DOCROOT => $docroot ], [ USER => $user ], ],
+            "# lazysite persistent runtime for $domain - consumed by\n"
+                . "# lazysited\@.service via tools/lazysited.pl. After editing:\n"
+                . "#   systemctl restart lazysited\@$domain\n"
+        );
+        print "==> daemon config: $conf\n";
+        enable_unit( 'lazysited', $domain,
+            "runtime enabled: lazysited\@$domain - it runs nothing until "
+                . 'the sysop enables the daemon plugin and names a '
+                . 'daemon_job_user holding run_jobs' );
     }
 
     print "\nDone. Now apply the matching web template in Hestia:\n"
@@ -334,19 +380,19 @@ sub write_kv_file {
     return;
 }
 
-# Enable + start the pool unit. On a systemd-less host (containers, test
-# rigs) print the command instead of failing the whole onboarding.
-sub enable_pool {
-    my ($domain) = @_;
+# Enable + start a templated unit (lazysite@ for the pool, lazysited@ for the
+# runtime) for the domain. On a systemd-less host (containers, test rigs)
+# print the command instead of failing the whole onboarding.
+sub enable_unit {
+    my ( $unit, $domain, $done_msg ) = @_;
     my $systemctl = first_existing( '/usr/bin/systemctl', '/bin/systemctl' );
     if ( !defined $systemctl ) {
-        print "==> systemctl not found - enable the pool yourself:\n"
-            . "    systemctl enable --now lazysite\@$domain\n";
+        print "==> systemctl not found - enable the unit yourself:\n"
+            . "    systemctl enable --now $unit\@$domain\n";
         return;
     }
-    run_or_fail( $systemctl, 'enable', '--now', 'lazysite@' . $domain );
-    print "==> pool enabled: lazysite\@$domain "
-        . "(socket /run/lazysite/$domain.sock)\n";
+    run_or_fail( $systemctl, 'enable', '--now', "$unit\@$domain" );
+    print "==> $done_msg\n";
     return;
 }
 
@@ -390,19 +436,25 @@ sub cmd_remove {
     check_domain($domain);
     require_root('remove');
 
-    my $did  = 0;
-    my $conf = pool_conf_path($domain);
-    if ( -f $conf ) {
+    my $did = 0;
+    for my $u (
+        [ 'lazysite',  pool_conf_path($domain),   'pool' ],
+        [ 'lazysited', daemon_conf_path($domain), 'daemon' ],
+        )
+    {
+        my ( $unit, $conf, $what ) = @$u;
+        next unless -f $conf;
+
         # Best-effort stop: the unit may never have been enabled, or the
         # host may not run systemd - the config removal below is what
-        # permanently retires the pool (ConditionPathExists in the unit).
+        # permanently retires it (ConditionPathExists in both units).
         my $systemctl = first_existing( '/usr/bin/systemctl', '/bin/systemctl' );
         if ( defined $systemctl ) {
-            system( $systemctl, 'disable', '--now', 'lazysite@' . $domain ) == 0
-                or print "==> (pool unit was not running/enabled)\n";
+            system( $systemctl, 'disable', '--now', "$unit\@$domain" ) == 0
+                or print "==> ($what unit was not running/enabled)\n";
         }
         unlink $conf or fail("unlink $conf: $!");
-        print "==> pool config removed: $conf\n";
+        print "==> $what config removed: $conf\n";
         $did++;
     }
     my $entry = "$REGISTRY_DIR/$domain";
@@ -412,8 +464,8 @@ sub cmd_remove {
         $did++;
     }
     if ( !$did ) {
-        fail( "nothing registered for '$domain' (no $entry, no $conf) - "
-                . 'nothing removed' );
+        fail( "nothing registered for '$domain' (no $entry, no pool or "
+                . 'daemon config) - nothing removed' );
     }
     # The docroot is deliberately untouched: removal takes the domain off
     # lazysite's fleet tooling, it does not destroy the sysop's site.
@@ -443,7 +495,7 @@ lazysite-hestia-domain - HestiaCP panel-side provisioning for lazysite domains
 
   lazysite-hestia-domain add USER DOMAIN [--channel edge|beta|stable]
                              [--policy auto|manual] [--fcgi]
-                             [--workers N] [--max-requests N]
+                             [--workers N] [--max-requests N] [--daemon]
   lazysite-hestia-domain remove DOMAIN
   lazysite-hestia-domain list
 
@@ -465,7 +517,7 @@ describes the full packaged onboarding.
 
 =over 4
 
-=item B<add> USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N]
+=item B<add> USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N] [--daemon]
 
 Onboard an existing Hestia web domain (create it in Hestia first). As
 root it prepares the panel-specific layout: the C<plugins/>, C<tools/>
@@ -482,6 +534,15 @@ With C<--fcgi> it also writes F</etc/lazysite/pools/DOMAIN.conf>
 keys C<lazysite-pool.pl> consumes) and runs
 C<systemctl enable --now lazysite@DOMAIN>, giving the domain a
 persistent FastCGI pool on F</run/lazysite/DOMAIN.sock>.
+
+With C<--daemon> it also writes F</etc/lazysite/daemon/DOMAIN.conf>
+(C<DOCROOT=>, C<USER=> - the keys C<lazysited@.service> consumes) and
+runs C<systemctl enable --now lazysited@DOMAIN>, giving the domain its
+persistent runtime (SM666). This is the host's half of two switches:
+the runtime does nothing until the site's sysop enables the C<daemon>
+plugin on the Plugin Manager page and names a C<daemon_job_user>
+holding C<run_jobs>. With the plugin off the unit starts, exits 0 and
+stays quiet, so enabling it at onboarding costs nothing.
 
 It finishes by printing the two template-application commands
 (C<v-change-web-domain-tpl USER DOMAIN lazysite-cgi|lazysite-fcgi yes>
@@ -501,8 +562,9 @@ serving statics directly as before.
 
 =item B<remove> DOMAIN
 
-Stop and disable the C<lazysite@DOMAIN> pool if one is configured,
-delete its pool config and the registry entry. The docroot is B<never>
+Stop and disable the C<lazysite@DOMAIN> pool and the C<lazysited@DOMAIN>
+runtime, whichever are configured, delete their configs and the
+registry entry. The docroot is B<never>
 deleted - the site's files stay in place and become inert once the
 domain's web template is switched back in Hestia.
 
@@ -517,7 +579,8 @@ List the registered sites; a pass-through to C<lazysite sites>.
 C<LAZYSITE_HESTIA_HOME> (Hestia home base, default C</home> - match a
 custom Hestia C<HOMEDIR>), C<LAZYSITE_REGISTRY_DIR> (default
 C</etc/lazysite/sites.d>), C<LAZYSITE_POOLS_DIR> (default
-C</etc/lazysite/pools>), C<LAZYSITE_WEB_GROUP> (default C<www-data>).
+C</etc/lazysite/pools>), C<LAZYSITE_DAEMON_DIR> (default
+C</etc/lazysite/daemon>), C<LAZYSITE_WEB_GROUP> (default C<www-data>).
 
 =head1 EXIT STATUS
 

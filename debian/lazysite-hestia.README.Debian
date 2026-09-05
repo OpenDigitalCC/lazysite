@@ -113,7 +113,7 @@ which is a no-op at the same version, and adds the pool), then apply
 the lazysite-fcgi template.
 
 `lazysite-hestia-domain remove <domain>` stops and disables the pool
-and deregisters the site. It NEVER deletes the docroot; to take the
+and the runtime (whichever exist) and deregisters the site. It NEVER deletes the docroot; to take the
 domain off lazysite, also switch its web template back
 (`v-change-web-domain-tpl <user> <domain> default`).
 
@@ -122,7 +122,11 @@ The persistent runtime, on a host with many sites
 
 SM666 ships a per-instance runtime that holds work the request path
 cannot - a scheduler now, transports later. It is templated the same
-way as the FastCGI pool:
+way as the FastCGI pool, and provisioned the same way:
+
+    lazysite-hestia-domain add <user> <domain> --fcgi --daemon
+
+which writes the conf and enables the unit - or by hand:
 
     /etc/lazysite/daemon/<domain>.conf     DOCROOT= and USER=
     systemctl enable --now lazysited@<domain>
