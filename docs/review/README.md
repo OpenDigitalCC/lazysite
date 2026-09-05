@@ -39,6 +39,7 @@ text: 3
 2026-07-18-eight-dimension/ | 0.7.28 (0.8.0 gate) | 6 PASS, 1 WARN, 1 REFUSE cleared in-cut
 2026-08-14-eight-dimension/ | 0.10.8 | 1 PASS, 4 WARN, 3 REFUSE
 2026-08-14-eight-dimension-0.10.9/ | 0.10.9 | 3 PASS, 4 WARN, 1 REFUSE
+0.13.1-daemon/ | main 53df9a44, pre-0.13.1 (scoped: the daemon service) | 2 PASS, 4 WARN, 2 REFUSE - both REFUSEs cleared on claude/sm755 before the cut
 ```
 
 # Method

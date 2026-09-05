@@ -1,0 +1,159 @@
+{
+  "_doc": "SM302 convention: the mechanical half of this review's findings, so the next review re-runs the SAME check rather than reinventing it. Prose stays in the dimension files. `verify` exits 0 when the finding is FIXED, run from the repository root. A finding without `verify` is reported as not-mechanical.",
+  "review": "0.13.1-daemon",
+  "audited": "53df9a44",
+  "findings": [
+    {
+      "id": "F1.1",
+      "dimension": 1,
+      "title": "a dying service is counted, backed off and FAILED (the reap is the exit event)",
+      "severity": "refuse",
+      "side": "build",
+      "verify": "grep -q 'service failed - not restarting' lib/Lazysite/Daemon/Supervisor.pm && test -f t/unit/daemon/06-a-dying-service-is-counted-backed-off-and-failed.t"
+    },
+    {
+      "id": "F1.2",
+      "dimension": 1,
+      "title": "the enabled gate is re-read while the supervisor runs",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'plugin has been disabled' lib/Lazysite/Daemon/Supervisor.pm"
+    },
+    {
+      "id": "F1.3",
+      "dimension": 1,
+      "title": "a job account that does not exist is refused as such, via account_names",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'account_names()->{\\$user}' lib/Lazysite/Daemon/Service/Scheduler.pm"
+    },
+    {
+      "id": "F1.4",
+      "dimension": 1,
+      "title": "the daemon reads its config through the manager's plugin-conf reader, not a fourth parser",
+      "severity": "warn",
+      "side": "build",
+      "verify": "! grep -q '^sub conf_value' lib/Lazysite/Daemon/Supervisor.pm"
+    },
+    {
+      "id": "F2.3",
+      "dimension": 2,
+      "title": "one shared atomic JSON writer in Lazysite::Util",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'sub write_json_atomic' lib/Lazysite/Util.pm"
+    },
+    {
+      "id": "F3.2",
+      "dimension": 3,
+      "title": "a test starts the supervisor with the plugin enabled",
+      "severity": "warn",
+      "side": "build",
+      "verify": "ls t/unit/daemon/ | grep -q '^06-a-dying-service'"
+    },
+    {
+      "id": "F4.1",
+      "dimension": 4,
+      "title": "the Hestia README states the per-instance memory cost",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -qiE 'MB (PSS|resident|per instance)' debian/lazysite-hestia.README.Debian"
+    },
+    {
+      "id": "F4.2",
+      "dimension": 4,
+      "title": "an idle tick does not rewrite the run record",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q '_write_runs( \\$root, \\$runs ) if @done' lib/Lazysite/Daemon/Service/Scheduler.pm"
+    },
+    {
+      "id": "F5.2",
+      "dimension": 5,
+      "title": "one supervisor per docroot (a lock) and orphan adoption",
+      "severity": "refuse",
+      "side": "build",
+      "verify": "grep -q 'sub _acquire_lock' lib/Lazysite/Daemon/Supervisor.pm && grep -q 'stopping an orphaned service' lib/Lazysite/Daemon/Supervisor.pm"
+    },
+    {
+      "id": "F5.4",
+      "dimension": 5,
+      "title": "status requires the recorded kernel start time, not the pid alone",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'sub _start_ticks' lib/Lazysite/Daemon/Supervisor.pm"
+    },
+    {
+      "id": "F5.5",
+      "dimension": 5,
+      "title": "stopping children has a deadline then KILL",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'STOP_DEADLINE' lib/Lazysite/Daemon/Supervisor.pm"
+    },
+    {
+      "id": "F5.6",
+      "dimension": 5,
+      "title": "a torn run record is logged",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'run record is unreadable' lib/Lazysite/Daemon/Service/Scheduler.pm"
+    },
+    {
+      "id": "F5.8",
+      "dimension": 5,
+      "title": "the daemon has run on a real host and the run is recorded",
+      "severity": "warn",
+      "side": "operator",
+      "verify": "grep -qiE 'lazysited@|daemon.*(provisioned|first instance)' docs/RELIABILITY.md"
+    },
+    {
+      "id": "F7.1",
+      "dimension": 7,
+      "title": "OPERATOR.md documents the daemon unit",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'lazysited@' docs/OPERATOR.md"
+    },
+    {
+      "id": "F7.2",
+      "dimension": 7,
+      "title": "SECURITY.md has a significant-change entry for the daemon",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -qE '^### 2026-.*SM666' docs/SECURITY.md"
+    },
+    {
+      "id": "F7.3",
+      "dimension": 7,
+      "title": "performance.md no longer says there is no daemon",
+      "severity": "warn",
+      "side": "build",
+      "verify": "! grep -q 'No$' docs/architecture/performance.md || ! grep -q 'daemon, no process manager, no listening socket owned by lazysite' docs/architecture/performance.md"
+    },
+    {
+      "id": "F7.4",
+      "dimension": 7,
+      "title": "DEVELOPER.md names the runtime and how a job is added",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q 'lazysited' docs/DEVELOPER.md"
+    },
+    {
+      "id": "F7.5",
+      "dimension": 7,
+      "title": "an ADR records the runtime's decisions",
+      "severity": "warn",
+      "side": "build",
+      "verify": "ls docs/adr/ | grep -qiE 'runtime|daemon'"
+    },
+    {
+      "id": "F8.4",
+      "dimension": 8,
+      "title": "lazysite-common ships a postinst that reloads systemd",
+      "severity": "warn",
+      "side": "build",
+      "verify": "test -f debian/lazysite-common.postinst || grep -q 'dh_installsystemd' debian/rules"
+    }
+  ]
+}
