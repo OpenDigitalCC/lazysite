@@ -262,8 +262,12 @@ function renderPermGrid(d, user) {
     h += '<th style="text-align:center" title="' + escHtml(title) + '">' + escHtml(lbl(c)) + warn + '</th>';
   });
   h += '</tr></thead><tbody>';
-  acts.forEach(function(a) {
-    h += '<tr><td title="' + (by(a) ? 'granted by: ' + by(a).join(', ') : 'not granted') + '">' + escHtml(lbl(a)) + '</td>';
+  // SM758: the same categories as the Groups page, served from the same
+  // registry entry, alphabetised by label within. A section row spans the
+  // table; an action the served sections do not name draws under "Other".
+  var byLabel = function(list) { return list.slice().sort(function(x, y) { return lbl(x).localeCompare(lbl(y)); }); };
+  var actionRow = function(a) {
+    var h = '<tr><td title="' + (by(a) ? 'granted by: ' + by(a).join(', ') : 'not granted') + '">' + escHtml(lbl(a)) + '</td>';
     chans.forEach(function(c) {
       // SM197: a cell is a real "can do this here" only when the capability is
       // granted (by a group), the channel is held, AND the capability actually
@@ -284,7 +288,19 @@ function renderPermGrid(d, user) {
       h += '<td style="text-align:center;color:' + color + '" title="'
         + escHtml(tip) + '">' + glyph + '</td>';
     });
-    h += '</tr>';
+    return h + '</tr>';
+  };
+  var placed = {}, sections = (d.sections || []).map(function(s) {
+    var caps = s[1].filter(function(k) { return acts.indexOf(k) >= 0; });
+    caps.forEach(function(k) { placed[k] = 1; });
+    return [s[0], caps];
+  });
+  var rest = acts.filter(function(a) { return !placed[a]; });
+  if (rest.length) sections.push(['Other', rest]);
+  sections.forEach(function(s) {
+    if (!s[1].length) return;
+    h += '<tr><th colspan="' + (chans.length + 1) + '" class="mg-cap-section">' + escHtml(s[0]) + '</th></tr>';
+    byLabel(s[1]).forEach(function(a) { h += actionRow(a); });
   });
   h += '</tbody></table>';
   h += '<p class="mg-muted" style="font-size:11px;margin-top:0.3rem">&#10003; = the capability is granted, '

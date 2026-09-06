@@ -3360,7 +3360,9 @@ sub action_channel_services {
     }
 
     return { ok => 1, services => \%svc, channel_for_key => \%by_key,
-        grants => \%grants, capability_plugin => \%cap_plugin };
+        grants => \%grants, capability_plugin => \%cap_plugin,
+        # SM758: the categories the Actions grid is drawn by, from the registry.
+        sections => Lazysite::Capabilities::sections() };
 }
 
 # SM677: does this table audit its row writes? Default YES - only an explicit

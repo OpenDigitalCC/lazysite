@@ -35,22 +35,20 @@ is_deeply( [ sort keys %grid ], [ sort @cap_keys ],
     or diag "grid-only: @{[ sort grep { !$is_cap{$_} } keys %grid ]} | caps-missing-from-grid: @{[ sort grep { !$grid{$_} } @cap_keys ]}";
 
 # --- SM758: every action is shown under exactly one category ------------------
-# The grid draws ACTIONS by ACTION_SECTIONS; a key named twice would be offered
-# twice, and a key named nowhere falls to the renderer's "Other" - drawn, but
-# not where anyone looks for it. Both are drift between the two lists.
+# The grids on the Groups and Users pages are drawn by sections() from the
+# capability registry, so the category lives beside the title and the grant
+# sentence rather than in either page's JavaScript. Every action must declare
+# one of @SECTIONS; sections() must then list each action exactly once.
 {
-    my ($acts) = $groups =~ /var ACTIONS = \[(.*?)\];/s;
-    my @actions = ( $acts // '' ) =~ /\[\s*'([a-z0-9_]+)'/g;
-    my ($secs) = $groups =~ /var ACTION_SECTIONS = \[(.*?)\n\];/s;
-    ok( $secs, 'groups.md defines ACTION_SECTIONS' );
-    my @sectioned = map { /'([a-z0-9_]+)'/g } ( $secs // '' ) =~ /\[\s*'[^']+',\s*\[([^\]]*)\]/g;   # the key lists only, never the section names
-    my %seen;
-    my @dup = grep { $seen{$_}++ } @sectioned;
-    is_deeply( \@dup, [], 'no action is named in two sections' ) or diag "twice: @dup";
-    is_deeply( [ sort @sectioned ], [ sort @actions ],
-        'ACTION_SECTIONS names exactly the ACTIONS keys - every action has a category' )
-        or diag "sectioned-only: @{[ sort grep { !{ map { $_ => 1 } @actions }->{$_} } @sectioned ]} | "
-        . "uncategorised: @{[ sort grep { !$seen{$_} } @actions ]}";
+    require Lazysite::Capabilities;
+    my %known = map { $_ => 1 } @Lazysite::Capabilities::SECTIONS;
+    my @actions = Lazysite::Capabilities::action_keys();
+    my @unsectioned = grep { !$known{ Lazysite::Capabilities::section($_) // '' } } @actions;
+    is_deeply( \@unsectioned, [], 'every action declares a section from @SECTIONS' )
+        or diag "no section, or one not in \@SECTIONS: @unsectioned";
+    my @listed = map { @{ $_->[1] } } @{ Lazysite::Capabilities::sections() };
+    is_deeply( [ sort @listed ], [ sort @actions ], 'sections() lists every action exactly once' );
+    unlike( $groups, qr/var ACTION_SECTIONS/, 'groups.md carries no copy of the sections' );
 }
 
 # --- Users page: PERM_LABELS read-only grid ------------------------------------

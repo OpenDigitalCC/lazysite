@@ -4132,6 +4132,7 @@ sub cmd_permissions_grid {
         actions    => \@actions,
         granted_by => \%granted_by,
         surface    => Lazysite::Capabilities::action_channel_surface(),
+        sections   => Lazysite::Capabilities::sections(),    # SM758: drawn by category
     };
 }
 

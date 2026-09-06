@@ -63,6 +63,7 @@ sub channel_service { return {%CHANNEL_SERVICE} }
 # consistency test keeps the tool/action names honest against the live maps.
 my %ACTION_INFO = (
     manage_content => {
+        section => 'Content',
         title => 'Read and write site content (pages, assets).',
         grants => 'Create, edit, move and delete pages and assets, and set who may read them. Over WebDAV it is direct file access to the content tree.',
         unlocks => {
@@ -85,6 +86,7 @@ my %ACTION_INFO = (
         },
     },
     manage_nav => {
+        section => 'Content',
         title => 'Edit site navigation.',
         grants => 'Edit the site\'s navigation - what appears in the menu, and in what order.',
         # SM568: nav-read and pages are reads a content author needs as much
@@ -101,6 +103,7 @@ my %ACTION_INFO = (
         },
     },
     manage_forms => {
+        section => 'Content',
         # SM618: the title said what this capability CONFIGURES and stayed
         # silent on what it READS, while the sentence it did spend words on -
         # that the notification never carries content - reads as a reassurance
@@ -167,6 +170,7 @@ my %ACTION_INFO = (
         },
     },
     manage_themes => {
+        section => 'Appearance',
         title => 'Install and activate themes.',
         grants => 'Install, author and activate themes, which decide how every page on the site looks.',
         unlocks => {
@@ -181,6 +185,7 @@ my %ACTION_INFO = (
         },
     },
     manage_layouts => {
+        section => 'Appearance',
         title => 'Install, author and activate layouts.',
         grants => 'Install, author and activate layouts, which decide the shape of every page on the site.',
         unlocks => {
@@ -194,6 +199,7 @@ my %ACTION_INFO = (
         },
     },
     manage_domains => {
+        section => 'Site',
         title => 'Manage the domains this instance serves, and portable site packages.',
         grants => 'Add and remove the domains this instance serves, and export or apply a whole site as a package.',
         unlocks => {
@@ -242,6 +248,7 @@ my %ACTION_INFO = (
     # the operator already trusted with row-writes elsewhere, and SM682 records
     # the SM647 remedy for that residue.
     write_data => {
+        section => 'Data',
         title => 'Write rows in data tables that name your group, and nothing else.',
 
         # SM740: a HIERARCHY, declared. manage_data admits every action this
@@ -264,6 +271,7 @@ my %ACTION_INFO = (
     },
 
     manage_data => {
+        section => 'Data',
         title => 'Read and write the site\'s data tables.',
         grants => 'Read and write every data table on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here.',
         unlocks => {
@@ -304,6 +312,7 @@ my %ACTION_INFO = (
     # gives you, not what it exclusively gives you (manage_nav's nav-read and
     # manage_forms' form-submissions are listed twice for the same reason).
     manage_briefs => {
+        section => 'Content',
         title => 'Write authoring briefs - the "why" record kept beside a content file. '
             # SM654 (R-18): this said DELETING needs manage_briefs. It needs
             # `purge` - brief-delete is gated on it because no copy survives
@@ -322,6 +331,7 @@ my %ACTION_INFO = (
         },
     },
     run_jobs => {
+        section => 'Operations',
         title => 'Be the account the scheduler runs timed jobs as. This is not '
             . 'permission to DO anything in particular - a job\'s own action '
             . 'faces the ordinary capability gate unchanged, so an account '
@@ -349,6 +359,7 @@ my %ACTION_INFO = (
     # a sysop who wanted a housekeeper handing over the permission surface.
     # Housekeeping and permission management are different jobs.
     housekeeping => {
+        section => 'Operations',
         title => 'Destroy things the engine keeps a copy of. The RECOVERABLE tier of '
             . 'the housekeeping grant: a drop mints a safety export of every row before '
             . 'anything goes, so the object is gone and the data is not. Granting a '
@@ -358,6 +369,7 @@ my %ACTION_INFO = (
         unlocks => { api => [qw(data-table-drop)], mcp => [qw(drop_data_table)] },
     },
     purge => {
+        section => 'Operations',
         title => 'Destroy things NO copy survives. The IRREVERSIBLE tier: deleting a '
             . 'safety export is what makes an earlier table drop permanent, and deleting '
             . 'a brief or a backup ends the only record there was. Held separately from '
@@ -376,6 +388,7 @@ my %ACTION_INFO = (
         },
     },
     manage_config => {
+        section => 'Site',
         title => 'Read and set safe site configuration.',
         grants => 'Read and change ordinary site settings - title, cache lifetime, search defaults, the active layout and theme. The switches that decide whether the remote surfaces answer at all are `manage_services`, held separately.',
         # SM435: this listed lazysite/nav.conf and lazysite/forms/<name>.conf
@@ -412,6 +425,7 @@ my %ACTION_INFO = (
     # the ability to tune caching without handing it the ability to turn WebDAV
     # off for everyone.
     manage_services => {
+        section => 'Site',
         title => 'Switch the remote surfaces on and off (WebDAV, MCP, OAuth, '
             . 'the control API, the pairing-key exchange).',
         grants => 'Turn the site\'s remote surfaces on or off. Switching one '
@@ -421,16 +435,19 @@ my %ACTION_INFO = (
         unlocks => { api => [qw(config-set)] },
     },
     manage_users => {
+        section => 'Accounts',
         title => 'Manage user accounts and group membership.',
         grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. Manager UI only: no remote surface offers it.',
         unlocks => { ui => ['the manager Users and Groups pages'] },
     },
     analytics => {
+        section => 'Insight',
         title => 'Read sanitised, IP-anonymised visitor analytics.',
         grants => 'Read this site\'s visitor figures. They are sanitised and IP-anonymised before this capability sees them, so they cannot identify an individual visitor.',
         unlocks => { api => [qw(analyse_visitors)], mcp => [qw(analyse_visitors)] },
     },
     audit => {
+        section => 'Insight',
         # SM618: measured on edge 2026-08-26 under a grant holding `analytics`
         # + `audit` and nothing else - 93 pages, six distinct actors, 180 full
         # IPv4 dotted-quads in 192 sampled entries, and origins `ui`, `cli` and
@@ -458,6 +475,7 @@ my %ACTION_INFO = (
         unlocks => { api => [qw(audit)] },
     },
     notifications => {
+        section => 'Insight',
         title => 'See sysop notifications (the manager bell: new form submissions, requests awaiting a response).',
         grants => 'See the sysop bell - new submissions and requests awaiting an answer. It names the form and the time, never the content.',
         # SM281 item 3: it unlocked a manager page and nothing else - a
@@ -470,21 +488,25 @@ my %ACTION_INFO = (
         },
     },
     feedback => {
+        section => 'Insight',
         title => 'Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator.',
         grants => 'Write files into lazysite/feedback/ and raise an operator notification. Off unless an operator opts the group in.',
         unlocks => { mcp => [qw(submit_feedback)] },
     },
     read_submissions => {
+        section => 'Content',
         title => 'Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default.',
         grants => 'Read what visitors have submitted through forms - whatever each form collects, with the submitter\'s IP address. Read-only: it cannot change where submissions go.',
         unlocks => { api => [qw(form-submissions form-list)], mcp => [qw(read_form_submissions form_list)] },
     },
     create_sub_users => {
+        section => 'Accounts',
         title => 'Create sub-accounts under your own account.',
         grants => 'Create accounts beneath this one. A sub-account cannot be given capabilities its creator does not hold, or reach further than its creator reaches.',
         unlocks => { ui => ['sub-user creation'] },
     },
     delegate_sub_user_creation => {
+        section => 'Accounts',
         title => 'Grant sub-accounts the ability to create their own sub-users.',
         grants => 'Let the accounts this group creates make sub-accounts of their own, so delegation continues one level further without a sysop.',
         unlocks => { ui => ['onward delegation of sub-user creation'] },
@@ -690,6 +712,29 @@ sub implications {
         };
     }
     return \%out;
+}
+
+# SM758: the CATEGORY each action is shown under, and the order of the
+# categories. Twenty-two actions in registry order were a list to be read
+# end to end; a grid drawn by category, alphabetised within, is a short
+# sorted list in the one place a reader looks. Here beside the title and the
+# grant sentence for the reason those are here: the Groups page, the Users
+# page and anything else that draws the actions must say the same thing, and
+# a copy in JavaScript would drift from this the moment either changed.
+# sections() lists every action once, under the section it declares, in
+# @CAP_KEYS order (the pages sort by label); t/lint/19 holds that every action
+# declares one of @SECTIONS.
+our @SECTIONS = qw(Content Appearance Data Site Accounts Operations Insight);
+
+sub section {
+    my ($cap) = @_;
+    return ( $ACTION_INFO{$cap} || {} )->{section};
+}
+
+sub sections {
+    my %by;
+    push @{ $by{ section($_) // 'Other' } }, $_ for action_keys();
+    return [ map { [ $_, $by{$_} ] } grep { $by{$_} } @SECTIONS, 'Other' ];
 }
 
 sub _holds_why {

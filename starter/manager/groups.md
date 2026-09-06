@@ -79,19 +79,13 @@ var CAPS = CHANNELS.concat(ACTIONS);   // for counting
 // end to end. They are shown by CATEGORY - what the grant is about - and
 // alphabetised by label within each, so an operator looks in one place for
 // "the content grants" and reads a short sorted list. ACTIONS above stays the
-// flat registry (t/lint/19 reads it for parity with @CAP_KEYS); this names
-// where each key is shown. t/lint/19 holds that the two agree exactly, and
-// renderActions() puts anything unassigned under "Other" rather than losing
-// it - a grant that is not drawn cannot be seen, audited or revoked.
-var ACTION_SECTIONS = [
-  ['Content',    ['manage_briefs', 'manage_content', 'manage_forms', 'manage_nav', 'read_submissions']],
-  ['Appearance', ['manage_layouts', 'manage_themes']],
-  ['Data',       ['write_data', 'manage_data']],
-  ['Site',       ['manage_domains', 'manage_services', 'manage_config']],
-  ['Accounts',   ['create_sub_users', 'delegate_sub_user_creation', 'manage_users']],
-  ['Operations', ['housekeeping', 'purge', 'run_jobs']],
-  ['Insight',    ['feedback', 'analytics', 'audit', 'notifications']]
-];
+// flat registry (t/lint/19 reads it for parity with @CAP_KEYS); the sections
+// are SERVED with the grant sentences, from the same registry entry, so this
+// page and the Users page cannot disagree about where an action sits.
+// renderActions() puts anything the served sections do not name - including
+// everything, if the fetch failed - under "Other" rather than losing it: a
+// grant that is not drawn cannot be seen, audited or revoked.
+var CAP_SECTIONS = [];      // [[name, [capability, ...]], ...] served
 
 // SM758: rows sorted by their human label - the order a reader scans, since
 // the label is what the grid shows and the key is only on hover.
@@ -104,7 +98,7 @@ function byLabel(list) {
 function renderActions(row) {
   var byKey = {}, placed = {};
   ACTIONS.forEach(function(c) { byKey[c[0]] = c; });
-  var sections = ACTION_SECTIONS.map(function(s) {
+  var sections = CAP_SECTIONS.map(function(s) {
     var caps = s[1].filter(function(k) { return byKey[k]; }).map(function(k) { placed[k] = 1; return byKey[k]; });
     return [s[0], caps];
   });
@@ -156,6 +150,7 @@ function loadGroups() {
   var cs = fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok && d.grants) CAP_GRANTS = d.grants;
+      if (d.ok && d.sections) CAP_SECTIONS = d.sections;
       if (d.ok && d.capability_plugin) capabilityPlugin = d.capability_plugin;
       return (d.ok && d.services) ? d.services : {};
     })
