@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.2"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.3"
 brand: plain
 ---
 
@@ -1758,6 +1758,15 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.3** (2026-09-06, EDGE) - **The runtime reads the switch the Plugin
+  Manager writes.** SM759: the supervisor keyed the plugin's enabled state on
+  `daemon.pl` while the conf holds `plugins/daemon.pl`, so the runtime had
+  read itself as disabled on every site since 0.13.0; the start-page table had
+  the same bug. Both name the registry key, a join test enables through the
+  real writer, and a lint refuses a bare name. Status names a next step in
+  every state short of running and carries the run record. SM758: the Groups
+  and Users pages draw actions by category, alphabetised within, from one
+  `section =>` per capability in the registry.
 - **0.13.2** (2026-09-06, EDGE) - **The runtime reaches a tarball host, a
   timer starts it, and Enable says what is missing.** SM757: the daemon's unit
   ships in the tarball and takes its engine from `ENGINE=`; the Hestia per-site

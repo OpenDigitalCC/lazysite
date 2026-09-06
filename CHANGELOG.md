@@ -44,6 +44,47 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.3 - EDGE: the runtime reads the switch the Plugin Manager writes (2026-09-06)
+
+**The runtime had never run in the field.** The 0.13.2 pass did what no fixture
+had: enabled the plugin the way a sysop does and read the toggle line without
+being told what it would say. The line said the plugin was disabled while the
+listing said it was on, five minutes after the switch.
+
+- SM759 (35ac9346) **the runtime keyed on a name the conf never holds.** The
+  Plugin Manager writes `plugins/daemon.pl` into the conf; the supervisor
+  asked for `daemon.pl`, so `should_run` was 0 on every site since 0.13.0 -
+  the timer started the service on schedule and it exited saying the plugin
+  was disabled. The start-page table had the same bug (`data.pl`, `stats.pl`),
+  so a start page on either was unreachable while its plugin was on. Both
+  readers name the registry key; `t/unit/daemon/09` enables through the real
+  writer and asks the runtime, Status, the on_enable hook and the start-page
+  gate; `t/lint/119` refuses a bare plugin name in any enabled-check or
+  fixture (six fixtures had written `- daemon.pl` by hand - the fixture
+  agreed with the reader and the writer was never consulted). From the
+  field's status-line filing: the disabled line names its next step, the
+  `runtime` check carries the host remedy while nothing runs, and Status
+  carries the run record as `runs` - no remote grant reaches
+  `lazysite/daemon/`, by design, so the button is where a job's outcome is
+  read.
+- SM758 (c5adae0e, e30ee0d3) **the Groups and Users pages show actions by
+  category, alphabetised within.** Twenty-two checkboxes in registry order
+  were a list read end to end. Each action declares `section =>` in
+  `Capabilities.pm` beside its title and grant sentence (Content, Appearance,
+  Data, Site, Accounts, Operations, Insight); `sections()` is served by
+  `channel-services` and `permissions-grid`, so both grids draw the same
+  categories from the one registry entry and neither carries a copy in
+  JavaScript. Anything unsectioned draws under "Other" rather than vanishing.
+  `t/lint/19` holds the partition. `daemon_tick_seconds` is labelled with its
+  unit.
+- Field pass on 0.13.2 (archived 2026-09-06): 132E-02 PASS (not-found
+  refusals on DELETE, MOVE and COPY read as sentences); 132E-01 part-run - the
+  host half confirmed (conf, timer, cadence, each named), the runtime never
+  started, which is SM759. The plugin was left enabled with the job account
+  set; on deploy the timer's next cycle should start it.
+- Not in this cut: SM579 (connectors - after the runtime has run on edge),
+  SM666 phase 2, the rest of SM753 and SM754.
+
 ## 0.13.2 - EDGE: the runtime reaches a tarball host, a timer starts it, and Enable says what is missing (2026-09-06)
 
 **A patch that exists so the daemon can run on the host we actually have.** The
