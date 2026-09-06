@@ -57,7 +57,17 @@ BEGIN {
 # How long a conversion may take, and how big its input may be. Both are
 # deliberately small: a manager request is not the place for a long job, and a
 # refusal that says "too large" is better than a CGI killed halfway.
-my $TIMEOUT_SECONDS = 20;
+# SM763: UNDER INSTRUMENTATION, THE TIME IT NEEDS. Devel::Cover makes this
+# process several times slower and the release gate runs the whole suite
+# under it at -j4; a pandoc + XeLaTeX render that takes 8 s plain took
+# longer than 20 s there, the conversion was refused as a timeout, and the
+# 0.13.4 coverage stage failed on t/unit/plugins/41 - a test that passes
+# alone and passed on the 0.13.3 run by the luck of the load. The same rule
+# Manager::Plugins applies to its --describe budget: measurement must not
+# alter behaviour, so the instrumented process gets a proportionate ceiling
+# and production keeps 20 s.
+my $TIMEOUT_SECONDS
+    = ( $INC{'Devel/Cover.pm'} || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/ ) ? 90 : 20;
 my $MAX_INPUT_BYTES = 512 * 1024;
 
 sub describe {
