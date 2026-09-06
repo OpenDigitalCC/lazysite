@@ -44,6 +44,40 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.2 - EDGE: the runtime reaches a tarball host, a timer starts it, and Enable says what is missing (2026-09-06)
+
+**A patch that exists so the daemon can run on the host we actually have.** The
+0.13.1 field pass could not run 131E-01: the edge host is a tarball install, the
+daemon's unit had only ever shipped in the deb, and the release manager will not
+put debs on a host that serves live sites. The ruling - the installer runs as
+root and should do all of it, automatically on upgrade, and pressing Enable
+should check and advise - is what this release does.
+
+- SM757 (326a7f41) **the tarball deploy provisions the runtime.** The unit
+  moves into the tarball (`installers/systemd/`, the deb installs it from
+  there) and takes its engine from `ENGINE=`, defaulting to the deb's path;
+  `lazysite-hestia-deploy.sh` (root, per site, run by `update-all`, which the
+  watcher runs) writes `/etc/lazysite/daemon/<domain>.conf` with
+  `ENGINE=<domain root>`, installs the unit and its new **timer** into
+  `/etc/systemd/system` when they changed, enables the timer, and restarts a
+  running runtime so an upgrade takes effect. The **timer** starts the service
+  every five minutes while it is not running - the manager has no root, so a
+  sysop's Enable could not start an exited unit - at one short-lived process
+  per five minutes per disabled site. **Enable runs Status** (`on_enable`),
+  which now reads the host (which conf names this docroot, is its timer
+  enabled, is the service active) and the job account and each job's
+  capability, and shows one sentence beside the toggle naming what is missing.
+  WebDAV's not-found refusals carry a detail line (the field read `http 404`
+  beside rows that said what and why). The watcher and `update-all` are
+  unchanged.
+- Field pass on 0.13.1 (archived 2026-09-06): 131E-02, 03, 04, 07 PASS; 04
+  corrected the 0.13.0 "MCP lists two tools" finding, which was the agent's own
+  stale bearer - the self-explaining listing is what let them find it. The `..`
+  case in 03 is the front end normalising dot-segments before lazysite sees the
+  request; both engine stacks refuse a `..` they see. Nothing filed.
+- Not in this cut: SM579 (connectors - after the runtime has run on edge),
+  SM666 phase 2, the rest of SM753 and SM754.
+
 ## 0.13.1 - EDGE: the runtime does real work, the theme being served is read-only everywhere, and a refusal says what to do (2026-09-05)
 
 **The scheduler carries the maintenance it was built for.** 0.13.0 shipped a

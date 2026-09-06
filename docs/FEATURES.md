@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.1"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.2"
 brand: plain
 ---
 
@@ -1758,6 +1758,16 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.2** (2026-09-06, EDGE) - **The runtime reaches a tarball host, a
+  timer starts it, and Enable says what is missing.** SM757: the daemon's unit
+  ships in the tarball and takes its engine from `ENGINE=`; the Hestia per-site
+  deploy, as root, writes the host conf, installs the unit and its timer,
+  enables the timer and restarts a running runtime on every deploy and upgrade
+  - nothing by hand. The timer starts the service every five minutes while it
+  is not running, so a sysop's Enable is picked up without an operator; Enable
+  runs Status, which now checks the host conf, the timer and the job account
+  and says beside the toggle what is still missing. WebDAV not-found refusals
+  carry their detail.
 - **0.13.1** (2026-09-05, EDGE) - **The runtime does real work, the theme
   being served is read-only everywhere, and a refusal says what to do.** The
   scheduler carries the maintenance it was built for: an hourly statistics
