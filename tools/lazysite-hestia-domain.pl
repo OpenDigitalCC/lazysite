@@ -336,10 +336,13 @@ sub cmd_add {
                 . "#   systemctl restart lazysited\@$domain\n"
         );
         print "==> daemon config: $conf\n";
-        enable_unit( 'lazysited', $domain,
-            "runtime enabled: lazysited\@$domain - it runs nothing until "
-                . 'the sysop enables the daemon plugin and names a '
-                . 'daemon_job_user holding run_jobs' );
+        # SM757: the TIMER is what is enabled - it starts the service, and
+        # re-starts it every five minutes while it is not running, so a sysop
+        # enabling the plugin (no root) is picked up without an operator.
+        enable_unit( 'lazysited', "$domain.timer",
+            "runtime enabled: lazysited\@$domain.timer - it starts the runtime "
+                . 'within five minutes of the sysop enabling the daemon plugin '
+                . 'and naming a daemon_job_user holding run_jobs' );
     }
 
     print "\nDone. Now apply the matching web template in Hestia:\n"
@@ -450,6 +453,11 @@ sub cmd_remove {
         # permanently retires it (ConditionPathExists in both units).
         my $systemctl = first_existing( '/usr/bin/systemctl', '/bin/systemctl' );
         if ( defined $systemctl ) {
+            # SM757: the runtime's timer first, or it would start the service
+            # again five minutes after this stopped it.
+            system( $systemctl, 'disable', '--now', "$unit\@$domain.timer" ) == 0
+                or print "==> ($what timer was not enabled)\n"
+                if $unit eq 'lazysited';
             system( $systemctl, 'disable', '--now', "$unit\@$domain" ) == 0
                 or print "==> ($what unit was not running/enabled)\n";
         }

@@ -198,10 +198,74 @@ sub _is_ours {
 # `up`/`down` become `on`/`off` because the contract says so and one vocabulary
 # is the point. `not-started` becomes `inconsistent` - switched on and not
 # running, which is precisely what it always meant and now says.
+# SM757: WHAT THE HOST HAS DONE, asked from the site. The manager has no root,
+# so when a sysop presses Enable the one thing it can do is LOOK: is there a
+# runtime conf naming this docroot, is its timer enabled, is the service up.
+# Everything here is a read an unprivileged process may make - the conf is
+# root-owned 0644 and `systemctl is-enabled` / `is-active` answer anyone. Where
+# systemd is absent the answer is "unknown", said as such.
+our $DAEMON_ETC = '/etc/lazysite/daemon';
+
+sub host_provisioning {
+    my ($root) = @_;
+    my %h = ( conf => undef, instance => undef, timer => 'unknown', service => 'unknown' );
+    require Cwd;
+    my $real = Cwd::realpath($root) // $root;
+    if ( opendir my $dh, $DAEMON_ETC ) {
+        for my $f ( sort grep { /\.conf\z/ } readdir $dh ) {
+            open my $fh, '<', "$DAEMON_ETC/$f" or next;
+            my ($doc) = map { /^DOCROOT=(.*)$/ ? $1 : () } <$fh>;
+            close $fh;
+            next unless defined $doc;
+            my $d = Cwd::realpath($doc) // $doc;
+            if ( $d eq $real ) { $h{conf} = "$DAEMON_ETC/$f"; ( $h{instance} = $f ) =~ s/\.conf\z//; last }
+        }
+        closedir $dh;
+    }
+    my ($systemctl) = grep { -x $_ } qw(/usr/bin/systemctl /bin/systemctl);
+    if ( $systemctl && defined $h{instance} ) {
+        my $inst = $h{instance};
+        $h{timer} = system( $systemctl, 'is-enabled', '--quiet', "lazysited\@$inst.timer" ) == 0 ? 'enabled' : 'disabled';
+        $h{service} = system( $systemctl, 'is-active', '--quiet', "lazysited\@$inst.service" ) == 0 ? 'active' : 'inactive';
+    }
+    return \%h;
+}
+
+# The job account, checked the way the scheduler will check it, plus what
+# each job additionally needs - so Enable can say "and the sweep will be
+# refused" before an hour passes and the run record says it.
+sub job_account_checks {
+    my ($root) = @_;
+    require Lazysite::Daemon::Service::Scheduler;
+    my @out;
+    my ( $user, $why ) = Lazysite::Daemon::Service::Scheduler::resolve_job_user( docroot => $root );
+    unless ( defined $user ) {
+        push @out, { check => 'job_account', ok => 0, message => "no job will run: $why",
+            remedy => 'set daemon_job_user in the plugin config to an account holding run_jobs (a purpose account, not a person\'s)' };
+        return \@out;
+    }
+    push @out, { check => 'job_account', ok => 1, message => "jobs run as '$user', which holds run_jobs" };
+    require Lazysite::Auth::Settings;
+    no warnings 'once';
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$root/lazysite/auth";
+    my $caps = Lazysite::Auth::Settings::caps_for($user) || {};
+    my $jobs = Lazysite::Daemon::Service::Scheduler::jobs();
+    for my $name ( sort keys %$jobs ) {
+        my $needs = $jobs->{$name}{needs};
+        next unless defined $needs;
+        push @out, $caps->{$needs}
+            ? { check => "job:$name", ok => 1, message => "$name may run ('$user' holds $needs)" }
+            : { check => "job:$name", ok => 0, message => "$name will be refused: '$user' does not hold $needs",
+            remedy => "grant $needs to the job account's group" };
+    }
+    return \@out;
+}
+
 sub status {
     my ($docroot) = @_;
     my $root      = _docroot($docroot);
     my $enabled   = should_run($root) ? 1 : 0;
+    my $host      = host_provisioning($root);
 
     my @svc;
     my $any_running = 0;
@@ -266,10 +330,7 @@ sub status {
             ),
             ( $verdict eq 'inconsistent'
                 ? ( message => "$s->{name} has not been started",
-                    remedy =>
-                        'the plugin is enabled but the host service is not '
-                        . 'running - a host operator instantiates it with '
-                        . 'systemctl enable --now lazysited@<domain>'
+                    remedy => { _host_remedy($host) }->{remedy}
                     )
                 : ()
             ),
@@ -309,20 +370,66 @@ sub status {
         # services, and a remedy that says "check the host service" when the
         # actual answer is one command is the SM750 defect at one remove.
         ( $enabled && !$any_running && !$any_died && !$any_pending
-            ? ( remedy =>
-                    'the plugin is enabled but the host service is not '
-                    . 'running - a host operator instantiates it with '
-                    . 'systemctl enable --now lazysited@<domain>' )
+            ? ( _host_remedy($host) )
             : ()
         ),
     );
+
+    # SM757: the checks a sysop's Enable needs answered NOW, and one sentence
+    # the Plugin Manager can show beside the toggle.
+    my @checks = ( _host_checks( $host, $enabled, $any_running ), @{ $enabled ? job_account_checks($root) : [] } );
+    # The host state is already the top-level remedy; "Also:" carries the first
+    # failing JOB check, which no lifecycle field would otherwise mention.
+    my ($first_bad) = grep { !$_->{ok} && $_->{check} =~ /^job/ } @checks;
+    my $summary = $whole->{message}
+        . ( $whole->{remedy} ? " - $whole->{remedy}" : '' )
+        . ( $first_bad && $first_bad->{remedy}
+        ? ". Also: $first_bad->{message} - $first_bad->{remedy}" : '' )
+        . '.';
+    $summary =~ s/\.\.\z/./;
 
     return {
         ok     => 1,
         plugin => $PLUGIN,
         %{$whole},
         services => \@svc,
+        host     => $host,
+        checks   => \@checks,
+        summary  => $summary,
     };
+}
+
+sub _host_remedy {
+    my ($host) = @_;
+    return ( remedy => 'the plugin is enabled and the host runtime is provisioned; '
+            . 'its timer starts it within five minutes' )
+        if $host->{conf} && $host->{timer} eq 'enabled';
+    return ( remedy => "the plugin is enabled and the host runtime conf exists ($host->{conf}) but its "
+            . "timer is not enabled - a host operator runs: systemctl enable --now lazysited\@$host->{instance}.timer" )
+        if $host->{conf};
+    return ( remedy => 'the plugin is enabled but this host has no runtime provisioned for this site: '
+            . 'nothing will run until an operator provisions it - on Hestia the deploy '
+            . '(lazysite-hestia-deploy.sh) does it on every deploy, or '
+            . 'lazysite-hestia-domain add <user> <domain> --daemon' );
+}
+
+sub _host_checks {
+    my ( $host, $enabled, $running ) = @_;
+    my @c;
+    push @c, $host->{conf}
+        ? { check => 'host_conf', ok => 1, message => "the host runtime conf names this site ($host->{conf})" }
+        : { check => 'host_conf', ok => 0, message => 'no host runtime conf names this site',
+        remedy => 'an operator provisions it: the Hestia deploy does, or lazysite-hestia-domain add <user> <domain> --daemon' };
+    if ( $host->{conf} ) {
+        push @c, $host->{timer} eq 'enabled'
+            ? { check => 'host_timer', ok => 1, message => "lazysited\@$host->{instance}.timer is enabled (starts the runtime within five minutes)" }
+            : { check => 'host_timer', ok => ( $host->{timer} eq 'unknown' ? 1 : 0 ),
+            message => "lazysited\@$host->{instance}.timer is $host->{timer}",
+            ( $host->{timer} eq 'disabled' ? ( remedy => "systemctl enable --now lazysited\@$host->{instance}.timer" ) : () ) };
+    }
+    push @c, { check => 'runtime', ok => ( $running || !$enabled ) ? 1 : 0,
+        message => $running ? 'the runtime is running' : $enabled ? 'the runtime is not running yet' : 'the plugin is disabled, so no runtime runs' };
+    return @c;
 }
 
 # --- run -----------------------------------------------------------------

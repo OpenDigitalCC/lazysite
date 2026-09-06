@@ -153,6 +153,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM757: the persistent runtime's systemd unit and timer - released with the tarball so the Hestia deploy can install them into /etc/systemd/system on a host without the debs; the deb installs the same files into /usr/lib/systemd/system. Never installed into a site tree.",
+      "pattern": "^installers/systemd/(.+)$",
+      "install_to": null,
+      "bucket": "code"
+    },
+    {
       "_comment": "SM139 glue-deb vhost templates (lazysite-apache / lazysite-nginx): released with the tarball, never installed into a site tree.",
       "pattern": "^installers/(apache|nginx)/(.+)$",
       "install_to": null,

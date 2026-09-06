@@ -161,6 +161,60 @@ if [ ! -f "$DOC/lazysite/auth/groups-settings.json" ]; then
   sudo -u "$U" perl "$DOM/tools/lazysite-users.pl" --docroot "$DOC" setup-manager
 fi
 
+# SM757: THE PERSISTENT RUNTIME, PROVISIONED HERE, EVERY TIME. This script is the
+# tarball flow's root context - the deb flow has lazysite-hestia-domain --daemon
+# for the same job - so the host half of the daemon's two switches is done on
+# every deploy and upgrade, automatically, and never by hand:
+#   - /etc/lazysite/daemon/<domain>.conf names the docroot, the Hestia user and
+#     ENGINE=<domain root>, so the runtime runs the SITE's own tools/ and lib/
+#     (a tarball host has no /usr/share/lazysite);
+#   - the templated unit and its timer are installed from STAGE into
+#     /etc/systemd/system (refreshed when the release changed them);
+#   - the TIMER is enabled: it starts the service every five minutes while the
+#     service is not running, so a sysop enabling the plugin in the manager -
+#     which has no root - is picked up within five minutes;
+#   - a runtime that is RUNNING is restarted, so an upgrade takes effect the way
+#     a pool restart does, without anybody remembering to.
+# The plugin stays the site's switch: with it disabled the service exits 0 in
+# well under a second and the timer tries again in five minutes. Nothing here
+# writes into the site tree.
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  echo "==> persistent runtime (SM757): conf, unit, timer"
+  DAEMON_ETC=/etc/lazysite/daemon
+  mkdir -p "$DAEMON_ETC"
+  DCONF="$DAEMON_ETC/$DOMAIN.conf"
+  DTMP="$DCONF.tmp.$$"
+  {
+    echo "# lazysite persistent runtime for $DOMAIN - written by lazysite-hestia-deploy.sh"
+    echo "# (tarball flow) on every deploy; consumed by lazysited@.service."
+    echo "DOCROOT=$DOC"
+    echo "USER=$U"
+    echo "ENGINE=$DOM"
+  } > "$DTMP"
+  mv -f "$DTMP" "$DCONF"
+  UNITS_CHANGED=0
+  for unit in lazysited@.service lazysited@.timer; do
+    src="$STAGE/installers/systemd/$unit"
+    dst=/etc/systemd/system/$unit
+    if [ -f "$src" ] && ! cmp -s "$src" "$dst"; then
+      install -m 0644 "$src" "$dst"
+      UNITS_CHANGED=1
+    fi
+  done
+  if [ "$UNITS_CHANGED" = 1 ]; then systemctl daemon-reload; fi
+  systemctl enable --now "lazysited@$DOMAIN.timer" >/dev/null 2>&1 \
+    || echo "  (could not enable lazysited@$DOMAIN.timer - run: systemctl enable --now lazysited@$DOMAIN.timer)"
+  if systemctl is-active --quiet "lazysited@$DOMAIN.service"; then
+    systemctl restart "lazysited@$DOMAIN.service" \
+      && echo "    runtime restarted on the new release" \
+      || echo "  (could not restart lazysited@$DOMAIN - run: systemctl restart lazysited@$DOMAIN)"
+  else
+    echo "    runtime provisioned; it starts within five minutes of the daemon plugin being enabled"
+  fi
+else
+  echo "==> persistent runtime: no systemd on this host - not provisioned (the daemon plugin will report it)"
+fi
+
 echo "==> verifying install (permissions + health, auto-repair)"
 # Run as root with --fix so it can repair both modes and ownership if anything is
 # still off (the user asked: when run as root, the deploy should work the ownership

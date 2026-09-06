@@ -42,8 +42,8 @@ sub status_for {
     local $ENV{HARNESS_PERL_SWITCHES} = '';
     local $ENV{PERL5LIB}              = '';
     return
-      scalar
-      qx($^X \Q$plugin\E --action status --docroot \Q$docroot\E 2>/dev/null);
+        scalar
+        qx($^X \Q$plugin\E --action status --docroot \Q$docroot\E 2>/dev/null);
 }
 
 sub site {
@@ -65,19 +65,19 @@ subtest 'enabled but not started - the state the field found empty' => sub {
 
     ok( defined $out && length $out,
         'the action produces OUTPUT - this returned nothing in 0.13.0' )
-      or return;
+        or return;
 
     my $st = eval { JSON::PP->new->decode($out) };
     ok( ref $st eq 'HASH', 'and it is JSON the manager can render' )
-      or do { diag($out); return };
+        or do { diag($out); return };
 
     # SM222's vocabulary: desired is what the configuration says, verdict is
     # what the runtime is doing, and when they disagree the verdict SAYS so.
     is( $st->{desired}, 'on',
         'desired: on - the plugin is enabled, which the manager knows' );
     is( $st->{verdict}, 'inconsistent',
-            'verdict: inconsistent - switched on and not running, NOT a claim '
-          . 'to be running' );
+        'verdict: inconsistent - switched on and not running, NOT a claim '
+            . 'to be running' );
     is( $st->{services}[0]{verdict},
         'inconsistent', 'and the scheduler service says the same of itself' );
     ok( !$st->{healthy}, 'which is not a healthy state' );
@@ -88,7 +88,7 @@ subtest 'enabled but not started - the state the field found empty' => sub {
     );
     like(
         $st->{remedy},
-        qr/systemctl enable --now lazysited\@/,
+        qr/no runtime provisioned .* --daemon/s,
         'and a remedy that names the command, not "check the host service"'
     );
 };
@@ -96,7 +96,7 @@ subtest 'enabled but not started - the state the field found empty' => sub {
 subtest 'disabled - the other half of the same question' => sub {
     my $out = status_for( site() );
     ok( defined $out && length $out, 'still answers when the plugin is off' )
-      or return;
+        or return;
 
     my $st = eval { JSON::PP->new->decode($out) };
     ok( ref $st eq 'HASH', 'as JSON' ) or do { diag($out); return };

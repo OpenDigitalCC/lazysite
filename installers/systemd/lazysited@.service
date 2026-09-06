@@ -1,7 +1,23 @@
 # lazysited@.service - the lazysite persistent runtime, one per instance
 # (SM666 phase 1). Instance name = the site, normally its domain, the same
 # convention as lazysite@.service:
-#   systemctl enable --now lazysited@example.com
+#   systemctl enable --now lazysited@example.com.timer
+#
+# SM757: ONE UNIT FOR BOTH INSTALL FLOWS. The deb ships this into
+# /usr/lib/systemd/system and its engine lives at /usr/share/lazysite - the
+# Environment= default below. The tarball flow's per-site deploy
+# (installers/hestia/lazysite-hestia-deploy.sh, root) installs the same file
+# into /etc/systemd/system and writes ENGINE=<domain root> into the conf, so the
+# runtime runs from the SITE's own tools/ and lib/ - the tarball has no host
+# payload. EnvironmentFile= overrides Environment=, which is the mechanism.
+#
+# AND A TIMER (lazysited@.timer) beside it, because the manager has no root: a
+# sysop enabling the plugin cannot start this unit, and a unit that exited 0
+# for "disabled" is not restarted by Restart=on-failure. The timer re-runs the
+# service every five minutes while it is inactive, so an enabled plugin is
+# picked up within five minutes at the cost of one short-lived process per
+# five minutes per disabled site - and nothing while it runs. Enable the TIMER;
+# it starts the service.
 #
 # THE PATTERN IS lazysite@.service's, deliberately. Identity lives in
 # /etc/lazysite/daemon/%i.conf (DOCROOT=, USER=) because systemd cannot
@@ -42,7 +58,8 @@ ConditionPathExists=/etc/lazysite/daemon/%i.conf
 [Service]
 Type=simple
 EnvironmentFile=/etc/lazysite/daemon/%i.conf
-ExecStart=/usr/bin/perl /usr/share/lazysite/tools/lazysited.pl \
+Environment=ENGINE=/usr/share/lazysite
+ExecStart=/usr/bin/perl ${ENGINE}/tools/lazysited.pl \
     --docroot ${DOCROOT} --user ${USER}
 Restart=on-failure
 RestartSec=5

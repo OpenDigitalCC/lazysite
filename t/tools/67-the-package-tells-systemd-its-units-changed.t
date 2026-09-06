@@ -24,10 +24,15 @@ use TestHelper qw(repo_root);
 my $ROOT = repo_root();
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
 
-my %units = map { $_ => 1 } grep { /\@\.service$/ } map { s{.*/}{}r } glob("$ROOT/debian/*.service");
+# SM757: the daemon's unit (and its timer) moved to installers/systemd so the
+# tarball carries them; the deb installs them from there.
+my @shipped = map { s{.*/}{}r } ( glob("$ROOT/debian/*.service"), glob("$ROOT/installers/systemd/*.service") );
+my %units = map { $_ => 1 } grep { /\@\.service$/ } @shipped;
 ok( $units{'lazysite@.service'} && $units{'lazysited@.service'}, 'the package ships two templated units' );
-ok( !( grep { !/\@\.service$/ } map { s{.*/}{}r } glob("$ROOT/debian/*.service") ),
+ok( !( grep { !/\@\.service$/ } @shipped ),
     'and no plain unit - which is exactly the case dh_installsystemd generates nothing for' );
+like( do { local ( @ARGV, $/ ) = "$ROOT/debian/lazysite-common.install"; <> }, qr{^installers/systemd/lazysited\@\.(?:service|timer) usr/lib/systemd/system$}m,
+    'the deb installs the daemon unit and timer from installers/systemd' );
 
 for my $script (qw(postinst postrm)) {
     subtest "lazysite-common.$script" => sub {

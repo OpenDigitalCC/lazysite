@@ -142,6 +142,15 @@ sub describe {
         actions => [
             { id => 'status', label => 'Status', run => 'action' },
         ],
+
+        # SM757: pressing Enable RUNS THE STATUS CHECK and shows its summary
+        # beside the toggle. The manager has no root, so it cannot start the
+        # runtime; what it can do is look - is the host conf there, is the
+        # timer enabled, is the job account set and does it hold what the
+        # jobs need - and tell the sysop NOW rather than an hour later in a
+        # run record. Status is the same action the button runs, so the
+        # toggle and the button cannot disagree.
+        on_enable => 'status',
     };
 }
 
@@ -177,6 +186,10 @@ sub run {
         # failure SM222 is about.
         require Lazysite::Daemon::Supervisor;
         my $st = Lazysite::Daemon::Supervisor::status( $opt{docroot} );
+
+        # The toggle's status line shows `message` (plugins.md); make it the
+        # whole sentence - the state, the remedy, and the first failing check.
+        $st->{message} = $st->{summary} if defined $st->{summary};
         print JSON::PP->new->canonical->pretty->encode($st);
         return 0;
     }

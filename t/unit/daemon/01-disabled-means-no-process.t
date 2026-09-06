@@ -102,7 +102,9 @@ subtest 'status reports desired and verdict separately' => sub {
 
     # SM750's class: a state without an action is half an answer. The field
     # met this exact state and had to ask what to do next.
-    like( $on->{remedy}, qr/systemctl enable --now lazysited/,
+    # SM757: with no host conf naming this docroot the remedy names the
+    # provisioning, not a systemctl line for a unit that does not exist.
+    like( $on->{remedy}, qr/no runtime provisioned .* --daemon/s,
         'the remedy names the command that resolves it' );
 
     is( $on->{services}[0]{verdict}, 'inconsistent',

@@ -207,20 +207,29 @@ the Stats page, SM343) and the hourly sweep of expired sessions. It is
 templated exactly like the pool:
 
 ```
-/etc/lazysite/daemon/<domain>.conf     DOCROOT= and USER=
-systemctl enable --now lazysited@<domain>
+/etc/lazysite/daemon/<domain>.conf     DOCROOT= and USER= (and ENGINE=, tarball hosts)
+systemctl enable --now lazysited@<domain>.timer
 ```
 
-or, on Hestia, `lazysite-hestia-domain add <user> <domain> --daemon`, which
-writes the conf and enables the unit. `remove` retires it beside the pool.
+On a **deb** host, `lazysite-hestia-domain add <user> <domain> --daemon` writes
+the conf and enables the timer; `remove` retires it beside the pool. On a
+**tarball** host the per-site deploy (`lazysite-hestia-deploy.sh`, root) does it
+on every deploy and upgrade, automatically - conf with `ENGINE=<domain root>`
+so the runtime runs the site's own `tools/` and `lib/`, unit and timer installed
+into `/etc/systemd/system` from the release, timer enabled, a running runtime
+restarted (SM757).
 
-**Two switches, both needed.** The unit is yours; the `daemon` plugin is the
-site's, enabled by its sysop on the Plugin Manager page and born disabled
-(ADR 0009). With the plugin off the unit starts, exits 0 and stays quiet, so
-enabling it at onboarding costs nothing; with the unit off, the manager's
-Status button says `desired: on`, `verdict: inconsistent`, and its remedy names
-the `systemctl` line. Disabling the plugin while the runtime is running stops
-it within ten seconds. What it says about itself:
+**Two switches, both needed.** The unit and its timer are yours (or the
+deploy's); the `daemon` plugin is the site's, enabled by its sysop on the Plugin
+Manager page and born disabled (ADR 0009). The manager has no root, so enabling
+the plugin cannot start the service - the **timer** does, within five minutes:
+while the service is not running it is started every five minutes, reads the
+plugin, and either runs or exits at once (one short-lived process per five
+minutes per disabled site; nothing while one runs). Pressing Enable runs the
+Status check and shows beside the toggle whether the host has provisioned the
+runtime and whether the job account is set and holds what the jobs need.
+Disabling the plugin while the runtime is running stops it within ten seconds.
+What it says about itself:
 
 ```bash
 lazysited --docroot <docroot> --status      # desired / verdict / remedy per service

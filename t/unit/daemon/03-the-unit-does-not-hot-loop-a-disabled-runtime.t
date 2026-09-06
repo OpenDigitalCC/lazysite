@@ -23,7 +23,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
-my $unit = "$root/debian/lazysited\@.service";
+my $unit = "$root/installers/systemd/lazysited\@.service";    # SM757: in the tarball too
 
 plan skip_all => 'no packaging tree' unless -f $unit;
 

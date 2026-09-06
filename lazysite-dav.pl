@@ -727,8 +727,13 @@ sub do_delete {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 404,       body => "Not found\n" )
-        if !$r->{parent_ok} || !-e $r->{abs};
+    if ( !$r->{parent_ok} || !-e $r->{abs} ) {
+        # The 0.13.1 field pass read `http 404` in the trail beside rows that
+        # said what and why: the same shape (SM750) for the one refusal a
+        # write verb makes without a rule - there is nothing here to delete.
+        $REFUSAL_DETAIL = "not-found: '$a{rel}' does not exist - nothing to delete";
+        return send_status( 404, body => "Not found: '$a{rel}' does not exist\n" );
+    }
 
     if ( my $code = check_conditionals( \@_, $r->{abs}, 1, $a{rel} ) ) {
         return send_status( $code, body => "Precondition failed\n" );
@@ -939,8 +944,10 @@ sub do_copy_move {
     my $move = $a{move};
     my $src  = resolve_under_docroot( $a{rel} );
     return send_status( $src->{err}, body => "Error\n" ) if $src->{err};
-    return send_status( 404,         body => "Not found\n" )
-        if !$src->{parent_ok} || !-e $src->{abs};
+    if ( !$src->{parent_ok} || !-e $src->{abs} ) {
+        $REFUSAL_DETAIL = "not-found: source '$a{rel}' does not exist - nothing to " . ( $move ? 'move' : 'copy' );
+        return send_status( 404, body => "Not found: '$a{rel}' does not exist\n" );
+    }
 
     my $drel = destination_rel();
     return send_status( 400, body => "Bad Destination\n" ) unless defined $drel;

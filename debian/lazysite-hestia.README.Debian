@@ -126,23 +126,33 @@ way as the FastCGI pool, and provisioned the same way:
 
     lazysite-hestia-domain add <user> <domain> --fcgi --daemon
 
-which writes the conf and enables the unit - or by hand:
+which writes the conf and enables the unit's TIMER - or by hand:
 
     /etc/lazysite/daemon/<domain>.conf     DOCROOT= and USER=
-    systemctl enable --now lazysited@<domain>
+    systemctl enable --now lazysited@<domain>.timer
 
-THERE ARE TWO SWITCHES AND BOTH MUST BE ON. This unit, enabled by you;
-and the `daemon` plugin, enabled by the site's sysop on the Plugin
-Manager page. The plugin is born disabled (ADR 0009), and the manager
-has no root, so enabling it cannot start a service. That is deliberate
-rather than an oversight, and the runtime reports it honestly:
+ON A TARBALL HOST (no debs) the per-site deploy does all of this itself,
+as root, on every deploy and upgrade - conf (with ENGINE=<domain root>,
+so the runtime runs the site's own tools/ and lib/), unit and timer
+installed into /etc/systemd/system from the release, timer enabled, a
+running runtime restarted (SM757). Nothing to do by hand.
+
+THERE ARE TWO SWITCHES AND BOTH MUST BE ON. The unit and its timer,
+enabled by you (or by the deploy); and the `daemon` plugin, enabled by
+the site's sysop on the Plugin Manager page. The plugin is born
+disabled (ADR 0009), and the manager has no root, so enabling it cannot
+start the service - the TIMER does that, within five minutes: while the
+service is not running it is started every five minutes, looks at the
+plugin, and either runs or exits at once. Pressing Enable runs the
+Status check and shows beside the toggle whether the host has
+provisioned the runtime and whether the job account is set and holds
+what the jobs need (SM757):
 
     lazysited --docroot <docroot> --status
 
 answers `desired: on` with `verdict: inconsistent` when the plugin is on
-and the unit is not - switched on and not running - and its
-`remedy` names the systemctl command above, so you can see which
-switch is missing and what to do about it.
+and the runtime is not provisioned, naming how it gets provisioned; or
+`starting` with "the timer starts it within five minutes" when it is.
 
 WHAT IT COSTS ON A HOST WITH HUNDREDS OF SITES: nothing, until somebody
 turns it on. An uninstantiated unit does not exist. An instantiated one

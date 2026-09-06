@@ -1,0 +1,23 @@
+# lazysited@.timer - SM757: re-run the lazysite runtime for %i while it is not
+# running, every five minutes.
+#
+# The runtime exits 0 when its plugin is disabled, and Restart=on-failure
+# rightly leaves it there - restarting a disabled instance every five seconds
+# on a host with hundreds of them was the hot loop 0.13.0 refused. But the
+# manager has no root, so a sysop who then ENABLES the plugin could not start
+# the unit; an operator had to. This timer is that operator: five minutes after
+# the service last went inactive it starts it again; the service looks at the
+# gate and either runs or exits. Cost: one short-lived process per five minutes
+# per disabled site, nothing while one runs.
+#
+#   systemctl enable --now lazysited@example.com.timer
+[Unit]
+Description=lazysite persistent runtime watcher (%i)
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=300
+Unit=lazysited@%i.service
+
+[Install]
+WantedBy=timers.target

@@ -17,7 +17,7 @@ use TestHelper qw(repo_root);
 
 my $ROOT = repo_root();
 my $TOOL = "$ROOT/tools/lazysite-hestia-domain.pl";
-my $UNIT = "$ROOT/debian/lazysited\@.service";
+my $UNIT = "$ROOT/installers/systemd/lazysited\@.service"; # SM757: shipped in the tarball too
 
 sub slurp {
     my ($path) = @_;
@@ -77,9 +77,17 @@ subtest 'the conf the tool writes is the conf the unit reads' => sub {
     for my $k ( sort keys %emitted ) {
         ok( $consumed{$k}, "emitted key $k= is consumed by lazysited\@.service" );
     }
+    # SM757: a unit variable is either written by the tool or DEFAULTED in the
+    # unit (Environment=). ENGINE is the second kind: the deb's engine lives at
+    # /usr/share/lazysite, so the deb tool writes nothing and the default
+    # applies; the tarball deploy writes ENGINE=<domain root> and
+    # EnvironmentFile= overrides the default.
+    my %defaulted = map { $_ => 1 } $unit_src =~ /^Environment=([A-Z][A-Z_]+)=/mg;
     for my $k ( sort keys %consumed ) {
-        ok( $emitted{$k}, "unit variable \${$k} is written by the tool" );
+        ok( $emitted{$k} || $defaulted{$k}, "unit variable \${$k} is written by the tool or defaulted in the unit" );
     }
+    ok( $defaulted{ENGINE}, 'ENGINE is defaulted to the deb payload' );
+    like( $unit_src, qr{^Environment=ENGINE=/usr/share/lazysite$}m, 'at /usr/share/lazysite' );
 
     like( $block, qr/daemon_conf_path\(\$domain\)/,
         'written at the daemon conf path' );
@@ -89,8 +97,9 @@ subtest 'the conf the tool writes is the conf the unit reads' => sub {
     like( $unit_src, qr{^EnvironmentFile=/etc/lazysite/daemon/%i\.conf$}m,
         'and reads its environment from' );
 
-    like( $block, qr/enable_unit\(\s*'lazysited',\s*\$domain/,
-        'and the block enables lazysited@DOMAIN' );
+    like( $block, qr/enable_unit\(\s*'lazysited',\s*"\$domain\.timer"/,
+        'and the block enables lazysited@DOMAIN.timer - the timer starts the service (SM757)' );
+    ok( -f "$ROOT/installers/systemd/lazysited\@.timer", 'the timer unit ships beside the service' );
 };
 
 subtest 'the package creates the directory the tool writes into' => sub {
