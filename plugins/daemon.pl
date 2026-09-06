@@ -78,10 +78,10 @@ sub describe {
 
         config_schema => [
             { key => 'daemon_tick_seconds',
-                label   => 'How often the scheduler looks for due work',
+                label   => 'Seconds between the scheduler\'s checks for due work',
                 type    => 'text',
                 default => '60',
-                note    => 'The scheduler wakes on this interval and runs '
+                note    => 'The scheduler wakes every this many seconds and runs '
                     . 'whatever is due. It is a floor on how late a job can '
                     . 'be, not a promise about when one runs. Shorter costs '
                     . 'wakeups; longer costs punctuality.',

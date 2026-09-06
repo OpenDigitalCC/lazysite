@@ -706,10 +706,11 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-breadcrumb"><span class="mg-sg-tag">.mg-breadcrumb</span></div>
 </div>
-<h3 class="mg-sg-fam">mg-cap <span class="mg-sg-count">1</span></h3>
+<h3 class="mg-sg-fam">mg-cap <span class="mg-sg-count">2</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-cap-dormant"><span class="mg-sg-tag">.mg-cap-dormant</span></div>
+<div class="mg-section-label mg-cap-section"><span class="mg-sg-tag">.mg-cap-section</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-checks <span class="mg-sg-count">1</span></h3>
 <p class="mg-sg-note">Nested as the pages compose it: the outer class wraps the parts named after it.</p>

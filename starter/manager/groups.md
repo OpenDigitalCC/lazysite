@@ -75,6 +75,48 @@ var ACTIONS = [
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];
 var CAPS = CHANNELS.concat(ACTIONS);   // for counting
+// SM758: twenty-two actions in one run of checkboxes was a list to be read
+// end to end. They are shown by CATEGORY - what the grant is about - and
+// alphabetised by label within each, so an operator looks in one place for
+// "the content grants" and reads a short sorted list. ACTIONS above stays the
+// flat registry (t/lint/19 reads it for parity with @CAP_KEYS); this names
+// where each key is shown. t/lint/19 holds that the two agree exactly, and
+// renderActions() puts anything unassigned under "Other" rather than losing
+// it - a grant that is not drawn cannot be seen, audited or revoked.
+var ACTION_SECTIONS = [
+  ['Content',    ['manage_briefs', 'manage_content', 'manage_forms', 'manage_nav', 'read_submissions']],
+  ['Appearance', ['manage_layouts', 'manage_themes']],
+  ['Data',       ['write_data', 'manage_data']],
+  ['Site',       ['manage_domains', 'manage_services', 'manage_config']],
+  ['Accounts',   ['create_sub_users', 'delegate_sub_user_creation', 'manage_users']],
+  ['Operations', ['housekeeping', 'purge', 'run_jobs']],
+  ['Insight',    ['feedback', 'analytics', 'audit', 'notifications']]
+];
+
+// SM758: rows sorted by their human label - the order a reader scans, since
+// the label is what the grid shows and the key is only on hover.
+function byLabel(list) {
+  return list.slice().sort(function(a, b) { return a[1].localeCompare(b[1]); });
+}
+
+// SM758: the Actions grid by category, alphabetised within. `row` is the
+// per-capability renderer built inside renderGroup (it closes over the group).
+function renderActions(row) {
+  var byKey = {}, placed = {};
+  ACTIONS.forEach(function(c) { byKey[c[0]] = c; });
+  var sections = ACTION_SECTIONS.map(function(s) {
+    var caps = s[1].filter(function(k) { return byKey[k]; }).map(function(k) { placed[k] = 1; return byKey[k]; });
+    return [s[0], caps];
+  });
+  // Anything ACTIONS carries that no section names is still drawn. Hiding it
+  // would hide a grant an operator may already have made.
+  var rest = ACTIONS.filter(function(c) { return !placed[c[0]]; });
+  if (rest.length) sections.push(['Other', rest]);
+  return sections.filter(function(s) { return s[1].length; }).map(function(s) {
+    return '<div class="mg-section-label mg-cap-section">' + escHtml(s[0]) + '</div>'
+      + '<div class="mg-checks">' + byLabel(s[1]).map(function(c) { return row(c, false); }).join('') + '</div>';
+  }).join('');
+}
 
 function showStatus(msg, isError) {
   if (!msg) return;
@@ -472,9 +514,9 @@ function renderGroups() {
     // shows it unticked and it can be granted later like anything else.
     h += '<div id="gpend-' + ge + '">' + pendingBannerHtml(g) + '</div>';
     h += '<div class="mg-sec">Channels <span style="font-weight:400;color:var(--mg-text-muted)">— where members may operate</span></div>';
-    h += '<div class="mg-checks">' + CHANNELS.map(function(c) { return row(c, true); }).join('') + '</div>';
+    h += '<div class="mg-checks">' + byLabel(CHANNELS).map(function(c) { return row(c, true); }).join('') + '</div>';
     h += '<div class="mg-sec">Actions <span style="font-weight:400;color:var(--mg-text-muted)">— what they may do</span></div>';
-    h += '<div class="mg-checks">' + ACTIONS.map(function(c) { return row(c, false); }).join('') + '</div>';
+    h += renderActions(row);
 
     // SM165: domain access lives on the DOMAIN (each domain names the groups
     // allowed to manage it, on the Domains page), so the group editor no longer
