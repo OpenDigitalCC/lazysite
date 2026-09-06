@@ -159,6 +159,16 @@ sub _state_file {
 # rollup twice than never), but the review's experiment 10 found that happened
 # in silence, and a file somebody corrupted is a fact an operator should be
 # told once.
+# SM759: the run record, for Status. The field could not read
+# lazysite/daemon/ on any grant it held (the system tree is closed to the
+# remote surfaces by design), so the only way to learn what a job did was to
+# ask somebody with the filesystem. Status carries it: per job, the outcome,
+# when, as whom, and the refusal reason if there was one.
+sub run_record {
+    my ($root) = @_;
+    return _read_runs($root);
+}
+
 sub _read_runs {
     my ($root) = @_;
     my $f = _state_file($root);

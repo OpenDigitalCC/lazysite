@@ -22,7 +22,7 @@ my $root = repo_root();
 my $d    = site_tempdir();
 make_path( "$d/lazysite/auth", "$d/lazysite/daemon" );
 sub put { my ( $p, $c ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $c; close $fh }
-put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - daemon.pl\n" );
+put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
 
 # a private /etc/lazysite/daemon for the test
 my $etc = tempdir( CLEANUP => 1 );
@@ -97,6 +97,46 @@ subtest 'the plugin runs Status on Enable and the toggle line gets the summary' 
     like( $src, qr/\$st->\{message\} = \$st->\{summary\}/, 'and the action puts the summary where the toggle line reads' );
     my $plugins = do { local ( @ARGV, $/ ) = "$root/starter/manager/plugins.md"; <> };
     like( $plugins, qr/if \(h && h\.message\) \{ warn\(name \+ ': ' \+ h\.message\); \}/, 'which is h.message on the Plugin Manager page' );
+};
+
+# SM759: the field's list of the states the line must distinguish, and the
+# rule they all share - a state that is not "running" names a next step.
+# Every subtest above is one of those states; this one adds the two the
+# field reached and could not act on: disabled (which reads no remedy at
+# all), and the run record, which no remote grant can read.
+subtest 'disabled: the line says so and says what to do' => sub {
+    put( "$d/lazysite/lazysite.conf", "site_name: t\n" );
+    my $st = Lazysite::Daemon::Supervisor::status($d);
+    is( $st->{desired}, 'off', 'desired off' );
+    like( $st->{message}, qr/plugin is disabled/, 'the state' );
+    # 'off' is a healthy verdict by the lifecycle contract (desired off, not
+    # running), so it carries no remedy field; the next step is in the line.
+    like( summary_of(), qr/disabled.*enable it on the Plugin Manager/, 'the state and the next step, in the one line' );
+    put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+};
+
+subtest 'every state that is not running carries a remedy' => sub {
+    for my $conf ( "site_name: t\n", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" ) {
+        put( "$d/lazysite/lazysite.conf", $conf );
+        my $st = Lazysite::Daemon::Supervisor::status($d);
+        next if $st->{verdict} eq 'on';
+        ok( length( $st->{remedy} // '' ) || $st->{summary} =~ / - /, "verdict '$st->{verdict}': a next step is named" )
+            or diag explain $st;
+        for my $c ( grep { !$_->{ok} } @{ $st->{checks} } ) {
+            ok( length( $c->{remedy} // '' ), "failing check '$c->{check}': a remedy is named" );
+        }
+    }
+};
+
+subtest 'Status carries the run record, which no remote grant can read' => sub {
+    put( "$d/lazysite/daemon/scheduler-runs.json",
+        '{"stats-rollup":{"last_run":1700000000,"outcome":"ok","actor":"jobs"},"sessions-sweep":{"outcome":"refused","refusal_reason":"jobs does not hold manage_users"}}' );
+    my $st = Lazysite::Daemon::Supervisor::status($d);
+    is( $st->{runs}{'stats-rollup'}{outcome},          'ok',      'per job: the outcome' );
+    is( $st->{runs}{'stats-rollup'}{actor},            'jobs',    'and the actor' );
+    is( $st->{runs}{'sessions-sweep'}{refusal_reason}, 'jobs does not hold manage_users', 'and a refusal says why' );
+    unlink "$d/lazysite/daemon/scheduler-runs.json";
+    is_deeply( Lazysite::Daemon::Supervisor::status($d)->{runs}, {}, 'no record yet: an empty map, not an absence' );
 };
 
 done_testing();

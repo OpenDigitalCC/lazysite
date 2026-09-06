@@ -34,7 +34,7 @@ sub render {
 }
 
 # enabled_plugins keyed by the extensionless id (stats), as the processor builds.
-my $on = render( { 'stats.pl' => 1, 'stats' => 1 } );
+my $on = render( { 'stats.pl' => 1, 'stats' => 1 } );    # bare-name-on-purpose: the map _enabled_plugins builds
 like( $on, qr{/manager/stats}, 'enabled: stats nav link present' );
 like( $on, qr{Visitor statistics}, 'enabled: stats nav label present' );
 

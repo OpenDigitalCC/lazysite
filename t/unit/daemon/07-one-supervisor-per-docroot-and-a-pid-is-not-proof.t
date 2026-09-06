@@ -35,7 +35,7 @@ sub site {
     mkdir "$d/lazysite";
     mkdir "$d/lazysite/auth";
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$c} "site_name: t\nplugins:\n  - daemon.pl\n";
+    print {$c} "site_name: t\nplugins:\n  - plugins/daemon.pl\n";
     close $c;
     open my $dc, '>', "$d/lazysite/daemon.conf" or die $!;
     print {$dc} "daemon_restart_backoff: 1\ndaemon_tick_seconds: 60\n";

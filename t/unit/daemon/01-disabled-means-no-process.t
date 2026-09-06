@@ -45,19 +45,26 @@ subtest 'born disabled: no plugins list at all' => sub {
 
 subtest 'another plugin enabled is not this plugin enabled' => sub {
     # The gate must key on THIS plugin, not on "the plugins list exists".
-    set_plugins('data.pl');
+    set_plugins('plugins/data.pl');
     is( Lazysite::Daemon::Supervisor::should_run($root), 0,
         'enabling a different plugin does not start the daemon' );
 };
 
 subtest 'enabled when, and only when, it is listed' => sub {
-    set_plugins( 'data.pl', 'daemon.pl' );
+    set_plugins( 'plugins/data.pl', 'plugins/daemon.pl' );
     is( Lazysite::Daemon::Supervisor::should_run($root), 1,
         'listed alongside others - runs' );
 
-    set_plugins('daemon.pl');
+    set_plugins('plugins/daemon.pl');
     is( Lazysite::Daemon::Supervisor::should_run($root), 1,
         'listed alone - runs' );
+
+    # SM759: the bare name is what the fixtures used to write and the conf
+    # never holds. It must NOT count as enabled, or the gate is matching on
+    # a word nothing writes.
+    set_plugins('daemon.pl');    # bare-name-on-purpose
+    is( Lazysite::Daemon::Supervisor::should_run($root), 0,
+        'a bare script name is not the registry key - not enabled' );
 };
 
 subtest 'run() on a disabled site starts nothing and touches nothing' => sub {
@@ -87,7 +94,7 @@ subtest 'status reports desired and verdict separately' => sub {
         'off-because-you-turned-it-off is HEALTHY, not a problem to report' );
     like( $off->{message}, qr/disabled/, 'and says why, in words' );
 
-    set_plugins('daemon.pl');
+    set_plugins('plugins/daemon.pl');
     my $on = Lazysite::Daemon::Supervisor::status($root);
     is( $on->{desired}, 'on', 'enabled reads as desired: on' );
 

@@ -45,7 +45,8 @@ subtest 'every nav page is a start page, with the same gate' => sub {
     for my $page ( sort keys %nav ) {
         ok( $table{$page}, "$page: in the table" ) or next;
         is_deeply( [ sort @{ $table{$page}{caps} } ], $nav{$page}{caps}, "$page: the same capabilities (any-of)" );
-        my $tp = $table{$page}{plugin} ? ( $table{$page}{plugin} =~ s/\.pl\z//r ) : undef;
+        # SM759: the table names the registry key (plugins/x.pl); the nav's condition is the id (x).
+        my $tp = $table{$page}{plugin} ? ( $table{$page}{plugin} =~ s{^plugins/}{}r =~ s/\.pl\z//r ) : undef;
         is( $tp, $nav{$page}{plugin}, "$page: the same plugin condition" );
     }
 };

@@ -47,7 +47,7 @@ sub set_enabled {
     my $tmp = "$d/lazysite/lazysite.conf.tmp";
     open my $c, '>', $tmp or die $!;
     print {$c} "site_name: t\n";
-    print {$c} "plugins:\n  - daemon.pl\n" if $on;
+    print {$c} "plugins:\n  - plugins/daemon.pl\n" if $on;
     close $c;
     rename $tmp, "$d/lazysite/lazysite.conf" or die $!;
     return;

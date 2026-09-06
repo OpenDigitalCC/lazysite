@@ -38,7 +38,7 @@ site_name: Main
 site_url: https://main.example
 manager: enabled
 plugins:
-  - stats.pl
+  - plugins/stats.pl
 alias_hosts: shop.example, blog.example
 alias.shop.example.content_root: sites/shop
 alias.shop.example.allowed_groups: role-shopper

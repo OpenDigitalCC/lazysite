@@ -61,7 +61,7 @@ sub site {
 }
 
 subtest 'enabled but not started - the state the field found empty' => sub {
-    my $out = status_for( site('daemon.pl') );
+    my $out = status_for( site('plugins/daemon.pl') );
 
     ok( defined $out && length $out,
         'the action produces OUTPUT - this returned nothing in 0.13.0' )

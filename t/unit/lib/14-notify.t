@@ -47,7 +47,7 @@ is( scalar @sent, 0, 'no XMPP send while the notify-xmpp plugin is disabled' );
 
 # --- enabled + configured -> the sender is called with the conf and message ---
 open $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "site_name: My Test Site!\nplugins:\n  - notify-xmpp.pl\n";
+print $cf "site_name: My Test Site!\nplugins:\n  - plugins/notify-xmpp.pl\n";
 close $cf;
 open my $xc, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
 print $xc "jid: sitebot\@example.com\npassword: s3cret\nto: ops\@example.com\n";

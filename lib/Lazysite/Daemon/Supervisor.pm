@@ -44,7 +44,16 @@ our $VERSION = '0.1';
 # The plugin script whose enabled state gates this runtime. One name, stated
 # once - a second spelling of it somewhere else is how "disabled" drifts back
 # into being a display state.
-our $PLUGIN = 'daemon.pl';
+# SM759: the REGISTRY KEY, which is what the Plugin Manager writes into the
+# conf's plugins: list and what every other enabled-check in the engine reads
+# (`plugins/data.pl`, `plugins/briefs.pl`). This was 'daemon.pl' - a name the
+# conf never holds - so should_run() was 0 on every site in the field: Enable
+# wrote `plugins/daemon.pl`, the listing read it back as enabled, and the
+# runtime read the same file, looked for a different word, and reported the
+# plugin disabled. Every test fixture had written `- daemon.pl` by hand, so
+# the fixture agreed with the reader and never met the writer. t/unit/daemon/09
+# now enables through the real writer; t/lint/119 refuses a bare name.
+our $PLUGIN = 'plugins/daemon.pl';
 
 # Injectable for tests, and for the entry point which knows its own root.
 our $DOCROOT;
@@ -382,11 +391,17 @@ sub status {
     # failing JOB check, which no lifecycle field would otherwise mention.
     my ($first_bad) = grep { !$_->{ok} && $_->{check} =~ /^job/ } @checks;
     my $summary = $whole->{message}
-        . ( $whole->{remedy} ? " - $whole->{remedy}" : '' )
+        . ( $whole->{remedy} ? " - $whole->{remedy}"                              : '' )
+        . ( !$enabled ? ' - enable it on the Plugin Manager to start the runtime' : '' )
         . ( $first_bad && $first_bad->{remedy}
         ? ". Also: $first_bad->{message} - $first_bad->{remedy}" : '' )
         . '.';
     $summary =~ s/\.\.\z/./;
+
+    # SM759: what each job last did, from the run record - which the remote
+    # surfaces cannot read, so Status is where a sysop or a partner sees it.
+    require Lazysite::Daemon::Service::Scheduler;
+    my $runs = Lazysite::Daemon::Service::Scheduler::run_record($root);
 
     return {
         ok     => 1,
@@ -395,6 +410,7 @@ sub status {
         services => \@svc,
         host     => $host,
         checks   => \@checks,
+        runs     => $runs,
         summary  => $summary,
     };
 }
@@ -428,7 +444,8 @@ sub _host_checks {
             ( $host->{timer} eq 'disabled' ? ( remedy => "systemctl enable --now lazysited\@$host->{instance}.timer" ) : () ) };
     }
     push @c, { check => 'runtime', ok => ( $running || !$enabled ) ? 1 : 0,
-        message => $running ? 'the runtime is running' : $enabled ? 'the runtime is not running yet' : 'the plugin is disabled, so no runtime runs' };
+        message => $running ? 'the runtime is running' : $enabled ? 'the runtime is not running yet' : 'the plugin is disabled, so no runtime runs',
+        ( $enabled && !$running ? ( _host_remedy($host) ) : () ) };
     return @c;
 }
 
