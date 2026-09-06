@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.3"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.4"
 brand: plain
 ---
 
@@ -1758,6 +1758,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.4** (2026-09-06, EDGE) - **The runtime runs as the user the request
+  path writes as.** SM760: the deploy had written the panel user while the
+  request path runs as `www-data`, and each read the other's `0660` files as
+  empty - the store as "holds nothing", the process as "not started". `USER=`
+  now follows the request path; the readers refuse an unreadable store by
+  name; Status compares the two users and reads a running runtime as running;
+  Disable says whether the process stopped. `read_submissions` moves to
+  Insight. SM761/SM762 filed as candidates.
 - **0.13.3** (2026-09-06, EDGE) - **The runtime reads the switch the Plugin
   Manager writes.** SM759: the supervisor keyed the plugin's enabled state on
   `daemon.pl` while the conf holds `plugins/daemon.pl`, so the runtime had

@@ -494,7 +494,9 @@ my %ACTION_INFO = (
         unlocks => { mcp => [qw(submit_feedback)] },
     },
     read_submissions => {
-        section => 'Content',
+        # SM758 follow-up (133E-03): an operator hunting for who may READ what
+        # visitors sent looks under Insight, not Content - the field said so.
+        section => 'Insight',
         title => 'Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default.',
         grants => 'Read what visitors have submitted through forms - whatever each form collects, with the submitter\'s IP address. Read-only: it cannot change where submissions go.',
         unlocks => { api => [qw(form-submissions form-list)], mcp => [qw(read_form_submissions form_list)] },

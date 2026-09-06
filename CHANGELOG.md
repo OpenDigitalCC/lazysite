@@ -44,6 +44,44 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.4 - EDGE: the runtime runs as the user the request path writes as (2026-09-06)
+
+**The first real run, and what it found.** On 0.13.3 the runtime started
+unaided, the job checks named the missing capabilities, and then every job was
+refused for a capability the account held while Status called the running
+runtime "not started". One fault, seen from two sides.
+
+- SM760 (3671a2f2) **the runtime and the request path were two unix users.**
+  The deploy wrote `USER=<panel user>`; the request path on the host runs as
+  `www-data`; both write `0660`. A grant on the Groups page had `www-data`
+  rewrite `groups-settings.json`, the runtime could no longer open it, the
+  reader returned empty in silence, and every account held nothing. The other
+  way round, Status as `www-data` read `kill 0` EPERM on the runtime's
+  process as dead. Now: `USER=` is the unix user the request path writes as
+  (the deploy writes `www-data`, or the pool's user; `add --daemon` follows
+  the same rule; OPERATOR.md states it); the store readers WARN by file,
+  error and unix user rather than returning empty; `resolve_job_user`
+  refuses an unreadable store by name before asking what it holds; Status
+  carries a `runtime_user` check comparing the host conf with its own user;
+  a process that exists but is not ours is alive, so a running runtime reads
+  `on`, healthy, no remedy - the field's "one more row", asserted; Disable
+  runs Status with a wait bounded by the gate interval and says "stopped" or
+  "still stopping (pid N)".
+- SM758 follow-up: `read_submissions` moves from Content to **Insight** - an
+  operator hunting for who may read what visitors sent looked there (133E-03).
+- Filed as candidates from the sites agent's requests, not built: SM761 and
+  SM762 - a confirmed opt-in form handler, and email bodies as markdown
+  templates.
+  Verified against the source (no site can mail a submitter; the smtp body is
+  generated and fixed); each carries the decisions a build needs. Not built.
+- Field pass on 0.13.3 (archived 2026-09-06): 133E-02 PASS (a start page on
+  Visitor statistics lands), 133E-03 PASS on Groups, 131E-06 CLOSED (the
+  `implied` block read as intended, on both surfaces); 133E-01 part-run, the
+  two findings being SM760. The plugin was left enabled with its job account
+  and grants; the deploy rewrites the host conf and restarts the instance.
+- Not in this cut: SM579 (connectors - after the runtime has run a job on
+  edge), SM666 phase 2, the rest of SM753 and SM754.
+
 ## 0.13.3 - EDGE: the runtime reads the switch the Plugin Manager writes (2026-09-06)
 
 **The runtime had never run in the field.** The 0.13.2 pass did what no fixture

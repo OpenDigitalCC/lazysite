@@ -36,13 +36,13 @@ reader assumes.
 
 | Category | Actions (as labelled) |
 | --- | --- |
-| Content | Authoring briefs (write); Content (pages); Forms; Navigation; Read form submissions |
+| Content | Authoring briefs (write); Content (pages); Forms; Navigation |
 | Appearance | Layouts; Themes |
 | Data | Data rows (named tables only); Data tables |
 | Site | Domains & site packages; Services (WebDAV/MCP/OAuth switches); Site config (+ plugins) |
 | Accounts | Create sub-users; Delegate sub-users; Users & groups |
 | Operations | Housekeeping; Purge; Run scheduled jobs |
-| Insight | Agent feedback; Analytics; Audit trail; Notifications |
+| Insight | Agent feedback; Analytics; Audit trail; Notifications; Read form submissions (moved from Content for 0.13.4 - 133E-03) |
 
 Rows sort by their label at render time, since the label is what the reader
 scans (the key is on hover, SM617). Channels sort the same way. `ACTIONS`
