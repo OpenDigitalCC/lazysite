@@ -184,11 +184,26 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   mkdir -p "$DAEMON_ETC"
   DCONF="$DAEMON_ETC/$DOMAIN.conf"
   DTMP="$DCONF.tmp.$$"
+  # SM760: THE RUNTIME RUNS AS THE UNIX USER THE REQUEST PATH WRITES AS - the
+  # two share one write plane (the CGI writes the auth stores the runtime
+  # reads; the runtime writes the pid, state and run records Status reads),
+  # and a 0660 file owned by one is closed to the other. On this flow the CGI
+  # runs as www-data (see the permissions pass above); a site served by the
+  # FastCGI pool runs as the pool's USER= instead. The first version wrote the
+  # panel user here, and the runtime's first real run refused every job for a
+  # capability its account held: www-data had rewritten groups-settings.json
+  # and the panel user could not open it.
+  RUNTIME_USER="${LAZYSITE_CGI_USER:-www-data}"
+  POOL_CONF="/etc/lazysite/pools/$DOMAIN.conf"
+  if [ -f "$POOL_CONF" ]; then
+    POOL_USER=$(sed -n 's/^USER=//p' "$POOL_CONF" | head -1)
+    [ -n "$POOL_USER" ] && RUNTIME_USER="$POOL_USER"
+  fi
   {
     echo "# lazysite persistent runtime for $DOMAIN - written by lazysite-hestia-deploy.sh"
     echo "# (tarball flow) on every deploy; consumed by lazysited@.service."
     echo "DOCROOT=$DOC"
-    echo "USER=$U"
+    echo "USER=$RUNTIME_USER"
     echo "ENGINE=$DOM"
   } > "$DTMP"
   mv -f "$DTMP" "$DCONF"

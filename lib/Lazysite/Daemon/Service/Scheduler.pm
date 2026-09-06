@@ -129,6 +129,24 @@ sub resolve_job_user {
             . 'daemon_job_user must name an account in the user store' )
         unless Lazysite::Auth::Settings::account_names()->{$user};
 
+    # SM760: the stores must be READABLE before their answer means anything.
+    # An unreadable groups-settings.json read as "holds nothing", so every
+    # job was refused as "does not hold run_jobs" while the Groups page and
+    # the pre-flight checks - run by the request path, which could read it -
+    # said the account held it. The refusal names the file, the error and
+    # the unix user, which is the fact an operator needs.
+    my ($who) = getpwuid($>);
+    $who //= $>;
+    for my $store ( [ 'groups-settings.json', "$root/lazysite/auth/groups-settings.json" ], [ 'groups', "$root/lazysite/auth/groups" ] ) {
+        my ( $what, $f ) = @$store;
+        next unless -e $f;
+        my $fh;
+        next if open( $fh, '<', $f ) && close $fh;
+        return ( undef, "the runtime (unix user '$who') cannot read lazysite/auth/$what: $! - "
+                . 'the runtime must run as the unix user the request path writes as; '
+                . 'the deploy sets USER= in /etc/lazysite/daemon/<domain>.conf' );
+    }
+
     my $caps = Lazysite::Auth::Settings::caps_for($user);
 
     return ( undef, "the job account '$user' does not hold run_jobs" )

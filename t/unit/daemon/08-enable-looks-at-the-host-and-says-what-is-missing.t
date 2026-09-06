@@ -111,7 +111,7 @@ subtest 'disabled: the line says so and says what to do' => sub {
     like( $st->{message}, qr/plugin is disabled/, 'the state' );
     # 'off' is a healthy verdict by the lifecycle contract (desired off, not
     # running), so it carries no remedy field; the next step is in the line.
-    like( summary_of(), qr/disabled.*enable it on the Plugin Manager/, 'the state and the next step, in the one line' );
+    like( summary_of(), qr/disabled and the runtime is stopped.*enable it on the Plugin Manager/, 'the state and the next step, in the one line' );
     put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
 };
 
@@ -126,6 +126,33 @@ subtest 'every state that is not running carries a remedy' => sub {
             ok( length( $c->{remedy} // '' ), "failing check '$c->{check}': a remedy is named" );
         }
     }
+};
+
+# SM760: the field's "one more row" - running. Status holds a live pid and
+# the run records it wrote, and used to say "has not been started" because
+# `kill 0` from another unix user answers EPERM. A running runtime is
+# reported running, healthy, with no remedy and the runs beside it.
+subtest 'running: said so, healthy, no remedy' => sub {
+    put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
+    Lazysite::Daemon::Supervisor::_write_pid( $d, 'scheduler', $$ );
+    Lazysite::Daemon::Supervisor::_write_state( $d, 'scheduler',
+        { fails => 0, started => time, start_ticks => Lazysite::Daemon::Supervisor::_start_ticks($$) } );
+    my $st = Lazysite::Daemon::Supervisor::status($d);
+    is( $st->{verdict}, 'on', 'verdict on' );
+    is( $st->{healthy}, 1,    'healthy' );
+    ok( !defined $st->{remedy}, 'no remedy - nothing to do' ) or diag $st->{remedy};
+    like( $st->{summary}, qr/running/, 'the line says running' );
+    my %c = map { $_->{check} => $_ } @{ $st->{checks} };
+    ok( $c{runtime}{ok}, 'the runtime check is ok' );
+
+    # and Disable says whether it stopped: still our own pid here, so "still stopping"
+    put( "$d/lazysite/lazysite.conf", "site_name: t\n" );
+    my $off = Lazysite::Daemon::Supervisor::status( $d, settle => 1 );
+    like( $off->{summary}, qr/disabled and the runtime is still stopping \(pid $$\)/, 'disabled with a live process: still stopping, with the pid' );
+    unlink Lazysite::Daemon::Supervisor::_pid_file( $d, 'scheduler' ), Lazysite::Daemon::Supervisor::_state_file( $d, 'scheduler' );
+    $off = Lazysite::Daemon::Supervisor::status($d);
+    like( $off->{summary}, qr/disabled and the runtime is stopped/, 'disabled with no process: stopped' );
+    put( "$d/lazysite/lazysite.conf", "site_name: t\nplugins:\n  - plugins/daemon.pl\n" );
 };
 
 subtest 'Status carries the run record, which no remote grant can read' => sub {

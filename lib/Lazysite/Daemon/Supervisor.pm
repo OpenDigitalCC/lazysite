@@ -35,6 +35,7 @@ package Lazysite::Daemon::Supervisor;
 use strict;
 use warnings;
 use POSIX               ();
+use Errno               ();
 use Time::HiRes         ();
 use Lazysite::Util      qw(log_event);
 use Lazysite::Lifecycle qw(lifecycle_status);
@@ -154,7 +155,15 @@ sub _read_pid {
 sub _alive {
     my ($pid) = @_;
     return 0 unless defined $pid && $pid > 0;
-    return kill( 0, $pid ) ? 1 : 0;
+    return 1 if kill( 0, $pid );
+
+    # SM760: EPERM means the process EXISTS and belongs to somebody else. The
+    # first version read `kill 0` false as dead, so Status - run by the
+    # request path as www-data - reported a runtime owned by the panel user
+    # as "has not been started" while holding its pid and reading the run
+    # records it had just written. That process is alive; it is not ours to
+    # signal, which is a different fact and one the unix-user check names.
+    return $!{EPERM} ? 1 : 0;
 }
 
 # A pid is reused. The 0.13.1 daemon review (D5 experiment 8) wrote the test's
@@ -215,6 +224,14 @@ sub _is_ours {
 # systemd is absent the answer is "unknown", said as such.
 our $DAEMON_ETC = '/etc/lazysite/daemon';
 
+sub _conf_user {
+    my ($conf) = @_;
+    open my $fh, '<', $conf or return undef;
+    my ($u) = map { /^USER=(.*)$/ ? $1 : () } <$fh>;
+    close $fh;
+    return $u;
+}
+
 sub host_provisioning {
     my ($root) = @_;
     my %h = ( conf => undef, instance => undef, timer => 'unknown', service => 'unknown' );
@@ -271,10 +288,26 @@ sub job_account_checks {
 }
 
 sub status {
-    my ($docroot) = @_;
-    my $root      = _docroot($docroot);
-    my $enabled   = should_run($root) ? 1 : 0;
-    my $host      = host_provisioning($root);
+    my ( $docroot, %a ) = @_;
+    my $root    = _docroot($docroot);
+    my $enabled = should_run($root) ? 1 : 0;
+    my $host    = host_provisioning($root);
+
+    # SM760: DISABLE SAYS WHETHER THE PROCESS STOPPED. The field could not
+    # confirm it - Status is refused while the plugin is off (a disabled
+    # contract plugin executes nothing), so the only reading was to re-enable
+    # and look. The on_disable hook runs this with `settle`, and it waits up
+    # to that many seconds for the runtime to notice the gate ($GATE_EVERY)
+    # and go, then reports "stopped" or "still stopping (pid N)". A wait
+    # bounded by the gate interval, not a guess.
+    if ( !$enabled && $a{settle} ) {
+        my $deadline = time + $a{settle};
+        while ( time < $deadline ) {
+            my $alive = grep { _is_ours( _read_pid( $root, $_->{name} ), _read_state( $root, $_->{name} )->{start_ticks} ) } services();
+            last unless $alive;
+            sleep 1;
+        }
+    }
 
     my @svc;
     my $any_running = 0;
@@ -363,8 +396,10 @@ sub status {
             : ()
         ),
         ( !$enabled
-            ? ( message =>
-                    'the daemon plugin is disabled, so no process is started' )
+            ? ( message => $any_running
+                ? 'the daemon plugin is disabled and the runtime is still stopping (pid '
+                    . join( ', ', map { _read_pid( $root, $_->{name} ) // '?' } services() ) . ')'
+                : 'the daemon plugin is disabled and the runtime is stopped' )
             : ()
         ),
         ( $any_died
@@ -442,6 +477,28 @@ sub _host_checks {
             : { check => 'host_timer', ok => ( $host->{timer} eq 'unknown' ? 1 : 0 ),
             message => "lazysited\@$host->{instance}.timer is $host->{timer}",
             ( $host->{timer} eq 'disabled' ? ( remedy => "systemctl enable --now lazysited\@$host->{instance}.timer" ) : () ) };
+    }
+    # SM760: THE RUNTIME MUST RUN AS THE UNIX USER THE REQUEST PATH WRITES AS.
+    # The two share one write plane - the request path writes the auth stores
+    # and the runtime reads them; the runtime writes its pid, state and run
+    # records and Status reads those - and 0660 files owned by one are closed
+    # to the other. The field's first real run refused every job for a
+    # capability the account held, because www-data had rewritten
+    # groups-settings.json and the runtime, as the panel user, could not open
+    # it. This check compares the conf's USER= with the user Status itself
+    # runs as, which IS the request path's user, so it needs no knowledge of
+    # the host. The deploy writes USER= from the same rule.
+    if ( $host->{conf} ) {
+        my $want = _conf_user( $host->{conf} );
+        my ($me) = getpwuid($>);
+        $me //= $>;
+        if ( defined $want && length $want ) {
+            push @c, $want eq $me
+                ? { check => 'runtime_user', ok => 1, message => "the runtime runs as '$want', the same unix user as the request path" }
+                : { check => 'runtime_user', ok => 0,
+                message => "the runtime runs as '$want' but the request path runs as '$me' - files one writes, the other cannot read",
+                remedy => "set USER=$me in $host->{conf} and run: systemctl restart lazysited\@$host->{instance} (the deploy writes USER= from the request path's user)" };
+        }
     }
     push @c, { check => 'runtime', ok => ( $running || !$enabled ) ? 1 : 0,
         message => $running ? 'the runtime is running' : $enabled ? 'the runtime is not running yet' : 'the plugin is disabled, so no runtime runs',

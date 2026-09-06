@@ -226,7 +226,7 @@ sub _groups_membership {
     my %g;
     my $f = _groups_file();
     return %g unless -f $f;
-    open my $fh, '<:utf8', $f or return %g;
+    open my $fh, '<:utf8', $f or return ( _cannot_read( 'groups', $f ) // %g );
     while (<$fh>) {
         chomp; s/^\s+|\s+$//g;
         next if /^#/ || !length;
@@ -244,10 +244,25 @@ sub _groups_membership {
 # (which expects UTF-8 bytes). Reading through a :utf8 layer first hands
 # decode_json a character string, which dies on any non-ASCII content (e.g. a
 # group description) and silently wiped the whole read to {}.
+# SM760: a store that EXISTS and cannot be opened is a fault, said once per
+# call in the log; it used to read as empty, which every caller then took as
+# "this account holds nothing". The field found the runtime refusing every
+# job as "does not hold run_jobs" for an account the Groups page said held
+# it - the request path (www-data) had rewritten the file 0660 and the
+# runtime (the panel user) could no longer open it. Silence turned a
+# permissions fault into a capability answer.
+sub _cannot_read {
+    my ( $what, $f ) = @_;
+    my ($who) = getpwuid($>);
+    log_event( 'WARN', 'settings', "cannot read $what - every account reads as holding nothing",
+        file => $f, error => "$!", unix_user => ( $who // $> ) );
+    return;
+}
+
 sub read_group_settings {
     my $f = _group_settings_file();
     return {} unless -f $f;
-    open my $fh, '<:raw', $f or return {};
+    open my $fh, '<:raw', $f or return ( _cannot_read( 'groups-settings.json', $f ) // {} );
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $d = eval { JSON::PP::decode_json( $raw // '{}' ) };

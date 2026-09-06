@@ -219,6 +219,22 @@ so the runtime runs the site's own `tools/` and `lib/`, unit and timer installed
 into `/etc/systemd/system` from the release, timer enabled, a running runtime
 restarted (SM757).
 
+**`USER=` is the unix user the request path writes as - not the panel user
+(SM760).** The runtime and the request path share one write plane: the CGI
+writes the auth stores the runtime reads (`lazysite/auth/`), and the runtime
+writes the pid, state and run records that Status reads. Both write their
+files `0660`, so a file one of them creates is closed to the other unless they
+are the same user. On the plain CGI flow that user is the web server's
+(`www-data`); on a site served by the FastCGI pool it is the pool's `USER=`.
+The deploy and `add --daemon` write it from that rule; if you write the conf by
+hand, copy the user the site's requests run as. Status carries a `runtime_user`
+check that compares the conf with the user Status itself runs as, and the run
+record refuses by name (`cannot read lazysite/auth/groups-settings.json:
+Permission denied`) rather than as a missing capability when they differ.
+This was found on the first real run: every job refused as "does not hold
+`run_jobs`" for an account that held it, because `www-data` had rewritten the
+group settings and the panel user could no longer open them.
+
 **Two switches, both needed.** The unit and its timer are yours (or the
 deploy's); the `daemon` plugin is the site's, enabled by its sysop on the Plugin
 Manager page and born disabled (ADR 0009). The manager has no root, so enabling
@@ -228,7 +244,9 @@ plugin, and either runs or exits at once (one short-lived process per five
 minutes per disabled site; nothing while one runs). Pressing Enable runs the
 Status check and shows beside the toggle whether the host has provisioned the
 runtime and whether the job account is set and holds what the jobs need.
-Disabling the plugin while the runtime is running stops it within ten seconds.
+Disabling the plugin while the runtime is running stops it within ten seconds,
+and the toggle line says whether it did ("the runtime is stopped", or "still
+stopping (pid N)").
 What it says about itself:
 
 ```bash
@@ -241,7 +259,8 @@ capability plus whatever the job needs (`analytics` for the rollup,
 `manage_users` for the sweep) - a purpose account, not a person's. No account,
 or one lacking a capability, means the job is refused with the reason in the
 run record, `lazysite/daemon/scheduler-runs.json`, which is also where a job's
-last outcome and counts are kept.
+last outcome and counts are kept - and which Status carries as `runs`, since
+no remote grant reaches `lazysite/daemon/` (SM759).
 
 **Cost at rest.** Two Perl processes per site, about 10 MB PSS each after the
 shared pages are apportioned (23 MB naive RSS); 300 instances is roughly 3 GB

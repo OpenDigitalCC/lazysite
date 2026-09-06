@@ -151,6 +151,10 @@ sub describe {
         # run record. Status is the same action the button runs, so the
         # toggle and the button cannot disagree.
         on_enable => 'status',
+        # SM760: and Disable runs it too, so the toggle line says whether the
+        # process actually stopped - the one reading an operator wants at the
+        # moment they switch it off, and the one Status refuses afterwards.
+        on_disable => 'status',
     };
 }
 
@@ -185,7 +189,11 @@ sub run {
         # reporting the CONFIGURATION and calling it the state, which is the
         # failure SM222 is about.
         require Lazysite::Daemon::Supervisor;
-        my $st = Lazysite::Daemon::Supervisor::status( $opt{docroot} );
+        # SM760: while the plugin reads disabled this is the on_disable hook (or
+        # an operator at the CLI); wait for the runtime to notice the gate.
+        no warnings 'once'; # $GATE_EVERY is the supervisor's; required, not used-imported
+        my $st = Lazysite::Daemon::Supervisor::status( $opt{docroot},
+            settle => ( Lazysite::Daemon::Supervisor::should_run( $opt{docroot} ) ? 0 : $Lazysite::Daemon::Supervisor::GATE_EVERY + 5 ) );
 
         # The toggle's status line shows `message` (plugins.md); make it the
         # whole sentence - the state, the remedy, and the first failing check.

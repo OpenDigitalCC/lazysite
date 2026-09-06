@@ -49,6 +49,9 @@ my $POOLS_DIR = length( $ENV{LAZYSITE_POOLS_DIR} // '' )
 my $DAEMON_DIR = length( $ENV{LAZYSITE_DAEMON_DIR} // '' )
     ? $ENV{LAZYSITE_DAEMON_DIR}
     : '/etc/lazysite/daemon';
+# SM760: the web server's CGI user, which is the runtime's user on the plain
+# CGI flow (see `add --daemon`).
+my $WEB_USER = length( $ENV{LAZYSITE_WEB_USER} // '' ) ? $ENV{LAZYSITE_WEB_USER} : 'www-data';
 my $WEB_GROUP = length( $ENV{LAZYSITE_WEB_GROUP} // '' )
     ? $ENV{LAZYSITE_WEB_GROUP}
     : 'www-data';
@@ -111,6 +114,8 @@ Environment (host-layout overrides):
   LAZYSITE_POOLS_DIR      pool configs (default /etc/lazysite/pools)
   LAZYSITE_DAEMON_DIR     daemon configs (default /etc/lazysite/daemon)
   LAZYSITE_WEB_GROUP      web-server group (default www-data)
+  LAZYSITE_WEB_USER       web-server CGI user (default www-data) - the runtime's
+                          user for `add --daemon` without --fcgi
 
 Full documentation: man lazysite-hestia-domain.
 USAGE
@@ -328,9 +333,17 @@ sub cmd_add {
     # exits 0 and stays quiet, which is why it is safe to enable here.
     if ( $o{daemon} ) {
         my $conf = daemon_conf_path($domain);
+        # SM760: USER= is the unix user the REQUEST PATH writes as - the
+        # pool's USER with --fcgi (the pool serves requests as the panel
+        # user), the web server's CGI user otherwise. The runtime reads what
+        # the request path writes and vice versa, and a 0660 file owned by
+        # one is closed to the other; the first version wrote the panel user
+        # unconditionally and the runtime could not read a groups-settings
+        # file www-data had just rewritten.
+        my $runtime_user = $o{fcgi} ? $user : $WEB_USER;
         write_kv_file(
             $conf,
-            [ [ DOCROOT => $docroot ], [ USER => $user ], ],
+            [ [ DOCROOT => $docroot ], [ USER => $runtime_user ], ],
             "# lazysite persistent runtime for $domain - consumed by\n"
                 . "# lazysited\@.service via tools/lazysited.pl. After editing:\n"
                 . "#   systemctl restart lazysited\@$domain\n"
