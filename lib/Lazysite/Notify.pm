@@ -326,7 +326,7 @@ sub _xmpp_send {
     my $muc  = ( $conf->{muc}        // '' ) =~ /^(?:1|true|yes)$/i ? 1 : 0;
 
     local $SIG{ALRM} = sub { die "notify-xmpp: timed out\n" };
-    alarm 15;
+    alarm 15;    # network-bound: the XMPP peer, not this process (t/lint/120)
     my $client = Net::XMPP::Client->new();
     my $ok     = eval {
         defined $client->Connect(

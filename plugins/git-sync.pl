@@ -139,7 +139,7 @@ sub run {
     if ( $what eq 'test' || $what eq 'push' || $what eq 'pull' ) {
         $result = eval {
             local $SIG{ALRM} = sub { die "timeout\n" };
-            alarm 120;
+            alarm 120;    # network-bound: the git remote (t/lint/120)
             my $r =
                 $what eq 'test'   ? do_test($docroot)
                 : $what eq 'push' ? do_push( $docroot, $user )

@@ -89,6 +89,7 @@ get wrong. `make tiers` prints this.
 |---|---|---|---|
 | `make tier-dev AREA=x` | seconds | every edit | compile + tidy lint, plus `t/unit/<AREA>/` |
 | `make tier-review` | ~2 min | branch handoff | the whole plain suite at `-j4` |
+| `bash tools/handoff.sh [--release]` | ~2 min | **before a branch is offered for review** | tier-review plus the review's own tripwires (clean tree, compile, the mangled-literal check, bench with `--release`); prints the one line the handover carries (SM764) |
 | `make tier-release` | ~80 min | once per cut | suite, then bench, then coverage |
 
 There is deliberately **no scheduled tier**. SM269 phase 3 has to justify one by
@@ -99,6 +100,13 @@ suite is ~330s sequential and ~122s at `-j4`, and the release gate is ~80
 minutes of which **coverage is 92%**. So the ladder does not speed up the gate -
 nothing short of phase 3 does. It exists so a problem surfaces while the code is
 being written rather than at the cut.
+
+**A branch is not offered for review without `tools/handoff.sh` saying READY.**
+The 0.13.4 cut was launched three times because two faults - one a textual
+pin one test file over from the change - reached review and the build without
+the whole suite having been run on the branch; each cost a review round-trip
+through a release manager who was not watching (SM764). The tier existed; the
+script is what makes running it the handover rather than a step before it.
 
 Every tier passes `-l`. Without it, tests that load `Lazysite::` modules die
 with zero tests run and `prove` reports a failure whose cause is not on screen.

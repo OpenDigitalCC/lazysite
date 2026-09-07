@@ -215,6 +215,38 @@ PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore
 # So the run is now reported on, and --check refuses to give a coverage verdict
 # when the thing being measured did not complete. A floor is a statement about
 # a suite that passed.
+# SM764: ONE RE-RUN, ALONE, AND SAID SO. The 0.13.4 coverage stage failed on
+# a test that passes alone and passed the plain suite four minutes earlier:
+# a render ceiling met under four instrumented jobs. The fix for the ceiling
+# is elsewhere (t/lint/120); this is the gate's own defence against the next
+# one. A file that failed under the parallel instrumented run is run ONCE
+# more, alone, under the same instrumentation. If it passes, the stage
+# proceeds - and the log, this output and the release log all carry which
+# files needed it, because a test that passes alone and fails in company is
+# a fact about the test that somebody should read, not a fault to hide. If
+# it fails alone too, the stage fails as before.
+RERUN=""
+if [ "$SUITE_RC" -ne 0 ]; then
+    failed=$(grep -E '^t/.*\.t +\(Wstat' "$SUITE_LOG" | sed -E 's/ +\(Wstat.*//' | sort -u)
+    if [ -n "$failed" ]; then
+        echo "coverage: re-running alone, once, under instrumentation: $failed" >&2
+        rerun_rc=0
+        for tf in $failed; do
+            if PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore,/t/,+ignore,Devel" \
+                prove -l "$tf" >> "$SUITE_LOG" 2>&1; then
+                RERUN="$RERUN $tf"
+            else
+                rerun_rc=1
+            fi
+        done
+        if [ "$rerun_rc" -eq 0 ]; then
+            SUITE_RC=0
+            echo "coverage: PASSED ALONE (failed in the -j$JOBS run):$RERUN" >&2
+            echo "coverage: these files pass alone and fail in company - read them." >&2
+        fi
+    fi
+fi
+
 suite_files=$(grep -cE '^t/.*\.t ' "$SUITE_LOG" 2>/dev/null || echo 0)
 echo "suite under instrumentation: exit=$SUITE_RC, ${suite_files} file(s) reported" >&2
 if [ "$SUITE_RC" -ne 0 ]; then

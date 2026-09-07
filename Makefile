@@ -1,5 +1,5 @@
 .PHONY: test test-unit test-integration test-smoke test-journey test-safety test-verbose \
-        tier-dev tier-review tier-release tiers
+        tier-dev tier-review tier-release tiers handoff
 
 test:
 	prove -r t/
@@ -35,6 +35,12 @@ endif
 tier-review:
 	prove -lr -j4 t/
 
+# HANDOFF - tier-review plus the review's tripwires; prints the READY line
+# a branch is offered for review with (SM764). `make handoff RELEASE=1`
+# adds the bench gate for a branch bound for a cut.
+handoff:
+	bash tools/handoff.sh $(if $(RELEASE),--release,)
+
 # RELEASE - ~80 minutes. Once per cut, and NOT a subset of anything:
 # suite, then bench, then coverage against the declared floor.
 tier-release:
@@ -45,6 +51,7 @@ tier-release:
 tiers:
 	@echo "tier-dev      seconds   every edit      lint + AREA=<area>"
 	@echo "tier-review   ~2 min    branch handoff  full suite at -j4"
+	@echo "handoff       ~2 min    before review   tier-review + tripwires; prints READY (SM764)"
 	@echo "tier-release  ~80 min   once per cut    suite + bench + coverage"
 	@echo ""
 	@echo "There is no scheduled tier yet: SM269 phase 3 has to justify one"

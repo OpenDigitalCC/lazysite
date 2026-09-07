@@ -512,7 +512,7 @@ sub validate_smtp {
 
     my $result = eval {
         local $SIG{ALRM} = sub { die "timed out\n" };
-        alarm 30;
+        alarm 30;    # network-bound: DNS and the SMTP peer (t/lint/120)
 
         # Stage 1 - host: does the name resolve? (IP literals skip DNS.)
         unless ( $host =~ /^[\d.]+$/ || $host =~ /^\[?[0-9a-fA-F:]+\]?$/ ) {
