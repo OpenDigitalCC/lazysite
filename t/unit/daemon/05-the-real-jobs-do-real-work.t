@@ -77,8 +77,8 @@ my %JOBS = %{ Lazysite::Daemon::Service::Scheduler::jobs() };
 
 subtest 'the set: closed, small, and every need is a real capability' => sub {
     is_deeply( [ sort keys %JOBS ],
-        [qw(daemon-heartbeat sessions-sweep stats-rollup)],
-        'three jobs, named' );
+        [qw(connectors-sweep daemon-heartbeat sessions-sweep stats-rollup)],
+        'four jobs, named' );
 
     my %cap = map { $_ => 1 } @CAP_KEYS;
     for my $name ( sort keys %JOBS ) {
@@ -119,6 +119,8 @@ subtest 'run_jobs alone runs the heartbeat and is refused the rest, by name' => 
         'and the refusal names the capability that is missing' );
     is( $r->{'sessions-sweep'}{outcome}, 'refused', 'sessions-sweep: refused' );
     like( $r->{'sessions-sweep'}{reason}, qr/manage_users/, 'by name' );
+    is( $r->{'connectors-sweep'}{outcome}, 'refused', 'connectors-sweep: refused' );
+    like( $r->{'connectors-sweep'}{reason}, qr/manage_connectors/, 'by name (SM579)' );
 
     # Grant it, tick again with no time passing: the refusal did not consume
     # the slot (the 0.13.0 rule, now holding for a per-job refusal too).

@@ -38,6 +38,10 @@ subtest 'concurrent snapshots do not share a filename' => sub {
     open my $fh, '>', "$d/content/page.md" or die $!;
     print {$fh} "body\n";
     close $fh;
+    # SM753: retention is 3 by default now; this test is about NAMES, so keep all
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: T\nbackup_retention: 0\n";
+    close $cf;
 
     local $Lazysite::Manager::Backups::DOCROOT      = $d;
     local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$d/lazysite";

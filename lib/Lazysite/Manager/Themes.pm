@@ -1213,15 +1213,7 @@ sub _prune_backups {
     }
 }
 
-sub _backup_retention {
-    local $_;                # SM420: while(<>) assigns the GLOBAL $_
-    my $n = 3;
-    if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
-        while (<$fh>) { if (/^backup_retention\s*:\s*(-?\d+)/) { $n = $1; last } }
-        close $fh;
-    }
-    return $n;
-}
+sub _backup_retention { return Lazysite::Util::backup_retention( _lz() ) } # SM753: the one reader
 
 # The theme a layout should use when none is carried over: its declared
 # default_theme if that declares the layout, else the first installed theme that

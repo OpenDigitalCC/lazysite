@@ -89,7 +89,11 @@ for my $action ( sort keys %need ) {
 
 is_deeply( \@broken, [], 'every predicate evaluated without dying' );
 
-my %DELIBERATELY_CONSTANT = map { $_ => 1 } qw(whoami describe-capabilities actions-list);
+# SM579: connector-call admits every authenticated caller to the ACTION; the
+# connector's own gate (callers groups, or manage_connectors, inside
+# Connectors::may_call) is what decides, per connector, and t/unit/manager/159
+# holds it.
+my %DELIBERATELY_CONSTANT = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call);
 my @unexpected = grep { !$DELIBERATELY_CONSTANT{$_} } @constant;
 is_deeply( \@unexpected, [], 'no gate silently ignores the capabilities it is given' )
     or diag( "constant-answer gates: @unexpected\n"

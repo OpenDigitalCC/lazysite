@@ -60,6 +60,9 @@ and cache behaviour.
 [Data tables](/docs/data-tables)
 : Declaring a table, putting records in it, and reading them on a page.
 
+[Connectors](/docs/connectors)
+: A credentialed destination forms and callers send site data through, and where the answer is kept.
+
 [Forms](/docs/forms)
 : Defining forms, field types, validation, limits, and reading what they collect.
 

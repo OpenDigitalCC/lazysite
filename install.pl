@@ -1798,26 +1798,12 @@ sub cmd_restore {
 # =========================================================
 
 sub read_retention {
-    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($docroot) = @_;
-    my $conf      = _conf_path($docroot);
-    my $default   = 3;
-    return $default unless -f $conf;
-    open my $fh, '<', $conf or return $default;
-    my $val = $default;
-    while (<$fh>) {
-        if (/^backup_retention\s*:\s*(\S+)/) {
-            my $v = $1;
-            if ( $v =~ /^\d+$/ ) {
-                $val = $v + 0;
-                last;
-            }
-            close $fh;
-            die "lazysite.conf: backup_retention must be a non-negative integer (got '$v')\n";
-        }
-    }
-    close $fh;
-    return $val;
+    # SM753: the ONE reader. The installer already loads engine modules for
+    # other reads; this used to be a third parser with its own default and a
+    # die on a bad value where the others read past it.
+    require Lazysite::Util;
+    return Lazysite::Util::backup_retention("$docroot/lazysite");
 }
 
 sub apply_retention {

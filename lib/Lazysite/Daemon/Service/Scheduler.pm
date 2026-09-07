@@ -86,6 +86,16 @@ our %JOBS = (
         needs => 'manage_users',
         run   => \&Lazysite::Daemon::Jobs::sessions_sweep,
     },
+
+    # SM579: expire the connector call record past its keep and count what
+    # never answered, so the run record says how many stuck calls there are.
+    # Scheduled INVOCATION of a connector (mode 1) is phase 2; this is the
+    # timer keeping the record honest.
+    'connectors-sweep' => {
+        every => 3600,
+        needs => 'manage_connectors',
+        run   => \&Lazysite::Daemon::Jobs::connectors_sweep,
+    },
 );
 
 sub jobs { return \%JOBS }

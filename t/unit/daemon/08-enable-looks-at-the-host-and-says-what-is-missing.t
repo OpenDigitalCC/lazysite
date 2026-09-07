@@ -86,7 +86,7 @@ subtest 'host_provisioning finds the conf by DOCROOT, not by name' => sub {
 
 subtest 'the job account checks say which job will be refused, before it is' => sub {
     add_account( $d, 'jobs' );
-    grant_caps( $d, 'jobs', qw(run_jobs analytics) );    # not manage_users
+    grant_caps( $d, 'jobs', qw(run_jobs analytics manage_connectors) );    # not manage_users
     put( "$d/lazysite/daemon.conf", "daemon_job_user: jobs\n" );
     my $c = checks_of();
     ok( $c->{job_account}{ok},           'the account resolves' );

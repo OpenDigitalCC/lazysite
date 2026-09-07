@@ -61,6 +61,13 @@ Key operational points (full detail in `docs/architecture/security.md`):
   `X-Remote-Name`, `X-Remote-Email`, `X-Payment-Verified`, and
   `X-Payment-Payer` to the vhost. The Hestia and Docker installer
   templates include this.
+- **A connector is a disclosure you configured (SM579).** Site data leaves
+  the instance only through a connector you defined with `manage_connectors`,
+  under a secret held engine-side (`lazysite/connectors/secrets.json`, 0600).
+  A public form may send through one only if the connector opts in
+  (`public: 1`, off by default); bound the fields such a form sends (fixed
+  choices, not free text). Every call is audited by connector, trigger, mode
+  and data class - never the payload - and rate-capped per connector.
 - **Grant manager access through groups.** Manager access is
   carried by groups only: the `ui` capability admits a group's
   members to the manager UI, and `manage_users` carries the

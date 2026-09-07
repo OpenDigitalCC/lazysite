@@ -330,7 +330,7 @@ shells out; backup paths are absolute (captured via
 iterates the state file's keys to copy each file to its
 real destination.
 
-Retention: `backup_retention` in `lazysite.conf`, default 3.
+Retention: `backup_retention` in `lazysite.conf`, default 3, set on the Site config page ("Backups to keep"); one reader for every kind of backup - manual, pre-restore, theme and layout snapshots (SM753); 0 keeps all.
 0 keeps all; negative is an error.
 
 ### Imperative post-steps

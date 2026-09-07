@@ -110,26 +110,32 @@ subtest 'an account holding run_jobs resolves' => sub {
     ok( !defined $why, 'with no refusal' );
 };
 
+
+# SM579: the heartbeat by NAME. Jobs come back sorted by name and the first
+# version read [0], which was the heartbeat only until connectors-sweep sorted
+# ahead of it.
+sub heartbeat { my ($done) = @_; my ($h) = grep { $_->{job} eq 'daemon-heartbeat' } @{ $done || [] }; return $h || {} }
+
 subtest 'a tick with no usable identity RECORDS the refusal' => sub {
     # The failure that must not be silent. A job that does not run and says
     # nothing looks exactly like a job with nothing to do.
     set_job_user('');
     my $done = Lazysite::Daemon::Service::Scheduler::tick( docroot => $root );
     ok( ref $done eq 'ARRAY' && @$done, 'the tick reports what it did' );
-    is( $done->[0]{outcome}, 'refused', 'the job is refused, not skipped' );
-    like( $done->[0]{reason}, qr/daemon_job_user/,
+    is( heartbeat($done)->{outcome}, 'refused', 'the job is refused, not skipped' );
+    like( heartbeat($done)->{reason}, qr/daemon_job_user/,
         'and the record carries the reason' );
 };
 
 subtest 'a tick with a proper identity runs the job and names the actor' => sub {
     set_job_user('jobs-nightly');
     my $done = Lazysite::Daemon::Service::Scheduler::tick( docroot => $root );
-    is( $done->[0]{outcome}, 'ok', 'the job runs' );
+    is( heartbeat($done)->{outcome}, 'ok', 'the job runs' );
 
     # THE AUDIT POINT. Not 'scheduler', not 'system' - the real account, so a
     # row written at 03:00 answers the same question as one written by a person
     # at noon: who was this, and what were they allowed to do.
-    is( $done->[0]{actor}, 'jobs-nightly',
+    is( heartbeat($done)->{actor}, 'jobs-nightly',
         'and the record names the REAL user, not the scheduler' );
 };
 
@@ -154,7 +160,7 @@ subtest 'a refusal is not a run, so fixing the config takes effect at once' => s
     close $c;
 
     my $r1 = Lazysite::Daemon::Service::Scheduler::tick( docroot => $fresh );
-    is( $r1->[0]{outcome}, 'refused', 'first tick: refused, no account' );
+    is( heartbeat($r1)->{outcome}, 'refused', 'first tick: refused, no account' );
 
     add_account( $fresh, 'jobs-fixed' );
     grant_caps( $fresh, 'jobs-fixed', qw(run_jobs) );
@@ -163,10 +169,10 @@ subtest 'a refusal is not a run, so fixing the config takes effect at once' => s
     close $c2;
 
     my $r2 = Lazysite::Daemon::Service::Scheduler::tick( docroot => $fresh );
-    is( $r2->[0]{outcome}, 'ok',
+    is( heartbeat($r2)->{outcome}, 'ok',
         'second tick, no time passed: the job runs - the refusal did not '
             . 'consume the slot' );
-    is( $r2->[0]{actor}, 'jobs-fixed', 'as the newly configured account' );
+    is( heartbeat($r2)->{actor}, 'jobs-fixed', 'as the newly configured account' );
 };
 
 subtest 'the job set is closed - configuration cannot add one' => sub {

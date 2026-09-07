@@ -237,25 +237,14 @@ sub _claim_name {
 # Per KIND, because the kinds are not interchangeable: ten manual snapshots and
 # ten prerestore snapshots are ten of each, and expiring a sysop's deliberate
 # snapshot because a plugin took twenty automatic ones would be the wrong
-# trade. `backup_retention: 0` means unlimited, matching install.pl.
+# trade. `backup_retention: 0` means unlimited. SM753: the value comes from
+# Lazysite::Util::backup_retention, the ONE reader - the manager, the theme
+# store and the installer used to parse this key three ways with two defaults.
 #
 # Newest-first, and the newest of a kind is never removed: a retention rule that
 # can empty the directory is a rule that deletes the snapshot taken thirty
 # seconds ago because the limit was misread.
-sub _retention_limit {
-    my $conf    = "$LAZYSITE_DIR/lazysite.conf";
-    my $default = 10;
-    return $default unless -f $conf;
-    open my $fh, '<:utf8', $conf or return $default;
-    my $val = $default;
-    while ( my $l = <$fh> ) {
-        next unless $l =~ /^backup_retention\s*:\s*(\d+)\s*$/;
-        $val = $1 + 0;
-        last;
-    }
-    close $fh;
-    return $val;
-}
+sub _retention_limit { return Lazysite::Util::backup_retention($LAZYSITE_DIR) } # SM753: the one reader
 
 sub _apply_retention {
     my ($kind) = @_;

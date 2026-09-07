@@ -65,6 +65,7 @@ var ACTIONS = [
   // at all. Beside site config in the grid because that is where an operator
   // looks for them, and a separate row because they are a separate grant.
   ['manage_services', 'Services (WebDAV/MCP/OAuth switches)'],
+  ['manage_connectors', 'Connectors (where site data may be sent)'],
   ['manage_users', 'Users & groups'],
   ['analytics', 'Analytics (visitor stats)'],
   ['audit', 'Audit trail'],

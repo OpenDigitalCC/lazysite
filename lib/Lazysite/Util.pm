@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention);
 
 our $COMPONENT = 'lazysite';
 
@@ -34,6 +34,31 @@ our $COMPONENT = 'lazysite';
 # ordinary empty case and not a fault - and returns undef so the caller's
 # `// <empty>` keeps its shape. t/lint/121 holds that no read-open in those
 # modules returns in silence.
+# SM753: THE ONE READER of `backup_retention`. Three parsers read this key
+# with two defaults - the manager kept 10, the installer and the theme store
+# kept 3, the docs said 3 - so a sysop who never set it kept ten manual
+# backups, read that they kept three, and the theme store kept three. The
+# release manager's ruling (2026-09-07): 3, one reader, settable on the Site
+# config page. `0` means unlimited; anything that is not a whole number
+# reads as the default and is said in the log, not died on.
+our $BACKUP_RETENTION_DEFAULT = 3;
+sub backup_retention {
+    my ($lazysite_dir) = @_;
+    my $conf = "$lazysite_dir/lazysite.conf";
+    return $BACKUP_RETENTION_DEFAULT unless defined $lazysite_dir && -f $conf;
+    open my $fh, '<:utf8', $conf or return $BACKUP_RETENTION_DEFAULT;
+    my $val = $BACKUP_RETENTION_DEFAULT;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^backup_retention\s*:\s*(.*?)\s*$/;
+        my $v = $1;
+        if ( $v =~ /\A\d+\z/ ) { $val = $v + 0 }
+        else { log_event( 'WARN', 'config', 'backup_retention is not a whole number; using the default', value => $v, default => $BACKUP_RETENTION_DEFAULT ) }
+        last;
+    }
+    close $fh;
+    return $val;
+}
+
 sub cannot_read {
     my ( $what, $path ) = @_;
     return undef if $!{ENOENT};

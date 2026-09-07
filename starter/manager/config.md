@@ -28,6 +28,11 @@ var SITE_SCHEMA = [
   // and mirrors theme assets - so they are NOT duplicated here in settings.
   { key: 'nav_file', placeholder: 'lazysite/nav.conf',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf', group: 'Content' },
+  // SM753: one setting, one reader. Backups of every kind - manual, pre-restore,
+  // theme and layout snapshots - keep this many, newest first; 0 keeps all.
+  { key: 'backup_retention', placeholder: '3', label: 'Backups to keep (per kind)', type: 'text',
+    default: '3', group: 'Content',
+    note: 'How many backups of each kind to keep - manual, pre-restore, theme and layout snapshots. The newest is never removed. 0 keeps every one.' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
     on: 'true', off: 'false', default: 'true' },
   { key: 'asset_max_age', placeholder: '0 - re-check every time', label: 'Asset cache lifetime (seconds)', type: 'text',

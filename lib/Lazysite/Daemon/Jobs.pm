@@ -96,6 +96,15 @@ sub stats_rollup {
 # and the reasons are in Lazysite::Manager::Sessions::sweep_expired; this is
 # the daemon's call to it, with the module pointed at this site the way the
 # manager API points it at the request's.
+# SM579: the connector call record, kept honest on the clock.
+sub connectors_sweep {
+    my (%ctx) = @_;
+    require Lazysite::Manager::Connectors;
+    my $r = Lazysite::Manager::Connectors::sweep( $ctx{docroot} );
+    return $r unless $r->{ok};
+    return { ok => 1, kept => $r->{kept}, expired => $r->{expired}, unanswered => $r->{unanswered} };
+}
+
 sub sessions_sweep {
     my (%ctx) = @_;
     require Lazysite::Manager::Sessions;

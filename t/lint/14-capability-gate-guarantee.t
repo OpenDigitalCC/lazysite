@@ -70,6 +70,7 @@ cmp_ok( scalar keys %mutating,    '>=', 30, '%MUTATING parsed non-trivially' );
 my %READ = map { $_ => 1 } qw(
     list read cache-list recent-changes channel-services principals version preview
     start-page
+    connector-list connector-calls
     file-download file-zip-download handler-list form-targets-read plugin-list
     layouts-releases layouts-release-contents layouts-repo-get
 );
@@ -144,6 +145,7 @@ is( "@divergent", '',
 # 0.8.1 site-backup-* gap class: capability-gated, state-changing, but not
 # POST-forced.
 my %COOKIE_READ = map { $_ => 1 } qw(
+    connector-list connector-calls
     domains-list domain-preview domain-check config-read bad-url-blocks
     backup-list backup-download lang-status git-status git-history git-history-summary git-show
     analyse_visitors plugin-read form-submissions form-list site-backup-inspect

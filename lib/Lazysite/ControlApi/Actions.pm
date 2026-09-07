@@ -243,6 +243,14 @@ our %ACTION = (
     # SM671: `plugins=0` omits the plugin catalogue, which is 82% of the answer
     # on a bare site. Opt-out rather than opt-in, so an existing client reading
     # `plugins` keeps seeing it.
+    # SM579: connectors. connector-call's caps are undef because the CONNECTOR
+    # gates it (callers groups or manage_connectors) - see Connectors::may_call.
+    'connector-list' => { caps => ['manage_connectors'], params => [] },
+    'connector-save' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' }, { name => 'connector', in => 'body' } ] },
+    'connector-secret-set' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' }, { name => 'secret', in => 'body' } ] },
+    'connector-delete' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' } ] },
+    'connector-call' => { caps => undef, params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' } ] },
+    'connector-calls' => { caps => ['manage_connectors'], params => [ { name => 'connector', in => 'query' }, { name => 'state', in => 'query' }, { name => 'limit', in => 'query' } ] },
     'start-page' => { caps => undef, params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { caps => undef, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body' } ] },
     'whoami' => { caps => [], params => [ { name => 'plugins', in => 'query' } ] },

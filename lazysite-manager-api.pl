@@ -209,6 +209,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     theme-activate theme-copy theme-delete theme-list theme-rename themes-for-layout
     themes-list-all theme-upload unlock user-revoke users version whoami
     start-page start-page-set
+    connector-list connector-save connector-secret-set connector-delete connector-call connector-calls
 );
 
 # SM230: the control API is not callable from a browser page, by design. Its
@@ -510,6 +511,7 @@ if ( $action eq 'csrf-token' ) {
 #
 my %MUTATING = map { $_ => 1 } qw(
     form-delete start-page-set
+    connector-save connector-secret-set connector-delete connector-call
     data-migrate data-row-save data-row-delete data-table-save
     data-table-acl-set data-table-acl-remove
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
@@ -657,7 +659,13 @@ if ( !$token_auth ) {
         # writable_by then decides, and means different things to the two.
         'data-row-save'   => 'manage_data|write_data',
         'data-row-delete' => 'manage_data|write_data',
-        'data-table-save' => 'manage_data',
+        # SM579: see the cookie table; connector-call is gated by the connector.
+        'connector-list'       => 'manage_connectors',
+        'connector-save'       => 'manage_connectors',
+        'connector-secret-set' => 'manage_connectors',
+        'connector-delete'     => 'manage_connectors',
+        'connector-calls'      => 'manage_connectors',
+        'data-table-save'      => 'manage_data',
         # SM687: who may read a table is an access rule, so it takes the
         # capability that governs access rules - the same one a file's rule
         # takes - rather than manage_data alone. Reaching the Data page needs
@@ -911,12 +919,21 @@ if ($token_auth) {
         'preview-grant'   => [qw(manage_themes manage_layouts)],
         'config-set'      => [qw(manage_config)],
         'config-read'     => [qw(manage_config)],    # SM122: read a safe subset
-            # SM160: domain management + the portable site-package family are the
-            # manage_domains capability (carved out of manage_config), so an
-            # orchestrating control panel drives the lazysite side of a deploy
-            # with a manage_domains token, same as the CLI/UI.
-            # SM447: token clients are the point of the data plugin - an agent
-            # populating a table is the primary use, not an afterthought.
+            # SM579: configuring a connector is authority over where data goes.
+            # connector-call is gated by the CONNECTOR (its callers groups, or
+            # manage_connectors) inside Connectors::may_call, so any logged-in
+            # manager may reach the action and the connector decides.
+        'connector-list'       => [qw(manage_connectors)],
+        'connector-save'       => [qw(manage_connectors)],
+        'connector-secret-set' => [qw(manage_connectors)],
+        'connector-delete'     => [qw(manage_connectors)],
+        'connector-calls'      => [qw(manage_connectors)],
+        # SM160: domain management + the portable site-package family are the
+        # manage_domains capability (carved out of manage_config), so an
+        # orchestrating control panel drives the lazysite side of a deploy
+        # with a manage_domains token, same as the CLI/UI.
+        # SM447: token clients are the point of the data plugin - an agent
+        # populating a table is the primary use, not an afterthought.
         'page-pdf'                   => [qw(manage_content)],
         'data-tables'                => [qw(manage_data)],
         'data-table'                 => [qw(manage_data)],
@@ -1036,8 +1053,13 @@ if ($token_auth) {
         'whoami' => 'ALWAYS',    # any authenticated token may introspect its own grant
         'describe-capabilities' => 'ALWAYS', # SM126: introspection - the capability map
         'actions-list'          => 'ALWAYS', # SM350: introspection - the action reference
-            # Visitor-log analysis over the control API (token clients), same grant as
-            # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
+            # SM579: any authenticated token may REACH connector-call; the
+            # connector then decides (callers groups, or manage_connectors) and
+            # refuses by name. The capability tables above hold the configuring
+            # actions.
+        'connector-call' => 'ALWAYS',
+        # Visitor-log analysis over the control API (token clients), same grant as
+        # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
         'analyse_visitors' => [qw(analytics)],
         # The audit trail is its own capability, separate from visitor analytics.
         'audit' => [qw(audit)],
@@ -2115,6 +2137,33 @@ elsif ( $action eq 'start-page-set' ) {
     my $req = _json_body();
     $result = action_start_page_set( $req->{username}, $req->{value} );
 }
+elsif ( $action eq 'connector-list' ) { $result = _connectors()->can('action_connector_list')->() } # SM579
+elsif ( $action eq 'connector-calls' ) {
+    $result = _connectors()->can('action_connector_calls')->(
+        connector => $params{connector}, state => $params{state}, limit => $params{limit} );
+}
+elsif ( $action eq 'connector-save' ) {
+    my $req = _json_body();
+    $result = _connectors()->can('action_connector_save')->( $req->{id}, $req->{connector} );
+}
+elsif ( $action eq 'connector-secret-set' ) {
+    my $req = _json_body();
+    $result = _connectors()->can('action_connector_secret_set')->( $req->{id}, $req->{secret} );
+}
+elsif ( $action eq 'connector-delete' ) {
+    my $req = _json_body();
+    $result = _connectors()->can('action_connector_delete')->( $req->{id} );
+}
+elsif ( $action eq 'connector-call' ) {
+    # mode 2: a logged-in caller. The connector decides whether this account
+    # may cause the call - its callers groups, or manage_connectors - and how
+    # often (Connectors::may_call). Never a file: fields only.
+    my $req    = _json_body();
+    my $caps   = Lazysite::Auth::Settings::caps_for($auth_user);
+    my @groups = Lazysite::Auth::Settings::effective_groups($auth_user);
+    $result = _connectors()->can('call')->( $req->{id}, ( ref $req->{payload} eq 'HASH' ? $req->{payload} : {} ),
+        mode => 'authenticated', caps => $caps, groups => \@groups, actor => $auth_user, trigger => 'api' );
+}
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350
 elsif ( $action eq 'preview-public' ) {                                            # SM282
@@ -2525,6 +2574,16 @@ sub _emit_json {
 # The shape is preserved rather than improved: a body that is empty, or is not
 # JSON, still yields {} - which is exactly what `// {}` handed every caller -
 # and a body that decodes to a non-hash is still handed on as it was.
+# SM579: the connectors module, loaded on first use and pointed at this
+# request's docroot. Configuring is manage_connectors (the cap tables);
+# connector-call is gated by the CONNECTOR inside Connectors::may_call.
+sub _connectors {
+    require Lazysite::Manager::Connectors;
+    no warnings 'once';
+    $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
+    return 'Lazysite::Manager::Connectors';
+}
+
 sub _json_body {
     return $JSON_BODY //= ( eval { decode_json($body) } // {} );
 }
@@ -3524,7 +3583,7 @@ sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme layouts_repo nav_file webdav_enabled
         manager manager_path search_default update_channel canonical_ip
-        asset_max_age manager_style
+        asset_max_age manager_style backup_retention
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -3641,7 +3700,7 @@ sub action_config_set {
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
         update_channel canonical_ip manager manager_path asset_max_age
-        manager_style
+        manager_style backup_retention
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -3725,6 +3784,10 @@ sub action_config_set {
     if ( $key eq 'asset_max_age' && defined $value && length $value
         && $value !~ /^\d{1,9}$/ ) {
         return { ok => 0, error => 'asset_max_age must be a number of seconds (0 disables)' };
+    }
+    # SM753: backups kept per kind; 0 keeps every one.
+    if ( $key eq 'backup_retention' && defined $value && length $value && $value !~ /^\d{1,4}$/ ) {
+        return { ok => 0, error => 'backup_retention must be a whole number of backups to keep (0 keeps all)' };
     }
     if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(?:enabled|disabled)$/ ) {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };

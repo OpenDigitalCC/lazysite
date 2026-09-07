@@ -152,7 +152,7 @@ subtest 'a torn run record is logged, and an idle tick leaves the record alone' 
     my ( $t, $d ) = site();
     mkdir "$d/lazysite/daemon";
     add_account( $d, 'jobs' );
-    grant_caps( $d, 'jobs', qw(run_jobs analytics manage_users) );
+    grant_caps( $d, 'jobs', qw(run_jobs analytics manage_users manage_connectors) );    # every job may run, so an idle tick is idle (SM579 added connectors-sweep)
     open my $c, '>', "$d/lazysite/daemon.conf" or die $!;
     print {$c} "daemon_job_user: jobs\n";
     close $c;

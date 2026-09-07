@@ -222,6 +222,7 @@ var PERM_LABELS = {
   housekeeping: 'Housekeeping (recoverable)', purge: 'Purge (irreversible)',
   manage_domains: 'Domains & site packages', manage_config: 'Config + plugins',
   manage_services: 'Services (WebDAV/MCP/OAuth switches)',
+  manage_connectors: 'Connectors',
   manage_users: 'Users & groups', analytics: 'Analytics', audit: 'Audit trail',
   notifications: 'Notifications', feedback: 'Agent feedback',
   read_submissions: 'Read submissions',

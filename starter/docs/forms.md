@@ -187,6 +187,14 @@ Handlers with `enabled: false` are skipped.
 : POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
   body, or `format: slack` for Slack-compatible `{"text": "..."}`.
 
+`connector`
+: Sends the submission through a named [connector](/docs/connectors) -
+  a credentialed destination the operator defined. The connector must
+  permit public invocation (`public: 1`, off by default) or the send is
+  refused; give the form fixed choices rather than free text for any field
+  that reaches the remote. Handler-only: it cannot be set as an inline
+  target.
+
 `db`
 : Inserts each accepted submission as a row in a declared data table,
   under an operator-only `fields:` mapping. See

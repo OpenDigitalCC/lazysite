@@ -37,6 +37,7 @@ sub fixture {
     spit(
         "$d/lazysite/lazysite.conf",
         "site_name: Agency\n"
+            . "backup_retention: 0\n"    # SM753: default is 3 now; this test counts snapshots
             . "alias_hosts: shop.clienta.com, target.example\n"
             . "alias.shop.clienta.com.content_root: sites/clienta\n"
             . "alias.shop.clienta.com.layout: base\n"

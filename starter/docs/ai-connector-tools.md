@@ -55,6 +55,10 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   control-API actions).
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
+- `manage_connectors` - where site data may be sent: define connectors, set their
+  secrets, read the call record (control API only in this release; see
+  /docs/connectors). Calling a connector as a logged-in user needs no
+  capability - the connector's own `callers` groups decide.
 - `analytics` - read the visitor-log analysis. Off by default; an explicit grant,
   since it exposes (aggregated, IP-anonymised, path-free) log data. Visitor analysis
   is available both as the MCP `analyse_visitors` tool AND as the control-API

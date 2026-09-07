@@ -64,7 +64,7 @@ sub channel_service { return {%CHANNEL_SERVICE} }
 my %ACTION_INFO = (
     manage_content => {
         section => 'Content',
-        title => 'Read and write site content (pages, assets).',
+        title   => 'Read and write site content (pages, assets).',
         grants => 'Create, edit, move and delete pages and assets, and set who may read them. Over WebDAV it is direct file access to the content tree.',
         unlocks => {
             api => [ qw(aliases-list git-status git-history git-history-summary
@@ -87,7 +87,7 @@ my %ACTION_INFO = (
     },
     manage_nav => {
         section => 'Content',
-        title => 'Edit site navigation.',
+        title   => 'Edit site navigation.',
         grants => 'Edit the site\'s navigation - what appears in the menu, and in what order.',
         # SM568: nav-read and pages are reads a content author needs as much
         # as a nav editor, so manage_content admits them too (the MCP twins
@@ -171,7 +171,7 @@ my %ACTION_INFO = (
     },
     manage_themes => {
         section => 'Appearance',
-        title => 'Install and activate themes.',
+        title   => 'Install and activate themes.',
         grants => 'Install, author and activate themes, which decide how every page on the site looks.',
         unlocks => {
             # SM457: these are gated on [manage_themes, manage_layouts] -
@@ -186,7 +186,7 @@ my %ACTION_INFO = (
     },
     manage_layouts => {
         section => 'Appearance',
-        title => 'Install, author and activate layouts.',
+        title   => 'Install, author and activate layouts.',
         grants => 'Install, author and activate layouts, which decide the shape of every page on the site.',
         unlocks => {
             # SM457: as above - cross-gated actions belong on both lists.
@@ -200,7 +200,7 @@ my %ACTION_INFO = (
     },
     manage_domains => {
         section => 'Site',
-        title => 'Manage the domains this instance serves, and portable site packages.',
+        title   => 'Manage the domains this instance serves, and portable site packages.',
         grants => 'Add and remove the domains this instance serves, and export or apply a whole site as a package.',
         unlocks => {
             api => [ qw(domains-list domain-add domain-set domain-remove
@@ -249,7 +249,7 @@ my %ACTION_INFO = (
     # the SM647 remedy for that residue.
     write_data => {
         section => 'Data',
-        title => 'Write rows in data tables that name your group, and nothing else.',
+        title   => 'Write rows in data tables that name your group, and nothing else.',
 
         # SM740: a HIERARCHY, declared. manage_data admits every action this
         # unlocks (the gate is ANY-OF, SM662), so an account holding manage_data
@@ -270,9 +270,28 @@ my %ACTION_INFO = (
         },
     },
 
+    # SM579 phase 1: WHERE THE SITE'S DATA GOES. A connector is a credentialed
+    # destination that forms, callers and jobs send through; creating one
+    # names a place site data is disclosed to and holds a secret for it.
+    # That is a conferral in the SM647/SM682 sense - authority over the data,
+    # not over pages - so it is its own capability and not part of
+    # manage_config. Invoking a connector (mode 2) is gated by the connector's
+    # own `callers` groups, or this capability.
+    manage_connectors => {
+        section => 'Site',
+        title => 'Configure connectors: where site data may be sent, with what credential, by whom, how often.',
+        grants =>
+            'Create, change and delete connectors (a destination URL, the header its secret travels in, the modes it permits, the groups that may call it, its rate cap, the table its answers land in), set their secrets, read the record of every call, and call any connector. A connector reachable from a public form is opt-in on the connector and never the default. Every call is one audit row naming the connector, the trigger, the mode and the class of data - never the payload.',
+        unlocks => {
+            # connector-call is NOT here: the connector gates it (callers
+            # groups, or this capability) and the API gate admits any
+            # logged-in caller to the action, so the map may not claim it.
+            api => [qw(connector-list connector-save connector-secret-set connector-delete connector-calls)],
+        },
+    },
     manage_data => {
         section => 'Data',
-        title => 'Read and write the site\'s data tables.',
+        title   => 'Read and write the site\'s data tables.',
         grants => 'Read and write every data table on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here.',
         unlocks => {
             api => [
@@ -332,7 +351,7 @@ my %ACTION_INFO = (
     },
     run_jobs => {
         section => 'Operations',
-        title => 'Be the account the scheduler runs timed jobs as. This is not '
+        title   => 'Be the account the scheduler runs timed jobs as. This is not '
             . 'permission to DO anything in particular - a job\'s own action '
             . 'faces the ordinary capability gate unchanged, so an account '
             . 'holding only this can carry a job and still be refused the work. '
@@ -360,7 +379,7 @@ my %ACTION_INFO = (
     # Housekeeping and permission management are different jobs.
     housekeeping => {
         section => 'Operations',
-        title => 'Destroy things the engine keeps a copy of. The RECOVERABLE tier of '
+        title   => 'Destroy things the engine keeps a copy of. The RECOVERABLE tier of '
             . 'the housekeeping grant: a drop mints a safety export of every row before '
             . 'anything goes, so the object is gone and the data is not. Granting a '
             . 'module capability lets a partner USE that module; this is what lets them '
@@ -370,7 +389,7 @@ my %ACTION_INFO = (
     },
     purge => {
         section => 'Operations',
-        title => 'Destroy things NO copy survives. The IRREVERSIBLE tier: deleting a '
+        title   => 'Destroy things NO copy survives. The IRREVERSIBLE tier: deleting a '
             . 'safety export is what makes an earlier table drop permanent, and deleting '
             . 'a brief or a backup ends the only record there was. Held separately from '
             . '`housekeeping` and not implied by it. SM577: A BACKUP STORE IS '
@@ -389,7 +408,7 @@ my %ACTION_INFO = (
     },
     manage_config => {
         section => 'Site',
-        title => 'Read and set safe site configuration.',
+        title   => 'Read and set safe site configuration.',
         grants => 'Read and change ordinary site settings - title, cache lifetime, search defaults, the active layout and theme. The switches that decide whether the remote surfaces answer at all are `manage_services`, held separately.',
         # SM435: this listed lazysite/nav.conf and lazysite/forms/<name>.conf
         # over WebDAV, which 0.8.1 moved to manage_nav and manage_forms
@@ -426,7 +445,7 @@ my %ACTION_INFO = (
     # off for everyone.
     manage_services => {
         section => 'Site',
-        title => 'Switch the remote surfaces on and off (WebDAV, MCP, OAuth, '
+        title   => 'Switch the remote surfaces on and off (WebDAV, MCP, OAuth, '
             . 'the control API, the pairing-key exchange).',
         grants => 'Turn the site\'s remote surfaces on or off. Switching one '
             . 'off does not narrow a grant - it stops the surface answering for '
@@ -436,13 +455,13 @@ my %ACTION_INFO = (
     },
     manage_users => {
         section => 'Accounts',
-        title => 'Manage user accounts and group membership.',
+        title   => 'Manage user accounts and group membership.',
         grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. Manager UI only: no remote surface offers it.',
         unlocks => { ui => ['the manager Users and Groups pages'] },
     },
     analytics => {
         section => 'Insight',
-        title => 'Read sanitised, IP-anonymised visitor analytics.',
+        title   => 'Read sanitised, IP-anonymised visitor analytics.',
         grants => 'Read this site\'s visitor figures. They are sanitised and IP-anonymised before this capability sees them, so they cannot identify an individual visitor.',
         unlocks => { api => [qw(analyse_visitors)], mcp => [qw(analyse_visitors)] },
     },
@@ -503,13 +522,13 @@ my %ACTION_INFO = (
     },
     create_sub_users => {
         section => 'Accounts',
-        title => 'Create sub-accounts under your own account.',
+        title   => 'Create sub-accounts under your own account.',
         grants => 'Create accounts beneath this one. A sub-account cannot be given capabilities its creator does not hold, or reach further than its creator reaches.',
         unlocks => { ui => ['sub-user creation'] },
     },
     delegate_sub_user_creation => {
         section => 'Accounts',
-        title => 'Grant sub-accounts the ability to create their own sub-users.',
+        title   => 'Grant sub-accounts the ability to create their own sub-users.',
         grants => 'Let the accounts this group creates make sub-accounts of their own, so delegation continues one level further without a sysop.',
         unlocks => { ui => ['onward delegation of sub-user creation'] },
     },

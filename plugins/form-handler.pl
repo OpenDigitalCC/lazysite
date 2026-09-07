@@ -59,6 +59,20 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     ],
                 },
                 {
+                    # SM579: the PUBLIC trigger. A form submission goes through a
+                    # named connector - which must say `modes.public` itself,
+                    # or the send is refused. The implementor bounds WHAT is
+                    # sent (a select, not a free textbox - see the practice
+                    # docs); the connector bounds who and how often.
+                    type   => 'connector',
+                    label  => 'Connector (SM579)',
+                    schema => [
+                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true },
+                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
+                        { key => 'connector', label => 'Connector id', type => 'text', required => JSON::PP::true },
+                    ],
+                },
+                {
                     type   => 'webhook',
                     label  => 'Webhook',
                     schema => [
@@ -454,6 +468,7 @@ sub dispatch {
     elsif ( $type eq 'table' ) { return dispatch_table( \%h_config, $form ) }
     elsif ( $type eq 'smtp' )  { return dispatch_smtp( \%h_config, $form ) }
     elsif ( $type eq 'webhook' || $type eq 'api' ) { return dispatch_webhook( \%h_config, $form ) }
+    elsif ( $type eq 'connector' ) { return dispatch_connector( \%h_config, $form ) } # SM579
     else {
         log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
         return 0;
@@ -863,6 +878,28 @@ sub dispatch_smtp {
     unless ( $r->{ok} ) {
         log_event( 'WARN', $form->{_form} // '-', 'smtp dispatch failed',
             error => ( $r->{error} // 'no output' ) );
+    }
+    return $r->{ok} ? 1 : 0;
+}
+
+# SM579: a public form submission sent through a connector (mode 3). The
+# connector decides: it must permit public invocation (opt-in, never the
+# default) and its rate cap counts this call like any other. The visible
+# fields go as the payload, text only; the answer is kept by the connector
+# (its answer_table) and is not shown to the visitor here - the page that
+# renders the table is where it shows.
+sub dispatch_connector {
+    my ( $config, $form ) = @_;
+    my $id = $config->{connector} // '';
+    require Lazysite::Manager::Connectors;
+    no warnings 'once';
+    local $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
+    my %fields = _visible_fields($form);
+    my $r      = Lazysite::Manager::Connectors::call( $id, \%fields,
+        mode => 'public', actor => '', trigger => 'form:' . ( $form->{_form} // '-' ) );
+    unless ( $r->{ok} ) {
+        log_event( 'WARN', $form->{_form} // '-', 'connector handler did not deliver',
+            connector => $id, state => ( $r->{state} // '' ), why => ( $r->{error} // '' ) );
     }
     return $r->{ok} ? 1 : 0;
 }

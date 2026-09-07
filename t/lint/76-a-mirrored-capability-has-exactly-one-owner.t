@@ -96,7 +96,8 @@ my %CORE = map { $_ => 1 } qw(
     manage_domains manage_config manage_services manage_users
     analytics audit notifications feedback read_submissions
     housekeeping purge
-    create_sub_users delegate_sub_user_creation);
+    create_sub_users delegate_sub_user_creation
+    manage_connectors);
 
 subtest 'no capability is grantable with nobody implementing it' => sub {
     my @orphan = grep { !$CORE{$_} && !$claimed_by{$_} }

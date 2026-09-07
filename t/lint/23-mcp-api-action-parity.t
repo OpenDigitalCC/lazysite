@@ -51,6 +51,10 @@ cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );
 # tools/list, and this is that.
 my %INTROSPECTION = map { $_ => 1 }
     qw(whoami describe-capabilities describe_capabilities actions-list);
+# SM579: connector-call is reachable by any authenticated caller; the
+# CONNECTOR gates it (callers groups, or manage_connectors) and refuses by
+# name. It has no capability home by design, and no MCP twin yet (phase 2).
+my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call);
 
 # SM431 removed the CHANNEL_GATED exemption that lived here: the ACL actions
 # now have an action-capability home (manage_content, matching their MCP
@@ -77,6 +81,7 @@ for my $c ( action_keys() ) {
 my %TWIN_DIFFERS = ();
 for my $a ( sort @api_live ) {
     next if $INTROSPECTION{$a};
+    next if $CONNECTOR_GATED{$a};
     ok( $api_cap{$a}, "control-API action '$a' is declared under a capability" )
         or diag( "  '$a' is callable but appears in no unlocks list, so "
             . 'describe_capabilities under-reports what its capability gives.' );
@@ -190,6 +195,16 @@ for my $a ( sort keys %PAIR ) {
 
 # --- 3. one-sided actions, each with a recorded reason -----------------------
 my %API_ONLY = (
+    # SM579 phase 1: connectors are configured by an operator over the control
+    # API and the (coming) manager page. Whether an AGENT may configure where
+    # site data goes, or cause a call, is a phase-2 question to answer once
+    # the modes have been proved on edge - recorded rather than left silent.
+    'connector-list'       => 'SM579 phase 2 decides the MCP surface',
+    'connector-save'       => 'SM579 phase 2 decides the MCP surface',
+    'connector-secret-set' => 'a secret over MCP is a phase-2 question (SM579)',
+    'connector-delete'     => 'SM579 phase 2 decides the MCP surface',
+    'connector-calls'      => 'SM579 phase 2 decides the MCP surface',
+    'connector-call'       => 'SM579 phase 2 decides whether an agent may cause a call',
     # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
     # has no named twin because set_permissions with empty read/write lists
     # clears a rule - a twin would be a second spelling of the same operation.
