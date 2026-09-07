@@ -66,8 +66,9 @@ BEGIN {
 # Manager::Plugins applies to its --describe budget: measurement must not
 # alter behaviour, so the instrumented process gets a proportionate ceiling
 # and production keeps 20 s.
-my $TIMEOUT_SECONDS
-    = ( $INC{'Devel/Cover.pm'} || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/ ) ? 90 : 20;
+my $TIMEOUT_SECONDS = 20;
+$TIMEOUT_SECONDS = 90
+    if $INC{'Devel/Cover.pm'} || ( $ENV{PERL5OPT} // '' ) =~ /Devel::Cover/;
 my $MAX_INPUT_BYTES = 512 * 1024;
 
 sub describe {

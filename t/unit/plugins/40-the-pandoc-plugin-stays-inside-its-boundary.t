@@ -139,6 +139,9 @@ subtest 'it converts, and the refusals refuse' => sub {
 
 subtest 'the work is bounded, because there is no queue to put it in' => sub {
     like( $code, qr/\$TIMEOUT_SECONDS\s*=\s*\d+/, 'a conversion has a timeout' );
+    # SM763: and a wider one under Devel::Cover, so the release gate's
+    # instrumented run does not refuse a render the plain suite accepts.
+    like( $code, qr/\$TIMEOUT_SECONDS\s*=\s*\d+\s*\n\s*if \$INC\{'Devel\/Cover\.pm'\}/, 'and a proportionate one under instrumentation' );
     like( $code, qr/alarm \$TIMEOUT_SECONDS/,     'and it is armed' )
         or diag('A timeout nothing arms is a comment.');
     like( $code, qr/kill 'TERM', \$pid/, 'and it kills the converter' );
