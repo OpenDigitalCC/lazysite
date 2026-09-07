@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.5"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.6"
 brand: plain
 ---
 
@@ -1758,6 +1758,11 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.6** (2026-09-07, EDGE) - **The installer loads no lib.** 0.13.5's
+  deploy died in install.pl on a `require Lazysite::Util`; the installer runs
+  from a tarball with no lib in `/etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl`, and the suite lent it one. SM767: the
+  retention reader is self-contained again, the installer test strips
+  `PERL5LIB`, and a lint holds that install.pl loads no engine module.
 - **0.13.5** (2026-09-07, EDGE) - **A site sends through a connector and
   keeps what comes back.** SM579 phase 1: a connector is a credentialed
   destination with declared modes (public opt-in, never the default), caller

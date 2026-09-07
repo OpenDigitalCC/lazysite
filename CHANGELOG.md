@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.6 - EDGE: the installer loads no lib (2026-09-07)
+
+**0.13.5 could not be installed on a tarball host.** Its deploy died in
+`install.pl` - `Can't locate Lazysite/Util.pm in @INC` - after upgrading the
+files and before the retention step, so the runtime provisioning never ran.
+This release is 0.13.5 with the installer put right; the deploy retry
+completes both halves.
+
+- SM767 (a655dcd8, cd4f925a) **the installer loads no lib, and the harness
+  lends none.** SM753 had pointed the installer's retention reader at the
+  engine on a false premise; install.pl runs from an unpacked tarball with no
+  lib in `@INC`, and the suite passed because `prove -l` lends every child
+  `PERL5LIB=lib` - the harness supplying what production does not (SM473's
+  shape). `read_retention` is self-contained again, mirroring
+  `Lazysite::Util::backup_retention` (default 3, same grammar, a warning
+  rather than a die); `t/tools/03` runs the installer with `PERL5LIB`
+  stripped and fails on the old one; `t/lint/122` holds that install.pl
+  neither uses nor requires a `Lazysite::` module and that the two retention
+  defaults agree.
+- Everything in 0.13.5 (SM579 phase 1 connectors, SM753, SM765, SM766) is
+  carried, untested in the field: the 135E plan stands.
+
 ## 0.13.5 - EDGE: a site sends through a connector and keeps what comes back (2026-09-07)
 
 **The next major feature, opened the day the runtime proved itself.** 134E-01
