@@ -131,11 +131,25 @@ sub plugin_enabled { return _enabled_map()->{ $_[0] } ? 1 : 0 }
 # a disabled plugin, deliberately: an operator must be able to configure a
 # plugin before enabling it, and the enable flow itself is a config surface.
 #
+# SM765: A READ ANSWERS WHILE THE PLUGIN IS OFF. An action the descriptor
+# marks `read: 1` runs on a disabled contract plugin, because "what is the
+# runtime doing?" is a question an operator asks AFTER switching it off - when
+# they come back, when a colleague asks, when something else looks wrong an
+# hour later - and the only route to it then is the Status button, which
+# answered "this plugin is disabled" and nothing else. The disable hook had
+# already computed and shown the whole state seconds earlier; the same
+# question through the same action a minute later was refused. Config read
+# and save were open while disabled for the same reason since SM409: the
+# gate exists to stop a disabled plugin DOING anything, and a read does not.
+# A read that changes anything is a lie, and t/unit/manager/62 holds that a
+# read on a disabled plugin leaves no witness.
+#
 # Returns undef when the plugin may run, or the refusal hash when it may not.
 sub _gate_execution {
-    my ( $script, $desc ) = @_;
+    my ( $script, $desc, $action ) = @_;
     return undef unless ref $desc eq 'HASH' && $desc->{contract};
     return undef if plugin_enabled($script);
+    return undef if ref $action eq 'HASH' && $action->{read};
     log_event( 'WARN', 'plugin-gate', 'disabled plugin refused execution',
         plugin => $script );
     return { ok => 0,
@@ -694,10 +708,12 @@ sub action_plugin_action {
     my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
 
-    # SM409: a contract plugin that is not enabled executes nothing.
-    if ( my $refused = _gate_execution( $script, $desc ) ) { return $refused }
-
     my ($action) = grep { $_->{id} eq $action_id } @{ $desc->{actions} // [] };
+
+    # SM409: a contract plugin that is not enabled executes nothing - except a
+    # declared read (SM765), which reports and does not act.
+    if ( my $refused = _gate_execution( $script, $desc, $action ) ) { return $refused }
+
     return { ok => 0, error => 'Action not found' } unless $action;
 
     if ( $action->{link} ) {

@@ -140,7 +140,10 @@ sub describe {
         },
 
         actions => [
-            { id => 'status', label => 'Status', run => 'action' },
+            # SM765: `read` - Status answers while the plugin is disabled, so an
+            # operator who switched it off can come back and see that the
+            # runtime stopped (or is still stopping), not a refusal.
+            { id => 'status', label => 'Status', run => 'action', read => 1 },
         ],
 
         # SM757: pressing Enable RUNS THE STATUS CHECK and shows its summary

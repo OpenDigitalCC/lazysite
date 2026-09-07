@@ -38,8 +38,12 @@ sub write_plugin {
 use strict; use warnings;
 if ( \@ARGV && \$ARGV[0] eq '--describe' ) {
     print '{"id":"$o{id}","name":"$o{id}",$contract'
-        . '"actions":[{"id":"touch","label":"Touch","run":"action"}],'
+        . '"actions":[{"id":"touch","label":"Touch","run":"action"},{"id":"peek","label":"Peek","run":"action","read":1}],'
         . '"config_file":"lazysite/$o{id}.conf","config_schema":[{"key":"note","label":"Note","type":"text"}]}';
+    exit 0;
+}
+if ( \@ARGV >= 2 && \$ARGV[0] eq '--action' && \$ARGV[1] eq 'peek' ) {
+    print '{"ok":1,"peeked":1}';
     exit 0;
 }
 if ( \@ARGV >= 2 && \$ARGV[0] eq '--action' && \$ARGV[1] eq 'touch' ) {
@@ -76,6 +80,13 @@ subtest 'a contract plugin is BORN DISABLED and executes nothing' => sub {
         'with the house sentence pointing at the enable surface' );
     ok( !-f "$base/contract-ran",
         'and the plugin really did not run - no witness file' );
+
+    # SM765: a declared READ answers while disabled - and leaves no witness.
+    my $peek = action_plugin_action( 'contract-demo', 'plugins/contract-demo.pl',
+        'peek', {} );
+    ok( $peek->{ok} && $peek->{peeked}, 'a read action answers while the plugin is off' )
+        or diag $peek->{error};
+    ok( !-f "$base/contract-ran", 'and still nothing ran' );
 };
 
 subtest 'a LEGACY plugin is untouched by the gate' => sub {

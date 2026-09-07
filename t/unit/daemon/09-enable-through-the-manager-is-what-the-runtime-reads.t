@@ -70,6 +70,16 @@ subtest 'disable through the manager: the runtime reads disabled' => sub {
     my $r = Lazysite::Manager::Plugins::action_plugin_disable('plugins/daemon.pl');
     ok( $r->{ok}, 'disabled' ) or diag explain $r;
     is( Lazysite::Daemon::Supervisor::should_run($root), 0, 'should_run follows' );
+
+    # SM765: the STANDALONE Status press while disabled - the operator's route
+    # afterwards - answers with the state, not the refusal. The disable hook
+    # had shown it seconds earlier; the field found the button blank a minute
+    # later.
+    my $st = Lazysite::Manager::Plugins::action_plugin_action( 'daemon', 'plugins/daemon.pl', 'status' );
+    ok( $st->{ok}, 'Status answers while the plugin is disabled' ) or diag explain $st;
+    is( $st->{desired}, 'off', 'desired off' );
+    like( $st->{summary}, qr/disabled and the runtime is stopped/, 'and says the runtime stopped' );
+    ok( ref $st->{host} eq 'HASH' && ref $st->{checks} eq 'ARRAY' && ref $st->{runs} eq 'HASH', 'with host, checks and runs' );
 };
 
 subtest 'the start-page gate reads the same key' => sub {

@@ -60,7 +60,12 @@ and the platform consumes it instead of knowing:
   Manager/Plugins.pm choke point refuses actions on a disabled plugin; a
   direct-CGI plugin refuses its own requests when disabled; MCP tools backed by
   a plugin refuse the same way. One rule, stated once: *a disabled plugin
-  executes nothing and says so, with the house refusal shape.*
+  executes nothing and says so, with the house refusal shape.* One
+  exception, narrow and declared: an action the descriptor marks `read: 1`
+  answers while the plugin is off (SM765) - the state of a thing that is
+  switched off is a fact its operator asks for afterwards, and a read does
+  not execute anything. Config read and save were already open while disabled
+  for the same reason. A read that changes anything is a defect.
 - **Backup and site packages read `storage`.** A plugin's data participates in
   content backups and site packages by declaration, not by whichever exclude
   list somebody remembered to edit.
