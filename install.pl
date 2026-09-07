@@ -1812,6 +1812,7 @@ sub read_retention {
     return $default unless -f $conf;
     open my $fh, '<', $conf or return $default;
     my $val = $default;
+    local $_;    # SM420: while(<>) assigns the GLOBAL $_
     while (<$fh>) {
         next unless /^backup_retention\s*:\s*(.*?)\s*$/;
         my $v = $1;
