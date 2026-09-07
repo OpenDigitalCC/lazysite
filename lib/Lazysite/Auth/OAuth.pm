@@ -11,6 +11,7 @@ package Lazysite::Auth::OAuth;
 use strict;
 use warnings;
 use JSON::PP                   ();
+use Lazysite::Util             qw(cannot_read);
 use File::Path                 qw(make_path);
 use File::Basename             qw(dirname);
 use Digest::SHA                qw(sha256_hex sha256);
@@ -46,7 +47,7 @@ sub load_store {
     my $p     = _path();
     my $empty = { clients => {}, codes => {}, tokens => {} };
     return $empty unless defined $LAZYSITE_DIR && -f $p;
-    open my $fh, '<', $p or return $empty;
+    open my $fh, '<', $p or return ( cannot_read( 'oauth.json', $p ) // $empty );
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };

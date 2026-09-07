@@ -52,7 +52,7 @@ subtest 'an unreadable groups-settings.json is refused BY NAME, not as "does not
     local $Lazysite::Auth::Settings::AUTH_DIR = "$d/lazysite/auth";
     my @log;
     no warnings 'redefine';
-    local *Lazysite::Auth::Settings::log_event = sub { push @log, [@_] };
+    local *Lazysite::Util::log_event = sub { push @log, [@_] };    # SM766: the shared cannot_read helper logs from Util
     is_deeply( Lazysite::Auth::Settings::read_group_settings(), {}, 'reads as empty' );
     ok( ( grep { $_->[0] eq 'WARN' && $_->[2] =~ /cannot read groups-settings/ } @log ), 'and WARNs, naming the file' )
         or diag explain \@log;

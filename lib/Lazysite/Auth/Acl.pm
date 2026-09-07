@@ -147,7 +147,7 @@ sub _acls_copy {
         return _acls_copy( $_acls_cache{$key} )
             if length $key && exists $_acls_cache{$key};
 
-        open my $fh, '<', $path or return {};
+        open my $fh, '<', $path or return ( Lazysite::Util::cannot_read( 'acls', $path ) // {} );
         my $raw = do { local $/; <$fh> };
         close $fh;
         my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };

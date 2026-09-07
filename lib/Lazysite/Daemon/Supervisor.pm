@@ -37,7 +37,7 @@ use warnings;
 use POSIX               ();
 use Errno               ();
 use Time::HiRes         ();
-use Lazysite::Util      qw(log_event);
+use Lazysite::Util      qw(log_event cannot_read);
 use Lazysite::Lifecycle qw(lifecycle_status);
 
 our $VERSION = '0.1';
@@ -144,7 +144,7 @@ sub _ensure_state_dir {
 sub _read_pid {
     my ( $docroot, $name ) = @_;
     my $f = _pid_file( $docroot, $name );
-    open my $fh, '<', $f or return undef;
+    open my $fh, '<', $f or return cannot_read( 'daemon pid', $f );
     my $pid = <$fh>;
     close $fh;
     return undef unless defined $pid;
@@ -175,7 +175,7 @@ sub _alive {
 # back to the pid alone, which is what it was.
 sub _start_ticks {
     my ($pid) = @_;
-    open my $fh, '<', qq{/proc/$pid/stat} or return undef;
+    open my $fh, '<', qq{/proc/$pid/stat} or return undef; # not a store: a pid that has gone is the ordinary case (t/lint/121)
     my $line = <$fh>;
     close $fh;
     return undef unless defined $line;
@@ -226,7 +226,7 @@ our $DAEMON_ETC = '/etc/lazysite/daemon';
 
 sub _conf_user {
     my ($conf) = @_;
-    open my $fh, '<', $conf or return undef;
+    open my $fh, '<', $conf or return cannot_read( 'host runtime conf', $conf );
     my ($u) = map { /^USER=(.*)$/ ? $1 : () } <$fh>;
     close $fh;
     return $u;
@@ -239,7 +239,7 @@ sub host_provisioning {
     my $real = Cwd::realpath($root) // $root;
     if ( opendir my $dh, $DAEMON_ETC ) {
         for my $f ( sort grep { /\.conf\z/ } readdir $dh ) {
-            open my $fh, '<', "$DAEMON_ETC/$f" or next;
+            open my $fh, '<', "$DAEMON_ETC/$f" or do { cannot_read( 'host runtime conf', "$DAEMON_ETC/$f" ); next };
             my ($doc) = map { /^DOCROOT=(.*)$/ ? $1 : () } <$fh>;
             close $fh;
             next unless defined $doc;
@@ -313,6 +313,12 @@ sub status {
     my $any_running = 0;
     my $any_died    = 0;
     my $any_pending = 0;    # a restart is due
+        # SM766: the host timer is what starts the runtime after Enable (SM757);
+        # while it is armed and nothing has run yet, the honest verdict is
+        # `starting`, not `inconsistent` - the field read "inconsistent" on every
+        # enable as a strong word for a normal, self-clearing wait.
+    my $timer_armed = $enabled && $host->{conf} && ( $host->{timer} // '' ) eq 'enabled';
+    my $any_waiting = 0;
 
     for my $s ( services() ) {
         my $pid   = _read_pid( $root, $s->{name} );
@@ -331,9 +337,12 @@ sub status {
             : $alive                              ? 'on'
             : $st->{failed}                       ? 'failed'
             : ( defined $pid && $st->{next_try} ) ? 'starting'
+            : ( !defined $pid && $timer_armed )   ? 'starting'
             :                                       'inconsistent';
+        my $waiting = $verdict eq 'starting' && !defined $pid;
         $any_died    ||= ( $verdict eq 'failed' );
-        $any_pending ||= ( $verdict eq 'starting' );
+        $any_pending ||= ( $verdict eq 'starting' && !$waiting );
+        $any_waiting ||= $waiting;
 
         push @svc,
             lifecycle_status(
@@ -361,7 +370,13 @@ sub status {
                     )
                 : ()
             ),
-            ( $verdict eq 'starting'
+            ( $waiting
+                ? ( message => "$s->{name} has not started yet; the host timer starts the runtime within five minutes",
+                    remedy => 'wait for the timer; Status again in five minutes'
+                    )
+                : ()
+            ),
+            ( $verdict eq 'starting' && !$waiting
                 ? ( message => "$s->{name} exited and a restart is due at "
                         . POSIX::strftime( '%H:%M:%S', localtime $st->{next_try} )
                         . " (failure $st->{fails})",
@@ -395,6 +410,13 @@ sub status {
                 )
             : ()
         ),
+        ( !$any_died && !$any_pending && $any_waiting && !$any_running
+            ? ( verdict => 'starting',
+                message => 'the daemon is switched on and waiting for the host timer to start it',
+                remedy => 'the plugin is enabled and the host runtime is provisioned; its timer starts it within five minutes'
+                )
+            : ()
+        ),
         ( !$enabled
             ? ( message => $any_running
                 ? 'the daemon plugin is disabled and the runtime is still stopping (pid '
@@ -413,7 +435,7 @@ sub status {
         # operator reads first - the Status button shows the unit before its
         # services, and a remedy that says "check the host service" when the
         # actual answer is one command is the SM750 defect at one remove.
-        ( $enabled && !$any_running && !$any_died && !$any_pending
+        ( $enabled && !$any_running && !$any_died && !$any_pending && !$any_waiting
             ? ( _host_remedy($host) )
             : ()
         ),
@@ -760,7 +782,7 @@ sub _write_state {
 sub _read_state {
     my ( $root, $name ) = @_;
     my $f = _state_file( $root, $name );
-    open my $fh, '<', $f or return {};
+    open my $fh, '<', $f or return ( cannot_read( 'daemon state', $f ) // {} );
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
@@ -845,7 +867,7 @@ sub _conf_number {
 sub conf_value {
     my ( $root, $key ) = @_;
     my $f = _docroot($root) . '/lazysite/daemon.conf';
-    open my $fh, '<:utf8', $f or return undef;
+    open my $fh, '<:utf8', $f or return cannot_read( 'daemon.conf', $f );
     my $val;
     while ( my $line = <$fh> ) {
         chomp $line;

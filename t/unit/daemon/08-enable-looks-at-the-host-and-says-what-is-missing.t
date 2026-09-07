@@ -55,6 +55,11 @@ subtest 'the host conf exists and the timer is enabled: the remedy is "wait five
     };
     my $st = Lazysite::Daemon::Supervisor::status($d);
     like( $st->{remedy}, qr/starts it within five minutes/, 'the timer will start it' );
+    # SM766: waiting for an armed timer is 'starting', not 'inconsistent' - the
+    # field read the strong word on every enable for a normal self-clearing wait.
+    is( $st->{verdict}, 'starting', 'and the verdict is starting, not inconsistent' );
+    like( $st->{message}, qr/waiting for the host timer/, 'the line says it is waiting for the timer' );
+    is( $st->{services}[0]{verdict}, 'starting', 'the service too' );
     my $c = checks_of();
     ok( $c->{host_conf}{ok},  'check: conf found' );
     ok( $c->{host_timer}{ok}, 'check: timer enabled' );

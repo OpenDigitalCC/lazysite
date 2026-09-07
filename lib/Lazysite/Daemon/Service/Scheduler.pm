@@ -29,7 +29,7 @@ package Lazysite::Daemon::Service::Scheduler;
 # whoever configured it. It records a refusal naming what was missing.
 use strict;
 use warnings;
-use Lazysite::Util               qw(log_event);
+use Lazysite::Util               qw(log_event cannot_read);
 use Lazysite::Daemon::Supervisor ();
 use Lazysite::Daemon::Jobs       ();
 
@@ -190,7 +190,7 @@ sub run_record {
 sub _read_runs {
     my ($root) = @_;
     my $f = _state_file($root);
-    open my $fh, '<:utf8', $f or return {};
+    open my $fh, '<:utf8', $f or return ( cannot_read( 'run record', $f ) // {} );
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;

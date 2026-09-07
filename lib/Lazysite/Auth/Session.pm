@@ -23,7 +23,7 @@ use Digest::SHA    qw(hmac_sha256_hex);
 use JSON::PP       ();
 use File::Path     qw(make_path);
 use File::Basename qw(dirname);
-use Lazysite::Util qw(const_eq log_event);
+use Lazysite::Util qw(const_eq log_event cannot_read);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
@@ -162,7 +162,7 @@ sub _auth_dir { return "$LAZYSITE_DIR/auth" }
 sub _auth_secret_read {
     my $path = _auth_dir() . '/.secret';
     return '' unless -f $path;
-    open my $fh, '<', $path or return '';
+    open my $fh, '<', $path or return ( cannot_read( '.secret', $path ) // '' );
     chomp( my $s = <$fh> // '' );
     close $fh;
     return $s;
@@ -196,7 +196,7 @@ sub _uri_decode {
 sub _read_json_hash {
     my ($path) = @_;
     return undef unless -f $path;
-    open my $fh, '<:raw', $path or return undef;
+    open my $fh, '<:raw', $path or return cannot_read( 'session', $path );
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $data = eval { JSON::PP::decode_json( $raw // '' ) };
@@ -241,7 +241,7 @@ sub load_user_groups {
     my $path = _auth_dir() . '/groups';
     return '' unless -f $path;
 
-    open( my $fh, '<:utf8', $path ) or return '';
+    open( my $fh, '<:utf8', $path ) or return ( cannot_read( 'groups', $path ) // '' );
     my @groups;
     while (<$fh>) {
         chomp;

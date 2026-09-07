@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read);
 
 our $COMPONENT = 'lazysite';
 
@@ -24,6 +24,25 @@ our $COMPONENT = 'lazysite';
 # is normally already the file's owner, and chown-to-another-user would just fail).
 # Call on the temp file BEFORE rename (same directory), or on the final path. Mode
 # is applied explicitly. Best-effort throughout: never dies on a chown/chmod fail.
+# SM766 (SM760's lesson, made a rule): A STORE READER NEVER TURNS AN
+# UNOPENABLE FILE INTO AN EMPTY ANSWER IN SILENCE. `open ... or return {}`
+# on a file that EXISTS turned a permissions fault into "this account holds
+# nothing" for the runtime and a dead process for Status; both were read as
+# facts about the site. Every read-open in the auth and daemon stores now
+# goes through this on failure: it WARNs with the file, the error and the
+# unix user - unless the file simply is not there (ENOENT), which is the
+# ordinary empty case and not a fault - and returns undef so the caller's
+# `// <empty>` keeps its shape. t/lint/121 holds that no read-open in those
+# modules returns in silence.
+sub cannot_read {
+    my ( $what, $path ) = @_;
+    return undef if $!{ENOENT};
+    my ($who) = getpwuid($>);
+    log_event( 'WARN', 'store', "cannot read $what - it exists and this process cannot open it",
+        file => $path, error => "$!", unix_user => ( $who // $> ) );
+    return undef;
+}
+
 sub secure_write_perms {
     my ( $path, $mode ) = @_;
     return unless defined $path && length $path;

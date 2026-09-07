@@ -11,6 +11,7 @@ package Lazysite::Auth::DomainAccess;
 use strict;
 use warnings;
 use Exporter 'import';
+use Lazysite::Util qw(cannot_read);
 
 our @EXPORT_OK = qw(read_domains effective_scopes effective_home_domain
     intersect_scopes DENY_ALL_SCOPE);
@@ -76,7 +77,7 @@ sub _blank_domain {
 sub read_domains {
     my ($conf_path) = @_;
     my %dom = ( '' => _blank_domain() );
-    open my $fh, '<:utf8', $conf_path or return \%dom;
+    open my $fh, '<:utf8', $conf_path or return ( cannot_read( 'domains conf', $conf_path ) // \%dom );
     while ( my $line = <$fh> ) {
         chomp $line;
         $line =~ s/^\s+|\s+$//g;
