@@ -573,6 +573,7 @@ my %MUTATING = map { $_ => 1 } qw(
 # NOTE: no comments inside the qw() below - the lint parses it as words.
 my %DESTRUCTIVE = map { $_ => 1 } qw(
     delete data-row-delete data-table-drop data-rebuild data-safety-export-delete
+    connector-delete
     brief-delete backup-delete theme-delete layout-delete artifact-backups-delete
     handler-delete form-submission-delete form-submissions-delete-bulk
     form-delete
@@ -1299,6 +1300,7 @@ my %skip = map { $_ => 1 } qw(
     data-table-source data-migrate-plan data-safety-exports data-safety-export-read
     data-table-acl-get
     brief-read briefs-list notices layouts-manifest
+    connector-list connector-calls
 );
 
 # %uskip: the same decision one level down, for the sub-actions action=users

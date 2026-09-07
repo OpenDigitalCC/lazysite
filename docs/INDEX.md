@@ -200,6 +200,7 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 | [`auth.md`](auth.md) - Authentication | Protect pages with built-in auth or an external proxy. |
 | [`authoring.md`](authoring.md) - Authoring | How to create and edit pages - the short version. |
 | [`configuration.md`](configuration.md) - Configuration | Layouts, navigation, site variables, forms, auth, and plugins. |
+| [`connectors.md`](connectors.md) - Connectors | A reusable, credentialed destination that forms, callers and jobs send site data through - and where what comes back is kept. |
 | [`data-tables.md`](data-tables.md) - Data tables | Tables a site declares and holds - a product list, an events calendar, a directory - read on a page like any other variable. |
 | [`development.md`](development.md) - Development | Local development server, build tools, and troubleshooting. |
 | [`forms-helpers.md`](forms-helpers.md) - Form helpers | Write custom dispatch targets for lazysite forms. |
@@ -219,4 +220,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*104 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*105 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
