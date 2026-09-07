@@ -1799,11 +1799,28 @@ sub cmd_restore {
 
 sub read_retention {
     my ($docroot) = @_;
-    # SM753: the ONE reader. The installer already loads engine modules for
-    # other reads; this used to be a third parser with its own default and a
-    # die on a bad value where the others read past it.
-    require Lazysite::Util;
-    return Lazysite::Util::backup_retention("$docroot/lazysite");
+    # SM767: THE INSTALLER LOADS NO LIB. SM753 made this `require
+    # Lazysite::Util` and the 0.13.5 deploy died here on the edge host:
+    # install.pl runs from the unpacked tarball with no lib in @INC, and the
+    # suite never noticed because `prove -l` lends every child PERL5LIB=lib -
+    # the harness supplying what production does not (SM473's shape).
+    # This MIRRORS Lazysite::Util::backup_retention - same default, same
+    # grammar - and t/lint/122 holds the two together and holds that this
+    # file never loads the lib.
+    my $default = 3;
+    my $conf    = "$docroot/lazysite/lazysite.conf";
+    return $default unless -f $conf;
+    open my $fh, '<', $conf or return $default;
+    my $val = $default;
+    while (<$fh>) {
+        next unless /^backup_retention\s*:\s*(.*?)\s*$/;
+        my $v = $1;
+        if ( $v =~ /^\d+$/ ) { $val = $v + 0 }
+        else { warn "lazysite.conf: backup_retention '$v' is not a whole number; using $default\n" }
+        last;
+    }
+    close $fh;
+    return $val;
 }
 
 sub apply_retention {

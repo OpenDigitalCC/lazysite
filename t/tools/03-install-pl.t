@@ -74,6 +74,11 @@ sub fresh_docroot {
 
 sub run_install {
     my @args = @_;
+    # SM767: `prove -l` lends every child PERL5LIB=lib; production runs the
+    # installer from a tarball with no lib in @INC. Run it as production does,
+    # so a `require Lazysite::` in install.pl fails HERE and not on a host.
+    local $ENV{PERL5LIB};
+    delete $ENV{PERL5LIB};
     my $cmd  = join ' ', map { quotemeta } $^X, $INSTALL, @args;
     my $out  = `$cmd 2>&1`;
     return ( $? >> 8, $out );
