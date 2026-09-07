@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.4"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.5"
 brand: plain
 ---
 
@@ -1758,6 +1758,17 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.5** (2026-09-07, EDGE) - **A site sends through a connector and
+  keeps what comes back.** SM579 phase 1: a connector is a credentialed
+  destination with declared modes (public opt-in, never the default), caller
+  groups, a rate cap and an answer table; who may cause a call is decided
+  before anything is sent, every call is audited by connector, trigger, mode
+  and data class - never the payload - and a call that never answers is
+  `unanswered`. `manage_connectors` configures; the `connector` form handler
+  is the public trigger. SM753: one reader for `backup_retention`, default 3,
+  settable on the config page. SM765: Status answers while the plugin is off.
+  SM766: `starting` while the timer waits; no store reader returns empty in
+  silence.
 - **0.13.4** (2026-09-06, EDGE) - **The runtime runs as the user the request
   path writes as.** SM760: the deploy had written the panel user while the
   request path runs as `www-data`, and each read the other's `0660` files as

@@ -44,6 +44,54 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.5 - EDGE: a site sends through a connector and keeps what comes back (2026-09-07)
+
+**The next major feature, opened the day the runtime proved itself.** 134E-01
+on 0.13.4 was the scheduler doing its maintenance unattended for the first
+time - the gate SM579 had waited for. The release manager's ask: include it,
+so the day is not lost and there is feedback tonight.
+
+- SM579 phase 1 (74ec7168, a8f0a6f2) **a site sends through a connector and
+  keeps what comes back.** A connector is a reusable, credentialed
+  destination: a URL, the header its secret travels in, the modes it permits
+  (`scheduled` / `authenticated` / `public` - public opt-in and never the
+  default), the groups that may call it, a rate cap, and the data table its
+  answers land in. WHO may cause a call is decided before anything is sent
+  (the connector's declared modes and `callers`, or `manage_connectors`),
+  HOW OFTEN by the connector's cap; the answer is kept as a table row; every
+  call is one record line and one audit event naming the connector, the
+  trigger, the mode and the class of data - never the payload; a call that
+  never answers is `unanswered`, not "waiting", and `connector-calls` lists
+  it by state. The secret lives apart, `0600`, never listed. Six control-API
+  actions; `connector-call` is reachable by any authenticated caller and
+  gated by the connector. The `connector` form handler is the public trigger,
+  refused unless the connector opts in. `connectors-sweep` keeps the record
+  honest on the clock. `/docs/connectors`, SECURITY.md. Not yet: the manager
+  page (API-first), scheduled invocation, MCP twins.
+- SM753 (74ec7168) **one reader for `backup_retention`, default 3.** The
+  manager kept 10, the installer and the theme store kept 3, the docs said 3.
+  `Lazysite::Util::backup_retention` is the one reader, settable on the Site
+  config page ("Backups to keep, per kind"); 0 keeps all.
+- SM765 (a9d00bd2) **a read-only plugin action answers while the plugin is
+  disabled.** Disable said the runtime stopped; Status a minute later said
+  only that the plugin was disabled. An action may declare `read: 1` and the
+  gate lets it run on a disabled plugin; the daemon's Status is one; ADR 0009
+  carries the exception.
+- SM766 (56fe09c3) **waiting for the timer is `starting`, and no store reader
+  returns empty in silence.** Enabled-but-awaiting-the-timer read
+  `inconsistent`; it reads `starting`. `Lazysite::Util::cannot_read` is the
+  one reporting reader-failure helper (file, error, unix user; silent only
+  when the file is absent), every read-open in the auth and daemon stores
+  goes through it, `t/lint/121` holds that.
+- Field pass on 0.13.4 (archived 2026-09-07): 134E-01 PASS on every claim -
+  the runtime runs as the request path's user, all three jobs ran as the job
+  account with counts that changed between cycles, Disable said stopped and
+  the timer left it alone, two readings minutes apart were discriminating;
+  134E-02 PASS. The partial (Status while disabled) is SM765; the observation
+  and the rule offered are SM766.
+- Not in this cut: SM579 phase 2 (scheduled invocation, the manager page, MCP
+  twins, table rows from a page action), SM666 phase 2, the rest of SM754.
+
 ## 0.13.4 - EDGE: the runtime runs as the user the request path writes as (2026-09-06)
 
 **The first real run, and what it found.** On 0.13.3 the runtime started
