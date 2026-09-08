@@ -911,6 +911,38 @@ sub handle_request {
         $ENV{HTTP_X_REMOTE_GROUPS}  = $ident->{groups};
         $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
 
+        # SM794: PRODUCE OR CLEAR EVERY TRUSTED FIELD, NOT JUST THE TWO WE SET.
+        #
+        # The sentinel above tells the processor's C-1 gate that the trusted
+        # headers came from us. The gate then returns EARLY - it does not
+        # examine them one by one - so every header in its list survives, and
+        # this block only ever wrote two of the six. The other four arrived
+        # from the client and were passed on as ours.
+        #
+        # The consequence was not theoretical: the payment gate reads
+        # X-Payment-Verified, so an ordinary logged-in visitor could add
+        # `X-Payment-Verified: 1` and be served payment-gated content. A
+        # correctly-shipped vhost strips all six at the edge, which is what
+        # kept this off a deployed site - but this gate exists precisely to
+        # backstop an edge that does not, and for these four it did not.
+        #
+        # CLEARED RATHER THAN PRODUCED, for name and email, deliberately. We
+        # could resolve both from the account record; the processor already
+        # does, falling back to the account's display name when no header
+        # carries one. Setting them here would be a second answer to the same
+        # question AND a settings read on every authenticated request - the
+        # read whose cost read_settings' own comment tracks through the
+        # verify_token_ms drift. So the producer stays where it is, and the
+        # header stops carrying a forgery.
+        #
+        # A header-auth deployment is unaffected: it does not come through
+        # here at all, it comes through auth_proxy_trusted, where the upstream
+        # is the producer of all six.
+        delete @ENV{
+            qw(HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
+                HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
+        };
+
         # SM141: pass the caller's session id to the children (processor /
         # manager-api) so the Sessions page can mark "this session". A legacy
         # cookie has none.

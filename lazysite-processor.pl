@@ -3135,6 +3135,23 @@ sub _serve_content_static {
         unless index( $real, "$root/" ) == 0
         || ( length $priv && index( $real, "$priv/" ) == 0 );
 
+    # SM795: AND NOT INSIDE THE ENGINE TREE, on the CANONICAL path.
+    #
+    # The engine tree is blocked earlier by a test on the REQUEST STRING
+    # (`$uri eq $LAZYSITE_URI || index($uri, "$LAZYSITE_URI/") == 0`), which
+    # answers about what the client asked for. This serve resolves the real
+    # path and then checked only the docroot boundary - and in the
+    # inside-docroot layout the engine tree IS under the docroot. So a symlink
+    # whose request path does not begin with /lazysite resolved into it and was
+    # served: the session secret, or the connector secrets, returned as
+    # whatever content type the extension implied.
+    #
+    # This is the rule the project already holds (SM268): blocklist on the
+    # canonical resolved path, never on the request string. _resolve_include
+    # makes exactly this test, with a comment saying why. One sink of three had
+    # it; now two do, and the DAV half is filed as SM795's second part.
+    return 0 if length $LAZYSITE_DIR && _path_under( $real, $LAZYSITE_DIR );
+
     # SM223: these are source-less statics on a content-rooted domain - the same
     # exposure as the fallback above, so the same gate. Returning 1 means the
     # response is written and the caller stops, which is what a refusal needs.
@@ -6634,7 +6651,14 @@ sub render_content {
         page_author       => _esc_html( $meta->{author} ),
         page_modified     => $meta->{page_modified}     || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
-        request_uri       => $ENV{REDIRECT_URL}         || $ENV{REQUEST_URI} || '',
+        # SM796: escaped, like every other client-influenced value entering
+        # this stash. It sat raw between two _esc_html'd neighbours and is
+        # interpolated into an href by the shipped 402 and 403 pages. Live
+        # reflection needs a front end that omits REDIRECT_URL and passes
+        # breakout characters undecoded, which the shipped stacks do not - but
+        # an invariant with one exception is not an invariant, and the next
+        # reader of this block cannot tell the exception was considered.
+        request_uri => _esc_html( $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '' ),
         # The visitor's IP: the first hop of X-Forwarded-For (the original client
         # behind a reverse proxy) if present, else the direct peer REMOTE_ADDR.
         # Per-request, so only correct on a `nocache: true` page - a cached page

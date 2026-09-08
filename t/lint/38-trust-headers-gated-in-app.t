@@ -52,7 +52,12 @@ for my $rel (@cgis) {
     # length without touching it.
     ( my $code = $src ) =~ s/^\s*#.*$//mg;
 
-    next unless $code =~ /HTTP_X_REMOTE_(?:USER|GROUPS|NAME|EMAIL)/;
+    # SM794: the payment headers join the alphabet. They were outside it
+    # entirely, which is half of why the trust source could pass the client's
+    # own X-Payment-Verified through as ours for a release - this lint asked
+    # "does a reader gate?" and never asked about the two headers with a price
+    # attached.
+    next unless $code =~ /HTTP_X_(?:REMOTE_(?:USER|GROUPS|NAME|EMAIL)|PAYMENT_(?:VERIFIED|PAYER))/;
     push @reads, $rel;
 
     next if $SETS_TRUST{$rel};
@@ -85,6 +90,40 @@ subtest 'the gate removes the headers rather than only noting them' => sub {
         like( $src, qr/delete \s* (?: \@ENV\{ | \$ENV\{ )/x,
             "$rel deletes the untrusted headers from the environment, rather "
                 . "than only logging them and leaving them for the next reader" );
+    }
+};
+
+
+# SM794: THE QUESTION THIS LINT DID NOT ASK.
+#
+# Everything above asks whether a READER gates. Nothing asked whether the
+# SOURCE - the one file exempted here, because it is the thing that makes the
+# headers trustworthy - accounts for every field its readers then trust.
+#
+# It did not. lazysite-auth.pl set two of the six and the processor's gate
+# returns EARLY once the sentinel is set, so the other four were the client's,
+# handed on as ours. One of them is the payment proof.
+#
+# Produce or clear. Both are fine; silence is not.
+subtest 'the trust source accounts for every trusted field' => sub {
+    my $src = do {
+        open my $fh, '<', "$root/lazysite-auth.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($block) = $src =~ /(if \(\$ident\).{0,4000})/s;
+    ok( $block, 'the success block was found' ) or return;
+    for my $h (
+        qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS
+        HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
+        HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
+        )
+    {
+        ok( $block =~ /\$ENV\{\Q$h\E\}\s*=/ || $block =~ /delete \@ENV\{[^}]*\Q$h\E/s,
+            "lazysite-auth.pl produces or clears $h" )
+            or diag( 'The C-1 gate returns early when this file sets its '
+                . 'sentinel, so a trusted header this block neither sets nor '
+                . 'deletes reaches the processor as the CLIENT sent it.' );
     }
 };
 
