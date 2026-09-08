@@ -924,12 +924,34 @@ sub dispatch_webhook {
         $body = encode_json( \%fields );
     }
 
+    # SM790: the same two bounds the connector path now carries, for the same
+    # reasons and on the same argument.
+    #
+    # This is the OTHER egress path a public form can drive, and it had no
+    # bounds at all. A redirect sends the visitor's own submitted fields to a
+    # host the operator never configured; an uncapped body is read whole into
+    # memory by whatever process is serving the submission.
+    #
+    # The URL itself is NOT run through the SSRF guard, deliberately and for
+    # the same reason as the connector's: it lives in handlers.conf, which is
+    # in the reserved tree and blocklisted, so it is the operator's choice.
+    # What the operator did not choose is where a 3xx points.
     require LWP::UserAgent;
-    my $ua  = LWP::UserAgent->new( timeout => 10 );
+    my $ua = LWP::UserAgent->new(
+        timeout      => 10,
+        max_redirect => 0,
+        max_size     => 64 * 1024,
+    );
     my $res = $ua->post( $url,
         'Content-Type' => 'application/json',
         Content        => $body );
 
+    if ( $res->is_redirect ) {
+        log_event( 'WARN', $form->{_form} // '-',
+            'webhook answered with a redirect and was not followed',
+            url => $url, status => $res->status_line );
+        return 0;
+    }
     unless ( $res->is_success ) {
         log_event( 'WARN', $form->{_form} // '-', 'webhook failed',
             url => $url, status => $res->status_line );

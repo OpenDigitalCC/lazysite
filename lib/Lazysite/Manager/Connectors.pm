@@ -53,6 +53,13 @@ use File::Path      qw(make_path);
 use Time::HiRes     ();
 use Lazysite::Util  qw(log_event secure_write_perms cannot_read);
 use Lazysite::Paths ();
+use Lazysite::Fetch ();    # SM790: the SSRF guard, shared with the other egress path
+
+# HOW MUCH OF A REMOTE'S ANSWER THIS INSTANCE WILL HOLD. One number, and since
+# SM790 it is both the user agent's max_size - so an oversized body is never
+# read into memory in the first place - and the cap on what is stored. It sits
+# here, above call(), because the agent is built there.
+our $ANSWER_CAP = 64 * 1024;
 
 our $DOCROOT         = '';
 our $MODES           = [qw(scheduled authenticated public)];
@@ -465,7 +472,57 @@ sub call {
     my $call_id = _call_id();
     my $t0      = Time::HiRes::time();
     require LWP::UserAgent;
-    my $ua = LWP::UserAgent->new( timeout => $c->{timeout}, agent => 'lazysite-connector/1' );
+    # SM790: THE CONNECTOR DOES NOT TRUST WHAT THE REMOTE SENDS BACK.
+    #
+    # This module's stated model is that the risk of an outbound call is not
+    # what the remote does, it is who can cause the call. That is right about
+    # the TRIGGER and says nothing about the RESPONSE, and the response is not
+    # the operator's choice. Three defaults of LWP were doing the deciding:
+    #
+    #   * requests_redirectable includes GET, so a GET connector followed a 3xx
+    #     up to seven hops into any host at all - a remote that was legitimately
+    #     configured, later compromised, could send the call to a link-local
+    #     metadata address or a loopback port.
+    #   * LWP does not strip custom headers across a redirect, so the
+    #     OPERATOR'S CREDENTIAL was presented to whatever host the remote
+    #     nominated.
+    #   * no max_size, so the answer was read whole into memory - on a path
+    #     that since SM579 phase 2 runs UNATTENDED in the long-lived daemon.
+    #
+    # Lazysite::Fetch was hardened for exactly this under SEC-2026-07 H6 and
+    # carries all three. This is a second egress path that never learned what
+    # the first one was taught.
+    #
+    # max_redirect => 0 AND NO MANUAL FOLLOW. Fetch follows redirects manually,
+    # re-validating each hop, because it is fetching a document a person asked
+    # for and a legitimate http->https hop should still work. A connector is a
+    # machine call to a configured endpoint: a 3xx is the endpoint saying
+    # something the operator did not configure, and the honest answer is to
+    # record it as a failed call rather than to chase it. That also closes the
+    # credential leak outright rather than by remembering to strip a header.
+    #
+    # AND NOT is_safe_url ON THE CONFIGURED URL, deliberately.
+    #
+    # The obvious fourth change would be to run the SSRF guard over the
+    # connector's own URL. It is the wrong change, and the review that found
+    # this says so in its own analysis: the private-range policy here is open
+    # BY DESIGN - _normalise accepts https:// to any host and http:// to
+    # 127.0.0.1 or localhost - because the configured URL is the operator's
+    # choice, made in the reserved tree, and a service on this host is a
+    # legitimate destination. The 138E-08 field test depends on exactly that
+    # carve-out.
+    #
+    # What was never the operator's choice is the REDIRECT TARGET and the
+    # RESPONSE, and those are what the three changes above address. Applying
+    # the guard to the configured URL would refuse a destination the operator
+    # deliberately configured while closing nothing the redirect refusal has
+    # not already closed.
+    my $ua = LWP::UserAgent->new(
+        timeout      => $c->{timeout},
+        agent        => 'lazysite-connector/1',
+        max_redirect => 0,
+        max_size     => $ANSWER_CAP,
+    );
     my @hdr = ( 'Content-Type' => 'application/json', 'X-Lazysite-Call' => $call_id );
     push @hdr, ( $c->{secret_header} => ( $c->{secret_prefix} // '' ) . $secret ) if defined $secret && length $secret;
     my $body = JSON::PP->new->canonical->encode($payload);
@@ -474,6 +531,20 @@ sub call {
         ? $ua->get( _with_query( $c->{url}, $payload ), @hdr )
         : $ua->post( $c->{url}, @hdr, Content => $body );
     my $ms = int( ( Time::HiRes::time() - $t0 ) * 1000 );
+
+    # SM790: a redirect is not a hop to chase, it is the endpoint answering
+    # with something the operator did not configure. Named, so the operator
+    # sees WHY rather than a bare 302 - "reconfigure the connector" is the
+    # remedy, and "follow it for me" is the thing this refuses to do.
+    if ( $res->is_redirect ) {
+        my $loc = substr( $res->header('Location') // '', 0, 200 );
+        return _refused( $id, \%ctx, 'redirected',
+            "the endpoint answered "
+                . $res->code
+                . " and asked for another address; a connector does not follow a "
+                . "redirect, because the credential would travel with it"
+                . ( length $loc ? " (it asked for: $loc)" : '' ) );
+    }
 
     my $state
         = $res->is_success ? 'answered'
@@ -524,7 +595,6 @@ sub _with_query {
 
 # The answer, decoded when it is JSON, else text; capped so a misbehaving
 # remote cannot fill the table.
-our $ANSWER_CAP = 64 * 1024;
 sub _refused {
     my ( $id, $ctx, $why, $msg ) = @_;
     _record_call( { call_id => _call_id(), connector => $id, mode => ( $ctx->{mode} // '' ), actor => ( $ctx->{actor} // '' ),
