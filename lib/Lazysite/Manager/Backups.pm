@@ -432,6 +432,15 @@ sub _scrub_paths {
     return join '; ', @lines;
 }
 
+# Are two paths one directory? By inode, so a symlinked docroot - whose `..`
+# is the target's parent - is told apart from the ordinary sibling layout.
+sub _same_dir {
+    my ( $a, $b ) = @_;
+    my @sa = stat $a or return 0;
+    my @sb = stat $b or return 0;
+    return ( $sa[0] == $sb[0] && $sa[1] == $sb[1] ) ? 1 : 0;
+}
+
 # Is the archive a readable gzip stream? A tar warning is only acceptable if
 # what it produced can actually be restored, and "the file exists and is not
 # empty" does not establish that.
@@ -573,12 +582,27 @@ sub action_backup_create {
     # extended, not replaced. (Back-compat is not required here as of
     # 2026-08-13, but breaking it for no gain would still be a choice with a
     # cost and none of the benefit.)
+    #
+    # SM769: REACH THE STORE WITHOUT OPENING ITS PARENT. The store is the
+    # docroot's sibling, and its parent is the domain folder - on the Hestia
+    # layout root-owned 0551, which the request path may traverse but not
+    # read. GNU tar implements -C by opening the directory O_RDONLY (glibc has
+    # no O_SEARCH), so `-C $parent $leaf` died with "Cannot open: Permission
+    # denied" on every host laid out that way: the Backups page's own button
+    # had never worked there, and nobody noticed because the installer's
+    # pre-upgrade snapshots kept the list full. Naming the store as `../leaf`
+    # from inside the docroot walks THROUGH the parent (x is enough) instead
+    # of opening it; tar strips the leading `../` and stores the member as
+    # `leaf/...`, byte-for-byte the name the old form produced, so every
+    # archive and every restore reads the same. The `-C parent` form is kept
+    # for the one layout where `../leaf` is not the store: a symlinked
+    # docroot, whose `..` is the target's parent, not the link's.
     my @store;
     my $priv = length($root) ? undef : Lazysite::Private::private_root($DOCROOT);
     if ( defined $priv && -d $priv ) {
         my $parent = dirname($priv);
         my $leaf   = basename($priv);
-        @store = ( '-C', $parent, $leaf );
+        @store = _same_dir( "$DOCROOT/../$leaf", $priv ) ? ("../$leaf") : ( '-C', $parent, $leaf );
     }
 
     # SM378: SAY WHY. 'Backup failed' discarded tar's exit status, its stderr
@@ -658,9 +682,13 @@ sub action_backup_create {
             = $rc != 0 ? sprintf( 'tar exited %d', $rc >> 8 )
             : !-f $out ? 'tar reported success but wrote no archive'
             :            'tar wrote an empty archive';
+        # SM769: the unix user is the fact that turns "Permission denied"
+        # into an instruction - the same three the store readers log.
+        my ($who) = getpwuid($>);
         return { ok => 0,
-            error  => "Backup failed: $why",
-            reason => $why,
+            error     => "Backup failed: $why",
+            reason    => $why,
+            unix_user => ( $who // $> ),
             ( length $tar_err ? ( detail => _scrub_paths($tar_err) ) : () ) };
     }
     log_event( 'INFO', 'backup-create',
@@ -825,10 +853,17 @@ sub action_backup_restore {
         my $leaf = defined $priv ? basename($priv) : undef;
         if ( defined $leaf && length $leaf ) {
             if ( grep { index( $_, "$leaf/" ) == 0 } @members ) {
+                # SM769: extract INTO the store, not into its parent - the
+                # parent is the domain folder the request path cannot open
+                # (see action_backup_create). --strip-components=1 drops the
+                # `leaf/` prefix the archive carries; --anchored $leaf still
+                # confines the pass to that one member. The store is made
+                # first, with the docroot's identity, as Private makes it.
+                Lazysite::Private::ensure_store($DOCROOT) unless -d $priv;
                 my $prc = system(
-                    'tar',             'xzf', $full, '-C', dirname($priv),
+                    'tar',             'xzf', $full, '-C', $priv,
                     '--no-same-owner', '--no-same-permissions',
-                    '--anchored',      $leaf,
+                    '--anchored',      '--strip-components=1', $leaf,
                 );
                 return {
                     ok    => 0,

@@ -40,7 +40,7 @@ use Errno          qw(EXDEV);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
-    is_private move_in move_out stray_public count_private);
+    is_private move_in move_out stray_public count_private ensure_store);
 
 # The store's directory name. A leading dot would hide it from a sysop
 # looking at the tree, and the point is that they can see where their private
@@ -284,6 +284,16 @@ sub _mkpath {
         }
     }
     return 1;
+}
+
+# The store root, made with the docroot's identity if it is absent (SM769:
+# a restore extracts into it, and the parent it would otherwise be created
+# under is the domain folder the request path cannot open). Returns 1 when
+# the store exists afterwards, 0 when it could not be made.
+sub ensure_store {
+    my ($docroot) = @_;
+    my $root = private_root($docroot) or return 0;
+    return _mkpath( $root, $docroot );
 }
 
 # Confinement: never let a caller's path escape either tree. Both roots are
