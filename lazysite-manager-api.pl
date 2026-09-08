@@ -2560,12 +2560,16 @@ sub _package_scope_refusal {
 # exempt. Say so, with what this grant names and what the package has.
 sub _package_grant_refusal {
     my ($croot) = @_;
-    my $scopes  = @REQUEST_SCOPES     ? join( ', ', @REQUEST_SCOPES ) : 'no scope';
+    # SM783: name the FIELD. "this grant names no scope" sent a reader to
+    # `whoami`, which prints a `scope` block (the content allow/deny) and is
+    # not this - so the message read as wrong about them. dav_scope is what
+    # this rule consults.
+    my $scopes = @REQUEST_SCOPES      ? join( ', ', @REQUEST_SCOPES ) : 'no dav_scope';
     my $root = length( $croot // '' ) ? "'$croot'" : 'no content root (the primary domain)';
     return { ok => 0, kind => 'forbidden',
         error => 'A token grant reaches a site package only through a WebDAV scope '
             . "that contains the package's content root; this package has $root and "
-            . "this grant names $scopes. The sysop's own session is exempt; a token needs a "
+            . "this grant's dav_scope names $scopes. The sysop's own session is exempt; a token needs a "
             . 'dav_scope covering the package, or the sysop removes it.' };
 }
 
@@ -2985,12 +2989,27 @@ sub action_site_export_primary {
 # SM183: resolve a site-package name to its path under lazysite/backups/, confined
 # to the lazysite-site- namespace - a full/content backup or any other file (or a
 # traversal) is unreachable. Returns the abs path, or undef for an invalid name.
+# SM783: A NAME THAT WAS SENT IS NOT A NAME THAT IS MISSING. Every caller
+# answered "A site package name is required" whether the name was absent or
+# simply not a package name, so a caller who HAD sent one went looking for
+# the parameter rather than at its shape - the same family as the three
+# refusals 0.13.8 fixed. Returns ( $path, undef ) or ( undef, $refusal ).
 sub _site_package_path {
     my ($name) = @_;
     $name //= '';
-    return undef
-        unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
-    return "$LAZYSITE_DIR/backups/$name";
+    return "$LAZYSITE_DIR/backups/$name"
+        if $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
+    return undef;
+}
+
+sub _package_name_refusal {
+    my ($name) = @_;
+    return { ok => 0, kind => 'invalid',
+        error => 'A site package name is required (in the JSON body or the query as `name`)' }
+        unless defined $name && length $name;
+    return { ok => 0, kind => 'invalid',
+        error => "'$name' is not a site package name - expected "
+            . 'lazysite-site-<host>-<stamp>.tar.gz' };
 }
 
 # SM183: read a package's manifest WITHOUT applying it. manage_domains-gated
@@ -3000,8 +3019,7 @@ sub _site_package_path {
 # on a shared instance. Operators (no scope) are unconfined.
 sub action_site_backup_inspect {
     my ( $name, $host ) = @_;
-    my $pkg = _site_package_path($name)
-        or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
+    my $pkg = _site_package_path($name) or return _package_name_refusal($name);
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
     # SM578: inspect had no scope test at all, so the manifest of a package the
@@ -3045,8 +3063,7 @@ sub action_site_backup_inspect {
 # content root like inspect. Audited via the generic dispatch wrapper.
 sub action_site_backup_delete {
     my ($name) = @_;
-    my $pkg = _site_package_path($name)
-        or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
+    my $pkg = _site_package_path($name) or return _package_name_refusal($name);
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
     my $refusal = _package_scope_refusal($pkg);
@@ -3070,8 +3087,7 @@ sub action_site_backup_delete {
 # before any output.
 sub action_site_backup_download {
     my ($name) = @_;
-    my $pkg = _site_package_path($name)
-        or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
+    my $pkg = _site_package_path($name) or return _package_name_refusal($name);
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
     my $refusal = _package_scope_refusal($pkg);
@@ -3241,8 +3257,7 @@ sub action_site_backup_apply {
     my $host = lc( $req->{host} // '' );
     $host = '' if $host eq '(default)';
 
-    my $pkg = _site_package_path($name)
-        or return { ok => 0, kind => 'invalid', error => 'A package name is required' };
+    my $pkg = _site_package_path($name) or return _package_name_refusal($name);
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
     # Resolve the TARGET content root.
@@ -3833,7 +3848,10 @@ sub action_config_set {
     # default, and "A value is required" made the shipped state unreachable
     # through the API. Every other key needs a value.
     my %clearable = map { $_ => 1 } qw(canonical_ip asset_max_age backup_retention);
-    return { ok => 0, error => 'A value is required' }
+    return { ok => 0,
+        error => "A value is required: '$key' has no default to fall back to, so it "
+            . 'cannot be cleared (the keys that can are '
+            . join( ', ', sort keys %clearable ) . ')' }
         unless ( defined $value && length $value ) || $clearable{$key};
     $value = '' unless defined $value;
     return { ok => 0, error => "Value must be a single line" }
@@ -3879,7 +3897,7 @@ sub action_describe_capabilities {
     } keys %$allg;
     my $map = describe( caps => $s, account => $user, groups => \@groups,
         display_name => Lazysite::Auth::Settings::display_name_for($user),
-        docroot => $DOCROOT );    # SM225: include the documentation index
+        docroot      => $DOCROOT );    # SM225: include the documentation index
         # SM572: per action, whether it mutates and whether it is destructive -
         # every registered action, whoever asks, because this is the map.
         # SM779: and which CHANNEL serves it. The map listed `users` beside

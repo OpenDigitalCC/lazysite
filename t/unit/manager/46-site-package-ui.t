@@ -204,8 +204,22 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
     # SM782: the refusal names the rule - a scope containing the package's
     # content root - and what this grant names, so a manage_domains holder
     # knows it is the scope, not the capability or the channel.
-    like( $del->{error}, qr/WebDAV scope that contains the package's content root.*this grant names no scope/,
-        'and says the rule is the scope, and that this grant names none' );
+    like( $del->{error}, qr/WebDAV scope that contains the package's content root.*this grant's dav_scope names no dav_scope/,
+        'and says the rule is the scope, naming the FIELD (SM783: "no scope" sent a reader to whoami, which prints a different `scope`)' );
+
+    # SM783: a name that WAS sent is not a name that is missing.
+    my $bad = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=site-backup-delete',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { name => 'PLACEHOLDER' } ) );
+    like( $bad->{error}, qr/'PLACEHOLDER' is not a site package name - expected lazysite-site-<host>-<stamp>\.tar\.gz/,
+        'a malformed name is refused as malformed, quoting it' );
+    my $none = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=site-backup-delete',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( {} ) );
+    like( $none->{error}, qr/A site package name is required \(in the JSON body or the query as `name`\)/,
+        'and an absent one as absent, saying where it goes' );
     ok( -f "$d/lazysite/backups/$pkg", 'and the package is still there' );
 
     # SM578's second half: the listing carried no filter at all, so a name and

@@ -583,7 +583,10 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
         QUERY_STRING       => 'action=config-set',
         HTTP_AUTHORIZATION => $auth,
         body               => encode_json( { key => 'site_name', value => '' } ) );
-    ok( !$still->{ok} && $still->{error} =~ /A value is required/, 'a key that has no default still needs a value' );
+    ok( !$still->{ok}, 'a key that has no default still needs a value' );
+    # SM783: and says WHY it differs from the key that was just cleared
+    like( $still->{error}, qr/'site_name' has no default to fall back to, so it cannot be cleared \(the keys that can are .*backup_retention/,
+        'naming the reason and which keys may be cleared' );
 
     for my $k (qw(manager manager_path)) {
         my $r = mapi( $d, REQUEST_METHOD => 'POST',
