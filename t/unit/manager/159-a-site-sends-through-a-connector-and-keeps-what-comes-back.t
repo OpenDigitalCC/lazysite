@@ -111,8 +111,13 @@ subtest 'HOW OFTEN: the rate cap counts the record, in every mode' => sub {
     ok( !$r->{ok}, 'the fourth is refused' );
     like( $r->{error}, qr/rate cap reached: 3/, 'naming the cap' );
     my $calls = Lazysite::Manager::Connectors::action_connector_calls( connector => 'echo' );
-    is( $calls->{counts}{refused},  1, 'the refusal is on the record' );
+    # SM771: every refusal is a row - the four above (public, caller, scheduled,
+    # payload) and this cap - so a connector's own log shows who tried it
+    is( $calls->{counts}{refused}, 5, 'every refusal is on the record, not only the cap' );
     is( $calls->{counts}{answered}, 3, 'beside the three that answered' );
+    ok( ( grep { ( $_->{why} // '' ) =~ /none of the groups/ && $_->{actor} eq 'ed' } @{ $calls->{calls} } ),
+        'the account outside the callers is there by name, with the reason' );
+    is( $calls->{counts}{answered} + 0, 3, 'and the refusals did not consume the cap (three answered under a cap of three)' );
     my $rec = do { local ( @ARGV, $/ ) = "$d/lazysite/connectors/calls.jsonl"; <> };
     unlike( $rec, qr/hello/, 'the record never carries the payload' );
 };
@@ -125,6 +130,10 @@ subtest 'a remote that fails or never answers is said so, not "waiting"' => sub 
     save_ok( 'slow', url => "${base}hang", rate_per_hour => 0, timeout => 1 );
     $r = Lazysite::Manager::Connectors::call( 'slow', { q => 1 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
     is( $r->{state}, 'unanswered', 'a timeout is unanswered' ) or diag explain $r;
+    # SM771: the answer that never came is the library's sentence, not its stack
+    like( $r->{answer}, qr/timeout|timed out/i, 'the answer says the transport reason' );
+    unlike( $r->{answer}, qr{ at \S+ line \d+}, 'and carries no library path or line' );
+    unlike( $r->{answer}, qr{/usr/|/perl},      'nor a host path' );
     my $calls = Lazysite::Manager::Connectors::action_connector_calls( state => 'unanswered' );
     is( scalar @{ $calls->{calls} }, 1, 'and connector-calls lists it by state' );
 };

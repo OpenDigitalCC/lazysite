@@ -280,6 +280,8 @@ sub _calls_in_last_hour {
     my $n     = 0;
     while ( my $l = <$fh> ) {
         my $r = eval { JSON::PP::decode_json($l) } or next;
+  # only what went out: a refusal (SM771 records every one) is not a call the cap paid for
+        next if ( $r->{state}     // '' ) eq 'refused';
         $n++ if ( $r->{connector} // '' ) eq $id && ( $r->{at} // 0 ) >= $since;
     }
     close $fh;
@@ -311,39 +313,30 @@ sub call {
     return { ok => 0, state => 'refused', error => _store_unreadable() } unless defined $all;
     my $c = $all->{$id}
         or return { ok => 0, state => 'refused', error => "no connector '$id'" };
+    # SM771: EVERY REFUSAL IS A ROW IN THE CONNECTOR'S OWN RECORD. The first
+    # version recorded the rate cap and left authorisation and payload
+    # refusals to the audit trail alone - so an operator reading a
+    # connector's log could not see that an account outside the callers had
+    # tried to use it, which is the row they most want. One helper, one
+    # shape: `why` is the short reason on the row, `error` the sentence.
     my ( $may, $why ) = may_call( $c, %ctx );
-    unless ($may) {
-        log_event( 'WARN', 'connectors', 'connector call refused',
-            connector => $id, mode => ( $ctx{mode} // '' ), actor => ( $ctx{actor} // '' ), why => $why );
-        return { ok => 0, state => 'refused', error => $why };
-    }
+    return _refused( $id, \%ctx, $why, $why ) unless $may;
     if ( $c->{rate_per_hour} ) {
         my $n = _calls_in_last_hour($id);
-        if ( !defined $n ) {
-            my $msg = _calls_unreadable() . '; the rate cap cannot be checked';
-            log_event( 'WARN', 'connectors', 'connector call refused', connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), why => 'call record unreadable' );
-            return { ok => 0, state => 'refused', error => $msg };
-        }
+        return _refused( $id, \%ctx, 'call record unreadable', _calls_unreadable() . '; the rate cap cannot be checked' )
+            unless defined $n;
+        return _refused( $id, \%ctx, 'rate cap', "rate cap reached: $c->{rate_per_hour} calls in the last hour" )
+            if $n >= $c->{rate_per_hour};
     }
-    if ( $c->{rate_per_hour} && _calls_in_last_hour($id) >= $c->{rate_per_hour} ) {
-        my $msg = "rate cap reached: $c->{rate_per_hour} calls in the last hour";
-        _record_call( { call_id => _call_id(), connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), at => time, state => 'refused', why => 'rate cap' } );
-        log_event( 'WARN', 'connectors', 'connector call refused', connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), why => 'rate cap' );
-        return { ok => 0, state => 'refused', error => $msg };
-    }
-    return { ok => 0, state => 'refused', error => 'a payload must be a hash of fields' } unless ref $payload eq 'HASH';
+    return _refused( $id, \%ctx, 'payload not a hash', 'a payload must be a hash of fields' ) unless ref $payload eq 'HASH';
     for my $v ( values %$payload ) {
-        return { ok => 0, state => 'refused', error => 'a payload carries text values only - never a file or a structure' } if ref $v;
+        return _refused( $id, \%ctx, 'payload not flat', 'a payload carries text values only - never a file or a structure' ) if ref $v;
     }
 
     # A call never leaves without a credential this process cannot see.
     my $sec = _secrets();
-    unless ( defined $sec ) {
-        my $msg = _secrets_unreadable() . '; the call would go without its credential';
-        _record_call( { call_id => _call_id(), connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), at => time, state => 'refused', why => 'secret store unreadable' } );
-        log_event( 'WARN', 'connectors', 'connector call refused', connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), why => 'secret store unreadable' );
-        return { ok => 0, state => 'refused', error => $msg };
-    }
+    return _refused( $id, \%ctx, 'secret store unreadable', _secrets_unreadable() . '; the call would go without its credential' )
+        unless defined $sec;
     my $secret  = $sec->{$id};
     my $call_id = _call_id();
     my $t0      = Time::HiRes::time();
@@ -408,8 +401,29 @@ sub _with_query {
 # The answer, decoded when it is JSON, else text; capped so a misbehaving
 # remote cannot fill the table.
 our $ANSWER_CAP = 64 * 1024;
+sub _refused {
+    my ( $id, $ctx, $why, $msg ) = @_;
+    _record_call( { call_id => _call_id(), connector => $id, mode => ( $ctx->{mode} // '' ), actor => ( $ctx->{actor} // '' ),
+            trigger => ( $ctx->{trigger} // '' ), at => time, state => 'refused', why => $why } );
+    log_event( 'WARN', 'connectors', 'connector call refused',
+        connector => $id, mode => ( $ctx->{mode} // '' ), actor => ( $ctx->{actor} // '' ), why => $msg );
+    return { ok => 0, state => 'refused', error => $msg };
+}
+
+# SM771: an answer that never came is the library's sentence, not its stack.
+# LWP's internal response ("Client-Warning: Internal response") carries the
+# transport error as its body, with ` at /usr/share/perl5/LWP/... line N.`
+# appended - and an answer can be kept in a table and rendered on a page,
+# which puts a host path one template away from the public. Keep the first
+# line, without the location.
 sub _answer_of {
     my ($res) = @_;
+    if ( ( $res->header('Client-Warning') // '' ) eq 'Internal response' ) {
+        my ($first) = split /\n/, ( $res->decoded_content // '' );
+        $first //= '';
+        $first =~ s/\s+at\s+\S+\s+line\s+\d+\.?\s*\z//;
+        return $first;
+    }
     my $body = $res->decoded_content // '';
     $body = substr( $body, 0, $ANSWER_CAP ) if length $body > $ANSWER_CAP;
     if ( ( $res->content_type // '' ) =~ m{json}i ) {

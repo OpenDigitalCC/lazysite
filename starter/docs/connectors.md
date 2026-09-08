@@ -112,8 +112,13 @@ calls that never answered.
 
 A call has one of four outcomes, and none of them is "waiting": `answered`,
 `failed` (the remote said no), `unanswered` (it never replied within the
-timeout), `refused` (the mode, the callers, or the rate cap said no before
-anything was sent).
+timeout), `refused` (the mode, the callers, the payload's shape, the rate
+cap, or a store the request path could not read said no before anything
+was sent). Every refusal is a row in the connector's own record, carrying
+`why` and the actor - so the account outside the callers that tried the
+connector is there by name - and refusals do not count against the rate
+cap. An unanswered call's `answer` is the transport's one-line reason,
+never a library path.
 
 ## Capability
 
