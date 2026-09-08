@@ -1144,8 +1144,8 @@ if ($token_auth) {
                         . 'exists, but is served only to the manager UI over a cookie '
                         . 'session'
                         . ( $why ? " - $why" : '' ) . '. '
-                        . 'Call describe-capabilities to see what this '
-                        . 'account can do over the API.' } );
+                        . 'Call actions-list to see what this account can call '
+                        . 'over this channel.' } );
         }
         else {
             respond( { ok => 0,
@@ -3850,10 +3850,20 @@ sub action_describe_capabilities {
         ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
     } keys %$allg;
     my $map = describe( caps => $s, account => $user, groups => \@groups,
+        display_name => Lazysite::Auth::Settings::display_name_for($user),
         docroot => $DOCROOT );    # SM225: include the documentation index
         # SM572: per action, whether it mutates and whether it is destructive -
         # every registered action, whoever asks, because this is the map.
-    $map->{actions} = { map { $_ => _action_effects($_) } keys %Lazysite::ControlApi::Actions::ACTION };
+        # SM779: and which CHANNEL serves it. The map listed `users` beside
+        # `data-rows` with nothing to tell a token client that one of them is
+        # cookie-only, while the refusal it met sent it to this very document.
+        # `cookie_only` is the same fact actions-list already publishes.
+    $map->{actions} = {
+        map {
+            $_ => { %{ _action_effects($_) },
+                ( defined $Lazysite::ControlApi::Actions::ACTION{$_}{caps} ? () : ( cookie_only => JSON::PP::true() ) ) }
+        } keys %Lazysite::ControlApi::Actions::ACTION
+    };
     $map->{ok} = 1;
     return $map;
 }

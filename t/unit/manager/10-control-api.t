@@ -230,6 +230,25 @@ ok( @{ $dcap->{tasks} || [] } >= 3,              'map carries task recipes' );
 ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     'holds carries the full @CAP_KEYS incl. delegate_sub_user_creation (drift fix)' );
 
+# --- SM779: the map says which channel serves an action, and who you are ---
+# A partner met "Action not available to token clients: users ... call
+# describe-capabilities" and found `users` listed there beside `data-rows`
+# with nothing to tell them apart; and its own identity came back unnamed.
+{
+    ok( $dcap->{actions}{users}{cookie_only}, 'the map marks a cookie-only action (users)' )
+        or diag explain $dcap->{actions}{users};
+    ok( !exists $dcap->{actions}{'data-rows'}{cookie_only}, 'and not one a token may call (data-rows)' );
+    uapi( $d, { action => 'settings-set', username => 'partner', key => 'display_name', value => 'Pat Partner' } );
+    my $named = mapi( $d, QUERY_STRING => 'action=describe-capabilities',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    is( $named->{holds}{display_name}, 'Pat Partner', 'holds carries the display name beside the login' );
+    is( $named->{holds}{account}, 'partner', 'which is still there' );
+    my $refused = mapi( $d, QUERY_STRING => 'action=users',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    like( $refused->{error}, qr/Call actions-list to see what this account can call over this channel/,
+        'the cookie-only refusal points at the document that models the channel' );
+}
+
 # --- SM572: the engine describes its own side effects ---------------------
 # actions-list and describe-capabilities say, per action, whether it MUTATES
 # (read from %MUTATING, the CSRF/POST gate, never restated) and whether it is

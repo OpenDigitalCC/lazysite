@@ -906,7 +906,12 @@ sub describe {
         # misreading is a language misreading.
         $map{holds} = {
             ( defined $opt{account} ? ( account => $opt{account} ) : () ),
-            ( $opt{groups}          ? ( groups  => $opt{groups} )  : () ),
+            # SM779: the account's display name beside its login - a partner
+            # rendering bylines had no route from a login to a name, not even
+            # its own.
+            ( defined $opt{display_name} && length $opt{display_name}
+                ? ( display_name => $opt{display_name} ) : () ),
+            ( $opt{groups} ? ( groups => $opt{groups} ) : () ),
             scope =>
                 'What THIS account has been granted. A false value means "not '
                 . 'granted to this account", never "not available in lazysite" - see '

@@ -6,7 +6,7 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2 qw(open2);
 use File::Temp qw(tempdir);
 use FindBin;
@@ -56,12 +56,12 @@ sub mcp {
     return ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
 }
 sub call { mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
-    params => { name => $_[0], arguments => $_[1] || {} } }, auth => $_[2] ) }
+            params => { name => $_[0], arguments => $_[1] || {} } }, auth => $_[2] ) }
 # MCP wraps a tool's return in result.structuredContent.
 sub sc { my $r = shift; $r && $r->{result} ? $r->{result}{structuredContent} : undef }
 
-my $nomcp = 'Bearer clientnomcp:lzs_tok';   # webdav+content, NO mcp channel
-my $ok    = 'Bearer clientok:lzs_tok';      # has mcp
+my $nomcp = 'Bearer clientnomcp:lzs_tok';    # webdav+content, NO mcp channel
+my $ok    = 'Bearer clientok:lzs_tok';       # has mcp
 
 # --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is
 #     refused on mcp even WITH the mcp cap ---
@@ -90,16 +90,28 @@ my $w = sc( call( 'whoami', {}, $nomcp ) );
 ok( $w->{ok}, 'no-mcp session: whoami still allowed (introspection)' );
 
 my $dc = sc( call( 'describe_capabilities', {}, $nomcp ) );
-ok( $dc->{ok}, 'no-mcp session: describe_capabilities allowed' );
+ok( $dc->{ok},                        'no-mcp session: describe_capabilities allowed' );
 ok( !$dc->{holds}{capabilities}{mcp}, 'holds shows mcp not granted' );
-ok( $dc->{channels}{mcp}{enforced}, 'map reports mcp channel enforced' );
+ok( $dc->{channels}{mcp}{enforced},   'map reports mcp channel enforced' );
 
 # --- A session WITH mcp gets the full map + can call tools -------------------
 my $dc2 = sc( call( 'describe_capabilities', {}, $ok ) );
-ok( $dc2->{ok}, 'mcp session: describe_capabilities ok' );
+ok( $dc2->{ok},                       'mcp session: describe_capabilities ok' );
 ok( $dc2->{holds}{capabilities}{mcp}, 'holds shows mcp granted' );
 ok( exists $dc2->{capabilities}{manage_content}, 'map lists an action capability' );
-ok( @{ $dc2->{tasks} } >= 3, 'map carries task recipes' );
+ok( @{ $dc2->{tasks} } >= 3,                     'map carries task recipes' );
+
+# SM779: holds carries the display name beside the login, read from the
+# account store - the MCP map said who you are only as a login.
+{
+    my $acct = $dc2->{holds}{account};
+    open my $us, '>', "$d/lazysite/auth/user-settings.json" or die $!;
+    print {$us} qq({"$acct":{"display_name":"Pat Partner"}});
+    close $us;
+    my $dc3 = sc( call( 'describe_capabilities', {}, $ok ) );
+    is( $dc3->{holds}{display_name}, 'Pat Partner', 'holds.display_name is the account\'s display name' );
+    unlink "$d/lazysite/auth/user-settings.json";
+}
 
 my $lf = call( 'list_files', { path => '/' }, $ok );
 isnt( ( $lf->{error} && $lf->{error}{code} ) // 0, -32002,

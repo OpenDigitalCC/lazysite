@@ -526,9 +526,18 @@ my %TOOLS = (
             # answer: the same account in the same group was allowed over WebDAV
             # and refused over MCP. Omitting them from the capability map was
             # the same defect one layer up, so it takes the same fix.
+            # SM779: the display name beside the login, read from the account
+            # store the same way StartPage reads it.
+            my $dn = do {
+                require Lazysite::Auth::Settings;
+                no warnings 'once';
+                local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+                Lazysite::Auth::Settings::display_name_for($user);
+            };
             my $map = describe( caps => $caps, account => $user,
-                groups  => [@Lazysite::Auth::Acl::user_groups],
-                docroot => $DOCROOT );    # SM225: include the documentation index
+                groups       => [@Lazysite::Auth::Acl::user_groups],
+                display_name => $dn,
+                docroot      => $DOCROOT );    # SM225: include the documentation index
             $map->{ok} = JSON::PP::true;
             return $map;
         },
