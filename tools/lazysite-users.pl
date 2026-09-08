@@ -953,10 +953,8 @@ sub cmd_list {
     # looking for missing accounts instead of for a permissions fault, which is
     # the wrong half of the day.
     if ( !%users && !$STORE_READABLE ) {
-        print "The account store could not be read, so this is not a list of "
-            . "no accounts - it is no answer. Check the permissions on "
-            . "$USERS_FILE and the directory above it; the log names the "
-            . "error and the unix user.\n";
+        print "The account store could not be read - no answer, not a list of "
+            . "no accounts. Check the permissions on $USERS_FILE and its directory.\n";
         return;
     }
     if (%users) {
