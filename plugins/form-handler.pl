@@ -236,8 +236,13 @@ eval {
     unless ($delivered) {
         log_event( 'ERROR', $name, 'form not delivered - no active target',
             ip => $ENV{REMOTE_ADDR} // 'unknown' );
+        # SM781: "no active delivery target" sent the OWNER to the binding
+        # when a connector had refused the mode; the record already holds the
+        # reason. Say what happened - nothing accepted it - and where to look.
         reject_user( 'This form is not accepting submissions right now '
-                . '(no active delivery target). Please contact the site owner.' );
+                . '(nothing accepted the submission: its delivery is switched off '
+                . 'or refused it - the site owner can see why in the event log). '
+                . 'Please contact the site owner.' );
     }
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );

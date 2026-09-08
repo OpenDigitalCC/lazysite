@@ -149,8 +149,12 @@ subtest 'introspection, like the map it accompanies' => sub {
 subtest 'and it is subset by grant, not a menu of refusals' => sub {
     my $none  = Lazysite::ControlApi::Actions::actions_for( {}, cookie => 0 );
     my @names = map { $_->{action} } @$none;
-    is_deeply( [ sort @names ], [ 'actions-list', 'describe-capabilities', 'whoami' ],
-        'a capless token sees only the three introspection actions' )
+    # SM781: connector-call joins the three - it is served to every
+    # authenticated caller (gate 'ALWAYS') and the CONNECTOR decides, by its
+    # callers groups, so a capless account in a named group may call it. A
+    # token's list carries it for that reason, and no other capless action.
+    is_deeply( [ sort @names ], [ 'actions-list', 'connector-call', 'describe-capabilities', 'whoami' ],
+        'a capless token sees the three introspection actions and connector-call' )
         or diag( 'Listing everything would be a list of things to try and be '
             . 'refused - and the refusals then read as defects.' );
 

@@ -249,7 +249,12 @@ our %ACTION = (
     'connector-save' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' }, { name => 'connector', in => 'body' } ] },
     'connector-secret-set' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' }, { name => 'secret', in => 'body' } ] },
     'connector-delete' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' } ] },
-    'connector-call' => { caps => undef, params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' } ] },
+    # SM781: caps => [] - NO capability, not "cookie-only". undef here means
+    # the cookie channel alone serves the action, and connector-call is
+    # served on every channel (gate 'ALWAYS'); the field found it working and
+    # missing from actions-list, and SM779's map would have marked it
+    # cookie_only. The connector gates it (Connectors::may_call).
+    'connector-call' => { caps => [], params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' } ] },
     'connector-calls' => { caps => ['manage_connectors'], params => [ { name => 'connector', in => 'query' }, { name => 'state', in => 'query' }, { name => 'limit', in => 'query' } ] },
     'start-page' => { caps => undef, params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { caps => undef, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body' } ] },

@@ -54,6 +54,13 @@ subtest 'set: your own' => sub {
     ok( !$r->{ok}, 'a page they cannot reach is refused' );
     like( $r->{error}, qr/cannot reach the manager page 'domains'/, 'with the reason' );
 
+    # SM781: the value under another key is not a clear. The field sent
+    # {start_page: ...}, got ok:1, and found the setting silently cleared.
+    $r = $s->call( 'ed', 'start-page-set', body => { start_page => 'manager:files' } );
+    ok( !$r->{ok}, 'a body without `value` is refused' );
+    like( $r->{error}, qr/value is required .*an empty string clears/, 'naming the key and how to clear' );
+    is( $s->call( 'ed', 'start-page' )->{current}, 'manager:files', 'and the setting is untouched' );
+
     open my $fh, '<', "$d/lazysite/logs/audit.log" or die $!;
     my @rows = grep { /start-page-set/ } <$fh>;
     close $fh;

@@ -296,6 +296,14 @@ ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     my ($td) = grep { $_->{action} eq 'theme-delete' } @rows;
     ok( $td && $td->{mutating} && $td->{destructive},
         'SM572: theme-delete is listed as mutating and destructive' );
+
+    # SM781: connector-call is served on every channel (the connector gates
+    # it), so a token's actions-list carries it - the field found it working
+    # and absent from the list, because its declaration said "no caps" the
+    # way a cookie-only action does.
+    my ($cc) = grep { $_->{action} eq 'connector-call' } @rows;
+    ok( $cc, 'SM781: connector-call is in a token client\'s actions-list' );
+    ok( $cc && !$cc->{cookie_only}, 'and is not marked cookie-only' );
 }
 
 # --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is

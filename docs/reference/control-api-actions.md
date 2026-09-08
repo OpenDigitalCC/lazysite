@@ -69,7 +69,7 @@ tone: medium
 `channel-services` | cookie only |  
 `config-read` | manage_config |  
 `config-set` | manage_config | key (query_or_body), value (query_or_body)
-`connector-call` | cookie only | id (body), payload (body)
+`connector-call` | any authenticated | id (body), payload (body)
 `connector-calls` | manage_connectors | connector (query), state (query), limit (query)
 `connector-delete` | manage_connectors | id (body)
 `connector-list` | manage_connectors |  

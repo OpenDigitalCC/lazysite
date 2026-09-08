@@ -2137,7 +2137,12 @@ elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plu
 elsif ( $action eq 'start-page' ) { $result = action_start_page( $params{username} ) }
 elsif ( $action eq 'start-page-set' ) {
     my $req = _json_body();
-    $result = action_start_page_set( $req->{username}, $req->{value} );
+    # SM781: A MISSING VALUE IS NOT A CLEAR. The field sent the setting under
+    # another key, got ok:1, and found the start page silently cleared - an
+    # absent `value` read as an empty one. Clearing is `"value": ""`, said.
+    $result = exists $req->{value}
+        ? action_start_page_set( $req->{username}, $req->{value} )
+        : { ok => 0, error => 'value is required (send it in the JSON body; an empty string clears the start page)' };
 }
 elsif ( $action eq 'connector-list' ) { $result = _connectors()->can('action_connector_list')->() } # SM579
 elsif ( $action eq 'connector-calls' ) {
