@@ -1,8 +1,8 @@
 {
-  "inputs_digest": "4e99a1e9e4e22901648bdcee6d2d6e7fe319b7a4fc4fc00ae303ed5062803cb0",
+  "inputs_digest": "7caa1db8eaead24ef43e3f1b6de5020e902e16a6146fa02af8414637da2c56f1",
   "result": "pass",
   "floor": "75",
   "branch_floor": "62",
   "host": "ai-dev",
-  "captured": "2026-09-08T09:15:01Z"
+  "captured": "2026-09-08T13:02:01Z"
 }
