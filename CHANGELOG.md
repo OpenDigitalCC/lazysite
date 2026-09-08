@@ -44,6 +44,54 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.8 - EDGE: what the field asked for, and what it found next (2026-09-08)
+
+**Two field passes in a day, and a site's own report.** 137E passed every
+item it could reach on 0.13.7 and closed 136E-04, 136E-08 and 131E-05; the
+findings from that run, and from familyhq's report of its row stamps, are
+here. Four candidates filed beside them.
+
+- SM776 (49d18d25) **write_file warns about pages only.** A stylesheet
+  written under a theme's `assets/` came back "page has no title in front
+  matter" - the page validator ran on every write that was not a
+  `theme.json`. A page is a `.md` file; everything else is a file.
+- SM777 (902f2191) **the plugin stamps what it reserves.** `timestamps:
+  true` created `created_at`/`updated_at`, the value layer refused them from
+  every writer, and nothing ever wrote them - since the option shipped. A
+  site that turned the flag on for provenance got neither a stamp nor its
+  own field back. Every write path stamps now (insert, update, CSV import),
+  UTC to the second.
+- SM779 (c01428a3) **the map says which channel serves an action, and who
+  you are.** `describe-capabilities` listed 141 actions with nothing to tell
+  a token client that `users` is cookie-only - while the refusal it met sent
+  it to that very document. `cookie_only` is published, `holds` carries
+  `display_name`, and the refusal points at `actions-list`.
+- SM780 (2bea6fc6) **the plugin stamps who wrote the row.** `created_by` on
+  insert, `updated_by` on every write, from the authenticated actor; empty
+  for a public form, never guessed. Reserved from the payload like the
+  timestamps. The plugin's own columns are additive in the migration plan,
+  so a table given the flag after it was made gains them - the gap SM777
+  made visible.
+- SM781 (bfb77438) **a missing value is not a clear.** `start-page-set` with
+  the value under another key answered `ok:1` and silently cleared the
+  setting. `connector-call` was declared the way a cookie-only action is, so
+  `actions-list` dropped it and the generated reference had said "cookie
+  only" since SM579. And the visitor's "no active delivery target" sent the
+  owner to the binding when a connector had refused the mode.
+- SM782 (907f3275) **the manager manages what it lists.** The installer's
+  pre-upgrade archives were listed as manual snapshots, counted toward no
+  cap and refused by `backup-delete` as "Not a lazysite snapshot name"; they
+  are kind `upgrade`, scope `engine`, and deletable. A site package refused
+  to a `manage_domains` token now names the scope rule (SM578) rather than
+  "you do not have access". `config-set` names a missing key as missing and
+  lets `backup_retention`, `asset_max_age` and `canonical_ip` be cleared to
+  the defaults they ship with.
+- Candidates: SM770 (every store reader covered by catalogue), SM773 (a
+  missing parameter named as missing across the control API, from the
+  declarations), SM775 (the manager index lands where sign-in does), SM778
+  (display names wherever a login is handed back, and a name lookup for a
+  page - the ruling recorded: a person who never signs in is app data).
+
 ## 0.13.7 - EDGE: what the first field day found (2026-09-08)
 
 **Five findings from 0.13.6 on edge, every one built the same day.** 136E

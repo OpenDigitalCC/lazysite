@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.7"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.8"
 brand: plain
 ---
 
@@ -1758,6 +1758,15 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.8** (2026-09-08, EDGE) - **What the field asked for.** The data
+  plugin stamps what it reserves - `created_at`, `updated_at` and now
+  `created_by`, `updated_by`, from the authenticated actor, refused from
+  every writer (SM777, SM780); the capability map says which channel serves
+  an action and what the caller is called (SM779); a missing value is not a
+  clear and `connector-call` is on every channel's list (SM781); the manager
+  manages what it lists - the installer's pre-upgrade archives - and a
+  package refusal names the scope rule (SM782); `write_file` warns about
+  pages only (SM776).
 - **0.13.7** (2026-09-08, EDGE) - **What the first field day found.** Five
   findings from 0.13.6 on edge, built the same day: the connector store
   answers "cannot tell" rather than "no secret" when it cannot be opened,
