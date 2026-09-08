@@ -225,7 +225,7 @@ sub _groups_membership {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %g;
     my $f = _groups_file();
-    return %g unless -f $f;
+    # SM770: the open decides.
     open my $fh, '<:utf8', $f or return ( cannot_read( 'groups', $f ) // %g );
     while (<$fh>) {
         chomp; s/^\s+|\s+$//g;
@@ -246,7 +246,7 @@ sub _groups_membership {
 # group description) and silently wiped the whole read to {}.
 sub read_group_settings {
     my $f = _group_settings_file();
-    return {} unless -f $f;
+    # SM770: the open decides.
     open my $fh, '<:raw', $f or return ( cannot_read( 'groups-settings.json', $f ) // {} );
     my $raw = do { local $/; <$fh> };
     close $fh;
@@ -447,15 +447,21 @@ sub caps_for {
 
     sub read_settings {
         my $file = _settings_file();
-        return {} unless -f $file;
 
+        # SM770: the stat below serves the CACHE KEY and nothing else. It used
+        # to double as an absence guard, so a store this process could not
+        # search read as "no accounts" - which for a capability lookup means
+        # "holds nothing", the exact shape SM760 cost a release to find.
         my @st  = stat $file;
         my $key = @st ? "$file:$st[9]:$st[7]" : '';
         return $_settings_cache{$key} if length $key && exists $_settings_cache{$key};
         # Raw octets for decode_json - same convention as read_group_settings
         # (ADR 0001); a non-ASCII email/comment used to kill the whole read.
+        # SM770: through cannot_read, which names the file, the error AND the
+        # unix user - the fact that turns "Permission denied" into an
+        # instruction - and stays silent when the file is simply absent.
         open my $fh, '<:raw', $file or do {
-            log_event( 'WARN', 'settings', 'cannot read user-settings.json', error => "$!" );
+            cannot_read( 'user-settings.json', $file );
             return {};
         };
         my $raw = do { local $/; <$fh> };

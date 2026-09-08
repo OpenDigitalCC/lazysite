@@ -140,8 +140,11 @@ sub _acls_copy {
 
     sub load_acls {
         my $path = _acls_path();
-        return {} unless -f $path;
 
+        # SM770: no `-f` guard. A stat this process may not make fails exactly
+        # as an open it may not make, and the guard turned that into "no rules"
+        # before the open could report it. An absent file still reads as {} -
+        # through the open's ENOENT, which cannot_read passes over in silence.
         my @st  = stat $path;
         my $key = @st ? "$path:$st[9]:$st[7]" : '';
         return _acls_copy( $_acls_cache{$key} )

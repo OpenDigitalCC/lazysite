@@ -161,7 +161,7 @@ sub _auth_dir { return "$LAZYSITE_DIR/auth" }
 # secret simply means no cookie can verify, which is already true.
 sub _auth_secret_read {
     my $path = _auth_dir() . '/.secret';
-    return '' unless -f $path;
+    # SM770: the open decides; a stat guard hides a permissions fault as absence.
     open my $fh, '<', $path or return ( cannot_read( '.secret', $path ) // '' );
     chomp( my $s = <$fh> // '' );
     close $fh;
@@ -193,9 +193,11 @@ sub _uri_decode {
 # Returns the hashref or undef. Undef covers absent, unreadable, unparseable
 # and not-an-object alike; each caller keeps its own default and its own log
 # line, because those differ and are what a sysop reads.
+# SM770: no stat guard. Returns the hash, or undef for BOTH absent and
+# unreadable - the callers below tell them apart by asking whether the file is
+# there, because the two mean different things to them.
 sub _read_json_hash {
     my ($path) = @_;
-    return undef unless -f $path;
     open my $fh, '<:raw', $path or return cannot_read( 'session', $path );
     my $raw = do { local $/; <$fh> };
     close $fh;
@@ -214,10 +216,14 @@ sub account_disabled {
 sub session_revoked {
     my ( $user, $ts, $sid ) = @_;
     my $path = _auth_dir() . '/revoked.json';
-    return 0 unless -f $path;
 
+    # SM770: the open decides. No revocations file at all is the ordinary
+    # state of a site that has never revoked anything and says nothing; a file
+    # that is there and will not open is the WARN below (cannot_read has
+    # already named the file, the error and the unix user).
     my $data = _read_json_hash($path);
     unless ($data) {
+        return 0 if $!{ENOENT};
         log_event( 'WARN', $user,
             'revoked.json unreadable or corrupt - treating as empty (NO session is revoked); '
                 . 'run lazysite-check and repair or remove the file' );
@@ -239,8 +245,7 @@ sub load_user_groups {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($username) = @_;
     my $path = _auth_dir() . '/groups';
-    return '' unless -f $path;
-
+    # SM770: the open decides.
     open( my $fh, '<:utf8', $path ) or return ( cannot_read( 'groups', $path ) // '' );
     my @groups;
     while (<$fh>) {

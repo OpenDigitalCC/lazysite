@@ -149,9 +149,13 @@ sub resolve_job_user {
     $who //= $>;
     for my $store ( [ 'groups-settings.json', "$root/lazysite/auth/groups-settings.json" ], [ 'groups', "$root/lazysite/auth/groups" ] ) {
         my ( $what, $f ) = @$store;
-        next unless -e $f;
+
+        # SM770: ask by OPENING. `-e` said "nothing here" for a store inside a
+        # directory this process may not search - which is the fault this check
+        # exists to catch, reported as its own absence.
         my $fh;
         next if open( $fh, '<', $f ) && close $fh;
+        next if $!{ENOENT};    # not there at all: nothing to be unable to read
         return ( undef, "the runtime (unix user '$who') cannot read lazysite/auth/$what: $! - "
                 . 'the runtime must run as the unix user the request path writes as; '
                 . 'the deploy sets USER= in /etc/lazysite/daemon/<domain>.conf' );
