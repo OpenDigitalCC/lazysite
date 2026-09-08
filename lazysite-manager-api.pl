@@ -2548,10 +2548,25 @@ sub _package_scope_refusal {
     return undef unless $token_auth;
     my $info  = package_inspect($pkg);
     my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
-    return { ok => 0, kind => 'forbidden',
-        error => 'You do not have access to this package.' }
-        if _root_outside_grant($croot);
+    return _package_grant_refusal($croot) if _root_outside_grant($croot);
     return undef;
+}
+
+# SM782: THE REFUSAL NAMES THE RULE. "You do not have access to this
+# package" left a holder of manage_domains with nowhere to go - a different
+# capability, a different channel, or someone else? The rule (SM578) is a
+# scope: a token grant reaches a package only through a WebDAV scope that
+# contains the package's content root; a cookie session is the sysop and is
+# exempt. Say so, with what this grant names and what the package has.
+sub _package_grant_refusal {
+    my ($croot) = @_;
+    my $scopes  = @REQUEST_SCOPES     ? join( ', ', @REQUEST_SCOPES ) : 'no scope';
+    my $root = length( $croot // '' ) ? "'$croot'" : 'no content root (the primary domain)';
+    return { ok => 0, kind => 'forbidden',
+        error => 'A token grant reaches a site package only through a WebDAV scope '
+            . "that contains the package's content root; this package has $root and "
+            . "this grant names $scopes. The sysop's own session is exempt; a token needs a "
+            . 'dav_scope covering the package, or the sysop removes it.' };
 }
 
 # The four responses this file prints itself rather than handing to respond():
@@ -3018,7 +3033,7 @@ sub action_site_backup_inspect {
 
     if (@REQUEST_SCOPES) {
         my $croot = $info->{manifest}{keys}{content_root} // '';
-        return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
+        return _package_grant_refusal($croot)
             if !length $croot
             || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
     }
@@ -3738,7 +3753,11 @@ sub action_config_set {
                 . 'revoked - so a token client that could switch it off could '
                 . 'not be switched off again.' };
     }
-    $key = '' unless defined $key;
+    # SM782: a MISSING key is named as missing. "Config key '' is not
+    # settable" sent the field to the permitted-keys list for a key it never
+    # sent (it had sent {backup_retention: 3} - the field as the key).
+    return { ok => 0, error => 'key is required (send {"key": "<name>", "value": "<value>"} in the JSON body)' }
+        unless defined $key && length $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
 
@@ -3808,10 +3827,14 @@ sub action_config_set {
         && $value !~ /^[A-Za-z0-9_-]+$/ ) {
         return { ok => 0, error => "$key must be a simple name" };
     }
-    # canonical_ip may be CLEARED (empty = auto-detect); every other key needs a
-    # value.
-    return { ok => 0, error => "A value is required" }
-        unless ( defined $value && length $value ) || $key eq 'canonical_ip';
+    # Keys whose EMPTY means "the default" may be cleared: canonical_ip
+    # (auto-detect), asset_max_age (SM416: the revalidation default) and
+    # backup_retention (SM753: 3). SM782: the field ships empty and meant the
+    # default, and "A value is required" made the shipped state unreachable
+    # through the API. Every other key needs a value.
+    my %clearable = map { $_ => 1 } qw(canonical_ip asset_max_age backup_retention);
+    return { ok => 0, error => 'A value is required' }
+        unless ( defined $value && length $value ) || $clearable{$key};
     $value = '' unless defined $value;
     return { ok => 0, error => "Value must be a single line" }
         if $value =~ /[\r\n]/;

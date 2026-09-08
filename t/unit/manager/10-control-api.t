@@ -563,6 +563,28 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
         body               => encode_json( { key => 'site_name', value => 'Renamed' } ) );
     ok( $ok->{ok}, 'a manage_config token still sets ordinary config' );
 
+    # SM782: a missing key is named as missing, and a key whose empty means
+    # the default can be cleared - the field ships empty, and "A value is
+    # required" made that state unreachable through the API.
+    my $nokey = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=config-set',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { backup_retention => '3' } ) );
+    ok( !$nokey->{ok}, 'the field sent as the key is refused' );
+    like( $nokey->{error}, qr/^key is required/, 'as a missing key, not an empty invalid one' );
+    my $clr = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=config-set',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { key => 'backup_retention', value => '' } ) );
+    ok( $clr->{ok}, 'backup_retention may be cleared back to the default' ) or diag encode_json($clr);
+    require Lazysite::Util;
+    is( Lazysite::Util::backup_retention("$d/lazysite"), 3, 'and the cleared key reads as the default' );
+    my $still = mapi( $d, REQUEST_METHOD => 'POST',
+        QUERY_STRING       => 'action=config-set',
+        HTTP_AUTHORIZATION => $auth,
+        body               => encode_json( { key => 'site_name', value => '' } ) );
+    ok( !$still->{ok} && $still->{error} =~ /A value is required/, 'a key that has no default still needs a value' );
+
     for my $k (qw(manager manager_path)) {
         my $r = mapi( $d, REQUEST_METHOD => 'POST',
             QUERY_STRING       => 'action=config-set',

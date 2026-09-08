@@ -153,8 +153,12 @@ sub action_backup_list {
             # Kind from the (now lazysite-prefixed) name; `site` is a per-domain
             # site package (SM158) that also lives here.
             my ($kind) = $f =~ /\A(?:lazysite-)?(preinstall|prerestore|manual|full|site)-/;
-            $kind //= 'manual';
-            my $scope = $kind eq 'full' ? 'full' : $kind eq 'site' ? 'site' : 'content';
+            # SM782: the installer's pre-upgrade archive (lazysite-backup-
+            # <date>-<time>-pre-<version>) is the ENGINE's files, so an upgrade
+            # can be undone - not content. It was listed as `manual`, counted
+            # toward no cap, and could not be deleted: listed and unmanaged.
+            $kind //= $f =~ /\Alazysite-backup-\d{8}-\d{6}-/ ? 'upgrade' : 'manual';
+            my $scope = $kind eq 'full' ? 'full' : $kind eq 'site' ? 'site' : $kind eq 'upgrade' ? 'engine' : 'content';
 
             # SM183: present only when a digest was written beside it, so an
             # artefact from before this is simply unverified rather than
@@ -297,9 +301,16 @@ sub action_backup_delete {
         error => 'A site package is removed with site-backup-delete, which '
             . 'applies the per-domain scope checks this action does not.' }
         if $name =~ /\A(?:lazysite-)?site-/;
+    # SM782: the installer's pre-upgrade archive is deletable here too - it
+    # is a file this directory lists, and nothing else removes it once the
+    # installer's own rotation has moved past it. The refusal names the two
+    # name shapes rather than calling the name invalid.
     return { ok => 0, kind => 'invalid',
-        error => 'Not a lazysite snapshot name' }
-        unless $name =~ /\A(?:lazysite-)?(?:preinstall|prerestore|manual|full)-/;
+        error => 'Not a snapshot this action manages: a manager snapshot is '
+            . 'lazysite-<manual|prerestore|full>-<stamp>.tar.gz and an installer '
+            . 'pre-upgrade archive is lazysite-backup-<date>-<time>-pre-<version>.tar.gz' }
+        unless $name =~ /\A(?:lazysite-)?(?:preinstall|prerestore|manual|full)-/
+        || $name =~ /\Alazysite-backup-\d{8}-\d{6}-/;
 
     my $full = _dir() . "/$name";
     return { ok => 0, kind => 'not-found', error => 'Backup not found' } unless -f $full;

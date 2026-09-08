@@ -200,7 +200,12 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
         QUERY_STRING       => 'action=site-backup-delete',
         HTTP_AUTHORIZATION => $auth,
         body               => encode_json( { name => $pkg } ) );
-    ok( !$del->{ok},                   'nor DELETE it - SM577, the irreversible half' );
+    ok( !$del->{ok}, 'nor DELETE it - SM577, the irreversible half' );
+    # SM782: the refusal names the rule - a scope containing the package's
+    # content root - and what this grant names, so a manage_domains holder
+    # knows it is the scope, not the capability or the channel.
+    like( $del->{error}, qr/WebDAV scope that contains the package's content root.*this grant names no scope/,
+        'and says the rule is the scope, and that this grant names none' );
     ok( -f "$d/lazysite/backups/$pkg", 'and the package is still there' );
 
     # SM578's second half: the listing carried no filter at all, so a name and

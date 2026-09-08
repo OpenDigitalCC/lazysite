@@ -51,7 +51,10 @@ sub backup_retention {
     while ( my $l = <$fh> ) {
         next unless $l =~ /^backup_retention\s*:\s*(.*?)\s*$/;
         my $v = $1;
-        if ( $v =~ /\A\d+\z/ ) { $val = $v + 0 }
+        # SM782: an EMPTY value is the default, silently - it is how the
+        # field ships and what clearing it through the API writes.
+        if    ( !length $v )      { $val = $BACKUP_RETENTION_DEFAULT }
+        elsif ( $v =~ /\A\d+\z/ ) { $val = $v + 0 }
         else { log_event( 'WARN', 'config', 'backup_retention is not a whole number; using the default', value => $v, default => $BACKUP_RETENTION_DEFAULT ) }
         last;
     }

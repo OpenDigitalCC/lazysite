@@ -1816,7 +1816,9 @@ sub read_retention {
     while (<$fh>) {
         next unless /^backup_retention\s*:\s*(.*?)\s*$/;
         my $v = $1;
-        if ( $v =~ /^\d+$/ ) { $val = $v + 0 }
+        # SM782: empty is the default, silently (the engine's reader agrees)
+        if    ( !length $v )    { $val = $default }
+        elsif ( $v =~ /^\d+$/ ) { $val = $v + 0 }
         else { warn "lazysite.conf: backup_retention '$v' is not a whole number; using $default\n" }
         last;
     }
