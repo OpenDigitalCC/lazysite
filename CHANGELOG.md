@@ -44,6 +44,92 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.9 - EDGE: two security reviews, and the connector surface finished (2026-09-08)
+
+**The biggest edge release of the campaign, and most of it is other people's
+findings.** Two source-level security reviews arrived from the field in one
+evening - one on the daemon, the connector egress and the render path, one on
+the wild-facing request path - and between them they account for eleven of the
+items below. The four small ones the release manager scheduled are here, and
+SM579's phase 2 finishes the connector: the operator now has a page for it, a
+connector can be called on a timer, and a page action can send a table row.
+
+- SM783 (b6ae8327) **a message names the right thing - the field, the fault,
+  the reason.** `dav_scope` named as the field it is, a malformed package name
+  refused as malformed rather than absent, and `config-set` saying why a key
+  has no default to fall back to.
+- SM770 (4cf42df4) **every store reader covered by a catalogue, not by
+  memory.** `Lazysite::Stores` classifies every directory under `lazysite/` as
+  a store or not, with the reason written down, and t/lint/121 is driven by it
+  - so a store added next release is covered the day it appears. Eight stat
+  guards removed: a stat the process may not make fails like an open it may
+  not make, and an auth directory without its search bit read as "no accounts".
+- SM773 (9631a40a) **a missing parameter is named as missing, from the
+  declarations.** The parameter table already said where each is read from;
+  the dispatcher now answers an absent one before the action runs, in a
+  sentence generated from that table. It tests presence, never length - `{"value":""}`
+  is a value and `{}` is no answer.
+- SM778 (4759c99e) **the display name wherever a login is handed back**, and a
+  read-only `display-names` lookup with an MCP twin, so a site stops mirroring
+  the names of account-holders into its own table. Eight surfaces carry the
+  map; an entry appears only for a login that has a name, so nothing that reads
+  them today had to change.
+- SM785 (4759c99e) **a settings store that could not be read is not
+  overwritten.** Found by an SM778 test, not by review: every settings writer
+  is a read-modify-write, and `read_settings` answers `{}` for a store it could
+  not open - so one ordinary API call (token verification stamps "last used")
+  replaced every account's display name, comment, email, expiry, TTL and start
+  page with the single entry being stamped.
+- SM775 (5db6c585) **the manager index lands where sign-in does.** `/manager/`
+  no longer forwards an account to a settings page it cannot read; the page
+  names the capability in its body instead of emptying itself; and the nav
+  marks an unreachable item for every account, not only for one that could
+  grant it.
+- SM579 phase 2 (9f1e66d6, 57e34460) **the connector surface, finished.** A
+  Connectors page for the operator who owns the destination. A row source: the
+  caller sends a KEY and the connector's `row_map` decides which columns leave,
+  so a table gaining a column does not widen what is sent. Scheduled
+  invocation, mode 1, as one engine job - `%JOBS` stays a closed literal. And
+  the MCP surface decided: calling gets a twin, configuring does not.
+- SM794 (24718088) **the trust source clears every header its readers trust.**
+  `lazysite-auth.pl` set the trusted sentinel and regenerated two of the six
+  headers, and the gate returns early - so the client's own `X-Payment-Verified`
+  was passed on as ours and a logged-in visitor was served payment-gated
+  content. t/lint/38 now covers the payment headers and asks whether the source
+  accounts for every field.
+- SM795 (24718088, c12dedec) **the canonical serve excludes the engine tree.**
+  The engine tree was blocked by a test on the request STRING while the serve
+  confined only to the docroot, so a symlink resolving into `lazysite/` was
+  served. Both halves: the processor, and DAV - where the check applies only
+  where the request does not itself name an engine path, because DAV has
+  sanctioned ways in.
+- SM796 (24718088) **request_uri is escaped where the stash is built**, like
+  every value beside it.
+- SM790 (ccd2535d) **the connector does not trust what the remote sends back.**
+  No redirect is followed (a 3xx is a recorded refusal, which closes the
+  credential leak by construction), and the body is capped at the same number
+  the stored answer is. The webhook dispatcher takes both. Built in this
+  release because phase 2's timer made the unattended case live.
+- SM787, SM788, SM789, SM791 (c12dedec) **the daemon review's residue.** A run
+  record that is valid JSON with a non-hash job value no longer kills every
+  tick forever; the process start-time parse reads the field its own comment
+  names; the one-supervisor lock holds the path and not just the inode; and
+  provisioning refuses a value that could split a line.
+- SM800 (819ec737) **an empty roster is a statement about the site.** `users
+  list` and the Users page say the account store could not be read instead of
+  showing no accounts. Building it found the cause: the tool that writes the
+  store was not in the catalogue, so t/lint/121 had never looked at the file
+  holding its two primary readers, and both still carried the guard SM770
+  removed everywhere else.
+- Candidates: SM784 (a boolean has four states - the release manager's rule,
+  with the prior art), SM786 (a data-table cell is escaped where it renders -
+  ruled: escape by default behind a manager.conf override announced deprecated
+  in the same release), SM792 (the daemon hardening residue), SM793 (the
+  submissions viewer is not the only thing between a payload and the operator),
+  SM797 (the static serve refuses what is source rather than asset), SM798 (the
+  auth CGI residue), SM799 (a token client can author a form but cannot bind
+  one).
+
 ## 0.13.8 - EDGE: what the field asked for, and what it found next (2026-09-08)
 
 **Two field passes in a day, and a site's own report.** 137E passed every

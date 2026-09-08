@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.8"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.9"
 brand: plain
 ---
 
@@ -1758,6 +1758,22 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.9** (2026-09-08, EDGE) - **Two security reviews, and the connector
+  surface finished.** The operator gets a Connectors page, a connector can be
+  called on a timer, and a page action can send a mapped table row (SM579
+  phase 2). Eleven items come from two source-level reviews the field ran: the
+  trust source clears every header its readers trust, after a logged-in visitor
+  could serve themselves payment-gated content (SM794); the canonical serve and
+  DAV exclude the engine tree on the resolved path, not the request string
+  (SM795); the connector no longer follows a redirect with the operator's
+  credential attached (SM790); and the daemon's run record, start-time parse,
+  supervisor lock and provisioning guards (SM787-SM789, SM791). Beside them:
+  every store reader covered by a catalogue rather than by memory (SM770), a
+  missing parameter named as missing from the declarations (SM773), the display
+  name wherever a login is handed back (SM778), a settings store that could not
+  be read is not overwritten (SM785), the manager index landing where sign-in
+  does (SM775), and an empty roster no longer printed for a store nobody could
+  read (SM800).
 - **0.13.8** (2026-09-08, EDGE) - **What the field asked for.** The data
   plugin stamps what it reserves - `created_at`, `updated_at` and now
   `created_by`, `updated_by`, from the authenticated actor, refused from
