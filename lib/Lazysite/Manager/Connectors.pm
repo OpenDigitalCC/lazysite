@@ -120,6 +120,15 @@ sub _calls_unreadable   { return _unreadable( 'call record',     _calls_file() )
 
 sub _valid_id { return defined $_[0] && $_[0] =~ /\A[a-z0-9][a-z0-9_-]{0,63}\z/ }
 
+# SM772 (the field's second item): a MISSING id is not an invalid one. The
+# refusal for an absent parameter names the parameter and where it goes;
+# the charset complaint is kept for a value that is actually there.
+sub _id_fault {
+    my ($id) = @_;
+    return 'id is required (send it in the JSON body)' unless defined $id && length $id;
+    return 'connector id must be a-z, 0-9, - or _';
+}
+
 # The definition a caller may store. Everything is explicit and bounded:
 # an https URL (http only for a loopback address, so a test may stand in),
 # POST or GET, the header the secret rides in, the modes as three booleans
@@ -186,7 +195,7 @@ sub action_connector_list {
 
 sub action_connector_save {
     my ( $id, $def ) = @_;
-    return { ok => 0, error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
+    return { ok => 0, error => _id_fault($id) } unless _valid_id($id);
     my ( $c, $err ) = _normalise($def);
     return { ok => 0, error => $err } unless $c;
     my $all = connectors();
@@ -203,7 +212,7 @@ sub action_connector_save {
 # The secret is written on its own, never listed, never returned.
 sub action_connector_secret_set {
     my ( $id, $secret ) = @_;
-    return { ok => 0, error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
+    return { ok => 0, error => _id_fault($id) } unless _valid_id($id);
     my $all = connectors();
     return { ok => 0, error => _store_unreadable() }  unless defined $all;
     return { ok => 0, error => "no connector '$id'" } unless exists $all->{$id};
@@ -222,7 +231,7 @@ sub action_connector_secret_set {
 
 sub action_connector_delete {
     my ($id) = @_;
-    return { ok => 0, error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
+    return { ok => 0, error => _id_fault($id) } unless _valid_id($id);
     my $all = connectors();
     return { ok => 0, error => _store_unreadable() }  unless defined $all;
     return { ok => 0, error => "no connector '$id'" } unless exists $all->{$id};
@@ -308,7 +317,7 @@ sub _record_call {
 # payload and the answer body are in neither.
 sub call {
     my ( $id, $payload, %ctx ) = @_;
-    return { ok => 0, state => 'refused', error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
+    return { ok => 0, state => 'refused', error => _id_fault($id) } unless _valid_id($id);
     my $all = connectors();
     return { ok => 0, state => 'refused', error => _store_unreadable() } unless defined $all;
     my $c = $all->{$id}

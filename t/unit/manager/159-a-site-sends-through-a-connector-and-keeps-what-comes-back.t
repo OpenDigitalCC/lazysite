@@ -64,6 +64,10 @@ subtest 'a connector is bounded at save time' => sub {
     like( $bad->{error}, qr/https/, 'and the refusal says what is accepted' );
     $bad = Lazysite::Manager::Connectors::action_connector_save( 'Bad Id', { url => 'https://a.example/x' } );
     ok( !$bad->{ok}, 'an id with a space is refused' );
+    like( $bad->{error}, qr/must be a-z/, 'as a charset fault' );
+    # SM772: a missing id is named as missing, and told where it goes
+    $bad = Lazysite::Manager::Connectors::action_connector_delete(undef);
+    is( $bad->{error}, 'id is required (send it in the JSON body)', 'an absent id is required, not invalid' );
     my $r = save_ok('echo');
     is( $r->{connector}{modes}{public},        0, 'public is OFF unless said' );
     is( $r->{connector}{modes}{authenticated}, 1, 'authenticated is on by default' );
