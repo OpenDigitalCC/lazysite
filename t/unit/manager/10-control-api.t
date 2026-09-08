@@ -588,6 +588,49 @@ ok( $now->{ok}, 'SM570: and answers once manage_content is granted (control)' )
     like( $still->{error}, qr/'site_name' has no default to fall back to, so it cannot be cleared \(the keys that can are .*backup_retention/,
         'naming the reason and which keys may be cleared' );
 
+    # --- SM773: a missing parameter is named as missing, before the branch ---
+    # Four times in one campaign an ABSENT parameter was answered as a BAD one.
+    # The declarations already say where each is read from, so the sentence is
+    # generated from them and the branch never sees the absence.
+    {
+        # connector-delete reads its id from the BODY only, which is what makes
+        # it the right shape for the "sent to the other channel" case.
+        grant_caps( $d, 'cfg', 'manage_config', 'api', 'manage_connectors' );
+        my $noid = mapi( $d, REQUEST_METHOD => 'POST',
+            QUERY_STRING       => 'action=connector-delete',
+            HTTP_AUTHORIZATION => $auth,
+            body               => encode_json( {} ) );
+        like( $noid->{error}, qr/^id is required \(in the JSON body\)/,
+            'an absent body parameter is named, with its channel' );
+        is( $noid->{field}, 'id', 'and the field is machine-readable' );
+
+        # THE PARAMETER SENT TO THE OTHER CHANNEL is the shape that cost the
+        # field three round trips: it IS absent from the channel that is read.
+        my $inquery = mapi( $d, REQUEST_METHOD => 'POST',
+            QUERY_STRING       => 'action=connector-delete&id=probe',
+            HTTP_AUTHORIZATION => $auth,
+            body               => encode_json( {} ) );
+        like( $inquery->{error}, qr/^id is required \(in the JSON body\)/,
+            'including one sent to the query string when the body is what is read' );
+
+        # ABSENT IS NOT EMPTY (SM784). An empty value was SENT; only the action
+        # knows what its empty means, so the check must not intercept it.
+        my $empty = mapi( $d, REQUEST_METHOD => 'POST',
+            QUERY_STRING       => 'action=connector-delete',
+            HTTP_AUTHORIZATION => $auth,
+            body               => encode_json( { id => '' } ) );
+        unlike( $empty->{error} // '', qr/is required \(in the/,
+            'an empty value reaches the action, which decides what its empty means' );
+
+        # An unmarked parameter is not intercepted: nobody has established
+        # whether the action can do without it.
+        my $unmarked = mapi( $d, REQUEST_METHOD => 'GET',
+            QUERY_STRING       => 'action=connector-calls',
+            HTTP_AUTHORIZATION => $auth );
+        ok( $unmarked->{ok}, 'an action whose parameters are unmarked is untouched' )
+            or diag encode_json($unmarked);
+    }
+
     for my $k (qw(manager manager_path)) {
         my $r = mapi( $d, REQUEST_METHOD => 'POST',
             QUERY_STRING       => 'action=config-set',

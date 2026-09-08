@@ -58,7 +58,8 @@ subtest 'set: your own' => sub {
     # {start_page: ...}, got ok:1, and found the setting silently cleared.
     $r = $s->call( 'ed', 'start-page-set', body => { start_page => 'manager:files' } );
     ok( !$r->{ok}, 'a body without `value` is refused' );
-    like( $r->{error}, qr/value is required .*an empty string clears/, 'naming the key and how to clear' );
+    like( $r->{error}, qr/^value is required \(in the JSON body; an empty string clears the start page\)/,
+        'naming the key, the channel, and what an empty one means (SM773: generated from the declaration)' );
     is( $s->call( 'ed', 'start-page' )->{current}, 'manager:files', 'and the setting is untouched' );
 
     open my $fh, '<', "$d/lazysite/logs/audit.log" or die $!;

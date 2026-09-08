@@ -1318,6 +1318,58 @@ my %uskip = map { $_ => 1 } qw(
 @Lazysite::Manager::Data::CALLER_SCOPES   = @REQUEST_SCOPES;
 $Lazysite::Manager::Data::CALLER_CONFINED = $REQUEST_CONFINED;
 
+# --- SM773: A MISSING PARAMETER IS NAMED AS MISSING, BEFORE THE BRANCH RUNS.
+#
+# Four times in one campaign a parameter that was absent - or sent to the other
+# channel - was answered as a BAD ONE: theme-copy complained about a name it
+# had never received, connector-delete about the characters in an id it had not
+# read, config-set about a key of '', and start-page-set answered ok:true and
+# CLEARED the setting. Each was fixed where it was found, and the next one was
+# always somewhere else.
+#
+# The declarations already say where every parameter is read from, so the
+# sentence can be generated rather than written: name the parameter, say which
+# channel carries it, and stop before the branch that would mis-describe it.
+#
+# ONLY where the action already refuses an absent value (`required => 1` in
+# Lazysite::ControlApi::Actions, marked by reading the handler). Hoisting those
+# changes the message and never the behaviour; a parameter nobody has
+# established either way stays unmarked and reaches the branch as before.
+sub _missing_required {
+    my ($name) = @_;
+    my $spec = $Lazysite::ControlApi::Actions::ACTION{$name} or return undef;
+    # ABSENT IS NOT EMPTY. A parameter that was SENT and is empty is a value -
+    # `{"value":""}` is how start-page-set clears a start page - and only the
+    # action knows what its empty means. This check answers the one question
+    # the action cannot ask: was it sent at all? So it tests PRESENCE, never
+    # truth or length. (The release manager's rule, 2026-09-08: a boolean has
+    # four states - true, false, neither, and no answer - and almost every one
+    # of them needs all four accounted for.)
+    for my $p ( @{ $spec->{params} || [] } ) {
+        next unless $p->{required};
+        my $in   = $p->{in} // 'body';
+        my $body = _json_body() || {};
+        my $sent
+            = $in eq 'query' ? exists $params{ $p->{name} }
+            : $in eq 'body'  ? exists $body->{ $p->{name} }
+            :   ( exists $params{ $p->{name} } || exists $body->{ $p->{name} } );
+        next if $sent;
+        my $where
+            = $in eq 'query' ? 'in the query string'
+            : $in eq 'body'  ? 'in the JSON body'
+            :                  'in the JSON body or the query string';
+        $where .= "; $p->{note}" if defined $p->{note} && length $p->{note};
+        return { ok => 0, kind => 'invalid', field => $p->{name},
+            error => "$p->{name} is required ($where)" };
+    }
+    return undef;
+}
+
+if ( my $missing = _missing_required($action) ) {
+    respond($missing);
+    exit 0;
+}
+
 # --- Dispatch ---
 
 my $result;

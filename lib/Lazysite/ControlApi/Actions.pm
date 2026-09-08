@@ -40,6 +40,18 @@ package Lazysite::ControlApi::Actions;
 # not tell "exists, but cookie-only" from "no such action", and reported both as
 # the former.
 #
+# `required => 1` MARKS A PARAMETER THE ACTION REFUSES TO RUN WITHOUT, and
+# the dispatcher answers its absence before the branch is reached, in one
+# sentence naming the parameter and where it goes (SM773). It is marked only
+# where the handler ALREADY refuses an absent value, so hoisting the check
+# changes the message and never the behaviour - and the set grows by evidence,
+# never by guessing which parameters an action could do without. A `note`
+# carries what the generated sentence cannot know - that an empty value MEANS
+# something here, which is the difference between "false" and "no answer" and
+# the reason this check asks whether a parameter was SENT rather than whether
+# it is true. An unmarked
+# parameter is not "optional"; it is one nobody has established either way.
+#
 # WHERE A PARAMETER IS READ FROM is recorded because the two channels are not
 # interchangeable in the chain. `query` is the query string, `body` is the JSON
 # request body, and `query_or_body` means the branch accepts either - which is
@@ -62,8 +74,8 @@ our %ACTION = (
     # (the three-state note above: any ONE of the listed caps is enough), so a
     # long-standing manage_content grant keeps reading; a write takes
     # manage_briefs alone.
-    'brief-read' => { caps => [ 'manage_content', 'manage_briefs' ], params => [ { name => 'path', in => 'query' } ] },
-    'brief-append' => { caps => ['manage_briefs'], params => [ { name => 'path', in => 'query' }, { name => 'entry', in => 'body' } ] },
+    'brief-read' => { caps => [ 'manage_content', 'manage_briefs' ], params => [ { name => 'path', in => 'query', required => 1 } ] },
+    'brief-append' => { caps => ['manage_briefs'], params => [ { name => 'path', in => 'query', required => 1 }, { name => 'entry', in => 'body', required => 1 } ] },
     'briefs-migrate' => { caps => ['manage_briefs'],                     params => [] },
     'briefs-list'    => { caps => [ 'manage_content', 'manage_briefs' ], params => [] },
     'brief-delete' => { caps => ['purge'], params => [ { name => 'path', in => 'query' } ] },
@@ -85,7 +97,7 @@ our %ACTION = (
     'cache-list'       => { caps => undef,             params => [] },
     'channel-services' => { caps => undef,             params => [] },
     'config-read'      => { caps => ['manage_config'], params => [] },
-    'config-set' => { caps => ['manage_config'], params => [ { name => 'key', in => 'query_or_body' }, { name => 'value', in => 'query_or_body' } ] },
+    'config-set' => { caps => ['manage_config'], params => [ { name => 'key', in => 'query_or_body', required => 1 }, { name => 'value', in => 'query_or_body' } ] },
     'copy' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'csrf-token' => { caps => undef, params => [] },
 
@@ -223,13 +235,13 @@ our %ACTION = (
     'sessions-list'     => { caps => undef,              params => [] },
     'site-backup-apply' => { caps => ['manage_domains'], params => [] },
     'site-backup-create' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'query_or_body' }, { name => 'data_tables', in => 'body' } ] },
-    'site-backup-delete' => { caps => ['manage_domains'], params => [ { name => 'name', in => 'query_or_body' } ] },
+    'site-backup-delete' => { caps => ['manage_domains'], params => [ { name => 'name', in => 'query_or_body', required => 1 } ] },
     'site-backup-download' => { caps => ['manage_domains'], params => [ { name => 'name', in => 'query_or_body' } ] },
     'site-backup-inspect' => { caps => ['manage_domains'], params => [ { name => 'name', in => 'query' }, { name => 'host', in => 'query' } ] },
     'site-backup-upload' => { caps => ['manage_domains'], params => [] },
     'site-export-primary' => { caps => ['manage_content'], params => [ { name => 'data_tables', in => 'body' } ] },
     'theme-activate' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query' }, { name => 'theme', in => 'query' } ] },
-    'theme-copy' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query' }, { name => 'new_name', in => 'body' }, { name => 'layout', in => 'body' } ] },
+    'theme-copy' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query', required => 1 }, { name => 'new_name', in => 'body', required => 1 }, { name => 'layout', in => 'body' } ] },
     'theme-delete' => { caps => ['manage_themes'], params => [ { name => 'path', in => 'query' } ] },
     'theme-list' => { caps => [ 'manage_themes', 'manage_layouts' ], params => [] },
     'theme-rename' => { caps => undef, params => [ { name => 'path', in => 'query' }, { name => 'new_name', in => 'body' } ] },
@@ -247,8 +259,8 @@ our %ACTION = (
     # gates it (callers groups or manage_connectors) - see Connectors::may_call.
     'connector-list' => { caps => ['manage_connectors'], params => [] },
     'connector-save' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' }, { name => 'connector', in => 'body' } ] },
-    'connector-secret-set' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' }, { name => 'secret', in => 'body' } ] },
-    'connector-delete' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body' } ] },
+    'connector-secret-set' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body', required => 1 }, { name => 'secret', in => 'body', required => 1 } ] },
+    'connector-delete' => { caps => ['manage_connectors'], params => [ { name => 'id', in => 'body', required => 1 } ] },
     # SM781: caps => [] - NO capability, not "cookie-only". undef here means
     # the cookie channel alone serves the action, and connector-call is
     # served on every channel (gate 'ALWAYS'); the field found it working and
@@ -257,7 +269,7 @@ our %ACTION = (
     'connector-call' => { caps => [], params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' } ] },
     'connector-calls' => { caps => ['manage_connectors'], params => [ { name => 'connector', in => 'query' }, { name => 'state', in => 'query' }, { name => 'limit', in => 'query' } ] },
     'start-page' => { caps => undef, params => [ { name => 'username', in => 'query' } ] },
-    'start-page-set' => { caps => undef, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body' } ] },
+    'start-page-set' => { caps => undef, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { caps => [], params => [ { name => 'plugins', in => 'query' } ] },
 );
 

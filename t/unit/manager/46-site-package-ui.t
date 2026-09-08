@@ -218,8 +218,8 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
         QUERY_STRING       => 'action=site-backup-delete',
         HTTP_AUTHORIZATION => $auth,
         body               => encode_json( {} ) );
-    like( $none->{error}, qr/A site package name is required \(in the JSON body or the query as `name`\)/,
-        'and an absent one as absent, saying where it goes' );
+    like( $none->{error}, qr/^name is required \(in the JSON body or the query string\)/,
+        'and an absent one is answered before the branch runs, in the one sentence every action now uses (SM773)' );
     ok( -f "$d/lazysite/backups/$pkg", 'and the package is still there' );
 
     # SM578's second half: the listing carried no filter at all, so a name and
