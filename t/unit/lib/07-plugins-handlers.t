@@ -27,6 +27,10 @@ for my $p (qw(log.pl audit.pl)) {
     print {$pf} "print '{\"id\":\"$p\",\"actions\":[]}' if \"@ARGV\"=~/--describe/; exit 0;\n";
     close $pf;
 }
+# SM772: the REAL form-handler plugin, so handler-save reads the handler
+# types it declares (the fixture's stubs describe no handler_types).
+use File::Copy qw(copy);
+copy( "$FindBin::Bin/../../../plugins/form-handler.pl", "$base/plugins/form-handler.pl" ) or die "copy: $!";
 $Lazysite::Manager::Plugins::DOCROOT = $d;
 $Lazysite::Manager::Plugins::action  = 'test';
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
@@ -42,13 +46,13 @@ sub handler_by_id {
 }
 
 # --- plugin enable / disable mutate the conf correctly ---
-ok( action_plugin_enable('plugins/log.pl')->{ok},   'enable a plugin' );
+ok( action_plugin_enable('plugins/log.pl')->{ok}, 'enable a plugin' );
 like( slurp_conf(), qr{plugins:\s*\n\s+- plugins/log\.pl}s, 'plugin added under a plugins: block' );
 ok( action_plugin_enable('plugins/audit.pl')->{ok}, 'enable a second' );
 like( slurp_conf(), qr{audit\.pl}, 'second plugin present' );
-ok( action_plugin_disable('plugins/log.pl')->{ok},  'disable a plugin' );
-unlike( slurp_conf(), qr{log\.pl},  'disabled plugin removed' );
-like( slurp_conf(), qr{audit\.pl},  'the other plugin survives the disable' );
+ok( action_plugin_disable('plugins/log.pl')->{ok}, 'disable a plugin' );
+unlike( slurp_conf(), qr{log\.pl}, 'disabled plugin removed' );
+like( slurp_conf(), qr{audit\.pl}, 'the other plugin survives the disable' );
 my $bad = action_plugin_enable('');
 ok( !$bad->{ok}, 'empty script rejected' );
 like( $bad->{error}, qr/no script/i, 'with a "No script" error' );
@@ -62,10 +66,57 @@ ok( $h, 'saved handler is listed' );
 is( $h->{type}, 'smtp',            'handler type round-trips' );
 is( $h->{to},   'ops@example.com', 'handler to-address round-trips' );
 ok( action_handler_delete('email1')->{ok}, 'handler deleted' );
-ok( !handler_by_id('email1'), 'deleted handler no longer listed' );
+ok( !handler_by_id('email1'),              'deleted handler no longer listed' );
 my $hbad = action_handler_save( { id => '' } );
 ok( !$hbad->{ok}, 'handler with no id rejected' );
 like( $hbad->{error}, qr/handler id/i, 'with an "Invalid handler ID" error' );
+
+# --- SM772: a handler is saved by its declared schema -----------------------
+# The field bound the first form to a connector and found the handler saved
+# with ok:1 and no connector: the writer copied a fixed list of keys. Every
+# key a type's schema declares round-trips; a required key without a default
+# is refused by name; a type the plugin does not offer is refused by name.
+subtest 'SM772: the writer keeps what the schema declares and refuses what it requires' => sub {
+    my $r = action_handler_save( { id => 'probe', type => 'connector', name => 'Probe', connector => 'probe' } );
+    ok( $r->{ok}, 'a connector handler is saved' ) or diag $r->{error};
+    is( handler_by_id('probe')->{connector}, 'probe', 'and names its connector on read-back' );
+
+    $r = action_handler_save( { id => 'probe2', type => 'connector', name => 'Probe' } );
+    ok( !$r->{ok}, 'a connector handler without a connector is refused' );
+    is( $r->{error}, 'connector is required for a connector handler', 'by name' );
+    ok( !handler_by_id('probe2'), 'and nothing was written' );
+
+    $r = action_handler_save( { id => 'rows', type => 'db', name => 'Rows', table => 'leads' } );
+    ok( $r->{ok}, 'a db handler is saved' ) or diag $r->{error};
+    my $db = handler_by_id('rows');
+    is( $db->{table}, 'leads',                                  'its table round-trips' );
+    is( $db->{fields}, 'name=name,email=email,message=message', 'and a required key with a default is filled' );
+    ok( !action_handler_save( { id => 'rows2', type => 'db', name => 'Rows' } )->{ok}, 'a db handler without a table is refused' );
+
+    $r = action_handler_save( { id => 'mail', type => 'smtp', name => 'Mail', from => 'a@x.test', to => 'b@x.test', attach_files => 'true' } );
+    ok( $r->{ok}, 'an smtp handler is saved' );
+    is( handler_by_id('mail')->{attach_files}, 'true', 'attach_files - declared, never in the old list - round-trips' );
+
+    $r = action_handler_save( { id => 'odd', type => 'carrier-pigeon', name => 'Odd' } );
+    ok( !$r->{ok}, 'a type the plugin does not offer is refused' );
+    like( $r->{error}, qr/no handler type 'carrier-pigeon' - the form-handler plugin offers: .*connector.*db.*file.*smtp.*webhook/, 'naming what it offers' );
+
+    # every declared schema key of every type round-trips: the check that
+    # would have failed the moment `connector` was added to the plugin
+    my $types = Lazysite::Manager::Plugins::_handler_types();
+    ok( $types && $types->{connector}, 'the plugin describes its handler types to the writer' );
+    for my $t ( sort keys %$types ) {
+        my %in = ( id => "rt-$t", type => $t, name => "rt $t" );
+        $in{ $_->{key} } = "v-$_->{key}" for grep { $_->{key} !~ /\A(?:name|enabled)\z/ } @{ $types->{$t}{schema} };
+        my $rs = action_handler_save( \%in );
+        ok( $rs->{ok}, "every schema key of '$t' is accepted" ) or diag $rs->{error};
+        my $back = handler_by_id("rt-$t");
+        is( $back->{ $_->{key} }, "v-$_->{key}", "  $t.$_->{key} round-trips" )
+            for grep { $_->{key} !~ /\A(?:name|enabled)\z/ } @{ $types->{$t}{schema} };
+        action_handler_delete("rt-$t");
+    }
+    action_handler_delete($_) for qw(probe rows mail);
+};
 
 # --- form targets: clean single-format round-trips ---
 ok( action_form_targets_save( 'contact', [ { handler => 'email1' }, { handler => 'local-storage' } ] )->{ok},
@@ -173,11 +224,11 @@ unlink "$base/sample-plugin.pl";
     is( $after->{rows}[0]{_id}, $r->{rows}[1]{_id}, 'the OTHER row survived (right one deleted)' );
 
     # A bad / unknown id and a traversal are refused.
-    ok( !action_form_submission_delete('lazysite/forms/submissions/contact.jsonl', 'nope')->{ok},
+    ok( !action_form_submission_delete( 'lazysite/forms/submissions/contact.jsonl', 'nope' )->{ok},
         'a malformed row id is refused' );
-    ok( !action_form_submission_delete('lazysite/forms/submissions/contact.jsonl', '0' x 16)->{ok},
+    ok( !action_form_submission_delete( 'lazysite/forms/submissions/contact.jsonl', '0' x 16 )->{ok},
         'an unknown row id is a not-found, not a silent success' );
-    ok( !action_form_submission_delete('lazysite/forms/submissions/../../auth/.secret', '0' x 16)->{ok},
+    ok( !action_form_submission_delete( 'lazysite/forms/submissions/../../auth/.secret', '0' x 16 )->{ok},
         'delete refuses a traversal path' );
 }
 
@@ -209,7 +260,7 @@ unlink "$base/sample-plugin.pl";
     # SM227: `rows` means a COUNT here and an ARRAY OF ROWS in
     # action_form_submissions. row_count is the unambiguous spelling; rows stays
     # one release as a deprecated alias, so they must agree.
-    is( $fb->{row_count}, 2, 'row_count is the submission count' );
+    is( $fb->{row_count}, 2,           'row_count is the submission count' );
     is( $fb->{row_count}, $fb->{rows}, 'the deprecated rows alias agrees with it' );
     like( $fl->{note}, qr/read_form_submissions/,
         'the response names the companion action' );
@@ -263,7 +314,7 @@ unlink "$base/sample-plugin.pl";
         'lazysite/forms/submissions/bulk.jsonl', [ $ids[0], $ids[2] ] );
     ok( $del->{ok} && $del->{deleted} == 2, 'bulk delete removes exactly the two selected rows' );
     my $after = action_form_submissions('lazysite/forms/submissions/bulk.jsonl');
-    is( $after->{total}, 1, 'one row remains' );
+    is( $after->{total},        1,       'one row remains' );
     is( $after->{rows}[0]{_id}, $ids[1], 'the unselected middle row is the survivor' );
 
     ok( !action_form_submissions_delete_bulk( 'lazysite/forms/submissions/bulk.jsonl', [] )->{ok},

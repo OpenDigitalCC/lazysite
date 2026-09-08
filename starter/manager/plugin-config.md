@@ -1136,6 +1136,11 @@ function renderStep2Form(type, name, existingData, isEdit) {
   if (type === 'smtp') html += renderSmtpFields(d);
   else if (type === 'file') html += renderFileFields(d);
   else if (type === 'webhook') html += renderWebhookFields(d);
+  // SM772: every other type renders from the schema the plugin declares, so
+  // a type added to the plugin (connector, db, the next one) is configurable
+  // the day it is offered - the field found "Connector (SM579)" in this list
+  // with no way to say which connector.
+  else html += renderSchemaFields(type, d);
 
   html += '<div class="mg-wizard-actions">';
   if (isEdit) {
@@ -1274,6 +1279,36 @@ function renderFileFields(d) {
   return html;
 }
 
+// SM772: the fields a handler type declares (handler_types[].schema from the
+// Form Handler plugin), minus name and enabled which the step-2 form renders
+// itself. Each input is wiz-<key>, which is how saveHandlerFromWizard reads
+// it back.
+function schemaFieldsFor(type) {
+  var def = null;
+  handlerTypes.forEach(function(t) { if (t.type === type) def = t; });
+  return ((def && def.schema) || []).filter(function(f) {
+    return f.key !== 'name' && f.key !== 'enabled';
+  });
+}
+
+function renderSchemaFields(type, d) {
+  var fields = schemaFieldsFor(type);
+  if (!fields.length) return '';
+  var html = '<div class="mg-sec">' + esc(typeLabelFor(type)) + ' settings</div>';
+  fields.forEach(function(f) {
+    var cur = d[f.key] !== undefined ? d[f.key] : (f.default !== undefined ? f.default : '');
+    html += '<div class="mg-field"><label>' + esc(f.label || f.key) + '</label>';
+    if (f.type === 'boolean') {
+      html += '<input type="checkbox" id="wiz-' + esc(f.key) + '"' + (String(cur) === 'true' ? ' checked' : '') + '>';
+    } else {
+      html += '<input type="' + (f.type === 'email' ? 'email' : 'text') + '" id="wiz-' + esc(f.key) + '" value="' + esc(String(cur)) + '"' + (f.required ? ' required' : '') + '>';
+    }
+    if (f.note) html += '<div class="mg-note">' + esc(f.note) + '</div>';
+    html += '</div>';
+  });
+  return html;
+}
+
 function renderWebhookFields(d) {
   var html = '<div class="mg-sec">Webhook settings</div>';
   html += '<div class="mg-field"><label>URL</label>';
@@ -1337,6 +1372,18 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
     handlerData.url = val('wiz-url');
     handlerData.format = val('wiz-format');
     if (!handlerData.url) { mgShowWarning('URL is required', true); return; }
+  } else {
+    // SM772: read back exactly what renderSchemaFields drew, and refuse a
+    // required field here as the writer refuses it - by name.
+    var missing = null;
+    schemaFieldsFor(type).forEach(function(f) {
+      var el = document.getElementById('wiz-' + f.key);
+      if (!el) return;
+      var v = f.type === 'boolean' ? (el.checked ? 'true' : 'false') : el.value;
+      if (f.required && !v && !missing) missing = f.label || f.key;
+      handlerData[f.key] = v;
+    });
+    if (missing) { mgShowWarning(missing + ' is required', true); return; }
   }
 
   var statusId = isEdit ? 'handler-edit-status-' + existingId : 'wizard-status';

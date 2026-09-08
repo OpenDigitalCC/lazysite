@@ -92,7 +92,8 @@ which a page then reads like any other table. A missing table is reported on
 the call, not skipped.
 
 A public form sends through the same connector by binding the `connector`
-handler:
+handler - added on the Form Handler plugin's page (choose "Connector",
+name the connector id) or written into `lazysite/forms/handlers.conf`:
 
 ```
 handlers:
@@ -100,6 +101,9 @@ handlers:
     type: connector
     connector: crm
 ```
+
+A connector handler that names no connector is refused when saved, by
+name, rather than stored unable to send.
 
 ## What is recorded
 

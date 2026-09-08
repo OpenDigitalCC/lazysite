@@ -920,6 +920,25 @@ sub action_form_list {
     };
 }
 
+# SM772: THE HANDLER TYPES ARE THE PLUGIN'S TO DECLARE. form-handler.pl
+# publishes handler_types[] with a schema per type (key, label, required,
+# default) - the wizard renders from it and the writer below keeps to it.
+# Returns { type => { schema => [...], label => ... } }, or undef when the
+# plugin cannot be described (absent from the registry, or says nothing).
+sub _handler_types {
+    my $full = resolve_plugin_script('plugins/form-handler.pl') or return undef;
+    my $desc = _describe($full)                                 or return undef;
+    my $list = $desc->{handler_types};
+    return undef unless ref $list eq 'ARRAY' && @$list;
+    return { map { ( $_->{type} => $_ ) } grep { ref $_ eq 'HASH' && defined $_->{type} } @$list };
+}
+
+# The keys every handler type may carry regardless of schema: the record's
+# own (type, name, enabled) and the SMTP transport keys the wizard writes
+# beside an smtp handler.
+my @HANDLER_BASE_KEYS = qw(type name enabled from to subject_prefix path url format
+    method sendmail_path host port tls auth username password_file);
+
 sub action_handler_save {
     my ($data) = @_;
     my $id = $data->{id} // '';
@@ -928,13 +947,40 @@ sub action_handler_save {
 
     my $handlers = _parse_handlers_conf();
 
+    # SM772: KEEP WHAT THE SCHEMA DECLARES, REFUSE WHAT IT REQUIRES AND WAS
+    # NOT GIVEN. The first version copied a fixed list of keys, so a
+    # `connector` handler lost its `connector`, a `db` handler its `table`
+    # and `fields`, an smtp handler its `attach_files` - each saved with
+    # ok:1 and each unable to work. The field found it on the first form
+    # bound to a connector: "a required field, dropped, with ok:true".
+    my $type = ( defined $data->{type} && length $data->{type} ) ? $data->{type} : 'file';
+    my $types = _handler_types();
+    my $def;
+    if ($types) {
+        $def = $types->{$type}
+            or return { ok => 0,
+            error => "no handler type '$type' - the form-handler plugin offers: " . join( ', ', sort keys %$types ) };
+    }
+    else {
+        log_event( 'WARN', 'handlers',
+            'the form-handler plugin could not be described; the handler is saved with the built-in field list only',
+            handler => $id, type => $type );
+    }
+    my %keys = map { ( $_ => 1 ) } @HANDLER_BASE_KEYS, map { $_->{key} } @{ $def->{schema} // [] };
+
     # Build handler record from input
-    my %new = ( id => $id );
-    for my $k ( qw(type name enabled from to subject_prefix path url format
-        method sendmail_path host port tls auth username password_file) ) {
+    my %new = ( id => $id, type => $type );
+    for my $k ( sort keys %keys ) {
         $new{$k} = $data->{$k} if defined $data->{$k} && length $data->{$k};
     }
-    $new{type} //= 'file';
+    # Required and without a default: absent is a refusal, by name. A key
+    # with a default is filled the way the wizard fills it.
+    for my $f ( @{ $def->{schema} // [] } ) {
+        my $k = $f->{key};
+        next if defined $new{$k} && length $new{$k};
+        if ( defined $f->{default} && length $f->{default} ) { $new{$k} = $f->{default}; next }
+        return { ok => 0, error => "$k is required for a $type handler" } if $f->{required};
+    }
 
     # Replace existing or append
     my $found = 0;

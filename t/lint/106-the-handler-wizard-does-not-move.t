@@ -36,9 +36,19 @@ unlike( $js, qr/appendChild\(\s*wizard\s*\)/,
 unlike( $js, qr/getElementById\(\s*'add-handler-wizard'\s*\)/,
     'there is no single shared wizard node to move' );
 
+# SM772: a handler type the plugin declares is configurable the day it is
+# offered. The step-2 form draws three types by hand; every other type must
+# fall through to the schema renderer, and the save must read that renderer
+# back - or a type added to the plugin (the field found `connector`) shows in
+# the list with no way to say what it needs.
+like( $js, qr/else\s+html\s*\+=\s*renderSchemaFields\(\s*type\s*,\s*d\s*\)/,
+    'a type without a hand-drawn renderer renders from its declared schema' );
+like( $js, qr/function renderSchemaFields\s*\(/, 'and the schema renderer exists' );
+like( $js, qr/schemaFieldsFor\(\s*type\s*\)\.forEach/, 'and the save reads the schema fields back' );
+
 like( $js, qr/id="add-handler-wizard-'\s*\+\s*type/,
     'each group renders its own slot' )
-    or diag( 'One slot per group is what makes the move unnecessary.' );
+    or diag('One slot per group is what makes the move unnecessary.');
 
 like( $js, qr/querySelectorAll\('\.mg-handler-wizard'\)/,
     'and closing clears every slot' )
