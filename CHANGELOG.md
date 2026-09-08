@@ -44,6 +44,54 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.7 - EDGE: what the first field day found (2026-09-08)
+
+**Five findings from 0.13.6 on edge, every one built the same day.** 136E
+passed six of eight; the two it could not finish and the one it found on the
+way are all here, with the last open item from 131E closed. Four candidates
+filed beside them.
+
+- SM768 (ef301f83) **an unopenable connector store is not an empty one.**
+  With `lazysite/connectors/` unreadable, `connector-list` answered
+  `has_secret: 0` for a secret that was there the whole time. Every reader
+  returns "cannot tell" for a file that exists and cannot be opened, with no
+  stat guard in front; `has_secret` is `1`, `0` or `null` with
+  `secrets_readable` and a warning naming the file and the unix user;
+  nothing is written over, and no call is sent past, a store that could not
+  be read. `cannot_read` logged `error=` blank (errno read after
+  `getpwuid`) - fixed for every store. Lint 121 covers the connector store.
+- SM771 (34ffa5a0) **every refusal is a row, and an answer that never came
+  is not a stack.** Authorisation and payload refusals reached the audit
+  trail but not the connector's own record; now every refusal is a row with
+  `why` and the actor, and refusals do not consume the rate cap. An
+  unanswered call's `answer` keeps LWP's first line without its
+  ` at /usr/share/perl5/... line N.`.
+- SM769 (7f2aff04) **a backup reaches the private store without opening its
+  parent.** The Backups button had never worked on the Hestia layout: GNU
+  tar opens a `-C` directory `O_RDONLY` and the domain folder is root-owned
+  0551. The snapshot names the store as `../<leaf>` from inside the docroot
+  (tar walks through the parent and strips the `../`, so the member name is
+  unchanged); the restore extracts into the store itself; a failed snapshot
+  names the unix user.
+- SM772 (9234277c, 20abe4f6) **a handler is saved by its declared schema.**
+  `handler-save` copied a fixed list of keys, so a `connector` handler lost
+  its `connector` - and a `db` handler its `table` and `fields`, smtp its
+  `attach_files` - with `ok:1`. The writer keeps every key the plugin's
+  schema declares and refuses a missing required one by name; the wizard
+  renders any type without a hand-drawn form from that schema. A missing
+  connector `id` is named as missing, not as a charset fault.
+- SM774 (44e6ceeb) **a start page on a site must resolve.** 131E-05, the
+  last open item from 0.13.1: a deleted start page sent every sign-in to a
+  404 while the warning and fallback for that case never fired, because a
+  domain target was never checked against the site. It is checked when set
+  (refused by name) and at every sign-in (the flagged fallback, with the
+  reason).
+- Candidates, from the same day: SM770 (every store reader covered by
+  catalogue; the auth store's `-f` guards), SM773 (a missing parameter named
+  as missing across the control API, from the declarations), SM775 (the
+  manager index lands where sign-in does; the nav marks what the account
+  cannot reach).
+
 ## 0.13.6 - EDGE: the installer loads no lib (2026-09-07)
 
 **0.13.5 could not be installed on a tarball host.** Its deploy died in
