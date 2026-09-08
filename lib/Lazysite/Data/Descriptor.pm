@@ -59,7 +59,7 @@ my $IDENT = qr/\A[a-z][a-z0-9_]*\z/;
 
 # Reserved because the plugin owns them: `timestamps: true` creates them, and
 # a descriptor declaring its own would collide with the ones we maintain.
-my %RESERVED = map { $_ => 1 } qw(created_at updated_at);
+my %RESERVED = map { $_ => 1 } qw(created_at updated_at created_by updated_by);
 
 
 sub _err {
@@ -321,7 +321,7 @@ sub _check_default_order {
             field => $do_field, rule => 'order' ) )
         unless $fields->{$do_field}
         || $do_field eq $key
-        || ( $timestamps && $do_field =~ /\A(?:created_at|updated_at)\z/ );
+        || ( $timestamps && $do_field =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/ );
     return ( $do_field, $do_dir, undef );
 }
 

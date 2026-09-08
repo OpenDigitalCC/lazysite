@@ -599,12 +599,21 @@ sub _now_stamp {
     return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ', $t[5] + 1900, $t[4] + 1, @t[ 3, 2, 1, 0 ];
 }
 
+# SM780: AND WHO. created_by on insert, updated_by on update, from the
+# authenticated actor the caller passes (actor => login) - the same value
+# the row audit records, on the row a page can read. Empty when the writer
+# was not a signed-in account (a public form): an absence, never a guess.
 sub _stamp {
     my ( $d, $values, %opt ) = @_;
     return $values unless $d->{timestamps};
     my $now = _now_stamp();
+    my $who = defined $opt{actor} && length $opt{actor} ? "$opt{actor}" : undef;
     $values->{updated_at} = $now;
-    $values->{created_at} = $now unless $opt{partial};
+    $values->{updated_by} = $who;
+    unless ( $opt{partial} ) {
+        $values->{created_at} = $now;
+        $values->{created_by} = $who;
+    }
     return $values;
 }
 
@@ -620,8 +629,8 @@ sub _write_prep {
 }
 
 sub insert_row {
-    my ( $docroot, $name, $input ) = @_;
-    my ( $bad, $d, $dbh, $values ) = _write_prep( $docroot, $name, $input );
+    my ( $docroot, $name, $input, %opt ) = @_;
+    my ( $bad, $d, $dbh, $values ) = _write_prep( $docroot, $name, $input, actor => $opt{actor} );
     return $bad if $bad;
     my ( $sql, $binds ) = insert_sql( $d, $values );
     eval { $dbh->do( $sql, undef, @{$binds} ); 1 }
@@ -637,9 +646,9 @@ sub insert_row {
 }
 
 sub update_row {
-    my ( $docroot, $name, $key_value, $input ) = @_;
+    my ( $docroot, $name, $key_value, $input, %opt ) = @_;
     my ( $bad, $d, $dbh, $values )
-        = _write_prep( $docroot, $name, $input, partial => 1 );
+        = _write_prep( $docroot, $name, $input, partial => 1, actor => $opt{actor} );
     return $bad if $bad;
     my ( $sql, $binds ) = eval { update_sql( $d, $key_value, $values ) };
     return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
@@ -841,7 +850,7 @@ sub import_rows {
     # edited export will too, and it is how an update knows which row it is.
     my %known = map { $_ => 1 } keys %{ $d->{fields} };
     $known{ $d->{key} } = 1;
-    $known{$_} = 1 for ( $d->{timestamps} ? qw(created_at updated_at) : () );
+    $known{$_} = 1 for ( $d->{timestamps} ? qw(created_at updated_at created_by updated_by) : () );
     my %seen;
     for my $col ( @{$header} ) {
         return _err( "table '$name': the CSV has a column '$col' that the "
@@ -881,7 +890,7 @@ sub import_rows {
         }
         # Timestamps are the plugin's; an export carries them, an import must
         # not try to write them back.
-        delete @in{qw(created_at updated_at)};
+        delete @in{qw(created_at updated_at created_by updated_by)};
 
         my $kv        = defined $key_col ? $r->[$key_col] : undef;
         my $is_update = defined $kv && length $kv && $exists{$kv};
@@ -904,8 +913,8 @@ sub import_rows {
                 ( $c->{field} ? ( field => $c->{field} ) : () ),
                 ( $c->{rule}  ? ( rule  => $c->{rule} )  : () ) );
         }
-        if ($is_update) { push @updates, [ $kv, _stamp( $d, $c->{values}, partial => 1 ), $n ] }
-        else            { push @inserts, [ _stamp( $d, $c->{values} ), $n ] }
+        if ($is_update) { push @updates, [ $kv, _stamp( $d, $c->{values}, partial => 1, actor => $opt{actor} ), $n ] }
+        else { push @inserts, [ _stamp( $d, $c->{values}, actor => $opt{actor} ), $n ] }
     }
 
     my $plan = { ok => 1, table => $name, rows => scalar @{$rows},

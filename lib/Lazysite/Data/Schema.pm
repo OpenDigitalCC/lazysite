@@ -49,7 +49,7 @@ use strict;
 use warnings;
 use Exporter qw(import);
 use Lazysite::Data::SQLite
-    qw(create_table_sql index_sql column_type add_column_sql backfill_sql
+    qw(create_table_sql index_sql column_type add_column_sql backfill_sql add_reserved_column_sql
     unique_index_sql unique_index_name duplicate_value_sql
     null_count_sql column_values_sql
     observed_schema table_has_rows);
@@ -173,14 +173,29 @@ sub plan_migration {
         }
     }
 
+    # SM780: THE PLUGIN'S OWN COLUMNS ARE ADDITIVE TOO. A table that had
+    # `timestamps: true` before the author columns existed, or one whose flag
+    # was turned on after it was made, lacks columns nothing declares as a
+    # field - so the loop above never saw them, and the flag was a promise
+    # the store could not keep. Nullable TEXT, no backfill: a stamp for a row
+    # that predates the stamping is a guess, and the empty cell is the truth.
+    if ( $d->{timestamps} ) {
+        for my $c (qw(created_at updated_at created_by updated_by)) {
+            next if $observed->{columns}{$c};
+            push @additive,
+                { sql => add_reserved_column_sql( $d, $c ), binds => [],
+                why => "add the plugin's '$c' column (timestamps: true)" };
+        }
+    }
+
     # A column in the store that the descriptor no longer declares. NEVER
     # dropped here: the column holds data, and a plan that quietly discards it
     # is the one mistake a migration must not make.
     for my $c ( sort keys %{ $observed->{columns} } ) {
         next if exists $fields->{$c};
         next if $c eq $d->{key};
-        next if $d->{timestamps} && $c =~ /\A(?:created_at|updated_at)\z/;
-        next if $d->{auto_key}   && $c eq 'id';
+        next if $d->{timestamps} && $c =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/;
+        next if $d->{auto_key} && $c eq 'id';
         push @blocked,
             { field => $c, kind => 'extra',
             why => "'$c' is in the store and not in the descriptor; it still "
@@ -270,14 +285,14 @@ sub plan_rebuild {
 
     # The columns the new table will have, and which of them exist now.
     my @want = sort keys %{ $d->{fields} };
-    push @want, 'created_at', 'updated_at' if $d->{timestamps};
+    push @want, 'created_at', 'updated_at', 'created_by', 'updated_by' if $d->{timestamps};
     my @carry = grep { $observed->{columns}{$_} } @want;
 
     my @lost = sort grep {
         !$d->{fields}{$_}
             && $_ ne $d->{key}
-            && !( $d->{auto_key}   && $_ eq 'id' )
-            && !( $d->{timestamps} && /\A(?:created_at|updated_at)\z/ )
+            && !( $d->{auto_key} && $_ eq 'id' )
+            && !( $d->{timestamps} && /\A(?:created_at|updated_at|created_by|updated_by)\z/ )
     } keys %{ $observed->{columns} };
 
     # The new table is built under a temporary name, so a failure part-way

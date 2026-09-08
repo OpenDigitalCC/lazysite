@@ -77,7 +77,7 @@ sub _err { return { ok => 0, error => $_[0] } }
 sub _cheap_field {
     my ( $d, $f ) = @_;
     return 1 if $f eq $d->{key};
-    return 1 if $d->{timestamps} && $f =~ /\A(?:created_at|updated_at)\z/;
+    return 1 if $d->{timestamps} && $f =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/;
     my $spec = $d->{fields}{$f} or return 0;
     return 1 if ( $spec->{type} // '' ) =~ /\A(?:enum|boolean)\z/;
     for my $ix ( @{ $d->{indexes} // [] } ) {
@@ -92,7 +92,7 @@ sub _cheap_field {
 sub _is_field {
     my ( $d, $f ) = @_;
     return 1 if exists $d->{fields}{$f} || $f eq $d->{key};
-    return 1 if $d->{timestamps} && $f =~ /\A(?:created_at|updated_at)\z/;
+    return 1 if $d->{timestamps} && $f =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/;
     return 0;
 }
 

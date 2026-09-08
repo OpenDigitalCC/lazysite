@@ -53,7 +53,7 @@ sub csv_columns {
     elsif ( defined $key ) {
         unshift @cols, $key;    # the automatic id is a real column in the store
     }
-    if ( $d->{timestamps} ) { push @cols, 'created_at', 'updated_at' }
+    if ( $d->{timestamps} ) { push @cols, 'created_at', 'updated_at', 'created_by', 'updated_by' }
     return @cols;
 }
 

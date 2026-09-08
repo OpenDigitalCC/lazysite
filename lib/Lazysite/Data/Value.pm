@@ -41,7 +41,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(coerce_row coerce_field);
 
-my %RESERVED = map { $_ => 1 } qw(created_at updated_at);
+my %RESERVED = map { $_ => 1 } qw(created_at updated_at created_by updated_by);
 
 sub _err {
     my ( $error, %extra ) = @_;

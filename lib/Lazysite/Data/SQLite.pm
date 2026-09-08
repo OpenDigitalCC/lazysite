@@ -46,7 +46,7 @@ use strict;
 use warnings;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for
+our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for add_reserved_column_sql
     history_table_sql history_insert_sql history_rows_sql
     unique_index_sql unique_index_name duplicate_value_sql
     insert_sql update_sql delete_sql select_sql key_list_sql
@@ -179,7 +179,7 @@ sub create_table_sql {
     if ( $d->{timestamps} ) {
         # Maintained by the plugin, which is why a descriptor declaring them
         # is refused at load.
-        push @cols, '  created_at TEXT', '  updated_at TEXT';
+        push @cols, '  created_at TEXT', '  updated_at TEXT', '  created_by TEXT', '  updated_by TEXT';
     }
 
     if ( !$d->{auto_key} ) {
@@ -471,7 +471,7 @@ sub select_sql {
         die "select_sql: cannot order by '$ob' - not a field of '$d->{table}'"
             unless exists $fields->{$ob}
             || $ob eq $d->{key}
-            || ( $d->{timestamps} && $ob =~ /\A(?:created_at|updated_at)\z/ );
+            || ( $d->{timestamps} && $ob =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/ );
         my $dir = ( $opt{order} // 'asc' ) =~ /\Adesc\z/i ? 'DESC' : 'ASC';
         $sql .= ' ORDER BY ' . _ident($ob) . " $dir";
     }
@@ -565,6 +565,19 @@ sub add_column_sql {
     my $spec = $d->{fields}{$field} or die "add_column_sql: no field '$field'";
     return 'ALTER TABLE ' . _ident( $d->{table} ) . ' ADD COLUMN '
         . _ident($field) . ' ' . column_type($spec);
+}
+
+# SM780: a column the plugin OWNS (created_at, updated_at, created_by,
+# updated_by) added to a table that predates it - the flag turned on after
+# the table was made, or a table made before the author columns existed.
+# TEXT, as create_table_sql makes them; no field spec, because no field
+# declares them.
+sub add_reserved_column_sql {
+    my ( $d, $col ) = @_;
+    _loaded( $d, 'add_reserved_column_sql' );
+    die "add_reserved_column_sql: '$col' is not a reserved column"
+        unless $col =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/;
+    return 'ALTER TABLE ' . _ident( $d->{table} ) . ' ADD COLUMN ' . _ident($col) . ' TEXT';
 }
 
 # Fill a freshly added column in the rows that predate it. Bound, like every

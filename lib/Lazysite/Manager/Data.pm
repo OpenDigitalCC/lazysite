@@ -610,10 +610,11 @@ sub action_data_table {
 sub _provenance_notes {
     my ($d) = @_;
     return [] if $d->{timestamps};
-    my @at = sort grep { /_at\z/ && ( $d->{fields}{$_}{type} // '' ) =~ /\A(?:text|datetime)\z/ } keys %{ $d->{fields} || {} };
+    # SM780: and the who - a text field named *_by is the same decoration.
+    my @at = sort grep { /_(?:at|by)\z/ && ( $d->{fields}{$_}{type} // '' ) =~ /\A(?:text|datetime)\z/ } keys %{ $d->{fields} || {} };
     return [] unless @at;
     return [ sprintf(
-            "%s %s written by the caller and can be any value: nothing stamps %s. For a time the plugin stamps and no writer can forge, set timestamps: true (created_at, updated_at).",
+            "%s %s written by the caller and can be any value: nothing stamps %s. For a time and an author the plugin stamps and no writer can forge, set timestamps: true (created_at, updated_at, created_by, updated_by).",
             join( ', ', map { "'$_'" } @at ), ( @at > 1 ? 'are' : 'is' ), ( @at > 1 ? 'them' : 'it' ) ) ];
 }
 
@@ -864,8 +865,8 @@ sub action_data_row_save {
 
     my $r
         = ( defined $key && length $key )
-        ? update_row( $DOCROOT, $table, $key, $values )
-        : insert_row( $DOCROOT, $table, $values );
+        ? update_row( $DOCROOT, $table, $key, $values, actor => $auth_user )
+        : insert_row( $DOCROOT, $table, $values, actor => $auth_user );
     log_event( 'INFO', $table,
         ( defined $key && length $key ) ? 'data row updated' : 'data row inserted' )
         if $r->{ok};
@@ -966,7 +967,7 @@ sub action_data_import {
         if defined $why;
 
     my $r = import_rows( $DOCROOT, $table, $header, $rows,
-        apply => ( $apply ? 1 : 0 ) );
+        apply => ( $apply ? 1 : 0 ), actor => $auth_user );
 
     # AN IMPORT AUDITS AS ONE EVENT, with the counts - the brief's rule. Two
     # hundred row-level entries would bury the one fact the trail is asked
@@ -1132,7 +1133,7 @@ sub action_data_safety_export_restore {
         [ map { ref $row->{$_} ? ( $row->{$_} ? 1 : 0 ) : $row->{$_} } @header ]
     } grep { ref $_ eq 'HASH' } @{ $data->{rows} || [] };
     my $res = import_rows( $DOCROOT, $e->{table}, \@header, \@rows,
-        apply => ( $apply ? 1 : 0 ) );
+        apply => ( $apply ? 1 : 0 ), actor => $auth_user );
     $res->{file}                 = $file;
     $res->{restored_columns}     = \@header;
     $res->{not_restored_columns} = \@gone if @gone;

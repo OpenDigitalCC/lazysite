@@ -458,7 +458,7 @@ sub _keep_answer {
         http      => $rec->{http},
         answer => ( ref $answer ? JSON::PP->new->canonical->encode($answer) : $answer ),
     };
-    my $r = eval { Lazysite::Data::Tables::insert_row( $DOCROOT, $c->{answer_table}, $row ) };
+    my $r = eval { Lazysite::Data::Tables::insert_row( $DOCROOT, $c->{answer_table}, $row, actor => $rec->{actor} ) };
     my $err = $@ ? "$@" : ( $r && !$r->{ok} ? ( $r->{error} // 'insert failed' ) : '' );
     if ($err) {
         log_event( 'WARN', 'connectors', 'answer not kept', connector => $rec->{connector}, table => $c->{answer_table}, why => $err );
