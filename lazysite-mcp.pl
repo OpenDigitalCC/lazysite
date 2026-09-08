@@ -595,7 +595,12 @@ my %TOOLS = (
                     my $tw = _validate_theme_json( $a->{path}, $a->{content} );
                     $r->{warnings} = $tw if @{$tw};
                 }
-                else {
+                # SM776: only a PAGE gets the page validator. A stylesheet
+                # written under a theme's assets/ came back with "page has no
+                # title in front matter" - harmless, and exactly the kind of
+                # warning that teaches an agent to ignore warnings from this
+                # tool. A page is a .md file; everything else is a file.
+                elsif ( ( $a->{path} // '' ) =~ /\.md\z/i ) {
                     my $v = _validate_page( undef, $a->{content}, $user );
                     if ( ref $v eq 'HASH' ) {
                         $r->{warnings} = $v->{warnings} if $v->{warnings} && @{ $v->{warnings} };

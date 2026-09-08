@@ -15,10 +15,10 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP   qw(encode_json decode_json);
-use IPC::Open2 qw(open2);
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use JSON::PP     qw(encode_json decode_json);
+use IPC::Open2   qw(open2);
+use File::Temp   qw(tempdir);
+use File::Path   qw(make_path);
 use MIME::Base64 qw(encode_base64);
 use FindBin;
 
@@ -124,7 +124,7 @@ my $GIF = pack 'H*',
 
 {
     my $r = sc( call( 'upload_file',
-        { path => 'assets/pixel.gif', content_base64 => encode_base64( $GIF, '' ) }, $ok ) );
+            { path => 'assets/pixel.gif', content_base64 => encode_base64( $GIF, '' ) }, $ok ) );
     ok( $r && $r->{ok}, 'upload_file writes a binary file' ) or diag encode_json( $r // {} );
     is( slurp("$d/assets/pixel.gif"), $GIF,
         'and the bytes on disk are byte-identical - the whole point of the tool' );
@@ -133,8 +133,8 @@ my $GIF = pack 'H*',
 # Whitespace in the payload is normal in JSON transport and must not break it.
 {
     my $b64 = encode_base64( $GIF, "\n" );
-    my $r = sc( call( 'upload_file',
-        { path => 'assets/wrapped.gif', content_base64 => $b64 }, $ok ) );
+    my $r   = sc( call( 'upload_file',
+            { path => 'assets/wrapped.gif', content_base64 => $b64 }, $ok ) );
     ok( $r && $r->{ok}, 'upload_file accepts newline-wrapped base64' );
     is( slurp("$d/assets/wrapped.gif"), $GIF, 'and still decodes exactly' );
 }
@@ -142,18 +142,18 @@ my $GIF = pack 'H*',
 # The refusal branches. Each must refuse rather than write something wrong.
 {
     my $bad = sc( call( 'upload_file',
-        { path => 'assets/bad.gif', content_base64 => 'not base64 !!!' }, $ok ) );
+            { path => 'assets/bad.gif', content_base64 => 'not base64 !!!' }, $ok ) );
     ok( $bad && !$bad->{ok}, 'upload_file refuses payload outside the base64 alphabet' );
     is( $bad->{kind}, 'bad-encoding', 'reported as bad-encoding' );
     ok( !-e "$d/assets/bad.gif", 'and nothing was written' );
 
     my $exe = sc( call( 'upload_file',
-        { path => 'evil.cgi', content_base64 => encode_base64( $GIF, '' ) }, $ok ) );
+            { path => 'evil.cgi', content_base64 => encode_base64( $GIF, '' ) }, $ok ) );
     ok( $exe && !$exe->{ok}, 'upload_file refuses an executable extension' );
-    ok( !-e "$d/evil.cgi", 'and nothing was written' );
+    ok( !-e "$d/evil.cgi",   'and nothing was written' );
 
     my $engine = sc( call( 'upload_file',
-        { path => 'lazysite/lazysite.conf', content_base64 => encode_base64( 'x', '' ) }, $ok ) );
+            { path => 'lazysite/lazysite.conf', content_base64 => encode_base64( 'x', '' ) }, $ok ) );
     ok( $engine && !$engine->{ok}, 'upload_file refuses an engine-owned path' );
 }
 
@@ -178,7 +178,7 @@ my $GIF = pack 'H*',
 
 {
     my $r = sc( call( 'domain_set',
-        { host => 'shop.clienta.com', key => 'site_name', value => 'Client A' }, $ok ) );
+            { host => 'shop.clienta.com', key => 'site_name', value => 'Client A' }, $ok ) );
     ok( $r && $r->{ok}, 'domain_set writes a presentation key' ) or diag encode_json( $r // {} );
     like( slurp("$d/lazysite/lazysite.conf"),
         qr/^alias\.shop\.clienta\.com\.site_name: Client A$/m,
@@ -187,12 +187,12 @@ my $GIF = pack 'H*',
     # content_root is refused BY THIS TOOL specifically - repointing a live
     # domain is a migration, and the refusal names where that lives.
     my $cr = sc( call( 'domain_set',
-        { host => 'shop.clienta.com', key => 'content_root', value => 'sites/other' }, $ok ) );
+            { host => 'shop.clienta.com', key => 'content_root', value => 'sites/other' }, $ok ) );
     ok( $cr && !$cr->{ok}, 'domain_set refuses content_root' );
     like( $cr->{error}, qr/site_apply/, 'and names the tool that does take a snapshot' );
 
     my $unknown = sc( call( 'domain_set',
-        { host => 'nope.example', key => 'site_name', value => 'X' }, $ok ) );
+            { host => 'nope.example', key => 'site_name', value => 'X' }, $ok ) );
     ok( $unknown && !$unknown->{ok}, 'domain_set refuses an unregistered host' );
 }
 
@@ -214,7 +214,7 @@ my $GIF = pack 'H*',
 # instance-wide. Both branches must work and must not bleed into each other.
 {
     my $scoped = sc( call( 'activate_layout',
-        { layout => 'alt', host => 'shop.clienta.com' }, $ok ) );
+            { layout => 'alt', host => 'shop.clienta.com' }, $ok ) );
     ok( $scoped && $scoped->{ok}, 'activate_layout with host binds one domain' )
         or diag encode_json( $scoped // {} );
     my $conf = slurp("$d/lazysite/lazysite.conf");
@@ -231,14 +231,14 @@ my $GIF = pack 'H*',
 # the warning came back, and the page still landed.
 {
     my %CASES = (
-        'document-in-page' => "<!DOCTYPE html>\n<html><body>hi</body></html>\n",
+        'document-in-page'    => "<!DOCTYPE html>\n<html><body>hi</body></html>\n",
         'style-block-in-page' => "# T\n\n<style>body{color:red}</style>\n",
         'chrome-in-page'      => "# T\n\n<nav><a href=\"/\">Home</a></nav>\n",
     );
     for my $kind ( sort keys %CASES ) {
         ( my $slug = $kind ) =~ s/[^a-z]+/-/g;
         my $r = sc( call( 'write_file',
-            { path => "content/$slug.md", content => $CASES{$kind} }, $ok ) );
+                { path => "content/$slug.md", content => $CASES{$kind} }, $ok ) );
         ok( $r && $r->{ok}, "write_file still writes despite '$kind'" )
             or diag encode_json( $r // {} );
         ok( -e "$d/content/$slug.md", "and $slug.md is on disk - warned, not refused" );
@@ -249,11 +249,21 @@ my $GIF = pack 'H*',
 
     # An ordinary page must come back clean, or the warnings are noise.
     my $clean = sc( call( 'write_file',
-        { path => 'content/plain.md', content => "# Title\n\nA paragraph.\n" }, $ok ) );
+            { path => 'content/plain.md', content => "# Title\n\nA paragraph.\n" }, $ok ) );
     ok( $clean && $clean->{ok}, 'an ordinary page writes' );
     my @w = grep { ( $_->{kind} // '' ) =~ /in-page/ } @{ $clean->{warnings} || [] };
     is( scalar @w, 0, 'and raises none of the body warnings' )
         or diag encode_json( $clean->{warnings} );
+
+    # SM776: a file that is not a page gets no page warnings. A stylesheet
+    # under a theme's assets/ came back with "page has no title in front
+    # matter" - which teaches an agent to ignore this tool's warnings.
+    my $css = sc( call( 'write_file',
+            { path => 'lazysite/layouts/base/themes/notlive/assets/probe.css', content => "body{color:red}\n" }, $ok ) );
+    ok( $css && $css->{ok}, 'a stylesheet writes' ) or diag encode_json( $css // {} );
+    my @pw = grep { ( $_->{kind} // '' ) eq 'no-title' } @{ $css->{warnings} || [] };
+    is( scalar @pw, 0, 'and is not told it has no title - it is not a page' )
+        or diag encode_json( $css->{warnings} );
 }
 
 # =========================================================================
@@ -274,7 +284,7 @@ my $GIF = pack 'H*',
         'plus the sitemap count - the ratio is what makes an untouched scaffold obvious' );
     my @paths = map { ref $_ ? ( $_->{page} // $_->{slug} // '' ) : $_ }
         @{ $r->{starter_pages} || [] };
-    ok( ( grep {m{welcome}} @paths ),
+    ok( ( grep { m{welcome} } @paths ),
         'the marked page is listed by reading the provenance marker' )
         or diag encode_json( $r->{starter_pages} // [] );
 }
@@ -289,20 +299,20 @@ my $GIF = pack 'H*',
     # by this test when its first fixture page had no front matter. Testing the
     # supported path here rather than pinning the gap as intended behaviour.
     my $mk = sc( call( 'write_file',
-        { path    => 'content/old-name.md',
-            content => "---\ntitle: Old\n---\n\nBody.\n" }, $ok ) );
+            { path => 'content/old-name.md',
+                content => "---\ntitle: Old\n---\n\nBody.\n" }, $ok ) );
     ok( $mk && $mk->{ok}, 'a page to rename' );
 
     my $r = sc( call( 'rename_page',
-        { old => 'content/old-name.md', new => 'content/new-name.md' }, $ok ) );
-    ok( $r && $r->{ok}, 'rename_page renames' ) or diag encode_json( $r // {} );
+            { old => 'content/old-name.md', new => 'content/new-name.md' }, $ok ) );
+    ok( $r && $r->{ok},        'rename_page renames' ) or diag encode_json( $r // {} );
     ok( $r->{alias_suggested}, 'and REPORTS the alias the retired URL needs' );
     unlike( slurp("$d/content/new-name.md") // '', qr/aliases:/,
         'but does not write it unasked - that would edit an unpublished page silently' );
 
     my $r2 = sc( call( 'rename_page',
-        { old => 'content/new-name.md', new => 'content/final-name.md',
-            add_alias => JSON::PP::true() }, $ok ) );
+            { old => 'content/new-name.md', new => 'content/final-name.md',
+                add_alias => JSON::PP::true() }, $ok ) );
     ok( $r2 && $r2->{ok}, 'rename_page with add_alias renames' ) or diag encode_json( $r2 // {} );
     like( slurp("$d/content/final-name.md") // '', qr/aliases:/,
         'and writes the alias when asked' );
@@ -317,19 +327,19 @@ my $GIF = pack 'H*',
 # the most likely to have a published URL worth keeping.
 {
     my $mk = sc( call( 'write_file',
-        { path => 'content/bare.md', content => "# Bare\n\nNo front matter here.\n" }, $ok ) );
+            { path => 'content/bare.md', content => "# Bare\n\nNo front matter here.\n" }, $ok ) );
     ok( $mk && $mk->{ok}, 'a page with no front matter' );
 
     my $r = sc( call( 'rename_page',
-        { old => 'content/bare.md', new => 'content/bare-moved.md',
-            add_alias => JSON::PP::true() }, $ok ) );
-    ok( $r && $r->{ok}, 'rename_page renames it' ) or diag encode_json( $r // {} );
+            { old => 'content/bare.md', new => 'content/bare-moved.md',
+                add_alias => JSON::PP::true() }, $ok ) );
+    ok( $r && $r->{ok},    'rename_page renames it' ) or diag encode_json( $r // {} );
     ok( $r->{alias_added}, 'and reports the alias as ADDED' );
 
     my $c = slurp("$d/content/bare-moved.md") // '';
     like( $c, qr/\A---\s*\naliases:\n  - \/content\/bare\n---\s*\n/,
         'a front-matter block was created carrying the alias' );
-    like( $c, qr/# Bare/,        'and the body survived' );
+    like( $c, qr/# Bare/,               'and the body survived' );
     like( $c, qr/No front matter here/, 'intact' );
 }
 
@@ -338,17 +348,17 @@ my $GIF = pack 'H*',
 # case that shared a signal with "could not add it" before.
 {
     my $there = sc( call( 'rename_page',
-        { old => 'content/bare-moved.md', new => 'content/bare-again.md',
-            add_alias => JSON::PP::true() }, $ok ) );
+            { old => 'content/bare-moved.md', new => 'content/bare-again.md',
+                add_alias => JSON::PP::true() }, $ok ) );
     ok( $there && $there->{ok}, 'a second rename works' );
-    ok( $there->{alias_added}, 'the NEW old-url is added' );
+    ok( $there->{alias_added},  'the NEW old-url is added' );
 
     # Now rename back: the alias for this path is already listed.
     my $back = sc( call( 'rename_page',
-        { old => 'content/bare-again.md', new => 'content/bare-moved.md',
-            add_alias => JSON::PP::true() }, $ok ) );
+            { old => 'content/bare-again.md', new => 'content/bare-moved.md',
+                add_alias => JSON::PP::true() }, $ok ) );
     ok( $back && $back->{ok}, 'renaming back works' );
-    my $c = slurp("$d/content/bare-moved.md") // '';
+    my $c     = slurp("$d/content/bare-moved.md") // '';
     my @dupes = $c =~ m{- /content/bare-again}g;
     is( scalar @dupes, 1, 'and the alias is not duplicated' );
 }
