@@ -205,6 +205,8 @@ function loadUsers() {
     rows.forEach(function(r) {
       parentOf[r.user] = parentOfSettings(r.settings);
     });
+    // SM800: the fourth state travels with the answer.
+    if (typeof d.store_readable !== 'undefined') { STORE_READABLE = d.store_readable; }
     renderUsers(rows);
     parentList = rows.filter(function(r) { return r.settings && r.settings.create_sub_users; })
                      .map(function(r) { return r.user; }).sort();
@@ -342,8 +344,24 @@ function groupsForUser(user) {
 
 // One <details> accordion row per user, with sub-users nested under their parent
 // (managed_by/created_by) so the tree expands as the hierarchy it is.
+// SM800: null until an answer says otherwise - "nobody has told us" is not
+// the same as "the store is fine", so the roster is drawn on a positive
+// answer or on no answer at all, and withheld only on a negative one.
+var STORE_READABLE = null;
+
 function renderUsers(rows) {
   var list = document.getElementById('user-list');
+  // SM800: "No users" is a statement about the site. When the account store
+  // could not be READ the honest answer is a different one, and drawing the
+  // empty roster sends an operator looking for missing accounts instead of for
+  // a permissions fault.
+  if (!rows.length && STORE_READABLE === false) {
+    list.innerHTML = '<div class="mg-note mg-note-warn">The account store could not be read, '
+      + 'so this is not an empty list of accounts &mdash; it is no answer. '
+      + 'Check the permissions on <code>lazysite/auth</code>; the log names the file, '
+      + 'the error and the unix user.</div>';
+    rowsByUser = {}; closeConfig(); return;
+  }
   if (!rows.length) { list.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No users</div>'; rowsByUser = {}; closeConfig(); return; }
   var byUser = {};
   rows.forEach(function(r) { byUser[r.user] = r; });

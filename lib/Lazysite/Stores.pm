@@ -54,6 +54,20 @@ my @STORES = (
             'lib/Lazysite/Auth/Acl.pm',   'lib/Lazysite/Auth/DomainAccess.pm',
             'lib/Lazysite/Auth/OAuth.pm', 'lib/Lazysite/Auth/Session.pm',
             'lib/Lazysite/Auth/Settings.pm',
+
+            # SM800: THE TOOL THAT OWNS THE STORE. It was not listed, so lint
+            # 121 - which exists to catch a stat guard in front of a store read
+            # - had never been pointed at the file that WRITES this store and
+            # holds its two primary readers. Both of them still carried the
+            # guard SM770 removed from the modules above: `return %users unless
+            # -f $USERS_FILE`, so an auth directory without its search bit
+            # answered "no accounts", in silence, to `users list` and to
+            # everything downstream of read_groups.
+            #
+            # The lesson for the catalogue, and the reason this comment is
+            # here: "the modules that read a store" is not the same list as
+            # "the modules under lib/". A tool is a reader.
+            'tools/lazysite-users.pl',
         ],
     },
     { dir => 'daemon',

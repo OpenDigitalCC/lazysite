@@ -124,7 +124,7 @@ BEGIN {
     }
 }
 use Lazysite::Paths ();    # SM293: where this site keeps its engine tree
-use Lazysite::Util  qw(log_event const_eq secure_write_perms drop_to_tree_owner);
+use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
@@ -221,7 +221,14 @@ unless ( -d $AUTH_DIR ) {
     chmod 02770, $AUTH_DIR;
 }
 
-my $USERS_FILE          = "$AUTH_DIR/users";
+my $USERS_FILE = "$AUTH_DIR/users";
+
+# SM800: 1 the store is what it says, 0 it could not be read. read_users and
+# read_groups set it, and every caller that DRAWS something for a person asks
+# it - an empty roster is a fact about the site, and it must not be shown for a
+# store this process could not open. The hash has nowhere to carry the
+# difference (SM784), so the reader records it beside the read.
+our $STORE_READABLE = 1;
 my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
@@ -705,6 +712,17 @@ if ($API_MODE) {
         $result = { ok => 0, error => $err };
     }
 
+    # SM800: THE FOURTH STATE RIDES EVERY ANSWER, set once here rather than in
+    # each of the thirty branches above - a flag a branch has to remember is a
+    # flag some branch will not.
+    #
+    # `store_readable: 0` says the account or group store could not be opened,
+    # so an empty `users` or `groups` in this answer means "could not tell",
+    # not "there are none". A page that draws a roster asks it before drawing
+    # an empty table, because an empty table is a statement about the site.
+    $result->{store_readable} = $STORE_READABLE ? JSON::PP::true() : JSON::PP::false()
+        if ref $result eq 'HASH' && $result->{ok};
+
     print encode_json($result);
     exit 0;
 }
@@ -929,6 +947,18 @@ sub cmd_remove {
 # exactly as it did before.
 sub cmd_list {
     my %users = read_users();
+
+    # SM800: "No users." is a FACT ABOUT THE SITE, and it must not be printed
+    # for a store this process could not open. An operator reading it goes
+    # looking for missing accounts instead of for a permissions fault, which is
+    # the wrong half of the day.
+    if ( !%users && !$STORE_READABLE ) {
+        print "The account store could not be read, so this is not a list of "
+            . "no accounts - it is no answer. Check the permissions on "
+            . "$USERS_FILE and the directory above it; the log names the "
+            . "error and the unix user.\n";
+        return;
+    }
     if (%users) {
         my $r = Lazysite::Auth::Settings::display_names_for( sort keys %users );
         for my $u ( sort keys %users ) {
@@ -1075,8 +1105,8 @@ sub _ensure_conf_key {
 sub _remove_conf_key {
     my ($key) = @_;
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
-    return 0 unless -f $conf;
-    open my $in, '<', $conf or return 0;
+    return 0 unless -f $conf;               # not a store: lazysite.conf is configuration
+    open my $in, '<', $conf or return 0;    # not a store: lazysite.conf is configuration
     my @lines = <$in>;
     close $in;
     my @keep = grep { !/^\Q$key\E\s*:/ } @lines;
@@ -2687,8 +2717,8 @@ sub cmd_mfa_verify {
 sub read_conf_value {
     my ($key) = @_;
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
-    return undef unless -f $conf;
-    open my $fh, '<', $conf or return undef;
+    return undef unless -f $conf;    # not a store: lazysite.conf is configuration
+    open my $fh, '<', $conf or return undef; # not a store: lazysite.conf is configuration
     my $val;
     while (<$fh>) { if (/^\Q$key\E\s*:\s*(.+)/) { $val = $1; last } }
     close $fh;
@@ -3579,8 +3609,18 @@ sub is_last_manager_ui {
 
 sub read_users {
     my %users;
-    return %users unless -f $USERS_FILE;
-    open( my $fh, '<:utf8', $USERS_FILE ) or die "Cannot read $USERS_FILE: $!\n";
+
+    # SM800: NO -f GUARD. The same defect SM770 removed from the auth modules,
+    # still here because Lazysite::Stores did not list this file - so lint 121,
+    # which exists to catch exactly this, was never pointed at the tool that
+    # OWNS the store. A stat the process may not make fails like an open it may
+    # not make, and an auth directory without its search bit answered "no
+    # accounts" in silence. The catalogue now names this file.
+    open( my $fh, '<:utf8', $USERS_FILE ) or do {
+        $STORE_READABLE = 0 unless $!{ENOENT};    # errno first: cannot_read clobbers $!
+        cannot_read( 'users', $USERS_FILE );
+        return %users;
+    };
     while (<$fh>) {
         chomp;
         s/^\s+|\s+$//g;
@@ -3820,8 +3860,8 @@ sub _default_group_nesting {
 # from the effective lookup so the seeder never recurses through itself.
 sub _conf_manager_groups {
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
-    return () unless -f $conf;
-    open my $fh, '<', $conf or return ();
+    return () unless -f $conf;    # not a store: lazysite.conf is configuration
+    open my $fh, '<', $conf or return ();    # not a store: lazysite.conf is configuration
     my $line = '';
     while (<$fh>) { if (/^manager_groups\s*:\s*(.+)/) { $line = $1; last } }
     close $fh;
@@ -5111,8 +5151,15 @@ sub cmd_group_delete {
 
 sub read_groups {
     my %groups;
-    return %groups unless -f $GROUPS_FILE;
-    open( my $fh, '<:utf8', $GROUPS_FILE ) or die "Cannot read $GROUPS_FILE: $!\n";
+
+    # SM800: as read_users above. A site with no groups file is ordinary; one
+    # whose groups file will not open is not, and answering "no groups" for it
+    # means "this account holds nothing" everywhere downstream.
+    open( my $fh, '<:utf8', $GROUPS_FILE ) or do {
+        $STORE_READABLE = 0 unless $!{ENOENT};
+        cannot_read( 'groups', $GROUPS_FILE );
+        return %groups;
+    };
     while (<$fh>) {
         chomp;
         s/^\s+|\s+$//g;
