@@ -322,6 +322,26 @@ each. These are the survivors, registered so the pages have something to be conv
   </div>
 </div>
 
+<h2 class="mg-sg-h">A nav item this account cannot open</h2>
+<p class="mg-sg-note">SM775. The menu is the same shape for every account: a page
+the account cannot open is <strong>marked, not hidden</strong>, because a menu that
+silently differs per account reads as a manager that has lost a feature. The item
+keeps a nav link's geometry so nothing reflows between accounts. It is an
+<code>&lt;a&gt;</code> to the Groups page for a user manager - who can grant the
+capability - and a <code>&lt;span&gt;</code> for an account that cannot act on it, so
+nobody is offered a link to a page they can do nothing with. The marker takes the
+capability-hint shape above: focusable and labelled, because a title attribute alone
+is mouse-only.</p>
+<div class="mg-sg-demo">
+<nav class="mg-nav">
+  <div class="mg-nav-group">Content</div>
+  <a href="#" onclick="return false;">Files</a>
+  <span class="mg-nav-locked" title="Edit the site navigation menu. This account does not hold the capability it needs; a user manager can grant it.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>
+  <a href="#" class="mg-nav-locked" onclick="return false;" title="Read the append-only audit trail. To enable it, grant 'Audit trail' to a group on the Groups page.">Audit log <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>
+</nav>
+<span class="mg-muted">Reachable, unreachable, and unreachable-but-you-can-grant-it.</span>
+</div>
+
 <h2 class="mg-sg-h">Button labels &mdash; the vocabulary</h2>
 <p class="mg-sg-note">A style guide governs words as well as shapes. The manager
 currently uses <strong>107 distinct button labels</strong>, and several say the same

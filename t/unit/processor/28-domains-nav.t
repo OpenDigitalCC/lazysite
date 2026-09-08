@@ -54,15 +54,24 @@ sub render {
     # A user who can grant caps (manage_users) but lacks manage_domains sees a
     # muted, actionable hint pointing at the Groups page - not the real link.
     my $hint = render( manager_caps => { manage_domains => 0, manage_users => 1 } );
-    like( $hint, qr/Domains &#128274;/, 'grant-capable user sees the locked Domains hint' );
+    like( $hint, qr/Domains\s*<span class="mg-nav-lock"/,
+        'grant-capable user sees the locked Domains hint' );
     like( $hint, qr/grant 'Domains/, 'the hint says how to enable it' );
     unlike( $hint, qr{href="/manager/domains"},
         'the hint is NOT a link to the gated Domains page' );
 
-    # A bound client (no manage_users) sees no Domains entry at all - the hint is
-    # pointless to someone who cannot grant the capability.
+    # SM775: this used to assert that a client without manage_users saw NO
+    # Domains entry, because "the hint is pointless to someone who cannot grant
+    # the capability". The field answered that (131E-05): the absence is worse
+    # than the pointless hint, because a menu that silently differs per account
+    # reads as a manager that has lost a feature rather than as a refusal.
+    # Marked for both now; only the sentence differs, and only the one who can
+    # act on it gets a link.
     my $client = render( manager_caps => { manage_domains => 0, manage_users => 0 } );
-    unlike( $client, qr/Domains &#128274;/, 'a non-granting user sees no Domains hint' );
+    like( $client, qr/<span class="mg-nav-locked"[^>]*>Domains/,
+        'an account that cannot grant it sees Domains MARKED, not missing' );
+    unlike( $client, qr{href="/manager/groups" class="mg-nav-locked"},
+        'and is not sent to the Groups page, which it cannot act on either' );
 }
 
 # --- scope globals for a bound editor ---------------------------------------
@@ -86,7 +95,7 @@ sub render {
 {
     my $multi = render(
         manager_caps => { manage_domains => 0 },
-        scope_root   => '',                                    # empty: no single root
+        scope_root   => '',                                  # empty: no single root
         dav_scopes   => 'content/clientA,content/clientB',
     );
     like( $multi, qr/LAZYSITE_DAV_SCOPES\s*=\s*'content\/clientA,content\/clientB'/,
@@ -111,20 +120,21 @@ sub render {
 
     # A grant-capable operator (manage_users) lacking those caps sees muted hints.
     my $adm = render( manager_caps => { manage_users => 1 } );
-    like( $adm, qr/Files &#128274;/,      'grant-capable, no content: locked Files hint' );
-    like( $adm, qr/Navigation &#128274;/, 'locked Navigation hint' );
-    like( $adm, qr/Appearance &#128274;/, 'locked Appearance hint' );
-    like( $adm, qr/Audit log &#128274;/,  'locked Audit hint' );
+    like( $adm, qr/Files\s*<span class="mg-nav-lock"/, 'grant-capable, no content: locked Files hint' );
+    like( $adm, qr/Navigation\s*<span class="mg-nav-lock"/, 'locked Navigation hint' );
+    like( $adm, qr/Appearance\s*<span class="mg-nav-lock"/, 'locked Appearance hint' );
+    like( $adm, qr/Audit log\s*<span class="mg-nav-lock"/,  'locked Audit hint' );
     unlike( $adm, qr{href="/manager/files"}, 'the hint is not a link to the gated page' );
 
     # Appearance unlocks on EITHER themes or layouts.
     my $lay = render( manager_caps => { manage_layouts => 1 } );
     like( $lay, qr{href="/manager/appearance"}, 'manage_layouts alone unlocks Appearance' );
 
-    # A user who cannot grant (no manage_users) and lacks the caps sees neither
-    # the area nor a hint.
+    # SM775: a user who cannot grant and lacks the capability now sees the item
+    # MARKED - see the reversal above. What it must never see is a link, to the
+    # gated page or to the Groups page it also cannot use.
     my $none = render( manager_caps => {} );
-    unlike( $none, qr/Files &#128274;/,       'no manage_users: no Files hint' );
+    like( $none, qr/<span class="mg-nav-locked"[^>]*>Files/, 'no manage_content: Files is marked' );
     unlike( $none, qr{href="/manager/files"}, 'no manage_content: no Files link' );
 }
 

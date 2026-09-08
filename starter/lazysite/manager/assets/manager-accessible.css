@@ -194,6 +194,25 @@
     background: var(--mg-accent-bg); color: var(--mg-accent-deep);
     border-left-color: var(--mg-accent); font-weight: 600;
 }
+/* SM775: a nav item this account cannot open. It keeps the geometry of a nav
+   link - same padding, same border rail - so the menu does not reflow between
+   accounts, and is muted rather than hidden: the page exists, it is simply not
+   yours. This replaces an inline style="opacity:0.55;font-style:italic" that
+   was repeated on six lines of the layout, which is exactly what the style
+   guide exists to stop. It is a <span> for an account that cannot act on it
+   and an <a> to the Groups page for a user manager who can, so the rules cover
+   both elements. */
+.mg-nav-locked {
+    display: block; padding: 7px 10px; font-size: 14px;
+    color: var(--mg-text-light); text-decoration: none; white-space: nowrap;
+    border-left: 2px solid transparent; font-style: italic; cursor: default;
+}
+a.mg-nav-locked { cursor: pointer; }
+a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-muted); }
+/* The marker itself takes SM686's shape: focusable and labelled, because a
+   title attribute alone is mouse-only. */
+.mg-nav-lock { font-size: 11px; opacity: 0.75; }
+.mg-nav-lock:focus { outline: 2px solid var(--mg-accent); outline-offset: 1px; }
 .mg-main { flex: 1; min-width: 0; padding: 24px; max-width: 1040px; }
 .mg-page-title {
     font-family: var(--mg-font-heading); font-size: var(--mg-text-xl); font-weight: 600;

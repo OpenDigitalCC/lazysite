@@ -21,11 +21,18 @@ my ($nav) = $tt =~ /(<nav class="mg-nav".*?<\/nav>)/s;
 ok( $nav, 'found the manager nav' ) or done_testing, exit;
 
 # Every nav link: page id, and the condition (if any) that shows it.
+#
+# SM775: a LOCKED item is not a nav entry for the page it points at. The marker
+# shown to a user manager links to /manager/groups - "here is where you would
+# grant this" - and reading that as the Groups nav entry made Groups look
+# gated on manage_users, which it is not. The class is what tells them apart,
+# so the class is what this skips.
 my %nav;
 my $q = chr(34);
 for my $line ( split /\n/, $nav ) {
-    while ( $line =~ /(?:\[% IF ([^%]+?) %\])?<a href=$q\/manager\/?([a-z-]*)$q/g ) {
-        my ( $cond, $page ) = ( $1, $2 );
+    while ( $line =~ /(?:\[% IF ([^%]+?) %\])?<a href=$q\/manager\/?([a-z-]*)$q([^>]*)>/g ) {
+        my ( $cond, $page, $attrs ) = ( $1, $2, $3 );
+        next if ( $attrs // '' ) =~ /\bmg-nav-locked\b/;
         $page = 'index' unless length $page;
         my @caps = $cond ? ( $cond =~ /manager_caps\.(\w+)/g ) : ();
         my ($plugin) = $cond ? ( $cond =~ /enabled_plugins\.(\w+)/ ) : ();
@@ -45,7 +52,7 @@ subtest 'every nav page is a start page, with the same gate' => sub {
     for my $page ( sort keys %nav ) {
         ok( $table{$page}, "$page: in the table" ) or next;
         is_deeply( [ sort @{ $table{$page}{caps} } ], $nav{$page}{caps}, "$page: the same capabilities (any-of)" );
-        # SM759: the table names the registry key (plugins/x.pl); the nav's condition is the id (x).
+# SM759: the table names the registry key (plugins/x.pl); the nav's condition is the id (x).
         my $tp = $table{$page}{plugin} ? ( $table{$page}{plugin} =~ s{^plugins/}{}r =~ s/\.pl\z//r ) : undef;
         is( $tp, $nav{$page}{plugin}, "$page: the same plugin condition" );
     }

@@ -4,12 +4,30 @@ auth: manager
 search: false
 ---
 
+[% IF manager_caps.manage_config %]
 <section class="mg-config-section">
 <div id="site-settings">Loading...</div>
 <div id="site-status" class="mg-status"></div>
 </section>
+[% ELSE %]
+<!-- SM775: A PAGE WHOSE READER CANNOT READ IT SAYS SO.
+     This page's only content comes from config-read, which needs
+     manage_config. Without it the reader was refused and the body was emptied,
+     so the account saw a heading and nothing - which reads as a broken page,
+     not as a refusal. The sentence names the capability, the way the
+     start-page refusal does, and it is rendered by the SERVER: the page no
+     longer asks for something it already knows it will be refused. -->
+<section class="mg-config-section">
+<div class="mg-note mg-note-info">
+  Site settings are read by an account holding <strong>Configuration</strong>.
+  This account does not hold it, so there is nothing here to show. A user
+  manager can grant it on the Groups page.
+</div>
+</section>
+[% END %]
 
 
+[% IF manager_caps.manage_config %]
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 
@@ -593,5 +611,6 @@ function saveSiteSettings_go(values) {
 // of truth for the form, and config-set's allow-list is the sole gate on writes.
 loadSiteSettings();
 </script>
+[% END %]
 
 <!-- config styles consolidated into manager.css (SM109 phase 3) -->

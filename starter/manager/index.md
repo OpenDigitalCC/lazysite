@@ -4,6 +4,7 @@ auth: manager
 search: false
 ---
 
+[% IF manager_caps.manage_config %]
 <p>Redirecting to <a href="/manager/config">Configuration</a>...</p>
 
 <script>
@@ -11,3 +12,34 @@ search: false
 // lands, and the account sheet opens from it on the page this redirects to.
 location.replace('/manager/config' + location.search + location.hash);
 </script>
+[% ELSE %]
+<!-- SM775: AN ACCOUNT THAT CANNOT READ THE CONFIGURATION IS NOT SENT TO IT.
+     /manager/ redirected to /manager/config unconditionally, so an account
+     without manage_config arrived at a heading and an empty body: the page
+     renders, its reader is refused, and nothing said so. It read as a broken
+     manager to the very account the start-page feature exists for.
+
+     A sign-in with no destination lands at fallback_landing(), which is this
+     page with ?account=1, and the account sheet lives in the layout. So the
+     two arrivals now agree by STAYING here - rather than by both being
+     forwarded to a page one of them cannot read. -->
+<div class="mg-card">
+  <div class="mg-card-header">
+    <span class="mg-card-title">Your account</span>
+    <span class="mg-card-subtitle">what this account can open</span>
+  </div>
+  <div class="mg-card-body">
+    <p>Site settings are managed by an account holding <strong>Configuration</strong>.
+    This account does not hold it, so the settings page would show you nothing.</p>
+    <p>Your own details are on the
+    <a href="#" onclick="mgOpenAccount();return false;">account sheet</a>, and the
+    pages you can open are listed in the menu.</p>
+  </div>
+</div>
+
+<script>
+// The sheet opens on arrival when the URL asks for it, exactly as it does on
+// every other manager page - this page is now one of the places you can land.
+if (/[?&]account=1(?:&|$)/.test(location.search)) { mgOpenAccount(); }
+</script>
+[% END %]
