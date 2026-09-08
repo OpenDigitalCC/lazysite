@@ -93,7 +93,12 @@ is_deeply( \@broken, [], 'every predicate evaluated without dying' );
 # connector's own gate (callers groups, or manage_connectors, inside
 # Connectors::may_call) is what decides, per connector, and t/unit/manager/159
 # holds it.
-my %DELIBERATELY_CONSTANT = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call);
+# SM778: display-names answers the same for every capability set because it
+# discloses nothing a caller does not already hold - it resolves the logins it
+# is GIVEN and is not a listing, so a caller without a login learns nothing by
+# asking about it. Named here so that is on the record as a decision.
+my %DELIBERATELY_CONSTANT
+    = map { $_ => 1 } qw(whoami describe-capabilities actions-list connector-call display-names);
 my @unexpected = grep { !$DELIBERATELY_CONSTANT{$_} } @constant;
 is_deeply( \@unexpected, [], 'no gate silently ignores the capabilities it is given' )
     or diag( "constant-answer gates: @unexpected\n"

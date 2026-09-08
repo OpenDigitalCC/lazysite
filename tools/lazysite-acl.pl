@@ -51,6 +51,7 @@ use Lazysite::Manager::Files
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl       ();
 use Lazysite::Auth::Settings  ();
+use Lazysite::Auth::Settings  ();
 use Lazysite::Paths           ();
 
 Getopt::Long::Configure( 'no_ignore_case', 'bundling_override' );
@@ -113,6 +114,11 @@ $Lazysite::Manager::Files::LOCK_DIR =
     Lazysite::Paths::lazysite_dir($docroot) . '/cache/locks';    # SM293
 $Lazysite::Manager::Common::DOCROOT = $docroot;
 $Lazysite::Auth::Acl::DOCROOT       = $docroot;
+# SM778: the ACL reader now names the principals in a rule, which needs the
+# account store. Acl localises this per call for its own reads; a CLI that
+# calls the manager action directly has to set it, or the rule comes back with
+# the names unavailable.
+$Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . '/auth';
 
 # A CLI caller is never a token client. token_auth suppresses the sysop
 # bypass, and setting it here would make --actor local behave differently from

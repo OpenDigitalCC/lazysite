@@ -137,8 +137,13 @@ subtest 'no -f/-e guard stands in front of a store read' => sub {
             my $i = 0;
             while ( my $l = <$fh> ) {
                 $i++;
-                next if $l     =~ /^\s*#/;
-                next unless $l =~ /\b(?:return|next)\b[^;]*\b(?:unless|if\s*!)\s*-[fe]\b/;
+                next if $l =~ /^\s*#/;
+                # SM778: `[^;]*` after the condition word, not `\s*`. The first
+                # spelling of this only matched a guard whose -f came straight
+                # after the `unless`, so `return {} unless defined $DIR && -f
+                # $path` - the guard TWO store readers were actually using -
+                # was invisible to the check written to find it.
+                next unless $l =~ /\b(?:return|next)\b[^;]*\b(?:unless|if\s*!)\b[^;]*-[fe]\b/;
                 next if $l     =~ /# not a store/;
                 push @guards, "$rel:$i: " . ( $l =~ s/^\s+|\s+$//gr );
             }

@@ -145,6 +145,11 @@ our %ACTION = (
     'data-safety-export-restore' => { caps => ['manage_data'], params => [ { name => 'file', in => 'query_or_body' }, { name => 'apply', in => 'query_or_body' } ] },
     'delete' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { caps => [], params => [] },
+
+    # SM778: resolve logins the caller ALREADY HOLDS to display names. No
+    # capability beyond being signed in, because it answers only for the logins
+    # it is given: it is not a listing of accounts and must never become one.
+    'display-names' => { caps => [], params => [ { name => 'logins', in => 'query_or_body', required => 1, note => 'an array of logins in the body, or a comma-separated list in the query' } ] },
     'domain-add' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body' }, { name => 'content_root', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' }, { name => 'seed', in => 'body' } ] },
     'domain-check' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'query' } ] },
     'domain-preview' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'query' } ] },

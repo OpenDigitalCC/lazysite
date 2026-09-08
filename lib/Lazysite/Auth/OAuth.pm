@@ -46,7 +46,15 @@ sub _path { "$LAZYSITE_DIR/auth/oauth.json" }
 sub load_store {
     my $p     = _path();
     my $empty = { clients => {}, codes => {}, tokens => {} };
-    return $empty unless defined $LAZYSITE_DIR && -f $p;
+    # SM778: `&& -f $p` used to ride along on the configuration check, and
+    # lint 121 did not see it - its regex wanted the -f immediately after the
+    # `unless`. An auth directory this process may not search answers false to
+    # the stat, so a token store that exists read as "no clients, no codes, no
+    # tokens" in silence: every OAuth grant on the site, gone, with nothing in
+    # the log. The two halves are separate questions. Whether the script set
+    # the directory is one this module answers; whether the file is there is
+    # the open's to answer, and cannot_read stays silent on ENOENT.
+    return $empty unless defined $LAZYSITE_DIR;
     open my $fh, '<', $p or return ( cannot_read( 'oauth.json', $p ) // $empty );
     my $raw = do { local $/; <$fh> };
     close $fh;

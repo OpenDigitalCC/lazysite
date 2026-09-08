@@ -12,7 +12,8 @@ use Lazysite::Util qw(log_event secure_write_perms cannot_read);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
-    caps_for display_name_for groups_grant_cap site_grants_manager
+    caps_for display_name_for display_names_for display_names_block settings_readable
+    groups_grant_cap site_grants_manager
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS);
@@ -110,7 +111,11 @@ sub _users_file          { "$AUTH_DIR/users" }
 # logged by accident.
 sub account_names {
     my $path = _users_file();
-    return {} unless defined $AUTH_DIR && -f $path;
+    # SM778: same guard, same hole in lint 121, and this one is worse - the
+    # audit page asks account_names WHICH ACTORS ARE REAL ACCOUNTS, so an
+    # unsearchable auth directory silently unlinked every actor in the trail.
+    # Configuration is this module's question; absence is the open's.
+    return {} unless defined $AUTH_DIR;
     open my $fh, '<:utf8', $path or return ( cannot_read( 'users', $path ) // {} );
     my %names;
     while ( my $line = <$fh> ) {
@@ -409,6 +414,64 @@ sub display_name_for {
     return defined $n ? $n : '';
 }
 
+# SM778: THE SAME QUESTION FOR A LIST, WHICH IS WHAT EVERY LISTING ASKS.
+#
+# Reported from familyhq.explore: a site rendering bylines had no route from a
+# login to a display name except for its own viewer, so it mirrored the names
+# into its own table and the mirror drifted until every byline read as a bare
+# login. The engine holds the names and hands back logins without them.
+#
+# Given the logins a response is about, this returns the names it HAS - and
+# only those. A login with no entry is simply absent from the map, which is
+# the honest shape: the caller already has the login and renders it, and a
+# map that carried `login => login` would make "no name set" indistinguishable
+# from "the name happens to equal the login".
+#
+# `readable` is the fourth state (SM784), passed through from the read: 0 says
+# an absent entry means UNKNOWN, not unset, and a surface that cares can say
+# so instead of quietly showing a login.
+#
+# THIS DISCLOSES NOTHING. It answers only for logins the caller supplied, and
+# every surface that calls it is already handing that login back in the same
+# response. It is not, and must not become, a way to enumerate accounts.
+sub display_names_for {
+    my (@logins) = @_;
+    my $s = read_settings();
+    my %names;
+    for my $l (@logins) {
+        next unless defined $l && length $l;
+        next if exists $names{$l};
+        next unless ref $s eq 'HASH' && ref $s->{$l} eq 'HASH';
+        my $n = $s->{$l}{display_name};
+        next unless defined $n && length $n;
+        $names{$l} = $n;
+    }
+    return { names => \%names, readable => settings_readable() };
+}
+
+# SM778: THE ONE SHAPE EVERY RESPONSE USES, so the two keys are spelled once.
+#
+# A `display_names` map beside whatever carries the logins, holding an entry
+# ONLY for a login that has a name: a caller that finds no entry renders the
+# login exactly as it does today, which is why this can be added to a response
+# without changing what any existing consumer sees. A map that carried
+# `login => login` would instead make "no name set" indistinguishable from "the
+# name happens to equal the login".
+#
+# `display_names_readable` is the fourth state (SM784) travelling with the
+# answer: a missing entry means "no name set" when it is true and "the engine
+# could not tell" when it is false. A surface that draws a person's name needs
+# the difference - the whole point of the rule is that an unreadable store must
+# not be rendered as a fact about the person.
+sub display_names_block {
+    my (@logins) = @_;
+    my $r = display_names_for(@logins);
+    return (
+        display_names          => $r->{names},
+        display_names_readable => ( $r->{readable} ? JSON::PP::true() : JSON::PP::false() ),
+    );
+}
+
 sub caps_for {
     my ($user) = @_;
     my $gc     = _group_caps($user);
@@ -440,12 +503,46 @@ sub caps_for {
 # Same shape as the processor's _peek_md, and per-process rather than global for
 # the same reason: under CGI one process is one request and this changes nothing,
 # while under FastCGI it removes nearly every read.
+# SM778/SM784: THE READ HAS FOUR ANSWERS AND THE HASH CARRIES TWO OF THEM.
+#
+# `read_settings` returns `{}` for a site that has never set a display name
+# and `{}` for a store this process could not open. Every caller that turns
+# that into a name gets '' either way, so "no name set" and "the engine could
+# not tell" arrive at the page as one sentence - which is the collapse the
+# release manager's four-states rule names, and the same one SM768 cost a
+# release to find in the connector store.
+#
+# The hash cannot carry the difference (there is nowhere in `{}` to put it),
+# so the READER records it beside the read and `settings_readable()` answers
+# it. A file that is simply absent is READABLE: a site with no settings file
+# has no display names, and that is an answer, not a failure. Anything else -
+# a directory that will not open, a truncated file, unparseable JSON - is
+# NOT, and a caller that means to render a name says so rather than showing
+# a login as though nobody had ever given it a name.
+#
+# Errno is read BEFORE cannot_read, which calls getpwuid and clobbers $! -
+# the exact ordering bug SM768 shipped.
 {
     my %_settings_cache;
+    my $_readable = 1;
 
     sub _settings_cache_clear { %_settings_cache = (); return }
 
+    # 1 the settings are what the store says; 0 the store could not be read,
+    # so an absent name is UNKNOWN rather than unset.
+    sub settings_readable { return $_readable }
+
     sub read_settings {
+        # SM778: a caller that never set $AUTH_DIR cannot be answered, and
+        # asking anyway builds the path "/user-settings.json" out of an undef -
+        # which warns onto stdout and, in a --json CLI, into the middle of the
+        # document. NOT readable: the store was not established, which is a
+        # different thing from being established as empty, and it also stops
+        # write_settings from writing to a path made of nothing.
+        unless ( defined $AUTH_DIR && length $AUTH_DIR ) {
+            $_readable = 0;
+            return {};
+        }
         my $file = _settings_file();
 
         # SM770: the stat below serves the CACHE KEY and nothing else. It used
@@ -454,13 +551,17 @@ sub caps_for {
         # "holds nothing", the exact shape SM760 cost a release to find.
         my @st  = stat $file;
         my $key = @st ? "$file:$st[9]:$st[7]" : '';
-        return $_settings_cache{$key} if length $key && exists $_settings_cache{$key};
+        if ( length $key && exists $_settings_cache{$key} ) {
+            $_readable = 1;    # only a successful read is ever cached
+            return $_settings_cache{$key};
+        }
         # Raw octets for decode_json - same convention as read_group_settings
         # (ADR 0001); a non-ASCII email/comment used to kill the whole read.
         # SM770: through cannot_read, which names the file, the error AND the
         # unix user - the fact that turns "Permission denied" into an
         # instruction - and stays silent when the file is simply absent.
         open my $fh, '<:raw', $file or do {
+            $_readable = $!{ENOENT} ? 1 : 0;    # errno first: cannot_read clobbers $!
             cannot_read( 'user-settings.json', $file );
             return {};
         };
@@ -468,9 +569,11 @@ sub caps_for {
         close $fh;
         my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
         if ( !$data || ref $data ne 'HASH' ) {
+            $_readable = 0;    # the file is there and says nothing we can use
             log_event( 'WARN', 'settings', 'user-settings.json unparseable; using defaults' );
             return {};
         }
+        $_readable = 1;
 
         # One entry per (file, mtime, size). The map is bounded by how many distinct
         # versions of one file a single process sees, which is one in practice and a
@@ -491,9 +594,41 @@ sub caps_for {
 
 # Single writer; write-temp-then-rename. Group-writable (0660) so the CLI and a
 # www-data CGI both manage it.
+# SM785: YOU MAY NOT OVERWRITE A STORE YOU COULD NOT READ.
+#
+# Every writer here is a read-modify-write: read the whole settings hash,
+# change one account's entry, write the whole hash back. read_settings answers
+# `{}` for a store it could not open - so the modify step built a hash
+# containing ONE account and the write step made that true, destroying every
+# other account's display name, comment, email, expiry, token TTL and start
+# page. A rename needs no permission on the target file, only on the
+# directory, so an unreadable store was not even a barrier.
+#
+# Found while building SM778: a test that made the store unreadable got back
+# an EMPTY name map with `readable: 1`, because the failing read had been
+# followed by touch_credential rewriting the file from `{}` - the store was
+# genuinely empty by the time the second read succeeded. Token verification
+# stamps "last used" on every call, so this fired on an ordinary API request.
+#
+# This is the release manager's four-states rule (SM784) at its most
+# expensive: `{}` meaning "could not tell" was handed to a writer that read it
+# as "there is nothing here", and the writer made the wrong answer true. The
+# reader cannot fix it alone - it has nowhere in `{}` to put the difference -
+# so the WRITER asks whether the read that produced its argument succeeded.
+#
+# Refusing is safe in both directions: a store that is simply ABSENT reads as
+# readable (ENOENT is an ordinary state), so a first write still lands.
 sub write_settings {
     my ($data) = @_;
     my $file = _settings_file();
+    unless ( settings_readable() ) {
+        log_event( 'WARN', 'settings',
+            'refusing to write user settings over a store that could not be read',
+            file => $file );
+        die "Refusing to overwrite $file: it could not be read, so this write "
+            . "would replace every account's settings with the one being changed. "
+            . "Fix the permissions on the file (and its directory) and retry.\n";
+    }
     my ( $ok, $stage ) = _write_json_atomic( $file, $data );
     unless ($ok) {
         die "Cannot write $file: $!\n" if $stage eq 'open';

@@ -55,6 +55,15 @@ my %INTROSPECTION = map { $_ => 1 }
 # CONNECTOR gates it (callers groups, or manage_connectors) and refuses by
 # name. It has no capability home by design, and no MCP twin yet (phase 2).
 my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call);
+# SM778: display-names / display_names have no capability home for the same
+# kind of reason as the introspection actions, but it is a DIFFERENT reason
+# and is written out rather than folded into that set. They disclose nothing a
+# caller does not already hold: they resolve the logins they are GIVEN, one
+# call at a time, and are not a listing - so there is no capability that could
+# sensibly own them, and describe_capabilities does not under-report by
+# leaving them out. If either ever grows a way to enumerate accounts, it needs
+# a capability and this exemption goes.
+my %NO_CAPABILITY_HOME = map { $_ => 1 } qw(display-names display_names);
 
 # SM431 removed the CHANNEL_GATED exemption that lived here: the ACL actions
 # now have an action-capability home (manage_content, matching their MCP
@@ -82,18 +91,24 @@ my %TWIN_DIFFERS = ();
 for my $a ( sort @api_live ) {
     next if $INTROSPECTION{$a};
     next if $CONNECTOR_GATED{$a};
+    next if $NO_CAPABILITY_HOME{$a};
     ok( $api_cap{$a}, "control-API action '$a' is declared under a capability" )
         or diag( "  '$a' is callable but appears in no unlocks list, so "
             . 'describe_capabilities under-reports what its capability gives.' );
 }
 for my $t ( sort @mcp_live ) {
     next if $INTROSPECTION{$t};
+    next if $NO_CAPABILITY_HOME{$t};
     ok( $mcp_cap{$t}, "MCP tool '$t' is declared under a capability" );
 }
 
 # --- 2. the twins, by name ---------------------------------------------------
 my %PAIR = (
     'analyse_visitors' => 'analyse_visitors',
+    # SM778: added to both surfaces at once, which is the point - the site that
+    # needed it is a token client, and the manager screens that carry names are
+    # cookie-only.
+    'display-names' => 'display_names',
     # SM301: was an MCP-only entry whose recorded reason was "the API path can
     # add one when someone asks for it". A live site asked, having taken its own
     # sitemap.xml down by deleting the generated file for want of this.

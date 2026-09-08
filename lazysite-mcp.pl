@@ -542,6 +542,31 @@ my %TOOLS = (
             return $map;
         },
     },
+    # SM778: the twin of the control API's display-names. A site rendering
+    # bylines had no route from a login to a display name except for its own
+    # viewer, so it mirrored the names into its own table and the mirror
+    # drifted. It resolves only logins the caller supplies - never a listing -
+    # so it needs no capability beyond being connected, like whoami.
+    display_names => {
+        description => 'Resolve logins you already hold to their display names. Give the logins your page is about; you get back a map holding an entry for each one that HAS a name, and display_names_readable saying whether the account store could be read (when it is false, a missing entry means "could not tell", not "no name set"). This is not a listing of accounts - it answers only for the logins you send.',
+        cap         => undef,
+        inputSchema => { type => 'object',
+            properties => { logins => { type => 'array', items => { type => 'string' } } },
+            required   => ['logins'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ($args) = @_;
+            my @logins = ref $args->{logins} eq 'ARRAY' ? @{ $args->{logins} } : ();
+            return { ok => JSON::PP::false, error => 'logins must be an array of logins' }
+                unless @logins;
+            return { ok => JSON::PP::false, error => 'Too many logins in one call (200 at most)' }
+                if @logins > 200;
+            require Lazysite::Auth::Settings;
+            no warnings 'once';
+            local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+            return { ok => JSON::PP::true,
+                Lazysite::Auth::Settings::display_names_block(@logins) };
+        },
+    },
     list_files => {
         description => 'List files and folders under a site-relative directory path (default "/").',
         cap         => 'manage_content', path_aware => 1,
@@ -3341,7 +3366,8 @@ sub _rename_page {
 # reader looks to find out what the dispatch believes about a tool.
 my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
     page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, form_list => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
-    list_versions => 1, list_content_history => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
+    list_versions => 1, list_content_history => 1, view_version => 1, # history reads: audit-skipped like the API's git-history/show
+    display_names => 1 );    # SM778: a lookup of names the caller already sees
 
 my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
 
@@ -3428,6 +3454,7 @@ my %ANNOTATE = (
     delete_page     => [ 0, 1, 1 ],
     rename_page     => [ 0, 0, 1 ],
     get_permissions => [ 1, 0, 0 ],
+    display_names   => [ 1, 0, 0 ],    # SM778: a read, and it touches nothing
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
     set_permissions => [ 0, 0, 0, 1 ], # SM587: acl-set's twin - it moves the read boundary

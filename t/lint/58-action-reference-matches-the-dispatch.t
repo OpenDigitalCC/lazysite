@@ -151,10 +151,19 @@ subtest 'and it is subset by grant, not a menu of refusals' => sub {
     my @names = map { $_->{action} } @$none;
     # SM781: connector-call joins the three - it is served to every
     # authenticated caller (gate 'ALWAYS') and the CONNECTOR decides, by its
-    # callers groups, so a capless account in a named group may call it. A
-    # token's list carries it for that reason, and no other capless action.
-    is_deeply( [ sort @names ], [ 'actions-list', 'connector-call', 'describe-capabilities', 'whoami' ],
-        'a capless token sees the three introspection actions and connector-call' )
+    # callers groups, so a capless account in a named group may call it.
+    #
+    # SM778: and display-names, for a different reason worth stating rather
+    # than assuming. It takes no capability because it DISCLOSES NOTHING A
+    # CALLER DOES NOT ALREADY HAVE: it answers only for the logins it is
+    # given, one at a time, and it is not a listing - a caller that does not
+    # already hold a login learns nothing by asking about it. That is the
+    # whole justification, so it is also the thing that would have to be
+    # re-argued if the action ever grew a "list them all" mode. This list is
+    # short deliberately; adding to it is a decision, not a detail.
+    is_deeply( [ sort @names ],
+        [ 'actions-list', 'connector-call', 'describe-capabilities', 'display-names', 'whoami' ],
+        'a capless token sees the introspection actions, connector-call and display-names' )
         or diag( 'Listing everything would be a list of things to try and be '
             . 'refused - and the refusals then read as defects.' );
 

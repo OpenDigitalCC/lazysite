@@ -919,10 +919,27 @@ sub cmd_remove {
     print "User '$user' removed.\n" unless $API_MODE;
 }
 
+# SM778: the login and, where there is one, the name that goes with it. An
+# operator reading a roster of `sjm`, `sm2`, `smorris` cannot tell three
+# accounts apart, and the store already holds what would.
+#
+# The LOGIN stays first and unpadded, so anything downstream that reads the
+# first field of a line still works; the name follows it, in the shape the
+# rest of this tool prints a qualifier. An account with no name set prints
+# exactly as it did before.
 sub cmd_list {
     my %users = read_users();
     if (%users) {
-        print "$_\n" for sort keys %users;
+        my $r = Lazysite::Auth::Settings::display_names_for( sort keys %users );
+        for my $u ( sort keys %users ) {
+            my $n = $r->{names}{$u};
+            print defined $n && length $n ? "$u ($n)\n" : "$u\n";
+        }
+        # SM784: an unreadable store answers "no name" for everyone, which
+        # reads as a roster of nameless accounts. Say which it is.
+        print "(display names unavailable: the account settings store could "
+            . "not be read - see the log)\n"
+            unless $r->{readable};
     }
     else {
         print "No users.\n";

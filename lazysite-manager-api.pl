@@ -203,6 +203,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     nav-save notices notices-seen page-pdf pages plugin-action plugin-disable
     plugin-enable plugin-list plugin-read plugin-save preview preview-clear
     preview-grant principals protected-sections read recent-changes renew-lock
+    display-names
     rotate-auth-secret save session-revoke sessions-list site-backup-apply
     site-backup-create site-backup-delete site-backup-download
     site-backup-inspect site-backup-upload site-export-primary
@@ -1054,10 +1055,16 @@ if ($token_auth) {
         'whoami' => 'ALWAYS',    # any authenticated token may introspect its own grant
         'describe-capabilities' => 'ALWAYS', # SM126: introspection - the capability map
         'actions-list'          => 'ALWAYS', # SM350: introspection - the action reference
-            # SM579: any authenticated token may REACH connector-call; the
-            # connector then decides (callers groups, or manage_connectors) and
-            # refuses by name. The capability tables above hold the configuring
-            # actions.
+            # SM778: resolving logins the caller ALREADY HAS to display names.
+            # It answers only for the logins it is given and never lists
+            # accounts, so it discloses nothing a caller holding those logins
+            # cannot already see - which is why it needs no capability, and
+            # why it must never grow a "list them all" mode.
+        'display-names' => 'ALWAYS',
+        # SM579: any authenticated token may REACH connector-call; the
+        # connector then decides (callers groups, or manage_connectors) and
+        # refuses by name. The capability tables above hold the configuring
+        # actions.
         'connector-call' => 'ALWAYS',
         # Visitor-log analysis over the control API (token clients), same grant as
         # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
@@ -1289,7 +1296,7 @@ if ($token_auth) {
 # do. SM508: briefs-list skips as a read; brief-delete is audited - removing a
 # record of intent is exactly what a trail should remember.
 my %skip = map { $_ => 1 } qw(
-    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page
+    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names
     cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
     layouts-available layouts-releases layouts-repo-get layouts-release-contents
     handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
@@ -2077,8 +2084,12 @@ elsif ( $action eq 'layouts-repo-set' ) {
     my $req = _json_body();
     $result = action_layouts_repo_set( $req->{value} );
 }
-elsif ( $action eq 'users' )              { $result = action_users( $body, \%params ) }
-elsif ( $action eq 'principals' )         { $result = action_principals() }
+elsif ( $action eq 'users' )      { $result = action_users( $body, \%params ) }
+elsif ( $action eq 'principals' ) { $result = action_principals() }
+elsif ( $action eq 'display-names' ) {
+    my $req = _json_body() || {};
+    $result = action_display_names( $req->{logins} // $params{logins} );
+}
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret($auth_user) }
 elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 'user-revoke'
     || $action eq 'keys-list' || $action eq 'key-revoke' ) {
@@ -4423,12 +4434,17 @@ sub action_audit {
     my $accounts = Lazysite::Auth::Settings::account_names();
     my @real     = sort grep { length && $accounts->{$_} } keys %fusers;
 
+    # SM778: the trail's actor column is a login, and so is the filter
+    # dropdown. Only real accounts are resolved - `%fusers` also holds the
+    # invented names SM641 describes, and a name for one of those would be a
+    # claim the store cannot support.
     return { ok => 1, entries => \@slice,
         total    => $total, page => $page, per_page => $per, pages => $pages,
         scoped   => ( $scope ? JSON::PP::true() : JSON::PP::false() ),    # SM173
-        users    => [ sort keys %fusers ],       # SM119: filter dropdown options
-        accounts => \@real,                      # SM641: of those, the linkable ones
-        targets  => [ sort keys %ftargets ] };
+        users    => [ sort keys %fusers ],     # SM119: filter dropdown options
+        accounts => \@real,                    # SM641: of those, the linkable ones
+        targets  => [ sort keys %ftargets ],
+        _display_names(@real) };
 }
 
 # The visitor-stats plugin. LAZYSITE_STATS_TOOL wins.
@@ -4501,6 +4517,40 @@ sub action_version {
     return { ok => 1, version => $d->{version}, installed_at => $d->{installed_at} };
 }
 
+# SM778: THE NAMES THAT GO WITH THE LOGINS THIS RESPONSE ALREADY CARRIES.
+#
+# Reported from familyhq.explore: the engine hands back logins and holds the
+# display names, and gives a site no way to join the two - so the site mirrored
+# the names into its own table and the mirror drifted until every byline read
+# as a bare login.
+#
+# The shape itself lives with the resolver, in Lazysite::Auth::Settings, so
+# that the manager API, the ACL reader and the MCP twin add the same two keys
+# rather than three hand-kept copies of them (SM662 is the general form).
+sub _display_names { return Lazysite::Auth::Settings::display_names_block(@_) }
+
+# SM778: the read action a page calls with an ordinary session - resolve the
+# logins I already hold, and nothing else. No capability beyond being signed
+# in, because it answers only about logins the caller supplied; it is not a
+# listing and must never become one. `logins` comes as an array in the body or
+# a comma-separated list in the query, so a plain GET works on both channels.
+sub action_display_names {
+    my ($raw) = @_;
+    my @logins
+        = ref $raw eq 'ARRAY'             ? @{$raw}
+        : ( defined $raw && length $raw ) ? ( split /\s*,\s*/, $raw )
+        :                                   ();
+    return { ok => 0, kind => 'invalid', field => 'logins',
+        error => 'logins must be an array of logins (or a comma-separated list)' }
+        unless @logins;
+    # A cap, so one call cannot be turned into a walk of the account store by
+    # supplying every plausible login: this resolves a page's worth of names.
+    return { ok => 0, kind => 'invalid', field => 'logins',
+        error => 'Too many logins in one call (200 at most)' }
+        if @logins > 200;
+    return { ok => 1, _display_names(@logins) };
+}
+
 # SM077: assignable principals for the permissions pickers - usernames + group
 # names only (no settings/records). Cookie-manager action, like 'users'.
 sub action_principals {
@@ -4508,7 +4558,10 @@ sub action_principals {
     my $g      = users_api( { action => 'groups' } ) || {};
     my @users  = ref $u->{users} eq 'ARRAY' ? @{ $u->{users} }                : ();
     my @groups = ref $g->{groups} eq 'HASH' ? ( sort keys %{ $g->{groups} } ) : ();
-    return { ok => 1, users => \@users, groups => \@groups };
+    # SM778: the permissions pickers are the surface the report was about -
+    # they offered a list of logins to grant to and no way to tell two people
+    # apart.
+    return { ok => 1, users => \@users, groups => \@groups, _display_names(@users) };
 }
 
 # SM145: a thin one-shot call into the users tool (--api) for reads/writes that
@@ -4659,6 +4712,30 @@ sub action_users {
     if ( ref $result eq 'HASH' && $result->{ok}
         && exists $result->{users} && exists $result->{groups} ) {
         $result->{me} = $auth_user;
+    }
+
+    # SM778: the logins this response hands back, named.
+    #
+    # `users` is either an array of logins (list) or an array of
+    # {user,settings} rows (users-detail / users-page, whose settings already
+    # carry the name); `groups` is group => [members], and a member may itself
+    # be a group name (SM121 compound groups), which simply has no entry.
+    # Resolving the union costs one memoised read whichever shape arrives.
+    if ( ref $result eq 'HASH' && $result->{ok} ) {
+        my %logins;
+        if ( ref $result->{users} eq 'ARRAY' ) {
+            for my $u ( @{ $result->{users} } ) {
+                my $l = ref $u eq 'HASH' ? $u->{user} : $u;
+                $logins{$l} = 1 if defined $l && length $l;
+            }
+        }
+        if ( ref $result->{groups} eq 'HASH' ) {
+            for my $members ( values %{ $result->{groups} } ) {
+                next unless ref $members eq 'ARRAY';
+                $logins{$_} = 1 for grep { defined && length } @{$members};
+            }
+        }
+        if (%logins) { %$result = ( %$result, _display_names( sort keys %logins ) ) }
     }
     return $result;
 }

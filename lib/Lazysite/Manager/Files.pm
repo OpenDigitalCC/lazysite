@@ -24,6 +24,7 @@ use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
 use Lazysite::Private         ();                    # SM286: where content actually lives
+use Lazysite::Auth::Settings  ();                    # SM778: logins -> display names
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -1620,6 +1621,20 @@ sub _get_lock_info {
 # get / set / remove, the protected-sections panel, and the SM286 private-store
 # mover that keeps gated content out of the document root.
 
+# SM778: the logins in an access rule. `read` and `write` are principal lists
+# that may name a GROUP (@editors) as well as an account, and a group has no
+# display name to resolve - it is dropped here rather than resolved to nothing,
+# so the map holds only what it can actually answer for.
+sub _acl_logins {
+    my ($a) = @_;
+    return () unless ref $a eq 'HASH';
+    my @p = ( $a->{owner} // () );
+    for my $k (qw(read write)) {
+        push @p, @{ $a->{$k} } if ref $a->{$k} eq 'ARRAY';
+    }
+    return grep { defined && length && !/\A\@/ } @p;
+}
+
 sub action_acl_get {
     my ( $rel_path, $user ) = @_;
 
@@ -1657,7 +1672,8 @@ sub action_acl_get {
             return { ok => 0, error => "Not the owner of this file" }
                 if $a && ( $a->{owner} // '' ) ne ( $user // '' );
         }
-        return { ok => 1, path => '/', acl => $a };
+        return { ok => 1, path => '/', acl => $a,
+            Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
     }
 
     my $r = validate_path($rel_path);
@@ -1669,7 +1685,8 @@ sub action_acl_get {
         return { ok => 0, error => "Not the owner of this file" }
             if $a && ( $a->{owner} // '' ) ne ( $user // '' );
     }
-    return { ok => 1, path => $r->{rel}, acl => $a };
+    return { ok => 1, path => $r->{rel}, acl => $a,
+        Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
 }
 
 # SM287: which spellings mean "the whole site", and which are refused.
@@ -2287,7 +2304,13 @@ sub action_protected_sections {
         }
     }
 
-    return { ok => 1, sections => \@out };
+    # SM778: every owner and every named reader/writer across the sections
+    # this caller is allowed to see - resolved after the scope filter above, so
+    # a name never travels for a section the caller was not shown.
+    return { ok => 1, sections => \@out,
+        Lazysite::Auth::Settings::display_names_block(
+            map { _acl_logins($_) } @out
+        ) };
 }
 
 sub action_acl_remove {
