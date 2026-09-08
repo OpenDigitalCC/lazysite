@@ -567,6 +567,65 @@ my %TOOLS = (
                 Lazysite::Auth::Settings::display_names_block(@logins) };
         },
     },
+    # SM579 phase 2: THE ONE CONNECTOR TWIN, and the decision behind it.
+    #
+    # Phase 1 left six connector actions API-only with "phase 2 decides the MCP
+    # surface". This is that decision, and it is narrow on purpose.
+    #
+    # CALLING gets a twin. It is mode 2 exactly - an authenticated caller,
+    # gated by the connector's own callers groups or manage_connectors - and an
+    # MCP agent is an authenticated caller. The gate already exists and this
+    # adds no reach: an agent that may not call is refused by the connector,
+    # by name, as any other caller would be.
+    #
+    # CONFIGURING DOES NOT, and that is a refusal rather than an omission.
+    # "The operator writes connectors; an author references one by name and can
+    # never supply a URL" is the whole SSRF answer in this filing. An agent
+    # that could save a connector could point this site at an internal address,
+    # and an agent that could set a secret could replace a credential it is not
+    # allowed to read. Those are human acts at a human surface, which is what
+    # the manager page in this same phase is for.
+    #
+    # Reading the definitions and the call record has no twin either, for a
+    # duller reason: both are gated on manage_connectors, so an agent that may
+    # only CALL cannot reach either of them anyway. When an agent needs to
+    # discover which connectors it may call, that is a new read designed for
+    # the purpose - not manage_connectors handed to an agent so it can browse.
+    connector_call => {
+        description => 'Send a payload through a connector the operator has configured, and get back what the remote answered. You cannot name a URL - only a connector by its id - and the connector decides whether this account may call it and how often. Give either `payload` (the fields to send) or `row` (a key in the connector\'s own row table, whose row_map decides which columns are sent).',
+        cap         => undef,
+        inputSchema => { type => 'object',
+            properties => {
+                id      => { type => 'string' },
+                payload => { type => 'object' },
+                row     => { type => 'string' },
+            },
+            required => ['id'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $args, $user, $caps ) = @_;
+            require Lazysite::Manager::Connectors;
+            no warnings 'once';
+            local $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
+            my @groups  = @Lazysite::Auth::Acl::user_groups;
+            my $payload = ref $args->{payload} eq 'HASH' ? $args->{payload} : {};
+            if ( defined $args->{row} && length $args->{row} ) {
+                my $all = Lazysite::Manager::Connectors::connectors();
+                my $c   = ref $all eq 'HASH' ? $all->{ $args->{id} // '' } : undef;
+                return { ok => JSON::PP::false, error => "no connector '" . ( $args->{id} // '' ) . "'" }
+                    unless $c;
+                my ( $p, $why ) = Lazysite::Manager::Connectors::row_payload( $c, $args->{row},
+                    as => { user => $user, groups => \@groups }, actor => $user, groups => \@groups );
+                return { ok => JSON::PP::false, error => $why } unless $p;
+                $payload = $p;
+            }
+            my $r = Lazysite::Manager::Connectors::call( $args->{id}, $payload,
+                mode  => 'authenticated', caps => $caps, groups => \@groups,
+                actor => $user,
+                trigger => ( defined $args->{row} && length $args->{row} ) ? 'row' : 'mcp' );
+            $r->{ok} = $r->{ok} ? JSON::PP::true : JSON::PP::false;
+            return $r;
+        },
+    },
     list_files => {
         description => 'List files and folders under a site-relative directory path (default "/").',
         cap         => 'manage_content', path_aware => 1,
@@ -3455,6 +3514,9 @@ my %ANNOTATE = (
     rename_page     => [ 0, 0, 1 ],
     get_permissions => [ 1, 0, 0 ],
     display_names   => [ 1, 0, 0 ],    # SM778: a read, and it touches nothing
+        # SM579: openWorld, and the only tool here that is. A connector call
+        # leaves this instance; that is the whole point of it, and the hint says so.
+    connector_call  => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
     set_permissions => [ 0, 0, 0, 1 ], # SM587: acl-set's twin - it moves the read boundary

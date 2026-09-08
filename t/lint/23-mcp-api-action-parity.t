@@ -39,7 +39,7 @@ my $mcp_src = slurp("$root/lazysite-mcp.pl");
 # SM662: the gate is declarative, so the live action list is simply its keys -
 # no regex over a sub body, and nothing to get subtly wrong.
 my @api_live = sort keys %{ { gate_caps($api_src) } };
-my @mcp_live     = $mcp_src    =~ /^    ([a-z_]+)\s*=>\s*\{/mg;
+my @mcp_live = $mcp_src =~ /^    ([a-z_]+)\s*=>\s*\{/mg;
 cmp_ok( scalar @api_live, '>=', 40, 'the control-API action table was parsed' );
 cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );
 
@@ -54,7 +54,9 @@ my %INTROSPECTION = map { $_ => 1 }
 # SM579: connector-call is reachable by any authenticated caller; the
 # CONNECTOR gates it (callers groups, or manage_connectors) and refuses by
 # name. It has no capability home by design, and no MCP twin yet (phase 2).
-my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call);
+# SM579 phase 2: the MCP twin is gated the same way, by the connector, so it
+# has no capability home for the same reason its API half has none.
+my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call);
 # SM778: display-names / display_names have no capability home for the same
 # kind of reason as the introspection actions, but it is a DIFFERENT reason
 # and is written out rather than folded into that set. They disclose nothing a
@@ -99,6 +101,11 @@ for my $a ( sort @api_live ) {
 for my $t ( sort @mcp_live ) {
     next if $INTROSPECTION{$t};
     next if $NO_CAPABILITY_HOME{$t};
+    # SM579 phase 2: the connector-gated exemption applied to the API half
+    # only, because until now nothing on this side was gated that way. A twin
+    # whose gate is the CONNECTOR has no capability home on either surface,
+    # and the map does not under-report by omitting it.
+    next if $CONNECTOR_GATED{$t};
     ok( $mcp_cap{$t}, "MCP tool '$t' is declared under a capability" );
 }
 
@@ -109,6 +116,10 @@ my %PAIR = (
     # needed it is a token client, and the manager screens that carry names are
     # cookie-only.
     'display-names' => 'display_names',
+    # SM579 phase 2: calling gets a twin because it IS mode 2 - an
+    # authenticated caller, gated by the connector itself. Configuring does
+    # not; see %API_ONLY.
+    'connector-call' => 'connector_call',
     # SM301: was an MCP-only entry whose recorded reason was "the API path can
     # add one when someone asks for it". A live site asked, having taken its own
     # sitemap.xml down by deleting the generated file for want of this.
@@ -125,17 +136,17 @@ my %PAIR = (
     # DESTROY is the first half of that pair to exist on both - which is the
     # right way round: a create with no undo is what left a registration on a
     # live site that nobody with a token could remove.
-    'form-delete'           => 'delete_form',
-    'git-history'           => 'list_versions',
-    'git-history-summary'   => 'list_content_history',
-    'git-show'              => 'view_version',
-    'git-restore'           => 'restore_version',
-    'layout-activate'       => 'activate_layout',
-    'layout-install'        => 'install_layout',
-    'layout-delete'         => 'delete_layout',
-    'layouts-manifest'      => 'list_layout_catalogue',
-    'theme-activate'        => 'activate_theme',
-    'theme-copy'            => 'copy_theme',
+    'form-delete'         => 'delete_form',
+    'git-history'         => 'list_versions',
+    'git-history-summary' => 'list_content_history',
+    'git-show'            => 'view_version',
+    'git-restore'         => 'restore_version',
+    'layout-activate'     => 'activate_layout',
+    'layout-install'      => 'install_layout',
+    'layout-delete'       => 'delete_layout',
+    'layouts-manifest'    => 'list_layout_catalogue',
+    'theme-activate'      => 'activate_theme',
+    'theme-copy'          => 'copy_theme',
     # SM262: paired, but NOT identical - the MCP tool is always restricted to
     # themes the caller created, while the API action restricts only for token
     # clients and leaves the manager UI's cookie session unrestricted. Same
@@ -214,12 +225,23 @@ my %API_ONLY = (
     # API and the (coming) manager page. Whether an AGENT may configure where
     # site data goes, or cause a call, is a phase-2 question to answer once
     # the modes have been proved on edge - recorded rather than left silent.
-    'connector-list'       => 'SM579 phase 2 decides the MCP surface',
-    'connector-save'       => 'SM579 phase 2 decides the MCP surface',
-    'connector-secret-set' => 'a secret over MCP is a phase-2 question (SM579)',
-    'connector-delete'     => 'SM579 phase 2 decides the MCP surface',
-    'connector-calls'      => 'SM579 phase 2 decides the MCP surface',
-    'connector-call'       => 'SM579 phase 2 decides whether an agent may cause a call',
+    # SM579 phase 2 DECIDED these, and the decision is a refusal rather
+    # than a gap. "The operator writes connectors; an author references one by
+    # name and can never supply a URL" is this filing's whole SSRF answer: an
+    # agent that could save a connector could point the site at an internal
+    # address, and one that could set a secret could replace a credential it
+    # may not read. Those are human acts, and the manager page shipped in the
+    # same phase is where they happen.
+    'connector-save' => 'SM579 phase 2: writing a destination is an operator act at a human surface',
+    'connector-secret-set' => 'SM579 phase 2: setting a credential is an operator act at a human surface',
+    'connector-delete' => 'SM579 phase 2: removing a destination is an operator act at a human surface',
+    # The two READS have a duller reason: both are gated on manage_connectors,
+    # so an agent that may only CALL cannot reach either. When an agent needs
+    # to discover which connectors it may call, that is a read designed for
+    # the purpose - not manage_connectors handed to an agent so it can browse.
+    'connector-list' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
+    'connector-calls' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
+
     # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
     # has no named twin because set_permissions with empty read/write lists
     # clears a rule - a twin would be a second spelling of the same operation.
@@ -240,8 +262,8 @@ my %API_ONLY = (
     # with a second address form or adding table-specific ones, and that choice
     # belongs with SM611, which may change what a table's rule is keyed on
     # altogether. Deciding now would likely be deciding twice.
-    'data-table-acl-get'    => 'undecided pending SM611: a table is addressed by name, not path',
-    'data-table-acl-set'    => 'undecided pending SM611: a table is addressed by name, not path',
+    'data-table-acl-get' => 'undecided pending SM611: a table is addressed by name, not path',
+    'data-table-acl-set' => 'undecided pending SM611: a table is addressed by name, not path',
     'data-table-acl-remove' => 'undecided pending SM611: a table is addressed by name, not path',
     # SM245: the sidecar migration is an operator's one-shot, reached from the
     # Plugin Manager; an agent has no standing to run it.

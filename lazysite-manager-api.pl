@@ -2228,11 +2228,38 @@ elsif ( $action eq 'connector-call' ) {
     # mode 2: a logged-in caller. The connector decides whether this account
     # may cause the call - its callers groups, or manage_connectors - and how
     # often (Connectors::may_call). Never a file: fields only.
-    my $req    = _json_body();
-    my $caps   = Lazysite::Auth::Settings::caps_for($auth_user);
-    my @groups = Lazysite::Auth::Settings::effective_groups($auth_user);
-    $result = _connectors()->can('call')->( $req->{id}, ( ref $req->{payload} eq 'HASH' ? $req->{payload} : {} ),
-        mode => 'authenticated', caps => $caps, groups => \@groups, actor => $auth_user, trigger => 'api' );
+    my $req     = _json_body();
+    my $caps    = Lazysite::Auth::Settings::caps_for($auth_user);
+    my @groups  = Lazysite::Auth::Settings::effective_groups($auth_user);
+    my $payload = ref $req->{payload} eq 'HASH' ? $req->{payload} : {};
+
+    # SM579 phase 2: A ROW-SOURCED CALL SENDS A KEY, NOT A PAYLOAD.
+    #
+    # `row` names a row of the connector's own row_table; the connector's
+    # row_map decides which columns leave, and the read answers the data
+    # store's own rules under THIS account. So a page action says "send order
+    # 41" and cannot say what order 41 contains - which is the difference
+    # between a button and an open relay under the operator's credential.
+    if ( defined $req->{row} && length $req->{row} ) {
+        my $all = _connectors()->can('connectors')->();
+        my $c   = ref $all eq 'HASH' ? $all->{ $req->{id} // '' } : undef;
+        if ( !$c ) {
+            respond( { ok => 0, kind => 'invalid', field => 'id',
+                    error => "no connector '" . ( $req->{id} // '' ) . "'" } );
+            exit 0;
+        }
+        my ( $p, $why ) = _connectors()->can('row_payload')->( $c, $req->{row},
+            as => { user => $auth_user, groups => \@groups }, actor => $auth_user, groups => \@groups );
+        if ( !$p ) {
+            respond( { ok => 0, kind => 'invalid', field => 'row', error => $why } );
+            exit 0;
+        }
+        $payload = $p;
+    }
+
+    $result = _connectors()->can('call')->( $req->{id}, $payload,
+        mode => 'authenticated', caps => $caps, groups => \@groups, actor => $auth_user,
+        trigger => ( defined $req->{row} && length $req->{row} ) ? 'row' : 'api' );
 }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350

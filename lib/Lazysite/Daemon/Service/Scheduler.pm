@@ -96,6 +96,18 @@ our %JOBS = (
         needs => 'manage_connectors',
         run   => \&Lazysite::Daemon::Jobs::connectors_sweep,
     },
+
+    # SM579 phase 2, mode 1: call every connector whose declared interval has
+    # elapsed. ONE job, and this table stays a closed literal - a connector
+    # says how OFTEN it wants calling; it cannot add a job, change this
+    # schedule, or reach the identity gate. The tick is 300s because that is
+    # the floor a connector's schedule_every may declare; a connector asking
+    # for less would be told it runs every minute while it did not.
+    'connectors-call' => {
+        every => 300,
+        needs => 'manage_connectors',
+        run   => \&Lazysite::Daemon::Jobs::connectors_call_due,
+    },
 );
 
 sub jobs { return \%JOBS }

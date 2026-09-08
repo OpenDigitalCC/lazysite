@@ -105,6 +105,41 @@ sub connectors_sweep {
     return { ok => 1, kept => $r->{kept}, expired => $r->{expired}, unanswered => $r->{unanswered} };
 }
 
+# SM579 phase 2: MODE 1. Call every connector whose declared interval has
+# elapsed.
+#
+# ONE ENGINE JOB, not a job per connector. %JOBS stays the closed literal the
+# daemon's security review re-verified: a connector may declare how often it
+# wants to be called, and nothing a site writes can add a job, change the
+# schedule, or reach the scheduler's identity gate.
+#
+# The outcome names each connector and what happened to it, because a
+# scheduled call is the one nobody watches - "3 called" tells an operator
+# nothing about which one has been failing since Tuesday.
+sub connectors_call_due {
+    my (%ctx) = @_;
+    require Lazysite::Manager::Connectors;
+    no warnings 'once';
+    local $Lazysite::Manager::Connectors::DOCROOT = $ctx{docroot};
+
+    my ( $due, $why ) = Lazysite::Manager::Connectors::due_scheduled();
+    return { ok => 0, error  => $why }         unless defined $due;
+    return { ok => 1, detail => { due => 0 } } unless @$due;
+
+    my ( @called, @failed );
+    for my $id (@$due) {
+        my $r = Lazysite::Manager::Connectors::call_scheduled($id);
+        if ( $r->{ok} ) { push @called, $id }
+        else { push @failed, "$id: " . ( $r->{why} // $r->{state} // 'failed' ) }
+    }
+    # NOT ok => 0 when one fails. The job DID what it was for; a connector
+    # whose remote is down is a fact about that connector, recorded here and
+    # in its own call record, and failing the whole job would put the
+    # scheduler into a retry loop over somebody else's outage.
+    return { ok => 1,
+        detail => { due => scalar @$due, called => \@called, failed => \@failed } };
+}
+
 sub sessions_sweep {
     my (%ctx) = @_;
     require Lazysite::Manager::Sessions;

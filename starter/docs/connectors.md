@@ -39,12 +39,21 @@ in any other mode is refused by name:
   visitor types, sent outward under your credential.
 
 `scheduled`
-: The timer calls it, with no request involved at all. Declared now, invoked
-  in a later release.
+: The timer calls it, with no request involved at all - so nothing a visitor
+  sends can reach the destination, which makes it the safest of the three by
+  construction. Set `schedule_every` (seconds, 300 or more) and
+  `schedule_payload` (a flat set of fixed fields) and the daemon calls it on
+  that interval. The payload is **fixed**: a scheduled call that could take a
+  row or run a query would be a scheduler of arbitrary work, and that is not
+  what this is.
 
 ## Defining a connector
 
-Over the control API, with `manage_connectors`:
+**On the Connectors page in the manager**, or over the control API with
+`manage_connectors`. The page is the ordinary way: it is where the destination
+and its credential belong, and an author never supplies a URL anywhere.
+
+Over the API:
 
 ```
 POST action=connector-save
@@ -132,3 +141,64 @@ never a library path.
   goes** - a conferral like `manage_data`, not part of `manage_config`.
   Calling a connector as an ordinary logged-in user needs no capability:
   the connector's own `callers` list decides.
+
+## Sending a row from a table
+
+A connector may take its payload from a data table instead of from fields a
+caller supplies. The caller sends a **key**, never a payload:
+
+```
+POST action=connector-call
+{ "id": "crm", "row": "41" }
+```
+
+That is the point of it. A page action says *send order 41*; what order 41
+actually contains is decided by the connector, not by whoever pressed the
+button. A caller that could hand over a payload could send anything at all
+under your credential.
+
+The connector names the table and **maps every column it sends**:
+
+```
+"row_table": "orders",
+"row_map": { "customer": "name", "total": "amount" }
+```
+
+`row_map` is required rather than "send the row", and the reason is worth
+stating: a table gaining a column is an ordinary act, and it must not silently
+widen what leaves your site. A column the map does not name is not sent -
+including one added next month.
+
+The row is read **as the calling account**, through the data store's own
+rules. A table that account may not read is not a table it can send, and it
+gets the same answer as for a table that does not exist.
+
+## Calling on a timer
+
+```
+"modes": { "scheduled": 1 },
+"schedule_every": 3600,
+"schedule_payload": { "report": "daily" }
+```
+
+The daemon calls every connector whose interval has elapsed. **Due-ness comes
+from the call record** - the last call that actually went out - so there is no
+second store that could disagree with it, and a refusal does not count as
+having run.
+
+The floor is 300 seconds, because the scheduler's own tick is 300 seconds and
+a finer interval would be a promise it cannot keep.
+
+A connector declaring a schedule must permit `scheduled`, and one that permits
+**only** `scheduled` refuses a request-time call - from a form, from the API,
+from an agent - with a message naming the mode it does allow.
+
+## From an agent
+
+`connector_call` is the one connector tool on the MCP surface, and it is the
+same mode 2: the connector decides whether the calling account may use it.
+
+Configuring a connector is **not** on that surface, and that is a decision
+rather than an omission. Writing a destination and setting a credential are
+operator acts at a human surface - the Connectors page - because an agent that
+could save a connector could point this site at an internal address.

@@ -167,6 +167,71 @@ sub _normalise {
     return ( undef, 'answer_table must be a table name' ) unless $tbl eq '' || $tbl =~ /\A[a-z][a-z0-9_]{0,63}\z/;
     $c{answer_table} = $tbl;
     $c{data_class} = ( $in->{data_class} // 'form' ) =~ /\A(?:form|row|fixed)\z/ ? $in->{data_class} // 'form' : 'form';
+
+    # SM579 phase 2: THE ROW SOURCE, AND WHY IT IS A MAP AND NOT A ROW.
+    #
+    # A connector that could "send the row" would start sending a column the
+    # day somebody adds one - a table gaining a field is an ordinary act, and
+    # it must not silently widen what leaves the site. So the connector names
+    # the table it may take a row from and MAPS each column it sends to the
+    # field name the remote expects. An unmapped column is not sent, including
+    # one added later, which is the whole point.
+    #
+    # This is the same reasoning the `db` page binding already gives, and the
+    # filing states it as a proving test: "a table-sourced call sends only
+    # mapped columns; an unmapped new column is not sent".
+    my $rt = $in->{row_table} // '';
+    return ( undef, 'row_table must be a table name' )
+        unless $rt eq '' || $rt =~ /\A[a-z][a-z0-9_]{0,63}\z/;
+    $c{row_table} = $rt;
+    my $rm = ref $in->{row_map} eq 'HASH' ? $in->{row_map} : {};
+    return ( undef, 'row_map names more than 64 columns' ) if keys %$rm > 64;
+    my %map;
+    for my $col ( sort keys %$rm ) {
+        return ( undef, "row_map: '$col' is not a column name" )
+            unless $col =~ /\A[a-z][a-z0-9_]{0,63}\z/;
+        my $to = $rm->{$col};
+        return ( undef, "row_map: the field '$col' maps to is not a field name" )
+            unless defined $to && $to =~ /\A[A-Za-z][A-Za-z0-9_.-]{0,63}\z/;
+        $map{$col} = "$to";
+    }
+    $c{row_map} = \%map;
+    return ( undef, 'a row_map needs a row_table to take the row from' )
+        if %map && $rt eq '';
+
+    # SM579 phase 2: MODE 1, ON A TIMER. The interval and the payload are
+    # CONFIGURATION, which is what makes this the safest mode: no request is
+    # involved, so nothing a visitor sends can reach the destination.
+    #
+    # The payload is fixed and flat. A scheduled call that could take a row or
+    # a query would be a scheduler of arbitrary work, and the release manager's
+    # boundary is explicit that this is one bounded act and every
+    # generalisation is refused by default.
+    #
+    # The floor is 300 seconds. Not arbitrary: the sweep runs hourly and the
+    # daemon ticks on its own interval, so anything finer is a promise the
+    # scheduler cannot keep, and a connector asking for it would be told it is
+    # running every minute while it was not.
+    my $ev = $in->{schedule_every} // 0;
+    return ( undef, 'schedule_every must be a whole number of seconds' ) unless $ev =~ /\A\d+\z/;
+    $ev = 0 + $ev;
+    return ( undef, 'schedule_every must be 0 (off) or at least 300 seconds' )
+        if $ev && $ev < 300;
+    $c{schedule_every} = $ev;
+    my $sp = ref $in->{schedule_payload} eq 'HASH' ? $in->{schedule_payload} : {};
+    return ( undef, 'schedule_payload names more than 64 fields' ) if keys %$sp > 64;
+    my %fixed;
+    for my $k ( sort keys %$sp ) {
+        return ( undef, "schedule_payload: '$k' is not a field name" )
+            unless $k =~ /\A[A-Za-z][A-Za-z0-9_.-]{0,63}\z/;
+        my $v = $sp->{$k};
+        return ( undef, "schedule_payload: '$k' must be a string or a number" ) if ref $v;
+        $fixed{$k} = defined $v ? "$v" : '';
+    }
+    $c{schedule_payload} = \%fixed;
+    return ( undef, 'a connector with a schedule must permit scheduled invocation (modes.scheduled)' )
+        if $ev && !$c{modes}{scheduled};
+
     return ( \%c, '' );
 }
 
@@ -306,6 +371,56 @@ sub _record_call {
     close $fh;
     secure_write_perms( $f, 0660 );
     return;
+}
+
+# SM579 phase 2: THE PAYLOAD FOR A ROW-SOURCED CALL.
+#
+# The caller supplies a KEY, never a payload. That is the security shape: a
+# page action says "send row 41 of orders", and what is actually sent is
+# decided by the connector's map and by what the account may read - not by
+# what the caller typed. A caller that could hand over a payload could send
+# anything at all under the connector's credential.
+#
+# The read goes through Data::Tables::read_rows with `as`, so it answers the
+# STORE's own rules (SM476): a table the account may not read is not a table
+# it can send, and the answer to "may I read it" is the same as the answer to
+# "does it exist" for anyone who may not.
+#
+# Returns ( \%payload, '' ) or ( undef, why ).
+sub row_payload {
+    my ( $c, $key, %ctx ) = @_;
+    my $table = $c->{row_table} // '';
+    return ( undef, 'this connector takes no row source - set row_table and row_map on it' )
+        unless length $table;
+    my %map = %{ $c->{row_map} || {} };
+    return ( undef, "this connector maps no columns of '$table', so it would send nothing" )
+        unless %map;
+    return ( undef, 'a row key is required' ) unless defined $key && length $key;
+
+    require Lazysite::Data::Tables;
+    my $d = Lazysite::Data::Tables::load_table( $DOCROOT, $table );
+    return ( undef, "no table '$table' is declared" ) unless $d->{ok};
+    my $keycol = $d->{table}{key} // 'id';
+
+    my $r = Lazysite::Data::Tables::read_rows( $DOCROOT, $table,
+        as    => ( $ctx{as} // { user => $ctx{actor}, groups => $ctx{groups} } ),
+        where => { $keycol => $key }, limit => 2, want_total => 0 );
+    return ( undef, $r->{error} // "could not read '$table'" ) unless $r->{ok};
+    my @rows = @{ $r->{rows} || [] };
+    return ( undef, "no row with $keycol '$key' in '$table'" ) unless @rows;
+    my $row = $rows[0];
+
+    # ONLY WHAT IS MAPPED. A column the map does not name never leaves, and a
+    # mapped column the row does not have is sent as absent rather than as
+    # empty - a field the remote can tell apart from a blank one.
+    my %payload;
+    for my $col ( sort keys %map ) {
+        next unless exists $row->{$col};
+        $payload{ $map{$col} } = $row->{$col};
+    }
+    return ( undef, "row $key of '$table' has none of the mapped columns" )
+        unless %payload;
+    return ( \%payload, '' );
 }
 
 # --- the call ----------------------------------------------------------------
@@ -498,6 +613,68 @@ sub action_connector_calls {
 # The scheduler's job (SM666): expire the record past its keep, and count
 # what never answered - so the run record says how many stuck calls there
 # are, which is the state an operator has to be able to see.
+# SM579 phase 2: EVERY CONNECTOR THAT IS DUE, CALLED ON THE TIMER.
+#
+# %JOBS is a closed literal and stays one - this is a single engine job that
+# reads the connector store, not a way for configuration to add a job. What a
+# connector may do is declare an interval; whether the job exists at all is
+# still the engine's decision, and the scheduler's identity gate still has to
+# pass before any of this runs.
+#
+# Due-ness is derived from the CALL RECORD rather than from a second state
+# file: the last non-refused call to this connector is when it last went out,
+# which is the fact, and a separate "last scheduled at" store would be a
+# second answer to the same question that could disagree with the first.
+sub due_scheduled {
+    my ($now) = @_;
+    $now ||= time;
+    my $all = connectors();
+    return ( undef, _store_unreadable() ) unless defined $all;
+    my @due;
+    for my $id ( sort keys %$all ) {
+        my $c = $all->{$id};
+        next unless $c->{schedule_every} && $c->{modes}{scheduled};
+        my $last = _last_call_at($id);
+        return ( undef, _calls_unreadable() . '; cannot tell which connectors are due' )
+            unless defined $last;
+        push @due, $id if $now - $last >= $c->{schedule_every};
+    }
+    return ( \@due, '' );
+}
+
+# When this connector last actually sent something. A refusal is not a call
+# that went out, for the same reason the rate cap does not count one.
+sub _last_call_at {
+    my ($id) = @_;
+    my $f = _calls_file();
+    open my $fh, '<:raw', $f or do {
+        return 0 if $!{ENOENT};    # nothing has ever been called: everything is due
+        cannot_read( 'connector calls', $f );
+        return undef;
+    };
+    my $last = 0;
+    while ( my $l = <$fh> ) {
+        my $r = eval { JSON::PP::decode_json($l) } or next;
+        next if ( $r->{state} // '' ) eq 'refused';
+        next unless ( $r->{connector} // '' ) eq $id;
+        $last = $r->{at} if ( $r->{at} // 0 ) > $last;
+    }
+    close $fh;
+    return $last;
+}
+
+# The timer's own invocation. mode => 'scheduled', so a connector that has not
+# opted into it is refused by may_call exactly as a request-time caller would
+# be - the declaration is the gate, and it is one gate for all three modes.
+sub call_scheduled {
+    my ($id) = @_;
+    my $all = connectors();
+    return { ok => 0, state => 'refused', error => _store_unreadable() } unless defined $all;
+    my $c = $all->{$id} or return { ok => 0, state => 'refused', error => "no connector '$id'" };
+    return call( $id, { %{ $c->{schedule_payload} || {} } },
+        mode => 'scheduled', actor => 'system:scheduler', trigger => 'timer' );
+}
+
 sub sweep {
     my ($docroot) = @_;
     local $DOCROOT = $docroot;

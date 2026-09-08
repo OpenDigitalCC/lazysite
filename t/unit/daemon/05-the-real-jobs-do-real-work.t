@@ -76,9 +76,12 @@ sub by_job {
 my %JOBS = %{ Lazysite::Daemon::Service::Scheduler::jobs() };
 
 subtest 'the set: closed, small, and every need is a real capability' => sub {
+    # SM579 phase 2 adds connectors-call, mode 1. The COUNT is the point of
+    # this assertion, not a formality: %JOBS is a closed literal, and a job
+    # arriving without a filing behind it is the drift this names.
     is_deeply( [ sort keys %JOBS ],
-        [qw(connectors-sweep daemon-heartbeat sessions-sweep stats-rollup)],
-        'four jobs, named' );
+        [qw(connectors-call connectors-sweep daemon-heartbeat sessions-sweep stats-rollup)],
+        'five jobs, named' );
 
     my %cap = map { $_ => 1 } @CAP_KEYS;
     for my $name ( sort keys %JOBS ) {

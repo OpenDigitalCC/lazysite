@@ -271,7 +271,7 @@ our %ACTION = (
     # served on every channel (gate 'ALWAYS'); the field found it working and
     # missing from actions-list, and SM779's map would have marked it
     # cookie_only. The connector gates it (Connectors::may_call).
-    'connector-call' => { caps => [], params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' } ] },
+    'connector-call' => { caps => [], params => [ { name => 'id', in => 'body' }, { name => 'payload', in => 'body' }, { name => 'row', in => 'body', note => 'a row key: the connector\'s row_map decides which of its columns are sent' } ] },
     'connector-calls' => { caps => ['manage_connectors'], params => [ { name => 'connector', in => 'query' }, { name => 'state', in => 'query' }, { name => 'limit', in => 'query' } ] },
     'start-page' => { caps => undef, params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { caps => undef, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
