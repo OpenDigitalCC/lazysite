@@ -585,6 +585,29 @@ sub apply_schema {
         blocked => $plan->{blocked} };
 }
 
+# SM777: THE PLUGIN STAMPS WHAT IT RESERVES. `timestamps: true` created the
+# two columns, the value layer refused them from every writer ("maintained by
+# the plugin"), and nothing ever wrote them: SQLite.pm's insert_sql says the
+# caller supplies them, and no caller did. A site that turned the flag on to
+# get trustworthy provenance got neither a stamp nor its own field back - the
+# field found rows with created_at=None on a table with the flag on, and a
+# sister table carrying client-supplied "added_at" text a writer could forge.
+# One clock, one spelling (the value layer's datetime: UTC, to the second),
+# applied to every write path: insert, update, and the CSV import.
+sub _now_stamp {
+    my @t = gmtime( time() );
+    return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ', $t[5] + 1900, $t[4] + 1, @t[ 3, 2, 1, 0 ];
+}
+
+sub _stamp {
+    my ( $d, $values, %opt ) = @_;
+    return $values unless $d->{timestamps};
+    my $now = _now_stamp();
+    $values->{updated_at} = $now;
+    $values->{created_at} = $now unless $opt{partial};
+    return $values;
+}
+
 sub _write_prep {
     my ( $docroot, $name, $input, %opt ) = @_;
     my $d = load_table( $docroot, $name );
@@ -593,7 +616,7 @@ sub _write_prep {
     return ( $c, undef, undef ) unless $c->{ok};
     my ( $dbh, $nowrite ) = _writer( $docroot, $name );
     return ( $nowrite, undef, undef ) if $nowrite;
-    return ( undef, $d, $dbh, $c->{values} );
+    return ( undef, $d, $dbh, _stamp( $d, $c->{values}, %opt ) );
 }
 
 sub insert_row {
@@ -881,8 +904,8 @@ sub import_rows {
                 ( $c->{field} ? ( field => $c->{field} ) : () ),
                 ( $c->{rule}  ? ( rule  => $c->{rule} )  : () ) );
         }
-        if ($is_update) { push @updates, [ $kv, $c->{values}, $n ] }
-        else            { push @inserts, [ $c->{values}, $n ] }
+        if ($is_update) { push @updates, [ $kv, _stamp( $d, $c->{values}, partial => 1 ), $n ] }
+        else            { push @inserts, [ _stamp( $d, $c->{values} ), $n ] }
     }
 
     my $plan = { ok => 1, table => $name, rows => scalar @{$rows},

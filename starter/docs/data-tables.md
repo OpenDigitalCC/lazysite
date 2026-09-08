@@ -55,6 +55,12 @@ and underscores. A descriptor that does not load is refused with the field and
 the reason, and nothing is written -- so a refusal here is information rather
 than a failure.
 
+**`timestamps: true`** adds `created_at` and `updated_at`, stamped by the
+plugin on every insert and update (UTC, to the second) and refused from any
+writer -- the one provenance a reader can trust, because no caller can supply
+it. A field you declare yourself named like a stamp (`added_at`, `saved_at`)
+is whatever the writer sends, and the table's description says so.
+
 ### 2. Create or update the stored table
 
 Declaring a table does not create it. Run the migration once:

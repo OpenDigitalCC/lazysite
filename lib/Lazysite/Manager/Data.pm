@@ -599,7 +599,22 @@ sub action_data_table {
         public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
         ( length( $d->{domain} // '' ) ? ( domain         => $d->{domain} )   : () ),
         ( $pending                     ? ( pending_schema => JSON::PP::true ) : () ),
+        ( @{ _provenance_notes($d) }   ? ( notes => _provenance_notes($d) )   : () ),
     };
+}
+
+# SM777 (the field's remaining question): a text field named like a stamp,
+# on a table without the plugin's stamps, is whatever the writer says it is.
+# The author had no signal that "added_at" was decoration. This is the
+# signal - on the descriptor's own reply, never a refusal.
+sub _provenance_notes {
+    my ($d) = @_;
+    return [] if $d->{timestamps};
+    my @at = sort grep { /_at\z/ && ( $d->{fields}{$_}{type} // '' ) =~ /\A(?:text|datetime)\z/ } keys %{ $d->{fields} || {} };
+    return [] unless @at;
+    return [ sprintf(
+            "%s %s written by the caller and can be any value: nothing stamps %s. For a time the plugin stamps and no writer can forge, set timestamps: true (created_at, updated_at).",
+            join( ', ', map { "'$_'" } @at ), ( @at > 1 ? 'are' : 'is' ), ( @at > 1 ? 'them' : 'it' ) ) ];
 }
 
 # DM-5: the descriptor's SOURCE, for an editor. data-table returns the parsed
