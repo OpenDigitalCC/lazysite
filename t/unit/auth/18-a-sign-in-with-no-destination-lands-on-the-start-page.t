@@ -49,6 +49,10 @@ sub run_auth {
 
 my $d = site_tempdir();    # SM754: one level down, so sibling writes go with it
 make_path( "$d/lazysite/auth", "$d/lazysite/logs", "$d/sites/shop" );
+# SM774: a page on a site must exist to be a start page
+open my $pg, '>', "$d/sites/shop/catalogue.md" or die $!;
+print {$pg} "# catalogue\n";
+close $pg;
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Test\nsite_url: https://main.example\nmanager: enabled\nalias_hosts: shop.example\nalias.shop.example.content_root: sites/shop\n";
 close $cf;

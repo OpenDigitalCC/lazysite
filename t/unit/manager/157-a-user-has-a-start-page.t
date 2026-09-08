@@ -47,6 +47,18 @@ CONF
 close $cf;
 $Lazysite::Manager::StartPage::DOCROOT = $d;
 
+# SM774: a page on a site must exist to be a start page - the pages the
+# tests below point at.
+sub page {
+    my ( $rel, $text ) = @_;
+    make_path( "$d/$rel" =~ s{/[^/]+\z}{}r );
+    open my $fh, '>', "$d/$rel" or die "$rel: $!";
+    print {$fh} $text // "# page\n";
+    close $fh;
+}
+page('sites/shop/catalogue.md');
+page('about.md');
+
 sub users_api {
     my ($payload) = @_;
     my ( $out, $in );
@@ -101,6 +113,15 @@ subtest 'a start page the account cannot reach is refused, by reason' => sub {
     like( validate_start_page( 'admin', 'domain:shop.example|../etc' ), qr/not a page path/, 'a traversal path is refused' );
     like( validate_start_page( 'admin', 'domain:shop.example|//x' ), qr/not a page path/, 'a protocol-relative path is refused' );
     like( validate_start_page( 'admin', 'nonsense' ), qr/a start page is 'manager:<page>' or 'domain:<host>\|<path>'/, 'garbage is refused with the grammar' );
+    # SM774: a page that is not there is refused by name, when set
+    like( validate_start_page( 'admin', 'domain:(default)|/never-existed' ), qr/no page at '\/never-existed' on this site/, 'a path with no page behind it is refused, naming the path' );
+    like( validate_start_page( 'admin', 'domain:shop.example|/never' ), qr/no page at '\/never' on 'shop.example'/, 'and on an alias, naming the host' );
+    page('sites/shop/index.md');
+    ok( !defined validate_start_page( 'admin', 'domain:shop.example|/' ), 'the root is its index page' );
+    page('members/deep/index.md');
+    ok( !defined validate_start_page( 'admin', 'domain:(default)|/members/deep/' ), 'a folder is its index page' );
+    page('legacy.html');
+    ok( !defined validate_start_page( 'admin', 'domain:(default)|/legacy' ), 'a legacy html page counts' );
     ok( !defined validate_start_page( 'admin', '' ), 'empty clears and is fine' );
 };
 
@@ -125,6 +146,18 @@ subtest 'at sign-in: unset, set, and set-but-unreachable' => sub {
     is( $u->{url}, '/manager/?account=1&start=unreachable', 'set but no longer reachable: the fallback, flagged' );
     like( $u->{unreachable}, qr/manage_content/, 'with the reason, which is the capability now missing' );
     grant_caps( $d, 'editor', qw(ui manage_content) );
+
+    # SM774 (131E-05): the page behind a set start page is deleted. Sign-in
+    # lands on the fallback, flagged, with the reason - never on the 404.
+    page('zz-start.md');
+    $r = users_api( { action => 'settings-set', username => 'admin', key => 'start_page', value => 'domain:(default)|/zz-start', actor => 'admin' } );
+    ok( $r->{ok}, 'a start page on a page that exists is accepted' ) or diag explain $r;
+    is( resolve_start_page('admin')->{url}, '/zz-start', 'and sign-in lands on it' );
+    unlink "$d/zz-start.md";
+    $u = resolve_start_page('admin');
+    is( $u->{url}, '/manager/?account=1&start=unreachable', 'the page deleted: the fallback, flagged' );
+    like( $u->{unreachable}, qr/no page at '\/zz-start'/, 'with the reason naming the path' );
+    is( $u->{set}, 1, 'and the setting is still there for the sheet to show' );
 };
 
 subtest 'the tool: your own, or with manage_users' => sub {

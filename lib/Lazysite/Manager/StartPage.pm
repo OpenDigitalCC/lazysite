@@ -21,6 +21,12 @@ package Lazysite::Manager::StartPage;
 #    change after the choice is made, so resolve() checks again at every login
 #    and falls back WITH A REASON rather than sending someone to a 403 forever.
 #
+#    SM774 (131E-05): the same rule for the OTHER kind of target. A page on a
+#    site is checked for existence when set and again at every sign-in - a
+#    content page is the kind that gets deleted - so a start page whose page
+#    is gone lands on the fallback with the reason, never on a 404 that is
+#    one click from the sheet that could fix it.
+#
 # 3. AN EXPLICIT `next` WINS. Someone bounced to login from a page is going
 #    somewhere; the start page is for an arrival with no destination. The
 #    caller decides that (lazysite-auth.pl asks only when next is '/').
@@ -161,6 +167,29 @@ sub _domain_reachable {
     return ( 1, $d );
 }
 
+# SM774: does this path name a page on that domain, today? The same spellings
+# the front end serves - `/x` is x.md (or x/index.md, or a legacy x.html,
+# or a file as spelled), `/` is index.md - looked up through the private
+# store first, as the front end does, so a gated page counts. Returns
+# ( 1 ) or ( 0, why ).
+sub _page_resolves {
+    my ( $d, $path ) = @_;
+    my $cr = $d->{content_root} // '';
+    $cr =~ s{\A/+|/+\z}{}g;
+    ( my $rel = $path ) =~ s{\A/+}{};
+    my @cands;
+    if ( !length $rel || $rel =~ m{/\z} ) { push @cands, "${rel}index.md", "${rel}index.html" }
+    else { push @cands, "$rel.md", "$rel/index.md", "$rel.html", $rel }
+    require Lazysite::Private;
+    for my $c (@cands) {
+        my $r = length $cr ? "$cr/$c" : $c;
+        my ( $abs, $where ) = Lazysite::Private::resolve( $DOCROOT, $r );
+        return 1 if $where && -f $abs;
+    }
+    my $host = $d->{is_primary} ? 'this site' : "'$d->{host}'";
+    return ( 0, "no page at '$path' on $host - it may have been deleted or moved" );
+}
+
 # The dropdown, for ONE account, from that account's own grants.
 sub start_page_choices {
     my ($user) = @_;
@@ -199,6 +228,9 @@ sub validate_start_page {
     return "the path '$p->{path}' is not a page path on this site (a leading slash, then letters, digits, / . - _)"
         unless _path_ok( $p->{path} );
     my ( $ok, $why ) = _domain_reachable( $p->{host}, $user );
+    return $why unless $ok;
+    my $d = $why;    # the domain row, on success
+    ( $ok, $why ) = _page_resolves( $d, $p->{path} );
     return $why unless $ok;
     return undef;
 }
