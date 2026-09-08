@@ -8,10 +8,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(site_tempdir);
 
 BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
@@ -20,7 +21,7 @@ BEGIN {
 
 use Lazysite::Data::Tables qw(read_rows apply_schema insert_row update_row import_rows);
 
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();    # a level down: the engine reads the parent (lint 118)
 make_path("$docroot/lazysite/db/tables");
 open my $fh, '>', "$docroot/lazysite/db/tables/notes.yaml" or die $!;
 print {$fh} <<'YAML';
