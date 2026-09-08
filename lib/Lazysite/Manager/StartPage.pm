@@ -62,12 +62,16 @@ our %PAGES = (
     'cache'         => { label => 'Cache',           caps => [] },
     'backups'       => { label => 'Backups',         caps => [] },
     'audit'         => { label => 'Audit log',       caps => ['audit'] },
+    # SM579 phase 2: the operator's page for the destinations this site may
+    # send to. manage_connectors, the capability that already gates every
+    # connector action - writing a destination IS the authority here.
+    'connectors' => { label => 'Connectors', caps => ['manage_connectors'] },
     # SM759: registry keys, as the conf lists them - a bare name matches nothing.
     'data' => { label => 'Data tables', caps => ['manage_data'], plugin => 'plugins/data.pl' },
     'stats' => { label => 'Visitor statistics', caps => [], plugin => 'plugins/stats.pl' },
 );
 my @PAGE_ORDER = qw(index files nav appearance plugins plugin-config users groups
-    sessions domains cache backups audit data stats);
+    sessions domains cache backups audit connectors data stats);
 
 sub manager_pages { return map { { id => $_, %{ $PAGES{$_} } } } @PAGE_ORDER }
 
