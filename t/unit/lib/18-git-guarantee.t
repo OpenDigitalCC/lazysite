@@ -166,7 +166,7 @@ my %EXEMPT = (
     # empties - nothing in the content tree moves, so there is nothing for the
     # content history to record.
     'API::action_page_pdf' => 'read-only (renders a page; writes only the PDF cache)',
-    'API::action_site_backup_delete'   =>
+    'API::action_site_backup_delete' =>
         'removes a package under lazysite/backups/ - not versioned content',
     'API::action_site_export_primary' =>
         'writes only a package under lazysite/backups/ - not versioned content',
@@ -220,9 +220,9 @@ my %EXEMPT = (
     'Themes::action_artifact_validate' => 'read-only',
     'Themes::action_theme_delete'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_rename'      => 'layout/theme artifact write (capture-swept)',
-    'Themes::action_theme_copy'        => 'layout/theme artifact write (capture-swept)',    # SM749
-    'Themes::action_theme_upload'      => 'layout/theme artifact write (capture-swept)',
-    'Themes::action_cache_invalidate'  =>
+    'Themes::action_theme_copy' => 'layout/theme artifact write (capture-swept)',  # SM749
+    'Themes::action_theme_upload'     => 'layout/theme artifact write (capture-swept)',
+    'Themes::action_cache_invalidate' =>
         'removes generated *.html - excluded from the versioned set',
     'Files::action_regenerate_registries' =>
         'removes generated sitemap.xml/llms.txt/feeds - excluded from the '
@@ -244,17 +244,18 @@ my %EXEMPT = (
     'API::action_domains_list' => 'read-only',
     'API::action_domain_check' => 'read-only',   # SM156: probes DNS/TLS, no content write
     'API::action_lang_status'  => 'read-only',   # SM179 P6: reports coverage, no write
-    'API::action_actions_list'          => 'read-only',    # SM350
+    'API::action_actions_list' => 'read-only',   # SM350
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'API::action_start_page'            => 'read-only',    # SM724
-    'API::action_start_page_set'        => 'auth store - excluded from the versioned set',    # SM724: user-settings.json
-    'API::action_recent_changes'        => 'read-only',
+    'API::action_start_page_set' => 'auth store - excluded from the versioned set', # SM724: user-settings.json
+    'API::action_recent_changes' => 'read-only',
     'API::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write
     'API::action_audit'            => 'read-only',
     'API::action_analyse_visitors'   => 'read-only',
     'API::action_version'            => 'read-only',
     'API::action_principals'         => 'read-only',
+    'API::action_display_names'      => 'read-only',    # SM778: a name lookup
     'API::action_users'              => 'auth store - excluded from the versioned set',
     'API::action_rotate_auth_secret' => 'auth store - excluded from the versioned set',
     'Nav::action_nav_read'           => 'read-only',
