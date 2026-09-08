@@ -62,9 +62,13 @@ sub backup_retention {
 sub cannot_read {
     my ( $what, $path ) = @_;
     return undef if $!{ENOENT};
+    # SM768: read $! BEFORE getpwuid, which is free to reset it - the first
+    # version logged `error=` blank, which is the one field the rule exists
+    # to carry.
+    my $err = "$!";
     my ($who) = getpwuid($>);
     log_event( 'WARN', 'store', "cannot read $what - it exists and this process cannot open it",
-        file => $path, error => "$!", unix_user => ( $who // $> ) );
+        file => $path, error => $err, unix_user => ( $who // $> ) );
     return undef;
 }
 

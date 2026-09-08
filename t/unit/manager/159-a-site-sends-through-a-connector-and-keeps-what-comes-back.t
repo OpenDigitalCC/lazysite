@@ -65,7 +65,7 @@ subtest 'a connector is bounded at save time' => sub {
     $bad = Lazysite::Manager::Connectors::action_connector_save( 'Bad Id', { url => 'https://a.example/x' } );
     ok( !$bad->{ok}, 'an id with a space is refused' );
     my $r = save_ok('echo');
-    is( $r->{connector}{modes}{public}, 0, 'public is OFF unless said' );
+    is( $r->{connector}{modes}{public},        0, 'public is OFF unless said' );
     is( $r->{connector}{modes}{authenticated}, 1, 'authenticated is on by default' );
     my $list = Lazysite::Manager::Connectors::action_connector_list();
     is( scalar @{ $list->{connectors} }, 1, 'listed' );
@@ -104,14 +104,14 @@ subtest 'WHO may call: modes and callers decide, before anything is sent' => sub
 };
 
 subtest 'HOW OFTEN: the rate cap counts the record, in every mode' => sub {
-    # 3/hour: two calls happened above (one answered by ops, one by sam); a third is the cap
+  # 3/hour: two calls happened above (one answered by ops, one by sam); a third is the cap
     my $r = Lazysite::Manager::Connectors::call( 'echo', { q => 3 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
     ok( $r->{ok}, 'third call within the cap' ) or diag $r->{error};
     $r = Lazysite::Manager::Connectors::call( 'echo', { q => 4 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
     ok( !$r->{ok}, 'the fourth is refused' );
     like( $r->{error}, qr/rate cap reached: 3/, 'naming the cap' );
     my $calls = Lazysite::Manager::Connectors::action_connector_calls( connector => 'echo' );
-    is( $calls->{counts}{refused}, 1, 'the refusal is on the record' );
+    is( $calls->{counts}{refused},  1, 'the refusal is on the record' );
     is( $calls->{counts}{answered}, 3, 'beside the three that answered' );
     my $rec = do { local ( @ARGV, $/ ) = "$d/lazysite/connectors/calls.jsonl"; <> };
     unlike( $rec, qr/hello/, 'the record never carries the payload' );
@@ -121,7 +121,7 @@ subtest 'a remote that fails or never answers is said so, not "waiting"' => sub 
     save_ok( 'flaky', url => "${base}fail", rate_per_hour => 0 );
     my $r = Lazysite::Manager::Connectors::call( 'flaky', { q => 1 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
     is( $r->{state}, 'failed', 'a 4xx/5xx is failed' );
-    is( $r->{http}, 422, 'with the status' );
+    is( $r->{http},  422,      'with the status' );
     save_ok( 'slow', url => "${base}hang", rate_per_hour => 0, timeout => 1 );
     $r = Lazysite::Manager::Connectors::call( 'slow', { q => 1 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
     is( $r->{state}, 'unanswered', 'a timeout is unanswered' ) or diag explain $r;
@@ -138,7 +138,7 @@ subtest 'the answer lands in the table the connector names' => sub {
     ok( $a->{ok}, 'answers table applied' ) or diag explain $a;
     save_ok( 'kept', answer_table => 'answers', rate_per_hour => 0 );
     my $r = Lazysite::Manager::Connectors::call( 'kept', { q => 'row' }, mode => 'authenticated', caps => { manage_connectors => 1 }, actor => 'ops' );
-    ok( $r->{ok}, 'answered' ) or diag $r->{error};
+    ok( $r->{ok},       'answered' ) or diag $r->{error};
     ok( $r->{kept}{ok}, 'and kept' ) or diag explain $r->{kept};
     my $rows = Lazysite::Data::Tables::read_rows( $d, 'answers', as => 'operator' );
     is( scalar @{ $rows->{rows} }, 1, 'one row' );
@@ -147,7 +147,7 @@ subtest 'the answer lands in the table the connector names' => sub {
 
     save_ok( 'lost', answer_table => 'no_such_table', rate_per_hour => 0 );
     $r = Lazysite::Manager::Connectors::call( 'lost', { q => 1 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
-    ok( $r->{ok}, 'the call itself answered' );
+    ok( $r->{ok},        'the call itself answered' );
     ok( !$r->{kept}{ok}, 'but a missing table is reported on the call, not skipped' );
     like( $r->{kept}{error}, qr/no_such_table/, 'by name' );
 };
@@ -160,6 +160,52 @@ subtest 'the sweep expires old records and counts the unanswered' => sub {
     ok( $s->{ok}, 'swept' );
     is( $s->{expired},    1, 'one old record expired' );
     is( $s->{unanswered}, 1, 'one unanswered counted' );
+};
+
+# SM768: a store that exists and cannot be opened is not an empty store. On
+# edge, with lazysite/connectors/ unwritable after a failed install, the
+# listing said has_secret: 0 for a secret that was there the whole time. Each
+# action must say "cannot tell" - and none may write, or call, past it.
+subtest 'an unopenable secret store is reported, never rendered as absence' => sub {
+    plan skip_all => 'root opens everything' if $> == 0;
+    my $sf = "$d/lazysite/connectors/secrets.json";
+    ok( -f $sf, 'the secret store exists' );
+    chmod 0000, $sf;
+    my $list = Lazysite::Manager::Connectors::action_connector_list();
+    ok( $list->{ok}, 'the listing still answers (the connector store itself is readable)' );
+    is( $list->{secrets_readable}, 0, 'and says the secret store could not be read' );
+    my ($echo) = grep { $_->{id} eq 'echo' } @{ $list->{connectors} };
+    ok( exists $echo->{has_secret} && !defined $echo->{has_secret}, 'has_secret is null - not 0 - for a secret that is still there' );
+    like( $list->{warning}, qr/secret store \(connectors\/secrets\.json\) exists but cannot be opened by this process \(unix user \S+\)/, 'the warning names the file and the unix user' );
+    unlike( $list->{warning}, qr{\Q$d\E}, 'and never the host path' );
+
+    my $set = Lazysite::Manager::Connectors::action_connector_secret_set( 'echo', 'tok-999' );
+    ok( !$set->{ok}, 'a secret is not written over a store that could not be read' );
+    like( $set->{error}, qr/nothing was written/, 'and says so' );
+    my $del = Lazysite::Manager::Connectors::action_connector_delete('echo');
+    ok( !$del->{ok}, 'nor is a connector deleted while its secret is out of reach' );
+
+ # 'lost' has no rate cap, so the only thing standing between it and the wire is the store
+    my $r = Lazysite::Manager::Connectors::call( 'lost', { q => 1 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
+    is( $r->{state}, 'refused', 'a call is refused rather than sent without its credential' );
+    like( $r->{error}, qr/without its credential/, 'and the refusal says why' );
+    my $calls = Lazysite::Manager::Connectors::action_connector_calls( connector => 'lost', state => 'refused' );
+    ok( ( grep { ( $_->{why} // '' ) eq 'secret store unreadable' } @{ $calls->{calls} } ), 'the refusal is in the call record' );
+
+    chmod 0600, $sf;
+    $list = Lazysite::Manager::Connectors::action_connector_list();
+    ($echo) = grep { $_->{id} eq 'echo' } @{ $list->{connectors} };
+    is( $echo->{has_secret},       1, 'the secret was there all along' );
+    is( $list->{secrets_readable}, 1, 'and the store reads again' );
+
+    # the call record: a cap that cannot be checked refuses
+    my $cf = "$d/lazysite/connectors/calls.jsonl";
+    chmod 0000, $cf;
+    $r = Lazysite::Manager::Connectors::call( 'echo', { q => 1 }, mode => 'authenticated', caps => { manage_connectors => 1 } );
+    is( $r->{state}, 'refused', 'a rate-capped connector whose call record cannot be read refuses' );
+    like( $r->{error}, qr/rate cap cannot be checked/, 'and says the cap, not the count, is the reason' );
+    ok( !Lazysite::Manager::Connectors::action_connector_calls()->{ok}, 'the record listing reports the fault' );
+    chmod 0660, $cf;
 };
 
 subtest 'delete takes the secret with it' => sub {

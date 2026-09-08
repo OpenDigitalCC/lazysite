@@ -35,6 +35,16 @@ package Lazysite::Manager::Connectors;
 # its secret; lazysite/connectors/secrets.json (0600) holds the secrets by
 # connector id and is never read by a listing. lazysite/connectors/calls.jsonl
 # is the record of every call: one line per outcome, never the payload.
+#
+# SM768: A STORE THAT EXISTS AND CANNOT BE OPENED IS NOT AN EMPTY STORE.
+# The field proved it on edge: with lazysite/connectors/ unwritable after a
+# failed install, connector-secret-set refused BY NAME while connector-list
+# answered `has_secret: 0` for a secret that was there the whole time - and
+# a call would have gone out without its credential. Every reader here
+# returns undef for "cannot tell" (cannot_read logs file, error and unix
+# user) and every action treats undef as a refusal, never as absence: a
+# listing says the store is unreadable, a write never lands on a store it
+# could not read, a call never leaves without a credential it cannot see.
 
 use strict;
 use warnings;
@@ -53,10 +63,16 @@ sub _file         { return _dir() . '/connectors.json' }
 sub _secrets_file { return _dir() . '/secrets.json' }
 sub _calls_file   { return _dir() . '/calls.jsonl' }
 
+# Returns the store, {} when the file is absent, undef when it exists and
+# cannot be opened (logged). No -f guard: a stat the process is not allowed
+# to make is the same fault as an open it is not allowed to make.
 sub _read_json {
     my ( $path, $what ) = @_;
-    return {} unless -f $path;
-    open my $fh, '<:raw', $path or return ( cannot_read( $what, $path ) // {} );
+    open my $fh, '<:raw', $path or do {
+        return {} if $!{ENOENT};
+        cannot_read( $what, $path );
+        return undef;
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $d = eval { JSON::PP::decode_json( $raw // '{}' ) };
@@ -67,16 +83,38 @@ sub _write_json {
     my ( $path, $ref, $mode ) = @_;
     make_path( _dir() ) unless -d _dir();
     my $tmp = "$path.tmp.$$";
-    open my $fh, '>:raw', $tmp or return ( 0, "cannot write $path: $!" );
+    open my $fh, '>:raw', $tmp or return ( 0, _cannot_write($path) );
     print {$fh} JSON::PP->new->canonical->pretty->encode($ref);
-    close $fh or do { unlink $tmp; return ( 0, "cannot write $path: $!" ) };
+    close $fh or do { unlink $tmp; return ( 0, _cannot_write($path) ) };
     secure_write_perms( $tmp, $mode );
-    rename $tmp, $path or do { unlink $tmp; return ( 0, "cannot write $path: $!" ) };
+    rename $tmp, $path or do { unlink $tmp; return ( 0, _cannot_write($path) ) };
     return ( 1, '' );
+}
+
+sub _cannot_write {
+    my ($path) = @_;
+    my $err    = "$!";
+    my ($who)  = getpwuid($>);
+    ( my $leaf = $path ) =~ s{.*/}{};
+    return "cannot write connectors/$leaf: $err (unix user " . ( $who // $> ) . ')';
 }
 
 sub connectors { return _read_json( _file(),         'connectors.json' ) }
 sub _secrets   { return _read_json( _secrets_file(), 'connectors secrets' ) }
+
+# The one sentence a caller gets when a store cannot be read: what, which
+# file (its name under lazysite/connectors/, never the host path), the unix
+# user - the three facts that turn "Permission denied" into an instruction.
+sub _unreadable {
+    my ( $what, $path ) = @_;
+    my ($who) = getpwuid($>);
+    ( my $leaf = $path ) =~ s{.*/}{};
+    return "the $what (connectors/$leaf) exists but cannot be opened by this process (unix user "
+        . ( $who // $> ) . ') - see the event log';
+}
+sub _store_unreadable   { return _unreadable( 'connector store', _file() ) }
+sub _secrets_unreadable { return _unreadable( 'secret store',    _secrets_file() ) }
+sub _calls_unreadable   { return _unreadable( 'call record',     _calls_file() ) }
 
 # --- validation --------------------------------------------------------------
 
@@ -125,16 +163,25 @@ sub _normalise {
 
 # --- the actions (the control API and the manager call these) ---------------
 
+# has_secret has THREE answers: 1, 0, and null for "cannot tell" - the
+# secret store exists and this process cannot open it. Null is the honest
+# one there; 0 invites re-entering a credential that is still in place.
 sub action_connector_list {
     my $all = connectors();
+    return { ok => 0, error => _store_unreadable() } unless defined $all;
     my $sec = _secrets();
-    return {
-        ok         => 1,
-        connectors => [
-            map { { id => $_, %{ $all->{$_} }, has_secret => ( defined $sec->{$_} && length $sec->{$_} ) ? 1 : 0 } }
-                sort keys %$all
+    my %out = (
+        ok               => 1,
+        secrets_readable => ( defined $sec ? 1 : 0 ),
+        connectors       => [
+            map {
+                { id => $_, %{ $all->{$_} },
+                    has_secret => !defined $sec ? undef : ( defined $sec->{$_} && length $sec->{$_} ) ? 1 : 0 }
+            } sort keys %$all
         ],
-    };
+    );
+    $out{warning} = _secrets_unreadable() . '; has_secret is unknown for every connector' unless defined $sec;
+    return \%out;
 }
 
 sub action_connector_save {
@@ -143,6 +190,7 @@ sub action_connector_save {
     my ( $c, $err ) = _normalise($def);
     return { ok => 0, error => $err } unless $c;
     my $all = connectors();
+    return { ok => 0, error => _store_unreadable() } unless defined $all;
     my $new = !exists $all->{$id};
     $all->{$id} = $c;
     my ( $ok, $why ) = _write_json( _file(), $all, 0660 );
@@ -156,10 +204,15 @@ sub action_connector_save {
 sub action_connector_secret_set {
     my ( $id, $secret ) = @_;
     return { ok => 0, error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
-    return { ok => 0, error => "no connector '$id'" } unless exists connectors()->{$id};
+    my $all = connectors();
+    return { ok => 0, error => _store_unreadable() }  unless defined $all;
+    return { ok => 0, error => "no connector '$id'" } unless exists $all->{$id};
     return { ok => 0, error => 'secret required' } unless defined $secret && length $secret;
     return { ok => 0, error => 'secret must be one line' } if $secret =~ /[\r\n]/;
     my $sec = _secrets();
+    # Never written over what could not be read: a store that is unopenable
+    # now may hold every other connector's secret.
+    return { ok => 0, error => _secrets_unreadable() . '; nothing was written' } unless defined $sec;
     $sec->{$id} = $secret;
     my ( $ok, $why ) = _write_json( _secrets_file(), $sec, 0600 );
     return { ok => 0, error => $why } unless $ok;
@@ -171,11 +224,16 @@ sub action_connector_delete {
     my ($id) = @_;
     return { ok => 0, error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
     my $all = connectors();
+    return { ok => 0, error => _store_unreadable() }  unless defined $all;
     return { ok => 0, error => "no connector '$id'" } unless exists $all->{$id};
+    # Both stores must be readable before either is written: deleting the
+    # connector while its secret cannot be reached leaves a secret nobody
+    # can see for a connector nobody can list.
+    my $sec = _secrets();
+    return { ok => 0, error => _secrets_unreadable() . '; nothing was deleted' } unless defined $sec;
     delete $all->{$id};
     my ( $ok, $why ) = _write_json( _file(), $all, 0660 );
     return { ok => 0, error => $why } unless $ok;
-    my $sec = _secrets();
     if ( exists $sec->{$id} ) { delete $sec->{$id}; _write_json( _secrets_file(), $sec, 0600 ) }
     log_event( 'INFO', 'connectors', 'connector deleted', connector => $id );
     return { ok => 1, id => $id };
@@ -213,8 +271,11 @@ sub may_call {
 sub _calls_in_last_hour {
     my ($id) = @_;
     my $f = _calls_file();
-    return 0 unless -f $f;
-    open my $fh, '<:raw', $f or return ( cannot_read( 'connector calls', $f ) // 0 );
+    open my $fh, '<:raw', $f or do {
+        return 0 if $!{ENOENT};
+        cannot_read( 'connector calls', $f );
+        return undef; # cannot tell - and a cap that cannot be checked is a cap that refuses
+    };
     my $since = time - 3600;
     my $n     = 0;
     while ( my $l = <$fh> ) {
@@ -246,13 +307,23 @@ sub _record_call {
 sub call {
     my ( $id, $payload, %ctx ) = @_;
     return { ok => 0, state => 'refused', error => 'connector id must be a-z, 0-9, - or _' } unless _valid_id($id);
-    my $c = connectors()->{$id}
+    my $all = connectors();
+    return { ok => 0, state => 'refused', error => _store_unreadable() } unless defined $all;
+    my $c = $all->{$id}
         or return { ok => 0, state => 'refused', error => "no connector '$id'" };
     my ( $may, $why ) = may_call( $c, %ctx );
     unless ($may) {
         log_event( 'WARN', 'connectors', 'connector call refused',
             connector => $id, mode => ( $ctx{mode} // '' ), actor => ( $ctx{actor} // '' ), why => $why );
         return { ok => 0, state => 'refused', error => $why };
+    }
+    if ( $c->{rate_per_hour} ) {
+        my $n = _calls_in_last_hour($id);
+        if ( !defined $n ) {
+            my $msg = _calls_unreadable() . '; the rate cap cannot be checked';
+            log_event( 'WARN', 'connectors', 'connector call refused', connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), why => 'call record unreadable' );
+            return { ok => 0, state => 'refused', error => $msg };
+        }
     }
     if ( $c->{rate_per_hour} && _calls_in_last_hour($id) >= $c->{rate_per_hour} ) {
         my $msg = "rate cap reached: $c->{rate_per_hour} calls in the last hour";
@@ -265,7 +336,15 @@ sub call {
         return { ok => 0, state => 'refused', error => 'a payload carries text values only - never a file or a structure' } if ref $v;
     }
 
-    my $secret  = _secrets()->{$id};
+    # A call never leaves without a credential this process cannot see.
+    my $sec = _secrets();
+    unless ( defined $sec ) {
+        my $msg = _secrets_unreadable() . '; the call would go without its credential';
+        _record_call( { call_id => _call_id(), connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), at => time, state => 'refused', why => 'secret store unreadable' } );
+        log_event( 'WARN', 'connectors', 'connector call refused', connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ), why => 'secret store unreadable' );
+        return { ok => 0, state => 'refused', error => $msg };
+    }
+    my $secret  = $sec->{$id};
     my $call_id = _call_id();
     my $t0      = Time::HiRes::time();
     require LWP::UserAgent;
@@ -371,8 +450,7 @@ sub action_connector_calls {
     my (%o) = @_;
     my $f = _calls_file();
     my @rows;
-    if ( -f $f ) {
-        open my $fh, '<:raw', $f or return { ok => 0, error => "cannot read $f: $!" };
+    if ( open my $fh, '<:raw', $f ) {
         while ( my $l = <$fh> ) {
             my $r = eval { JSON::PP::decode_json($l) } or next;
             next if defined $o{connector} && length $o{connector} && ( $r->{connector} // '' ) ne $o{connector};
@@ -380,6 +458,10 @@ sub action_connector_calls {
             push @rows, $r;
         }
         close $fh;
+    }
+    elsif ( !$!{ENOENT} ) {
+        cannot_read( 'connector calls', $f );
+        return { ok => 0, error => _calls_unreadable() };
     }
     my $limit = $o{limit} // 200;
     $limit = 200 unless $limit =~ /\A\d+\z/;
@@ -397,8 +479,11 @@ sub sweep {
     my ($docroot) = @_;
     local $DOCROOT = $docroot;
     my $f = _calls_file();
-    return { ok => 1, kept => 0, expired => 0, unanswered => 0 } unless -f $f;
-    open my $fh, '<:raw', $f or return { ok => 0, error => "cannot read $f: $!" };
+    open my $fh, '<:raw', $f or do {
+        return { ok => 1, kept => 0, expired => 0, unanswered => 0 } if $!{ENOENT};
+        cannot_read( 'connector calls', $f );
+        return { ok => 0, error => _calls_unreadable() };
+    };
     my $cutoff = time - $KEEP_CALLS_DAYS * 86400;
     my ( @keep, $expired, $unanswered ) = ( (), 0, 0 );
     while ( my $l = <$fh> ) {
@@ -410,7 +495,7 @@ sub sweep {
     close $fh;
     if ($expired) {
         my $tmp = "$f.tmp.$$";
-        open my $out, '>:raw', $tmp or return { ok => 0, error => "cannot write $f: $!" };
+        open my $out, '>:raw', $tmp or return { ok => 0, error => _cannot_write($f) };
         print {$out} @keep;
         close $out;
         secure_write_perms( $tmp, 0660 );
