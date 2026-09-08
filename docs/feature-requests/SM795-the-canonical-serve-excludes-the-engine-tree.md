@@ -4,8 +4,8 @@ title: "SM795: the canonical serve excludes the engine tree, as the include path
 subtitle: "Security review, 0.13.8, VERIFIED: the engine-tree block is a test on the REQUEST STRING, and the canonical file serve confines only to the docroot boundary without excluding lazysite/ on the resolved path. In the inside-docroot layout a symlink whose name does not begin with /lazysite resolves into the engine tree and is served - the session secret returned as an image. _resolve_include, forty lines of the same file away, does it correctly."
 brand: plain
 standard-margins: true
-status: partial
-status-note: "THE PROCESSOR HALF BUILT 2026-09-08 on claude/secrev-wild-request-path: _serve_content_static now refuses a resolved path inside LAZYSITE_DIR, the same test _resolve_include makes, so the exclusion is on the CANONICAL path in both sinks rather than on the request string in one. WHAT REMAINS is the DAV half - resolve_under_docroot confines to the docroot boundary the same way, and DAV blocks the engine tree by request rel rather than by resolved path. It is a second module with its own resolver, its own authorise() path and its own tests, so it is left as its own change rather than folded into a processor fix."
+status: shipped
+status-note: "BOTH HALVES BUILT 2026-09-08. The processor half on claude/secrev-wild-request-path: _serve_content_static refuses a resolved path inside LAZYSITE_DIR, the same test _resolve_include makes. The DAV half on claude/secrev-residue-daemon-and-dav, and it needed the separate change it was filed as: DAV has SANCTIONED ways into the engine tree - lazysite/nav.conf, lazysite/forms/<name>.conf under manage_forms, the layouts subtree - carved out in authorise() BY REQUEST REL, and a blanket exclusion refuses them. The first version did exactly that and t/unit/dav/13 caught it. So the resolver excludes the engine tree only where the request does NOT itself name an engine path, which is precisely the symlink case and precisely what authorise() cannot see. Checked on the resolved parent as well as the target, so a symlinked directory does not put everything beneath it in reach."
 ---
 
 # The finding

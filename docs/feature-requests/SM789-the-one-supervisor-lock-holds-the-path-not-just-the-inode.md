@@ -4,7 +4,8 @@ title: "SM789: the one-supervisor lock holds the path, not just the inode"
 subtitle: "Security review, 0.13.8, VERIFIED: flock binds to the inode, and nothing re-checks that the locked descriptor still refers to supervisor.lock. Unlink and recreate the file and a second supervisor locks the new inode while the first still holds the old one - two supervisors on one docroot, which is the duplicate-scheduler condition the lock was added to prevent."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "BUILT 2026-09-08 on claude/secrev-residue-daemon-and-dav. After taking the lock, the descriptor and the path are stat-ed and their dev/ino compared; a mismatch is a failure to acquire, logged, because a lock on an unlinked inode excludes nobody."
 ---
 
 # The finding

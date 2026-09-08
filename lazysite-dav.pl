@@ -1721,6 +1721,46 @@ sub resolve_under_docroot {
             unless defined $tr && ( $tr eq $droot || index( $tr, "$droot/" ) == 0 );
         $full = $tr;
     }
+
+    # SM795 (the DAV half). The engine tree is blocked by REQUEST REL - the
+    # authorise() path refuses a request whose relative path starts lazysite/ -
+    # and everything above confines only to the DOCROOT BOUNDARY on the
+    # resolved path. In the inside-docroot layout the engine tree is under the
+    # docroot, so a symlink at content/leak.png resolving into lazysite/ passes
+    # both: its request rel does not begin with lazysite/, and its real path is
+    # inside the docroot.
+    #
+    # This is the rule the project already holds (SM268): blocklist on the
+    # CANONICAL resolved path, never on the request string. The processor's
+    # _resolve_include has always done it, and _serve_content_static learned it
+    # in the same filing; this is the third and last sink.
+    #
+    # Checked on BOTH the resolved parent and the resolved target: a symlinked
+    # DIRECTORY would otherwise put every file beneath it in reach without any
+    # single target resolving into the tree by itself.
+    #
+    # AND ONLY WHERE THE REQUEST REL IS NOT ITSELF AN ENGINE PATH. This is
+    # where DAV differs from the processor, and it is why this half was filed
+    # as its own change rather than folded into that one: DAV has SANCTIONED
+    # ways into the engine tree - lazysite/nav.conf, lazysite/forms/<name>.conf
+    # under manage_forms, the layouts subtree - each carved out in authorise()
+    # BY REQUEST REL, which has already ruled on them by the time we get here.
+    # A blanket exclusion would refuse those, and the first version of this did
+    # exactly that: t/unit/dav/13 caught it.
+    #
+    # The defect is narrower than "a resolved path in the engine tree". It is a
+    # request that does NOT name an engine path resolving into one anyway -
+    # which is precisely the symlink, and precisely what authorise() cannot see.
+    my $names_engine = $rel =~ m{\Alazysite(?:/|\z)};
+    if ( !$names_engine && defined $LAZYSITE_DIR && length $LAZYSITE_DIR ) {
+        my $lz = realpath($LAZYSITE_DIR);
+        if ( defined $lz ) {
+            for my $p ( $rp, $full ) {
+                return { err => 403 }
+                    if $p eq $lz || index( $p, "$lz/" ) == 0;
+            }
+        }
+    }
     return { abs => $full, parent => $rp, parent_ok => 1 };
 }
 

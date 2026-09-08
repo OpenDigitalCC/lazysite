@@ -4,7 +4,8 @@ title: "SM787: the run record fails open for every shape of corruption, not just
 subtitle: "Security review, 0.13.8, VERIFIED: _read_runs guards the top level only, so a record that is valid JSON with a non-hash job value passes the guard and then dies in tick - every interval, forever, because the file is only rewritten when a job completes. The module's own comment promises the opposite: 'reads as empty - every job due at once - which is the safe direction'. That promise holds for a total parse failure and fails for a partial one."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "BUILT 2026-09-08 on claude/secrev-residue-daemon-and-dav. _read_runs drops any entry that is not a job record, with a WARN naming them, so structural corruption collapses into the behaviour the module already documented - that job is due now, logged once - instead of a tick that dies identically forever. tick reads defensively beside it, and treats a non-numeric or FUTURE last_run as never run: the record is same-uid-writable, so a future stamp silently suppressed one job, and an occasional harmless re-run is a better failure than a job that never runs and says nothing."
 ---
 
 # The finding

@@ -4,7 +4,8 @@ title: "SM791: provisioning refuses a value that could split a line"
 subtitle: "Security review, 0.13.8. Two one-line guards in the root-run Hestia provisioning: write_kv_file emits KEY=VALUE with no newline check, and check_domain anchors with ^...$ so a domain ending in a newline passes. Neither is exploitable in the current flow and the filing says so - the injected tail carries no '=' - which is exactly why they are cheap to close before something else calls them."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "BUILT 2026-09-08 on claude/secrev-residue-daemon-and-dav. check_domain anchors \A...\z, and write_kv_file refuses any value containing CR or LF - the guard placed in the shared writer rather than in each caller, because the registry and pool writers use it too and the next caller may not have the domain alphabet protecting it."
 ---
 
 # The finding

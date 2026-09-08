@@ -4,7 +4,8 @@ title: "SM788: the start-time parse reads the field its own comment names"
 subtitle: "Security review, 0.13.8. The bug is real and the comment proves it: _start_ticks says 'everything after the last )' and the regex takes everything after the FIRST ') '. A comm containing ') ' shifts every field, so the pid-reuse guard compares the wrong number. The filing's escalation claim does NOT hold, and is corrected here: anchoring earlier yields MORE fields, never fewer, so the value is wrong rather than undef - and _is_ours then fails closed, not open."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "BUILT 2026-09-08 on claude/secrev-residue-daemon-and-dav. Parsed from the last ) with rindex, which is what the comment above it always said. The escalation claim in the brief stays rejected and the filing says why: anchoring earlier leaves MORE fields, never fewer, so the value was wrong rather than absent and _is_ours failed CLOSED."
 ---
 
 # The finding, and the part of it that is not true

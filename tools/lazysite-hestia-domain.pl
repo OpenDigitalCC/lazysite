@@ -165,8 +165,15 @@ sub cli_path {
 sub check_domain {
     my ($domain) = @_;
     fail('DOMAIN is required') unless length( $domain // '' );
+    # SM791: \A...\z, not ^...$. Perl's $ matches BEFORE a trailing newline, so
+    # "example.com\n" passed this check - and a newline in the domain is the
+    # only route by which one could reach a value in write_kv_file, which
+    # writes KEY=VALUE lines into a root-owned systemd EnvironmentFile. Not
+    # exploitable as it stands (the alphabet has no '=' and no space, so an
+    # injected tail is a bare path systemd ignores), which is exactly why it is
+    # cheap to close.
     fail("invalid domain '$domain' (allowed: [A-Za-z0-9._-], no leading dot/dash)")
-        if $domain !~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+        if $domain !~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
     return $domain;
 }
 
@@ -387,6 +394,17 @@ sub write_kv_file {
     my $tmp = "$path.tmp.$$";
     open my $fh, '>', $tmp or fail("write $tmp: $!");
     print {$fh} $header if length $header;
+
+    # SM791: A VALUE MAY NOT SPLIT THE LINE. This writes the root-owned
+    # EnvironmentFile that lazysited@.service consumes, and it is shared with
+    # the registry and pool writers - so the guard belongs here rather than in
+    # each caller, where the next caller may not have the domain alphabet
+    # protecting it. A value carrying a newline AND an '=' would let systemd
+    # honour a setting nobody wrote.
+    for my $p (@$pairs) {
+        fail("refusing to write $path: the value for '$p->[0]' contains a line break")
+            if defined $p->[1] && $p->[1] =~ /[\r\n]/;
+    }
     print {$fh} "$_->[0]=$_->[1]\n" for @$pairs;
     close $fh or fail("close $tmp: $!");
     rename $tmp, $path or do {

@@ -221,7 +221,33 @@ sub _read_runs {
     close $fh;
     require JSON::PP;
     my $d = eval { JSON::PP->new->decode($raw) };
-    return $d if ref $d eq 'HASH';
+    if ( ref $d eq 'HASH' ) {
+
+        # SM787: THE FAIL-OPEN PROMISE HELD FOR ONE SHAPE OF CORRUPTION OUT OF
+        # TWO. The comment above says a corrupted record "reads as empty -
+        # every job due at once - which is the safe direction", and that was
+        # true only for a TOTAL parse failure. A record that is valid JSON with
+        # a top-level object and a scalar job value - {"stats-rollup":"boom"} -
+        # passed this guard and then died in tick, dereferencing a string as a
+        # hash. run() catches, logs, sleeps and retries, and _write_runs only
+        # runs when a job completed, so nothing ever repaired the file: every
+        # tick died the same way, forever, and no remote surface can read the
+        # system tree to say why.
+        #
+        # Dropping the bad entry collapses it into the behaviour that was
+        # already designed and documented - that job is due now, logged once -
+        # instead of a permanent stop of all maintenance.
+        my @bad = grep { ref $d->{$_} ne 'HASH' } sort keys %$d;
+        if (@bad) {
+            delete $d->{$_} for @bad;
+            log_event( 'WARN', 'scheduler',
+                'the run record has entries that are not job records; they are '
+                    . 'treated as never having run',
+                file    => 'lazysite/daemon/scheduler-runs.json',
+                entries => join( ',', @bad ) );
+        }
+        return $d;
+    }
     log_event( 'WARN', 'scheduler',
         'the run record is unreadable and is treated as empty - every job '
             . 'is due now', file => 'lazysite/daemon/scheduler-runs.json' );
@@ -292,9 +318,17 @@ sub tick {
         : {};
 
     for my $name ( sort keys %JOBS ) {
-        my $job  = $JOBS{$name};
-        my $last = $runs->{$name}{last_run} // 0;
-        next if $now - $last < $job->{every};
+        my $job = $JOBS{$name};
+        # SM787: defensive beside the reader's own filter, and cheap. The
+        # two together mean a malformed record costs a re-run, never a tick.
+        my $last = ( ref $runs->{$name} eq 'HASH' ? $runs->{$name}{last_run} : 0 ) // 0;
+        # A last_run in the FUTURE keeps `$now - $last` negative for as long as
+        # it says, so the job is silently skipped and nothing reports it. The
+        # record is same-uid-writable, so that is reachable; and an occasional
+        # harmless re-run is a better failure than a job that never runs and
+        # says nothing.
+        $last = 0 if $last !~ /\A\d+(?:\.\d+)?\z/ || $last > $now;
+        next      if $now - $last < $job->{every};
 
         # Refused for identity reasons: recorded, not silently skipped. A job
         # that never runs and says nothing is indistinguishable from a job

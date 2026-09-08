@@ -182,9 +182,22 @@ sub _start_ticks {
 
     # comm may contain spaces and parentheses; everything after the last ')'
     # is the fixed-order field list, starting at field 3.
-    my ($rest) = $line =~ /\)\s+(.*)\z/s;
-    return undef unless defined $rest;
-    my @f = split /\s+/, $rest;
+    #
+    # SM788: FROM THE LAST ')', which is what the line above always said and
+    # what the code did not do. The regex was `/\)\s+(.*)\z/s`, unanchored, so
+    # it matched at the LEFTMOST ')' followed by whitespace - and comm is set
+    # from the executable basename or through prctl/$0, so it may contain one.
+    # Every field then shifted and $f[19] was a different field.
+    #
+    # The consequence was mild and in the safe direction, which is worth
+    # recording because the brief that found this said otherwise: anchoring
+    # earlier leaves MORE fields, never fewer, so the value is wrong rather
+    # than absent - and _is_ours compares a wrong number, finds a mismatch and
+    # returns 0. It fails CLOSED. Benign for our own children (a perl child has
+    # no ')' in its comm, and spawn and check parse identically), and wrong.
+    my $li = rindex( $line, ')' );
+    return undef if $li < 0;
+    my @f = split ' ', substr( $line, $li + 1 );
     return $f[19];    # field 22 overall = index 19 after fields 1-2
 }
 
@@ -839,11 +852,40 @@ sub _lock_file {
     return _state_dir($root) . q{/supervisor.lock};
 }
 
+# SM789: THE LOCK HOLDS THE PATH, NOT JUST THE INODE.
+#
+# flock binds to the open file description, so it survives the file being
+# unlinked - and a second supervisor opening a NEW file at the same path gets a
+# different inode and an uncontended lock, while the first still holds the old
+# one. Both run: two schedulers, the same jobs, the same scheduler-runs.json,
+# which is the precise failure this lock was added to prevent and which
+# compounds SM787.
+#
+# Same-uid boundary - the state directory belongs to the site's own user - so
+# this is a local or cleanup-tooling concern rather than a remote one. The rest
+# of the surrounding code is careful (_stop_children does not unlink the lock,
+# _spawn closes the handle in the child), which is why unlink-and-recreate was
+# the only way in.
+#
+# After taking the lock, confirm the descriptor still refers to the path. A
+# mismatch, or a path that has gone, is a FAILURE to acquire rather than a
+# success: a lock on an unlinked inode excludes nobody.
 sub _acquire_lock {
     my ($root) = @_;
     require Fcntl;
-    open my $fh, '>>', _lock_file($root) or return 0;
+    my $path = _lock_file($root);
+    open my $fh, '>>', $path or return 0;
     unless ( flock( $fh, Fcntl::LOCK_EX() | Fcntl::LOCK_NB() ) ) {
+        close $fh;
+        return 0;
+    }
+    my @onfd   = stat $fh;
+    my @onpath = stat $path;
+    unless ( @onfd && @onpath && $onfd[0] == $onpath[0] && $onfd[1] == $onpath[1] ) {
+        log_event( 'WARN', 'daemon',
+            'the supervisor lock file was replaced while it was being taken; '
+                . 'refusing to start rather than run a second supervisor',
+            file => $path );
         close $fh;
         return 0;
     }
