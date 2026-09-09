@@ -85,4 +85,38 @@ register, which weighed the narrowness of the state (loopback-only, and
 discouraged) against the operator's diagnosis and came down on keeping the
 explaining 403. The ruling is that an unauthenticated caller must not be able to
 tell one refusal from the other, whatever it costs the diagnosis - the operator
-reaches the log for that. NOT YET BUILT.
+reaches the log for that.
+
+## BUILT 2026-09-09 on `claude/sm798-the-empty-password-oracle`
+
+The passwordless refusal is now the SAME refusal an absent account and a wrong
+password get: `sleep $LOGIN_DELAY`, then `302 ?error=1`.
+
+**The sleep is part of the fix, not decoration.** The other two refusals pause
+and this path did not, so matching only the status would have swapped a loud
+oracle for a slower, quieter one - the timing would still have told a caller
+which accounts exist without passwords.
+
+`reject_no_password()` has no caller left and is gone, and with it the two
+chrome strings that only it rendered (`auth.nopw.title`, `auth.nopw.body`) -
+a translated string for a page nothing draws is a declaration the code ignores.
+`t/unit/lib/41-i18n.t` used `auth.nopw.title` as the fixture for "an EMPTY
+override falls back to English"; it now uses `auth.uidisabled.title`, which
+still has a caller.
+
+**The operator's message was not deleted, it moved.** `log_event` and
+`_audit_auth` record `no-password-remote` exactly as before, so the diagnosis is
+in the log and the audit trail - reachable by the operator, not by the caller.
+The new test asserts that too, because that recording is the whole of what the
+403 was for and losing it quietly would make this a worse change than the oracle.
+
+`t/unit/auth/10` proves the closure by INDISTINGUISHABILITY rather than against
+a hand-written expectation - it requires the passwordless response to be
+byte-identical to the other two refusals, so a wrong expectation cannot pass
+while the oracle stays open. Checked by reopening the oracle and watching it
+fail.
+
+STILL OPEN from this filing: the rate limiter's per-IP-only scope, which would
+be a per-account limiter and is a design change rather than a fix; and whether
+the limiter should be a plugin, which is the one row of this filing still in
+`docs/decision-register.md`.

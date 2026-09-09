@@ -27,8 +27,6 @@ my %EN = (
     'forbidden.insufficient' => 'You do not have permission to view this page.',
     'auth.required'          => 'Authentication required.',
     'signin.title'           => 'Sign in',
-    'auth.nopw.title'        => 'Sign in unavailable',
-    'auth.nopw.body'         => 'Password not configured - contact your administrator.',
     'auth.uidisabled.title'  => 'Interactive login is disabled for this account',
     'auth.uidisabled.body'   =>
         'This account does not have interactive (browser) access. '

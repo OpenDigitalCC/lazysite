@@ -33,7 +33,7 @@ is( chrome_string( $d, 'en', 'notfound.body', '/a&b<c">' ),
 # --- a per-site override overlays the English base per key --------------------
 make_path("$d/lazysite/i18n");
 open my $de, '>', "$d/lazysite/i18n/de.json" or die $!;
-print $de '{"auth.required":"Anmeldung erforderlich.","auth.nopw.title":""}';
+print $de '{"auth.required":"Anmeldung erforderlich.","auth.uidisabled.title":""}';
 close $de;
 Lazysite::I18n::_reset_cache();
 
@@ -43,8 +43,9 @@ is( chrome_string( $d, 'DE', 'auth.required' ),
     'Anmeldung erforderlich.', 'lang match is case-insensitive' );
 is( chrome_string( $d, 'de', 'forbidden.title' ),
     'Access Denied', 'a key absent from the override falls back to English' );
-is( chrome_string( $d, 'de', 'auth.nopw.title' ),
-    'Sign in unavailable', 'an EMPTY override value falls back to English (never blank)' );
+is( chrome_string( $d, 'de', 'auth.uidisabled.title' ),
+    'Interactive login is disabled for this account',
+    'an EMPTY override value falls back to English (never blank)' );
 
 # --- fail-closed: a broken override file yields English -----------------------
 open my $fr, '>', "$d/lazysite/i18n/fr.json" or die $!;

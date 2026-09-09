@@ -374,9 +374,23 @@ sub _verify_credential {
         # No-password account: only allowed from localhost
         my $addr = $ENV{REMOTE_ADDR} // '';
         unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
+            # SM798: ANSWER EXACTLY AS A WRONG PASSWORD DOES. This used to
+            # send a 403 explaining that the account has no password, while
+            # an absent user and a wrong password both got 302 ?error=1 - so
+            # the one response that differed identified an account that
+            # exists AND is in the state the engine most discourages. The
+            # explanation was real and it is not lost: it is in the log and
+            # the audit trail, where the operator can reach it and an
+            # unauthenticated caller cannot.
+            #
+            # THE SLEEP IS PART OF THE FIX, not decoration. The other two
+            # refusals pause for $LOGIN_DELAY and this path did not, so
+            # matching only the status would have swapped one oracle for a
+            # slower, quieter one.
             log_event( 'WARN', $username, 'no-password login refused (not localhost)', ip => $addr );
             _audit_auth( $username, 'login', 'fail', 'no-password-remote' );
-            reject_no_password();
+            sleep $LOGIN_DELAY;
+            redirect("$auth_redirect?error=1");
             return 0;
         }
         log_event( 'INFO', $username, 'no-password login (localhost)', ip => $addr );
@@ -1416,24 +1430,6 @@ sub _host_lang {
     my $lang = length $alias ? $alias : $base;
     $lang =~ s/[^A-Za-z-]//g;
     return length $lang ? $lang : 'en';
-}
-
-sub reject_no_password {
-    binmode( STDOUT, ':utf8' );
-    my $lang  = _host_lang();
-    my $pt    = chrome_string( $DOCROOT, $lang, 'signin.title' );
-    my $title = chrome_string( $DOCROOT, $lang, 'auth.nopw.title' );
-    my $body  = chrome_string( $DOCROOT, $lang, 'auth.nopw.body' );
-    print "Status: 403 Forbidden\r\n";
-    print "Content-Type: text/html; charset=utf-8\r\n\r\n";
-    print <<"HTML";
-<!DOCTYPE html>
-<html lang="$lang"><head><meta charset="utf-8"><title>$pt</title></head>
-<body style="font-family:system-ui,sans-serif;max-width:480px;margin:3em auto;padding:0 1em;">
-<h1 style="font-size:1.3rem;">$title</h1>
-<p>$body</p>
-</body></html>
-HTML
 }
 
 # SM070: a credential-valid account whose `ui` mechanism is disabled.
