@@ -44,6 +44,106 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+**A performance fix that turned out to be an architecture fix, and the residue
+of two field runs.** Every authenticated request had been compiling a
+three-thousand-line command-line tool to answer one question; it no longer does,
+and the gauge that reported the drift for eleven days now measures the path a
+request actually takes. The rest is the 139E field results, the second half of
+the wild-facing auth review, and the connector page finished against the
+vocabulary it was given.
+
+- SM685 (a6c2f9b2) **a credential check stops compiling the users tool.**
+  `Lazysite::Auth::Verify` holds the credential path and the three CGI callers
+  use it directly, so a login no longer spawns an interpreter to compile
+  `tools/lazysite-users.pl`. On the bench host that compile was ~47ms of a ~62ms
+  verification - the drift was never a slower algorithm, it was the file's SIZE
+  charged to every request. `verify_token_ms` 62.6ms -> 0.5ms, and it now times
+  the in-process path, with the CLI's cost kept visible as `verify_token_cli_ms`.
+  The port was proven against the pre-refactor implementation recovered from git
+  - all 49 settings keys identical - because the obvious test cannot show it:
+  the tool delegates to the module, so both surfaces break together. Group
+  seeding deliberately did not move; the narrower healing trigger is a ruling,
+  recorded in the filing.
+- SM798 (ecfa367f, c1b0ffc3) **the auth CGI stops answering a question it was
+  not asked, and says when it is not protecting anything.** From a non-loopback
+  address a passwordless account answered `403` while an absent user and a wrong
+  password both answered `302 ?error=1` - so the one response that differed named
+  an account that exists AND is in the state the engine most discourages. All
+  three refusals are now identical, delay included, and the operator's
+  explanation moved to the log and the audit trail rather than being deleted.
+  Separately, the login rate limiter still fails OPEN by design - refusing every
+  login on a host missing an optional module is the worse failure - but it no
+  longer does so in silence: both unrunnable cases log a WARN naming the
+  consequence, which case it was, the file, the error and the Debian package.
+- SM807 (1b902ecb) **a remedy that depends on who is reading it.** "A user
+  manager can grant it" sends the one person who can fix the problem to look for
+  the person who can fix the problem; it now depends on the reader and links to
+  the page it happens on. With it: an account sheet no longer headed SITE
+  SETTINGS for an account that cannot reach site settings, and a row action group
+  anchored so a credential state stops moving 130px between rows.
+- SM809 (6db428b0) **the daemon is findable, and a declared parameter is
+  honoured.** The plugin was "Persistent runtime" while its id, its script, its
+  config, its jobs and every filing call it the daemon - so searching the manager
+  for the word everyone uses returned nothing. `plugin-read`, `plugin-save` and
+  `plugin-action` each declared a `plugin` parameter and resolved on `$script`
+  alone, so sending the parameter the declaration names produced "Plugin not
+  found" - a sentence about the plugin when the fault was the parameter. Both
+  spellings resolve, and a missing parameter is now told apart from a plugin that
+  is genuinely not installed.
+- SM804, SM805, SM806 (13e5f361) **the connector's row source, the message that
+  misled, and the page.** Every row-sourced connector call was a 500 - a loaded
+  descriptor carries its table NAME under `table`, and the code dereferenced the
+  string as a hash. The test that should have caught it mocked both `load_table`
+  and `read_rows` and returned a shape this module had invented, so it proved the
+  mapping and nothing about the integration. Row resolution moved inside `call()`
+  so a refusal and an internal fault are both recorded as rows. `read_rows` told
+  its caller to pass `as => "sysop"` when only `operator` is admitted, and
+  following that instruction produced the sentence a genuinely absent table
+  produces. The connectors page had its call record filtered on a parameter the
+  action does not send - so every panel listed every connector's calls - had
+  hand-rolled the expander the stylesheet keys on, and had borrowed the
+  permissions editor's components as generic layout. Values the engine knows are
+  now chosen rather than typed, and where a list cannot be read the field stays a
+  text box and says so.
+- SM801 (bcc4147f) **an alias redirects to a URL the router serves.**
+  `canonical_url_for` built a directory-index page's URL as `/dir`, which the
+  router serves at `/dir/` and nowhere else - so an alias on an index page 301'd
+  to a URL that 404s. It survived because `/dir` also reaches the legacy-static
+  fallback, so an index page with a `dir.html` sibling appears to work. The
+  redirect moved to the URL that is served; a directory index answering only at
+  `/dir/` is deliberate and was not changed.
+- SM803 (4fefe8a9) **a `.url` file is not a redirect**, found while filing the
+  remapper request.
+- SM799 (c1b0ffc3) **closed as already answered.** The report is against 0.12.1
+  and SM779 shipped the same thing in 0.13.8 - verified rather than assumed:
+  all four form-target actions are declared cookie-only, none is token-callable,
+  and the capability map publishes `cookie_only: true` for each. Superseded.
+- **A decision register** (b95838e6) at `docs/decision-register.md`. The engine
+  agent kept reaching points where the next step was a judgement that is not its
+  to make, and had been asking in conversation, where the questions scroll away
+  and the release manager has no list to read. One row per open decision, with
+  the question and a recommendation, pointing at the SM that carries the
+  reasoning. A row leaves when the decision arrives, because the register is what
+  is OPEN rather than a history.
+- SM812 partial (PENDING) **the per-page `theme:` key documented where authors
+  look for it.** The field reported that a page may override its layout but not
+  its theme, and a shipped build had hardcoded a stylesheet link to work around
+  it - which silently made that theme's `config.colours` block inert and its
+  varieties impossible. The key has existed since SM120 and `docs/FEATURES.md`
+  lists it; `/docs/frontmatter`, which is the page an author reads, did not. The
+  workaround was never necessary. Folder inheritance, the half that makes a
+  theme settable across a section rather than per page, is not built and is
+  recorded in the filing with its two design questions.
+- Docs: SM802 (a site URL remapper), SM808 (the deployed manager layout is older
+  than the engine) and SM811 (the release contract in the docs was deleted two
+  releases ago) filed as candidates and not built. SM802's four shape decisions
+  were ruled on 2026-09-09 - per-domain rules, operator-only, counts derived from
+  the visitor log, a plugin doing one bounded act - and are recorded in the
+  filing for whoever builds it. From the sites agent the same day: SM813 (one
+  sign-in across a domain family is a cookie attribute, measured), SM814 (the
+  intranet belongs on a subdomain, which depends on SM813) and SM815 (a place to
+  say something and be answered, specified as a shipped component).
+
 ## 0.13.9 - EDGE: two security reviews, and the connector surface finished (2026-09-08)
 
 **The biggest edge release of the campaign, and most of it is other people's

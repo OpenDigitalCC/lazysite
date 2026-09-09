@@ -37,6 +37,9 @@ Everything below the closing `---` is the page body. All keys are optional unles
 `layout`
 : A named layout for this page, overriding the site-wide setting. Resolves to `lazysite/layouts/NAME/layout.tt`, or may be a remote URL (see [remote layouts](/docs/features/configuration/remote-layouts)).
 
+`theme`
+: A named theme for this page, overriding the one the domain has activated. Sanitised the same way as `layout`, and resolved against the page's layout - a theme a layout does not support renders as no theme rather than breaking the page. Shipped in SM120; documented here from SM812, because a build that could not find it in this list linked a stylesheet by hand instead, which silently disabled that theme's own configuration.
+
 `search`
 : `true` or `false` to include or exclude the page from the search index. Defaults to the site-wide `search_default`.
 
