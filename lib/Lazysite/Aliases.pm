@@ -85,16 +85,47 @@ sub _canonical_on_its_site {
 }
 
 # The request URL a .md file answers to: foo/bar.md -> /foo/bar ;
-# foo/index.md -> /foo ; index.md -> / .
+# foo/index.md -> /foo/ ; index.md -> / .
+#
+# SM801: AN INDEX PAGE'S URL KEEPS ITS TRAILING SLASH, because that is the only
+# form the router serves it at.
+#
+# This returned /foo for foo/index.md, and the router does not serve /foo.
+# sanitise_uri appends `/index` ONLY when the request carries a trailing slash
+# (processor:2910-2913); without one it looks for foo.md, which an index page
+# does not have. The processor's own comment says the same thing in words -
+# "private.md renders at /private and private/index.md at /private/"
+# (processor:688) - so the two halves of the engine disagreed in writing, and
+# the half that computes an alias target was the wrong one.
+#
+# THE CONSEQUENCE, reported from the field: an alias on a directory-index page
+# 301s to a URL that 404s. The alias machinery is faultless - the redirect is
+# issued correctly - and it lands the visitor on a dead end. Nothing in the
+# authoring path reports it: the front matter is valid, the page is valid, the
+# registry builds, the 301 is correct. Only following it shows the problem.
+#
+# It does not always 404, which is why this survived: `/foo` is also the
+# request that reaches the legacy-static fallback (processor:1585-1600), so a
+# page with a `foo.html` sibling appears to work. Where there is no such
+# sibling - the ordinary case - the redirect is guaranteed to fail.
+#
+# THE BARE PATH IS NOT THE THING TO FIX. The operator has ruled that a
+# directory index answering only at /dir/ is deliberate: an unmatched bare path
+# is a dependable 404 hook. So the redirect moves to the URL that is served,
+# rather than the router learning a second spelling.
 sub canonical_url_for {
     my ($rel) = @_;
     $rel =~ s{^/+}{};
     $rel =~ s{\.md\z}{};
-    $rel =~ s{(?:^|/)index\z}{};    # index -> its directory
-    my $url = "/$rel";
+    my $is_index = $rel =~ s{(?:^|/)index\z}{};    # index -> its directory
+    my $url      = "/$rel";
     $url =~ s{//+}{/}g;
-    $url =~ s{(.)/\z}{$1};          # strip trailing slash except root
-    return length $url ? $url : '/';
+    $url =~ s{(.)/\z}{$1};                         # normalise, then re-add below
+    $url = '/' unless length $url;
+    # The root index is already `/`; every other index keeps the slash that
+    # tells the router to look for an index in that directory.
+    $url .= '/' if $is_index && $url ne '/';
+    return $url;
 }
 
 # The canonical-URL string of a map entry, whichever shape it has.

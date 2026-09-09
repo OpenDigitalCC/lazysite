@@ -5,18 +5,24 @@ use warnings;
 use Test::More;
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
-use JSON::PP ();
+use JSON::PP   ();
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Aliases
     qw(index_page deindex_page lookup canonical_url_for list_aliases
-       reindex_move reindex_copy alias_map_path);
+    reindex_move reindex_copy alias_map_path);
 
 # --- canonical URL derivation ---
-is( canonical_url_for('foo/bar.md'),   '/foo/bar', 'nested page -> /foo/bar' );
-is( canonical_url_for('foo/index.md'), '/foo',     'index -> its directory' );
-is( canonical_url_for('index.md'),     '/',        'root index -> /' );
-is( canonical_url_for('/a/b.md'),      '/a/b',     'leading slash tolerated' );
+is( canonical_url_for('foo/bar.md'), '/foo/bar', 'nested page -> /foo/bar' );
+# SM801: THIS ASSERTION USED TO SAY '/foo', AND IT WAS ENCODING THE BUG.
+# The router serves foo/index.md at /foo/ and nowhere else - sanitise_uri
+# appends `/index` only for a trailing slash - so an alias built on '/foo'
+# redirected to a URL that 404s. The trailing slash is not cosmetic here; it
+# is the whole difference between a redirect that lands and one that does not.
+is( canonical_url_for('foo/index.md'), '/foo/', 'index -> its directory, WITH the slash the router needs' );
+is( canonical_url_for('a/b/index.md'), '/a/b/', 'nested index likewise' );
+is( canonical_url_for('index.md'),     '/',     'root index -> /' );
+is( canonical_url_for('/a/b.md'),      '/a/b',  'leading slash tolerated' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite");
@@ -105,8 +111,8 @@ is( lookup( $d, '/temp' ), undef, 're-save cleared the 302 entry' );
     is( lookup( $d, '/legacy' ),    '/pricing', 'an old-format entry still resolves' );
     is( lookup( $d, '/tmp-alias' ), '/pricing', 'a new-format entry resolves the same way' );
     is_deeply( list_aliases($d),
-        [ { alias => '/legacy',    target => '/pricing', code => 301 },
-          { alias => '/tmp-alias', target => '/pricing', code => 302 } ],
+        [ { alias => '/legacy', target => '/pricing', code => 301 },
+            { alias => '/tmp-alias', target => '/pricing', code => 302 } ],
         'list_aliases: sorted rows with normalised codes' );
 }
 
@@ -122,8 +128,8 @@ is( lookup( $d, '/temp' ), undef, 're-save cleared the 302 entry' );
 
     rename "$md/old.md", "$md/new.md" or die $!;
     reindex_move( $md, 'old.md', 'new.md' );
-    is( lookup( $md, '/was' ),      '/new', 'reindex_move re-targets the 301 alias' );
-    is( lookup( $md, '/shortly' ),  '/new', 'reindex_move re-targets the 302 alias' );
+    is( lookup( $md, '/was' ),     '/new', 'reindex_move re-targets the 301 alias' );
+    is( lookup( $md, '/shortly' ), '/new', 'reindex_move re-targets the 302 alias' );
 
     # a whole-directory move re-keys every page beneath it
     make_path("$md/docs");
