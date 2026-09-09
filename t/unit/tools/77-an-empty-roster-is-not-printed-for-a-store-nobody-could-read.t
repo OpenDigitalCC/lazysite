@@ -31,25 +31,41 @@ subtest 'the catalogue names the tool that owns the store' => sub {
             . 'read_users and read_groups.' );
 };
 
-subtest 'the two readers no longer stat before they open' => sub {
+# SM685: THE READERS MOVED, and the assertion followed them rather than being
+# deleted. read_users and read_groups now live in Lazysite::Auth::Verify, where
+# the CGIs reach them without compiling the tool, and both go through one
+# opener - so the guarantee SM800 established is asserted once, at the place
+# that could lose it. The tool's own subs are checked separately: they must
+# still DELEGATE, because a reader reintroduced there would be a second
+# implementation and the first thing it would grow back is the stat guard.
+subtest 'the one reader does not stat before it opens' => sub {
     my $src = do {
+        open my $fh, '<', "$root/lib/Lazysite/Auth/Verify.pm" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($body) = $src =~ /(sub _read_colon_file \{.*?\n\})/s;
+    ok( $body, '_read_colon_file was found' ) or return;
+    unlike( $body, qr/unless -[fe] /,
+        'it does not stat before opening - a stat the process may not make '
+            . 'fails like an open it may not make' );
+    like( $body, qr/cannot_read/, 'it reports through cannot_read' );
+    like( $body, qr/STORE_READABLE = 0/,
+        'it records that it could not read, because the hash has nowhere to '
+            . 'carry it' );
+    like( $body, qr/\$!\{ENOENT\}/,
+        'it treats an absent store as ordinary, not as a fault' );
+
+    my $tool = do {
         open my $fh, '<', "$root/tools/lazysite-users.pl" or die $!;
         local $/;
         <$fh>;
     };
-    for my $pair ( [ 'read_users', 'USERS_FILE' ], [ 'read_groups', 'GROUPS_FILE' ] ) {
-        my ( $sub, $var ) = @$pair;
-        my ($body) = $src =~ /(sub \Q$sub\E \{.*?\n\})/s;
-        ok( $body, "$sub was found" ) or next;
-        unlike( $body, qr/unless -f \$\Q$var\E/,
-            "$sub does not stat before opening - a stat the process may not "
-                . 'make fails like an open it may not make' );
-        like( $body, qr/cannot_read/, "$sub reports through cannot_read" );
-        like( $body, qr/STORE_READABLE = 0/,
-            "$sub records that it could not read, because the hash has "
-                . 'nowhere to carry it' );
-        like( $body, qr/\$!\{ENOENT\}/,
-            "$sub treats an absent store as ordinary, not as a fault" );
+    for my $sub (qw(read_users read_groups)) {
+        my ($t) = $tool =~ /(sub \Q$sub\E \{.*?\n\})/s;
+        ok( $t, "the tool's $sub was found" ) or next;
+        like( $t, qr/Lazysite::Auth::Verify::\Q$sub\E/,
+            "the tool's $sub delegates rather than reading the store itself" );
     }
 };
 

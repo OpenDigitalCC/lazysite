@@ -33,6 +33,7 @@ use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
 use Lazysite::Capabilities   qw(describe);
 use Lazysite::Auth::OAuth    ();
+use Lazysite::Auth::Verify   ();              # SM685: verify in-process, no subprocess
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_save_binary
     action_move action_acl_get action_acl_set action_acl_remove
@@ -317,8 +318,22 @@ sub verify_bearer {
 
     my ( $user, $secret ) = split /:/, $cred, 2;
     if ( defined $user && defined $secret && $secret =~ /^lzs_/ ) {
-        my $v = _users_api( { action => 'verify-credential',
-                username => $user, secret => $secret, touch => 1 } );
+        # SM685: in-process. AUTH_DIR is localised here because this file
+        # sets it per call site rather than once at the top, and the
+        # verification reads the settings store through it.
+        # A deployment that NOMINATES a users tool (LAZYSITE_USERS_TOOL) has
+        # nominated the authority on credentials - ask it. Otherwise verify in
+        # process: SM685 takes the subprocess off the DEFAULT path, which is the
+        # one every site runs. The choice is made HERE and never inside the module,
+        # because the module is also loaded inside the tool - and a tool that
+        # consults the variable naming itself spawns itself, without limit.
+        my $v = $ENV{LAZYSITE_USERS_TOOL}
+            ? _users_api(
+            { action => 'verify-credential', username => $user, secret => $secret } )
+            : do {
+            local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+            Lazysite::Auth::Verify::verify_credential( $DOCROOT, $user, $secret );
+            };
         return () unless $v && $v->{ok};
         # Audit the connector's first authentication with this credential (the
         # static-bearer "connected" moment - Claude Code / Desktop / a script).

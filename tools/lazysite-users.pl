@@ -125,6 +125,7 @@ BEGIN {
 }
 use Lazysite::Paths ();    # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
+use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
@@ -228,7 +229,11 @@ my $USERS_FILE = "$AUTH_DIR/users";
 # it - an empty roster is a fact about the site, and it must not be shown for a
 # store this process could not open. The hash has nowhere to carry the
 # difference (SM784), so the reader records it beside the read.
-our $STORE_READABLE = 1;
+# SM685: the flag lives with the READERS, which are now in
+# Lazysite::Auth::Verify - so a store that could not be read reports the same
+# way whether the question arrived through this tool or straight into the
+# module. Read it through the accessor; nothing here sets it any more.
+sub _store_readable { return Lazysite::Auth::Verify::store_readable() }
 my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
@@ -720,7 +725,7 @@ if ($API_MODE) {
     # so an empty `users` or `groups` in this answer means "could not tell",
     # not "there are none". A page that draws a roster asks it before drawing
     # an empty table, because an empty table is a statement about the site.
-    $result->{store_readable} = $STORE_READABLE ? JSON::PP::true() : JSON::PP::false()
+    $result->{store_readable} = _store_readable() ? JSON::PP::true() : JSON::PP::false()
         if ref $result eq 'HASH' && $result->{ok};
 
     print encode_json($result);
@@ -952,7 +957,7 @@ sub cmd_list {
     # for a store this process could not open. An operator reading it goes
     # looking for missing accounts instead of for a permissions fault, which is
     # the wrong half of the day.
-    if ( !%users && !$STORE_READABLE ) {
+    if ( !%users && !_store_readable() ) {
         print "The account store could not be read - no answer, not a list of "
             . "no accounts. Check the permissions on $USERS_FILE and its directory.\n";
         return;
@@ -1530,159 +1535,15 @@ sub cmd_group_reach {
 #   dav_scope: undef (docroot-wide, still subject to endpoint denials)
 sub effective_settings {
     my ($user) = @_;
-    my $all    = read_settings();
-    my $s      = $all->{$user} || {};
-    # SM095: capability bools come from the ONE resolver (caps_for) - the same one
-    # the manager API, MCP, and the WebDAV endpoint consult, so a grant resolves
-    # identically everywhere. Since the clean cut (0.5.20) caps_for is group-only:
-    # per-account capability grants are no longer honoured.
+
+    # SM685: the DERIVATION moved to Lazysite::Auth::Verify; the SEEDING did
+    # not, and stays here on purpose. Group seeding and migration is a mutation
+    # (SM645 tops up manager groups and can write group-settings), and the
+    # module is used by the per-request credential check in the CGIs, which is
+    # the one path in the system where a migration must not run. Every caller
+    # that reaches the tool still heals exactly as it did.
     _ensure_groups_seeded();
-    my $caps     = caps_for($user);
-    my @mygroups = do {
-        my %g = read_groups();
-        sort grep { grep { $_ eq $user } @{ $g{$_} || [] } } keys %g;
-    };
-    # SM165: the effective scope comes from DOMAIN access (each domain's
-    # allowed_groups + locked_users), resolved against the user's COMPOUND-expanded
-    # groups - replacing SM155's per-group dav_scope. The domain owns access; a
-    # lock narrows; an empty result for a locked user is deny-all (not unconfined).
-    my @scopes = Lazysite::Auth::Settings::resolve_user_scopes( $DOCROOT, $user );
-    my $hd     = Lazysite::Auth::Settings::resolve_home_domain( $DOCROOT, $user );
-
-    # SM233: the chain of ancestors currently capping this account's content
-    # access, walked exactly as resolve_user_scopes walks it (created_by, stopping
-    # at a scope_independent account, cycle-guarded). Empty means nothing caps it.
-    # Without this the sysop cannot see whether the emancipation toggle would
-    # change anything, and no amount of tooltip wording substitutes for showing
-    # the answer.
-    my @ceiling;
-    unless ( $s->{scope_independent} ) {
-        my %seen = ( $user => 1 );
-        my $anc  = $s->{created_by};
-        while ( defined $anc && length $anc && !$seen{$anc}++ ) {
-            push @ceiling, $anc;
-            $anc = ( $all->{$anc} || {} )->{created_by};
-        }
-    }
-    return {
-        groups => \@mygroups,
-
-        # EVERY CAPABILITY, FROM THE ONE LIST. This was twenty-five
-        # hand-written lines of identical shape, scattered through the hash,
-        # and the list they mirrored was @CAP_KEYS - so the only thing keeping
-        # them in step was somebody remembering. SM666 found out what that
-        # costs: `run_jobs` reached caps_for and not this map, which is a grant
-        # that resolves and then reports as absent, so an operator would grant
-        # it, see no sign of it, and grant it again.
-        #
-        # It also cost a release. Adding the missing line grew
-        # tools/lazysite-users.pl by one statement, and this file is COMPILED ON
-        # EVERY CREDENTIAL CHECK - which is what drives verify_token_ms (SM685).
-        # The work counter caught it and refused the build, correctly. Deriving
-        # the map removes twenty-five statements where adding one had been
-        # refused, so the file is smaller than before the capability existed.
-        #
-        # The comments those lines carried are not lost, they are answered:
-        # SM447's manage_data, SM576's manage_briefs, SM591's housekeeping and
-        # purge, SM682's write_data and SM666's run_jobs each said, in slightly
-        # different words, that a capability reaching caps_for but not this map
-        # does nothing on every surface that reports what an account holds.
-        # That is now true by construction rather than by repetition.
-        #
-        # TWO KEYS ARE NOT DERIVABLE and stay written out below: `ui`, which
-        # comes from $s with an inverted default and means "interactive login
-        # is allowed", and `manager_ui`, which is $caps->{ui} under another
-        # name (SM127). They are the only entries where the mapping is not the
-        # identity, and they are excluded here rather than special-cased inside
-        # the map so that the derivation has no exceptions to get wrong.
-        ( map { $_ => $caps->{$_} ? JSON::PP::true() : JSON::PP::false() }
-            grep { $_ ne 'ui' } @CAP_KEYS ),
-        ui => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
-        # SM127: manager UI ACCESS - the `ui` capability GRANTED BY A GROUP (real
-        # manager access), distinct from the default-on `ui` flag above (which just
-        # means "interactive login is allowed"). The transport gates use this to
-        # refuse a manager account over api/mcp.
-        manager_ui => $caps->{ui} ? JSON::PP::true() : JSON::PP::false(),
-        # SM155: the union of content roots this account is confined to (from its
-        # groups), and the single-domain UI pointer. Empty/null = unconfined.
-        dav_scopes  => \@scopes,
-        home_domain => ( length $hd ) ? $hd : undef,
-        # SM071 Phase 2: sub-user provenance and delegation. created_by /
-        # created_at are immutable; managed_by defaults to created_by and
-        # changes only on reassign. Top-level (sysop-created) accounts
-        # have no provenance row, so these are null/false for them.
-        created_by => $s->{created_by},
-        created_at => $s->{created_at},
-        managed_by => ( defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by} ),
-        # SM194: top-level-managed (managed_by cleared) and scope-emancipated
-        # (created_by ceiling lifted) - two distinct sysop decisions.
-        top_level => ( defined $s->{managed_by} && length $s->{managed_by} ) ? JSON::PP::false() : JSON::PP::true(),
-        scope_independent => $s->{scope_independent} ? JSON::PP::true() : JSON::PP::false(),
-        scope_ceiling     => \@ceiling,    # SM233: who is capping, in walk order
-        disabled          => $s->{disabled} ? JSON::PP::true() : JSON::PP::false(),
-        # SM447: the data plugin's capability. Added here at the same time as
-        # @CAP_KEYS, because the two must move together - SEC-2026-07 (F3) is
-        # what happens when they do not, and t/unit/users/21 is what makes
-        # sure they do.
-        # SM682: the narrow row-write grant, added here in the same commit as
-        # @CAP_KEYS for the reason directly above. F3 is what happens otherwise:
-        # a grant that resolves and then does nothing on every surface reading
-        # this map.
-        # SM576 part 1: the briefs plugin's capability, added here in the same
-        # commit as @CAP_KEYS for the reason directly above - a capability that
-        # reaches caps_for but not this map is a grant that resolves and then
-        # does nothing on every surface that reads effective_settings, which is
-        # what SEC-2026-07 (F3) was.
-        # SM666: the daemon plugin's capability, here for the reason the two
-        # comments around it both give - a capability that reaches caps_for but
-        # not this map is a grant that resolves and then does nothing on every
-        # surface reading effective_settings. For this one the failure would
-        # have been quiet in the opposite direction to the obvious guess: the
-        # SCHEDULER reads caps_for and would have worked, while every surface
-        # that reports what an account holds - the manager's user page, whoami
-        # - would have shown the grant as absent. An operator would grant
-        # run_jobs, see no sign of it, and grant it again.
-        # SM591: the two lateral tiers, here for the same reason as every
-        # other capability above - one that reaches caps_for and not this map
-        # is a grant that resolves and then does nothing.
-        # SM633: the service switches, here in the same commit as @CAP_KEYS for
-        # the reason every neighbour above gives - t/unit/users/21 is what
-        # caught this one missing, which is the test doing its job.
-        # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
-        # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained
-        # list - so those grants were dormant on every surface that reads
-        # effective_settings (the cookie manager gate _user_caps, the Users page).
-        # A non-sysop read_submissions or manage_domains grant silently did
-        # nothing. Surfaced now; t/unit/users/21 pins @CAP_KEYS <-> this map.
-        # SM095: channel capabilities (api/mcp) + user administration. Group-only.
-        # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
-        # human password or a sysop-minted permanent credential).
-        token_expires_at => $s->{token_expires_at},
-        # SM212: sysop-set machine-token lifetime (seconds; null = the 24h
-        # default). When set, the token also renews on use (sliding).
-        token_ttl => $s->{token_ttl},
-        # SM642: the name a person is shown by, where a surface has adopted it.
-        # Display only - the login remains the identity everywhere that matters,
-        # and a surface that has not adopted this is plainer, not wrong.
-        display_name => $s->{display_name},
-        # Free-text sysop annotation (what this account is for).
-
-        comment => $s->{comment},
-        # SM072: an outstanding setup/reset claim (the hash is never exposed).
-        claim_pending => $s->{claim_hash} ? JSON::PP::true() : JSON::PP::false(),
-        claim_purpose => ( $s->{claim_hash} ? $s->{claim_purpose} : undef ),
-        # SM072: account-level expiry (epoch); after it all auth fails.
-        expires_at => $s->{expires_at},
-        # SM072 batch 4: MFA status (the secret is never exposed).
-        # SM148: "enrolled" means CONFIRMED (a secret that is enforced). A
-        # pending, unconfirmed enrolment reports mfa_pending instead, so the UI
-        # can show the in-progress setup without claiming 2FA is on.
-        mfa_enrolled => ( $s->{totp_secret} && !$s->{mfa_pending} ) ? JSON::PP::true() : JSON::PP::false(),
-        mfa_pending => ( $s->{totp_secret} && $s->{mfa_pending} ) ? JSON::PP::true() : JSON::PP::false(),
-        mfa_required => $s->{mfa_required} ? JSON::PP::true() : JSON::PP::false(),
-        # SM072 batch 2: contact email (for emailed setup/reset links).
-        email => $s->{email},
-    };
+    return Lazysite::Auth::Verify::effective_settings( $DOCROOT, $user );
 }
 
 sub cmd_settings {
@@ -3194,35 +3055,13 @@ sub cmd_key_revoke {
 # stored hash, rejects disabled accounts and expired access tokens, and
 # returns the effective settings (capabilities) for the caller to gate on.
 sub cmd_verify_credential {
-    my ( $user, $secret, $touch ) = @_;
-    return { ok => 0 } unless defined $user && length $user && defined $secret;
-    my %users  = read_users();
-    my $stored = $users{$user};
-    return { ok => 0 } unless defined $stored && verify_secret( $secret, $stored );
+    my ( $user, $secret ) = @_;
 
-    my $eff = effective_settings($user);
-    return { ok => 0 } if $eff->{disabled};
-    # The secret has ALREADY verified above, so the caller genuinely holds this
-    # credential - distinguishing "expired" from "wrong secret" leaks nothing and
-    # lets the token-lifecycle endpoints give actionable guidance (re-exchange a
-    # pairing key) rather than a bare "invalid".
-    my $exp = $eff->{token_expires_at};
-    return { ok => 0, reason => 'expired' } if $exp && time() > $exp;
-    my $aexp = $eff->{expires_at};    # SM072: account-level expiry
-    return { ok => 0, reason => 'expired' } if $aexp && time() > $aexp;
-
-    # SM163: record credential USE on every successful verify (throttled by
-    # touch_credential), not just the connector path - so a key used over the
-    # control-API token or WebDAV shows as in-use with a recent time. first_use
-    # still reports the first use since issuance (the connector's "connected"
-    # signal), computed from the pre-touch state. ($touch is now vestigial - use
-    # is always recorded - kept for caller compatibility.)
-    my $before    = read_settings()->{$user}  || {};
-    my $iss       = $before->{cred_issued_at} || 0;
-    my $first_use = ( ( $before->{cred_used_at} || 0 ) < $iss ) ? 1 : 0;
-    Lazysite::Auth::Settings::touch_credential($user);
-
-    return { ok => 1, username => $user, settings => $eff, first_use => $first_use };
+    # SM685: seeding first (this is the tool, where migration belongs), then
+    # the same verification the CGIs now call directly. The CGI path skips the
+    # seed deliberately - see the note on Verify::effective_settings.
+    _ensure_groups_seeded();
+    return Lazysite::Auth::Verify::verify_credential( $DOCROOT, $user, $secret );
 }
 
 # SM076 OAuth: a single-use, short-lived connect code proves authorization to
@@ -3606,28 +3445,12 @@ sub is_last_manager_ui {
 # --- File I/O ---
 
 sub read_users {
-    my %users;
 
-    # SM800: NO -f GUARD. The same defect SM770 removed from the auth modules,
-    # still here because Lazysite::Stores did not list this file - so lint 121,
-    # which exists to catch exactly this, was never pointed at the tool that
-    # OWNS the store. A stat the process may not make fails like an open it may
-    # not make, and an auth directory without its search bit answered "no
-    # accounts" in silence. The catalogue now names this file.
-    open( my $fh, '<:utf8', $USERS_FILE ) or do {
-        $STORE_READABLE = 0 unless $!{ENOENT};    # errno first: cannot_read clobbers $!
-        cannot_read( 'users', $USERS_FILE );
-        return %users;
-    };
-    while (<$fh>) {
-        chomp;
-        s/^\s+|\s+$//g;
-        next if /^#/ || !length;
-        my ( $u, $h ) = split /:/, $_, 2;
-        $users{$u} = $h if defined $u && defined $h;
-    }
-    close $fh;
-    return %users;
+    # SM685: ONE implementation, in Lazysite::Auth::Verify, so the CGI that
+    # verifies a credential without spawning this tool reads the store exactly
+    # as this tool does. the readable flag lives there too, so
+    # the "unreadable, not empty" distinction survives the move.
+    return Lazysite::Auth::Verify::read_users();
 }
 
 sub write_users {
@@ -5148,26 +4971,7 @@ sub cmd_group_delete {
 }
 
 sub read_groups {
-    my %groups;
-
-    # SM800: as read_users above. A site with no groups file is ordinary; one
-    # whose groups file will not open is not, and answering "no groups" for it
-    # means "this account holds nothing" everywhere downstream.
-    open( my $fh, '<:utf8', $GROUPS_FILE ) or do {
-        $STORE_READABLE = 0 unless $!{ENOENT};
-        cannot_read( 'groups', $GROUPS_FILE );
-        return %groups;
-    };
-    while (<$fh>) {
-        chomp;
-        s/^\s+|\s+$//g;
-        next if /^#/ || !length;
-        my ( $g, $members ) = split /:\s*/, $_, 2;
-        next unless defined $members;
-        $groups{$g} = [ map { s/^\s+|\s+$//gr } split /,/, $members ];
-    }
-    close $fh;
-    return %groups;
+    return Lazysite::Auth::Verify::read_groups();    # SM685: see read_users
 }
 
 sub write_groups {

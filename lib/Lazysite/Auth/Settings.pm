@@ -94,8 +94,8 @@ our @CAP_KEYS = qw(
 
 sub _settings_file       { "$AUTH_DIR/user-settings.json" }
 sub _group_settings_file { "$AUTH_DIR/groups-settings.json" }
-sub _groups_file         { "$AUTH_DIR/groups" }
-sub _users_file          { "$AUTH_DIR/users" }
+sub groups_file          { "$AUTH_DIR/groups" }
+sub users_file           { "$AUTH_DIR/users" }
 
 # SM641: ONE ANSWER TO "is this name an account".
 #
@@ -110,7 +110,7 @@ sub _users_file          { "$AUTH_DIR/users" }
 # asks this question needs it, and a hash that never leaves this sub cannot be
 # logged by accident.
 sub account_names {
-    my $path = _users_file();
+    my $path = users_file();
     # SM778: same guard, same hole in lint 121, and this one is worse - the
     # audit page asks account_names WHICH ACTORS ARE REAL ACCOUNTS, so an
     # unsearchable auth directory silently unlinked every actor in the trail.
@@ -229,7 +229,7 @@ sub resolve_home_domain {
 sub _groups_membership {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %g;
-    my $f = _groups_file();
+    my $f = groups_file();
     # SM770: the open decides.
     open my $fh, '<:utf8', $f or return ( cannot_read( 'groups', $f ) // %g );
     while (<$fh>) {

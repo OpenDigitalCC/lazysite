@@ -76,3 +76,13 @@ backslash forms.
 # Provenance
 
 `inbox/2026-09-08-auth-cgi-enumeration-and-rate-limit.md`.
+
+## Ruled 2026-09-09 by the release manager
+
+**Close the empty-password enumeration oracle.** A passwordless account refuses
+exactly as a wrong password does. This overrules the recommendation in the
+register, which weighed the narrowness of the state (loopback-only, and
+discouraged) against the operator's diagnosis and came down on keeping the
+explaining 403. The ruling is that an unauthenticated caller must not be able to
+tell one refusal from the other, whatever it costs the diagnosis - the operator
+reaches the log for that. NOT YET BUILT.

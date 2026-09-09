@@ -28,7 +28,8 @@ use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 use Lazysite::Auth::Settings   qw(read_settings groups_grant_cap);
-use Lazysite::I18n             qw(chrome_string);    # SM179 P8: engine-chrome i18n
+use Lazysite::Auth::Verify ();                   # SM685: verify in-process, no subprocess
+use Lazysite::I18n         qw(chrome_string);    # SM179 P8: engine-chrome i18n
 $Lazysite::Util::COMPONENT = 'auth';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
@@ -734,7 +735,22 @@ sub handle_rotate {
         json_response( { ok => 0, error => 'Too many attempts' }, 429 );
         return;
     }
-    my $v = users_tool_api( { action => 'verify-credential', username => $u, secret => $token } );
+    # SM685: verified IN THIS PROCESS. Every authenticated request used to
+    # spawn a perl interpreter and compile the whole of lazysite-users.pl -
+    # three thousand statements - to answer one question. The subprocess was
+    # never needed for privilege reasons here: the module reads the same
+    # files this CGI can already read, as the same user.
+    # A deployment that NOMINATES a users tool (LAZYSITE_USERS_TOOL) has
+    # nominated the authority on credentials - ask it. Otherwise verify in
+    # process: SM685 takes the subprocess off the DEFAULT path, which is the
+    # one every site runs. The choice is made HERE and never inside the module,
+    # because the module is also loaded inside the tool - and a tool that
+    # consults the variable naming itself spawns itself, without limit.
+    my $v
+        = $ENV{LAZYSITE_USERS_TOOL}
+        ? users_tool_api(
+        { action => 'verify-credential', username => $u, secret => $token } )
+        : Lazysite::Auth::Verify::verify_credential( $DOCROOT, $u, $token );
     unless ( ref $v eq 'HASH' && $v->{ok} ) {
         sleep $LOGIN_DELAY;
         # An EXPIRED (but correct) token can't rotate itself - the agent must

@@ -22,6 +22,18 @@ use Sys::Hostname qw(hostname);
 use POSIX         qw(strftime);
 
 ( my $ROOT = $FindBin::Bin ) =~ s{/tools$}{};
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). No configuration needed.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+use Lazysite::Auth::Verify ();    # SM685: the credential path a request uses
 my $ITER = 20;
 # SM327: 1.25, and the figure is DELIBERATE rather than merely tighter.
 #
@@ -130,11 +142,23 @@ my %result = (
             local $ENV{REDIRECT_URL} = '/index';
             qx($^X \Q$proc\E 2>/dev/null);
     } ),
+    # SM685: MEASURED AS A REQUEST TAKES IT, which since SM685 is in-process.
+    # These used to spawn the CLI, and the number was three-quarters compile
+    # time for a script the request path no longer loads. The gauge's INTENT is
+    # unchanged - what does a credential check cost - so it is still compared
+    # against the stored baseline, and the fall is the fix landing. The old
+    # mechanism is kept below under its own name so the CLI's cost stays
+    # visible: it is still what an operator's every command pays.
     verify_token_ms => bench( $ITER, sub {
-            uapi( $d, { action => 'verify-credential', username => 'tokuser', secret => $token } );
+            local $Lazysite::Auth::Settings::AUTH_DIR = "$d/lazysite/auth";
+            Lazysite::Auth::Verify::verify_credential( $d, 'tokuser', $token );
     } ),
     verify_password_ms => bench( $ITER, sub {
-            uapi( $d, { action => 'verify-credential', username => 'pwuser', secret => 'benchpw' } );
+            local $Lazysite::Auth::Settings::AUTH_DIR = "$d/lazysite/auth";
+            Lazysite::Auth::Verify::verify_credential( $d, 'pwuser', 'benchpw' );
+    } ),
+    verify_token_cli_ms => bench( $ITER, sub {
+            uapi( $d, { action => 'verify-credential', username => 'tokuser', secret => $token } );
     } ),
 
     # SM340: the statistics export. Added because it was the one hot path with

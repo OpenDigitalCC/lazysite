@@ -49,3 +49,11 @@ Small to build, and none of it is mine to decide.
 
 `inbox/2026-09-08-static-serve-source-and-backup-disclosure.md`. Accepted as
 described; the absent denylist was read here.
+
+## Ruled 2026-09-09 by the release manager
+
+**Denylist, plus the `.md.md` collapse in `sanitise_uri`.** The collapse is the
+actual mechanism and is the fix; the extension denylist is the belt. An
+allowlist was considered and refused: it is stronger, and it stops a site
+serving an unlisted file type on upgrade - silently, and discovered from the
+field rather than from the gate.

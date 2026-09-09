@@ -89,6 +89,7 @@ $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR    = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";   # SM138: site_grants_manager
+use Lazysite::Auth::Verify ();    # SM685: verify in-process, no subprocess
 $Lazysite::Manager::Upload::LAZYSITE_DIR   = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
 $Lazysite::Manager::Nav::LAZYSITE_DIR      = $LAZYSITE_DIR;
@@ -281,8 +282,18 @@ my @REQUEST_SCOPES;          # SM158: the request's resolved dav_scopes (union),
                         error => 'The control API (token access) is not '
                             . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
             }
-            my $v = users_api( { action => 'verify-credential',
-                    username => $u, secret => $secret } );
+            # SM685: in-process; see Lazysite::Auth::Verify.
+            # A deployment that NOMINATES a users tool (LAZYSITE_USERS_TOOL) has
+            # nominated the authority on credentials - ask it. Otherwise verify in
+            # process: SM685 takes the subprocess off the DEFAULT path, which is the
+            # one every site runs. The choice is made HERE and never inside the module,
+            # because the module is also loaded inside the tool - and a tool that
+            # consults the variable naming itself spawns itself, without limit.
+            my $v
+                = $ENV{LAZYSITE_USERS_TOOL}
+                ? users_api(
+                { action => 'verify-credential', username => $u, secret => $secret } )
+                : Lazysite::Auth::Verify::verify_credential( $DOCROOT, $u, $secret );
             unless ( $v && $v->{ok} ) {
                 sleep 1;    # brute-force delay (per-IP limiter lands in P3.6)
                 _bail( { ok => 0, error => 'Invalid credentials' } );

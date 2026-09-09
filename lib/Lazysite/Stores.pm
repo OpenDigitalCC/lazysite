@@ -55,6 +55,12 @@ my @STORES = (
             'lib/Lazysite/Auth/OAuth.pm', 'lib/Lazysite/Auth/Session.pm',
             'lib/Lazysite/Auth/Settings.pm',
 
+            # SM685: the credential path moved here out of the tool, taking
+            # read_users and read_groups with it. Listed for the reason the
+            # note below gives about the tool - a reader the catalogue does not
+            # name is a reader lint 121 never looks at.
+            'lib/Lazysite/Auth/Verify.pm',
+
             # SM800: THE TOOL THAT OWNS THE STORE. It was not listed, so lint
             # 121 - which exists to catch a stat guard in front of a store read
             # - had never been pointed at the file that WRITES this store and
