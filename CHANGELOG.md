@@ -44,6 +44,8 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.10 - EDGE: a credential check stops compiling the tool, and a refusal stops naming the account (2026-09-09)
+
 **A performance fix that turned out to be an architecture fix, and the residue
 of two field runs.** Every authenticated request had been compiling a
 three-thousand-line command-line tool to answer one question; it no longer does,
@@ -125,7 +127,7 @@ vocabulary it was given.
   the question and a recommendation, pointing at the SM that carries the
   reasoning. A row leaves when the decision arrives, because the register is what
   is OPEN rather than a history.
-- SM812 partial (PENDING) **the per-page `theme:` key documented where authors
+- SM812 partial (5a9e081e) **the per-page `theme:` key documented where authors
   look for it.** The field reported that a page may override its layout but not
   its theme, and a shipped build had hardcoded a stylesheet link to work around
   it - which silently made that theme's `config.colours` block inert and its

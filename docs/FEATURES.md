@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.9"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.10"
 brand: plain
 ---
 
@@ -1758,6 +1758,21 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.10** (2026-09-09, EDGE) - **A credential check stops compiling the
+  users tool, and a refusal stops naming the account.** Every authenticated
+  request had been spawning an interpreter to compile a three-thousand-line
+  command-line tool to answer one question; `Lazysite::Auth::Verify` holds that
+  path now and the three CGI callers use it directly, taking a token
+  verification from 62.6ms to 0.5ms (SM685). From a non-loopback address a
+  passwordless account had answered `403` where an absent user and a wrong
+  password both answered `302` - the one response that differed named an
+  account that exists and is in the state the engine most discourages; all
+  three refusals are now identical, delay included, with the operator's
+  explanation moved to the log (SM798). The rest is the residue of two field
+  runs: a remedy that depends on who is reading it, the daemon made findable
+  and its declared parameter honoured, the connector's row source fixed and its
+  page rebuilt in the vocabulary it was given, and an alias that redirected to
+  a URL the router does not serve.
 - **0.13.9** (2026-09-08, EDGE) - **Two security reviews, and the connector
   surface finished.** The operator gets a Connectors page, a connector can be
   called on a timer, and a page action can send a mapped table row (SM579
