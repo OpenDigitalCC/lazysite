@@ -54,8 +54,14 @@ BEGIN {
 
 sub describe {
     return {
-        id          => 'daemon',
-        name        => 'Persistent runtime',
+        id => 'daemon',
+        # SM809: the word everyone actually uses, in the name a person
+        # searches. Its id is `daemon`, its script daemon.pl, its config
+        # daemon.conf, its jobs daemon-heartbeat and connectors-sweep, and
+        # every plan and filing calls it the daemon - while the manager called
+        # it only "Persistent runtime", so searching the page for the word
+        # returned nothing and the field read all ten plugin names and guessed.
+        name        => 'Persistent runtime (daemon)',
         description => 'A supervised process that holds long-lived work the '
             . 'request path cannot: a scheduler that calls timed functions '
             . 'inside the stack, and later the transports that need something '

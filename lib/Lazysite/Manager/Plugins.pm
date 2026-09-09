@@ -167,6 +167,33 @@ sub resolve_plugin_script {
     return plugin_registry()->{$script};
 }
 
+# SM809: THE THREE PLUGIN ACTIONS TOOK A `plugin` PARAMETER AND IGNORED IT.
+#
+# Each declares `plugin` (query) and `script` (body), each received the first
+# as $plugin_id, and each resolved on $script alone - so a caller who sent the
+# parameter the declaration names got "Plugin not found", a sentence about the
+# PLUGIN when the fault was the parameter. The field spent nine steps on it,
+# one of them reading the manager UI's own JavaScript to learn the real
+# contract, and reasonably concluded the plugin did not exist.
+#
+# Both spellings resolve now, and the refusal names what was missing and where
+# it goes - the same shape SM773 gave the declared parameters, said by hand
+# because this is an either/or that the declaration table cannot express.
+sub _resolve_plugin_or_why {
+    my ( $plugin_id, $script ) = @_;
+    for my $cand ( $script, $plugin_id ) {
+        next unless defined $cand && length $cand;
+        my $full = resolve_plugin_script($cand);
+        return ( $full, '' ) if $full;
+    }
+    my $named = join ' or ', grep { defined && length } ( $script, $plugin_id );
+    return ( undef,
+        length $named
+        ? "no plugin '$named' is installed - call plugin-list for the ids this site has"
+        : 'a plugin is required (in the query string as ?plugin=<id>, or in the '
+            . 'JSON body as {"script": "<id>"}); call plugin-list for the ids' );
+}
+
 sub action_plugin_list {
     my $cache_file = _lz() . "/cache/plugin-list.cache";
     if ( -f $cache_file && ( time() - ( stat($cache_file) )[9] ) < 60 ) {
@@ -589,8 +616,9 @@ sub action_plugin_read {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ( $plugin_id, $script ) = @_;
 
-    my $full_script = resolve_plugin_script($script);
-    return { ok => 0, error => 'Plugin not found' } unless $full_script;
+    my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
+    return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
+        unless $full_script;
 
     my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
@@ -623,8 +651,9 @@ sub action_plugin_read {
 sub action_plugin_save {
     my ( $plugin_id, $script, $values ) = @_;
 
-    my $full_script = resolve_plugin_script($script);
-    return { ok => 0, error => 'Plugin not found' } unless $full_script;
+    my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
+    return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
+        unless $full_script;
 
     my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };
@@ -702,8 +731,9 @@ sub action_plugin_save {
 sub action_plugin_action {
     my ( $plugin_id, $script, $action_id, $req_params ) = @_;
 
-    my $full_script = resolve_plugin_script($script);
-    return { ok => 0, error => 'Plugin not found' } unless $full_script;
+    my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
+    return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
+        unless $full_script;
 
     my $desc = _describe($full_script)
         or return { ok => 0, error => 'Cannot describe plugin' };

@@ -89,6 +89,22 @@ Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
 by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
 blocked path.
 
+**A PLUGIN'S OWN ACTIONS COME FROM `plugin-list`, and nowhere else** (SM809).
+`describe-capabilities` names `plugin-action` but cannot name what any
+particular plugin offers, because that is the plugin's own declaration.
+`plugin-list` returns each plugin's `id`, its `script`, its `config_file` and
+an `actions` array - `[{"id":"status","label":"Status"}]` and the like - and
+that array is the contract. Call it as:
+
+    ?action=plugin-action&plugin=<id>
+    body {"action_id": "<id from the actions array>", "params": {...}}
+
+**Is the persistent runtime running?** That is the daemon, and its plugin id is
+`daemon`: `plugin-action` with `action_id: "status"` answers with each
+scheduled job, its actor, its outcome and a detail. It is cookie-only, like
+every plugin action, so it is a manager-session call rather than a token one -
+which is why no amount of reading `actions-list` will find it.
+
 **Make one call of the action the design depends on, before the design depends
 on it.** A throwaway probe costs a round trip. Finding out at the first write
 costs the design - twice now that has been a form-based plan that had to become

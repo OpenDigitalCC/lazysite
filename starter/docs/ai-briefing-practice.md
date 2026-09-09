@@ -10,8 +10,8 @@ register:
      imported: 2026-09-09
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=e6493f4a4d56310b3d14877b33be7596972507edaf28e3a53cd9503b3241de98 modified=2026-09-09
-     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=3c3646fdcc929d7e238fb95a799359dc3fbd060410a9344ccee01ad03acf2445 modified=2026-09-02
-     body-sha256: b8fb92e5eae808fc895cb30f8f010632434fdd665629d6e925dcbf8a86444b82
+     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=ff672ff8ec01e3d2e89d640704cde731d30ca8f541336b47115bff7962f23f65 modified=2026-09-09
+     body-sha256: 3e6add0e3089148e9f3e80ea42f85227d969683b5f9bd5fcdfa21874fd0b33f5
 -->
 
 ## What this is, and what it is not
@@ -669,6 +669,22 @@ Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
 `protected-sections`, `preview`, `cache-invalidate`. `auth_default` is refused
 by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
 blocked path.
+
+**A PLUGIN'S OWN ACTIONS COME FROM `plugin-list`, and nowhere else** (SM809).
+`describe-capabilities` names `plugin-action` but cannot name what any
+particular plugin offers, because that is the plugin's own declaration.
+`plugin-list` returns each plugin's `id`, its `script`, its `config_file` and
+an `actions` array - `[{"id":"status","label":"Status"}]` and the like - and
+that array is the contract. Call it as:
+
+    ?action=plugin-action&plugin=<id>
+    body {"action_id": "<id from the actions array>", "params": {...}}
+
+**Is the persistent runtime running?** That is the daemon, and its plugin id is
+`daemon`: `plugin-action` with `action_id: "status"` answers with each
+scheduled job, its actor, its outcome and a detail. It is cookie-only, like
+every plugin action, so it is a manager-session call rather than a token one -
+which is why no amount of reading `actions-list` will find it.
 
 **Make one call of the action the design depends on, before the design depends
 on it.** A throwaway probe costs a round trip. Finding out at the first write
@@ -1573,7 +1589,7 @@ Imported on **2026-09-09** by `tools/import-field-practice.pl`, for the engine v
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-09-09 |
-| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-02 |
+| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-09 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
