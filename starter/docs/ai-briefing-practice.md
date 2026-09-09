@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.13.9
-     imported: 2026-09-08
+     engine-version: 0.13.10
+     imported: 2026-09-09
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=428c608a192afcf683dfb84ab931966c5036b6d368c7803bd3a0e479f0fe597f modified=2026-09-02
+     source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=e6493f4a4d56310b3d14877b33be7596972507edaf28e3a53cd9503b3241de98 modified=2026-09-09
      source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=3c3646fdcc929d7e238fb95a799359dc3fbd060410a9344ccee01ad03acf2445 modified=2026-09-02
-     body-sha256: 8ae5cd8d6c2b344ded4c3d992e63249e547d46956e89aef52b3654678e377542
+     body-sha256: b8fb92e5eae808fc895cb30f8f010632434fdd665629d6e925dcbf8a86444b82
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.13.9**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.13.10**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -186,7 +186,11 @@ indented markup is not mangled by the Markdown processor - monolith, not fragmen
 
 - `aliases:` - every retired URL gets one on its successor at conversion
 - `register:` - what appears in `sitemap.xml` / `llms.txt`
-- `.url` files - a page that is a redirect
+- `.url` files - a page whose body is FETCHED from a remote URL and rendered
+  here. **Not a redirect**: the visitor stays on your URL and the remote's
+  content is processed as Markdown, so pointing one at an application's HTML
+  puts that HTML through the Markdown pipeline. There is no outward redirect
+  in the engine - `aliases:` redirects INWARD, always to the page carrying it
 - Native forms - `create_form` or a `:::form` bound to a vetted handler, never
   hand-written form HTML or a third-party service
 
@@ -1564,11 +1568,11 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-09-08** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-09-09** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
-| `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-09-02 |
+| `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-09-09 |
 | `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-02 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
