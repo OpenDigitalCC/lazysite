@@ -608,20 +608,19 @@ my %TOOLS = (
             local $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
             my @groups  = @Lazysite::Auth::Acl::user_groups;
             my $payload = ref $args->{payload} eq 'HASH' ? $args->{payload} : {};
-            if ( defined $args->{row} && length $args->{row} ) {
-                my $all = Lazysite::Manager::Connectors::connectors();
-                my $c   = ref $all eq 'HASH' ? $all->{ $args->{id} // '' } : undef;
-                return { ok => JSON::PP::false, error => "no connector '" . ( $args->{id} // '' ) . "'" }
-                    unless $c;
-                my ( $p, $why ) = Lazysite::Manager::Connectors::row_payload( $c, $args->{row},
-                    as => { user => $user, groups => \@groups }, actor => $user, groups => \@groups );
-                return { ok => JSON::PP::false, error => $why } unless $p;
-                $payload = $p;
-            }
-            my $r = Lazysite::Manager::Connectors::call( $args->{id}, $payload,
+            # SM804: the key is passed through; call() resolves it, so every
+            # outcome lands in the connector's own record.
+            my $row = $args->{row};
+            my $r   = Lazysite::Manager::Connectors::call(
+                $args->{id}, $payload,
                 mode  => 'authenticated', caps => $caps, groups => \@groups,
                 actor => $user,
-                trigger => ( defined $args->{row} && length $args->{row} ) ? 'row' : 'mcp' );
+                ( defined $row && length $row
+                    ? ( row => $row, as => { user => $user, groups => \@groups } )
+                    : ()
+                ),
+                trigger => ( defined $row && length $row ) ? 'row' : 'mcp'
+            );
             $r->{ok} = $r->{ok} ? JSON::PP::true : JSON::PP::false;
             return $r;
         },

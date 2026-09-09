@@ -407,7 +407,17 @@ sub row_payload {
     require Lazysite::Data::Tables;
     my $d = Lazysite::Data::Tables::load_table( $DOCROOT, $table );
     return ( undef, "no table '$table' is declared" ) unless $d->{ok};
-    my $keycol = $d->{table}{key} // 'id';
+    # SM804: `$d->{key}`, not `$d->{table}{key}`. A loaded descriptor carries
+    # its table NAME under `table` - a string - so the old spelling
+    # dereferenced a string as a hash, died, and a die in a CGI is an HTTP 500
+    # with an HTML body. Every row-sourced call crashed, whatever the
+    # destination and whether the key existed or not.
+    #
+    # The test that should have caught this MOCKED load_table and read_rows,
+    # and the mock returned a shape this module invented. It proved the mapping
+    # and nothing about the integration. t/unit/manager/164 uses a real
+    # descriptor and real rows for exactly that reason.
+    my $keycol = $d->{key} // 'id';
 
     my $r = Lazysite::Data::Tables::read_rows( $DOCROOT, $table,
         as    => ( $ctx{as} // { user => $ctx{actor}, groups => $ctx{groups} } ),
@@ -459,6 +469,36 @@ sub call {
         return _refused( $id, \%ctx, 'rate cap', "rate cap reached: $c->{rate_per_hour} calls in the last hour" )
             if $n >= $c->{rate_per_hour};
     }
+    # SM804: THE ROW SOURCE IS RESOLVED HERE, INSIDE call(), so that every one
+    # of its outcomes is a row in the connector's own record.
+    #
+    # It used to be resolved by the CALLER - the control API and the MCP twin
+    # each did it before calling in - which put every row-source refusal
+    # outside the one place that records anything. `/docs/connectors` states
+    # the principle: "Every refusal is a row in the connector's own record."
+    # Mine were not, and the field found the record empty after five calls.
+    # SM771 made refusals visible on the grounds that an invisible outcome is
+    # not manageable; a call that dies inside the engine is the least visible
+    # outcome there is.
+    #
+    # WRAPPED IN eval, and that is not belt-and-braces: this reads a data table
+    # through code that can die on a bad descriptor or an unreadable store, and
+    # a die here is the 500 that started this. An internal fault is recorded
+    # and answered like any other refusal.
+    if ( defined $ctx{row} && length $ctx{row} ) {
+        my ( $p, $why ) = eval { row_payload( $c, $ctx{row}, %ctx ) };
+        if ($@) {
+            my $err = $@;
+            $err =~ s/\s+\z//;
+            log_event( 'ERROR', 'connectors', 'a row-sourced call failed inside the engine',
+                connector => $id, error => $err );
+            return _refused( $id, \%ctx, 'row source failed',
+                "the row could not be assembled into a payload: $err" );
+        }
+        return _refused( $id, \%ctx, 'row source', $why ) unless $p;
+        $payload = $p;
+    }
+
     return _refused( $id, \%ctx, 'payload not a hash', 'a payload must be a hash of fields' ) unless ref $payload eq 'HASH';
     for my $v ( values %$payload ) {
         return _refused( $id, \%ctx, 'payload not flat', 'a payload carries text values only - never a file or a structure' ) if ref $v;

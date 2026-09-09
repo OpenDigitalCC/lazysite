@@ -33,6 +33,20 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 var CONNECTORS = [];
 var SECRETS_READABLE = 1;
 
+// SM806: A VALUE THE ENGINE KNOWS IS CHOSEN, NOT TYPED.
+//
+// A mistyped group name silently grants nothing; a mistyped table name is a
+// connector that saves cleanly and fails at CALL time, which is the worst
+// place to find out.
+//
+// null means NOT ASKED YET or COULD NOT READ, and neither is an empty list
+// (SM784). An empty select would say "this site has no data tables", which is
+// a statement about the site; where the list is unknown the field stays a text
+// box and says so, because a connector must still be configurable by somebody
+// who cannot read the list.
+var GROUPS = null;
+var TABLES = null;
+
 function escHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -76,6 +90,24 @@ function modesOf(c) {
   return on;
 }
 
+// Both lists are gated on capabilities a manage_connectors holder may not
+// hold - groups on manage_users, tables on manage_data - so a refusal here is
+// ordinary and must not stop the page working.
+function loadChoices() {
+  fetch(API + '?action=users&sub=groups')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d && d.ok && d.groups) { GROUPS = Object.keys(d.groups).sort(); } })
+    .catch(function() { /* stays null: unknown, not empty */ });
+  fetch(API + '?action=data-tables')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.ok || !d.tables) return;
+      TABLES = d.tables.map(function(t) { return (typeof t === 'string') ? t : (t.table || t.name); })
+                       .filter(function(n) { return n; }).sort();
+    })
+    .catch(function() { /* stays null */ });
+}
+
 function loadConnectors() {
   fetch(API + '?action=connector-list')
     .then(function(r) { return r.json(); })
@@ -112,32 +144,45 @@ function rowFor(c) {
     modes.length ? modes.join(', ') : 'no mode enabled',
     (c.rate_per_hour ? c.rate_per_hour + '/hour' : 'no rate cap')
   ].join(' &middot; ');
+  var id = escHtml(c.id);
   return '<div class="mg-row">'
-    + '<span class="mg-row-name">' + escHtml(c.id)
+    + '<span class="mg-row-name">' + id
     + (c.name ? ' <span class="mg-row-meta">' + escHtml(c.name) + '</span>' : '')
     + '</span>'
     + '<span class="mg-row-meta">' + meta + '</span>'
     + '<span class="mg-row-actions">'
     + '<span class="' + s.cls + '">' + escHtml(s.label) + '</span> '
-    + '<a href="#" class="mg-chev" onclick="return toggleRow(this, \'' + escHtml(c.id) + '\')" aria-expanded="false"></a>'
+    + '<a href="#" class="mg-chev" onclick="return toggleRow(this, \'' + id + '\')" aria-expanded="false"></a>'
     + '</span></div>'
-    + '<div class="mg-expand" id="exp-' + escHtml(c.id) + '"></div>';
+    + '<div class="mg-expand" id="exp-' + id + '" hidden></div>';
 }
 
-// One open at a time, and the body is built when it opens - a connector's
-// detail is a read of the call record, and there is no reason to make that
-// read for every row on the page.
+// THE ONE IDIOM (style guide): the card is the row's next sibling, it is shown
+// and hidden with the `hidden` ATTRIBUTE the stylesheet keys on
+// (.mg-expand[hidden] { display: none }), and only one is open at a time.
+//
+// SM806: this rolled its own show/hide by emptying innerHTML, which is the
+// inconsistency the guide exists to end - eight pages had already done it.
+// The body is still BUILT on open, because a connector's detail includes a
+// read of the call record and there is no reason to make that read for every
+// row on the page.
 function toggleRow(a, id) {
   var body = document.getElementById('exp-' + id);
-  var open = a.classList.contains('mg-chev-open');
-  var chevs = document.querySelectorAll('#connector-list .mg-chev-open');
-  for (var i = 0; i < chevs.length; i++) { chevs[i].classList.remove('mg-chev-open'); chevs[i].setAttribute('aria-expanded', 'false'); }
+  var opening = body.hidden;
+
+  var chevs = document.querySelectorAll('#connector-list .mg-chev');
+  for (var i = 0; i < chevs.length; i++) {
+    chevs[i].classList.remove('mg-chev-open');
+    chevs[i].setAttribute('aria-expanded', 'false');
+  }
   var bodies = document.querySelectorAll('#connector-list .mg-expand');
-  for (var j = 0; j < bodies.length; j++) { bodies[j].innerHTML = ''; }
-  if (!open) {
+  for (var j = 0; j < bodies.length; j++) { bodies[j].hidden = true; }
+
+  if (opening) {
+    body.innerHTML = editorFor(id);
+    body.hidden = false;
     a.classList.add('mg-chev-open');
     a.setAttribute('aria-expanded', 'true');
-    body.innerHTML = editorFor(id);
     loadCalls(id);
   }
   return false;
@@ -151,7 +196,7 @@ function connectorById(id) {
 function editorFor(id) {
   var c = connectorById(id);
   var m = c.modes || {};
-  var s = secretState(c);
+  var st = secretState(c);
   var f = 'f-' + escHtml(id) + '-';
   return '<div class="mg-expand-body">'
     + '<div class="mg-form-dense">'
@@ -162,28 +207,92 @@ function editorFor(id) {
     + field(f + 'secret_prefix', 'Credential prefix', 'text', c.secret_prefix === undefined ? 'Bearer ' : c.secret_prefix, 'Put before the credential. Blank for a bare key.')
     + field(f + 'rate_per_hour', 'Calls per hour', 'number', c.rate_per_hour === undefined ? 60 : c.rate_per_hour, 'The cap that stands between a mistake and a bill. 0 removes it.')
     + field(f + 'timeout', 'Timeout (seconds)', 'number', c.timeout === undefined ? 10 : c.timeout, '1 to 60. A visitor waits this long.')
-    + field(f + 'answer_table', 'Answer table', 'text', c.answer_table || '', 'The data table the answer is kept in. Blank keeps nothing.')
+    + pickField(f + 'answer_table', 'Answer table', TABLES, c.answer_table || '',
+        'The data table the answer is kept in. Blank keeps nothing.',
+        'The table list could not be read, so type the name.')
+    + pickField(f + 'row_table', 'Row table', TABLES, c.row_table || '',
+        'The table a page action may send a row from.',
+        'The table list could not be read, so type the name.')
     + '</div>'
-    + '<div class="mg-perms-rights-label">Who may cause a call</div>'
+
+    + '<div class="mg-section-label">Who may cause a call</div>'
     + '<div class="mg-checks">'
     + check(f + 'm-scheduled', 'On a timer', m.scheduled, 'No request is involved, so nothing a visitor sends can reach the destination.')
     + check(f + 'm-authenticated', 'A signed-in caller', m.authenticated, 'Attributable to a person and revocable by removing a grant.')
     + check(f + 'm-public', 'A public form', m.public, 'THE MODE THAT CAN BE ABUSED. Only with input the implementor bounded - a select, not a free textbox.')
     + '</div>'
-    + field(f + 'callers', 'Caller groups', 'text', (c.callers || []).join(', '), 'Comma-separated. A signed-in caller must be in one of these, or hold Connectors.')
-    + '<div class="mg-cred-reveal">Credential: <span class="mg-cred-value">' + escHtml(s.label) + '</span>'
-    + (s.tag === 'unknown' ? ' &mdash; the secret store could not be read, so this is not a statement that none is set.' : '')
+
+    + callersField(f, c.callers || [])
+
+    + '<div class="mg-cred-reveal">Credential: <span class="mg-cred-value">' + escHtml(st.label) + '</span>'
+    + (st.tag === 'unknown' ? ' &mdash; the secret store could not be read, so this is not a statement that none is set.' : '')
     + '</div>'
     + '<div class="mg-field"><label for="' + f + 'secret">Set or replace the credential</label>'
     + '<input class="mg-inp" type="password" id="' + f + 'secret" autocomplete="new-password" placeholder="leave blank to keep what is there">'
     + '</div>'
-    + '<div class="mg-perms-actions">'
-    + '<button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveConnector(\'' + escHtml(id) + '\')">Save</button> '
+
+    + '<div class="mg-toolbar">'
+    + '<button class="mg-btn mg-btn-primary" data-impact="commit" onclick="saveConnector(\'' + escHtml(id) + '\')">Save</button>'
     + '<button class="mg-btn mg-btn-danger" data-impact="destroy" onclick="deleteConnector(\'' + escHtml(id) + '\')">Delete</button>'
     + '</div>'
-    + '<div class="mg-perms-rights-label">Recent calls</div>'
+
+    + '<div class="mg-section-label">Recent calls</div>'
     + '<div id="calls-' + escHtml(id) + '"><span class="mg-muted">Loading...</span></div>'
     + '</div>';
+}
+
+// SM806: a select when the list is known, a text box when it is not - and in
+// EITHER case the current value survives. A configured table that has since
+// been dropped stays selected and marked, because silently changing what a
+// connector points at is worse than showing something odd.
+function pickField(id, label, options, value, help, unknownHelp) {
+  value = value || '';
+  if (options === null) {
+    return field(id, label, 'text', value,
+      help + ' ' + unknownHelp);
+  }
+  var seen = false;
+  var opts = '<option value="">' + '(none)' + '</option>';
+  for (var i = 0; i < options.length; i++) {
+    if (options[i] === value) { seen = true; }
+    opts += '<option value="' + escHtml(options[i]) + '"'
+          + (options[i] === value ? ' selected' : '') + '>' + escHtml(options[i]) + '</option>';
+  }
+  if (value.length && !seen) {
+    opts += '<option value="' + escHtml(value) + '" selected>'
+          + escHtml(value) + ' \u2014 not on this site</option>';
+  }
+  return '<div class="mg-field"><label for="' + id + '">' + escHtml(label) + '</label>'
+    + '<select class="mg-inp" id="' + id + '">' + opts + '</select>'
+    + '<span class="mg-muted">' + escHtml(help) + '</span></div>';
+}
+
+// The caller groups, as checkboxes when the groups are known. Multi-valued, so
+// it takes the shape the modes above already use rather than a second idiom.
+function callersField(f, current) {
+  var have = {};
+  for (var i = 0; i < current.length; i++) { have[current[i]] = 1; }
+  if (GROUPS === null) {
+    return field(f + 'callers', 'Caller groups', 'text', current.join(', '),
+      'Comma-separated. A signed-in caller must be in one of these, or hold Connectors. '
+      + 'The group list could not be read, so type the names.');
+  }
+  var boxes = '';
+  for (var j = 0; j < GROUPS.length; j++) {
+    boxes += check(f + 'cg-' + GROUPS[j], GROUPS[j], have[GROUPS[j]], '');
+  }
+  // A group named on the connector that no longer exists still has to be
+  // visible, or saving would quietly drop it.
+  for (var k = 0; k < current.length; k++) {
+    if (GROUPS.indexOf(current[k]) === -1) {
+      boxes += check(f + 'cg-' + current[k], current[k], true, 'not a group on this site');
+    }
+  }
+  if (!boxes) { boxes = '<span class="mg-muted">This site has no groups yet.</span>'; }
+  return '<div class="mg-section-label">Caller groups</div>'
+    + '<div class="mg-checks">' + boxes + '</div>'
+    + '<div class="mg-field"><span class="mg-muted">A signed-in caller must be in one of '
+    + 'these, or hold Connectors.</span></div>';
 }
 
 function field(id, label, type, value, help) {
@@ -288,7 +397,12 @@ function newConnector() {
 // The call record is the operator's window on what this connector has
 // actually done: outcome and time, never the payload and never the answer.
 function loadCalls(id) {
-  fetch(API + '?action=connector-calls&id=' + encodeURIComponent(id))
+  // SM806: the parameter is `connector`, not `id`. Sending the wrong name
+  // did not fail - the filter simply never applied, so every connector's
+  // panel listed EVERY connector's calls, and a brand-new connector opened
+  // showing somebody else's history. A filter that silently matches
+  // everything is worse than one that errors.
+  fetch(API + '?action=connector-calls&connector=' + encodeURIComponent(id))
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var el = document.getElementById('calls-' + id);
@@ -312,5 +426,6 @@ function loadCalls(id) {
     });
 }
 
+loadChoices();
 loadConnectors();
 </script>

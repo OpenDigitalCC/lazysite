@@ -2240,26 +2240,22 @@ elsif ( $action eq 'connector-call' ) {
     # store's own rules under THIS account. So a page action says "send order
     # 41" and cannot say what order 41 contains - which is the difference
     # between a button and an open relay under the operator's credential.
-    if ( defined $req->{row} && length $req->{row} ) {
-        my $all = _connectors()->can('connectors')->();
-        my $c   = ref $all eq 'HASH' ? $all->{ $req->{id} // '' } : undef;
-        if ( !$c ) {
-            respond( { ok => 0, kind => 'invalid', field => 'id',
-                    error => "no connector '" . ( $req->{id} // '' ) . "'" } );
-            exit 0;
-        }
-        my ( $p, $why ) = _connectors()->can('row_payload')->( $c, $req->{row},
-            as => { user => $auth_user, groups => \@groups }, actor => $auth_user, groups => \@groups );
-        if ( !$p ) {
-            respond( { ok => 0, kind => 'invalid', field => 'row', error => $why } );
-            exit 0;
-        }
-        $payload = $p;
-    }
-
-    $result = _connectors()->can('call')->( $req->{id}, $payload,
-        mode => 'authenticated', caps => $caps, groups => \@groups, actor => $auth_user,
-        trigger => ( defined $req->{row} && length $req->{row} ) ? 'row' : 'api' );
+    #
+    # SM804: the key is PASSED THROUGH, not resolved here. Resolving it in the
+    # caller put every row-source refusal outside call(), which is the only
+    # place that writes the connector's record - so those outcomes were
+    # invisible, and a crash was the most invisible of all.
+    my $row = $req->{row};
+    $result = _connectors()->can('call')->(
+        $req->{id}, $payload,
+        mode  => 'authenticated', caps => $caps, groups => \@groups,
+        actor => $auth_user,
+        ( defined $row && length $row
+            ? ( row => $row, as => { user => $auth_user, groups => \@groups } )
+            : ()
+        ),
+        trigger => ( defined $row && length $row ) ? 'row' : 'api'
+    );
 }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350

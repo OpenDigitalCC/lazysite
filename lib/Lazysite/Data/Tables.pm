@@ -177,7 +177,22 @@ sub list_tables {
 sub read_rows {
     my ( $docroot, $name, %opt ) = @_;
     my $as = delete $opt{as};
-    die 'read_rows needs to know who is asking: pass as => "sysop" for a '
+    # SM805: THIS MESSAGE NAMED A VALUE THE GATE REJECTS. It said `sysop`;
+    # may_read admits only the string 'operator' (or a { user, groups } hash),
+    # and every production caller passes 'operator'. A caller who followed the
+    # instruction got "no table 'x' is declared" - the same sentence a genuinely
+    # absent table produces, deliberately, so that an unauthorised caller
+    # learns nothing - and so read as a missing table rather than an
+    # unrecognised caller. Found by somebody doing exactly that.
+    #
+    # ONLY THE MESSAGE IS CHANGED. The first version of this fix also DIED on an
+    # `as` that is neither 'operator' nor a hashref, on the reasoning that it is
+    # a programming error rather than an authorisation answer. t/integration/76
+    # refused that: it reads with `as => 'page'`, standing for a caller who is
+    # not the operator, and expects to be REFUSED. Refusing is the safer
+    # failure for a gate - dying on an unexpected caller would turn a refusal
+    # into a 500, which is the exact bug SM804 had just fixed one file away.
+    die 'read_rows needs to know who is asking: pass as => "operator" for a '
         . 'manage_data-gated surface, or as => { user, groups } for a visitor'
         unless defined $as;
 

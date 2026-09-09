@@ -105,4 +105,66 @@ subtest 'the page says the boundary that decides the design' => sub {
         'and the public mode says what it is' );
 };
 
+# SM806, from the release manager reading the shipped page.
+subtest 'the page uses the registered vocabulary and nothing of its own' => sub {
+    my @cls   = $src =~ /class="([^"]+)"/g;
+    my %used  = map { $_ => 1 } grep { /\Amg-/ } map { split ' ' } @cls;
+    my $guide = do {
+        open my $fh, '<', "$root/starter/manager/style-guide.md" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my @unregistered = grep { $guide !~ /\Q$_\E/ } sort keys %used;
+    is_deeply( \@unregistered, [], 'every class on this page is in the style guide' )
+        or diag( "not registered: @unregistered\n"
+            . 'The guide is the contract; a class it does not name is a page '
+            . 'styling itself.' );
+
+    unlike( $src, qr/style="/, 'and no inline style' );
+
+    # It borrowed the permissions editor's own component classes as generic
+    # layout. They are registered, so nothing caught it - but mg-perms-* is
+    # another page's component, and reusing it is how two idioms become four.
+    unlike( $src, qr/mg-perms-/,
+        'no component borrowed from another page as generic layout' );
+};
+
+subtest 'the row expander is the ONE idiom, not another hand-rolled one' => sub {
+    like( $src, qr/class="mg-expand"[^>]*hidden/,
+        'the card is hidden with the ATTRIBUTE the stylesheet keys on' );
+    like( $src, qr/\.hidden = true/,  'and closed by setting it' );
+    like( $src, qr/\.hidden = false/, 'and opened by clearing it' );
+    unlike( $src, qr/innerHTML = ''/,
+        'not by emptying innerHTML - eight pages rolled their own show/hide '
+            . 'and that is the drift the guide exists to end' );
+};
+
+# The release manager could not find it, which is the only test that matters
+# for a control.
+subtest 'a connector can be deleted, and the control is where the eye goes' => sub {
+    my ($ed) = $src =~ /(function editorFor\(.*?\n\})/s;
+    ok( $ed, 'the editor body was found' ) or return;
+    like( $ed, qr/deleteConnector/, 'Delete is in the expander' );
+    like( $ed, qr/mg-toolbar.{0,400}mg-btn-danger/s,
+        'in the registered control row, beside Save' );
+};
+
+subtest 'a value the engine knows is chosen, not typed' => sub {
+    like( $src, qr/pickField\(/,    'the table fields are pickers' );
+    like( $src, qr/callersField\(/, 'and the caller groups are too' );
+    # SM784 again: an empty select is a statement about the site.
+    like( $src, qr/var GROUPS = null;/, 'unknown starts as null, not an empty list' );
+    like( $src, qr/options === null/,
+        'and an unreadable list falls back to a text box rather than showing none' );
+    like( $src, qr/not on this site/,
+        'a configured value absent from the list is kept and marked, never dropped' );
+};
+
+subtest 'the call record is filtered to THIS connector' => sub {
+    like( $src, qr/connector-calls&connector=/,
+        'the parameter is `connector` - sending `id` did not fail, it just '
+            . 'never filtered, so every panel showed every connector history' );
+    unlike( $src, qr/connector-calls&id=/, 'and the wrong name is gone' );
+};
+
 done_testing;
