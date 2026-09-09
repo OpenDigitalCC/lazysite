@@ -1,0 +1,78 @@
+---
+title: "lazysite - decision register"
+subtitle: "What the engine is waiting on the release manager to decide, each with the question, the options and a recommendation. A question asked only in conversation is a question nobody can find again."
+brand: plain
+standard-margins: true
+---
+
+# Why a register
+
+The same argument `docs/gate-register.md` and `docs/manual-check-register.md`
+make, for decisions.
+
+The engine agent regularly reaches a point where the next step is a judgement
+that is not its to make - which release carries a breaking default, whether a
+message is worth the thing it costs, who may write a destination. Those were
+being asked in conversation, where they scroll away, and the release manager
+had no list to read. This is that list.
+
+**The filings are the source of truth.** Each row points at its SM, which
+carries the reasoning, the evidence and what was already built. This register
+carries only the question, so it can be read in a minute.
+
+A row leaves when the decision is made: the SM records the ruling in its
+`status-note`, and the row is deleted rather than marked answered - the
+register is what is OPEN, not a history.
+
+# Open
+
+```datatable
+columns: Item | The question | Recommendation
+widths: 3cm | X | 6cm
+bold: 1
+tone: medium
+---
+[[SM808]] | Does the deployed `lazysite/manager/layout.tt` on edge contain `mg-nav-locked`? One WebDAV read settles it. | ASKED of the sites agent 2026-09-09. Absent means a code-bucket file survived an upgrade, which outranks everything else here.
+[[SM786]] | Which three sites render db fields? The `manager.conf` override is set for them and deprecated the same day, so the list IS the migration list. | ASKED of the sites agent 2026-09-09. Everything else is settled by the 2026-09-08 ruling.
+[[SM797]] | Denylist or allowlist for the static serve? Is the real fix the `.md.md` collapse in `sanitise_uri` rather than extensions? Does the Apache `FilesMatch` grow to match? | The collapse is the mechanism; an extension list is the belt. An allowlist is stronger and breaks a site serving an unlisted type on upgrade.
+[[SM798]] | Close the empty-password enumeration oracle? It costs the 403 that tells an operator why a passwordless account cannot sign in remotely. | Genuine trade, no strong view. The state is already loopback-only and discouraged.
+[[SM798]] | Should the login rate limiter be a plugin, so its dependency is checked before it is enabled? | **No** - see below. The dep check would guard a case that cannot happen and miss the one that does.
+[[SM802]] | The URL remapper: where do rules live, who may write them, where do counts live and what writes them, plugin or core? | Per-domain (the case has two backends); operator-only, as [[SM579]] settled for connectors; the visitor log as the source with the count derived.
+[[SM685]] | Schedule the token-verification fix? | **SCHEDULED 2026-09-09 for 0.13.10.**
+```
+
+# The rate limiter as a plugin, answered
+
+Asked 2026-09-09, and worth writing out because the reasoning generalises.
+
+The mechanism is real: a plugin declares `owns.deps`, and `_missing_deps`
+refuses to enable it while any are absent. So the shape of the idea works.
+
+It does not help here, for a reason that only shows on inspection: **`DB_File`
+is a core Perl module.** `debian/control` says so in as many words - "perl
+covers the core modules (JSON::PP, Digest::SHA, DB_File, ...)" - so the branch
+that fails open for a missing `DB_File` is guarding something that essentially
+cannot occur on a supported host.
+
+The branch that *can* fire is the other one: a counter that will not open -
+permissions on `lazysite/auth/`, a full disk, a read-only tree. **A dependency
+check cannot see any of those**, because they are facts about the site at the
+moment of the request rather than about what is installed.
+
+There is a second objection, which would stand even if the dependency were a
+real risk. A plugin is **opt-in and disableable**, and a login rate limiter is
+neither: making it a plugin would mean a site could turn off its own brute-force
+protection, and the disabled state would look exactly like the failure this SM
+exists to make visible.
+
+**What gets the benefit without either problem** is the health check.
+`lazysite-check` is where an operator looks for facts about their site, and a
+line there - *the login rate limiter is not in force, and why* - catches the
+permissions case, which is the one that happens. It is recorded as not-built in
+SM798 and is a small change if the release manager wants it.
+
+# How this register is kept
+
+The engine agent adds a row when it reaches a decision that is not its to make,
+and deletes the row when the decision arrives. It is committed with the change
+that raised the question, so the question and its context land together.

@@ -5,7 +5,7 @@ raised: 2026-08-29
 raised-by: engine agent
 area: performance
 status: partial
-status-note: "OPEN. `verify_token_ms` measured 62.7ms against a 42.1ms baseline at the 0.11.5 cut - 1.49x, beyond the 1.25 tolerance - and `verify_password_ms` 1.18x on the same run. Neither fails the build: bench reports timings and gates on WORK COUNTERS, all five of which passed. So the slowdown is real, visible on every cut, and structurally unable to stop one. Token verification is on the path of every control-API and MCP call, so this is the hot path for exactly the agent traffic the platform is built around."
+status-note: "SCHEDULED 2026-09-09 for 0.13.10 by the release manager, and MEASURED the same day - see below: roughly 80% of a token verification is compiling the 3,289-line users tool in a fresh process, so there is nothing to optimise inside it and the fix is to stop compiling it. Previously: OPEN. `verify_token_ms` measured 62.7ms against a 42.1ms baseline at the 0.11.5 cut - 1.49x, beyond the 1.25 tolerance - and `verify_password_ms` 1.18x on the same run. Neither fails the build: bench reports timings and gates on WORK COUNTERS, all five of which passed. So the slowdown is real, visible on every cut, and structurally unable to stop one. Token verification is on the path of every control-API and MCP call, so this is the hot path for exactly the agent traffic the platform is built around."
 ---
 
 

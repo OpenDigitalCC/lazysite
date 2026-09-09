@@ -55,6 +55,7 @@ Top-level references: the manuals an operator, developer or implementor reads en
 | [`RELIABILITY.md`](RELIABILITY.md) - lazysite - Reliability and resilience declaration | SLOs, error budget, RTO/RPO, evidence mapping, and restore rehearsals (eight-dimension review D5) |
 | [`SECURITY.md`](SECURITY.md) - lazysite - threat model | Structured security assessment for the Commercial regime (eight-dimension review D6). |
 | [`USER.md`](USER.md) - lazysite - User guide | For the person using a running lazysite site: an operator or author managing content, and the AI publishing partners that an operator authorises. |
+| [`decision-register.md`](decision-register.md) - lazysite - decision register | What the engine is waiting on the release manager to decide, each with the question, the options and a recommendation. A question asked only in conver... |
 | [`development.md`](development.md) - Development | Developer-facing notes for the lazysite repo. |
 | [`gate-register.md`](gate-register.md) - lazysite - gate register | What the full gate has actually returned, when, and on which commit. A pass nobody wrote down has to be repeated. |
 | [`manual-check-register.md`](manual-check-register.md) - Manual check register | What has actually been walked, when, and on which version. A pass nobody wrote down has to be repeated. |
@@ -220,4 +221,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*105 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*106 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
