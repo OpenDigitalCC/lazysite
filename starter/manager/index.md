@@ -1,8 +1,20 @@
 ---
-title: Site settings
+title: Your account
 auth: manager
 search: false
 ---
+
+<!-- SM807: TITLED FOR THE PAGE THAT IS ACTUALLY READ.
+     The layout renders the front-matter title as the h1 before the body, so
+     an account without manage_config - which stays here rather than being
+     forwarded (SM775) - was shown its own account landing under the heading
+     SITE SETTINGS, and the field read that as still landing on the settings
+     page. An account WITH manage_config never reads this heading: it is
+     replaced before paint by the redirect below.
+
+     The first attempt at this invented a `page_title_when_no_config` front
+     matter key, which nothing reads - a declaration the code ignores, which
+     is the thing this project keeps filing against. -->
 
 [% IF manager_caps.manage_config %]
 <p>Redirecting to <a href="/manager/config">Configuration</a>...</p>

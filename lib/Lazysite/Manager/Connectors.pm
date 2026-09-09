@@ -270,6 +270,34 @@ sub action_connector_save {
     return { ok => 0, error => _id_fault($id) } unless _valid_id($id);
     my ( $c, $err ) = _normalise($def);
     return { ok => 0, error => $err } unless $c;
+
+    # SM807: A MAPPED COLUMN THAT IS NOT A COLUMN IS REFUSED HERE, not at call
+    # time. _normalise checks the SHAPE of a name; only the table knows whether
+    # it exists. Saving a bogus mapping cleanly and failing at the call is the
+    # worst arrangement of the two - the operator is told at the moment a
+    # visitor's action fails, rather than at the moment they made the mistake.
+    #
+    # A table that cannot be read is NOT a refusal: the descriptor may be
+    # unreadable for reasons that have nothing to do with this connector, and
+    # blocking a save on it would make an unrelated fault look like a bad
+    # mapping. Unvalidated is not invalid.
+    if ( length( $c->{row_table} // '' ) && %{ $c->{row_map} || {} } ) {
+        require Lazysite::Data::Tables;
+        my $d = eval { Lazysite::Data::Tables::load_table( $DOCROOT, $c->{row_table} ) };
+        if ( ref $d eq 'HASH' && $d->{ok} && ref $d->{fields} eq 'HASH' ) {
+            my $key     = $d->{key} // 'id';
+            my @unknown = grep { !exists $d->{fields}{$_} && $_ ne $key }
+                sort keys %{ $c->{row_map} };
+            return { ok => 0, kind => 'invalid', field => 'row_map',
+                error => "row_map names "
+                    . ( @unknown > 1 ? 'columns' : 'a column' )
+                    . " '$c->{row_table}' does not have: "
+                    . join( ', ', @unknown )
+                    . '. Its columns are: '
+                    . join( ', ', sort( keys %{ $d->{fields} }, $key ) ) }
+                if @unknown;
+        }
+    }
     my $all = connectors();
     return { ok => 0, error => _store_unreadable() } unless defined $all;
     my $new = !exists $all->{$id};
@@ -332,7 +360,19 @@ sub may_call {
     my $mode = $ctx{mode} // '';
     return ( 0, "mode '$mode' is not one of scheduled, authenticated, public" )
         unless grep { $_ eq $mode } @$MODES;
-    return ( 0, "this connector does not permit $mode invocation" . ( $mode eq 'public' ? ' - public is opt-in, set modes.public on the connector' : '' ) )
+    # SM807: NAME THE MODE THAT WOULD WORK, not only the one that did not.
+    # This said what failed and left the caller to guess what would succeed -
+    # and for a connector whose whole point is that it runs on a timer, the
+    # word `scheduled` is the one that closes the question. The redirect
+    # refusal (SM790) sets the standard: give the reader the next step in the
+    # same sentence.
+    return ( 0,
+        "this connector does not permit $mode invocation"
+            . ( $mode eq 'public' ? ' - public is opt-in, set modes.public on the connector' : '' )
+            . do {
+            my @on = grep { $c->{modes}{$_} } @$MODES;
+            @on ? ' (it permits: ' . join( ', ', @on ) . ')' : ' (it permits no mode at all)';
+            } )
         unless $c->{modes}{$mode};
     if ( $mode eq 'authenticated' ) {
         my $caps   = $ctx{caps} // {};

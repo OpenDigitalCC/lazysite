@@ -570,7 +570,14 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
 /* No nowrap: on its own line it may wrap, which is what lets a narrow window
    survive rather than overflow. */
 .mg-row-meta { font-size: var(--mg-text-sm); color: var(--mg-text-muted); }
-.mg-row-actions { display: flex; gap: 6px; align-items: center; }
+/* SM807: margin-left:auto, so the group sits at the END of the row rather
+   than wherever the preceding inline content leaves it. Without it the
+   controls tracked the length of the text before them - on Connectors the
+   credential state moved 130px between rows depending on the URL above it, so
+   the one fact a reader most wants from that list could not be scanned down a
+   column. It shows on any list whose rows differ in width; Connectors is
+   simply the first with enough rows to make it visible. */
+.mg-row-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 /* The expander is a 28px box holding a 14px glyph, and it is the ONLY way
    into a file's settings or a table's fields - reported as hard to hit on a
    touch screen, which it is: a finger pad is about 45px across. It is now a

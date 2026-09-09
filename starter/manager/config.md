@@ -18,10 +18,17 @@ search: false
      start-page refusal does, and it is rendered by the SERVER: the page no
      longer asks for something it already knows it will be refused. -->
 <section class="mg-config-section">
+<!-- SM807: THE REMEDY DEPENDS ON WHO IS READING IT.
+     "A user manager can grant it" is right for an account that holds no
+     manage_users - it means find somebody else. Said to an account that IS a
+     user manager it sends the one person who can fix this to look for the
+     person who can fix this. The field put it exactly that way. -->
 <div class="mg-note mg-note-info">
   Site settings are read by an account holding <strong>Configuration</strong>.
-  This account does not hold it, so there is nothing here to show. A user
-  manager can grant it on the Groups page.
+  This account does not hold it, so there is nothing here to show.
+  [% IF manager_caps.manage_users %]You can grant it on the
+  <a href="/manager/groups">Groups page</a>.[% ELSE %]A user manager can grant
+  it on the Groups page.[% END %]
 </div>
 </section>
 [% END %]
