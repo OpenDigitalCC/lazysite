@@ -246,3 +246,9 @@ the case it matters in. A site that is only ever logged into does not heal, and
 an absent group-settings store now resolves to zero capabilities where it used
 to be recreated in passing; both are accepted, and both are written here rather
 than left to be rediscovered.
+
+**Bench baseline: re-captured at the next cut**, on the bench host, ruled
+2026-09-09. `verify_token_ms` is compared against a figure captured from the
+subprocess mechanism, so until then the 0.01x reads as a win when it is really a
+change of what the gauge measures - which is the safer way round to be wrong,
+and is why this waits for the cut rather than being taken on a loaded host now.

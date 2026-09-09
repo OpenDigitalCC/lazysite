@@ -35,8 +35,6 @@ tone: medium
 [[SM808]] | Does the deployed `lazysite/manager/layout.tt` on edge contain `mg-nav-locked`? One WebDAV read settles it. | ASKED of the sites agent 2026-09-09. Absent means a code-bucket file survived an upgrade, which outranks everything else here.
 [[SM786]] | Which three sites render db fields? The `manager.conf` override is set for them and deprecated the same day, so the list IS the migration list. | ASKED of the sites agent 2026-09-09. Everything else is settled by the 2026-09-08 ruling.
 [[SM798]] | Should the login rate limiter be a plugin, so its dependency is checked before it is enabled? | **No** - see below. The dep check would guard a case that cannot happen and miss the one that does.
-[[SM802]] | The URL remapper: where do rules live, who may write them, where do counts live and what writes them, plugin or core? | Per-domain (the case has two backends); operator-only, as [[SM579]] settled for connectors; the visitor log as the source with the count derived.
-[[SM685]] | `verify_token_ms` now times the in-process path against a baseline captured from the subprocess one. Re-capture the bench baseline? | Yes, at the next cut on the bench host. Until then the 0.01x reads as a win when it is really a change of mechanism.
 ```
 
 # The rate limiter as a plugin, answered

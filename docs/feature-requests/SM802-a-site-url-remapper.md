@@ -101,3 +101,24 @@ parameters must survive is not unusual.
 `inbox/2026-09-09-site-url-remapper-plugin.md`. NOT BUILT: this is a feature
 with a configuration surface, an authority question and a counting question,
 and it is the release manager's to schedule.
+
+# Ruled 2026-09-09 by the release manager
+
+All three of the open shape questions, as recommended:
+
+- **Where the rules live, and who writes them: per-domain, operator-only.**
+  Per-domain because that is what the case needs - the two sites have different
+  backends - which makes this domain configuration rather than site
+  configuration. Operator-only because a rule sends a visitor to a third-party
+  host, and that is the same class of authority as a connector's destination,
+  which [[SM579]] already settled: the operator writes it, an author references
+  it. The open-redirect argument therefore stays about `?to=` and does not
+  become an argument about who may write configuration.
+- **Counts: derived from the visitor log.** The log already records the
+  requests, and the reporter wants the detail there as well as the aggregate.
+  One source, the count derived - no second store to keep in step, and no write
+  added to the request path on every redirect.
+- **Shape: a plugin, one bounded act.** The boundary set for SM579 applies, and
+  every generalisation is refused by default.
+
+Still not started. These were the decisions it needed first.
