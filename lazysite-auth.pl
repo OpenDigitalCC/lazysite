@@ -1226,12 +1226,45 @@ sub check_login_rate {
     # SM022: do not capture the tie return value. A lexical holding
     # a reference to the tied object triggers "untie attempted
     # while inner references still exist" on the untie below.
+    # SM798: IT STILL FAILS OPEN, AND IT NO LONGER DOES SO IN SILENCE.
+    #
+    # Both returns below answer "this login is under the cap" for a limiter
+    # that could not run at all - which is the four-states collapse (SM784):
+    # "I could not check" rendered as "yes". A site whose DB_File is missing or
+    # whose counter cannot be opened has NO login rate limiting, and until now
+    # nothing anywhere said so; the surface that reports on the site's health
+    # reported nothing, because nothing had been told.
+    #
+    # THE DIRECTION IS DELIBERATELY UNCHANGED. Failing closed here would refuse
+    # every login on a host missing an optional module - locking an operator
+    # out of their own site to enforce a rate limit is a worse failure than not
+    # enforcing it. So the answer stays "allow", and the LOG carries what was
+    # actually established, which is the release manager's own formulation of
+    # the rule: reveal less if you must, record the real state.
+    #
+    # Logged per attempt rather than once, because these are CGI processes with
+    # nothing to remember between them - and a run of these lines is itself the
+    # signal that the limiter has been inert for a while.
     my %db;
-    eval { require DB_File; 1 } or return 1;    # fail open
+    unless ( eval { require DB_File; 1 } ) {
+        log_event( 'WARN', 'auth',
+            'the login rate limiter is NOT in force: DB_File is not installed, '
+                . 'so attempts cannot be counted and every login is allowed '
+                . '(Debian: libdb-file-perl)' );
+        return 1;    # fail open, loudly
+    }
     eval {
         tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o600;
     };
-    return 1 if $@ || !tied %db;                # fail open
+    if ( $@ || !tied %db ) {
+        my $why = $@ || "$!";
+        $why =~ s/\s+\z//;
+        log_event( 'WARN', 'auth',
+            'the login rate limiter is NOT in force: its counter could not be '
+                . 'opened, so attempts cannot be counted and every login is allowed',
+            file => $LOGIN_RATE_DB, error => $why );
+        return 1;    # fail open, loudly
+    }
 
     my $window = int( time() / $LOGIN_WINDOW );
     my $key    = "$ip:$window";

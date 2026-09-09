@@ -8,6 +8,57 @@ status: partial
 status-note: "OPEN. `verify_token_ms` measured 62.7ms against a 42.1ms baseline at the 0.11.5 cut - 1.49x, beyond the 1.25 tolerance - and `verify_password_ms` 1.18x on the same run. Neither fails the build: bench reports timings and gates on WORK COUNTERS, all five of which passed. So the slowdown is real, visible on every cut, and structurally unable to stop one. Token verification is on the path of every control-API and MCP call, so this is the hot path for exactly the agent traffic the platform is built around."
 ---
 
+
+# MEASURED 2026-09-09, and the cause is not a slow path
+
+Open since 2026-08-29 and reported on every cut without anyone taking it apart.
+Two numbers, taken on an idle box:
+
+    20 compiles of tools/lazysite-users.pl   1.0 s      ~50 ms each
+    verify_token_ms                          ~62 ms
+
+**So roughly 80% of a token verification is compiling a 3,289-line
+user-management tool**, in a fresh `perl` process, to answer one question. The
+verification itself is around 12 ms.
+
+That reframes the whole filing. This is not a slow algorithm and there is
+nothing to optimise inside it: `verify_token_ms` is a *file size* measurement
+wearing a stopwatch. It also explains the drift exactly - the 42.1 baseline was
+captured when the file was smaller, and every line added since has been paid on
+every authenticated request. SM800 added eight and the bench refused the
+release, which was the counter doing precisely its job.
+
+# What fixing it means
+
+The callers are `lazysite-auth.pl`, `lazysite-manager-api.pl` and
+`lazysite-mcp.pl`, each shelling out to `lazysite-users.pl --api
+verify-credential`. **The subprocess is not needed for privilege reasons on
+that path**: the tool's `drop_to_tree_owner` exists so a CLI run as root cannot
+write a root-owned tree, and the CGI callers already run as the site user.
+
+So the fix is to stop compiling the tool to answer this:
+
+1. **Move credential verification into a small module** the three callers
+   `use` directly - the store readers it needs are already in
+   `Lazysite::Auth::Settings`. No process, no compile, and `verify_token_ms`
+   becomes a measurement of the verification rather than of the file.
+2. **The tool keeps its `--api verify-credential`**, calling the same module,
+   so the CLI and anything shelling out are unaffected.
+3. **`work_users_tool_statements` stops being a proxy for request cost** once
+   the tool is off the request path - it stays useful as a guard on the tool
+   itself, but the thing it was standing in for is gone.
+
+Half a day, and it is a refactor of a security-critical path, so it wants the
+whole suite and a bench before and after rather than a quick landing.
+
+# Why it has not been done
+
+It has never been scheduled, and each release has had something more urgent.
+Worth stating plainly: it is not urgent, nothing is failing, and it is getting
+slowly worse - 32.7 ms at the original baseline, 42.1 at the current one, ~62
+now. The bench reports it on every cut and cannot fail a build on it, which is
+the arrangement that lets it persist.
+
 # What was measured
 
 At the 0.11.5 cut (`6c39ba79`, 2026-08-28, idle-ish host):
