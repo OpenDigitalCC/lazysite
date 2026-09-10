@@ -114,3 +114,61 @@ is one mirror finding here, not two, and the pairing was mine. The 404s measured
 in this filing are unaffected: they were measured, and they stand.
 
 NOT YET BUILT. The site's hardcoded stylesheet link cannot come out until it is.
+
+# ATTEMPTED 2026-09-10 AND REVERTED - the fallback could not be shown to work
+
+The fallback half was built and then taken out again, because it could not be
+demonstrated to change anything. Recording the attempt in full, because the next
+person should start from here rather than repeat it.
+
+## What was built
+
+In `lazysite-processor.pl`, immediately after `resolve_theme` returns: if the
+theme is `is_active` but `-d "$DOCROOT/lazysite-assets/<layout>/<theme>"` is
+false, log a WARN and downgrade `$info` to `{}` so the page takes the existing
+else-branch fallback - which already resolves `theme_assets` to the layout's
+`default_theme` mirror. That reuses the engine's own pattern: the else branch
+performs the identical `-d` check on the same path shape.
+
+## Why it was reverted
+
+**A/B with the file state verified at each step produced identical output.** With
+the guard present and with it replaced by `unless (0)`, a page carrying
+`theme: unmirrored` resolved `theme_assets` to `/lazysite-assets/base/plain` -
+the default-theme mirror - both times.
+
+That is unexplained, and the pieces contradict each other:
+
+- A diagnostic written to a file (stderr is swallowed by `TestHelper`'s
+  `load_processor`) shows `resolve_theme` IS called with `theme=unmirrored` and
+  finds its `theme.json`: `resolve layout=base theme=unmirrored json=1`.
+- `resolve_theme` has exactly **one** call site, so nothing else is overwriting
+  the result afterwards.
+- The theme declares `layouts: ["base"]` and the layout is `base`, so the
+  compatibility check should pass and `is_active` should be 1.
+- With `is_active` 1 and the guard disabled, `theme_assets` should have been
+  `/lazysite-assets/base/unmirrored`. It was not.
+
+So either the engine already falls back somewhere this reading has not found -
+making the change redundant - or the fixture does not reach the case despite
+appearing to. **Either way the change is unverifiable, and a test that passes
+whether the fix is present or absent is not a test.** Shipping it would be the
+thing this filing's own neighbours were reverted for.
+
+## What the next attempt should do differently
+
+1. **Reproduce it against a real docroot before writing any code.** The field
+   measured this on edge with a backup theme; a unit fixture asserting on
+   `theme_assets` did not reproduce it, and finding out why is the first task,
+   not the last.
+2. **Consider the third option neither of us offered.** `_mirror_theme_assets`
+   (`lib/Lazysite/Manager/Themes.pm:937`) is idempotent, per-theme, and already
+   called from activation, layout install and package apply. **Mirroring every
+   theme a layout carries, rather than only the activated one, sidesteps the
+   resolution path entirely** - no render-time write, no serving change, and no
+   [[SM795]] carve-out for a web-reachable theme source. It is also testable
+   where the work happens, at the mirroring function, rather than through a
+   render. That is very likely a better answer than the one ruled, and the
+   ruling was made without it because it was not offered.
+3. If the source-resolution route is still wanted, the SM795 exclusion is the
+   hard part and deserves its own security review rather than a flag.
