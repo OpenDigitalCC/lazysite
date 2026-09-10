@@ -340,3 +340,46 @@ which is what it should be.
   happening; building it for JSON-LD proves it can make work happen, which is the
   harder half and the one a later extension will use.
 - **[[SM823]]** (ingestion) follows, so it is named correctly on arrival.
+
+# STEP 1 BUILT 2026-09-10: the name, aliased at one point
+
+`extension-*` is the name. `plugin-*` still works and says it is the old one.
+
+**Normalised where the action is read**, in `lazysite-manager-api.pl`, rather
+than by declaring every verb twice. That choice is the whole of the design: the
+risk in an alias is two declarations drifting apart, and this codebase has a
+filing for each time that was tried - [[SM666]], SEC-2026-07 F3, [[SM662]]. Below
+the normaliser only one spelling exists, so they cannot drift, and a verb added
+next year gets its alias for free.
+
+It runs **before the capability gate**, because a new-spelling call would
+otherwise be refused as an unknown action before anything looked at it. There is
+an assertion for that ordering, not just for the substitution.
+
+**The deprecation notice is INFO, not WARN**, and that is deliberate enough to be
+tested: the old name still works and is correct today, and a warning on every
+call trains an operator to ignore the log before the removal it warns about ever
+arrives. "Make it louder" is the obvious later edit, so the test says why not.
+
+**Our own pages moved in the same change** - thirteen call sites across
+`plugins.md`, `stats.md` and `plugin-config.md`. Leaving them on the old name
+would have fired the notice on every manager page load, which is exactly how a
+deprecation notice becomes furniture. Only `action=` values were touched: the
+page name `plugin-config`, and the classes and ids `plugin-modal`,
+`plugin-registry`, `plugin-status`, share the prefix and are not actions - 26
+such occurrences were deliberately left alone.
+
+`docs/reference/control-api-actions.md` lists six rows as
+`extension-X (was plugin-X)`, so the published table names both.
+
+## What is NOT done, and is the rest of the batch
+
+- The `plugins/` directory, the `plugins:` conf key, the capability names and the
+  internal vocabulary: untouched. Only the wire name has moved.
+- The operator-facing surface - page titles, nav, prose, the practice document -
+  is a single pass and has not been made, because a half-renamed vocabulary is
+  worse than either name.
+- [[SM222]]'s L0 registry, which is the other half of the batch and the thing
+  [[SM824]] then consumes.
+- The **constrained-enablement** mechanism that [[SM798]], the audit trail and
+  content history all need.

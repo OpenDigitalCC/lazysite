@@ -150,12 +150,12 @@ tone: medium
 `notices-seen` | cookie only |  
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
-`plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)
-`plugin-disable` | cookie only | script (body)
-`plugin-enable` | cookie only | script (body)
-`plugin-list` | cookie only |  
-`plugin-read` | cookie only | plugin (query), script (body)
-`plugin-save` | cookie only | plugin (query), script (body), values (body)
+`extension-action` (was `plugin-action`) | cookie only | plugin (query), script (body), action_id (body), params (body)
+`extension-disable` (was `plugin-disable`) | cookie only | script (body)
+`extension-enable` (was `plugin-enable`) | cookie only | script (body)
+`extension-list` (was `plugin-list`) | cookie only |  
+`extension-read` (was `plugin-read`) | cookie only | plugin (query), script (body)
+`extension-save` (was `plugin-save`) | cookie only | plugin (query), script (body), values (body)
 `preview` | cookie only | path (query)
 `preview-clear` | cookie only |  
 `preview-grant` | manage_themes / manage_layouts |  

@@ -186,7 +186,7 @@ function shouldRenderPlugin(plugin, allPlugins) {
 
 function loadPlugins() {
   document.getElementById('plugin-list').textContent = 'Scanning...';
-  fetch(API + '?action=plugin-list')
+  fetch(API + '?action=extension-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) {
@@ -316,7 +316,7 @@ function loadConfig(plugin) {
   var body = mgPluginModal(plugin.name);
   document.getElementById('plugin-modal').setAttribute('data-plugin', plugin.id);
   body.textContent = 'Loading...';
-  fetch(API + '?action=plugin-read&plugin=' + encodeURIComponent(plugin.id), {
+  fetch(API + '?action=extension-read&plugin=' + encodeURIComponent(plugin.id), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: plugin._script })
   })
@@ -400,7 +400,7 @@ function saveConfig(e, pluginId, script) {
     else { values[el.name] = el.value; }
   }
   if (status) status.textContent = 'Saving...';
-  fetch(API + '?action=plugin-save&plugin=' + encodeURIComponent(pluginId), {
+  fetch(API + '?action=extension-save&plugin=' + encodeURIComponent(pluginId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: script, values: values })
   })
@@ -433,7 +433,7 @@ function saveConfig(e, pluginId, script) {
 function runActionGated(pluginId, ai, needs) {
   var p = window._plugins.find(function(x) { return x.id === pluginId; });
   if (!p) return;
-  fetch(API + '?action=plugin-read&plugin=' + encodeURIComponent(pluginId), {
+  fetch(API + '?action=extension-read&plugin=' + encodeURIComponent(pluginId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: p._script })
   })
@@ -457,7 +457,7 @@ function runAction_go(plugin, action, params) {
   var status = document.getElementById('status-' + plugin.id);
   status.textContent = 'Running...';
   clearActionChoice(plugin.id);
-  fetch(API + '?action=plugin-action&plugin=' + encodeURIComponent(plugin.id), {
+  fetch(API + '?action=extension-action&plugin=' + encodeURIComponent(plugin.id), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: plugin._script, action_id: action.id, params: params || {} })
   })
@@ -607,7 +607,7 @@ function loadChildConfigs(plugin) {
       .then(function(r) { return r.json(); })
   ];
   if (smtpPlugin) {
-    fetches.push(fetch(API + '?action=plugin-read&plugin=form-smtp', {
+    fetches.push(fetch(API + '?action=extension-read&plugin=form-smtp', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script: smtpPlugin._script })
     }).then(function(r) { return r.json(); }));
@@ -1248,7 +1248,7 @@ function validateSmtp(btn) {
   if (!p) { if (out) out.textContent = 'The Form SMTP plugin is not available.'; return; }
   btn.disabled = true;
   if (out) { out.textContent = 'Checking host, port, TLS, auth…'; out.style.color = ''; }
-  fetch(API + '?action=plugin-action&plugin=form-smtp', {
+  fetch(API + '?action=extension-action&plugin=form-smtp', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: p._script, action_id: 'validate' })
   })
@@ -1399,7 +1399,7 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
   .then(function(res) {
     if (!res.ok) throw new Error(res.error || 'Handler save failed');
     if (smtpConnData && smtpPlugin) {
-      return fetch(API + '?action=plugin-save&plugin=form-smtp', {
+      return fetch(API + '?action=extension-save&plugin=form-smtp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ script: smtpPlugin._script, values: smtpConnData })
@@ -1438,7 +1438,7 @@ function editHandler(handler) {
   if (handler.type === 'smtp' && !smtpConnectionLoaded && smtpPlugin) {
     div.textContent = 'Loading...';
     div.style.display = 'block';
-    fetch(API + '?action=plugin-read&plugin=form-smtp', {
+    fetch(API + '?action=extension-read&plugin=form-smtp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script: smtpPlugin._script })

@@ -58,7 +58,7 @@ function fmtNum(n) { return (+n || 0).toLocaleString(); }
 function loadStats() {
   var body = document.getElementById('stats-body');
   body.textContent = 'Scanning the access log…';
-  fetch(API + '?action=plugin-list').then(function (r) { return r.json(); }).then(function (d) {
+  fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (d) {
     if (!d.ok) { body.textContent = d.error || 'Failed to load plugins.'; return; }
     var p = (d.plugins || []).filter(function (x) { return x.id === 'stats'; })[0];
     if (!p) { body.innerHTML = 'The Visitor Stats plugin is not installed.'; return; }
@@ -70,7 +70,7 @@ function loadStats() {
     }
     statsScript = p._script;
     initTrails(p);   // SM399: the descriptor already carries the days; no second round trip
-    fetch(API + '?action=plugin-action&plugin=stats', {
+    fetch(API + '?action=extension-action&plugin=stats', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script: statsScript, action_id: 'refresh' })
     }).then(function (r) { return r.json(); }).then(renderStats)
@@ -496,7 +496,7 @@ function loadTrails(day) {
   var body = document.getElementById('trails-body');
   if (!body || !statsScript || !day) return;
   body.textContent = 'Loading journeys…';
-  fetch(API + '?action=plugin-action&plugin=stats', {
+  fetch(API + '?action=extension-action&plugin=stats', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: statsScript, action_id: 'trails', params: { choice: day } })
   }).then(function (r) { return r.json(); }).then(renderTrails)

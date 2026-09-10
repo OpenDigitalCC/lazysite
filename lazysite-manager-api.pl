@@ -356,6 +356,42 @@ for my $pair ( split /&/, $ENV{QUERY_STRING} // '' ) {
 }
 
 my $action = $params{action} // '';
+
+# SM817: `extension-*` IS THE NAME. `plugin-*` IS THE OLD ONE, KEPT AND
+# DEPRECATED THE DAY THE NEW ONE SHIPS.
+#
+# These fourteen things are not plugged in by anybody: they ship in the package,
+# the engine declares their capabilities, and the operator's act is switching one
+# off, not installing one. `plugin` says came-from-outside, somebody-added-it,
+# host-didn't-know - none of which is true. What IS true is that the core
+# renderer requires nothing from them (lazysite-processor.pl loads no plugin at
+# all), so they extend it, and `extension` says that.
+#
+# It also keeps `plugin` free for the day something genuinely is authored
+# elsewhere and dropped in - SM823's ingestion sources would be the first - which
+# is the only condition under which the old word would have been right.
+#
+# NORMALISED HERE, in the one place the action is read, rather than by declaring
+# every verb twice. A second declaration is a second thing to keep in step, and
+# this codebase has a filing for every time that was tried: the two spellings
+# cannot drift because only one of them exists below this line.
+#
+# The seven: list, read, save, action, config, enable, disable.
+my $action_as_sent = $action;
+if ( $action =~ s/\Aextension-/plugin-/ ) {
+
+    # The new spelling. Nothing to say about it.
+}
+elsif ( $action =~ /\Aplugin-/ ) {
+
+    # The old one. INFO rather than WARN: it still works, it is correct today,
+    # and a WARN on every call would train an operator to ignore the log before
+    # the removal it is warning about ever arrives.
+    log_event( 'INFO', $auth_user // '-',
+        "action '$action_as_sent' is the deprecated spelling; "
+            . "use '" . ( $action_as_sent =~ s/\Aplugin-/extension-/r ) . "'",
+        action => $action_as_sent );
+}
 my $path   = $params{path}   // '/';
 # Mirror the per-request context into Manager::Common for log attribution.
 $Lazysite::Manager::Common::action      = $action;

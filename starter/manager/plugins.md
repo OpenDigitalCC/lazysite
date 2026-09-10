@@ -26,7 +26,7 @@ function esc(s) {
 function warn(msg) { var el = document.getElementById('plugin-status'); if (el) { el.textContent = msg || ''; el.style.display = msg ? '' : 'none'; } }
 
 function loadPluginRegistry() {
-  fetch(API + '?action=plugin-list').then(function (r) { return r.json(); }).then(function (data) {
+  fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (data) {
     var container = document.getElementById('plugin-registry');
     if (!data.ok) { warn(data.error || 'Failed to load plugins'); container.textContent = ''; return; }
     warn('');
