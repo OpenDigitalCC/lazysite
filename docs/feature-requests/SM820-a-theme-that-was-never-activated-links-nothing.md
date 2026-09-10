@@ -4,10 +4,11 @@ title: "SM820: a per-page theme that was never activated links stylesheets that 
 subtitle: "1310E-08 step 4. The per-page `theme:` key works, and it resolves to `/lazysite-assets/<layout>/<theme>/`, which is written AT ACTIVATION. A theme present in the tree but never activated has no mirror, so the page links two 404s and renders completely unstyled - measured: background rgba(0,0,0,0), font Times New Roman. This invalidates the advice SM812 sent to a live site, which would have made it worse. An unknown theme name falls back safely; a real but unmirrored one fails silently to nothing."
 brand: plain
 standard-margins: true
-status: partial
+status: candidate
 raised: 2026-09-10
 raised-by: sites agent
 area: themes
+status-note: "RULED 2026-09-10 and NOT BUILT: the per-page theme override resolves to the theme SOURCE rather than the activation mirror, plus a fallback - an unmirrored theme falls back to the activated one exactly as an unknown name already does. Needs care against SM795 engine-tree exclusion, since a web-reachable theme source is precisely what that exclusion was written about. Until it ships, a site cannot replace a hardcoded stylesheet link with a per-page theme: - SM812 advice to do so is retracted, and the reporting build was told not to."
 ---
 
 # What was measured
