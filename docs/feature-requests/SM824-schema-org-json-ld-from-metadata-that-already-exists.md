@@ -60,3 +60,38 @@ is the only thing that says whether the emitted block is understood.
 `inbox/knowledge-standards.md`, Recommendation 1, accepted by the release manager
 2026-09-10. The doc cites this as "the existing D011 discoverability scope,
 promoted"; D011 has no filing in this tree, so this is its first.
+
+# EXTENSION OR CORE, researched 2026-09-10: extension, and it is blocked on a hook
+
+The release manager asked which this should be, with extension preferred. The
+answer is extension, and the research turned up the reason it cannot be one yet -
+which changes when it should be built rather than whether.
+
+**The processor calls no plugin during a render.** Read from the source: the only
+plugin-related thing `lazysite-processor.pl` does is `_enabled_plugins()`, which
+reads the `plugins:` list out of `lazysite.conf` so the manager nav can hide an
+item. No plugin code is loaded, invoked or consulted while a page is rendered.
+
+**And the extension contract has no room for one.** A plugin's `--describe`
+declares exactly four things across every shipped plugin: `actions`, `owns`,
+`on_enable`, `on_disable`. There is no hook, no filter, no render participation.
+
+So JSON-LD - which must emit into `<head>` from the page's own metadata, at render
+- **cannot be an extension today.** The two honest options:
+
+1. **Core**: a few lines in the processor emitting from `$meta`, gated by a conf
+   flag. Cheap, and it puts discoverability enrichment in the renderer the
+   release manager wants kept standalone and simple. It is the wrong answer to
+   the stated principle, and it would be the third thing in core that is
+   extension-shaped after the access log.
+2. **Extension, once there is a render-time registry.** [[SM222]]'s L0 needs
+   exactly that - core calling through a registry a disabled unit is absent from -
+   and it is being built with [[SM817]].
+
+**Recommendation: 2, and note what it buys.** SM824 becomes **the registry's
+first real consumer**, and a registry with no consumer is a mechanism nobody has
+exercised. Building L0 for the access log alone proves it can stop work
+happening; building it with JSON-LD proves it can make work happen too, which is
+the harder half and the one a later extension will actually use.
+
+So the sequence is: extensions batch first, then this. Not before.

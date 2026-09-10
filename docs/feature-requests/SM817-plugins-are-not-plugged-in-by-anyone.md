@@ -283,3 +283,60 @@ keeping because it is about the release process rather than about semantics: a
 minor bump would say the shape changed, and it would also imply a promotion
 boundary that is not being taken. The tag list showing less than the architecture
 did is the accepted cost.
+
+# THE BATCH, assembled 2026-09-10
+
+The release manager asked for other candidates for the extensions batch, and for
+[[SM798]] to be added to it. Searched rather than guessed, and the useful result
+is that there is **no pile of hidden extension-shaped work** - the batch is what is
+already named, plus one mechanism that turns out to serve three filings at once.
+
+**What is in it**
+
+1. **[[SM817]]** - `extension-*` actions beside the seven `plugin-*`, born
+   deprecated; the loader accepting `extensions/` and `plugins/`; the operator
+   surface moved in one pass; a lint pinning the pair.
+2. **[[SM222]] L0** - core calls through a registry a disabled unit is absent
+   from, and the first-party access-log write moves out of the renderer behind it.
+   Plus a lint that core does not reach into an extension's file directly, which
+   is the `_stats_export` shape.
+3. **[[SM222]]'s audit ruling** - the trail stays switchable, the disable and
+   re-enable are both recorded with the actor, and a separate group governs the
+   act.
+4. **Content history**, which SM222 notes deserves the same treatment as audit:
+   a site that turns it off and finds a page's past gone has lost something the
+   switch implied it was only hiding.
+5. **[[SM798]]** - see below, and it needs the same mechanism as 3.
+
+**THE MECHANISM THAT SERVES THREE OF THEM.** SM798's recorded answer was **no**:
+a rate limiter must not be disableable, so making it an extension is wrong if
+extension means switchable. Adding it to this batch resolves that rather than
+overruling it, because the batch has to invent the missing idea anyway -
+**an extension whose enablement is constrained**:
+
+- the **audit trail**, switchable but only by a separate grant, and recording the
+  switch;
+- **content history**, the same;
+- the **login rate limiter**, arguably not switchable at all.
+
+Three filings asking for the same thing from different directions. If "extension"
+means only "on or off by anyone with `manage_config`", none of them can be one. If
+enablement can carry a constraint, all three can, and the rate limiter's objection
+disappears - it becomes an extension that reports itself and cannot be turned off,
+which is what it should be.
+
+**What is NOT in it, having looked**
+
+- Conf-gated optional behaviour in the core renderer is just the service
+  killswitches - webdav, mcp, oauth, control api, token exchange - which are
+  SM222's services and already in scope, plus two size limits, the CSP, and
+  SM786's new `db_render_raw`. No hidden extension candidates.
+- **The discoverability registries** - sitemap, `llms.txt`, `robots.txt` - are
+  generated in the core processor and referenced from eight surfaces. They are
+  extension-shaped in principle and too deeply core to move as part of this;
+  worth knowing because [[SM824]] and [[SM825]] join that family.
+- **[[SM824]] is the registry's first real consumer** and should follow the batch,
+  not join it. Building L0 for the access log proves the registry can stop work
+  happening; building it for JSON-LD proves it can make work happen, which is the
+  harder half and the one a later extension will use.
+- **[[SM823]]** (ingestion) follows, so it is named correctly on arrival.

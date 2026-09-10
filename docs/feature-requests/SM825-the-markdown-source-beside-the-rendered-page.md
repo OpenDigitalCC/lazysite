@@ -44,3 +44,35 @@ is trivially easy to serve and the interesting question is what has to be
 
 `inbox/knowledge-standards.md`, Recommendation 4, accepted 2026-09-10. Sequenced
 after [[SM824]] by the recommendation itself.
+
+# EXTENSION OR CORE, researched 2026-09-10: core, and not for want of trying
+
+Extension was preferred and it does not fit, for reasons that are about the work
+rather than the principle.
+
+**Serving a URL is not something an extension can do.** Extensions expose
+`actions` reached through the manager API, MCP or the daemon. Nothing in the
+contract claims a path, a suffix or a request. A `.md` alternate is a request the
+front door has to answer.
+
+**And `llms.txt` is generated in the core processor** and referenced from eight
+surfaces - the processor, the front door, the manager API, MCP, DAV, Files, Lang
+and the check tool. Adding `.md` links to it is an edit to core generation, not
+an extension writing its own file.
+
+**The one extension-shaped part** is the `<link rel="alternate">` in `<head>`,
+which needs the same render-time registry [[SM824]] does and does not exist yet.
+That is a small piece of a mostly-core change, and splitting the filing across
+that boundary would cost more than it explains.
+
+**And placement is not this filing's hard part anyway.** The audit still has to
+answer what must be WITHHELD from a source alternate: front matter carries `read:`
+lists, `register:` handling and operator notes, so serving the file verbatim
+publishes a page's access-control configuration alongside its prose. Plus
+[[SM797]]'s denylist exists precisely to refuse source files, so this is a named
+exception to a rule ruled on the day before. Those are core questions wherever
+the code lives.
+
+**Recommendation: core, and sequence it after [[SM824]]** - not because it depends
+on it, but because SM824 establishes the render hook that the alternate link
+should use rather than this filing inventing a second way to reach `<head>`.
