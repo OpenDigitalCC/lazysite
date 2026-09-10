@@ -405,12 +405,34 @@ OAuth and token exchange, because each is something a request arrives at.
 an ordinary page render, inside the core renderer, and no amount of not-routing
 touches it. The clearest case is the one the release manager named:
 
-- **The first-party access log has no switch at all.** `lazysite-processor.pl`
-  carries "SM140: first-party access log" and builds `%ACCESS_REC` per request.
-  There is no `access_log:` key in any conf and no `if enabled` in the write
-  path. So disabling `log` or `stats` changes what can be READ, and the engine
-  goes on recording every visit. An operator running locally who switches the
-  visitor log off still accumulates visitor data.
+- **The first-party access log records on regardless of the switch an operator
+  reaches for.** CORRECTED 2026-09-10, against the source, before building on
+  it: an earlier draft of this section said the access log "has no switch at
+  all". That is false and the correction makes the finding sharper rather than
+  weaker.
+
+  What is actually true. `_access_conf` reads `first_party` from
+  `lazysite/stats.conf` (default **on**, 90-day retention), `_access_record`
+  honours it at the single write point - `return 1 unless $conf->{first_party}`
+  - and `plugins/stats.pl` publishes it in its config schema as a boolean
+  labelled *First-party access log*. So there is a key, a guard and an operator
+  surface for it.
+
+  **The defect is that this is not the switch the operator uses.** Turning the
+  stats plugin OFF stops the reading and the aggregation and leaves the
+  recording running, because the recorder lives in `lazysite-processor.pl`,
+  which is module-free per ADR 0001 and cannot consult `plugin_enabled` at all.
+  Two switches, one of them the obvious one, and the obvious one governs the
+  half that reads. An operator who switches the visitor log off still
+  accumulates visitor data - which was the release manager's report, and it
+  stands.
+
+  **And the existing key turns out to be this design's runtime axis, already
+  built.** "The plugin is offered but is not currently recording" is exactly
+  `desired: on, runtime: stopped`. `first_party` is that state for one unit,
+  reached through a different door and spelled differently. It is evidence the
+  two-axis split is right rather than invented, and it is the migration path:
+  the key keeps working and becomes the unit's runtime state.
 
 And the enablement flag is honoured unevenly, because the current mechanism asks
 every call site to remember. `plugin_enabled` is consulted at fourteen sites in
@@ -546,6 +568,29 @@ call site somebody adds next year without having to remember this filing exists.
 
 The fourteen remembered checks then stop being the mechanism. They become
 redundant, and can go as each unit joins its table.
+
+### The inline table cannot be a module, and does not need to be
+
+Added while building L0, because the design above says "core's registry" without
+saying what that is, and the obvious reading - a module core imports - is
+forbidden.
+
+`lazysite-processor.pl`'s render path is **deliberately module-free**, pinned by
+[[ADR 0001]], which allows a marked, synchronised copy rather than a lib
+dependency. A `Lazysite::Registry` that core loaded would break that decision for
+the sake of a list.
+
+It is unnecessary, because **the registry already exists as data**: `plugins:` in
+`lazysite.conf`, the same list the manager writes when an operator toggles a
+unit. Core reads a conf file it already opens, with the scanning idiom it already
+uses. So L0 adds no mechanism, no new file and no new format - it adds a reader
+on the side that never had one, and the copy is pinned by a lint that runs both
+readers over the same conf rather than comparing their text.
+
+The general form, worth keeping when the other two classes are built: **the
+dispatch table is data the operator already edits, not a structure the code
+invents.** Where a class already has such a table - the vhost include for
+endpoints, the plugin registry for invoked units - that table is the one to use.
 
 ## The verbs are systemd's, deliberately
 

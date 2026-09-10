@@ -1898,6 +1898,7 @@ sub _front_door {
 # not at file scope, so a persistent worker cannot leak between requests.
 sub handle_one_request {
     reset_request_state();
+    _reset_units();       # SM222 L0: an FCGI worker must re-read the registry
     %ACCESS_REC   = ();
     %AUTH_CONTEXT = ();
 
@@ -8507,6 +8508,49 @@ sub _json_str {
 # wrapper records once per request. Module-free per ADR 0001; stats.pl
 # aggregates the files.
 
+# --- SM222 L0: the unit registry, read from the render path -------------------
+# `plugins:` in lazysite.conf IS the registry, and until now nothing on the
+# request path read it. Enablement was consulted at fourteen sites in nine files
+# across the manager tree and at ZERO sites here, so a unit switched off in the
+# manager went on doing its work inside an ordinary page render. Truly-off has to
+# hold where the work happens, and for an embedded unit that is here.
+#
+# A MARKED COPY, by the convention ADR 0001 sets for the capability gate: this
+# render path is deliberately module-free, so it cannot call
+# Lazysite::Manager::Plugins::plugin_enabled. What is copied is a five-line list
+# scan rather than a semantic, which is the cheapest kind of copy to keep honest,
+# and t/lint/125 asserts the two readers agree on the same conf rather than
+# trusting this comment.
+#
+# Memoised per request and cleared by handle_one_request: an FCGI worker serves
+# many requests and must not answer from a map read before the operator's toggle.
+{
+    my $_UNITS;
+
+    sub _unit_enabled {
+        my ($entry) = @_;
+        if ( !$_UNITS ) {
+            $_UNITS = {};
+            if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
+                my $in_plugins = 0;
+                while ( my $l = <$fh> ) {
+                    chomp $l;
+                    if ( $l =~ /^plugins\s*:\s*$/ ) { $in_plugins = 1; next }
+                    if ( $in_plugins && $l =~ /^\s+-\s+(.+?)\s*$/ ) {
+                        $_UNITS->{$1} = 1;
+                        next;
+                    }
+                    $in_plugins = 0 if $in_plugins && $l !~ /^\s/;
+                }
+                close $fh;
+            }
+        }
+        return $_UNITS->{$entry} ? 1 : 0;
+    }
+
+    sub _reset_units { $_UNITS = undef; return }
+}
+
 # stats.conf knobs the recorder honours (shared with the stats plugin).
 sub _access_conf {
     my %c = ( first_party => 1, retention_days => 90 );
@@ -8572,13 +8616,24 @@ sub _access_field {
     return _json_str($s);
 }
 
-# Record the request outcome. No-op when no emitter ran (redirects), when
-# first_party: off, or on any internal failure - recording must never break
-# serving. One O_APPEND write; lines are far below PIPE_BUF, so concurrent
+# Record the request outcome. No-op when no emitter ran (redirects), when the
+# stats unit is switched off (SM222 L0), when first_party: off, or on any
+# internal failure - recording must never break serving. One O_APPEND write; lines are far below PIPE_BUF, so concurrent
 # CGI appends cannot interleave.
 sub _access_record {
     return unless defined $ACCESS_REC{s};
     my $ok = eval {
+        # SM222 L0: the unit's enablement is the OUTER switch, and it is the
+        # one an operator reaches for. Switching the stats unit off in the
+        # manager used to stop the reading and leave the recording running,
+        # because the reader lives in the manager tree and the recorder lives
+        # here. Off now means no record written.
+        return 1 unless _unit_enabled('plugins/stats.pl');
+
+        # first_party stays, and it is this design's RUNTIME axis: the unit is
+        # offered but is not currently recording. Keeping it means a site that
+        # set it keeps its behaviour, and it is the migration path for the
+        # start/stop half of SM222's contract.
         my $conf = _access_conf();
         return 1 unless $conf->{first_party};
         my @t   = gmtime;

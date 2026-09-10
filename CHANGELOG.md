@@ -44,6 +44,35 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM222 L0 (PENDING) **a unit switched off records nothing.** `plugins:` in
+  `lazysite.conf` was always the registry, and nothing on the render path read
+  it: enablement was consulted at fourteen sites across the manager tree and at
+  zero sites in `lazysite-processor.pl`. So switching the stats unit off stopped
+  the reading and left the recording running, because the reader lives in the
+  manager and the recorder lives in the processor.
+
+  **BEHAVIOUR CHANGE, and it is the requested one.** A site with the stats unit
+  disabled stops accumulating visitor data at upgrade. Nothing already recorded
+  is touched - no lifecycle act deletes data - and `first_party` in `stats.conf`
+  keeps working as the finer control: the unit offered but not currently
+  recording, which is this design's runtime axis arriving before the contract
+  had a name for it.
+
+  The render path is module-free under ADR 0001, so it carries a MARKED COPY of
+  the list scan rather than calling the manager's reader, by the convention that
+  ADR sets for the capability gate. `t/lint/125` pins the copy by running BOTH
+  readers over seven conf shapes and comparing their answers, rather than
+  comparing their source - a textual pin passes when both copies are edited
+  wrongly the same way. `t/unit/processor/72` asserts NO OUTPUT when the unit is
+  off, with its first assertion as the canary that the rig can observe a write
+  at all.
+
+  **The filing's own evidence was wrong and was corrected before this was
+  built**: SM222 said the access log "has no switch at all". It has one -
+  `first_party`, default on, published in the stats plugin's config schema. The
+  defect was never a missing switch; it was that the switch an operator reaches
+  for governed only the half that reads.
+
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 
 **Most of this release is the field's, and the pattern in it is worth naming.**
