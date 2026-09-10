@@ -252,3 +252,43 @@ than left to be rediscovered.
 subprocess mechanism, so until then the 0.01x reads as a win when it is really a
 change of what the gauge measures - which is the safer way round to be wrong,
 and is why this waits for the cut rather than being taken on a loaded host now.
+
+# The baseline, re-captured 2026-09-10 - the ruling honoured a release late
+
+The release manager ruled at the 0.13.10 decision that the bench baseline would
+be re-captured "at the next cut on the bench host". **0.13.10 went out without
+it**, so the gauge spent a release comparing an in-process measurement against a
+subprocess-era figure and reporting 0.01x - a number that reads as a win and is
+really a change of what is being measured.
+
+Done now, on `ai-dev` / perl v5.40.1, which is the same host and interpreter the
+old baseline names, at a load average of 0.09.
+
+**Nothing was laundered, and that was checked before re-capturing rather than
+after.** A blanket re-baseline silently accepts whatever has drifted, so the
+comparison was run first: the only entries beyond parity were FASTER ones. No
+gauge was slower than its old figure.
+
+| | was | now | |
+| --- | --- | --- | --- |
+| `verify_token_ms` | 42.1 | **0.5** | the mechanism change |
+| `verify_password_ms` | 130.1 | **85.8** | same cause - the subprocess left this path too |
+| `verify_token_cli_ms` | (none) | **60.6** | the new gauge gets its first figure |
+| `work_users_tool_statements` | 3289 | **3204** | the tool shed what moved into the module |
+| `render_cache_hit_ms` | 68.4 | 65.9 | within noise |
+| `render_miss_ms` | 91.5 | 89.8 | within noise |
+| `stats_export_ms` | 618.3 | 588.8 | within noise |
+| the four other work counters | | unchanged | |
+
+**A sub-millisecond baseline was checked for noise before being set**, because
+1.25x of 0.5ms is a very small absolute window. Three consecutive runs gave 0.6,
+0.6, 0.6 - the gauge does not move at this resolution, and `verify_password_ms`
+spread about 5% across the same runs, well inside tolerance. The concern was
+unfounded and worth having had.
+
+**And `work_users_tool_statements` now means something different.** Its purpose
+was to catch a per-request cost: the tool was compiled on every credential check,
+so the file's SIZE was the thing to watch. It is not on that path any more. The
+counter stays as a guard on the tool's own growth - re-baselined at 3204, so
+re-adding code to it trips sooner than before - but the thing it stood in for is
+gone, and a future reader should not infer request cost from it.
