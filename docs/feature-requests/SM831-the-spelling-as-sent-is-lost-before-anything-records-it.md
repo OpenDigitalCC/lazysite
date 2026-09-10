@@ -3,7 +3,8 @@ title: "SM831: the spelling as sent is lost before the audit log and the error m
 subtitle: "Sites agent, 1311E-06, 2026-09-10: four paired calls, all four audited as plugin-*, and 'extension' appears nowhere in fifty entries - so the question the deprecation exists to answer cannot be asked"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-10 (fa434f3e). The spelling as sent reaches the audit record as a FLAG beside the canonical action name - a second action name would have split one act across two spellings for every deployed reader - and every refusal echoes the verb the caller typed. The error half is tested behaviourally through subprocess calls; the audit half is asserted from the source, because every plugin-*/extension-* action is cookie-only and the suite has no fixture that mints a manager session."
 ---
 
 # What was measured

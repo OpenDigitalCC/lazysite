@@ -44,7 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM830 partial (PENDING) **a theme's stylesheet is cache-keyed by the theme.**
+## 0.13.12 - EDGE: extensions by name, and the paths that never asked (2026-09-10)
+
+**Most of this release shares one shape: the right answer already existed, and
+one path did not ask for it.** The unit registry was always `plugins:` in
+`lazysite.conf`, and the render path never read it - so a switched-off data
+extension went on serving rows while the manager refused it (SM222 L0). The
+per-file upload gate already resolved the private store; a convenience check in
+front of it did not, so a protected folder could not be found (SM836). The
+original action spelling already existed at the normaliser; nothing carried it
+to the audit record (SM831). The listing already knew each plugin's id; the
+reader would not take it (SM832). And the rename reaches the operator:
+`extensions:` is the registry key, and the nav, the titles, the prose and the
+shipped docs say extension, in one pass (SM817).
+
+**Two of these were found only by measuring.** SM833's reference leak was
+invisible in the code - the happy path had been right since SM511 - and one
+reproduction found the real shape. SM834's narrow-screen fix worked in two of the
+three manager styles and left accessible 54px off the screen, which only
+measuring each style in a real narrow viewport showed.
+
+- SM830 partial (a3fd84f3) **a theme's stylesheet is cache-keyed by the theme.**
   `theme-tokens.css` carried `?v=<engine version>`, which never moves within a
   release - measured in the field: the mirror held the new colour and the page
   served the old one from cache. The key is now a hash of the file's own bytes.
@@ -53,14 +73,14 @@ Naming the commit: AFTER it lands, never before
   nothing changed. The other mirrored assets are linked by layout templates in
   the layouts catalogue and are not closed here.
 
-- SM832 (PENDING) **the listing's `id` is a key the reader accepts.** The field
+- SM832 (a3fd84f3) **the listing's `id` is a key the reader accepts.** The field
   followed the error literally - "call plugin-list for the ids this site has" -
   and was handed back the value just refused. Not by filename: `audit.pl`
   publishes `link-audit` and `log.pl` publishes `logging`, so the filename is a
   guess confirmed against the id the plugin declares. The refusal now names the
   fields to pass. Tested against the real shipped plugins.
 
-- SM834 (PENDING) **the Files trigger stays on a phone screen, in all three
+- SM834 (a3fd84f3) **the Files trigger stays on a phone screen, in all three
   styles.** Measured in Chromium at a true 420px viewport: the trigger went
   from 108px past the table's edge to 0, and desktop is identical column for
   column. Access and Modified may now wrap; the trigger may not. **Measuring
@@ -69,11 +89,7 @@ Naming the commit: AFTER it lands, never before
   it 54px off-screen while the other two fitted. `t/lint/126` pins the order.
   A 360px phone still scrolls inside the table.
 
-- SM808 **closed as superseded - no defect.** It sat as a candidate after the
-  re-measurement closed it, the second stale status found today after SM798's.
-  A sweep for the same class found no others.
-
-- SM836 (PENDING) **an upload into a protected folder could not find it.**
+- SM836 partial (9ec809e5) **an upload into a protected folder could not find it.**
   Reported from the field: `file-upload` to a protected fileshare failed with
   *"Target is not a directory"*, while adding a page to the same folder worked.
   Protecting a section MOVES it into the private store - the deploy says so
@@ -94,7 +110,7 @@ Naming the commit: AFTER it lands, never before
   it, and asserts the bytes land in the private store rather than in a public
   copy beside protected content.
 
-- SM222 L0 (PENDING) **the unit registry gains its second reader, and a legacy
+- SM222 partial (d6416d45, a4c4a68d) **L0: the unit registry gains its second reader, and a legacy
   unit turns out to need a migration before it can be switched off at all.**
 
   `plugins:` in `lazysite.conf` was always the registry, and nothing on the
@@ -131,7 +147,7 @@ Naming the commit: AFTER it lands, never before
   log is not that member**, and the reason is recorded in the filing: it was
   tried, tested and reverted.
 
-- SM222 L0 (PENDING) **a unit switched off does no work inside a render.** The
+- SM222 partial (2804cc51) **L0: a unit switched off does no work inside a render.** The
   data extension is a CONTRACT plugin, so SM409 / ADR 0009 already rule that it
   executes only when listed and defaults to disabled. `Manager/Data.pm` honoured
   that and `resolve_db` did not, so a page bound to a table went on serving rows
@@ -150,7 +166,7 @@ Naming the commit: AFTER it lands, never before
   that the rig can see three rows when the unit IS listed. Verified by disabling
   the gate: exactly the three finding assertions fail and the canary holds.
 
-- SM833 partial (PENDING) **a refused `.count` reached the page as a Perl
+- SM833 partial (43d7e514) **a refused `.count` reached the page as a Perl
   reference.** Every failure path in `resolve_db` returned `[]`, whatever shape
   the binding asked for, so `total: db:products.count()` on a table the visitor
   could not read rendered `ARRAY(0x564e492aa2d8)` - a raw reference, and a heap
@@ -173,7 +189,7 @@ Naming the commit: AFTER it lands, never before
   That makes it a second reader of one grammar rule, so `t/unit/processor/73`
   pins it against `parse_binding` over seven specs rather than against a comment.
 
-- SM831 (PENDING) **the spelling as sent reaches the audit record and the error
+- SM831 (fa434f3e) **the spelling as sent reaches the audit record and the error
   message.** The field measured four paired calls on 0.13.11 and all four
   audited as `plugin-*`, with "extension" absent from fifty entries - so the
   question the deprecation exists to answer, *is anyone still calling the old
@@ -184,7 +200,7 @@ Naming the commit: AFTER it lands, never before
   `plugin-nosuchthing`, sending somebody to grep for a verb that is nowhere in
   their code.
 
-- SM817 (PENDING) **`extensions:` is the registry key, and `plugins:` still
+- SM817 partial (766ff13c) **`extensions:` is the registry key, and `plugins:` still
   opens the same list.** Both readers learned it together - the manager's
   `_enabled_map` and the render path's marked copy - because a rename that
   reached one and not the other would put a unit in one reader's list and out of
@@ -192,7 +208,7 @@ Naming the commit: AFTER it lands, never before
   winning: there is a single registry, spelled two ways. `t/lint/125` covers it
   with three added shapes, and fails six ways if only one reader is renamed.
 
-- SM817 step 3 (PENDING) **the operator-facing surface says extension, in one
+- SM817 partial (54569f3f) **the operator-facing surface says extension, in one
   pass.** Nav labels and the command list (`Extension Manager`, `Extension
   Config`), both page titles, every visible string on those two pages, the
   dormant-capability warning on Groups, the capability labels on Groups and
@@ -218,6 +234,23 @@ Naming the commit: AFTER it lands, never before
   `ai-briefing-practice.md`, which `tools/import-field-practice.pl` GENERATES
   from the field agent's own notes: editing it here would rewrite somebody
   else's words and be overwritten on the next import.
+- SM829 partial (be565159, b5864361, 157deb1e) **the release mistakes are state
+  errors, and two tools now carry the state.** `tools/where.sh` answers the
+  question that precedes any work - branch, dirty, ahead or behind, every other
+  `claude/*` branch ahead of the base, worktree holds, and when the last gate
+  ran - and never writes, so it is safe at any moment including mid-release.
+  `tools/handoff.sh` returns the worktree to the base as part of saying READY,
+  and says NOT READY with the reason when it cannot, because a branch held by a
+  worktree cannot be offered. Its own gate caught `where.sh` unclassified before
+  anyone else did - the second tool found that way by the branch that added it.
+- Docs: SM222's design pass (e6f2bf93) - units classify as endpoint, inline or
+  invoked, OFF means absent from whatever dispatches to the unit, and the verbs
+  are systemd's, `enable`/`disable` for intent and `start`/`stop` for
+  availability. SM830 to SM835 filed from the 1311E results (9fd36be7). SM808
+  closed as superseded with no defect, after sitting as a candidate once the
+  re-measurement had closed it; SM798's status-note brought up to date the same
+  way. A sweep for filings whose body says closed while their status does not
+  found no others.
 
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 

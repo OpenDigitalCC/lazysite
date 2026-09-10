@@ -4,7 +4,8 @@ title: "SM829: the release mistakes are state errors, not knowledge errors"
 subtitle: "Nine slips in one day around the release path, catalogued. Only two came from not knowing a rule; the rest came from not checking the RESULT of a step before taking the next one - and several happened with the rewritten contract open in the same session that wrote it. So the answer is not a better runbook. It is a toolchain that can answer 'where am I, and is it safe to start?' in one command, and that makes the offer atomic with the gate that earns it."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL 2026-09-10. Items 1 and 2 SHIPPED (be565159, b5864361, 157deb1e): tools/where.sh answers the question that precedes any work - branch, dirty, ahead/behind, every other claude/* branch ahead of the base, worktree holds, last-gate age - and reads without ever writing; tools/handoff.sh now returns the worktree to the base as part of saying READY, and reports NOT READY with the reason when it cannot. First live run on a branch carrying it released the branch itself. WHAT REMAINS: items 3 and 4 - a commit helper and a generated-file hook - deliberately not built, awaiting evidence that the chaining they guard against recurs."
 raised: 2026-09-10
 raised-by: release manager
 area: process

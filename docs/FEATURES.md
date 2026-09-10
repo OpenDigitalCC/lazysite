@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.11"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.12"
 brand: plain
 ---
 
@@ -1758,6 +1758,21 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.12** (2026-09-10, EDGE) - **Extensions by name, and the paths that
+  never asked.** The render path reads the unit registry for the first time, so
+  a switched-off data extension stops serving rows on pages rather than only
+  refusing in the manager (SM222 L0) - and the visitor log is recorded as still
+  open, because a legacy unit cannot be switched off until it is migrated and
+  `plugins:` has no way to say "off" for a unit nobody listed. `extensions:` is
+  the registry key, and the operator-facing surface says extension in one pass
+  (SM817). An upload into a protected folder finds it in the private store where
+  protection put it (SM836). The audit record says which action spelling a
+  caller used, so the old one can be retired on evidence (SM831), and the
+  listing's id is a key the reader accepts (SM832). A refused `.count` answers
+  empty instead of a Perl reference (SM833); a theme's stylesheet is cache-keyed
+  by the theme rather than the release (SM830); and the Files trigger stays on a
+  phone screen in all three manager styles, measured rather than assumed
+  (SM834).
 - **0.13.11** (2026-09-10, EDGE) - **The controls the field could not find, and
   the escape that was never there.** A db-bound value now escapes where it
   renders, closing an asymmetry that let whoever could write a row control markup
