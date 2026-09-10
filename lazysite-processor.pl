@@ -5050,6 +5050,38 @@ sub deps_fresh {
     return 1;
 }
 
+# SM833: A FAILED SCALAR BINDING MUST FAIL SCALAR-SHAPED.
+#
+# Every failure path in resolve_db returned [] - including for `.count` and
+# `.field`, which answer a VALUE. A template then rendered `ARRAY(0x563de04b67d8)`
+# onto the page: a Perl reference, and a heap address, reaching a visitor.
+#
+# The field found it the way it will always be found - on a non-public table read
+# anonymously. That refusal is deliberate and is meant to be indistinguishable
+# from an absent table (see Access.pm and the log note below); the SHAPE of the
+# refusal was not part of the design, and it is what leaked.
+#
+# THE EMPTY SCALAR IS '' RATHER THAN 0. A refused read is not "zero rows" - the
+# table may hold thousands this visitor may not count - and 0 would state a
+# number the engine never established, which is the class of lie
+# t/lint/09 and the four-state rule exist to stop. Empty renders as nothing,
+# which is exactly what a list binding's empty list already renders, so both
+# shapes fail alike and neither announces itself to a reader.
+#
+# A PINNED COPY of one rule from Lazysite::Data::Query: the scalar accessors are
+# exactly `count` and `field`, read from the head before `(`. The copy exists
+# because the earliest failure here is the data modules failing to LOAD, so there
+# is no parser to ask. t/unit/processor/73 pins it by running this and the real
+# parser over the same specs.
+sub _db_empty {
+    my ($spec) = @_;
+    my ($head) = split /\(/, ( $spec // '' ), 2;
+    my ( undef, $scalar ) = split /\./, ( $head // '' ), 2;
+    $scalar = defined $scalar ? $scalar : '';
+    $scalar =~ s/^\s+|\s+$//g;
+    return $scalar =~ /\A(?:count|field)\z/ ? '' : [];
+}
+
 # SM447 / DP-2: a page reads a data table.
 #
 #   tt_page_var:
@@ -5093,7 +5125,7 @@ sub resolve_db {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
             'db: page variable needs the data extension, which is switched off',
             key => $key );
-        return [];
+        return _db_empty($spec);
     }
 
     # Modules, lazily - AND THE MODULE TREE HAS TO BE FOUND FIRST.
@@ -5115,7 +5147,7 @@ sub resolve_db {
     unless ($ok) {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
             'db: page variable needs the data modules', key => $key );
-        return [];
+        return _db_empty($spec);
     }
 
     my ($table) = split /[\s(.]/, $spec;
@@ -5209,7 +5241,7 @@ sub resolve_db {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
             'db: page variable could not be read',
             key => $key, table => $table, why => ( $r->{error} // '' ) );
-        return [];
+        return _db_empty($spec);
     }
     # A SCALAR BINDING IS A SCALAR. `.count` and `.field` answer a value, and
     # handing back a one-row list would make a page write [% total.0.n %] to

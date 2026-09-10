@@ -3,7 +3,8 @@ title: "SM833: db count returns a one-element list, and a Perl reference reaches
 subtitle: "Sites agent, 1311E-01, 2026-09-10: [% total %] prints ARRAY(0x564e492aa2d8) onto a public page, where the shipped documentation promises 'a number, not a list'"
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL 2026-09-10: THE REPORTED DEFECT IS CLOSED. Every failure path in resolve_db returned [], whatever shape the binding asked for, so a refused `.count` or `.field` reached the page as a Perl reference and rendered ARRAY(0x...) with a heap address in it. _db_empty now answers in the binding's own shape - '' for a scalar accessor, an empty list for a list binding, so a page's FOREACH is unaffected. The empty scalar is '' rather than 0 because a refused read is not zero rows: the table may hold thousands this visitor may not count, and 0 would state a number the engine never established. THE HAPPY PATH NEEDED NOTHING - resolve_db has answered .count with a value since SM511, and reading the code first pointed the wrong way; reproducing it found the real shape in one run. WHAT REMAINS: the wider guard this filing also proposed, that a value reaching the template layer as a reference is a defect the renderer could catch rather than pass through. That would cover the next member of this class rather than this one, it touches the render engines, and it is not built."
 ---
 
 # The disagreement

@@ -100,6 +100,29 @@ Naming the commit: AFTER it lands, never before
   that the rig can see three rows when the unit IS listed. Verified by disabling
   the gate: exactly the three finding assertions fail and the canary holds.
 
+- SM833 partial (PENDING) **a refused `.count` reached the page as a Perl
+  reference.** Every failure path in `resolve_db` returned `[]`, whatever shape
+  the binding asked for, so `total: db:products.count()` on a table the visitor
+  could not read rendered `ARRAY(0x564e492aa2d8)` - a raw reference, and a heap
+  address, on a public page. Reported from the field against 0.13.11.
+
+  The happy path needed nothing: `resolve_db` has answered `.count` with a value
+  since SM511, which is why reading the code first pointed the wrong way.
+  Reproducing it found the real shape in one run - the refusal was right and its
+  SHAPE was not, and the field's own case is the ordinary one, a non-public
+  table read anonymously.
+
+  A failure now answers in the binding's own shape: `''` for `.count` and
+  `.field`, an empty list for a list binding, so an author's `FOREACH` is
+  untouched. **The empty scalar is `''` rather than `0`** - a refused read is not
+  zero rows, the table may hold thousands this visitor may not count, and `0`
+  would state a number the engine never established.
+
+  `_db_empty` reads the accessor from the spec because the earliest failure it
+  serves is the data modules failing to LOAD, when there is no parser to ask.
+  That makes it a second reader of one grammar rule, so `t/unit/processor/73`
+  pins it against `parse_binding` over seven specs rather than against a comment.
+
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 
 **Most of this release is the field's, and the pattern in it is worth naming.**
