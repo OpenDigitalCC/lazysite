@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-09-10
 raised-by: sites agent
 area: themes
-status-note: "RULED 2026-09-10 and NOT BUILT: the per-page theme override resolves to the theme SOURCE rather than the activation mirror, plus a fallback - an unmirrored theme falls back to the activated one exactly as an unknown name already does. Needs care against SM795 engine-tree exclusion, since a web-reachable theme source is precisely what that exclusion was written about. Until it ships, a site cannot replace a hardcoded stylesheet link with a per-page theme: - SM812 advice to do so is retracted, and the reporting build was told not to."
+status-note: "BUILT 2026-09-10 as option C, which neither of the two originally offered options was: _mirror_layout_themes sweeps every theme a layout carries, calling the existing idempotent per-theme mirror at the three moments the mirror was already written - activation, layout install, package apply. Mirror-on-reference was refused because it puts a file write on a render path an anonymous visitor can trigger; resolving to the theme SOURCE was refused because it makes lazysite/layouts/ web-reachable and SM795 excludes that tree. An earlier attempt at a resolve-time fallback was built and REVERTED the same day because it could not be shown to change anything - that account is kept below. REMAINING: a theme uploaded over WebDAV after the last activation still has no mirror until the next activation, install or apply."
 ---
 
 # What was measured

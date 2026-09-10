@@ -31,8 +31,8 @@ use JSON::PP                   qw(decode_json);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key);
-use Lazysite::Manager::Themes  qw(_mirror_theme_assets _mirror_layout_themes);    # SM193 mirror on apply; SM820 all themes
-use Lazysite::Private          ();    # SM286: what a package cannot carry
+use Lazysite::Manager::Themes qw(_mirror_theme_assets _mirror_layout_themes); # SM193 mirror on apply; SM820 all themes
+use Lazysite::Private         ();                                             # SM286: what a package cannot carry
 use Lazysite::Manager::Backups qw(_claim_name _apply_retention); # SM546: loaded where it is called; SM545: the O_EXCL claim
 use Lazysite::Paths            ();
 use Exporter 'import';

@@ -467,7 +467,7 @@ sub _retention_days {
 }
 
 sub _prune_calls {
-    my $f = _calls_file();
+    my $f      = _calls_file();
     my $cutoff = time - ( _retention_days() * 86400 );
 
     open my $in, '<:raw', $f or do {
@@ -485,17 +485,23 @@ sub _prune_calls {
     # that would delete a record because one byte of it is unreadable. Leave it
     # and let the operator see it.
     unless ( ref $rec eq 'HASH' && defined $rec->{at} ) { close $in; return }
-    if ( ( $rec->{at} + 0 ) >= $cutoff ) { close $in; return }
+    if     ( ( $rec->{at} + 0 ) >= $cutoff )            { close $in; return }
 
-    my @keep;
-    push @keep, $first;
+    # Back to the top: the first line was read to date it, and it is a record
+    # like any other.
     seek $in, 0, 0;
-    @keep = ();
+    my @keep;
     while ( my $l = <$in> ) {
         my $r = eval { JSON::PP->new->decode($l) };
-        # Keep anything unparseable, and anything without a timestamp: this
-        # prunes what it can DATE, and refuses to discard what it cannot.
-        push( @keep, $l ), next unless ref $r eq 'HASH' && defined $r->{at};
+
+        # KEEP WHAT CANNOT BE DATED. An unparseable line, or one with no
+        # timestamp, stays: this prunes what it can date and refuses to discard
+        # what it cannot, because dropping a row over one unreadable byte is
+        # worse than keeping it.
+        if ( ref $r ne 'HASH' || !defined $r->{at} ) {
+            push @keep, $l;
+            next;
+        }
         push @keep, $l if ( $r->{at} + 0 ) >= $cutoff;
     }
     close $in;
