@@ -625,6 +625,37 @@ The registry reader and its lint stand on their own and are built: they are what
 every later member needs, and they were worth having before the first member
 could use them.
 
+### The first member is the data extension, ruled 2026-09-10
+
+The release manager's answer to the choice above: take a contract-declaring unit
+as L0's first member rather than migrate a legacy one. The consequence is that
+L0 lands without touching `install.pl` or any site's conf on upgrade.
+
+**Why the data extension fits where the access log did not.** It declares
+`contract => 1`, so SM409 / ADR 0009 ALREADY rule that it executes only when
+listed and defaults to disabled. There is nothing new to decide about what off
+means for it - the ruling exists and one code path was ignoring it.
+`Manager/Data.pm` consults `plugin_enabled`; `resolve_db` in the render path did
+not, so a page bound to a table served rows out of a unit the operator had
+switched off, while the manager refused the same unit's actions.
+
+**Nothing in the field changes**, which is the property the legacy route could
+not offer. A site using `db:` has the extension enabled already, because the
+Data manager refuses to create a table without it. So the gate closes a gap for
+sites that switched it off and is invisible to sites that did not.
+
+**The refusal is logged.** A page rendering zero rows is indistinguishable from
+a page whose table is empty - which is how the lazy-require bug in that same sub
+reached the field, caught only when somebody proved the source resolved at all.
+The log names the switched-off extension and the page variable, so the empty
+page does not have to explain itself.
+
+**What this does not settle.** The access log stays as it is, and the visitor-log
+half of the release manager's original request is still open: it needs the stats
+migration, which needs the upgrade half, and `plugins:` still cannot express
+"off" for a unit nobody has listed. That is the next decision rather than a
+forgotten one.
+
 ## The verbs are systemd's, deliberately
 
 The operator asked for **start / stop / status**. The analysis found two axes,

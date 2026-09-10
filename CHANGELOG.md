@@ -77,6 +77,28 @@ Naming the commit: AFTER it lands, never before
   default on, published in the stats plugin's config schema. The defect was
   never a missing switch; it was that the switch an operator reaches for governs
   only the half that reads.
+  The registry reader, its lint, and the first member are built. **The access
+  log is not that member**, and the reason is recorded in the filing: it was
+  tried, tested and reverted.
+
+- SM222 L0 (PENDING) **a unit switched off does no work inside a render.** The
+  data extension is a CONTRACT plugin, so SM409 / ADR 0009 already rule that it
+  executes only when listed and defaults to disabled. `Manager/Data.pm` honoured
+  that and `resolve_db` did not, so a page bound to a table went on serving rows
+  out of a unit the operator had switched off. This restores a standing ruling
+  on one code path rather than changing behaviour in the field: a site using
+  `db:` already has the unit enabled, because the Data manager refuses to create
+  a table without it.
+
+  **The refusal is logged, never silent.** A page rendering zero rows is
+  indistinguishable from a page whose table is empty - which is exactly how the
+  lazy-require bug in that same sub survived to reach the field, found only when
+  somebody proved the source resolved at all. The log names the switched-off
+  extension and the page variable.
+
+  `t/unit/processor/72` asserts NO WORK, with its first assertion as the canary
+  that the rig can see three rows when the unit IS listed. Verified by disabling
+  the gate: exactly the three finding assertions fail and the canary holds.
 
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 

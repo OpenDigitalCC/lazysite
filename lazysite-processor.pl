@@ -5075,6 +5075,27 @@ sub deps_fresh {
 sub resolve_db {
     my ( $spec, $key ) = @_;
 
+    # SM222 L0: the data unit is a CONTRACT plugin, so SM409 / ADR 0009 already
+    # rule that it executes only when its script is listed, and that it defaults
+    # to disabled. The manager honours that - Manager/Data.pm consults
+    # plugin_enabled - and this path did not, so a page bound to a table went on
+    # serving rows out of a unit the operator had switched off. This RESTORES the
+    # ruling on the render path rather than changing anybody's behaviour: a site
+    # using db: has the unit enabled already, because the Data manager refuses to
+    # create a table without it.
+    #
+    # LOGGED, NEVER SILENT, and the paragraph below is why. A page that renders
+    # zero rows looks exactly like a page whose table is empty, which is how the
+    # lazy-require bug survived until the field proved the source resolved at
+    # all. A refusal that names the switched-off unit is the whole difference
+    # between a defect and a message.
+    if ( !_unit_enabled('plugins/data.pl') ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db: page variable needs the data extension, which is switched off',
+            key => $key );
+        return [];
+    }
+
     # Modules, lazily - AND THE MODULE TREE HAS TO BE FOUND FIRST.
     #
     # _lazy_lib is not decoration. This code once required the module without
