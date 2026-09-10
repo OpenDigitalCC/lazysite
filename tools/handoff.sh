@@ -71,7 +71,30 @@ if [ "${1:-}" = "--release" ]; then
 fi
 
 if [ "$RC" -eq 0 ]; then
-  say "READY FOR REVIEW: $BRANCH $SHA (tier-review passed$( [ "${1:-}" = "--release" ] && printf ', bench passed' ))"
+  # SM829: RELEASING THE BRANCH IS PART OF SAYING READY, not a step afterwards.
+  #
+  # This printed READY and left the branch checked out, and a human was then
+  # meant to remember two more things: return the worktree to main, and offer the
+  # branch. The gap between them is real enough that the review side defends
+  # against it - "checked out at /srv/projects/lazysite (in use): not offered" -
+  # and it was walked into by the author of the sentence describing the sequence,
+  # in the session that wrote it.
+  #
+  # So a branch that cannot be released is NOT ready: it cannot be offered, and
+  # saying READY about it would be the same class of false report the gate exists
+  # to prevent. Nothing is left to remember.
+  if [ "$BRANCH" != "$BASE" ] && [ -n "$BRANCH" ]; then
+    if git checkout "$BASE" >/dev/null 2>&1; then
+      say "READY FOR REVIEW: $BRANCH $SHA (tier-review passed$( [ "${1:-}" = "--release" ] && printf ', bench passed' ))"
+      say "    the worktree is back on $BASE, so $BRANCH is free to review"
+    else
+      say "NOT READY: $BRANCH $SHA - gates passed, but the worktree could not"
+      say "    return to $BASE, so the branch is still held and cannot be offered"
+      RC=1
+    fi
+  else
+    say "READY FOR REVIEW: $BRANCH $SHA (tier-review passed$( [ "${1:-}" = "--release" ] && printf ', bench passed' ))"
+  fi
 else
   say "NOT READY: $BRANCH $SHA"
 fi

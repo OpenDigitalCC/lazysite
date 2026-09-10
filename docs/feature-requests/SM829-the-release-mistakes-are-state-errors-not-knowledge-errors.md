@@ -107,3 +107,45 @@ check against.
 Asked by the release manager on 2026-09-10: "How to make less mistakes around
 release? is a better runbook required? does the toolchain need to be clearer?"
 The catalogue is from this session's own record.
+
+# BUILT 2026-09-10: items 1 and 2
+
+**`tools/where.sh`** answers the question that precedes any work: current branch
+and SHA, whether the tree is dirty, ahead/behind the base, **every other
+`claude/*` branch ahead of it**, whether worktrees hold branches, and when the
+last gate ran with the warning that it judged whatever was committed *then*. It
+exits non-zero when anything wants attention, so it is usable as a precondition
+and not only as a report.
+
+It reads and never writes, and there is an assertion for that: its whole value is
+being safe to run at any moment, including mid-release. It was in fact written and
+first run while a release build held the machine.
+
+**It found something on its first run.** `claude/0-13-12-the-extensions-batch`
+was still ahead of `main` with two commits already landed under other SHAs -
+exactly the stale-branch state this filing's item 4 is about, sitting there
+unnoticed while I was writing the tool for noticing it. Deleted after checking
+its content was on `main`.
+
+**`tools/handoff.sh` now releases the branch as part of saying READY.** The
+checkout sits inside the success path, and a branch that cannot be released
+reports **NOT READY** with the reason - because a held branch cannot be offered,
+and saying READY about it would be the same class of false report the gate exists
+to prevent. A run from the base branch does not try to check itself out.
+
+`t/tools/63` asserts both. It is a source-reading test rather than a run, because
+a real handoff is the whole suite plus coverage and the property here is about
+what the script does on success, which is legible without paying for that.
+Verified by removing the release from the success path and adding a state-changing
+command to `where.sh`: two assertions fail.
+
+**One thing the test itself got wrong first**, worth recording because it is the
+same shape as the filing: the read-only assertions matched `git checkout -b
+claude/<feature>` inside a `printf` that suggests it to the reader, and matched
+`2>/dev/null` as a file write. They failed a script that was correct. The
+assertion has to know the difference between running a command and printing one,
+and it now checks line by line and only where a command is invoked.
+
+**Items 3 and 4 are not built**, per the recommendation: a commit helper and a
+generated-file hook wait to see whether the chaining recurs now that state is
+legible.
