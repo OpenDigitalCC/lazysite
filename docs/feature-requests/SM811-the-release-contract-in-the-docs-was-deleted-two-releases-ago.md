@@ -4,10 +4,11 @@ title: "SM811: the release contract in the docs was deleted two releases ago"
 subtitle: "CLAUDE.md and rules/release-workflow.md both say the engine agent produces an uncommitted tree and never commits, and both tell the release manager to run ./pre-release.sh. That script was deleted by SM063. SM764 then added tools/handoff.sh, whose FIRST gate fails on an uncommitted tree and whose success line names a branch and a SHA. The written contract and the live gate now require opposite things, and an agent that reads the docs first stops working."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-09
 raised-by: engine agent
 area: process
+status-note: "PART BUILT 2026-09-10: CLAUDE.md now states the branch flow that actually runs - commit on claude/<feature> and never main, handoff.sh until READY, checkout main before offering the branch and SHA - plus a Cutting a release subsection that was written down nowhere. The three stale references went with it, and .release-notes.md / .release-prep.sh are confirmed to exist nowhere and be read by nothing. WHAT REMAINS: what to do with /srv/projects/rules/release-workflow.md. It has exactly ONE consumer (lazysite), pre-release.sh exists in no project, and the directory is NOT a git repository - so it cannot be branched, reviewed or reverted, and it is outside the project working directory. Recommendation: delete it or reduce it to a pointer at CLAUDE.md, because keeping the same contract in two places is what let this drift for two releases. Not edited here; that decision is the release manager's."
 ---
 
 # The finding
@@ -86,3 +87,52 @@ Read from the sources in this tree on 2026-09-09: `CLAUDE.md`,
 `/srv/projects/rules/release-workflow.md`, `tools/handoff.sh`, the absence of
 `pre-release.sh`, and `git log` for the two commits named above. Raised after the
 release manager asked why the rules contradicted the practice.
+
+# PART BUILT 2026-09-10: `CLAUDE.md` now describes the contract that runs
+
+Item 2 is done. `CLAUDE.md`'s Release contract section states the branch flow -
+commit on `claude/<feature>` and never on `main` with the hook that enforces it,
+`tools/handoff.sh` until READY with `--release` for a cut, `git checkout main`
+before offering the branch and SHA, and the rebase consequence for CHANGELOG refs
+that `t/lint/65` catches. A "Cutting a release" subsection records the pre-cut
+pass, the detached build with a sampler, and the post-release record, none of
+which was written down anywhere.
+
+Three stale references went with it: the Workflow note that said Claude does not
+commit at all, the "what done looks like" list asking for `.release-notes.md` and
+`.release-prep.sh`, and the SBOM section telling a reader to defer an entry to a
+`.release-prep.sh` block. **Neither file exists anywhere on disk and nothing in
+`tools/`, `t/`, `githooks/` or any CGI reads them** - so the SBOM entry now goes
+in the same commit as the code needing it, which is where the branch flow puts it.
+
+# Item 3 is answered, and the filing's worry was unfounded
+
+The filing warned that `rules/release-workflow.md` is shared and "originated with
+lazysite", so a rewrite propagates. Checked:
+
+- **lazysite is the ONLY project listing it** under an `**Applies:**` header.
+- **`pre-release.sh` exists in no project on `/srv/projects` at all.**
+- **`tools/handoff.sh` exists only in lazysite.**
+
+So there is nothing to propagate to and no other project to check. One consumer,
+and the workflow it describes runs nowhere.
+
+## Why I have not edited it, which is a recommendation rather than a gap
+
+`/srv/projects/rules/` **is not a git repository.** An edit there cannot be
+offered on a branch, cannot be reviewed the way everything else is, and cannot be
+reverted by git - and it is outside the project working directory. So it is not
+mine to change unilaterally.
+
+**The recommendation is to delete it, or reduce it to a pointer.** It has one
+consumer; that consumer's `CLAUDE.md` now states the contract in full; and
+maintaining the same contract in two places is precisely the duplication that let
+this drift for two releases. A rule doc that says "see the project's CLAUDE.md"
+cannot go stale. If it is kept as a full document instead, it needs the same
+rewrite `CLAUDE.md` just had, and then there are two copies to keep in step
+again.
+
+`rules/README.md` and the other ten rule files were not examined; only the
+release-workflow claim was in scope.
+
+WHAT REMAINS: that decision, and whatever follows from it.
