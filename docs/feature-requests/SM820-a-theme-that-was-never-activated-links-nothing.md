@@ -4,7 +4,7 @@ title: "SM820: a per-page theme that was never activated links stylesheets that 
 subtitle: "1310E-08 step 4. The per-page `theme:` key works, and it resolves to `/lazysite-assets/<layout>/<theme>/`, which is written AT ACTIVATION. A theme present in the tree but never activated has no mirror, so the page links two 404s and renders completely unstyled - measured: background rgba(0,0,0,0), font Times New Roman. This invalidates the advice SM812 sent to a live site, which would have made it worse. An unknown theme name falls back safely; a real but unmirrored one fails silently to nothing."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-09-10
 raised-by: sites agent
 area: themes
@@ -172,3 +172,52 @@ thing this filing's own neighbours were reverted for.
    ruling was made without it because it was not offered.
 3. If the source-resolution route is still wanted, the SM795 exclusion is the
    hard part and deserves its own security review rather than a flag.
+
+# BUILT 2026-09-10 as option C: every theme a layout carries is mirrored
+
+The release manager took the third option after it was raised - the one neither
+of us had on the list when the first ruling was made - and it is the right one.
+
+`_mirror_layout_themes($layout)` enumerates `layouts/<layout>/themes/*` and calls
+the existing per-theme `_mirror_theme_assets` for each. It runs at the three
+moments the mirror was already written: theme activation, layout install, and
+site-package apply. The single-theme call stays at activation because its return
+value is the acknowledgement the caller reports; the sweep follows it and is
+idempotent, so re-mirroring the active theme costs nothing.
+
+**Why this beats both of the original options**, stated because the reasoning is
+the reusable part:
+
+- **Mirror on reference** puts a file write on the render path, and a render can
+  be triggered by an anonymous visitor. A side effect like that becomes a
+  security question a year later.
+- **Resolve to the theme source** would make `lazysite/layouts/` web-reachable,
+  and that tree is excluded from the canonical serve by [[SM795]] - the filing
+  where a symlink into `lazysite/` served the session secret as an image. It
+  needs a carve-out in that exclusion, which deserves its own review rather than
+  a flag.
+- **This** touches neither the render path nor the security boundary. It is the
+  same idempotent function, called for more themes, where it is already called.
+
+And it is testable where the work happens. `t/unit/manager/165` calls the sweep
+directly and asserts a backup theme that has never been activated has a mirror -
+which is the whole filing in one assertion. Verified the other way: neuter the
+loop and 6 of 11 assertions fail. **That choice of test site was learned the hard
+way earlier the same day**, when a render-based test for the reverted fallback
+passed whether the fix was present or absent.
+
+## What this does NOT close
+
+**A theme uploaded over WebDAV after the last activation still has no mirror**
+until the next activation, install or apply. That is a smaller gap than the one
+closed here and it is stated rather than papered over: the sweep runs at three
+moments, and a bare file upload is not one of them. Closing it means either
+mirroring on upload - a fourth call site, cheap - or accepting that a newly
+uploaded theme needs one activation before a per-page pin can reach it.
+
+## The site that was waiting
+
+`sovereigncomputing.org` can now replace its hardcoded stylesheet link with
+`theme_assets` plus a per-page `theme:` **once this ships** - which is what
+[[SM812]]'s retracted advice was reaching for and could not have delivered. The
+sites agent has been told not to touch it until then.

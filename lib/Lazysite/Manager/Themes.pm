@@ -36,7 +36,7 @@ our @EXPORT_OK = qw(
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
-    _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for _mirror_theme_assets _mirror_warning
+    _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for _mirror_theme_assets _mirror_warning _mirror_layout_themes
     _read_json_file
 );
 
@@ -574,6 +574,10 @@ sub action_theme_activate {
             # site will render unstyled, and the acknowledgement is the only
             # place a caller will see it.
             $mirror = _mirror_theme_assets( $active_layout, $theme_name );
+            # SM820: and every OTHER theme this layout carries, so a per-page
+            # `theme:` naming one that has never been activated has a mirror to
+            # point at. Idempotent, so re-mirroring the one above costs nothing.
+            _mirror_layout_themes($active_layout);
             # SM203: warn (never reject) when the just-activated theme does not
             # match the layout's declared token vocabulary. The layout.json
             # `tokens` block is OPTIONAL; the check is skipped entirely when it
@@ -934,6 +938,51 @@ sub _mirror_warning {
         . $tail;
 }
 
+# SM820: MIRROR EVERY THEME THE LAYOUT CARRIES, not only the activated one.
+#
+# A per-page `theme:` (SM120) resolves through `theme_assets` to
+# /lazysite-assets/<layout>/<theme>/, and that mirror is written only when a
+# theme is ACTIVATED, a layout is installed, or a package is applied. So a theme
+# that is present, compatible and has simply never been the active one has no
+# mirror, and a page pinning it links stylesheets that 404: measured on edge as a
+# page with background rgba(0,0,0,0) in Times New Roman. Not degraded, unstyled.
+#
+# The asymmetry is what made it a defect rather than a limitation: a MISSPELT
+# theme name already fell back safely - resolve_theme returns nothing and the
+# processor uses the layout's default mirror - while a correct-but-unmirrored name
+# failed silently to no styling. The safer outcome was going to the more obviously
+# wrong input.
+#
+# WHY THIS RATHER THAN THE TWO OBVIOUS FIXES. Mirroring on REFERENCE puts a file
+# write on the render path, and the render can be triggered by an anonymous
+# visitor - a side effect that becomes a security question later. Resolving
+# `theme_assets` to the theme SOURCE instead would make lazysite/layouts/
+# web-reachable, and that tree is excluded from the canonical serve by SM795,
+# where a symlink into lazysite/ served the session secret as an image. Mirroring
+# every theme touches neither the render path nor that boundary: it is the same
+# idempotent per-theme function, called for more themes, at the moments it is
+# already called.
+#
+# NOT COMPLETE, and worth saying: a theme uploaded over WebDAV after the last
+# activation still has no mirror until the next activation, install or apply.
+# That is a smaller gap than the one this closes and it is the honest state.
+sub _mirror_layout_themes {
+    my ($layout) = @_;
+    return { themes => 0, mirrored => 0 } unless defined $layout && length $layout;
+
+    my $dir = "$LAZYSITE_DIR/layouts/$layout/themes";
+    opendir my $dh, $dir
+        or return { themes => 0, mirrored => 0, reason => 'no themes directory' };
+    my @themes = sort grep { /^[A-Za-z0-9_-]+\z/ && -d "$dir/$_" } readdir $dh;
+    closedir $dh;
+
+    my %results;
+    $results{$_} = _mirror_theme_assets( $layout, $_ ) for @themes;
+    my $done = grep { ( $results{$_}{mirrored} // 0 ) > 0 } keys %results;
+
+    return { themes => scalar @themes, mirrored => $done, results => \%results };
+}
+
 sub _mirror_theme_assets {
     my ( $layout, $theme ) = @_;
     return { mirrored => 0, reason => 'no layout or theme named' }
@@ -1290,8 +1339,10 @@ sub action_layout_activate {
         }
         my $res = _set_layout_pointer( $layout_name,
             ( $theme_specified && length $theme ) ? $theme : undef );
-        _mirror_theme_assets( $layout_name, ( length $theme ? $theme : $cur_theme ) )
-            if $res->{ok};
+        if ( $res->{ok} ) {
+            _mirror_theme_assets( $layout_name, ( length $theme ? $theme : $cur_theme ) );
+            _mirror_layout_themes($layout_name);    # SM820
+        }
 
         # SM337: say what was bound, not merely that something was.
         if ( $res->{ok} ) {
