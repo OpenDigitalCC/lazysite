@@ -81,7 +81,16 @@ like( $D, qr/data-table-acl-remove/,
 # SM687: the same CONTROL, not one that resembles it. An operator who has
 # learned the Files expander has learned this one, and a second implementation
 # would be a second thing to keep in step.
-like( $D, qr/class="mg-chev"/,   'the Data listing expands from the same chevron' );
+# SM816 gave the trigger a visible word via .mg-chev-label, so the class list is
+# no longer a single name and a literal match here broke. The fix is to assert
+# the property SM687 is actually about - that Data and Files use the SAME
+# control - by comparing what each page puts on its trigger, which is stronger
+# than the literal was and survives the next class the idiom gains.
+my ($d_trigger) = $D =~ /class="(mg-chev[^"]*)"/;
+my ($f_trigger) = $F =~ /class="(mg-chev[^"]*)"/;
+ok( $d_trigger, 'the Data listing expands from a chevron' );
+is( $d_trigger, $f_trigger,
+    'and it is the SAME control Files uses, class for class' );
 # SM-DS1 collapsed mg-perms-row and mg-perms-card into the one expander. The
 # property is unchanged: the Data page uses the SAME control the Files page
 # does, whatever that control is currently called.
