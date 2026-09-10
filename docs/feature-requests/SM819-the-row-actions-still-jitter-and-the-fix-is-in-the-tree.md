@@ -173,3 +173,33 @@ that could only see one of the two states it was asked to distinguish.** The sam
 blind spot produced their nav-marking finding - a selector matching anchors only -
 so one instrument defect produced two false findings, and neither was a defect in
 the engine.
+# CORRECTION 2026-09-10: "inert" was wrong, and the truth inverts the causation
+
+This filing said SM807's `margin-left: auto` was "present, being served, and
+**inert**". The first two are right; the third is not, and the sites agent
+measured the difference.
+
+**The margin was succeeding against the wrong containing block.** The actions
+cell wraps into column 1, and column 1 - `minmax(0, 1fr)` - is wider than the
+actions cell, so there IS free space there. The auto margin absorbs it and
+right-aligns the cell to *that column's* right edge, which moves as the metadata
+column's width moves. Three connectors differing only in URL length gave three
+exact hits against the arithmetic.
+
+**Had it been inert the cell would have sat at column 1's LEFT edge - the same x
+on every row, and accidentally aligned.** So the jitter exists *because* the
+margin works, which is the opposite of what this filing said. The fix is
+unaffected; the explanation matters because "inert" would send the next reader
+looking for a margin that does nothing, when what they need to see is a margin
+doing exactly its job in the wrong box.
+
+The reporter also corrected their own filing, which had called column 1
+content-sized when it is `minmax(0, 1fr)`.
+
+**And the asset was current** - both sheets served under `/manager/assets/` at
+`?v=0.13.10` carried the rule. So SM819 and [[SM820]] were never one question,
+which is worth having settled by measurement rather than by my having withdrawn
+the guess.
+
+The three-column fix is not on edge yet, so **the visual check is pending rather
+than skipped** - it lands with the next build.
