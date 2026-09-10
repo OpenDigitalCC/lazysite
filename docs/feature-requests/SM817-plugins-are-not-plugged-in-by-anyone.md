@@ -4,10 +4,11 @@ title: "SM817: plugins are not plugged in by anyone, and every better word is al
 subtitle: "The release manager is right that `plugin` misdescribes what these are - they ship with the engine and the operator act is switching, not installing. This filing first recommended keeping the word and was WRONG: the core renderer provably requires no plugin, so `extension` names the real relationship, and the file-suffix collision is spelled `ext` in code and largely absent from the identifier namespace. Recommendation: rename to extensions, alias the seven plugin-* actions born deprecated, and keep `plugin` in reserve for the day something genuinely is pluggable."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-10
 raised-by: release manager
 area: vocabulary
+status-note: "PARTIAL. STEP 1 SHIPPED 2026-09-10: the wire takes `extension-*` and `plugin-*` alike, normalised at the single point the action is read and before the capability gate, so the two spellings cannot drift - only one exists below that line. The old spelling logs an INFO naming the new one, INFO rather than WARN because a warning on every call trains an operator to ignore the log before the removal it warns about arrives. Our own thirteen call sites moved in the same change; the generated action table explains the split. WHAT REMAINS: the plugins/ directory and conf key, the capability names, the operator-facing surface in ONE pass (a half-renamed vocabulary is worse than either name), SM222 L0, and the constrained-enablement mechanism SM798 and the audit trail both need. Scheduled as one release with SM222, staying in the 0.13 series."
 ---
 
 # The observation is correct

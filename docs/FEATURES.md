@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.10"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.11"
 brand: plain
 ---
 
@@ -1758,6 +1758,22 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.13.11** (2026-09-10, EDGE) - **The controls the field could not find, and
+  the escape that was never there.** A db-bound value now escapes where it
+  renders, closing an asymmetry that let whoever could write a row control markup
+  on every page displaying that table - and a template that was already careful
+  is told so rather than left showing `&#39;` (SM786). A per-page `theme:` naming
+  a theme that had never been activated linked stylesheets that were never
+  written and rendered the page unstyled; every theme a layout carries is
+  mirrored now (SM820). A listing row is three columns, so an action group stops
+  tracking the width of the text beside it (SM819), and the way into a row
+  carries a name, a chevron rather than a plus, and a visible word - after an
+  operator reported that a connector could not be deleted when the only route to
+  Delete was an unlabelled glyph (SM816). The connector call record is bounded by
+  age and says so, and never prunes on delete (SM822). `CLAUDE.md` describes the
+  release contract that actually runs rather than one whose entry point was
+  deleted two releases ago (SM811). And `extension-*` becomes the name for what
+  were called plugins, with `plugin-*` kept and deprecated on the wire (SM817).
 - **0.13.10** (2026-09-09, EDGE) - **A credential check stops compiling the
   users tool, and a refusal stops naming the account.** Every authenticated
   request had been spawning an interpreter to compile a three-thousand-line

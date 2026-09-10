@@ -44,6 +44,90 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
+
+**Most of this release is the field's, and the pattern in it is worth naming.**
+Four of the six items are things that existed and could not be found, or looked
+like they worked and did not: a Delete reachable only through an unlabelled
+glyph, a theme that resolved happily and linked stylesheets that were never
+written, a call record with no retention policy anybody could see, and a release
+contract in the documents that had not been true for two releases. The fifth is
+a security fix - db values reached the page unescaped where front-matter scalars
+in the same stash were escaped - and the sixth begins renaming plugins to
+extensions.
+
+- SM786 (3131b111) **a db value is escaped where it renders, and a careful
+  template is told so.** Values bound with `db:` reached the page stash raw while
+  front-matter scalars in the SAME stash were escaped - an asymmetry, not a
+  policy - so whoever could write a row controlled markup, and therefore script,
+  on every page displaying that table. Escaped now at the sink every value passes
+  through. **A template that already carried `| html` escapes twice and shows
+  `&#39;`**, so the log names the table, the column and the remedy rather than
+  leaving it to be found by eye; detection is on the value coming in and can be a
+  false positive, which is why it reports and does not change what it does. The
+  `db_render_raw` override exists for a site mid-migration, logs its own
+  deprecation on every page that uses it, and ships set for nothing - a survey of
+  fourteen sites and around 1,100 files found no column carrying authored HTML.
+- SM820 (aae641ba) **every theme a layout carries is mirrored, not only the
+  activated one.** A per-page `theme:` resolves through an asset mirror written
+  at activation, so a theme that was present, compatible and had simply never
+  been activated linked stylesheets that did not exist - the page rendered
+  completely unstyled, measured in the field as `rgba(0,0,0,0)` and Times New
+  Roman. A MISSPELT theme name already fell back safely, so the safer outcome was
+  going to the more obviously wrong input.
+- SM819 (768ea9e3) **a listing row is three columns, so the actions stop moving.**
+  With two columns declared and three cells supplied, the third did not fall into
+  an implicit column - it wrapped to an implicit ROW and was right-aligned inside
+  a column whose width was whatever the metadata left over, so the action group
+  tracked the length of the URL beside it across 297px. `margin-left: auto` was
+  present and working; it was resolving against the wrong containing block, which
+  is why the field's computed `0` looked like an absent rule.
+- SM816 (52e862ed, 89226712, 1b840e0e) **the way into a row says what it is.** An
+  operator reported that a connector could not be deleted. It could: Save and
+  Delete were in the row's expander, and the only route to them was an empty
+  anchor with no text, no `aria-label` and no title, rendering as a `+` beside a
+  New connector button. It now carries a name, a chevron rather than a plus, and
+  a visible word - and the word is per-list, because three of the four lists
+  already said something in a title and a fixed "Configure" would have relabelled
+  them to say what they do not do. The style guide's own exemplars showed the
+  nameless form, which is where the page inherited it.
+- SM822 (f7756914) **the connector call record is bounded by age, and says so.**
+  Nothing pruned it: 47 entries survived on edge from connectors deleted days
+  earlier. It prunes by age and never on delete - pruning on delete would make the
+  record erasable by the act it exists to record - keeps what it cannot date, and
+  the panel says how long calls are kept, including calls from connectors that
+  have since been deleted.
+- SM811 partial (8c868231, 3997021e) **the release contract in `CLAUDE.md`
+  describes the one that runs.** It described an uncommitted-tree contract and
+  told the reader to run `./pre-release.sh`, which SM063 deleted, while SM764's
+  `tools/handoff.sh` fails on an uncommitted tree and reports a branch and a SHA.
+  Two rules with opposite requirements, and the prose one is in the file an agent
+  reads first. Also recorded: that file is itself untracked, which is much of how
+  it drifted for two releases unnoticed.
+- SM817 partial (03149930) **`extension-*` is the name; `plugin-*` is the old
+  one.** The fourteen bundled units are not plugged in by anybody - they ship in
+  the package and the operator switches one off rather than installing one - and
+  the core renderer requires nothing from them, so they extend it. The wire takes
+  both spellings, normalised at the single point the action is read so the two
+  cannot drift, and the old one logs that it is deprecated. Only the wire has
+  moved: the directory, the config key and the operator-facing surface follow in
+  one pass.
+- **The bench baseline** (3024b757) re-captured on the bench host. `verify_token_ms`
+  had spent a release comparing an in-process measurement against a
+  subprocess-era figure and reporting 0.01x - a number that reads as a win and is
+  really a change of what is measured. Checked before re-capturing rather than
+  after: every entry beyond parity was a faster one, so nothing was laundered.
+  `work_users_tool_statements` keeps its value and loses its meaning - it existed
+  to catch a per-request cost that no longer exists, and stays only as a guard on
+  the tool's own growth.
+- Docs: SM818 recorded as superseded by SM222, whose truly-off design gained an
+  L0 - the work itself - because its three layers are all about an endpoint and
+  several embedded units have none. SM823 (an ingestion plugin with pluggable
+  sources), SM824 (schema.org JSON-LD) and SM825 (markdown alternates) filed and
+  accepted; SM826 (OKF export) held until the format has consumers; SM827 and
+  SM828 written as briefs on packaging the build method as an Agent Skill, held
+  for feedback. The decision register is empty.
+
 ## 0.13.10 - EDGE: a credential check stops compiling the tool, and a refusal stops naming the account (2026-09-09)
 
 **A performance fix that turned out to be an architecture fix, and the residue
