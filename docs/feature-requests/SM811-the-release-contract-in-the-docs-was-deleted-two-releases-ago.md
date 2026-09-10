@@ -136,3 +136,27 @@ again.
 release-workflow claim was in scope.
 
 WHAT REMAINS: that decision, and whatever follows from it.
+
+# AND `CLAUDE.md` IS ITSELF UNTRACKED, which is the finding under the finding
+
+`/CLAUDE.md` is in `.gitignore` (line 53) and is not tracked. So **the document
+that stopped work twice in one session has no history, no review, and no way to
+see when it drifted** - which is a large part of the answer to "how did this go
+two releases without being noticed". A tracked file's contradiction with
+`handoff.sh` would have shown up in a diff the day SM764 landed.
+
+It also means the rewrite above is a **live, unversioned edit**: it takes effect
+for the next session immediately and cannot be offered on a branch. That is
+exactly the objection raised against editing `rules/release-workflow.md`, and it
+applies here too - the difference being that this file is inside the project and
+is the one an agent reads first, so leaving it wrong had a cost every session.
+
+Recovery copies are in `tmp/sm811/`: the four replaced passages verbatim as
+`CLAUDE.md.release-contract.BEFORE`, and the new file as `CLAUDE.md.AFTER`. The
+change is revertible from those, by hand, because git cannot do it.
+
+**So there is a third question, and it is the one worth answering first:
+should `CLAUDE.md` be tracked?** Arguments for are the two above - history and
+review for the file that governs every session. The argument against is presumably
+that it carries host-specific or private detail, which is checkable and was not
+checked here.
