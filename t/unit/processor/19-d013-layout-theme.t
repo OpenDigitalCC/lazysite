@@ -184,6 +184,46 @@ subtest 'theme tokens link the mirrored file when it exists' => sub {
     unlink "$mirror/theme-tokens.css";
 };
 
+# --- 7c. SM830: the tokens cache key is the THEME's, not the engine's ---------
+# Measured in the field on 0.13.11: the mirrored file was regenerated with the new
+# colour and the page kept serving the old one, because `?v=` carried the engine
+# version and so never moved within a release. The key is now a hash of the
+# file's own bytes.
+subtest 'the tokens link is cache-keyed by the file, not the release' => sub {
+    write_conf("site_name: Test\nlayout: default\ntheme: odcc\n");
+    my $mirror = "$docroot/lazysite-assets/default/odcc";
+    make_path($mirror);
+
+    my $key_for = sub {
+        my ($css) = @_;
+        open my $tf, '>', "$mirror/theme-tokens.css" or die $!;
+        print {$tf} $css;
+        close $tf;
+        clear_cache();
+        my $out = run_processor( $docroot, '/' );
+        my ($v) = $out =~ m{/theme-tokens\.css\?v=([^"]+)"};
+        return $v;
+    };
+
+    # THE CANARY: the rig can see a key at all, or "the key changed" below would
+    # compare two undefs and prove nothing.
+    my $k1 = $key_for->(":root { --theme-colours-primary: #332b82; }\n");
+    ok( defined $k1, 'the link carries a cache key' );
+    like( $k1 // '', qr/\A[0-9a-f]{12}\z/,
+        '...and it is a content hash, not a release number' );
+
+    # THE FINDING: a changed theme is a changed URL.
+    my $k2 = $key_for->(":root { --theme-colours-primary: #101820; }\n");
+    isnt( $k2, $k1, 'editing the theme colours changes the key, so browsers refetch' );
+
+    # AND ONLY A CHANGE MOVES IT. Activation rewrites the mirror; an mtime key
+    # would expire every visitor's cache each time even with identical bytes.
+    my $k3 = $key_for->(":root { --theme-colours-primary: #101820; }\n");
+    is( $k3, $k2, 'rewriting identical bytes leaves the key alone' );
+
+    unlink "$mirror/theme-tokens.css";
+};
+
 # --- 8. Incompatible theme: no theme_css, still renders layout ---
 subtest 'incompatible theme renders layout without theme_css' => sub {
     write_conf("site_name: Test\nlayout: default\ntheme: foreign\n");

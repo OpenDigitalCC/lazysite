@@ -4,7 +4,8 @@ title: "SM808: the deployed manager layout is older than the engine that serves 
 subtitle: "139E-06 found a low-privilege account seeing five nav items ABSENT rather than marked - which is precisely the pre-SM775 behaviour. The template in the tree renders 16 items with 5 locked for that capability set, so the engine is right and the copy on edge is not. What cannot be answered from here is why."
 brand: plain
 standard-margins: true
-status: candidate
+status: superseded
+status-note: "CLOSED 2026-09-10 - NO DEFECT, and superseded by SM775 and SM807, whose design this filing reported as missing. Its diagnosis (a stale deployed layout) was wrong on 2026-09-09, and the re-measurement on 2026-09-10 counted spans as well as anchors: seven span.mg-nav-locked on a one-capability account, exactly what the template predicts. The selector had counted anchors only. Nothing to build. It sat as a candidate after closing, inflating the backlog by one - found in the 0.13.12 housekeeping pass."
 ---
 
 # The evidence, and why it points at the deployment

@@ -3,7 +3,8 @@ title: "SM834: the Files trigger goes past the viewport edge below about 465px"
 subtitle: "Sites agent, 1311E-04, 2026-09-10: 33 of 33 rows clipped at 420px, on the one list of four whose table carries a fixed content width - and nothing breaks at the 1000px breakpoint that was expected to"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-10, MEASURED rather than assumed: Chromium, the real row markup and the real stylesheets, the fixture in an iframe so media queries evaluate at a true narrow viewport. At 420px the trigger went from 108px past the wrapper's edge to 0 in all three styles, and every column at 1000px is identical to before - a table cell only wraps when the table cannot fit. The pin was nowrap on Access, Modified AND the trigger; the trigger keeps it. MEASURING EACH STYLE FOUND A TRAP: accessible declares its own generous cell padding later in the file and won by source order, leaving it 54px off-screen while the other two fitted; its override narrows the sides only, keeping its 14px target height. t/lint/126 pins that order. At 360px all three still need a horizontal scroll INSIDE the table (never the page); the reported width is fixed, the smallest phones are not."
 ---
 
 # What was measured

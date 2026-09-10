@@ -542,7 +542,20 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
 .mg-table th.mg-sortable:hover { color: var(--mg-text); }
 .mg-sort-ind { color: var(--mg-accent-deep); font-size: 0.8em; }
 .mg-col-check { width: 36px; text-align: center; }
-.mg-col-access, .mg-col-mod, .mg-col-exp { white-space: nowrap; text-align: right; }
+/* SM834: Access and Modified MAY WRAP; the trigger may not. In an auto-layout
+   table a cell only wraps when the table cannot fit, so every width at which
+   the Files table used to fit renders exactly as before - measured identical,
+   column for column, at 1000px. What changes is the narrow case: nowrap on all
+   three pinned the table's minimum at ~477px, and below that the trigger - the
+   last column - was the thing that left the screen. The trigger stays nowrap
+   because it is a control, and SM816 ruled its word stays visible. */
+.mg-col-access, .mg-col-mod, .mg-col-exp { text-align: right; }
+.mg-col-exp { white-space: nowrap; }
+@media (max-width: 720px) {
+  /* Tighter cells on a phone. Measured at a true 420px viewport: the trigger
+     went from 108px past the wrapper's edge to 0. */
+  .mg-table th, .mg-table td { padding-left: 6px; padding-right: 6px; }
+}
 .mg-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 8px 2px; font-size: var(--mg-text-sm); }
 .mg-pager:empty { display: none; }
 .mg-pager-info { color: var(--mg-text-muted); }

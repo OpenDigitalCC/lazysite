@@ -14,7 +14,7 @@ use Encode qw(decode);
 # Socket + URI moved to Lazysite::Fetch (SM096): they backed only the SSRF guard,
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
 use JSON::PP     qw(encode_json decode_json);
-use Digest::SHA  qw(hmac_sha256_hex sha256);
+use Digest::SHA  qw(hmac_sha256_hex sha256 sha256_hex);
 use MIME::Base64 qw(encode_base64);             # SM352: CSP script hashes
 use POSIX        qw(strftime);
 use Fcntl        qw(O_WRONLY O_APPEND O_CREAT LOCK_EX LOCK_NB LOCK_UN);
@@ -7231,7 +7231,7 @@ sub resolve_layout_vars {
                 = -f $tokens
                 ? '<link rel="stylesheet" href="'
                 . $vars->{theme_assets}
-                . '/theme-tokens.css?v=' . _lazysite_version() . '">'
+                . '/theme-tokens.css?v=' . _asset_fingerprint($tokens) . '">'
                 : generate_theme_css( $info->{theme_data} );
         }
         else {
@@ -7558,6 +7558,34 @@ sub _manager_style {
         close $fh;
     }
     return $SHIPPED{$want} ? $want : 'classic';
+}
+
+# SM830: A THEME IS AUTHORED ON ITS OWN CLOCK, so its cache key has to be its own.
+#
+# The tokens link carried `?v=<engine version>`. That is exactly the right key
+# for a stylesheet the ENGINE ships, because the engine version is what changes
+# it - and exactly the wrong one for a theme, which changes whenever somebody
+# edits theme.json. Within one release the query string never moved, so a
+# browser that had the URL had no reason to ask again. Measured in the field on
+# 0.13.11: the mirrored file was regenerated correctly with the new colour, and
+# the page went on serving the old one from cache.
+#
+# A CONTENT HASH, NOT AN MTIME. Activation rewrites the mirror, and an mtime key
+# would expire every visitor's cache on every activation even when nothing in
+# the file changed. The hash moves when, and only when, the bytes do - which is
+# the property `?v=` exists to carry. The file is a few hundred bytes of custom
+# properties and is read only on a render, never on a cache hit.
+#
+# If it cannot be read the engine version is the answer, which is no worse than
+# before: a cache key must never be the thing that breaks a stylesheet link.
+sub _asset_fingerprint {
+    my ($path) = @_;
+    open my $fh, '<:raw', $path or return _lazysite_version();
+    local $/;
+    my $bytes = <$fh>;
+    close $fh;
+    return _lazysite_version() unless defined $bytes;
+    return substr( sha256_hex($bytes), 0, 12 );
 }
 
 sub _lazysite_version {

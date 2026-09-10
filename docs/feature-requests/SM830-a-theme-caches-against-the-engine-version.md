@@ -3,7 +3,8 @@ title: "SM830: a theme's assets cache against the engine version, not the theme'
 subtitle: "Sites agent, 1311E-02, 2026-09-10: the mirrored file was regenerated correctly and the page went on serving the old colours, because the only fingerprint in the URL is the release number"
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL 2026-09-10: THE TOKENS LINK IS FIXED. theme-tokens.css now carries ?v=<first 12 hex of the file's own sha256> instead of the engine version, so a changed theme is a changed URL and browsers refetch. A CONTENT hash rather than an mtime: activation rewrites the mirror, and an mtime key would expire every visitor's cache on every activation even with identical bytes. If the file cannot be read the engine version is the answer, so a cache key can never be what breaks a stylesheet link. Tested in t/unit/processor/19 including that identical bytes leave the key alone. WHAT REMAINS: the other assets a mirror writes (main.css and friends) are linked by LAYOUT templates, which live in the lazysite-layouts catalogue rather than this tree and choose their own ?v=. Closing those needs the engine to expose this fingerprint as a template variable and the catalogue to use it."
 ---
 
 # The measurement

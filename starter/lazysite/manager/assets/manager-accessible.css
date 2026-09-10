@@ -542,7 +542,20 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
 .mg-table th.mg-sortable:hover { color: var(--mg-text); }
 .mg-sort-ind { color: var(--mg-accent-deep); font-size: 0.8em; }
 .mg-col-check { width: 36px; text-align: center; }
-.mg-col-access, .mg-col-mod, .mg-col-exp { white-space: nowrap; text-align: right; }
+/* SM834: Access and Modified MAY WRAP; the trigger may not. In an auto-layout
+   table a cell only wraps when the table cannot fit, so every width at which
+   the Files table used to fit renders exactly as before - measured identical,
+   column for column, at 1000px. What changes is the narrow case: nowrap on all
+   three pinned the table's minimum at ~477px, and below that the trigger - the
+   last column - was the thing that left the screen. The trigger stays nowrap
+   because it is a control, and SM816 ruled its word stays visible. */
+.mg-col-access, .mg-col-mod, .mg-col-exp { text-align: right; }
+.mg-col-exp { white-space: nowrap; }
+@media (max-width: 720px) {
+  /* Tighter cells on a phone. Measured at a true 420px viewport: the trigger
+     went from 108px past the wrapper's edge to 0. */
+  .mg-table th, .mg-table td { padding-left: 6px; padding-right: 6px; }
+}
 .mg-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 8px 2px; font-size: var(--mg-text-sm); }
 .mg-pager:empty { display: none; }
 .mg-pager-info { color: var(--mg-text-muted); }
@@ -1471,6 +1484,15 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-row, .mg-acc-line { min-height: 52px; }
 
 .mg-table th, .mg-table td { padding: 14px 12px; font-size: 16px; }
+/* SM834: this style's generous cells come AFTER the shared narrow rule, so they
+   won by source order and the Files trigger still sat 54px off a 420px screen
+   here while the other two styles fitted - found only because each stylesheet
+   was measured on its own. Only the HORIZONTAL padding narrows on a phone: the
+   14px vertical padding is this style's target size, and that is the point of
+   it, so it is left exactly as it is. */
+@media (max-width: 720px) {
+  .mg-table th, .mg-table td { padding-left: 6px; padding-right: 6px; }
+}
 
 .mg-table th { border-bottom-width: 2px; color: var(--mg-text); }
 

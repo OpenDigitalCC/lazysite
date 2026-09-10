@@ -3,7 +3,8 @@ title: "SM832: plugin-list's id is not the key plugin-read accepts, and the erro
 subtitle: "Sites agent, 1311E-06, 2026-09-10: the rejection says 'call plugin-list for the ids this site has', and plugin-list's id field is precisely the value it just rejected"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-10. The listing's `id` is a key the reader accepts. NOT BY FILENAME: twelve of fourteen plugins publish their stem as their id, but audit.pl publishes link-audit and log.pl publishes logging, so plugins/<id>.pl is only a guess and is confirmed against the id the plugin itself declares before it is used; an unconfirmed guess falls through to asking every plugin. A filename stem that is nobody's id is refused rather than accepted by accident. The refusal now names the fields to pass - `id` or `_script` - instead of pointing back at the listing. Tested against the REAL shipped plugins in t/unit/manager/170, including both that break the filename rule. The wider sweep the filing suggested - other listing/reader pairs with the same mismatch - was not performed."
 ---
 
 # The loop

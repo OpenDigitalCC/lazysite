@@ -44,6 +44,35 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM830 partial (PENDING) **a theme's stylesheet is cache-keyed by the theme.**
+  `theme-tokens.css` carried `?v=<engine version>`, which never moves within a
+  release - measured in the field: the mirror held the new colour and the page
+  served the old one from cache. The key is now a hash of the file's own bytes.
+  A content hash rather than an mtime, because activation rewrites the mirror
+  and an mtime key would expire every visitor's cache each time even when
+  nothing changed. The other mirrored assets are linked by layout templates in
+  the layouts catalogue and are not closed here.
+
+- SM832 (PENDING) **the listing's `id` is a key the reader accepts.** The field
+  followed the error literally - "call plugin-list for the ids this site has" -
+  and was handed back the value just refused. Not by filename: `audit.pl`
+  publishes `link-audit` and `log.pl` publishes `logging`, so the filename is a
+  guess confirmed against the id the plugin declares. The refusal now names the
+  fields to pass. Tested against the real shipped plugins.
+
+- SM834 (PENDING) **the Files trigger stays on a phone screen, in all three
+  styles.** Measured in Chromium at a true 420px viewport: the trigger went
+  from 108px past the table's edge to 0, and desktop is identical column for
+  column. Access and Modified may now wrap; the trigger may not. **Measuring
+  each style separately found what a single check would not**: accessible's own
+  generous cell padding came later in the file and won by source order, leaving
+  it 54px off-screen while the other two fitted. `t/lint/126` pins the order.
+  A 360px phone still scrolls inside the table.
+
+- SM808 **closed as superseded - no defect.** It sat as a candidate after the
+  re-measurement closed it, the second stale status found today after SM798's.
+  A sweep for the same class found no others.
+
 - SM836 (PENDING) **an upload into a protected folder could not find it.**
   Reported from the field: `file-upload` to a protected fileshare failed with
   *"Target is not a directory"*, while adding a page to the same folder worked.

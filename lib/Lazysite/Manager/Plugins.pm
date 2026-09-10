@@ -190,10 +190,38 @@ sub _resolve_plugin_or_why {
         my $full = resolve_plugin_script($cand);
         return ( $full, '' ) if $full;
     }
+
+    # SM832: THE LISTING'S `id` IS NOW A KEY THE READER ACCEPTS. SM809 made the
+    # `plugin` parameter reach this resolver, but the registry is keyed by script
+    # path, so the value plugin-list labels `id` still missed - and the refusal
+    # sent the caller back to plugin-list, whose `id` was the value just refused.
+    # The field followed the error message literally and went round in a circle.
+    #
+    # NOT BY FILENAME. `plugins/<id>.pl` is right for twelve of the fourteen and
+    # wrong for two - audit.pl publishes `link-audit` and log.pl publishes
+    # `logging` - so the stem is only ever a GUESS, and it is confirmed against
+    # the id the plugin itself declares before it is used. A guess that is not
+    # confirmed falls through to asking every plugin, which is the slow path and
+    # only runs when a caller has sent an id that is not also a filename.
+    if ( defined $plugin_id && $plugin_id =~ /\A[A-Za-z0-9_.-]+\z/ ) {
+        my $reg   = plugin_registry();
+        my $guess = "plugins/$plugin_id.pl";
+        if ( my $full = $reg->{$guess} ) {
+            my $desc = _describe($full);
+            return ( $full, '' )
+                if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $plugin_id;
+        }
+        for my $rel ( sort keys %$reg ) {
+            next if $rel eq $guess;
+            my $desc = _describe( $reg->{$rel} );
+            return ( $reg->{$rel}, '' )
+                if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $plugin_id;
+        }
+    }
     my $named = join ' or ', grep { defined && length } ( $script, $plugin_id );
     return ( undef,
         length $named
-        ? "no plugin '$named' is installed - call plugin-list for the ids this site has"
+        ? "no plugin '$named' is installed - call plugin-list and pass a plugin's `id` or its `_script`"
         : 'a plugin is required (in the query string as ?plugin=<id>, or in the '
             . 'JSON body as {"script": "<id>"}); call plugin-list for the ids' );
 }
