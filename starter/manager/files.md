@@ -735,10 +735,10 @@ function rowHtml(f) {
   if (isDir) {
     // SM162: folders get an actions dropdown too (rename/move, delete) - the
     // subset that applies to a directory (no per-file ACL / history / download).
-    html += '<td class="mg-col-exp"><a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="Folder actions" aria-label="Folder actions" aria-expanded="false"></a></td>';
+    html += '<td class="mg-col-exp"><a href="#" class="mg-chev mg-chev-label" onclick="togglePerms(this); return false;" title="Folder actions" aria-label="Folder actions" aria-expanded="false">Actions</a></td>';
   } else {
     html += '<td class="mg-col-exp">' + lockGlyph(f)
-          + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions" aria-label="File settings and permissions" aria-expanded="false"></a></td>';
+          + '<a href="#" class="mg-chev mg-chev-label" onclick="togglePerms(this); return false;" title="File settings &amp; permissions" aria-label="File settings and permissions" aria-expanded="false">Settings</a></td>';
   }
   html += '</tr>';
   html += isDir ? folderCard(f) : permsCard(f);

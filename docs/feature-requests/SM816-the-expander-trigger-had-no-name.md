@@ -4,11 +4,11 @@ title: "SM816: the expander trigger had no name, so Delete could not be found"
 subtitle: "An operator could not delete a connector and reported there was no interface for it. There is: Save and Delete are in the row's expander, and the expander's only trigger was an empty anchor with no text, no aria-label and no title - rendering as a `+` beside a New connector button. The capability was never the obstacle. The style guide's own exemplar taught the omission, which is why this is a lint and not a one-line fix."
 brand: plain
 standard-margins: true
-status: partial
+status: shipped
 raised: 2026-09-09
 raised-by: sites agent
 area: manager-ui
-status-note: "PARTIAL. BUILT 2026-09-09: the trigger is NAMED on all four pages using the idiom, the name changes with the state, and the style guide two exemplars are fixed and now state the rule - connectors.md was written from the guide and inherited the guide omission. t/lint/123 covers every .mg-chev trigger, the guide included. BUILT 2026-09-10: the GLYPH is a rotating chevron rather than a plus, in all three styles - a bare plus beside a New connector button reads as add another, which is how an operator came to report that a connector could not be deleted. t/lint/124 guards the glyph and the row template together, because both are shared across three stylesheets a reader edits one at a time. WHAT REMAINS: whether a row surfaces its own actions rather than putting them one level down. NOT built on connectors alone, deliberately - .mg-row is shared by four pages and the guide, and a one-page fix to a shared-idiom complaint is the defect this filing is about. It is also a real trade: Delete on every row is destructive one click from a list. The ambiguity that motivated it is gone either way."
+status-note: "SHIPPED in three parts. 2026-09-09: the trigger is NAMED on all four pages using the idiom and in the guide exemplars, with t/lint/123. 2026-09-10 morning: the GLYPH is a rotating chevron rather than a plus, in all three styles, with t/lint/124 - a bare plus beside a New connector button reads as add another. 2026-09-10 afternoon: the trigger carries a VISIBLE WORD via .mg-chev-label, ruled by the release manager. The word is per-list, not fixed - Configure for a connector, Settings/Actions for a file, More for a table - because three of the four already said something in a title and a fixed word would have relabelled them to say what they do not do. No destructive action moved onto a row: Delete stays behind the confirmation. NOT VERIFIED VISUALLY - nothing in the suite measures how a labelled control lays out at a narrow window across four pages and three styles."
 ---
 
 # The finding
@@ -221,3 +221,46 @@ across four pages, and `t/lint/97` ("a button label says what the button does")
 governs the wording.
 
 Still open, and now three answerable questions rather than one compressed one.
+
+# RULED AND BUILT 2026-09-10: a named button, and the word is per-list
+
+The release manager ruled for the named Configure button. Building it turned up
+one thing the recommendation had wrong.
+
+**"Configure" is not one word, it is a slot.** It is right for a connector. It is
+not right for `files.md`, whose triggers already meant *File settings and
+permissions* and *Folder actions*, nor for `data.md`, whose title already said
+*More for this table*. A fixed word would have relabelled three lists to say
+something they do not do. So the shared idiom gained `.mg-chev-label` - a label
+slot - and each list supplies its own word:
+
+| List | Word | It already said |
+| --- | --- | --- |
+| `connectors.md` | Configure | (nothing - this was the defect) |
+| `files.md` | Settings / Actions | "File settings & permissions" / "Folder actions" |
+| `data.md` | More | "More for this table" |
+
+Three of the four were already named in a `title`. **The change makes the name
+visible rather than inventing one** - which is why nothing needed renaming and
+why the words are not a design decision so much as a promotion.
+
+**One control, never a glyph plus a button.** The trigger sizes to its text and
+the chevron follows the word (`order: 2`), so a row gains a labelled control
+rather than two controls for one action.
+
+**And the guide's exemplars carry the word too.** That is not tidiness: the
+reason `connectors.md` shipped a nameless trigger in the first place is that the
+guide showed a nameless one. An exemplar that does not follow its own rule is how
+this filing started.
+
+`t/lint/123` now asserts both halves - a name for a reader on the control, and a
+visible word for somebody looking for it - and asserts the SLOT is used rather
+than a fixed word. Verified by stripping one page's label and watching it fail.
+
+**No destructive action moved onto a row**, per the recommendation: Delete stays
+inside the expander, where the confirmation that names what goes with the
+connector still stands between a misclick and a deleted credential.
+
+**Still unverified visually.** Nothing in the suite measures how a labelled
+control lays out at a narrow window, across four pages and three styles. It wants
+a look in the next build.

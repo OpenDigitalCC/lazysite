@@ -603,6 +603,17 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
     text-decoration: none; cursor: pointer; font-size: 20px; line-height: 1;
     background: none;
 }
+/* SM816: A LABELLED DISCLOSURE. The glyph-only trigger could not be found - an
+   operator reported there was no way to delete a connector, because the only
+   route to Delete was a shape. Naming it (aria-label) and reshaping it (the
+   chevron) both help a reader who is already looking at it; a WORD is what makes
+   somebody look.
+   A slot rather than a fixed word: "Configure" is right for a connector,
+   "Settings" for a file and "More" for a table, so the idiom carries a label and
+   each list supplies its own - one control, not a glyph plus a button. Sized to
+   its text, with the glyph after the word. */
+.mg-chev-label { width: auto; gap: 6px; padding: 0 10px; font-size: 13px; }
+.mg-chev-label::before { order: 2; font-size: 15px; }
 /* ONE EXPANDER GLYPH, and it is the one the accordion already uses. Two
    idioms were shipping: a `+` that becomes `-` on Groups, and a triangle that
    flips on Files and Data. On Files the triangle was worse than inconsistent -

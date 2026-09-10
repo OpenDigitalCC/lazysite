@@ -77,4 +77,43 @@ is_deeply( \@unnamed, [],
         . "route to the row's Save and Delete. Name it, and change the name\n"
         . "with the state: 'Show details for X' / 'Hide details for X'." );
 
+# --- and it carries a WORD, not only a name ---------------------------------
+# SM816: an aria-label helps a reader who is already on the control; a visible
+# word is what makes somebody look. The operator who reported that a connector
+# could not be deleted was not using a screen reader - the route to Delete was a
+# shape, and shapes are not searched for.
+#
+# The label is per-list by design - Configure for a connector, Settings for a
+# file, More for a table - so this asserts the SLOT is used, never a fixed word.
+{
+    my @unlabelled;
+    my $checked = 0;
+    for my $page (@pages) {
+        open my $fh, '<:utf8', "$dir/$page" or die "$page: $!";
+        my $src = do { local $/; <$fh> };
+        close $fh;
+
+        while ( $src =~ /<a\b([^>]*?class\s*=\s*["'][^"']*\bmg-chev\b[^"']*["'].*?)>(.*?)<\/a>/gs ) {
+            my ( $attrs, $text ) = ( $1, $2 );
+            $checked++;
+
+            # The concatenated form puts the label in a following fragment, so
+            # accept either the modifier class or visible text between the tags.
+            next if $attrs =~ /\bmg-chev-label\b/;
+            next if $text =~ /\S/;
+
+            my $line = 1 + substr( $src, 0, pos($src) ) =~ tr/\n//;
+            push @unlabelled, "$page:$line";
+        }
+    }
+
+    cmp_ok( $checked, '>=', 4, 'found the triggers to check for a label' );
+    is_deeply( \@unlabelled, [],
+        'every .mg-chev trigger carries a visible word, not only a name' )
+        or diag( "glyph-only triggers:\n  " . join( "\n  ", @unlabelled ) . "\n"
+            . "Add .mg-chev-label and put the word inside the element. It is\n"
+            . "per-list: Configure for a connector, Settings for a file, More\n"
+            . "for a table. One control - never a glyph plus a button." );
+}
+
 done_testing();

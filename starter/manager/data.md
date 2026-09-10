@@ -257,7 +257,7 @@ function loadTables() {
           // page makes - a row, and an expand card for the rest.
           + '<span><button class="mg-btn" onclick="loadRows(\'' + escHtml(name) + '\')">Rows</button> '
           + '<button class="mg-btn" onclick="openDescriptor(\'' + escHtml(name) + '\')">Configure</button> '
-          + '<a href="#" class="mg-chev" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table" aria-label="More for this table" aria-expanded="false"></a>'
+          + '<a href="#" class="mg-chev mg-chev-label" onclick="toggleTableAcl(this,\'' + escHtml(name) + '\'); return false;" title="More for this table" aria-label="More for this table" aria-expanded="false">More</a>'
           + '</span>'
           + '</div>'
           + '<div class="mg-expand" data-acl-for="' + escHtml(name) + '" style="display:none;">'

@@ -32,7 +32,6 @@ widths: 3cm | X | 6cm
 bold: 1
 tone: medium
 ---
-[[SM816]] | A listing row hides its management behind a disclosure. Should the row carry its own actions instead? It is a design pass across four pages, the style guide and three stylesheets - not connectors alone - and it puts Delete one click from a list. | Detail requested 2026-09-10; see the filing, which now sets out what the row looks like today, what would change, and the three sub-questions (which actions, which lists, and what happens to the disclosure).
 ```
 
 # The rate limiter as a plugin, answered

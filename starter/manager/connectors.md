@@ -157,10 +157,10 @@ function rowFor(c) {
     // operator reported there was no way to delete a connector. There was; it
     // had nothing to announce itself with. data-conn carries the id so
     // toggleRow can rename it as the state changes.
-    + '<a href="#" class="mg-chev" data-conn="' + id + '"'
+    + '<a href="#" class="mg-chev mg-chev-label" data-conn="' + id + '"'
     + ' onclick="return toggleRow(this, \'' + id + '\')"'
     + ' aria-expanded="false" aria-label="Show details for ' + id + '"'
-    + ' title="Show details for ' + id + '"></a>'
+    + ' title="Show details for ' + id + '">Configure</a>'
     + '</span></div>'
     + '<div class="mg-expand" id="exp-' + id + '" hidden></div>';
 }
