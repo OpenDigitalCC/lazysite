@@ -1,0 +1,95 @@
+---
+id: SM820
+title: "SM820: a per-page theme that was never activated links stylesheets that do not exist"
+subtitle: "1310E-08 step 4. The per-page `theme:` key works, and it resolves to `/lazysite-assets/<layout>/<theme>/`, which is written AT ACTIVATION. A theme present in the tree but never activated has no mirror, so the page links two 404s and renders completely unstyled - measured: background rgba(0,0,0,0), font Times New Roman. This invalidates the advice SM812 sent to a live site, which would have made it worse. An unknown theme name falls back safely; a real but unmirrored one fails silently to nothing."
+brand: plain
+standard-margins: true
+status: candidate
+raised: 2026-09-10
+raised-by: sites agent
+area: themes
+---
+
+# What was measured
+
+A page carrying `theme: lumen-backup-20260818T211110Z` - a real theme in the
+tree, never activated - links two stylesheets and **both 404**:
+
+    /lazysite-assets/lumen/lumen/theme-tokens.css                200
+    /lazysite-assets/lumen/lumen/main.css                        200
+    /lazysite-assets/lumen/lumen-backup-.../theme-tokens.css     404
+    /lazysite-assets/lumen/lumen-backup-.../main.css             404
+
+And the consequence is not degradation, it is total:
+
+    default page      background rgb(251,247,239)   font Inter
+    overridden page   background rgba(0,0,0,0)      font "Times New Roman"
+
+The cause is that the mirror under `/lazysite-assets/<layout>/<theme>/` is
+written **at activation**. The per-page override resolves to the mirror, so a
+theme that has never been the activated one has nothing behind its URL.
+
+# The asymmetry, which is the sharpest part of the report
+
+- `theme: no-such-theme-at-all` - **falls back safely** to the domain's
+  activated theme. Verified in step 3.
+- `theme: a-real-theme-never-activated` - **fails silently to no styling at
+  all.**
+
+**The safer outcome is given to the more obviously wrong input.** A typo is
+handled gracefully; a name that is correct in every respect except that nobody
+ever activated it produces an unstyled page and no error anywhere.
+
+# It invalidates advice already sent to a live site
+
+[[SM812]] concluded that `sovereigncomputing.org` could remove its hardcoded
+stylesheet link and use `theme_assets` plus a per-page `theme:`, and that was
+filed to the sites agent as something to do on a copy first. **It would not have
+worked.** That site's intranet theme is by definition never the activated one -
+that is the whole reason the link was hardcoded - so the replacement would have
+produced unstyled intranet pages. Worse than what it replaced.
+
+The reporter did not act on it, tested it instead, and said so. That is the
+right order and it is why nothing broke. **The advice is retracted in the reply
+of 2026-09-10**, and SM812's first half stands only as a documentation fix: the
+key exists and is now documented. The workaround cannot come out until this is
+fixed.
+
+# The two candidate fixes, both the release manager's to choose
+
+1. **Mirror a theme's assets when it is REFERENCED, not only when activated.**
+   The mirror stays the serving path, and a page naming a theme causes its assets
+   to exist. Cost: a render-time side effect that writes files, on a path that is
+   otherwise read-only, and a question about who owns the write when the
+   referencing page is rendered by a visitor rather than an operator.
+2. **Resolve the per-page override to the theme SOURCE rather than the mirror.**
+   No write, no timing question. Cost: two serving paths for the same asset, and
+   the source tree becomes web-reachable for themes in a way it is not today -
+   which touches the exclusion [[SM795]] established, so it needs care rather
+   than a flag.
+
+**A third thing is needed whichever is chosen:** the failure must stop being
+silent. A per-page theme that resolves to no mirror should either fall back to
+the activated theme, exactly as an unknown name does, or refuse the render with a
+named reason. Producing a page that links two 404s and says nothing is the state
+that let this reach a measurement rather than a log line.
+
+Recommendation: **2, plus the fallback.** It has no write and no timing problem,
+and the fallback removes the asymmetry the reporter identified regardless of which
+resolution path is taken. Option 1's render-time write is the kind of side effect
+that becomes a security question later.
+
+# The same suspicion, elsewhere in the same test run
+
+[[SM819]] found `.mg-row-actions` computing `margin-left: 0` on a build whose
+stylesheet demonstrably contains `margin-left: auto`, which is consistent with a
+served asset that an upgrade did not refresh. **Two findings in one run pointing
+at mirrored assets being stale or absent** suggests the question is broader than
+themes: what refreshes `/lazysite-assets/` and `/manager/assets/`, and when?
+Worth answering once for both rather than twice separately.
+
+# Provenance
+
+`inbox/2026-09-10-1310E-results-0.13.10.md`, ref 1310E-08 step 4. The 404s, the
+computed background and font, and the three-step progression that isolated it are
+the reporter's.

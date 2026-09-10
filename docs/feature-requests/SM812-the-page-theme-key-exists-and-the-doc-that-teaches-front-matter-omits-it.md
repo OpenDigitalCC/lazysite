@@ -93,3 +93,32 @@ on the hardcoded link.
 premise was checked against `lazysite-processor.pl:7083`, `docs/FEATURES.md:98`
 and `starter/docs/frontmatter.md` before this was written; the cost described in
 the report was accepted as reported.
+
+# THE ADVICE IN THIS FILING IS RETRACTED, 2026-09-10
+
+Item 2 of "What should be told to the reporting build" said the hardcoded
+stylesheet link could come out, replaced by `theme_assets` plus a per-page
+`theme:`. **That would have broken the site**, and it was filed to the sites
+agent as something to do.
+
+[[SM820]] is why: the per-page override resolves to
+`/lazysite-assets/<layout>/<theme>/`, which is written **at activation**. That
+site's intranet theme is by definition never the activated one - which is the
+whole reason the link was hardcoded - so the replacement links two 404s and
+renders the intranet completely unstyled. Measured on edge: background
+`rgba(0,0,0,0)`, font Times New Roman.
+
+**The sites agent tested it instead of doing it, and reported back.** Nothing
+broke, and the order they worked in is the reason. The retraction is in the reply
+of 2026-09-10.
+
+What survives from this filing: the key exists, it has since SM120, and
+`/docs/frontmatter` now documents it - which was the real defect and is fixed and
+shipped in 0.13.10. What does not survive: any suggestion that a site can drop a
+hardcoded link today. It cannot, until SM820 is built.
+
+**And the lesson is mine rather than theirs.** The filing verified that the key
+existed and stopped there. It did not verify that the key WORKS for the case it
+was being recommended for - a theme that is not the activated one, which is the
+only case that site has. Establishing that a feature exists is not establishing
+that it serves the use it is being recommended for.
