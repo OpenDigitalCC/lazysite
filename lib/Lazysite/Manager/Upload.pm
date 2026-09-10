@@ -16,6 +16,7 @@ use Lazysite::Util qw(log_event);
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config respond upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl qw(_acl_denied);
+use Lazysite::Private   ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -216,13 +217,36 @@ sub action_file_upload {
     return { ok => 0, error => "Invalid target directory" }
         if $rel_dir =~ m{(?:\A|/)\.\.(?:/|\z)};
 
-    my $full_dir = length $rel_dir ? "$DOCROOT/$rel_dir" : $DOCROOT;
+    # SM836: A GATED FOLDER IS NOT UNDER THE DOCROOT, and this check assumed it
+    # was. Protecting a section MOVES it into the private store, so
+    # "$DOCROOT/$rel_dir" names a directory that is deliberately not there and
+    # the upload was refused with "Target is not a directory" - reported from
+    # the field on a protected fileshare, where adding a page to the same folder
+    # worked and only upload failed.
+    #
+    # The per-file gate below was already right: validate_path resolves the
+    # private store through resolve_for_write. Only this UPFRONT convenience
+    # check - which exists so a traversal attempt is one clear error rather than
+    # one per file - disagreed with it, and it ran first.
+    #
+    # The confinement is unchanged in strength: the boundary is still a realpath
+    # containment test, against whichever root actually owns the target. This is
+    # the same resolution lazysite-dav.pl performs for a PUT or MKCOL into a
+    # gated section, and it must stay the same as that one.
+    my $root = $DOCROOT;
+    if ( length $rel_dir ) {
+        my ( undef, $where )
+            = Lazysite::Private::resolve_for_write( $DOCROOT, $rel_dir );
+        $root = Lazysite::Private::private_root($DOCROOT)
+            if ( $where // '' ) eq 'private';
+    }
+    my $full_dir = length $rel_dir ? "$root/$rel_dir" : $root;
 
     unless ( -d $full_dir ) {
         return { ok => 0, error => "Target is not a directory" };
     }
     my $real = realpath($full_dir);
-    unless ( $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 ) ) { # SEC-2026-07 (H3)
+    unless ( $real && ( $real eq $root || index( $real, "$root/" ) == 0 ) ) { # SEC-2026-07 (H3)
         return { ok => 0, error => "Invalid target directory" };
     }
 

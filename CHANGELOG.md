@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM836 (PENDING) **an upload into a protected folder could not find it.**
+  Reported from the field: `file-upload` to a protected fileshare failed with
+  *"Target is not a directory"*, while adding a page to the same folder worked.
+  Protecting a section MOVES it into the private store - the deploy says so
+  itself - so `$DOCROOT/<path>` is deliberately absent, and the UPFRONT
+  convenience check tested exactly that path and refused before any file was
+  examined.
+
+  The per-file gate needed no change: `validate_path` already resolves the
+  private store, and the comment above it says so. Only the upfront check
+  disagreed, and it ran first - which is precisely why add-page worked and
+  upload did not: **the two took different routes to the same folder.** It now
+  resolves through `resolve_for_write` and measures the realpath boundary
+  against whichever root owns the target, the same resolution `lazysite-dav.pl`
+  performs for a PUT into a gated section. The confinement is the same test
+  against the correct root, and a traversal is still refused.
+
+  `t/unit/manager/169` reproduces the field's exact error string before fixing
+  it, and asserts the bytes land in the private store rather than in a public
+  copy beside protected content.
+
 - SM222 L0 (PENDING) **the unit registry gains its second reader, and a legacy
   unit turns out to need a migration before it can be switched off at all.**
 
