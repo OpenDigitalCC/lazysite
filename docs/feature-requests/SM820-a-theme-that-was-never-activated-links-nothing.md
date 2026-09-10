@@ -4,7 +4,7 @@ title: "SM820: a per-page theme that was never activated links stylesheets that 
 subtitle: "1310E-08 step 4. The per-page `theme:` key works, and it resolves to `/lazysite-assets/<layout>/<theme>/`, which is written AT ACTIVATION. A theme present in the tree but never activated has no mirror, so the page links two 404s and renders completely unstyled - measured: background rgba(0,0,0,0), font Times New Roman. This invalidates the advice SM812 sent to a live site, which would have made it worse. An unknown theme name falls back safely; a real but unmirrored one fails silently to nothing."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-10
 raised-by: sites agent
 area: themes
@@ -93,3 +93,23 @@ Worth answering once for both rather than twice separately.
 `inbox/2026-09-10-1310E-results-0.13.10.md`, ref 1310E-08 step 4. The 404s, the
 computed background and font, and the three-step progression that isolated it are
 the reporter's.
+
+# RULED 2026-09-10, and one paragraph of this filing was wrong
+
+**Ruled: resolve the per-page override to the theme SOURCE, plus the fallback.**
+No render-time write and no timing question; option 1's write from a render path
+is the kind of side effect that becomes a security question later. The fallback
+is part of the ruling rather than an extra: an unmirrored theme falls back to the
+activated one exactly as an unknown name already does, which removes the
+asymmetry the reporter identified. Care is needed against [[SM795]]'s engine-tree
+exclusion - the theme source becoming web-reachable is precisely what that
+exclusion was written about, so this is a narrow, named exception or it is not
+done at all.
+
+**The "two findings point at stale mirrors" paragraph is withdrawn.** [[SM819]]'s
+computed `margin-left: 0` turned out to be `auto` resolving to zero in a grid
+area with no free space - the stylesheet was correct and being served. So there
+is one mirror finding here, not two, and the pairing was mine. The 404s measured
+in this filing are unaffected: they were measured, and they stand.
+
+NOT YET BUILT. The site's hardcoded stylesheet link cannot come out until it is.

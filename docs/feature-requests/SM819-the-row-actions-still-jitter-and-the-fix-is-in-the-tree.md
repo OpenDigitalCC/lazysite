@@ -4,7 +4,7 @@ title: "SM819: the row actions still jitter, and SM807's fix is in the build tha
 subtitle: "1310E-04 measured four connector rows whose action group spans 297px, and reports `.mg-row-actions` computing `margin-left: 0`. But `margin-left: auto` was added by SM807 in 1b902ecb, which IS in 0.13.10 - so either the served stylesheet predates the fix, or a second cause is at work. One request settles which, and the same suspicion explains SM820: an asset mirror that an upgrade did not refresh."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-09-10
 raised-by: sites agent
 area: manager-ui
@@ -106,3 +106,53 @@ wording change works as intended: "You can grant it on the Groups page" against
 the reporter's; the `git log -S` attribution, the three stylesheets, the absence
 of any competing margin rule, the three-cell row shape and the guide's exemplars
 were read here.
+
+# BUILT 2026-09-10, and the mechanism was not what this filing guessed
+
+**The prior art was on main and this filing did not find it.** Third time in one
+session, after SM818 duplicating [[SM222]]. The register lives at `docs/review/`
+- singular - and the search looked in `docs/reviews/`.
+
+- **MR-53 is the release manager's own decision** on this exact question: grid
+  rows, "everything that describes the row, then everything that acts on it".
+- **MR-68 is this same defect, weeks earlier, on the Plugin Manager**: "Those
+  rows have THREE parts ... in a two-column grid, so the third wrapped to an
+  implicit row and the text ran over the checkbox." It was fixed there by using a
+  three-column template, and the shared row kept the fault.
+
+## The mechanism, which reconciles the measurement completely
+
+With two columns declared and three cells present, the third cell does **not**
+fall into an implicit COLUMN. It wraps to an implicit **ROW** at column 1, where
+`.mg-row > :last-child`'s `justify-self: end` right-aligns it inside a column
+whose width is whatever the metadata left over. So:
+
+    longer URL  -> wider metadata column -> narrower column 1 -> smaller x
+    tiny URL    -> narrow metadata column -> wider column 1   -> larger x
+
+which is exactly the reported 497 / 623 / 773 / 794.
+
+**And `margin-left: 0` was never evidence of a stale stylesheet.**
+`margin-left: auto` resolves to **0** when the grid area has no free space - so
+SM807's fix was present, being served, and inert. The reporter read the computed
+0 as the property being unset, which was a reasonable inference and the wrong
+one; the suspicion of a stale asset was mine and it was wrong. **The question
+put to the sites agent is withdrawn** - no request is needed.
+
+## What was built
+
+`.mg-row` is `minmax(0, 1fr) auto auto` in all three stylesheets - the release
+manager ruled for three columns rather than folding the metadata into the first
+cell, which also matches MR-68's remedy. No page changed: `connectors.md` and
+`backups.md` were already supplying the three cells the template now has.
+
+`t/lint/124` asserts two things, because two things recurred here: that **all
+three styles declare the same row** - a template that drifts in one style lays
+rows out differently for whoever selected it, and nothing else would say so - and
+that it declares **at least three columns**, counted rather than string-matched,
+so a future edit may re-space it but dropping back to two has to meet this
+argument. Verified by reverting one sheet to two columns and watching both
+assertions fail.
+
+The style guide now states the contract beside the idiom: a row is three columns,
+supply at most three top-level cells.

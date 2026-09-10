@@ -243,3 +243,31 @@ serving - a different part of the engine, read by a different person, and spelle
 So: **`extension`**, and the spatial argument is the one to put in the
 documentation, because it explains the architecture in one image. Core renders.
 Everything else is built onto the side of it.
+
+# SCHEDULED 2026-09-10: one release, with SM222
+
+The release manager has ruled that the rename and [[SM222]]'s truly-off work land
+in **one release together**, rather than the rename alone or the lifecycle first.
+
+That is the right pairing and the reason is the files: both follow from the same
+principle - the core renders, everything else is built onto the side of it - and
+both touch the same set. SM222's L0 moves the access-log write out of the core
+renderer and introduces the registry a disabled unit is absent from; this renames
+the things in that registry. Doing them in one pass means the registry is built
+under its final name, and the operator surface changes once rather than twice.
+
+Sequence within the release, so it is not a wide simultaneous edit - which
+[[SM726]] and [[SM728]] both record the cost of:
+
+1. `extension-*` actions added beside the seven `plugin-*`, which are kept and
+   born deprecated. Lint pins the pair.
+2. The registry (SM222 L0), built under the new name, with the access-log write
+   moved behind it and a test per member asserting **no output** when disabled.
+3. The operator surface - page title, prose, nav, practice document - in one go,
+   because a half-renamed vocabulary is worse than either name.
+4. The loader accepting `extensions/` and `plugins/`, so a site's own tree need
+   not move on the same day the engine does.
+
+[[SM823]]'s ingestion work follows this, not the reverse, so it is named
+correctly on arrival - and the taxonomy it lands into is extensions for the
+bundled units, plugins for things authored elsewhere and dropped in.

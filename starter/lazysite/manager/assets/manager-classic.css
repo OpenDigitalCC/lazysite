@@ -557,7 +557,19 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
    and a long name squeezed the actions. Two columns: everything that describes
    the row, then everything that acts on it. */
 .mg-row {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    /* SM819: THREE COLUMNS, because a listing row has three parts - what
+       describes it, its metadata, and what acts on it. With two declared and
+       three cells present, the third does not make an implicit COLUMN: it wraps
+       to an implicit ROW at column 1, where `.mg-row > :last-child`'s
+       justify-self:end right-aligns it inside a column whose width is
+       whatever the metadata left over. So the action group tracked the length
+       of the URL beside it - measured at 297px of drift across four connector
+       rows, descending the list diagonally. margin-left:auto was already there
+       (SM807) and inert, resolving to 0 because that grid area has no free
+       space, which is why it read as unset.
+       MR-68 found the same thing on the Plugin Manager and fixed it by using a
+       three-column template; this is that remedy applied to the shared row. */
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center; gap: 10px; min-height: 44px;
     padding: 6px 12px; border-bottom: 1px solid var(--mg-border-light); font-size: 14px;
 }
