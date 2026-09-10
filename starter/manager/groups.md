@@ -60,7 +60,7 @@ var ACTIONS = [
   ['housekeeping', 'Housekeeping'],
   ['purge', 'Purge'],
   ['manage_domains', 'Domains & site packages'],
-  ['manage_config', 'Site config (+ plugins)'],
+  ['manage_config', 'Site config (+ extensions)'],
   // SM633: the five switches that decide whether the remote surfaces answer
   // at all. Beside site config in the grid because that is where an operator
   // looks for them, and a separate row because they are a separate grant.
@@ -453,8 +453,8 @@ function renderGroups() {
       var owner = capabilityPlugin[c[0]];
       if (!isChannel && caps[c[0]] && owner && owner.enabled === false) {
         warn += ' <span class="mg-cap-dormant" title="Granted, but the '
-          + escHtml(owner.name || owner.plugin) + ' plugin is switched OFF — this '
-          + 'grant does nothing until a site admin enables it on the Plugin '
+          + escHtml(owner.name || owner.plugin) + ' extension is switched OFF — this '
+          + 'grant does nothing until a site admin enables it on the Extension '
           + 'Config page.">&#9888;</span>';
       }
       // SM617: the TECHNICAL NAME on hover. The grid shows human labels, which

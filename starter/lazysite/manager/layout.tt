@@ -235,8 +235,8 @@
     { label: 'Files',      url: '/manager/files' },
     { label: 'Navigation', url: '/manager/nav' },
     { label: 'Appearance', url: '/manager/appearance' },
-    { label: 'Plugin Manager', url: '/manager/plugins' },
-    { label: 'Plugin Config',  url: '/manager/plugin-config' },
+    { label: 'Extension Manager', url: '/manager/plugins' },
+    { label: 'Extension Config', url: '/manager/plugin-config' },
     { label: 'Users',      url: '/manager/users' },
     { label: 'Groups',     url: '/manager/groups' },
     { label: 'Sessions &amp; keys', url: '/manager/sessions' },
@@ -650,8 +650,8 @@
       [% IF manager_caps.manage_content %]<a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Read and write site content. To enable it, grant 'Content' to a group on the Groups page.">Files <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Read and write site content. This account does not hold the capability it needs; a user manager can grant it.">Files <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF manager_caps.manage_nav %]<a href="/manager/nav" [% IF request_uri.match('^/manager/nav') %]class="active" aria-current="page"[% END %]>Navigation</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Edit the site navigation menu. To enable it, grant 'Navigation' to a group on the Groups page.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Edit the site navigation menu. This account does not hold the capability it needs; a user manager can grant it.">Navigation <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
       [% IF manager_caps.manage_themes || manager_caps.manage_layouts %]<a href="/manager/appearance" [% IF request_uri.match('^/manager/(appearance|themes)') %]class="active" aria-current="page"[% END %]>Appearance</a>[% ELSE %][% IF manager_caps.manage_users %]<a href="/manager/groups" class="mg-nav-locked" title="Choose themes and layouts. To enable it, grant 'Themes' or 'Layouts' to a group on the Groups page.">Appearance <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></a>[% ELSE %]<span class="mg-nav-locked" title="Choose themes and layouts. This account does not hold the capability it needs; a user manager can grant it.">Appearance <span class="mg-nav-lock" tabindex="0" role="img" aria-label="Not available to this account">&#128274;</span></span>[% END %][% END %]
-      <a href="/manager/plugins" [% IF request_uri.match('^/manager/plugins$') %]class="active" aria-current="page"[% END %]>Plugin Manager</a>
-      <a href="/manager/plugin-config" [% IF request_uri.match('^/manager/plugin-config') %]class="active" aria-current="page"[% END %]>Plugin Config</a>
+      <a href="/manager/plugins" [% IF request_uri.match('^/manager/plugins$') %]class="active" aria-current="page"[% END %]>Extension Manager</a>
+      <a href="/manager/plugin-config" [% IF request_uri.match('^/manager/plugin-config') %]class="active" aria-current="page"[% END %]>Extension Config</a>
       <div class="mg-nav-group">Access</div>
       <a href="/manager/users" [% IF request_uri.match('^/manager/users') %]class="active" aria-current="page"[% END %]>Users</a>
       <a href="/manager/groups" [% IF request_uri.match('^/manager/groups') %]class="active" aria-current="page"[% END %]>Groups</a>

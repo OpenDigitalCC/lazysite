@@ -14,7 +14,7 @@ version of this material see [Data tables](/docs/data-tables).
 
 You need the **`manage_data`** capability. If the `*_data_*` tools are not in
 your tool list, that is your grant, not a fault. The plugin also ships
-**disabled** -- an operator enables it on the Plugin Manager page, and until
+**disabled** -- an operator enables it on the Extension Manager page, and until
 they do, every call refuses and says so.
 
 ## The shape of the work

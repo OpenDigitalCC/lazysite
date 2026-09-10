@@ -9,7 +9,7 @@ register:
 
 The lazysite manager is a web-based admin UI built into lazysite itself.
 It lets you configure the site, manage users, install themes, enable
-plugins, edit pages, and clear the cache - all from the browser.
+extensions, edit pages, and clear the cache - all from the browser.
 
 Manager pages are ordinary lazysite `.md` pages served through the
 normal pipeline, using a dedicated manager theme for consistent chrome.
@@ -52,18 +52,18 @@ visitors are redirected to `/login`.
 ### Site settings
 
 `/manager/` (or `/manager/config`) - the **Site settings** item. Edit site
-identity and review the plugin registry.
+identity and review the extension registry.
 
 - **Site settings** - `site_name`, `site_url`, navigation file path,
   `search_default`, manager state, and manager path (manager *access* is
   granted on the Groups page, via the `ui` capability). The active
   layout and theme are shown read-only here with a link to **Appearance**, where
   they are changed. Saves to `lazysite/lazysite.conf`.
-- **Plugin Manager** (`/manager/plugins`) - lists all discovered plugins
+- **Extension Manager** (`/manager/plugins`) - lists all discovered extensions
   (every `plugins/*.pl` that answers `--describe`); tick to enable, untick
   to disable.
-- **Plugin Config** (`/manager/plugin-config`) - the per-plugin configuration
-  UI for the plugins that are enabled.
+- **Extension Config** (`/manager/plugin-config`) - the per-extension configuration
+  UI for the extensions that are enabled.
 
 ### Files
 
@@ -77,7 +77,7 @@ identity and review the plugin registry.
   (alias → target, with a 301/302 badge; aliases are authored in each
   page's front matter via `aliases:` / `aliases_temp:`)
 - Step through a file's **version history** (when the **Content history**
-  plugin is enabled): each file's expand card gains a History
+  extension is enabled): each file's expand card gains a History
   panel listing every recorded version (when, who, what) with **View**
   (that version's raw content, read-only), **Diff** (against the current
   file) and **Restore**. A restore is written back as a normal save, so
@@ -110,29 +110,29 @@ an "Unsaved changes" note appears next to the Save button as soon as you
 modify anything, and the browser warns before you leave the page with
 unsaved changes.
 
-### Plugin Manager and Plugin Config
+### Extension Manager and Extension Config
 
-Plugins are split across two pages: **Plugin Manager** (`/manager/plugins`)
-enables and disables them, and **Plugin Config** (`/manager/plugin-config`)
+Extensions are split across two pages: **Extension Manager** (`/manager/plugins`)
+enables and disables them, and **Extension Config** (`/manager/plugin-config`)
 configures the enabled ones.
 
-On Plugin Config, each enabled plugin appears with a form generated from its
-`config_schema`. Save writes the plugin's config file (e.g.
-`lazysite/forms/smtp.conf` for the SMTP plugin).
+On Extension Config, each enabled extension appears with a form generated from its
+`config_schema`. Save writes the extension's config file (e.g.
+`lazysite/forms/smtp.conf` for the SMTP extension).
 
-Plugins that declare `actions` (e.g. Run audit) show action buttons
-that invoke the plugin and display the result. An action can also come back
-asking for a decision - the **Remote sync** plugin's Pull does this when the
+Extensions that declare `actions` (e.g. Run audit) show action buttons
+that invoke the extension and display the result. An action can also come back
+asking for a decision - the **Remote sync** extension's Pull does this when the
 same page changed both here and on the remote copy: the pages are listed and
 you choose **Keep mine** or **Take theirs** (a safety snapshot is taken
 first either way).
 
-The **Content history** plugin (`content-history`) turns on per-file
-version history for the site content. Ticking the plugin on Plugin Manager
+The **Content history** extension (`content-history`) turns on per-file
+version history for the site content. Ticking the extension on Extension Manager
 is all it takes: an initial snapshot of the current site is recorded, then
 every save (manager, WebDAV, or AI connector) becomes a recorded version,
 browsable per file on the Files page (History / Diff / Restore). Unticking
-the plugin pauses recording and keeps every recorded version. On Plugin
+the extension pauses recording and keeps every recorded version. On Extension
 Config, **Status** reports whether it is recording, how many versions are
 recorded, and whether the host has the `git` package it needs (with
 **Enable** / **Pause recording** there for recovery). The history covers the content plus `lazysite.conf` / `nav.conf`
@@ -141,8 +141,8 @@ logs), so it is safe to sync to a private remote; full-system backups (see
 Backups) remain the disaster-recovery mechanism for exactly what the
 history excludes.
 
-The **Remote sync** plugin (`git-sync`) keeps a copy of the site content on
-a remote server. It needs the Content history plugin to be enabled;
+The **Remote sync** extension (`git-sync`) keeps a copy of the site content on
+a remote server. It needs the Content history extension to be enabled;
 configure the remote address, branch and access token here, then use **Test
 connection**, **Push - send changes** and **Pull - fetch changes**. Push
 never overwrites changes on the remote that you don't have - Pull them
@@ -229,8 +229,8 @@ download, in-app restore with an automatic pre-restore safety snapshot) and
 **Full-system backups** (download only; restored by a system user with
 `install.pl --restore-full`, since they carry the auth secrets). Backups
 are the disaster-recovery mechanism, including config and secrets;
-day-to-day content versioning lives in the **Content history** plugin
-(Plugin Manager / Plugin Config). Theme and layout snapshots are managed
+day-to-day content versioning lives in the **Content history** extension
+(Extension Manager / Extension Config). Theme and layout snapshots are managed
 on the Appearance page.
 
 ### Cache
@@ -246,7 +246,7 @@ on the Appearance page.
 `/manager/audit`. The material-action trail (logins, edits, deletes,
 config/theme changes, denied attempts) with who/what/when/where and the
 outcome. Filter by user, target, or a From/To date range; each row records
-the action's target (the page, the plugin, `nav`, etc.). Operations run on
+the action's target (the page, the extension, `nav`, etc.). Operations run on
 the shell with the users tool (setup-sysop, account and credential
 changes) appear here too, with origin `cli` and the invoking system user;
 installs and upgrades appear with origin `install`. Browsing analytics
@@ -272,8 +272,8 @@ counts only - never raw lines, addresses or paths). It never exposes any log
 file's path, and the raw logs are not downloadable through the manager.
 Provided by the opt-in
 **Visitor Statistics**
-plugin: the nav item appears only when the plugin is enabled - enable it on Plugin
-Manager (recording and retention are tunable on Plugin Config). An AI connector granted
+extension: the nav item appears only when the extension is enabled - enable it on Extension
+Manager (recording and retention are tunable on Extension Config). An AI connector granted
 the **Analytics** permission can analyse the same data for trends via the
 `analyse_visitors` tool, getting only the aggregated, IP-anonymised figures (see
 [AI connector tools](/docs/ai-connector-tools) and

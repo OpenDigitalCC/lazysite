@@ -142,6 +142,33 @@ Naming the commit: AFTER it lands, never before
   winning: there is a single registry, spelled two ways. `t/lint/125` covers it
   with three added shapes, and fails six ways if only one reader is renamed.
 
+- SM817 step 3 (PENDING) **the operator-facing surface says extension, in one
+  pass.** Nav labels and the command list (`Extension Manager`, `Extension
+  Config`), both page titles, every visible string on those two pages, the
+  dormant-capability warning on Groups, the capability labels on Groups and
+  Users, the Visitor Stats messages, the Backups note, and the shipped
+  documentation - `manager.md` rewritten with code spans and paths protected,
+  `configuration.md`'s key entry now documenting `extensions` with `plugins` as
+  the older spelling of the same list, and the prose in seven more docs.
+
+  **TWO SHIPPED PAGES WERE STILL CALLING THE DEPRECATED SPELLING**, which the
+  guard could not see. `t/unit/manager/167` matched `action=plugin-`, and
+  `plugins.md` composes the verb first - `var action = input.checked ?
+  'plugin-enable' : 'plugin-disable'` - so the literal never appeared in the
+  source, the check passed, and the Extension Manager fired the deprecation INFO
+  on every toggle. Exactly how a deprecation notice becomes furniture. The check
+  now matches the seven VERBS and strips `getElementById(...)` and `id="..."`
+  first, because these pages carry `plugin-list`, `plugin-modal` and
+  `plugin-status` as element IDs and the first stronger draft reported
+  `plugin-config.md` on the strength of a div. Verified by putting the old
+  spelling back: it names `plugins.md`.
+
+  **The internal vocabulary is deliberately untouched** - the `plugins/`
+  directory, the CSS classes, the DOM ids and the code comments - and so is
+  `ai-briefing-practice.md`, which `tools/import-field-practice.pl` GENERATES
+  from the field agent's own notes: editing it here would rewrite somebody
+  else's words and be overwritten on the next import.
+
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 
 **Most of this release is the field's, and the pattern in it is worth naming.**

@@ -1,5 +1,5 @@
 ---
-title: Plugin Config
+title: Extension Config
 auth: manager
 search: false
 ---
@@ -190,7 +190,7 @@ function loadPlugins() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) {
-        document.getElementById('plugin-list').textContent = data.error || 'Failed to load plugins';
+        document.getElementById('plugin-list').textContent = data.error || 'Failed to load extensions';
         return;
       }
       window._plugins = data.plugins || [];
@@ -203,7 +203,7 @@ function renderPlugins(plugins) {
 
   if (!enabled.length) {
     document.getElementById('plugin-list').innerHTML =
-      '<p class="mg-empty">No plugins enabled. Visit <a href="/manager/config">Configuration</a> to enable plugins.</p>';
+      '<p class="mg-empty">No extensions enabled. Visit <a href="/manager/config">Configuration</a> to enable extensions.</p>';
     return;
   }
 
@@ -326,7 +326,7 @@ function loadConfig(plugin) {
     // into a detached node would silently do nothing, so check it is still ours.
     var b = document.getElementById('plugin-modal-body');
     if (!b) return;
-    if (!data.ok) { b.textContent = data.error || 'Could not read this plugin\'s configuration'; return; }
+    if (!data.ok) { b.textContent = data.error || 'Could not read this extension\'s configuration'; return; }
     b.innerHTML = renderForm(plugin, data.values || {});
     applyShowWhen(b);
   })
@@ -1245,7 +1245,7 @@ function renderSmtpFields(d) {
 function validateSmtp(btn) {
   var out = btn.parentNode.querySelector('.smtp-validate-result');
   var p = (window._plugins || []).find(function(x) { return x.id === 'form-smtp'; });
-  if (!p) { if (out) out.textContent = 'The Form SMTP plugin is not available.'; return; }
+  if (!p) { if (out) out.textContent = 'The Form SMTP extension is not available.'; return; }
   btn.disabled = true;
   if (out) { out.textContent = 'Checking host, port, TLS, auth…'; out.style.color = ''; }
   fetch(API + '?action=extension-action&plugin=form-smtp', {

@@ -105,7 +105,7 @@ TLS" or "no authentication".
 
 Set `auth: true` to authenticate. The username comes from the
 `username:` key. The simplest way to set the password is the
-**Password** field on the Plugin Config page (or a `password:` key in
+**Password** field on the Extension Config page (or a `password:` key in
 `smtp.conf`) - it is stored in the operator-only `smtp.conf` and never
 shown back in the manager.
 
@@ -123,7 +123,7 @@ which is operator-only and denied to every publishing surface.
 
 ## Validating the connection
 
-After saving, use **Validate SMTP connection** on the Plugin Config
+After saving, use **Validate SMTP connection** on the Extension Config
 page. It runs a staged check against the saved settings and names the
 failing stage rather than a generic error:
 

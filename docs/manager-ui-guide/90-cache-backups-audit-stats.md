@@ -112,7 +112,7 @@ Negative
 
 # Visitor statistics
 
-Present only when the stats plugin is enabled.
+Present only when the stats extension is enabled.
 
 Where
 : System -> Visitor statistics
@@ -127,4 +127,4 @@ Expect
   audience.
 
 Negative
-: Without the plugin the menu item is absent entirely, not present and empty.
+: Without the extension the menu item is absent entirely, not present and empty.

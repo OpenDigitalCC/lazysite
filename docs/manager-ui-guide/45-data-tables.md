@@ -10,7 +10,7 @@ Each is declared by a *descriptor*: a short YAML file naming its fields and
 their types. Per-visitor state is not a table; a basket or a login session
 belongs to an application.
 
-The menu item appears only when the Data tables plugin is enabled **and** your
+The menu item appears only when the Data tables extension is enabled **and** your
 group holds **Data**.
 
 ## See what tables the site holds
@@ -30,8 +30,8 @@ Expect
   expected state of a new table, not a fault.
 
 Negative
-: With the plugin disabled the menu item is absent entirely, and the page - if
-  reached by its URL - says the plugin is disabled and where to enable it,
+: With the extension disabled the menu item is absent entirely, and the page - if
+  reached by its URL - says the extension is disabled and where to enable it,
   rather than showing an empty list that looks like a site with no data.
 
 ## Read a table's rows

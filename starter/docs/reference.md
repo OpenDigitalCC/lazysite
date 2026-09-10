@@ -93,8 +93,8 @@ Directory scan
 `log_format`
 : `text` (default) or `json`.
 
-`plugins`
-: List of plugin script paths to pre-enable without going through the
+`extensions`
+: List of extension script paths to pre-enable without going through the
   manager.
 
 `auth_default`

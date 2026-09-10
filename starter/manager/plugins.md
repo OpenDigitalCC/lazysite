@@ -1,10 +1,10 @@
 ---
-title: Plugin Manager
+title: Extension Manager
 auth: manager
 search: false
 ---
 
-<div class="mg-note mg-note-info">Enable or disable plugins. Configure an enabled plugin on the <a href="/manager/plugin-config">Plugin Config</a> page.</div>
+<div class="mg-note mg-note-info">Enable or disable extensions. Configure an enabled extension on the <a href="/manager/plugin-config">Extension Config</a> page.</div>
 
 <div id="plugin-status" class="mg-status"></div>
 <div id="plugin-registry">Loading&hellip;</div>
@@ -28,7 +28,7 @@ function warn(msg) { var el = document.getElementById('plugin-status'); if (el) 
 function loadPluginRegistry() {
   fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (data) {
     var container = document.getElementById('plugin-registry');
-    if (!data.ok) { warn(data.error || 'Failed to load plugins'); container.textContent = ''; return; }
+    if (!data.ok) { warn(data.error || 'Failed to load extensions'); container.textContent = ''; return; }
     warn('');
     var plugins = (data.plugins || []).filter(function (p) { return p.id !== SITE_PLUGIN_ID; });
     renderPluginRegistry(plugins);
@@ -37,7 +37,7 @@ function loadPluginRegistry() {
 
 function renderPluginRegistry(plugins) {
   var container = document.getElementById('plugin-registry');
-  if (!plugins.length) { container.innerHTML = '<p class="mg-empty">No plugins discovered.</p>'; return; }
+  if (!plugins.length) { container.innerHTML = '<p class="mg-empty">No extensions discovered.</p>'; return; }
   var html = '<div class="mg-list">';
   plugins.forEach(function (p) {
     // .mg-plugin-row, not the generic .mg-row: this line has THREE parts
@@ -72,7 +72,7 @@ function renderPluginRegistry(plugins) {
       html += '<span class="mg-tag enabled" title="Always on - wired in the web server config">core</span>';
     } else {
       var info = 'File: ' + p._script + (p.version ? '  ·  v' + p.version : '') + (p.id ? '  ·  id: ' + p.id : '');
-      html += '<span class="mg-info" tabindex="0" role="img" aria-label="Plugin details" title="' + esc(info) + '">&#9432;</span>';
+      html += '<span class="mg-info" tabindex="0" role="img" aria-label="Extension details" title="' + esc(info) + '">&#9432;</span>';
     }
     html += '</div></div>';
   });
@@ -81,7 +81,7 @@ function renderPluginRegistry(plugins) {
 }
 
 function togglePlugin(input, script, name) {
-  var action = input.checked ? 'plugin-enable' : 'plugin-disable';
+  var action = input.checked ? 'extension-enable' : 'extension-disable';
   input.disabled = true;
   fetch(API + '?action=' + action, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -96,7 +96,7 @@ function togglePlugin(input, script, name) {
       // reading that while trying to enable concludes the UI has lost track of
       // the switch, and the real reason, which is in this same banner, gets read
       // as noise. `action` was computed before the revert and is the truth.
-      warn('Failed to ' + (action === 'plugin-enable' ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
+      warn('Failed to ' + (action === 'extension-enable' ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
     } else {
       // A plugin may run a setup/teardown step with its toggle (on_enable /
       // on_disable) - its outcome IS the news, so show it here.

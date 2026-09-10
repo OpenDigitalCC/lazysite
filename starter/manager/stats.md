@@ -59,13 +59,13 @@ function loadStats() {
   var body = document.getElementById('stats-body');
   body.textContent = 'Scanning the access log…';
   fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (d) {
-    if (!d.ok) { body.textContent = d.error || 'Failed to load plugins.'; return; }
+    if (!d.ok) { body.textContent = d.error || 'Failed to load extensions.'; return; }
     var p = (d.plugins || []).filter(function (x) { return x.id === 'stats'; })[0];
-    if (!p) { body.innerHTML = 'The Visitor Stats plugin is not installed.'; return; }
+    if (!p) { body.innerHTML = 'The Visitor Stats extension is not installed.'; return; }
     if (!p._enabled) {
-      body.innerHTML = 'Enable the <b>Visitor Statistics</b> plugin on the '
-        + '<a href="/manager/plugins">Plugin Manager</a> page, then set its access-log path on the '
-        + '<a href="/manager/plugin-config">Plugin Config</a> page.';
+      body.innerHTML = 'Enable the <b>Visitor Statistics</b> extension on the '
+        + '<a href="/manager/plugins">Extension Manager</a> page, then set its access-log path on the '
+        + '<a href="/manager/plugin-config">Extension Config</a> page.';
       return;
     }
     statsScript = p._script;
@@ -84,7 +84,7 @@ function renderStats(d) {
     body.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'No stats available.') + '</p>'
       + '<p class="mg-muted">Visits are recorded automatically (the first-party access log); '
       + 'this message appears only when that is turned off on the '
-      + '<a href="/manager/plugin-config">Plugin Config</a> page and the web-server log is not readable.</p>';
+      + '<a href="/manager/plugin-config">Extension Config</a> page and the web-server log is not readable.</p>';
     return;
   }
   var h = '';

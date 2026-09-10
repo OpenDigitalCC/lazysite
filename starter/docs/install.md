@@ -179,7 +179,7 @@ AI tools, paste it as context at the start of the conversation.
 
 Re-run `install.sh` against the same `--docroot` and `--cgibin` to
 upgrade. Seed files you have edited (starter pages, docs) are
-preserved; code files (processor, plugins, manager UI) are
+preserved; code files (processor, extensions, manager UI) are
 always refreshed.
 
 ```bash

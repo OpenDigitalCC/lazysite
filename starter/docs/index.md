@@ -55,7 +55,7 @@ and cache behaviour.
 : How layouts and themes are structured.
 
 [Configuration](/docs/configuration)
-: `lazysite.conf`, nav and plugins.
+: `lazysite.conf`, nav and extensions.
 
 [Data tables](/docs/data-tables)
 : Declaring a table, putting records in it, and reading them on a page.

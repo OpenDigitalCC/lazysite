@@ -215,7 +215,7 @@ it.
 
 ### Forgot password (email, when SMTP is configured)
 
-Where the SMTP plugin is configured and the account has an `email`, `/login` shows
+Where the SMTP extension is configured and the account has an `email`, `/login` shows
 a **Forgot password?** link → `/forgot` takes a username or email and mails a
 set-password claim. The response is identical whether or not an account matched -
 it never reveals whether an account or email exists. The reset email is recorded

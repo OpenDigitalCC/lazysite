@@ -9,7 +9,7 @@ search: false
 <div class="mg-note mg-note-info">
 Backups are whole-site snapshots for disaster recovery &mdash; the full-system
 kind includes configuration and secrets. Day-to-day <b>content versioning</b>
-(per-file history, diff and restore) lives in the <b>Content history</b> plugin.
+(per-file history, diff and restore) lives in the <b>Content history</b> extension.
 </div>
 
 <div class="mg-card">
@@ -39,7 +39,7 @@ snapshot first, and clears the affected page caches.
 <div class="mg-card-body">
 <p class="mg-muted">
 A <b>site package</b> is one domain's site &mdash; its content, nav, the referenced
-theme/layout and presentation settings &mdash; and <b>nothing else</b>: no plugins,
+theme/layout and presentation settings &mdash; and <b>nothing else</b>: no extensions,
 no instance settings, <b>no secrets</b>. That is what makes it safe to hand to a
 client's own instance (an agency demo &rarr; client hand-off). Create one from
 <b>Domains &rarr; Export site</b>; the package appears here to download, apply or

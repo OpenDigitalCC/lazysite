@@ -1,6 +1,6 @@
 ---
 title: Configuration
-subtitle: Layouts, navigation, site variables, forms, auth, and plugins.
+subtitle: Layouts, navigation, site variables, forms, auth, and extensions.
 register:
   - sitemap.xml
 ---
@@ -98,9 +98,11 @@ works on staging and production.
 `log_format`
 : `text` (default) or `json`.
 
-`plugins`
-: List of plugin script paths to pre-enable without using the manager
-  UI.
+`extensions`
+: List of extension script paths to pre-enable without using the manager
+  UI. `plugins` is the older spelling of this key and still opens the
+  same list - a site keeps whichever it has, and carrying both gives one
+  list rather than two that could disagree.
 
 `auth_default`
 : Site-wide default for the `auth:` front matter key. `required`,
@@ -145,7 +147,7 @@ log_level: INFO
 log_format: text
 manager: enabled
 manager_path: /manager
-plugins:
+extensions:
   - lazysite-auth.pl
   - plugins/form-handler.pl
 ```
@@ -162,7 +164,7 @@ therefore untrusted. Use `SERVER_NAME` for host-based URL construction.
 ### Domain aliases
 
 A domain alias is an additional host that serves the *same* site - same
-files, users, and plugins - with its own look: site name, theme (or
+files, users, and extensions - with its own look: site name, theme (or
 layout), and navigation. Declare the hosts, then override per host:
 
     alias_hosts: brand2.example, blog.example.com
@@ -332,18 +334,20 @@ Forms are configured in three files under `lazysite/forms/`:
 See [Forms](/docs/forms) and [Forms SMTP](/docs/forms-smtp) for full
 details.
 
-## Plugins
+## Extensions
 
-Plugins are CGI scripts and tools that register themselves with the
-manager through a `--describe` JSON protocol. Enabled plugins appear in
-the manager Plugins page.
+Extensions are CGI scripts and tools that register themselves with the
+manager through a `--describe` JSON protocol. They extend the core rather
+than plug into it: the renderer requires nothing from them, and every one
+ships in the package rather than being installed. Enabled extensions
+appear on the Extension Manager page.
 
 Auto-discovery scans `cgi-bin/` and `tools/` for scripts supporting
-`--describe`. Enable or disable from the manager Plugins page.
+`--describe`. Enable or disable from the Extension Manager page.
 
 To pre-enable without the manager, list scripts in `lazysite.conf`:
 
-    plugins:
+    extensions:
       - lazysite-auth.pl
       - plugins/form-handler.pl
       - plugins/audit.pl
@@ -361,7 +365,7 @@ Both can be overridden at startup with environment variables:
     LAZYSITE_LOG_FORMAT=json perl tools/lazysite-server.pl ...
 
 To also forward log streams to syslog for an external collector (the
-"Logging & forwarding" plugin manages these keys):
+"Logging & forwarding" extension manages these keys):
 
     forward_audit: off        # audit-trail entries -> syslog, INFO priority
     forward_diagnostics: off  # application log events -> mapped priority

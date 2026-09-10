@@ -348,7 +348,7 @@ How to work with briefs:
   plugin is enabled, that write is **refused on every channel**, and the
   refusal names the replacement. On a site not yet migrated a sidecar
   still writes, but the store is the standard: the operator imports
-  existing sidecars from the Plugin Manager's *Migrate sidecars*, and
+  existing sidecars from the Extension Manager's *Migrate sidecars*, and
   the engine carries store entries through renames and deletes for you.
 
 A brief is **append-only**: the store stamps every entry with the date

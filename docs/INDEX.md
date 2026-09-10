@@ -117,7 +117,7 @@ The manager, page by page, as an operator meets it.
 | [`10-files.md`](10-files.md) - Files | Governing capability: manage_content. |
 | [`20-navigation.md`](20-navigation.md) - Navigation | Governing capability: manage_nav. |
 | [`30-appearance.md`](30-appearance.md) - Appearance | Governing capabilities: manage_themes or manage_layouts - either opens the page, and the controls inside are gated separately. |
-| [`40-plugin-manager.md`](40-plugin-manager.md) - Plugin Manager and Plugin Config | Two adjacent menu items with a deliberate split: Plugin Manager decides what runs, Plugin Config decides how it behaves. |
+| [`40-plugin-manager.md`](40-plugin-manager.md) - Extension Manager and Extension Config | Two adjacent menu items with a deliberate split: Extension Manager decides what runs, Extension Config decides how it behaves. |
 | [`45-data-tables.md`](45-data-tables.md) - Data tables | A table holds site data -- a product list, an events calendar, a directory. |
 | [`50-users.md`](50-users.md) - Users | Governing capability: manage_users. |
 | [`60-groups.md`](60-groups.md) - Groups | Governing capability: manage_users. |
@@ -200,7 +200,7 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 | [`auth-upgrade.md`](auth-upgrade.md) - Upgrading to external auth | Replace built-in auth with Authentik, Authelia, or another proxy. |
 | [`auth.md`](auth.md) - Authentication | Protect pages with built-in auth or an external proxy. |
 | [`authoring.md`](authoring.md) - Authoring | How to create and edit pages - the short version. |
-| [`configuration.md`](configuration.md) - Configuration | Layouts, navigation, site variables, forms, auth, and plugins. |
+| [`configuration.md`](configuration.md) - Configuration | Layouts, navigation, site variables, forms, auth, and extensions. |
 | [`connectors.md`](connectors.md) - Connectors | A reusable, credentialed destination that forms, callers and jobs send site data through - and where what comes back is kept. |
 | [`data-tables.md`](data-tables.md) - Data tables | Tables a site declares and holds - a product list, an events calendar, a directory - read on a page like any other variable. |
 | [`development.md`](development.md) - Development | Local development server, build tools, and troubleshooting. |

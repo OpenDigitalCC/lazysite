@@ -15,7 +15,7 @@ mechanism it uses for everything else.
 Tables hold **site** data. Per-visitor state -- a session, a shopping basket,
 somebody's profile -- is an application, and deliberately out of scope.
 
-The feature ships **disabled**. Enable *Data tables* on the Plugin Manager page
+The feature ships **disabled**. Enable *Data tables* on the Extension Manager page
 before anything below will answer.
 
 ## The three steps
@@ -57,7 +57,7 @@ than a failure.
 
 **`timestamps: true`** adds `created_at` and `updated_at` (UTC, to the
 second) and `created_by` and `updated_by` (the signed-in account's login;
-empty for a public form), stamped by the plugin on every insert and update
+empty for a public form), stamped by the extension on every insert and update
 and refused from any writer -- the one provenance a reader can trust,
 because no caller can supply it. A field you declare yourself named like a
 stamp (`added_at`, `added_by`) is whatever the writer sends, and the table's
@@ -499,7 +499,7 @@ not fit the declared types is **refused rather than stored wrong** -- the
 visitor is told the submission failed instead of being thanked for one that was
 quietly lost.
 
-The data plugin must be enabled; a form pointed at a table while it is switched
+The data extension must be enabled; a form pointed at a table while it is switched
 off refuses and says so.
 
 A handler of `type: table` takes the same `table` and `fields` keys and does

@@ -245,7 +245,7 @@ Once a submission is stored, the site raises a notification. You do not need to
 poll for one, and nothing is required to make this happen - it is automatic.
 
 The notification appears in the manager's notification bell, which is the
-record. Where the `notify-xmpp` plugin is configured, the same notice is also
+record. Where the `notify-xmpp` extension is configured, the same notice is also
 delivered as a chat message, so you hear about it without being logged in.
 
 The message names the form and when it arrived. It deliberately carries **none
@@ -262,8 +262,8 @@ controls is recorded but does not raise a notice, so a spam run cannot flood you
 
 ### Configuring chat delivery
 
-Chat delivery needs the `notify-xmpp` plugin enabled (the manager's Plugins page,
-or the `plugins:` list in `lazysite.conf`) and a client config at
+Chat delivery needs the `notify-xmpp` extension enabled (the Extension Manager
+page, or the `extensions:` list in `lazysite.conf`) and a client config at
 `lazysite/notify-xmpp.conf`:
 
 ```yaml
@@ -368,7 +368,7 @@ whichever minted it first).
 
 ## Installation
 
-The installer places both plugins under `{docroot}/../plugins/`
+The installer places both extensions under `{docroot}/../plugins/`
 and symlinks `form-handler.pl` into `cgi-bin/` so Apache can route
 `/cgi-bin/form-handler.pl` at it. `form-smtp.pl` does not need
 `cgi-bin/` presence - it is invoked as a subprocess by

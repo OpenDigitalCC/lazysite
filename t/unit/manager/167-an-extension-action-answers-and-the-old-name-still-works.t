@@ -65,7 +65,32 @@ for my $p (@pages) {
     open my $ph, '<:utf8', "$dir/$p" or next;
     my $page = do { local $/; <$ph> };
     close $ph;
-    push @old, "$p" if $page =~ /action=plugin-/;
+    # MATCHED ON THE VERB, not on `action=`, because a page can compose the
+    # action name before it sends it. plugins.md did exactly that -
+    #
+    #   var action = input.checked ? 'plugin-enable' : 'plugin-disable';
+    #   fetch(API + '?action=' + action, ...)
+    #
+    # - so the literal `action=plugin-` never appeared in the source, this check
+    # passed, and the shipped Extension Manager fired the deprecation INFO on
+    # every toggle. Which is precisely the way a deprecation notice becomes
+    # furniture, and precisely what this assertion exists to prevent.
+    #
+    # The seven verbs are named rather than matching `plugin-` loosely: the DOM
+    # ids on these pages are `plugin-modal`, `plugin-registry`, `plugin-status`
+    # and `'plugin-' + id`, and those are identifiers, not actions. They have
+    # not moved and they are not what this is about.
+    # An ELEMENT ID IS NOT AN ACTION, and on these pages several look alike:
+    # `<div id="plugin-list">`, getElementById('plugin-list'), 'plugin-modal',
+    # 'plugin-' + id. The ids have not moved and are not what this is about, so
+    # they are removed before the match rather than guessed at - the first
+    # version of this stronger check reported plugin-config.md on the strength
+    # of a div.
+    my $scan = $page;
+    $scan =~ s/getElementById\(\s*['"][^'"]*['"]\s*\)//g;
+    $scan =~ s/\bid\s*=\s*['"][^'"]*['"]//g;
+    push @old, "$p"
+        if $scan =~ /(?:action=|['"])plugin-(?:list|read|save|action|config|enable|disable)\b/;
 }
 is_deeply( \@old, [], 'no shipped manager page calls the deprecated action spelling' )
     or diag( "still on the old name: @old" );
