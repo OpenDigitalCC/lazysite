@@ -1898,7 +1898,8 @@ sub _front_door {
 # not at file scope, so a persistent worker cannot leak between requests.
 sub handle_one_request {
     reset_request_state();
-    _reset_units();       # SM222 L0: an FCGI worker must re-read the registry
+    # SM222 L0: an FCGI worker must re-read the registry per request.
+    _reset_units();
     %ACCESS_REC   = ();
     %AUTH_CONTEXT = ();
 
@@ -8623,17 +8624,28 @@ sub _access_field {
 sub _access_record {
     return unless defined $ACCESS_REC{s};
     my $ok = eval {
-        # SM222 L0: the unit's enablement is the OUTER switch, and it is the
-        # one an operator reaches for. Switching the stats unit off in the
-        # manager used to stop the reading and leave the recording running,
-        # because the reader lives in the manager tree and the recorder lives
-        # here. Off now means no record written.
-        return 1 unless _unit_enabled('plugins/stats.pl');
-
-        # first_party stays, and it is this design's RUNTIME axis: the unit is
-        # offered but is not currently recording. Keeping it means a site that
-        # set it keeps its behaviour, and it is the migration path for the
-        # start/stop half of SM222's contract.
+        # SM222 L0: DELIBERATELY NOT GATED ON THE REGISTRY YET, and the reason
+        # is a ruling rather than an oversight.
+        #
+        # `_unit_enabled` exists below and reads `plugins:` correctly. Gating
+        # here was built, tested and reverted, because plugins/stats.pl declares
+        # no `contract` key and is therefore a LEGACY descriptor. SM409 / ADR
+        # 0009 carry the release manager's ruling for those: a legacy plugin
+        # keeps running exactly as it always has until its own migration SM
+        # enables it explicitly to replicate its current effective state, so
+        # that nothing in the field changes behaviour on upgrade. Gating on the
+        # list stops recording for every site that never listed stats - which is
+        # every site that never had a reason to.
+        #
+        # AND ABSENCE IS NOT A DECISION. `plugins:` can say a unit is ON by
+        # listing it; it has no way to say a unit is OFF. So "absent" means both
+        # "the operator switched it off" and "nobody has ever been asked", and
+        # nothing here can tell those apart. Truly-off for a legacy unit needs
+        # the migration to exist first; it is not reachable by reading harder.
+        #
+        # first_party remains the switch that works today, and it is this
+        # design's RUNTIME axis under another name: the unit offered, not
+        # currently recording.
         my $conf = _access_conf();
         return 1 unless $conf->{first_party};
         my @t   = gmtime;

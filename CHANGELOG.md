@@ -44,34 +44,39 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM222 L0 (PENDING) **a unit switched off records nothing.** `plugins:` in
-  `lazysite.conf` was always the registry, and nothing on the render path read
-  it: enablement was consulted at fourteen sites across the manager tree and at
-  zero sites in `lazysite-processor.pl`. So switching the stats unit off stopped
-  the reading and left the recording running, because the reader lives in the
-  manager and the recorder lives in the processor.
+- SM222 L0 (PENDING) **the unit registry gains its second reader, and a legacy
+  unit turns out to need a migration before it can be switched off at all.**
 
-  **BEHAVIOUR CHANGE, and it is the requested one.** A site with the stats unit
-  disabled stops accumulating visitor data at upgrade. Nothing already recorded
-  is touched - no lifecycle act deletes data - and `first_party` in `stats.conf`
-  keeps working as the finer control: the unit offered but not currently
-  recording, which is this design's runtime axis arriving before the contract
-  had a name for it.
+  `plugins:` in `lazysite.conf` was always the registry, and nothing on the
+  render path read it: enablement was consulted at fourteen sites across the
+  manager tree and at zero sites in `lazysite-processor.pl`. `_unit_enabled`
+  adds the missing reader. The render path is module-free under ADR 0001, so it
+  carries a MARKED COPY of the list scan by the convention that ADR sets for the
+  capability gate - memoised per request, cleared by `handle_one_request` so an
+  FCGI worker cannot answer from a map read before the operator's toggle.
 
-  The render path is module-free under ADR 0001, so it carries a MARKED COPY of
-  the list scan rather than calling the manager's reader, by the convention that
-  ADR sets for the capability gate. `t/lint/125` pins the copy by running BOTH
-  readers over seven conf shapes and comparing their answers, rather than
-  comparing their source - a textual pin passes when both copies are edited
-  wrongly the same way. `t/unit/processor/72` asserts NO OUTPUT when the unit is
-  off, with its first assertion as the canary that the rig can observe a write
-  at all.
+  `t/lint/125` pins the copy BY RUNNING BOTH READERS over seven conf shapes and
+  comparing their answers rather than their source, because a textual pin passes
+  whenever both copies are edited wrongly in the same way.
 
-  **The filing's own evidence was wrong and was corrected before this was
-  built**: SM222 said the access log "has no switch at all". It has one -
-  `first_party`, default on, published in the stats plugin's config schema. The
-  defect was never a missing switch; it was that the switch an operator reaches
-  for governed only the half that reads.
+  **THE ACCESS LOG IS DELIBERATELY NOT GATED ON IT.** That was built, tested and
+  reverted: `plugins/stats.pl` declares no `contract` key, so it is a LEGACY
+  descriptor, and SM409 / ADR 0009 rule that a legacy plugin keeps running as it
+  always has until its own migration enables it explicitly to replicate its
+  current effective state. Gating on the list would stop recording for every
+  site that never listed stats, which is every site that never had reason to,
+  and `t/integration/15-fcgi-runtime` said so.
+
+  **And absence is not a decision.** `plugins:` can say a unit is ON by listing
+  it and has no way to say a unit is OFF, so "absent" means both "switched off"
+  and "never asked". Truly-off for a legacy unit needs the migration to exist
+  first; it is not reachable by reading harder.
+
+  The filing's own evidence was corrected before any of this was built: SM222
+  said the access log "has no switch at all". It has one - `first_party`,
+  default on, published in the stats plugin's config schema. The defect was
+  never a missing switch; it was that the switch an operator reaches for governs
+  only the half that reads.
 
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 
@@ -668,7 +673,7 @@ go down.
 - SM666 (50753813) `lazysite-hestia-domain add ... --daemon` writes
   `/etc/lazysite/daemon/<domain>.conf` and enables `lazysited@`; `remove`
   retires both units; `lazysite-common` creates the directory
-- SM222 (199beac8, d239a4d9, 247d2e24) the lifecycle contract, `Lazysite::Lifecycle`, with the
+- SM222 (199beac8, d239a4d9, 247d2e24) **the lifecycle contract**, `Lazysite::Lifecycle`, with the
   daemon as first consumer: `off|starting|on|degraded|inconsistent|failed`,
   the verdict derived in one place, a remedy whenever unhealthy
 - SM752 (08de995e) the daemon Status action can load its module; `t/lint/59`

@@ -592,6 +592,39 @@ dispatch table is data the operator already edits, not a structure the code
 invents.** Where a class already has such a table - the vhost include for
 endpoints, the plugin registry for invoked units - that table is the one to use.
 
+### Absence is not a decision, and a legacy unit cannot be switched off yet
+
+Found while building L0, by building it: the gating was written, tested, run
+against the suite and reverted.
+
+`plugins/stats.pl` declares no `contract` key, so it is a **legacy** descriptor.
+SM409 / ADR 0009 carry the release manager's ruling for those - a legacy plugin
+keeps running exactly as it always has until its own migration SM enables it
+explicitly to replicate its current effective state, so that nothing in the field
+changes behaviour on upgrade. Gating the recorder on the registry stops recording
+for every site that never listed stats, which is every site that never had a
+reason to. `t/integration/15-fcgi-runtime` failed on precisely that.
+
+**The deeper reason is a shape problem, not a ruling.** `plugins:` can say a unit
+is ON, by listing it. It has no way to say a unit is OFF. So "absent from the
+list" carries two different meanings - the operator switched it off, and nobody
+has ever been asked - and no reader can tell them apart. That is the four-state
+problem this codebase keeps meeting: true, false, neither, and no answer.
+
+So **truly-off for a legacy unit is not reachable by reading harder.** It needs
+the migration to exist first, and the migration is the act that converts "no
+answer" into an answer.
+
+What that means for the build order in this design: step 1 is not "wire the
+access log", it is **migrate the unit that owns it**, which is an explicit act
+with an upgrade half - declare the contract, and write the unit into the list of
+every existing site so its current effective state is preserved exactly. Only
+then does switching it off mean anything.
+
+The registry reader and its lint stand on their own and are built: they are what
+every later member needs, and they were worth having before the first member
+could use them.
+
 ## The verbs are systemd's, deliberately
 
 The operator asked for **start / stop / status**. The analysis found two axes,
