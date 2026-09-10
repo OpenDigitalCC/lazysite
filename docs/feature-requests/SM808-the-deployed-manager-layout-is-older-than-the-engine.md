@@ -106,3 +106,11 @@ theirs to confirm; the alternative - that the spans are genuinely absent on edge
 The differentiated wording is deliberate and is [[SM807]]: the remedy depends on
 who is reading it, so an account that can grant the capability is sent to the
 Groups page and an account that cannot is told to find someone who can.
+
+# The follow-on closes too, 2026-09-10: no defect
+
+Re-measured counting spans as well as anchors: **seven `span.mg-nav-locked`** on
+an account holding one capability - exactly the seven the template read here
+predicted. The selector had counted anchors only. Nav marking works for all three
+account shapes, `manage_users` changes the element and the wording as designed
+([[SM807]]), and there is nothing to build. Closed.

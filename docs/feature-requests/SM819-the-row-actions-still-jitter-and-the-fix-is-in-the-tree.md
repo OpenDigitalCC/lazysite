@@ -156,3 +156,20 @@ assertions fail.
 
 The style guide now states the contract beside the idiom: a row is three columns,
 supply at most three top-level cells.
+
+# CONFIRMED INDEPENDENTLY 2026-09-10, before the withdrawal reached them
+
+The sites agent answered the question anyway, and reached the same mechanism from
+the other end: the rule is **present** and served identically in both sheets under
+`/manager/assets/`, and **Chrome serialises an auto margin as `0px`** - so the
+number reported as evidence of an absent rule is the number a working rule
+produces. They also identified the cause as the actions block being right-aligned
+inside grid column 1 because the row declares two columns and is handed three
+children.
+
+Two independent derivations of the same mechanism, which is worth more than
+either. Their own summary of what went wrong is the part to keep: **an instrument
+that could only see one of the two states it was asked to distinguish.** The same
+blind spot produced their nav-marking finding - a selector matching anchors only -
+so one instrument defect produced two false findings, and neither was a defect in
+the engine.
