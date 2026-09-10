@@ -74,3 +74,25 @@ this brief and [[SM828]] to circulate before anything is authored.
 ("EVALUATE, THEN LIKELY DO"), accepted as an experiment 2026-09-10. The survey
 notes the standard is recent and asks that its resource URLs be re-verified at
 audit; **they have not been verified here.**
+
+# Updated 2026-09-10 with what changed after this was written
+
+**Do not author the skill before [[SM817]]'s operator-surface pass.** The
+vocabulary is moving: `plugin` becomes `extension`, the wire already accepts both,
+and the pages, prose and practice document move in one pass. A skill authored now
+would teach `plugin` to every agent that loads it, on the day the platform stopped
+saying it - and a skill is precisely the artefact that travels furthest from the
+docs it was copied out of.
+
+That is not a delay so much as a sequencing fact: this experiment is cheapest
+when the thing it describes has stopped changing underneath it.
+
+**And it sharpens the measurement.** [[SM828]]'s second question - what is the
+maintenance contract for a second copy of the method - now has a concrete
+instance rather than a hypothetical. The rename is exactly the kind of change
+that would silently invalidate a published skill, and how much work it turns out
+to be is a data point worth collecting when the surface pass happens.
+
+**What has not changed:** one skill, from existing documents, measured, with a
+decision rule stated before authoring. Still held for feedback and still not
+scheduled.

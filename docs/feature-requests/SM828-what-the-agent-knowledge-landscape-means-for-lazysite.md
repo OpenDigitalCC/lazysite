@@ -86,3 +86,28 @@ survey rather than a measurement.
 sections. Separated from the experiment at the release manager's request so the
 two can be judged apart. Resource URLs in the survey are noted there as
 unverified and remain so.
+
+# Updated 2026-09-10: question 2 now has a live instance
+
+Question 2 above - *what is the maintenance contract for a second copy of the
+method?* - was written as a general worry. It has a concrete case now.
+
+**[[SM817]] renames `plugin` to `extension` across the operator surface.** Any
+skill, export or bundle authored from today's documents would carry the old word
+after that pass lands, and nothing would tell its readers. That is the failure
+this brief predicted, arriving before anything was built - which is useful,
+because it can be watched rather than argued about.
+
+So the maintenance question becomes answerable by observation: **when the surface
+pass happens, note how much of it a published skill would have had to follow.**
+If the answer is "almost none", the copy is cheap to keep. If it is "most of it",
+then a skill has to be generated from the documents rather than authored from
+them, and that is a different and larger piece of work than the experiment.
+
+**One thing to state plainly given the rename:** none of this changes the
+platform's position. The survey's finding was that lazysite already IS legible
+markdown with light structure, and that is as true of an extension as it was of a
+plugin. The vocabulary moving is a maintenance fact about copies, not a change to
+what the platform offers an agent.
+
+Still recommending nothing, and still held.
