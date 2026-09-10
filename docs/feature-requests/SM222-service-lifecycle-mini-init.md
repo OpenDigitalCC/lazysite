@@ -470,3 +470,39 @@ attributable, separately-granted switch keeps both.
 The same treatment is owed to content history, less sharply: a site that turns it
 off and then finds a page's past is gone has lost something the switch implied it
 was only hiding.
+
+# RULED 2026-09-10: no queue, and the init wants more design
+
+**L2's privileged-helper queue is refused.** The release manager: "not queue
+request, these can be confusing." That is the right instinct and it is the same
+one this filing is built on - a toggle that appears to take effect and actually
+enqueues a privileged action is a second thing that says it did something it has
+not done yet, which is the defect L2 exists to fix, reintroduced by the fix.
+
+So if L2 is built, it is built as **"takes effect on next regeneration"**, said
+plainly at the point of toggling. No new privileged path, and the operator is
+told when the change applies rather than left to infer it.
+
+**And the init needs more design before any of it is built.** Recorded as the
+release manager's judgement rather than argued with, and the reasons visible from
+here support it:
+
+- The **contract exists and has one conformant consumer** - `Lazysite::Lifecycle`
+  and the daemon. Five services (WebDAV, control API, MCP, OAuth, token exchange)
+  were to migrate one per SM and none has.
+- **L0 arrived after the design was written** and changes its shape: the three
+  layers are all about an endpoint, and the embedded units have none. A design
+  that names L1/L2/L3 and then discovers L0 is a design that has not finished
+  finding its layers.
+- **The semantics of OFF were only settled today** (see [[SM798]]): off stops
+  collection and does not remove what was collected. The lifecycle verbs have to
+  mean that, and `stop` reading as `purge` for one unit and `pause` for another
+  is exactly the inconsistency this filing was written about.
+- **Enablement now carries constraints** - a separate grant for the audit trail,
+  and whatever the rate limiter needs - so `start`/`stop` are no longer a single
+  authority.
+
+**What that means practically:** the batch builds L0 and the rename, and the
+service lifecycle migration waits for a design pass that has L0, the OFF
+semantics and constrained enablement in it from the start rather than bolted on.
+Not scheduled here.

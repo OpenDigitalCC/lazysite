@@ -149,3 +149,75 @@ belongs one level down, which is a design decision about every listing rather
 than about connectors.
 
 WHAT REMAINS: that decision.
+
+# THE REMAINING QUESTION, set out properly - detail requested 2026-09-10
+
+"Surface a row's actions on the row" was too compressed to decide on. Here is
+what it actually means.
+
+## What a connector row is today
+
+    <div class="mg-row">
+      <span class="mg-row-name">uicheck <span class="mg-row-meta">UI check</span></span>
+      <span class="mg-row-meta">POST https://... · signed in · no rate cap</span>
+      <span class="mg-row-actions">
+        <span class="mg-tag mg-tag-off">no credential</span>
+        <a class="mg-chev" ...>            <- the disclosure, now a chevron
+      </span>
+    </div>
+    <div class="mg-expand" hidden>          <- Save, Delete, and the whole editor
+    </div>
+
+So the row shows **what it is** and **what state it is in**, and everything you
+can DO to it - Save, Delete, and every configuration field - is inside the
+expander. The only way in is the chevron.
+
+## What "surface the actions" would change
+
+The row would carry one or more real controls. Concretely, one of:
+
+- **Delete on the row**, beside the state tag. The editor stays in the expander.
+- **A named button** - "Configure" or "Manage" - replacing or joining the
+  chevron, so the way in is a word rather than a shape.
+- **Both.**
+
+## The three sub-questions, which is why this is not one decision
+
+**1. Which actions belong on a row?** Delete is the one the field could not find,
+and it is also the destructive one. Putting it on the row means a destructive
+action is one click from a list, where today it takes a deliberate open-then-read
+first. The confirmation - which the field singled out as better than most,
+because it names what goes with the connector - is then the only thing between a
+misclick and a deleted connector with its credential. **A named "Configure"
+button carries none of that risk and fixes most of the discoverability
+complaint.**
+
+**2. Which lists?** `.mg-row` is used by `connectors.md`, `backups.md`, `data.md`
+and `files.md`, and demonstrated by the style guide. Their rows do not have the
+same actions: a backup is restored or downloaded, a table is published or
+migrated, a file has permissions. **A shared answer means designing for the
+union**; a per-page answer means four arrangements of the same idiom, which is
+how [[SM806]] came to borrow the permissions editor's components as generic
+layout and how this page came to hand-roll its expander. **A one-page fix to a
+shared-idiom complaint is the defect this filing is about**, so the honest
+options are "change the idiom for everyone" or "leave it".
+
+**3. What happens to the disclosure?** If the row carries its actions, the
+expander still holds the editor - so the chevron stays and now competes with a
+button beside it. If the chevron becomes a named button, the row has a word
+instead of a shape and nothing else changes. These are different outcomes and the
+second is much smaller.
+
+## What I would do, if it helps
+
+**The named button, for every list, and no destructive action on the row.** It
+answers the reported complaint - a person could not find their way in - without
+moving Delete closer to a misclick, and it is one change to the shared idiom
+rather than four arrangements. The glyph fix already landed does part of this
+work; a word does the rest.
+
+**What it costs:** a row gains a control, so narrow-window layout wants checking
+across four pages, and `t/lint/97` ("a button label says what the button does")
+governs the wording.
+
+Still open, and now three answerable questions rather than one compressed one.

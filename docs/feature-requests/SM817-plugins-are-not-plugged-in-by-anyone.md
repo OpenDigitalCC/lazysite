@@ -389,3 +389,35 @@ are the internal ones, which have not moved, while the wire accepts both.
   [[SM824]] then consumes.
 - The **constrained-enablement** mechanism that [[SM798]], the audit trail and
   content history all need.
+
+# The capability question, answered 2026-09-10
+
+The release manager asked whether each extension gets its own capability, packaged
+behind a system-settings group. **Both halves of that mechanism already exist**,
+which makes this smaller than it sounds.
+
+**Per-extension capabilities**: the `owns` block already carries a `capabilities`
+list, and four of the fourteen use it - `daemon` (`run_jobs`), `data`
+(`manage_data`), `briefs` (`manage_briefs`) and `pandoc`. The other ten declare
+none, because nothing about them is separately gated today. So the shape is
+there; it is a question of which units should claim one.
+
+**The system-settings group is `cap-services`**, one of six shipped `cap-*`
+bundles (content, design, data, site, services, people). Its description is
+almost exactly the question: "The WebDAV, MCP, OAuth, control-API and
+token-exchange switches. Decides whether the remote surfaces answer at all, for
+everyone already connected." It carries `manage_services`.
+
+**So the recommendation is:**
+
+- **Turning an extension on or off** is `manage_services`, in `cap-services`.
+  That is what the bundle is already for, and adding a seventh bundle for the
+  same authority would split one idea in two.
+- **Except where the constraint is the point.** The audit trail's switch is not
+  the same authority as turning MCP on - it is the authority to stop recording
+  what an operator does - so it wants its own capability rather than sharing
+  `manage_services`. That is the [[SM798]] constrained-enablement mechanism, and
+  it is the ONLY reason to add a capability rather than reuse one.
+- **A unit's own actions** keep declaring their own capability through `owns`
+  where they need one, exactly as `data` and `briefs` do now. Switching the unit
+  and using it are different grants and should stay so.

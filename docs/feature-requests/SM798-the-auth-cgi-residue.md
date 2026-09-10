@@ -120,3 +120,47 @@ STILL OPEN from this filing: the rate limiter's per-IP-only scope, which would
 be a per-account limiter and is a design change rather than a fix; and whether
 the limiter should be a plugin, which is the one row of this filing still in
 `docs/decision-register.md`.
+
+# RULED 2026-09-10: the rate limiter becomes a switchable extension
+
+This overrules the recommendation recorded here, and the release manager's
+reasons are better than the objection they answer:
+
+- **No core requirement for the module.** As an extension, `DB_File` is the
+  extension's declared dependency (`owns.deps`) rather than something core must
+  carry. That inverts the original argument entirely: the dep check was dismissed
+  here because `DB_File` is a core Perl module shipped in `debian/control` - but
+  the point is to stop it being one.
+- **Less in the core.** The same principle as [[SM817]] and [[SM222]] L0: the
+  renderer and the auth path keep only what every site needs.
+- **Some situations may not want it.** A single-operator instance behind a VPN,
+  or a constrained device, may legitimately not want a per-IP counter and its
+  store at all. That is a real deployment, and "you may not turn this off" was
+  the whole of the objection.
+
+**What survives from the objection** is the failure mode, not the conclusion: a
+rate limiter that is off must be *visibly* off. The WARN built in 0.13.10 says
+when it is not in force; a disabled extension must say the same thing in the same
+words, so that "disabled deliberately" and "broken quietly" never look alike.
+
+# The semantics of OFF, ruled the same day
+
+The release manager settled what disabling means for the three, and it is the
+same answer each time - **off stops COLLECTION, it does not remove what was
+collected**:
+
+| | What OFF does |
+| --- | --- |
+| Audit trail | No further entries. Existing entries stay. If it was never on, the data was never collected - which is the point for a constrained instance. |
+| Content history | No further logging. **The existing history is not removed.** |
+| Rate limiter | No counting, and no counter store. |
+
+That is a materially different design from the one [[SM222]] was heading towards,
+and it removes the objection that made the audit switch look dangerous: **a
+switch that stops collection is not a switch that erases evidence.** The hole in
+the record has named edges - the disable and re-enable are recorded with the
+actor - and nothing already written is touched.
+
+It also answers the constrained-resources case directly: an instance that never
+turns these on never pays for them, which is not something a "delete on disable"
+design could offer.
