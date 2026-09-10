@@ -392,6 +392,33 @@ elsif ( $action =~ /\Aplugin-/ ) {
             . "use '" . ( $action_as_sent =~ s/\Aplugin-/extension-/r ) . "'",
         action => $action_as_sent );
 }
+
+# SM831: THE SPELLING AS SENT HAS TO REACH THE PLACES THAT ANSWER FOR IT.
+#
+# The field measured this on 0.13.11: four paired calls - plugin-action,
+# extension-action, plugin-save, extension-save - and all four audited as
+# `plugin-*`. The string "extension" appeared nowhere in 10,772 bytes of audit
+# across fifty entries.
+#
+# That defeats what the deprecation is FOR. You deprecate a spelling in order to
+# retire it, the question at retirement is "is anyone still calling the old
+# one", and the audit log is where an operator looks for the answer. Normalising
+# at one point is right and stays; throwing the original away before anything
+# recorded it was the mistake.
+#
+# A FLAG RATHER THAN A SECOND ACTION NAME. Recording `extension-save` in the
+# action field would split one act across two spellings for everything that
+# counts or filters audit lines - including readers already deployed, which
+# would silently stop matching. The canonical name stays; one boolean answers
+# the retirement question.
+my $deprecated_spelling = ( $action_as_sent =~ /\Aplugin-/ ) ? 1 : 0;
+
+sub _audit_detail {
+    my ($detail) = @_;
+    return $detail unless $deprecated_spelling;
+    $detail = '' unless defined $detail;
+    return length $detail ? "$detail; spelling=deprecated" : 'spelling=deprecated';
+}
 my $path   = $params{path}   // '/';
 # Mirror the per-request context into Manager::Common for log attribution.
 $Lazysite::Manager::Common::action      = $action;
@@ -1194,7 +1221,7 @@ if ($token_auth) {
             # argument".
             my $why = $COOKIE_ONLY_REASON{$action};
             respond( { ok => 0,
-                    error => "Action not available to token clients: $action. It "
+                    error => "Action not available to token clients: $action_as_sent. It "
                         . 'exists, but is served only to the manager UI over a cookie '
                         . 'session'
                         . ( $why ? " - $why" : '' ) . '. '
@@ -1203,7 +1230,7 @@ if ($token_auth) {
         }
         else {
             respond( { ok => 0,
-                    error => "Unrecognised action name: '$action'. This is not an "
+                    error => "Unrecognised action name: '$action_as_sent'. This is not an "
                         . 'action - check the spelling and the query string (a '
                         . 'doubled "action=" is the usual cause). Call '
                         . 'describe-capabilities for the actions this account can '
@@ -2605,7 +2632,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
             }
         }
         audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
-            ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ), $detail )
+            ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ),
+            _audit_detail($detail) )
             unless $skip_audit;
     }
 }
@@ -2755,7 +2783,7 @@ sub _json_body {
 sub _refuse {
     my ( $resp, $origin, $reason, $target ) = @_;
     audit_log( $auth_user, $action, ( defined $target ? $target : ( $path // '' ) ),
-        $ENV{REMOTE_ADDR} // '', 'fail', $origin, $reason );
+        $ENV{REMOTE_ADDR} // '', 'fail', $origin, _audit_detail($reason) );
     respond($resp);
     exit 0;
 }
