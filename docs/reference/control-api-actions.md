@@ -7,6 +7,8 @@ standard-margins: true
 
 **Generated file - do not edit by hand.** Produced by `tools/gen-capability-docs.pl actions` from `lib/Lazysite/ControlApi/Actions.pm`, which `t/lint/58-action-reference-matches-the-dispatch.t` re-extracts from the dispatcher in `lazysite-manager-api.pl` and fails on any difference.
 
+**The `plugin-` prefix is the old spelling.** SM817: the fourteen bundled units are extensions rather than plugins - they ship in the package and the operator switches one off rather than installing it - so every `plugin-*` action below also answers to `extension-*`, and the new spelling is the one to write. The old one still works and logs that it is deprecated. The names below are the internal ones, which have not moved yet; the wire accepts both.
+
 An authenticated caller should ask `action=actions-list` instead: it returns this same table already narrowed to what that account may call. This page is the static model, for humans and for readers with no credential.
 
 ## Reading the capability column
@@ -150,12 +152,12 @@ tone: medium
 `notices-seen` | cookie only |  
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
-`extension-action` (was `plugin-action`) | cookie only | plugin (query), script (body), action_id (body), params (body)
-`extension-disable` (was `plugin-disable`) | cookie only | script (body)
-`extension-enable` (was `plugin-enable`) | cookie only | script (body)
-`extension-list` (was `plugin-list`) | cookie only |  
-`extension-read` (was `plugin-read`) | cookie only | plugin (query), script (body)
-`extension-save` (was `plugin-save`) | cookie only | plugin (query), script (body), values (body)
+`plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)
+`plugin-disable` | cookie only | script (body)
+`plugin-enable` | cookie only | script (body)
+`plugin-list` | cookie only |  
+`plugin-read` | cookie only | plugin (query), script (body)
+`plugin-save` | cookie only | plugin (query), script (body), values (body)
 `preview` | cookie only | path (query)
 `preview-clear` | cookie only |  
 `preview-grant` | manage_themes / manage_layouts |  

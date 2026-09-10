@@ -139,6 +139,13 @@ sub render_actions {
         . "`t/lint/58-action-reference-matches-the-dispatch.t` re-extracts from "
         . "the dispatcher in `lazysite-manager-api.pl` and fails on any "
         . "difference.\n\n";
+    push @o, "**The `plugin-` prefix is the old spelling.** SM817: the fourteen "
+        . "bundled units are extensions rather than plugins - they ship in the "
+        . "package and the operator switches one off rather than installing it - "
+        . "so every `plugin-*` action below also answers to `extension-*`, and "
+        . "the new spelling is the one to write. The old one still works and "
+        . "logs that it is deprecated. The names below are the internal ones, "
+        . "which have not moved yet; the wire accepts both.\n\n";
     push @o, "An authenticated caller should ask `action=actions-list` instead: "
         . "it returns this same table already narrowed to what that account may "
         . "call. This page is the static model, for humans and for readers with "
