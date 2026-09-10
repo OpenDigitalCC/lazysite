@@ -3,7 +3,7 @@ title: "SM222 - Mini init: a uniform start / stop / status contract for services
 subtitle: "Make 'off' actually off rather than a refusal from a process that still ran, give every service and plugin the same lifecycle verbs, and make status report enough to act on"
 brand: plain
 status: partial
-status-note: "PARTIAL 2026-09-05: THE CONTRACT IS BUILT. Lazysite::Lifecycle defines the common shape and the daemon is its first conforming consumer, which pays the debt SM666 recorded when it implemented desired-versus-runtime locally. The vocabulary is content-history's generalised rather than a new one; the verdict is derived in ONE place so units cannot drift apart on what inconsistent means; and a remedy is required whenever the verdict is not healthy, because SM712, SM730, SM749 and SM750 are four filings in one week about naming a state without naming an action. WHAT REMAINS: the existing services (WebDAV, control API, MCP, OAuth, token exchange) migrate one per SM, following ADR 0009 rather than one wide edit, since SM726 and SM728 both record what a wide simultaneous conversion costs. THE SUBSTANTIVE CALL IS UNTOUCHED: open decision 1, L2 routing, remains the operator's and did not bind the exemplar, because the daemon has no routed endpoint in phase 1. ORIGINALLY, and true until today: Design + analysis written 2026-07-27 at the operator's request. NOT built then. SUPERSEDES SM209 (merged 2026-08-08): SM209's intent-versus-availability split is absorbed as a third state (desired/runtime, paused defaulting to up so back-compat is free), and its controlling-process proposal is recorded as considered and declined. Key finding: a disabled service is NOT fully off today - the web server still routes to it and the CGI still spawns, reads the conf and only then refuses (404), and the refusal contract is inconsistent (token-exchange answers 200 {ok:0,code:service_disabled} where the others 404). Recommends generalising the content-history health verdict vocabulary, which already proves the model. Explicitly does NOT propose a process supervisor - systemd keeps that job."
+status-note: "PARTIAL 2026-09-10: THE DESIGN PASS IS DONE - the ruling of 2026-09-10 asked for one and it is the last section of this filing. Units classify as endpoint, inline or invoked; OFF means absent from whatever dispatches to the unit, guarded by ONE lint rather than fourteen remembered checks; no lifecycle verb destroys data and status reports what a stopped unit still holds; each unit declares the capability governing its own switch. The verbs split on two axes with systemd's words - enable/disable for intent, start/stop for availability. Decisions 2, 3 and 4 are closed there; decision 1 (L2 routing) stays open, narrowed to "takes effect on next regeneration" with no privileged queue. STILL TO BUILD: the L0 registry, its lint, the access log's missing switch, a no-output test per member, and constrained enablement - after which the five endpoint services migrate one per SM. THE CONTRACT IS BUILT. Lazysite::Lifecycle defines the common shape and the daemon is its first conforming consumer, which pays the debt SM666 recorded when it implemented desired-versus-runtime locally. The vocabulary is content-history's generalised rather than a new one; the verdict is derived in ONE place so units cannot drift apart on what inconsistent means; and a remedy is required whenever the verdict is not healthy, because SM712, SM730, SM749 and SM750 are four filings in one week about naming a state without naming an action. WHAT REMAINS: the existing services (WebDAV, control API, MCP, OAuth, token exchange) migrate one per SM, following ADR 0009 rather than one wide edit, since SM726 and SM728 both record what a wide simultaneous conversion costs. THE SUBSTANTIVE CALL IS UNTOUCHED: open decision 1, L2 routing, remains the operator's and did not bind the exemplar, because the daemon has no routed endpoint in phase 1. ORIGINALLY, and true until today: Design + analysis written 2026-07-27 at the operator's request. NOT built then. SUPERSEDES SM209 (merged 2026-08-08): SM209's intent-versus-availability split is absorbed as a third state (desired/runtime, paused defaulting to up so back-compat is free), and its controlling-process proposal is recorded as considered and declined. Key finding: a disabled service is NOT fully off today - the web server still routes to it and the CGI still spawns, reads the conf and only then refuses (404), and the refusal contract is inconsistent (token-exchange answers 200 {ok:0,code:service_disabled} where the others 404). Recommends generalising the content-history health verdict vocabulary, which already proves the model. Explicitly does NOT propose a process supervisor - systemd keeps that job."
 ---
 
 # SM222 - mini init (service + plugin lifecycle)
@@ -506,3 +506,141 @@ here support it:
 service lifecycle migration waits for a design pass that has L0, the OFF
 semantics and constrained enablement in it from the start rather than bolted on.
 Not scheduled here.
+ . 
+# THE DESIGN PASS, 2026-09-10
+
+Asked for by the ruling immediately above. Everything before this section is the
+analysis; this is the design that rests on it.
+
+## The three things that made the earlier design incomplete
+
+1. **Every layer was about an endpoint.** L1/L2/L3 answer "how far from the code
+   does the refusal happen", which presumes a request arriving somewhere. The
+   embedded units have nowhere for one to arrive, so the ladder never reaches
+   them. A design that names three layers and then finds a fourth underneath has
+   not finished finding its layers.
+2. **OFF had no agreed meaning.** [[SM798]] settled it the same day: off stops
+   collection and keeps what was collected. Written after this design, so the
+   verbs were specified before their meaning was.
+3. **Switching stopped being one authority.** The audit trail's switch is
+   separately granted by the ruling above; `start`/`stop` were designed as one
+   act under `manage_services`.
+
+## One idea, three materialisations
+
+The observation that unifies them: **in every class, off means absent from
+whatever dispatches to the unit.** The classes differ only in what that
+dispatcher is.
+
+| Class | Where the work starts | What dispatches | OFF means | Members |
+|---|---|---|---|---|
+| **Endpoint** | a request arrives at a URL | the web server's routing | the route is never emitted (L2), and the code refuses anyway (L1) | WebDAV, control API, MCP, OAuth, token exchange, manager |
+| **Inline** | an ordinary render or manager action | core's registry of recorders and hooks | no entry, so core makes no call | access log, audit trail, content history, rate limiter, stats recording |
+| **Invoked** | something explicitly asks for the unit | the plugin dispatch table | the ask fails cleanly, naming the unit | pandoc, notify-xmpp, git-sync, form-smtp, payment-demo |
+
+One rule, three tables, and **one lint: nothing reaches a unit except through
+its table.** That lint is the whole of L0's guarantee. It fails the
+`_stats_export` shape - core locating `plugins/stats.pl` and running it - which
+is exactly how truly-off gets quietly lost again, and it fails the fifteenth
+call site somebody adds next year without having to remember this filing exists.
+
+The fourteen remembered checks then stop being the mechanism. They become
+redundant, and can go as each unit joins its table.
+
+## The verbs are systemd's, deliberately
+
+The operator asked for **start / stop / status**. The analysis found two axes,
+and the words for them already exist in a tool the operator uses daily:
+
+| Act | Axis | Written to | Survives a restart | Carries a reason |
+|---|---|---|---|---|
+| **Enable** / **Disable** | declared intent | the killswitch in `lazysite.conf` | yes | no |
+| **Start** / **Stop** | runtime availability | runtime state, separate from the conf | yes, until resumed | **Stop: required** |
+| **Status** | neither - it observes | - | - | - |
+
+Effective availability stays `desired == on AND runtime == up`, and absent
+runtime state still means up, so back-compat remains free.
+
+Borrowing systemd's split costs nothing and is consistent with this filing's own
+position that **systemd keeps the supervisor job** - we are reusing its
+vocabulary, not its mechanism. It also puts the operator's own three words on the
+axis where they read naturally: you start and stop a running thing, and you
+enable and disable an offered one.
+
+One correction to the earlier text: "transient" was the wrong word for runtime
+state. There is no long-lived process to hold it - a CGI keeps nothing between
+requests - so it has to be persisted like anything else. It is transient to the
+operator's *intent*, not to the machine. Where it lives is a build-time choice;
+the requirement is only that it is **separate from `lazysite.conf`**, because
+the whole point is changing availability without editing configuration.
+
+## OFF never destroys, and status says what is kept
+
+Two symmetrical fears, and one rule answers both:
+
+- the operator who switches the visitor log off and finds it still recording -
+  [[SM798]]'s finding, and the reason L0 exists;
+- the operator who switches content history off and finds the page's past gone -
+  this filing's own worry, recorded in the ruling above.
+
+**Stop stops the work and touches no stored data. No lifecycle verb deletes
+anything.** Deletion is a different act with a different name and its own grant,
+and it is out of scope here.
+
+That alone is not enough, because a switch that silently preserves is as
+surprising as one that silently destroys. So **status of a stopped unit reports
+its residue**: `stopped 2026-09-10 by <account>; 4,102 entries retained`. The
+`detail` field already exists for it. An operator then knows both that the unit
+is off and that turning it back on will not start from nothing.
+
+## Who may switch what
+
+Each unit declares the capability governing its own lifecycle, in the `owns`
+block it already publishes through `--describe`:
+
+```
+lifecycle: { governed_by: "manage_services" }   # the default
+```
+
+The audit trail declares its own instead, per the ruling above - a narrow grant
+for a narrow act, the shape [[SM579]] settled for connector destinations. Only
+four of fourteen units declare `capabilities` today, so this arrives with the
+same work that fixes that.
+
+**Every transition is written to the audit trail with the actor and the reason.**
+For the audit trail itself the ordering rule from the ruling applies: the disable
+is recorded *before* it stops and the resume *on* resumption, so the hole has
+named edges. Stated generally, the record of a transition is written by a trail
+that is still running - which every other unit satisfies without trying.
+
+## What this closes
+
+- **Decision 2, the refusal contract.** 404 with no body detail for endpoint
+  surfaces; `{ok:0,code:service_disabled}` reserved for API-shaped callers that
+  must tell "off" from "missing". Documented and tested, as recommended.
+- **Decision 3, the scope of stop for plugins.** Settled by the OFF rule above:
+  stop stops acting and never quiesces data. Content-history's `paused` residue
+  is the correct behaviour rather than an untidy one.
+- **Decision 4, whether status needs its own capability.** It does not. SM180's
+  dormant-capability indicators already show any manager account which services
+  exist and that a granted capability's service is off. A second grant here would
+  give two different answers to one question, and hide from the operator what the
+  permission grid already tells them.
+
+**Decision 1, L2 routing, stays open** and is narrowed by the ruling: no
+privileged queue, and if it is built it is built as *takes effect on next
+regeneration*, said plainly where the toggle is.
+
+## Build order
+
+1. **L0: the registry, its lint, and the access log's missing switch** - the case
+   the release manager named. This is the piece in the extensions batch.
+2. **A no-output test per member.** "The action refuses" is already true and is
+   what made this invisible; each member asserts it produces *nothing* when off.
+3. **Constrained enablement**: `governed_by` in `owns`, and the audit trail's own
+   group.
+4. **Then** the five endpoint services migrate to `Lazysite::Lifecycle`, one per
+   SM, following ADR 0009.
+
+Steps 1 to 3 are what make step 4 a migration rather than a redesign, which is
+what the ruling above was protecting against.
