@@ -414,6 +414,17 @@ function newConnector() {
 
 // The call record is the operator's window on what this connector has
 // actually done: outcome and time, never the payload and never the answer.
+// SM822: the record is kept for a window, and the panel says which. An operator
+// found 47 entries from connectors deleted days earlier and had no way to know
+// whether that was policy or neglect.
+function retentionNote(j) {
+  var d = j && j.retention_days;
+  if (!d) { return ''; }
+  return '<p class="mg-note">Calls are kept for ' + escHtml(String(d))
+    + ' days, including calls from connectors that have since been deleted '
+    + '- a deletion does not erase what the connector did.</p>';
+}
+
 function loadCalls(id) {
   // SM806: the parameter is `connector`, not `id`. Sending the wrong name
   // did not fail - the filter simply never applied, so every connector's
@@ -427,7 +438,7 @@ function loadCalls(id) {
       if (!el) return;
       if (!d.ok) { el.innerHTML = '<span class="mg-muted">' + escHtml(d.error || 'could not read the call record') + '</span>'; return; }
       var calls = d.calls || [];
-      if (!calls.length) { el.innerHTML = '<div class="mg-empty">No calls recorded.</div>'; return; }
+      if (!calls.length) { el.innerHTML = '<div class="mg-empty">No calls recorded.</div>' + retentionNote(d); return; }
       el.innerHTML = '<div class="mg-table-wrap"><table class="mg-table">'
         + '<thead><tr><th>When</th><th>Trigger</th><th>Outcome</th><th>HTTP</th></tr></thead><tbody>'
         + calls.map(function(c) {
@@ -436,7 +447,8 @@ function loadCalls(id) {
             + '<td>' + escHtml(c.state || '') + (c.why ? ' <span class="mg-muted">' + escHtml(c.why) + '</span>' : '') + '</td>'
             + '<td>' + escHtml(c.http == null ? '' : c.http) + '</td></tr>';
         }).join('')
-        + '</tbody></table></div>';
+        + '</tbody></table></div>'
+        + retentionNote(d);
     })
     .catch(function() {
       var el = document.getElementById('calls-' + id);

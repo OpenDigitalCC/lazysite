@@ -417,6 +417,95 @@ sub _record_call {
     print {$fh} JSON::PP->new->canonical->encode($rec), "\n";
     close $fh;
     secure_write_perms( $f, 0660 );
+    _prune_calls();
+    return;
+}
+
+# SM822: THE RECORD IS BOUNDED BY AGE, and by nothing else.
+#
+# It had no retention at all: 47 entries survived on edge from connectors deleted
+# days earlier, and every test run added more. The field's own reading was that
+# this "is probably right for an audit", which is the crux - a record whose rows
+# vanish when their connector is deleted is a record an operator can erase by
+# deleting the thing it describes, and SM771 established that every refusal is a
+# row.
+#
+# So: never prune on delete, prune by AGE. A deleted connector's calls outlive it
+# and expire on their own schedule, which keeps the audit property while bounding
+# a store that otherwise only grows from ordinary use.
+#
+# CHEAP IN THE COMMON CASE. The file is append-only, so the FIRST line is the
+# oldest: read one line, and if it is inside the window there is nothing to do
+# and nothing else is read. The full rewrite happens only when something has
+# actually expired.
+# Read one scalar from lazysite.conf. Util::service_enabled reads the same file
+# but answers a boolean, and this needs a number - same shape, different question.
+sub _conf_scalar {
+    my ($key) = @_;
+    my $path = Lazysite::Paths::lazysite_dir($DOCROOT) . '/lazysite.conf';
+    open my $fh, '<', $path or do {
+        # SM770/SM800: a config that could not be READ is not a config that
+        # says nothing. Falling back to the default silently would make an
+        # unreadable conf indistinguishable from an unset key.
+        cannot_read( 'site config', $path ) unless $!{ENOENT};
+        return undef;
+    };
+    my $val;
+    while ( my $l = <$fh> ) {
+        if ( $l =~ /^\Q$key\E\s*:\s*(\S+)/ ) { $val = $1; last }
+    }
+    close $fh;
+    return $val;
+}
+
+# The window, and why it has a default rather than being required: a store with
+# no retention is what this fixes, so an unset key must not mean "keep for ever".
+sub _retention_days {
+    my $v = _conf_scalar('connector_call_retention_days');
+    return 90 unless defined $v && $v =~ /^\d+\z/ && $v > 0;
+    return $v + 0;
+}
+
+sub _prune_calls {
+    my $f = _calls_file();
+    my $cutoff = time - ( _retention_days() * 86400 );
+
+    open my $in, '<:raw', $f or do {
+        # Same rule: an unreadable record must not look like a record with
+        # nothing to prune. Nothing is pruned either way - this reports and
+        # leaves the file alone, which is the safe half.
+        cannot_read( 'connector calls', $f ) unless $!{ENOENT};
+        return;
+    };
+    my $first = <$in>;
+    unless ( defined $first ) { close $in; return }
+    my $rec = eval { JSON::PP->new->decode($first) };
+
+    # A first line that will not parse is not a reason to rewrite the file -
+    # that would delete a record because one byte of it is unreadable. Leave it
+    # and let the operator see it.
+    unless ( ref $rec eq 'HASH' && defined $rec->{at} ) { close $in; return }
+    if ( ( $rec->{at} + 0 ) >= $cutoff ) { close $in; return }
+
+    my @keep;
+    push @keep, $first;
+    seek $in, 0, 0;
+    @keep = ();
+    while ( my $l = <$in> ) {
+        my $r = eval { JSON::PP->new->decode($l) };
+        # Keep anything unparseable, and anything without a timestamp: this
+        # prunes what it can DATE, and refuses to discard what it cannot.
+        push( @keep, $l ), next unless ref $r eq 'HASH' && defined $r->{at};
+        push @keep, $l if ( $r->{at} + 0 ) >= $cutoff;
+    }
+    close $in;
+
+    my $tmp = "$f.pruning.$$";
+    open my $out, '>:raw', $tmp or return;
+    print {$out} @keep;
+    close $out;
+    secure_write_perms( $tmp, 0660 );
+    rename $tmp, $f or unlink $tmp;
     return;
 }
 
@@ -757,7 +846,8 @@ sub action_connector_calls {
     splice @rows, $limit if @rows > $limit;
     my %by_state;
     $by_state{ $_->{state} }++ for @rows;
-    return { ok => 1, calls => \@rows, counts => \%by_state };
+    return { ok => 1, calls => \@rows, counts => \%by_state,
+        retention_days => _retention_days() };    # SM822: say what is kept
 }
 
 # The scheduler's job (SM666): expire the record past its keep, and count
