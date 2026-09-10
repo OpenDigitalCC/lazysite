@@ -612,12 +612,24 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
    The glyph is set HERE rather than written into each page, so a page cannot
    spell it differently and the open state cannot get out of step with the
    class that styles it. */
-.mg-chev::before { content: '+'; font-family: var(--mg-mono); font-weight: 600; }
+/* SM816: A CHEVRON, because that is what the class is called and what the
+   control does. It rendered a `+`, and a `+` at this size beside a "New
+   connector" button reads as "add another one" - which is how an operator came
+   to report that a connector could not be deleted: the only route to Delete was
+   an unlabelled plus that looked like the wrong button. The name is fixed too
+   (aria-label and title, changing with the state), but a control that LOOKS like
+   the wrong thing is not fixed by being correctly named.
+   Rotation rather than a second glyph: one shape that turns is the disclosure
+   convention, and it cannot fall out of step with itself the way `+` and a
+   minus sign can. No transition - a rotation that animates is a motion question
+   this does not need to raise. The `+` on summary.mg-acc-line stays: that one
+   sits beside a text label, so it is not ambiguous. */
+.mg-chev::before { content: '\203A'; font-family: var(--mg-mono); font-weight: 600; display: inline-block; }
 /* Underlined, because `.mg-main a` (0,2,0) beats `.mg-chev` (0,1,0) and the
    chevron is an <a>. The control is a box with a border; an underline under
    its glyph reads as a link to somewhere. */
 .mg-main a.mg-chev, .mg-main a.mg-chev:hover { text-decoration: none; }
-.mg-chev-open::before { content: '\2212'; }
+.mg-chev-open::before { content: '\203A'; transform: rotate(90deg); }
 .mg-chev:hover { border-color: var(--mg-text-light); color: var(--mg-text); background: var(--mg-surface-alt); }
 .mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent-deep); border-color: var(--mg-accent); background: var(--mg-accent-bg); }
 /* THE EXPANDER IS TWO ELEMENTS WITH TWO JOBS, and collapsing them into one

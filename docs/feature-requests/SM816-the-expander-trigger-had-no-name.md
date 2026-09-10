@@ -4,11 +4,11 @@ title: "SM816: the expander trigger had no name, so Delete could not be found"
 subtitle: "An operator could not delete a connector and reported there was no interface for it. There is: Save and Delete are in the row's expander, and the expander's only trigger was an empty anchor with no text, no aria-label and no title - rendering as a `+` beside a New connector button. The capability was never the obstacle. The style guide's own exemplar taught the omission, which is why this is a lint and not a one-line fix."
 brand: plain
 standard-margins: true
-status: shipped
+status: partial
 raised: 2026-09-09
 raised-by: sites agent
 area: manager-ui
-status-note: "BUILT 2026-09-09 on claude/sm816-the-expander-has-no-name. The trigger is named on all four pages that use it, the name changes with the state, and the style guide's two exemplars are fixed and now state the rule - because connectors.md was written from the guide and inherited the guide's omission. t/lint/123 covers every .mg-chev trigger in starter/manager, the guide included; it was checked by removing the name again and watching it name connectors.md:162. NOT CHANGED: the glyph, which is a decision - see below."
+status-note: "PARTIAL. BUILT 2026-09-09: the trigger is NAMED on all four pages using the idiom, the name changes with the state, and the style guide two exemplars are fixed and now state the rule - connectors.md was written from the guide and inherited the guide omission. t/lint/123 covers every .mg-chev trigger, the guide included. BUILT 2026-09-10: the GLYPH is a rotating chevron rather than a plus, in all three styles - a bare plus beside a New connector button reads as add another, which is how an operator came to report that a connector could not be deleted. t/lint/124 guards the glyph and the row template together, because both are shared across three stylesheets a reader edits one at a time. WHAT REMAINS: whether a row surfaces its own actions rather than putting them one level down. NOT built on connectors alone, deliberately - .mg-row is shared by four pages and the guide, and a one-page fix to a shared-idiom complaint is the defect this filing is about. It is also a real trade: Delete on every row is destructive one click from a list. The ambiguity that motivated it is gone either way."
 ---
 
 # The finding
@@ -100,3 +100,52 @@ cannot reach is often a control a person cannot find either.**
 `inbox/2026-09-09-connector-row-expander-has-no-name.md`. The four-page survey
 and the stylesheet glyph were read here before the fix; the operator's report
 and the DOM measurements are the reporter's.
+
+# THE GLYPH, BUILT 2026-09-10 - and half of the recommendation deliberately not built
+
+`.mg-chev` renders `\203A` and the open state rotates it 90 degrees, in all three
+styles. That is what the field asked for - "make it look like a disclosure rather
+than an add" - and it is what the class has always been called while rendering a
+plus.
+
+**Rotation rather than a second glyph**: one shape that turns is the disclosure
+convention, and it cannot fall out of step with itself the way `+` and `\2212`
+can. No transition, because a rotation that animates raises a motion question
+this does not need to raise.
+
+**The `+` on `summary.mg-acc-line` is left alone.** That one sits beside a text
+label, so it is not ambiguous - the defect was a BARE plus with no name and no
+label, which is why naming it (above) and reshaping it are two halves of one
+problem rather than alternatives.
+
+`t/lint/124` now guards it alongside the row template, for the same reason: three
+stylesheets that a reader edits one at a time, where a glyph drifting in one
+style is wrong only for whoever selected it. Verified by reverting one sheet to
+`+` and watching two assertions fail.
+
+## Not built: surfacing a row's actions on the row
+
+This was the recommendation in the register, and it is the half I have not done,
+because doing it on the connectors page alone would recreate the exact defect
+this filing is about.
+
+`.mg-row` is a **shared** idiom used by four pages and demonstrated by the style
+guide. Putting Delete on the connector row means either changing the shared idiom -
+a design pass across four pages, three stylesheets and the guide - or giving one
+page its own arrangement, which is how [[SM806]] came to borrow the permissions
+editor's components as generic layout and how this page came to hand-roll its
+expander. **A one-page fix to a shared-idiom complaint is the thing that keeps
+going wrong here.**
+
+It is also a question with a real trade in it that the glyph change does not
+have: Delete on every row is a destructive action one click from a list, and the
+confirmation - which the field singled out as better than most - is the only thing
+between a misclick and a deleted connector with its credential.
+
+So it stays open, and it is now a narrower question than when it was filed: the
+ambiguity that motivated it is gone, because the glyph no longer reads as "add"
+and the trigger says what it opens. What remains is whether a list's management
+belongs one level down, which is a design decision about every listing rather
+than about connectors.
+
+WHAT REMAINS: that decision.

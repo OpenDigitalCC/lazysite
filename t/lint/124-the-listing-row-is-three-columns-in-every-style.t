@@ -74,4 +74,37 @@ for my $style ( sort keys %template ) {
             . "metadata beside it. See SM819 and MR-68." );
 }
 
+# --- and the disclosure glyph is a disclosure, in every style ----------------
+# SM816: `.mg-chev` rendered a `+`. At its size, beside a "New connector"
+# button, that reads as "add another one" - which is how an operator came to
+# report that a connector could not be deleted: the only route to Delete was an
+# unlabelled plus that looked like the wrong button entirely.
+#
+# Guarded here rather than in its own file because it is the same shared-idiom
+# problem as the row template above: three stylesheets a reader edits one at a
+# time, and a glyph that drifts in one style is wrong only for whoever selected
+# it. The `+` on `summary.mg-acc-line` is deliberately not covered - that one
+# sits beside a text label, so it is not ambiguous.
+{
+    my %glyph;
+    for my $f (@sheets) {
+        ( my $style = $f ) =~ s{.*/manager-}{};
+        $style =~ s/\.css$//;
+        open my $fh, '<:utf8', $f or die "$f: $!";
+        my $src = do { local $/; <$fh> };
+        close $fh;
+        my ($g) = $src =~ /^\.mg-chev::before \{[^}]*content:\s*'([^']*)'/m;
+        $glyph{$style} = defined $g ? $g : '(none)';
+    }
+
+    my %distinct = map { $glyph{$_} => 1 } keys %glyph;
+    is( scalar keys %distinct, 1, 'every style uses the SAME disclosure glyph' )
+        or diag( join "\n", map { sprintf '  %-12s %s', $_, $glyph{$_} } sort keys %glyph );
+
+    for my $style ( sort keys %glyph ) {
+        isnt( $glyph{$style}, '+',
+            "$style: the disclosure glyph is not a plus - a bare + reads as add" );
+    }
+}
+
 done_testing();
