@@ -8589,7 +8589,11 @@ sub _json_str {
                 my $in_plugins = 0;
                 while ( my $l = <$fh> ) {
                     chomp $l;
-                    if ( $l =~ /^plugins\s*:\s*$/ ) { $in_plugins = 1; next }
+                    # SM817: both spellings open the one registry.
+                    if ( $l =~ /^(?:extensions|plugins)\s*:\s*$/ ) {
+                        $in_plugins = 1;
+                        next;
+                    }
                     if ( $in_plugins && $l =~ /^\s+-\s+(.+?)\s*$/ ) {
                         $_UNITS->{$1} = 1;
                         next;

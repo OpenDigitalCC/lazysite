@@ -102,7 +102,11 @@ sub _enabled_map {
         my $in_plugins = 0;
         while (<$fh>) {
             chomp;
-            if (/^plugins\s*:\s*$/) { $in_plugins = 1; next }
+            # SM817: `extensions:` is the name, `plugins:` is the old one,
+            # and a site keeps whichever it has. Both open the SAME list -
+            # there is one registry, spelled two ways, so a site cannot end
+            # up with two lists that disagree about what is enabled.
+            if (/^(?:extensions|plugins)\s*:\s*$/) { $in_plugins = 1; next }
             if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
                 my $entry = $1;
                 $entry =~ s/\s+$//;

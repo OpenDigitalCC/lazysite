@@ -28,7 +28,7 @@ use MIME::Base64 qw(encode_base64);
 use JSON::PP qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps revoke_caps);
+use TestHelper qw(repo_root grant_caps revoke_caps site_tempdir);
 
 my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
@@ -71,7 +71,7 @@ sub mapi {
 
 sub basic { 'Basic ' . encode_base64( "$_[0]:$_[1]", '' ) }
 
-my $d = tempdir( CLEANUP => 1 );
+my $d = site_tempdir();    # lint 118: not a bare tempdir
 make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "control_api_enabled: true\nplugins:\n  - plugins/briefs.pl\n";

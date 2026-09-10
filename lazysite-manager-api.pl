@@ -415,10 +415,12 @@ my $deprecated_spelling = ( $action_as_sent =~ /\Aplugin-/ ) ? 1 : 0;
 
 sub _audit_detail {
     my ($detail) = @_;
-    return $detail unless $deprecated_spelling;
-    $detail = '' unless defined $detail;
-    return length $detail ? "$detail; spelling=deprecated" : 'spelling=deprecated';
+    return $detail               unless $deprecated_spelling;
+    $detail = ''                 unless defined $detail;
+    return 'spelling=deprecated' unless length $detail;
+    return "$detail; spelling=deprecated";
 }
+
 my $path   = $params{path}   // '/';
 # Mirror the per-request context into Manager::Common for log attribution.
 $Lazysite::Manager::Common::action      = $action;

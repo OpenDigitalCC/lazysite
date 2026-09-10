@@ -123,6 +123,25 @@ Naming the commit: AFTER it lands, never before
   That makes it a second reader of one grammar rule, so `t/unit/processor/73`
   pins it against `parse_binding` over seven specs rather than against a comment.
 
+- SM831 (PENDING) **the spelling as sent reaches the audit record and the error
+  message.** The field measured four paired calls on 0.13.11 and all four
+  audited as `plugin-*`, with "extension" absent from fifty entries - so the
+  question the deprecation exists to answer, *is anyone still calling the old
+  one*, could not be asked. A flag now rides the record rather than a second
+  action name, because recording `extension-save` in the action field would
+  split one act across two spellings for every deployed reader. Refusals echo
+  what the caller typed: `extension-nosuchthing` no longer refuses as
+  `plugin-nosuchthing`, sending somebody to grep for a verb that is nowhere in
+  their code.
+
+- SM817 (PENDING) **`extensions:` is the registry key, and `plugins:` still
+  opens the same list.** Both readers learned it together - the manager's
+  `_enabled_map` and the render path's marked copy - because a rename that
+  reached one and not the other would put a unit in one reader's list and out of
+  the other's. A site carrying both keys gets ONE list rather than one of them
+  winning: there is a single registry, spelled two ways. `t/lint/125` covers it
+  with three added shapes, and fails six ways if only one reader is renamed.
+
 ## 0.13.11 - EDGE: the controls the field could not find, and the escape that was never there (2026-09-10)
 
 **Most of this release is the field's, and the pattern in it is worth naming.**

@@ -65,6 +65,25 @@ my @CASES = (
     [ 'deeper indentation is still an entry',
       "plugins:\n    - plugins/stats.pl\n",
       ['plugins/stats.pl'] ],
+
+    # SM817: `extensions:` is the name and `plugins:` the old one. BOTH readers
+    # have to learn it together, which is exactly what this file is for - a
+    # rename that reached the manager and not the render path would put a unit
+    # in one reader's list and out of the other's.
+    [ 'the new spelling of the key',
+      "extensions:\n  - plugins/stats.pl\n  - plugins/data.pl\n",
+      [ 'plugins/stats.pl', 'plugins/data.pl' ] ],
+
+    [ 'the new key, a key after it',
+      "extensions:\n  - plugins/data.pl\nsite_name: After\n",
+      ['plugins/data.pl'] ],
+
+    # ONE REGISTRY, SPELLED TWO WAYS. A site that somehow carries both keys must
+    # not end up with two lists that disagree about what is enabled, so both
+    # open the same list rather than one winning.
+    [ 'both spellings present open the one list',
+      "extensions:\n  - plugins/data.pl\nplugins:\n  - plugins/stats.pl\n",
+      [ 'plugins/data.pl', 'plugins/stats.pl' ] ],
 );
 
 # Every entry either case mentions, so we test the NEGATIVE answers too - a
