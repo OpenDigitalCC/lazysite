@@ -152,9 +152,25 @@ function rowFor(c) {
     + '<span class="mg-row-meta">' + meta + '</span>'
     + '<span class="mg-row-actions">'
     + '<span class="' + s.cls + '">' + escHtml(s.label) + '</span> '
-    + '<a href="#" class="mg-chev" onclick="return toggleRow(this, \'' + id + '\')" aria-expanded="false"></a>'
+    // SM816: THE TRIGGER IS NAMED. It was an empty anchor - no text, no
+    // aria-label, no title - and it is the ONLY route to Save and Delete, so an
+    // operator reported there was no way to delete a connector. There was; it
+    // had nothing to announce itself with. data-conn carries the id so
+    // toggleRow can rename it as the state changes.
+    + '<a href="#" class="mg-chev" data-conn="' + id + '"'
+    + ' onclick="return toggleRow(this, \'' + id + '\')"'
+    + ' aria-expanded="false" aria-label="Show details for ' + id + '"'
+    + ' title="Show details for ' + id + '"></a>'
     + '</span></div>'
     + '<div class="mg-expand" id="exp-' + id + '" hidden></div>';
+}
+
+// SM816: the trigger's name tracks its state. aria-expanded already said open
+// or closed; without a name there was nothing for it to be expanded ABOUT.
+function nameChev(a, verb) {
+  var id = a.getAttribute('data-conn') || '';
+  a.setAttribute('aria-label', verb + ' details for ' + id);
+  a.setAttribute('title', verb + ' details for ' + id);
 }
 
 // THE ONE IDIOM (style guide): the card is the row's next sibling, it is shown
@@ -174,6 +190,7 @@ function toggleRow(a, id) {
   for (var i = 0; i < chevs.length; i++) {
     chevs[i].classList.remove('mg-chev-open');
     chevs[i].setAttribute('aria-expanded', 'false');
+    nameChev(chevs[i], 'Show');
   }
   var bodies = document.querySelectorAll('#connector-list .mg-expand');
   for (var j = 0; j < bodies.length; j++) { bodies[j].hidden = true; }
@@ -183,6 +200,7 @@ function toggleRow(a, id) {
     body.hidden = false;
     a.classList.add('mg-chev-open');
     a.setAttribute('aria-expanded', 'true');
+    nameChev(a, 'Hide');
     loadCalls(id);
   }
   return false;

@@ -59,3 +59,50 @@ field, with both observations true.
 
 `inbox/2026-09-09-139E-results-0.13.9.md`, 139E-06 steps 3 and 4. The
 three-account comparison is the field's; the render comparison is the engine's.
+
+# ANSWERED 2026-09-09, and the diagnosis in this filing was WRONG
+
+The sites agent could not read `lazysite/manager/layout.tt` - it is refused to
+every route they hold (WebDAV 403, the token's scope deny list; `file-download`
+as sysop, "Path is blocked") - and answered the question without reading it, on
+the sound ground that **a class cannot render unless the template that rendered
+it contains it.** As `ai-ui-tester` on `/manager/`: sixteen nav items, four
+carrying `.mg-nav-locked`, and the literal string present in the served HTML.
+
+**So `mg-nav-locked` IS in the deployed template. The deploy worked, and this
+filing's premise - that a code-bucket file survived an upgrade - was wrong.**
+Closed on that basis. It was the right question to ask and the wrong answer to
+have guessed at, which is why it was asked rather than assumed.
+
+## The follow-on reading needs re-measuring, and this is checkable here
+
+Their three-account comparison reads:
+
+| Account | Holds | Nav items | Locked |
+| --- | --- | --- | --- |
+| `ai-ui-tester` | sysop | 16 | 4 |
+| `ui-test-3` | `manage_users` only | 16 | **7** |
+| `ui-test-2` | neither | **11** | **0** |
+
+and concludes that nav marking depends on `manage_users`. **The template says
+otherwise, and it was read here before replying.** Every gated item in
+`starter/lazysite/manager/layout.tt` carries the same three-way shape:
+
+    IF <capability>   -> an ordinary link
+    ELSE IF manage_users -> <a class="mg-nav-locked" href="/manager/groups" title="…grant X…">
+    ELSE                 -> <span class="mg-nav-locked" title="…a user manager can grant it.">
+
+Seven items use it - seven `<a>` forms and seven `<span>` forms, which is
+exactly `ui-test-3`'s seven. **`manage_users` changes the ELEMENT and the
+WORDING, not whether the item is marked.** An account holding neither gets seven
+`<span class="mg-nav-locked">`, so the expected reading for `ui-test-2` is seven
+locked, not zero.
+
+A selector matching `a.mg-nav-locked`, or counting nav items as anchors, would
+produce exactly the numbers reported. That is the likeliest cause and it is
+theirs to confirm; the alternative - that the spans are genuinely absent on edge
+- would be a real defect and worth knowing quickly. Asked in the reply.
+
+The differentiated wording is deliberate and is [[SM807]]: the remedy depends on
+who is reading it, so an account that can grant the capability is sent to the
+Groups page and an account that cannot is told to find someone who can.

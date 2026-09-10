@@ -32,8 +32,8 @@ widths: 3cm | X | 6cm
 bold: 1
 tone: medium
 ---
-[[SM808]] | Does the deployed `lazysite/manager/layout.tt` on edge contain `mg-nav-locked`? One WebDAV read settles it. | ASKED of the sites agent 2026-09-09. Absent means a code-bucket file survived an upgrade, which outranks everything else here.
-[[SM786]] | Which three sites render db fields? The `manager.conf` override is set for them and deprecated the same day, so the list IS the migration list. | ASKED of the sites agent 2026-09-09. Everything else is settled by the 2026-09-08 ruling.
+[[SM786]] | Escape-by-default would escape a page that ALREADY escapes correctly - the learning catalogue uses `| html` on every column. Make the default idempotent with an explicit filter, or tell authors to remove theirs? | The reporter prefers removal, loudly, in the migration note, and is right that it is the more honest of the two: "already escaped" is not reliably detectable for arbitrary text. It asks the careful authors to change their pages, which is the cost.
+[[SM816]] | The expander glyph renders as `+` beside a New connector button, so the only route to a row Save/Delete reads as "add another". Change the glyph to a rotating chevron, or surface a row's actions on the row? | Surface the actions on the row. It removes the ambiguity where it actually lives - the context, not the glyph - and `+`/`-` is a real disclosure convention across three stylesheets and four pages.
 [[SM798]] | Should the login rate limiter be a plugin, so its dependency is checked before it is enabled? | **No** - see below. The dep check would guard a case that cannot happen and miss the one that does.
 ```
 

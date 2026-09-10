@@ -80,7 +80,8 @@ dismisses itself.</span>
   <span class="mg-file-name"><code>an-item</code> <span class="mg-file-meta">9 rows &middot; published</span></span>
   <span>
     <button class="mg-btn">Read</button>
-    <a href="#" class="mg-chev mg-chev-open" onclick="return false;" aria-expanded="true"></a>
+    <a href="#" class="mg-chev mg-chev-open" onclick="return false;" aria-expanded="true"
+       aria-label="Hide details for an-item" title="Hide details for an-item"></a>
   </span>
 </div>
 <div class="mg-perms-row">
@@ -289,9 +290,10 @@ each. These are the survivors, registered so the pages have something to be conv
         <span class="mg-row-name">an-item</span>
         <span class="mg-row-meta">9 rows &middot; published</span>
         <span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Read</button>
-          <a href="#" class="mg-chev" onclick="return false;" aria-expanded="false"></a></span>
+          <a href="#" class="mg-chev" onclick="return false;" aria-expanded="false"
+             aria-label="Show details for an-item" title="Show details for an-item"></a></span>
       </div>
-      <div class="mg-expand"><div class="mg-expand-body">the row expander &mdash; one idiom, next sibling of its row. <strong>Two elements:</strong> <code>.mg-expand</code> is what the script toggles and closes siblings of; <code>.mg-expand-body</code> is the card inside it. Collapsing them into one name emptied every expander in 0.11.8.</div></div>
+      <div class="mg-expand"><div class="mg-expand-body">the row expander &mdash; one idiom, next sibling of its row. <strong>The trigger must be NAMED</strong> &mdash; <code>aria-label</code> and <code>title</code>, changing with the state (SM816). The glyph is the stylesheet's and the element has no text, so without a name it announces nothing: an operator reported there was no way to delete a connector, and the only route to Delete was an unlabelled <code>.mg-chev</code> that renders as a <code>+</code>. <strong>Two elements:</strong> <code>.mg-expand</code> is what the script toggles and closes siblings of; <code>.mg-expand-body</code> is the card inside it. Collapsing them into one name emptied every expander in 0.11.8.</div></div>
     </div>
   </div>
   <div><span class="mg-sg-tag">.mg-note</span>

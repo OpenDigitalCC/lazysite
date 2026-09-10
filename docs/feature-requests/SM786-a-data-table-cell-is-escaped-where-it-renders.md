@@ -104,3 +104,53 @@ already carrying four items without the release manager saying so.
 connector face of it in
 `inbox/2026-09-08-connector-answer-and-table-render-xss.md`. Accepted after
 independent verification.
+
+# ANSWERED 2026-09-09: no site authors HTML into a db column
+
+The sites agent surveyed every site they hold and the answer to the question as
+posed is **none**, which is the best available outcome: **the `manager.conf`
+override ships already empty, deprecated on arrival.**
+
+One live page binds a data table - the learning app's `/catalogue` - and every
+rendered column already carries a filter (`| html`, or `| uri` for a slug, with
+two numeric counts unfiltered). Read directly, `learn_categories` (2 rows) and
+`learn_programmes` (3 rows) contain no `& < > " '` at all and no HTML tags.
+
+Coverage was stated plainly rather than implied: 14 sites with local sources
+grepped across ~1,100 markdown files; the learning site's 13 pages pulled over
+WebDAV; `familyhq.explore` read and found to be **client-side** - rows fetched
+through `lazysite-data.pl`, never through the template, and its own `esc()`
+applied where it uses `innerHTML`; `edge.explore` carrying 0 tables. Three sites
+(`opendigital.info`, `edge-cc2`, `edge-cc3`) were **not surveyed** and are named
+as not surveyed.
+
+**And a correction to their own method, which is why the answer is trustworthy.**
+Their first pass grepped for `^db:` as a front-matter key, returned nothing, and
+nearly answered "none" on that basis. The binding is a source prefix *inside*
+`tt_page_var`, indented, so the pattern never matched. They found it, said so,
+and re-ran with `^\s+[a-z_]+: *db:`. A confident "none" from a wrong regex would
+have been indistinguishable from this one.
+
+# THE SECOND FAILURE MODE, which the question did not ask about
+
+The question asked which sites need the override *to keep rendering authored
+HTML*. The learning catalogue is the other shape: **a page that already escapes
+correctly, which escape-by-default would escape twice.**
+
+It is latent rather than live - the data contains no escapable character today -
+but the first apostrophe typed into a programme title renders as `&#39;` on the
+page. **The templates that did the right thing are the ones that break**, which
+is the opposite of the usual migration risk and will not be found by looking for
+sites that need the override.
+
+Two shapes, and it is a decision rather than an implementation detail, so it is
+in `docs/decision-register.md`:
+
+1. **Make escape-by-default idempotent with an explicit `| html`** - nothing
+   breaks, no author has to do anything, and the engine carries a rule that
+   "already escaped" is detectable, which for arbitrary text it is not reliably.
+2. **Tell authors to remove their filters**, loudly, in the migration note. More
+   honest, and it asks the people who were careful to change their pages.
+
+The reporter prefers the second and says it needs saying loudly. That reasoning
+is recorded rather than settled.
