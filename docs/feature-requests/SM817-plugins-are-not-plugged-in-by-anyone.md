@@ -271,3 +271,15 @@ Sequence within the release, so it is not a wide simultaneous edit - which
 [[SM823]]'s ingestion work follows this, not the reverse, so it is named
 correctly on arrival - and the taxonomy it lands into is extensions for the
 bundled units, plugins for things authored elsewhere and dropped in.
+# Version, ruled 2026-09-10: it stays in the 0.13 series
+
+Not 0.14.0. **Promotion is expensive**, so the campaign continues as 0.13.x edge
+runs and promotes once - which means a structural change rides the series rather
+than opening a new one. Which patch carries it is undecided until the release
+manager has reviewed the backlog.
+
+That overrules the recommendation to bump the minor. The reasoning is worth
+keeping because it is about the release process rather than about semantics: a
+minor bump would say the shape changed, and it would also imply a promotion
+boundary that is not being taken. The tag list showing less than the architecture
+did is the accepted cost.

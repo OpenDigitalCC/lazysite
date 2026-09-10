@@ -72,3 +72,29 @@ carries. So the order is settled even though the schedule is not.
 `inbox/2026-09-09-discuss-an-intranet-every-site-ships-with.md`, 290 lines,
 read in full. Nothing in it was verified against the source because nothing in
 it is a claim about the engine's present behaviour - it is a specification.
+
+# A use case from the release manager, 2026-09-10
+
+Recorded while ruling on [[SM811]], and worth keeping because it is a concrete
+need rather than a hypothetical: **sharing development-context files between
+people transversely, outside the project code.**
+
+The occasion was `CLAUDE.md` - a file that governs how work happens, which must
+not go to a public repo, and which therefore has no history, no review and no
+way to share its state across projects or people. The release manager's framing
+was that lazysite could carry an AI intranet for exactly this, and that local
+state tracking across projects is the other half of it.
+
+Two things this adds to the specification above:
+
+- **A reader who is not a person.** The Discuss component is specified around
+  people asking and being answered. This use case is a file an agent reads at the
+  start of every session, shared between people and agents, which is a different
+  access pattern: read-mostly, versioned, and consulted by machinery rather than
+  browsed.
+- **Outside the project code is the point.** The reason `CLAUDE.md` cannot be
+  tracked is that the repo is public. Anything solving this has to live where the
+  repo does not - which is the same boundary the intranet already needs for
+  [[SM814]], and an argument that the two are one component rather than two.
+
+Explicitly for another day, in the release manager's words. Not scheduled.

@@ -160,3 +160,37 @@ should `CLAUDE.md` be tracked?** Arguments for are the two above - history and
 review for the file that governs every session. The argument against is presumably
 that it carries host-specific or private detail, which is checkable and was not
 checked here.
+
+# RULED 2026-09-10
+
+**`CLAUDE.md` stays untracked.** The release manager's reason: this is a
+development instruction file and it should not go to a public repo. So the
+history-and-review argument above is refused on a ground that outranks it, and
+the drift risk is accepted knowingly rather than by oversight - which is a
+different thing from where this filing started.
+
+Two consequences worth writing down, because they follow from the ruling rather
+than from the file:
+
+- **Any rewrite of it is live and unreviewable.** Recovery copies go in
+  `tmp/sm811/` as a matter of course, not as a one-off.
+- **Nothing will notice the next drift.** The gate cannot see an untracked file,
+  so a future contradiction between `CLAUDE.md` and the tooling has no mechanism
+  behind it - only somebody reading both. Naming that is the most this filing can
+  do about it.
+
+The release manager also noted a direction that would answer it properly:
+**local state tracking across projects, and a lazysite AI intranet for sharing
+files like this between people transversely, outside the project code.** That is
+explicitly for another day, and it is recorded on [[SM815]] where the intranet
+work lives, because it is a concrete use case for it that had not been captured.
+
+**`rules/release-workflow.md` is reduced to a pointer** at the project's
+`CLAUDE.md`. One consumer, one statement of the contract, and a pointer cannot go
+stale. **Not done here**: the directory is unversioned and outside the project, so
+the edit is the release manager's to apply - say the word and I will, but I will
+not reach outside the working directory into an unversioned tree unasked.
+
+One thing to move before or with it: `CLAUDE.md` still cites
+`rules/release-workflow.md` § SBOM dependency rule for the shape of an SBOM
+entry. If the body goes, that section needs a home first, or the citation breaks.
