@@ -4,7 +4,7 @@ title: "SM786: a data-table cell is escaped where it renders"
 subtitle: "Security review, 0.13.8, VERIFIED AND REPRODUCED HERE: db-bound table values reach the page stash raw, the page-render Template engines set no AUTO_FILTER, and the shipped examples teach the loop without a filter - so whoever can write a row controls markup, and therefore script, on every page that displays that table. Front-matter scalars in the same stash ARE escaped, which is what makes this an asymmetry rather than a policy."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 status-note: "RULED 2026-09-08 by the release manager: escape by default, with a manager.conf override that is DEPRECATED THE DAY IT SHIPS. The override is set for the three sites that render db fields today, so nothing breaks; the sites agent then fixes those templates through routine updates; the override is removed once they are done. Design of record below - not yet built, and the release it rides is a separate decision."
 ---
 
@@ -154,3 +154,58 @@ in `docs/decision-register.md`:
 
 The reporter prefers the second and says it needs saying loudly. That reasoning
 is recorded rather than settled.
+
+# BUILT 2026-09-10, with the fail-safe the release manager asked for
+
+Escaped at the sink: `_escape_db_rows`, called by `resolve_db` on its way out,
+so every `db:` value passes through it once. Not `AUTO_FILTER` on the render
+engines - that would also re-escape what the engine itself puts in the stash,
+which is already escaped, and this is the one place every db value passes.
+
+**The override is `db_render_raw: true` in `lazysite.conf`, and it logs its own
+deprecation on every page that uses it.** A note on the ruling's wording: it
+called this a `manager.conf` override, and **there is no `manager.conf` in this
+engine** - the site config is `lazysite.conf`, which is where it has gone. Per
+the sites agent's survey - fourteen sites, ~1,100 files - **no site needs it**,
+so it ships set for nothing, which is the best available version of "set for the
+three sites that render db fields today".
+
+## The fail-safe, which is what the release manager added to the ruling
+
+> tell authors as a workaround, with fail safe. later the default changes and
+> this would create clear messages as to what the problem is, should there be
+> any lingering incompatible pages.
+
+That is a better answer than either option in the register, and it is why the
+register's question is closed rather than chosen between. Making the escape
+idempotent would have hidden the problem; telling authors alone would have left
+it silent. Instead:
+
+- **The value is escaped either way** - it fails safe, not open. A page that was
+  already careful renders `&#39;` where an apostrophe belongs: readable and
+  wrong, not broken.
+- **The log names the table, the column and the remedy** - "if this column
+  renders as `&#39;`, remove the `| html` filter from the template" - so a
+  lingering incompatible page announces itself instead of being found by eye.
+- **Detection is on the INPUT**, before escaping: a value that already looks
+  entity-encoded. It can be a false positive, because a row legitimately
+  containing the text `&amp;` is indistinguishable from one escaped upstream -
+  which is exactly why it reports and does not change what it does.
+- **An ordinary value does not trip it**, and there is a test for that: a warning
+  on every row of every table would stop being read.
+
+`starter/docs/ai-briefing-data.md` now tells authors not to add `| html`, what
+the double-escape looks like, and that the flag is deprecated on arrival.
+
+## What proves it
+
+`t/unit/processor/47` calls the sink directly - the idiom the processor's other
+unit tests use - rather than asserting through a render. **That choice is
+deliberate and was learned an hour earlier on [[SM820]]**, where a render-based
+test passed whether the fix was present or absent. Verified the other way too:
+with the escaping line removed, 6 of 15 assertions fail.
+
+Fifteen assertions, covering the markup case, the apostrophe and both quote
+styles, that numbers and undefs and references are left alone, the fail-safe with
+its message, the absence of a false positive on ordinary text, and the override
+with its deprecation notice.

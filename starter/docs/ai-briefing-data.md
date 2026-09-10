@@ -84,6 +84,26 @@ tt_page_var:
 `sort=` takes a **declared field name**. The layout then iterates it exactly as
 it would a `scan:` list.
 
+**Do not add `| html` to a db value.** Since SM786 the engine escapes every
+`db:` value where it enters the page, so a template writes `[% p.title %]` and
+gets escaped text. Whoever can write a row would otherwise control markup - and
+therefore script - on every page that displays that table, and the escape cannot
+be left to whoever writes the loop.
+
+If a template written before this still carries `| html`, the value is escaped
+twice and the page shows `&#39;` where an apostrophe belongs. **Remove the
+filter.** The engine says so when it happens rather than leaving it to be found
+by eye: the site log names the table and the column, and says to remove the
+filter. Nothing breaks in the meantime - a double-escaped page is readable and
+wrong, not broken - which is why this is a warning and not a refusal.
+
+A site whose templates genuinely render authored HTML out of a column can set
+`db_render_raw: true` in `lazysite.conf` to keep the old behaviour while they are
+corrected. **That flag is deprecated the day it ships**: it exists to hold the
+door, not to be a setting, and it logs its own deprecation on every page that
+uses it. No site is known to need it - a survey of fourteen sites and around
+1,100 files found no column carrying authored HTML.
+
 **Who sees the rows: the `public:` key** (SM476). A table is closed to
 anonymous visitors until its descriptor says `public: true` -- an unpublished
 table renders nothing for a visitor, on every page that binds it, and the

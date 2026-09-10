@@ -5216,7 +5216,76 @@ sub resolve_db {
                 . '<var>_total so the page can say so',
             key => $key, table => $table );
     }
-    return ( $rows, $r->{total} );
+    return ( _escape_db_rows( $rows, $key, $table ), $r->{total} );
+}
+
+# SM786: ESCAPE AT THE SINK, so a page author cannot forget.
+#
+# db-bound values reached the page stash raw while front-matter scalars in the
+# SAME stash were escaped - an asymmetry, not a policy - so whoever could write a
+# row controlled markup, and therefore script, on every page displaying that
+# table. The shipped examples taught the loop without a filter.
+#
+# Escaped here rather than by AUTO_FILTER on the render engines: this is the one
+# place every db value passes through, and a filter on the engine would also
+# escape values the engine itself puts in the stash, which are already escaped.
+#
+# THE OVERRIDE IS BORN DEPRECATED. `db_render_raw: true` in lazysite.conf turns
+# this off for a site whose templates still expect raw HTML. It ships announced
+# as deprecated, because its only purpose is to hold the door while templates are
+# corrected - a compatibility flag with no stated end becomes the configuration
+# everyone copies. The sites agent's survey of 14 sites and ~1,100 files found
+# NO site that authors HTML into a db column, so it ships set for nothing.
+#
+# (The ruling of 2026-09-08 called this a `manager.conf` override. There is no
+# manager.conf in this engine; the site config is lazysite.conf, which is where
+# it has gone.)
+sub _escape_db_rows {
+    my ( $rows, $key, $table ) = @_;
+    return $rows unless ref $rows eq 'ARRAY';
+
+    if ( _conf_flag_enabled('db_render_raw') ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'db_render_raw is set: db: values are NOT escaped on this site. '
+                . 'This flag is deprecated and will be removed - correct the '
+                . 'templates to escape where they render, then unset it',
+            key => $key, table => $table );
+        return $rows;
+    }
+
+    for my $row (@$rows) {
+        next unless ref $row eq 'HASH';
+        for my $col ( keys %$row ) {
+            my $v = $row->{$col};
+            next unless defined $v && !ref $v;
+
+            # THE FAIL-SAFE, and the reason it is a WARN and not a refusal.
+            #
+            # A template that already carries `| html` now escapes an escaped
+            # value, and the page shows `&#39;` where an apostrophe belongs.
+            # That is a visible, puzzling, harmless-looking defect whose cause is
+            # two correct things happening in sequence - so the log says which
+            # table and column, and what to do, rather than leaving somebody to
+            # find it by staring at the page.
+            #
+            # Detected on the INPUT, before escaping: a value that already looks
+            # entity-encoded. It can be a false positive - a row legitimately
+            # containing the text "&amp;" is indistinguishable from one that was
+            # escaped upstream - which is exactly why this reports and does not
+            # change what it does.
+            if ( $v =~ /&(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/ ) {
+                log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                    'db: value already looks HTML-escaped and is being escaped '
+                        . 'again - if this column renders as &amp;#39; or '
+                        . '&amp;lt;, remove the | html filter from the template: '
+                        . 'escaping is done here now (SM786)',
+                    key => $key, table => $table, column => $col );
+            }
+
+            $row->{$col} = _esc_html($v);
+        }
+    }
+    return $rows;
 }
 
 sub resolve_tt_vars {
