@@ -389,3 +389,84 @@ defines the process boundary), SM215 (`lazysite-check --fix`, the sibling
 tool), SM180 (dormant capability indicators - a granted capability whose service
 is off is the same disagreement this models), and SM190 (discovery that already
 reflects live config correctly).
+
+# L0: THE WORK ITSELF, which the three layers above do not cover
+
+Added 2026-09-10, from the release manager's request that "the current embedded
+engine switches be made more independent so they are truly off when disabled",
+and absorbing SM818, which was filed against this before its author checked for
+prior art. SM818's evidence is kept; SM818 itself is superseded.
+
+**L1, L2 and L3 are all about an ENDPOINT.** Refuse the request, do not route to
+it, do not install it. That is the right frame for WebDAV, the control API, MCP,
+OAuth and token exchange, because each is something a request arrives at.
+
+**Several of the embedded plugins have no endpoint.** Their work happens during
+an ordinary page render, inside the core renderer, and no amount of not-routing
+touches it. The clearest case is the one the release manager named:
+
+- **The first-party access log has no switch at all.** `lazysite-processor.pl`
+  carries "SM140: first-party access log" and builds `%ACCESS_REC` per request.
+  There is no `access_log:` key in any conf and no `if enabled` in the write
+  path. So disabling `log` or `stats` changes what can be READ, and the engine
+  goes on recording every visit. An operator running locally who switches the
+  visitor log off still accumulates visitor data.
+
+And the enablement flag is honoured unevenly, because the current mechanism asks
+every call site to remember. `plugin_enabled` is consulted at fourteen sites in
+nine files:
+
+| Consults it | Does not |
+| --- | --- |
+| `lazysite-data.pl`, `Manager/Data.pm`, `plugins/form-handler.pl` | `Lazysite::Audit::audit_log` - returns early only on an undefined `$LAZYSITE_DIR` |
+| `Manager/Briefs.pm` | the content-history write path |
+| `Daemon/Supervisor.pm` | `lazysite-mcp.pl::_stats_export` - locates `plugins/stats.pl` and runs it, erroring only if the file is absent |
+| `Lazysite::Notify` (2) | the access log, which has nothing to consult |
+| `Manager/StartPage.pm` (3), `Manager/Common.pm`, `Manager/Plugins.pm` (3) - surface and listing | |
+
+Fourteen sites remembered and several did not, which is [[SM666]]'s failure and
+SEC-2026-07 (F3)'s: a flag that reaches one reader and not another. So the fix
+is not fourteen more checks.
+
+## L0, proposed
+
+**Core calls through a registry, and a disabled unit is not in it.** Where the
+renderer wants a visit recorded it calls a recorder the `log` unit registers;
+with the unit off there is no recorder and no call. Truly-off then holds by
+construction, and a fifteenth call site added next year inherits it.
+
+Two consequences worth stating:
+
+1. **The access-log write moves out of the core renderer.** Under the principle
+   the release manager set for [[SM817]] - the core renders, standalone and
+   simply - recording who visited is a unit's job and is currently core's.
+2. **A lint that the registry is the only route.** A direct call from core into a
+   unit's file - the `_stats_export` shape - fails, because that is exactly how
+   truly-off gets quietly lost again.
+
+Each member then wants a test asserting **no output** when disabled. "The action
+refuses" is already true and is what made this invisible.
+
+## The audit trail: RULED 2026-09-10
+
+The question was whether an audit trail should honour its own switch at all,
+since one an operator can silence is arguably not an audit trail. **The release
+manager has ruled that it stays switchable, and the switch is answerable:**
+
+- The disable and the re-enable are both **written to the trail, with the actor**
+  - so the hole has named edges rather than being a silent gap. The disable is
+  recorded BEFORE the trail stops, and the re-enable on resumption.
+- **A separate group governs the act.** Turning the audit trail off is not the
+  same authority as configuring a site, and it should not travel with
+  `manage_config`. This is the class of authority [[SM579]] settled for connector
+  destinations: a narrow grant for a narrow act.
+
+That is stronger than the "make it core and unswitchable" recommendation it
+replaces, and the reason is worth keeping: unswitchable would have removed the
+operator's ability to run an instance that records nothing, which is a legitimate
+thing to want and is the same requirement the visitor log raises. A recorded,
+attributable, separately-granted switch keeps both.
+
+The same treatment is owed to content history, less sharply: a site that turns it
+off and then finds a page's past is gone has lost something the switch implied it
+was only hiding.
