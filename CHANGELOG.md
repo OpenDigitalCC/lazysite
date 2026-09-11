@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM837 (PENDING) **a remote page that cannot be fetched no longer names its
+  upstream.** A `.url` page whose fetch failed, with no cached copy, rendered
+  *"Could not fetch remote content from"* the upstream address - to an anonymous
+  visitor, unescaped, as a 200. A `.url` can name an internal host or carry a
+  token. The visitor is now told the content is temporarily unavailable, the
+  address goes to the log, and the response is 503.
+
 - SM797 partial (PENDING) **the anonymous static serve hands out no source.**
   `sanitise_uri` stripped a page extension once, so `/<page>.md.md` resolved to
   `<page>.md` and was served as raw markdown - a draft page's source, an api

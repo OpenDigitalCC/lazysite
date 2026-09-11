@@ -3,7 +3,8 @@ title: "SM837: a remote page that cannot be fetched names its upstream to whoeve
 subtitle: "Found while testing SM797, 2026-09-11: a .url page whose fetch fails, with no cached copy, renders 'Could not fetch remote content from <code>URL</code>' - to an anonymous visitor, unescaped, and as a 200"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. A .url page whose fetch fails, with no cached copy, now tells the visitor the content is temporarily unavailable and nothing about where it comes from; the upstream address goes to the log as a WARN, and the response is 503 rather than 200. The escaped-sink question is closed by construction - nothing from the request or the source file is interpolated into that page any more. t/unit/processor/76 uses a loopback upstream carrying a token and an internal path; against the unfixed processor all five assertions fail."
 ---
 
 # What happens

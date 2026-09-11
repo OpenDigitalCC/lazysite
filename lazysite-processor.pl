@@ -2725,10 +2725,11 @@ sub main {
             not_found($uri);
             return;
         }
-        my $page = process_url( $url_path, $html_path, ( stat($url_path) )[9] );
-        my $ct   = peek_content_type($url_path);
+        # SM837: a failed fetch answers with its own status, never a 200.
+        my ( $page, $status ) = process_url( $url_path, $html_path, ( stat($url_path) )[9] );
+        my $ct = peek_content_type($url_path);
         write_ct( $base, $ct );
-        output_page( _inject_admin_bar_live( $page, $url_path ), $ct );
+        output_page( _inject_admin_bar_live( $page, $url_path ), $ct, undef, undef, $status );
         return;
     }
 
@@ -3500,10 +3501,22 @@ sub process_url {
         if ( -f $html_path ) {
             return read_file($html_path);
         }
-        # No cache - render error block
-        return render_template(
-            { title => 'Content Unavailable' },
-            qq(<div class="errorbox">\n<p>Could not fetch remote content from <code>$url</code>.</p>\n</div>\n)
+        # No cache. SM837: THE VISITOR IS TOLD THE CONTENT IS UNAVAILABLE AND
+        # NOTHING ABOUT WHERE IT COMES FROM. This used to render "Could not fetch
+        # remote content from <code>$url</code>" - the upstream address, to an
+        # anonymous visitor, interpolated unescaped, as a 200. A .url source can
+        # name an internal host or carry a token in its query; the operator chose
+        # to publish the content, never the address. The address goes to the log,
+        # where an operator can reach it, and the status says the page is not
+        # available rather than claiming success to every cache and monitor.
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'remote content unavailable',
+            url => $url );
+        return (
+            render_template(
+                { title => 'Content Unavailable' },
+                qq(<div class="errorbox">\n<p>This content is temporarily unavailable.</p>\n</div>\n)
+            ),
+            '503 Service Unavailable'
         );
     }
 
