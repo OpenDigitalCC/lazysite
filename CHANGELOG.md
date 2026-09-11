@@ -43,6 +43,14 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM793 (PENDING) **a submission reaches the operator as text.** To the
+  ruling: the submissions viewer builds its table from DOM nodes and
+  `textContent`, and each row's buttons act through closures instead of an
+  attribute holding a quoted id, so a stored value never passes through HTML and
+  there is no escape to forget. The server still returns what was submitted,
+  which is what the control API and MCP read. Its dialog and the extension
+  configuration dialog close from the same corner control every sheet has.
+
 - SM852 partial (bb69f4d2) **a form's store inside a protected section stays
   there.** A file handler keeping submissions in the site's tree (`path:
   members/submissions`) wrote the next submission into a freshly made public

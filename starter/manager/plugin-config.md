@@ -145,7 +145,7 @@ function mgPluginModal(title) {
       '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:760px;max-height:86vh;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">'
     + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--mg-border,#ddd);">'
     + '<strong id="plugin-modal-title" style="flex:1"></strong>'
-    + '<button class="mg-btn mg-btn-sm" onclick="mgPluginModalClose()">Close</button></div>'
+    + '<button type="button" class="mg-sheet-close" onclick="mgPluginModalClose()" aria-label="Close">&times;</button></div>'
     + '<div id="plugin-modal-body" style="flex:1;overflow:auto;padding:12px 14px;"></div></div>';
   // Clicking the backdrop closes, and goes through the same unsaved-changes
   // question as the button - an accidental click outside must not be a quieter
@@ -648,33 +648,50 @@ function unblockIp(ip) {
 
 // --- SM182/SM187: submissions viewer (scrollable modal + per-row delete) -----
 // The raw .jsonl store lives in the reserved lazysite/ tree, so it can't be
-// opened in the file editor. Show it in a scrollable MODAL table instead. Values
-// are user-supplied, so EVERY cell/header/label goes through esc(). A handled row
-// can be deleted by its stable _id (server rewrites the store).
+// opened in the file editor. Show it in a scrollable MODAL table instead. A
+// handled row can be deleted by its stable _id (server rewrites the store).
+//
+// SM793: EVERY VALUE ARRIVES AS TEXT. The table is built from DOM nodes and
+// textContent, and each button's action is a closure rather than an attribute,
+// so a stored value never passes through HTML at all - there is no escape to
+// forget, and no quoting of an attribute to get wrong. The server returns the
+// submission as it was sent, which is what the control API and MCP read too.
+
+function subsNode(tag, cls, text) {
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = String(text);
+  return n;
+}
+function subsMessage(text) { return subsNode('p', 'mg-muted', text); }
 
 function toggleSubmissions(handlerId, dirPath) {
   openSubsModal();
-  setSubsBody('<p style="color:var(--mg-text-light)">Loading submissions&hellip;</p>', 'Submissions');
+  setSubsBody(subsMessage('Loading submissions\u2026'), 'Submissions');
   fetch(API + '?action=list&path=' + encodeURIComponent(dirPath))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var files = (data.ok && data.entries ? data.entries : []).filter(function(f) {
         return f.type === 'file' && /\.jsonl$/.test(f.name || '');
       });
-      if (!files.length) { setSubsBody('<p style="color:var(--mg-text-light)">No submissions yet.</p>', 'Submissions'); return; }
+      if (!files.length) { setSubsBody(subsMessage('No submissions yet.'), 'Submissions'); return; }
       // A form selector in the modal header when the store holds more than one.
       var fsel = document.getElementById('subs-modal-forms');
       if (files.length > 1 && fsel) {
-        var sel = '<select onchange="showSubmissionTable(this.value, this.options[this.selectedIndex].text)">';
+        var sel = document.createElement('select');
+        sel.setAttribute('aria-label', 'Form');
         files.forEach(function(f) {
-          var form = (f.name || '').replace(/\.jsonl$/, '');
-          sel += '<option value="' + esc(f.path) + '">' + esc(form) + '</option>';
+          var opt = subsNode('option', null, (f.name || '').replace(/\.jsonl$/, ''));
+          opt.value = f.path;
+          sel.appendChild(opt);
         });
-        fsel.innerHTML = sel + '</select>';
+        sel.addEventListener('change', function() { showSubmissionTable(sel.value, sel.options[sel.selectedIndex].text); });
+        fsel.textContent = '';
+        fsel.appendChild(sel);
       }
       showSubmissionTable(files[0].path, (files[0].name || '').replace(/\.jsonl$/, ''));
     })
-    .catch(function() { setSubsBody('<p style="color:var(--mg-danger,#c00)">Could not list submissions.</p>', 'Submissions'); });
+    .catch(function() { setSubsBody(subsMessage('Could not list submissions.'), 'Submissions'); });
 }
 
 // SM216: a quarantine filter, kept per-open so a reload keeps the view.
@@ -685,63 +702,99 @@ function setSubsFilter(f) { subsFilter = f; if (subsCurrent) showSubmissionTable
 
 function showSubmissionTable(filePath, formName) {
   subsCurrent = { file: filePath, form: formName };
-  setSubsBody('<p style="color:var(--mg-text-light)">Loading ' + esc(formName) + '&hellip;</p>', 'Submissions: ' + formName);
+  setSubsBody(subsMessage('Loading ' + formName + '\u2026'), 'Submissions: ' + formName);
   fetch(API + '?action=form-submissions&file=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (!d.ok) { setSubsBody('<p style="color:var(--mg-danger,#c00)">' + esc(d.error || 'Could not read submissions') + '</p>', 'Submissions'); return; }
+      if (!d.ok) { setSubsBody(subsMessage(d.error || 'Could not read submissions'), 'Submissions'); return; }
       // SM216: _quarantined / _spam_reason are status meta, not form fields - drive
       // the row marking, not a data column.
       var META = { _quarantined: 1, _spam_reason: 1 };
       var cols = (d.columns || []).filter(function(c) { return !META[c]; });
       var rows = d.rows || [];
       if (!rows.length || !cols.length) {
-        setSubsBody('<p style="color:var(--mg-text-light)">No submissions in ' + esc(formName) + ' yet.</p>', 'Submissions: ' + formName);
+        setSubsBody(subsMessage('No submissions in ' + formName + ' yet.'), 'Submissions: ' + formName);
         return;
       }
       var qcount = rows.filter(function(r) { return r._quarantined; }).length;
       var view = (subsFilter === 'quarantined') ? rows.filter(function(r) { return r._quarantined; }) : rows;
       subsLoaded = { file: filePath, form: formName, cols: cols, rows: rows };   // SM187
 
-      // SM187: a toolbar - quarantine filter (if any) on the left, CSV export and
-      // bulk delete (of the checked rows) on the right.
-      var h = '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;margin:0 0 0.5rem;font-size:0.85rem">';
-      if (qcount) {
-        h += '<span><strong>' + qcount + '</strong> quarantined (suspected spam, kept out of notifications).</span> '
-           + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'all\')"' + (subsFilter === 'all' ? ' disabled' : '') + '>All</button> '
-           + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'quarantined\')"' + (subsFilter === 'quarantined' ? ' disabled' : '') + '>Quarantine only</button>';
-      }
-      h += '<span style="margin-left:auto"></span>'
-         + '<button class="mg-btn mg-btn-sm" onclick="downloadSubmissionsCsv()">Download CSV</button> '
-         + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="bulkDeleteSubmissions()">Delete selected</button>'
-         + '</div>';
+      var frag = document.createDocumentFragment();
 
-      h += '<div class="mg-table-wrap"><table class="mg-table mg-submissions-table"><thead><tr>'
-         + '<th><input type="checkbox" title="Select all" onclick="subsToggleAll(this)"></th><th>Status</th>';
-      cols.forEach(function(c) { h += '<th>' + esc(c) + '</th>'; });
-      h += '<th></th></tr></thead><tbody>';
+      // SM187: a toolbar - quarantine filter (if any), CSV export and bulk delete
+      // of the checked rows. SM847: toolbar buttons are the standard size.
+      var bar = subsNode('div', 'mg-toolbar');
+      var button = function(label, cls, onclick, disabled) {
+        var b = subsNode('button', 'mg-btn' + (cls ? ' ' + cls : ''), label);
+        b.type = 'button';
+        b.disabled = !!disabled;
+        b.addEventListener('click', onclick);
+        return b;
+      };
+      if (qcount) {
+        var qn = subsNode('span');
+        qn.appendChild(subsNode('strong', null, qcount));
+        qn.appendChild(document.createTextNode(' quarantined (suspected spam, kept out of notifications).'));
+        bar.appendChild(qn);
+        bar.appendChild(button('All', null, function() { setSubsFilter('all'); }, subsFilter === 'all'));
+        bar.appendChild(button('Quarantine only', null, function() { setSubsFilter('quarantined'); }, subsFilter === 'quarantined'));
+      }
+      bar.appendChild(button('Download CSV', null, downloadSubmissionsCsv));
+      bar.appendChild(button('Delete selected', 'mg-btn-danger', bulkDeleteSubmissions));
+      frag.appendChild(bar);
+
+      var wrap  = subsNode('div', 'mg-table-wrap');
+      var table = subsNode('table', 'mg-table mg-submissions-table');
+      var head  = document.createElement('tr');
+      var th0   = document.createElement('th');
+      var all   = document.createElement('input');
+      all.type = 'checkbox'; all.title = 'Select all';
+      all.addEventListener('click', function() { subsToggleAll(all); });
+      th0.appendChild(all);
+      head.appendChild(th0);
+      head.appendChild(subsNode('th', null, 'Status'));
+      cols.forEach(function(c) { head.appendChild(subsNode('th', null, c)); });
+      head.appendChild(subsNode('th'));
+      var thead = document.createElement('thead');
+      thead.appendChild(head);
+      table.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
       view.forEach(function(row) {
-        var q = row._quarantined;
-        h += '<tr' + (q ? ' style="background:var(--mg-warn-bg,#fff8e1)"' : '') + '>';
-        h += '<td><input type="checkbox" class="mg-sub-cb" value="' + esc(row._id) + '"></td>';
-        h += '<td>' + (q ? '<span class="mg-tag mg-tag-off" title="' + esc(row._spam_reason || '') + '">quarantined</span>' : '') + '</td>';
-        cols.forEach(function(c) { h += '<td>' + esc(row[c] == null ? '' : row[c]) + '</td>'; });
-        var args = JSON.stringify(filePath).replace(/'/g, '&#39;') + ', '
-                 + JSON.stringify(row._id).replace(/'/g, '&#39;') + ', '
-                 + JSON.stringify(formName).replace(/'/g, '&#39;');
-        h += '<td style="white-space:nowrap">';
-        if (q) h += '<button class="mg-btn mg-btn-sm" onclick=\'confirmSubmissionRow(' + args + ')\'>Confirm</button> ';
-        h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick=\'deleteSubmissionRow(' + args + ')\'>Delete</button>';
-        h += '</td></tr>';
+        var tr = document.createElement('tr');
+        var cbCell = document.createElement('td');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.className = 'mg-sub-cb'; cb.value = String(row._id);
+        cbCell.appendChild(cb);
+        tr.appendChild(cbCell);
+        var st = document.createElement('td');
+        if (row._quarantined) {
+          var tag = subsNode('span', 'mg-tag mg-tag-off', 'quarantined');
+          tag.title = String(row._spam_reason || '');
+          st.appendChild(tag);
+        }
+        tr.appendChild(st);
+        cols.forEach(function(c) { tr.appendChild(subsNode('td', null, row[c] == null ? '' : row[c])); });
+        var act = subsNode('td', 'mg-cell-actions');
+        if (row._quarantined) {
+          act.appendChild(button('Confirm', 'mg-btn-sm', function() { confirmSubmissionRow(filePath, row._id, formName); }));
+        }
+        act.appendChild(button('Delete', 'mg-btn-sm mg-btn-danger', function() { deleteSubmissionRow(filePath, row._id, formName); }));
+        tr.appendChild(act);
+        tbody.appendChild(tr);
       });
-      h += '</tbody></table></div>';
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      frag.appendChild(wrap);
+
       var note = 'Showing ' + d.shown + ' of ' + d.total + ' submission' + (d.total === 1 ? '' : 's');
       if (d.truncated) note += ' (most recent ' + d.shown + ')';
       if (d.malformed) note += '; ' + d.malformed + ' unreadable line' + (d.malformed === 1 ? '' : 's') + ' skipped';
-      h += '<p style="font-size:0.8rem;color:var(--mg-text-light);margin-top:0.4rem">' + esc(note) + '</p>';
-      setSubsBody(h, 'Submissions: ' + formName);
+      frag.appendChild(subsMessage(note));
+      setSubsBody(frag, 'Submissions: ' + formName);
     })
-    .catch(function() { setSubsBody('<p style="color:var(--mg-danger,#c00)">Could not read submissions.</p>', 'Submissions'); });
+    .catch(function() { setSubsBody(subsMessage('Could not read submissions.'), 'Submissions'); });
 }
 
 // SM216: confirm a quarantined row as legitimate (clears the flag; the message
@@ -844,7 +897,7 @@ function openSubsModal() {
     + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--mg-border,#ddd);">'
     + '<strong id="subs-modal-title" style="flex:1">Submissions</strong>'
     + '<span id="subs-modal-forms"></span>'
-    + '<button class="mg-btn mg-btn-sm" onclick="closeSubsModal()">Close</button></div>'
+    + '<button type="button" class="mg-sheet-close" onclick="closeSubsModal()" aria-label="Close">&times;</button></div>'
     + '<div id="subs-modal-body" style="flex:1;overflow:auto;padding:12px 14px;"></div></div>';
   ov.addEventListener('click', function(e) { if (e.target === ov) closeSubsModal(); });
   document.body.appendChild(ov);
@@ -853,11 +906,12 @@ function closeSubsModal() {
   var ov = document.getElementById('subs-modal');
   if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
 }
-function setSubsBody(html, title) {
+// SM793: a NODE, never a string of HTML - see the note above the viewer.
+function setSubsBody(node, title) {
   var b = document.getElementById('subs-modal-body');
   var t = document.getElementById('subs-modal-title');
   if (t && title) t.textContent = title;
-  if (b) b.innerHTML = html;
+  if (b) { b.textContent = ''; b.appendChild(node); }
 }
 
 loadPlugins();
