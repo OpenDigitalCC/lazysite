@@ -43,7 +43,7 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
-- SM852 partial (PENDING) **a form's store inside a protected section stays
+- SM852 partial (bb69f4d2) **a form's store inside a protected section stays
   there.** A file handler keeping submissions in the site's tree (`path:
   members/submissions`) wrote the next submission into a freshly made public
   `members/` once the section was protected - the visitor's data in the served
@@ -54,9 +54,9 @@ Naming the commit: AFTER it lands, never before
   moved. Both came from SM836's review of every docroot-built write path -
   sixty, recorded in `docs/review/` - which leaves seven bulk and configured
   paths open under SM852.
-- SM836 (PENDING) closed: its remaining review is done, and what it found is SM852.
+- SM836 (bb69f4d2) closed: its remaining review is done, and what it found is SM852.
 
-- SM847 partial (PENDING) **every dialog can be closed where you see it.**
+- SM847 partial (e298c83a) **every dialog can be closed where you see it.**
   Every sheet had a close in its header and no dialog did - not the shared
   confirm and prompt, not the style preview. Each dialog now carries the same
   close in the same corner, in all three styles, answering as Cancel; the style
@@ -65,7 +65,7 @@ Naming the commit: AFTER it lands, never before
   rows, which is what makes Refresh smaller than Add - where it belongs is a
   rule still to be made.
 
-- SM793 partial (PENDING) **every escape in the manager covers the apostrophe.**
+- SM793 partial (956290a6) **every escape in the manager covers the apostrophe.**
   The submissions viewer's `esc()` - the one function between a stored form
   value and the operator's session - escaped `& < > "` and not `'`, and a sweep
   found it one of five helpers short (the command palette's lacked `"` too) plus
@@ -74,14 +74,14 @@ Naming the commit: AFTER it lands, never before
   it. Escaping server-side is a separate decision, because the same action feeds
   the control API and MCP.
 
-- SM833 (PENDING) **no Perl reference reaches a visitor.** A template that
+- SM833 (6d5ba895) **no Perl reference reaches a visitor.** A template that
   interpolates a list or hash whole used to hand the visitor `ARRAY(0x55d4...)`,
   heap address and all; SM833's own instance was fixed at its source, and every
   page rendered from `.md` or `.url` now has the stringified reference removed
   before it is cached, with the removal logged against the page. An address the
   page's author wrote - a page about the bug - is left as written.
 
-- SM830 (PENDING) **a theme's assets carry the theme's own version.** The
+- SM830 (d5bb3e9b) **a theme's assets carry the theme's own version.** The
   mirror writer records a fingerprint over every file it writes, and a layout
   links `main.css?v=[% theme_version %]`, so an edited theme is a new URL and
   browsers refetch it - where main.css and the rest keyed on the engine version
@@ -92,13 +92,13 @@ Naming the commit: AFTER it lands, never before
 - SM843 closed, already answered: a table that declares no key numbers its own
   rows, which is the one-row-per-enquiry shape it asked for;
   `/docs/data-tables` now says so and `t/integration/76` feeds one twice.
-- SM829 partial (PENDING) **tools/commit-staged.sh commits and says what
+- SM829 partial (d5bb3e9b) **tools/commit-staged.sh commits and says what
   landed** - the SHA, subject and branch once HEAD has moved, or NOT COMMITTED
   with a non-zero exit, so nothing chained after it runs over a commit that did
   not happen. Named beside the existing `tools/commit.sh`, the SM063 operator
   flow, which is untouched.
 
-- Retired aliases (PENDING) **three spellings kept alive for a release are
+- Retired aliases (1fc505e1) **three spellings kept alive for a release are
   gone**, pre-stable, rather than carried into beta: the
   `manager_upload_blocked_paths` key (SM019c renamed it), `db_render_raw` (born
   deprecated with SM786; no site was found to need it) and `form-list`'s `rows`
@@ -107,7 +107,7 @@ Naming the commit: AFTER it lands, never before
   either if it comes back. The `plugin-*` action spellings stay: renaming them
   on the wire needs the SM817 internals rename, which is after beta.
 
-- SM851 (PENDING) **a submission store at a handler's own path is carved out on
+- SM851 (44589b15) **a submission store at a handler's own path is carved out on
   MCP.** The MCP carve-out pass learned which directories hold submissions
   before the request's context told the modules where the site is, so under CGI
   it knew only the default store, and a partner with `manage_content` but not
@@ -117,7 +117,7 @@ Naming the commit: AFTER it lands, never before
   the old parser had failed silently. `t/unit/mcp/25` drives it as a real CGI
   request.
 
-- SM812 (PENDING) **a section names its theme once.** A `theme` on a folder's
+- SM812 (ad443319) **a section names its theme once.** A `theme` on a folder's
   `index.md` now dresses every page beneath it that does not name one itself -
   the per-page discipline that goes wrong with `auth:` and `search:` is no longer
   needed for a theme, where one missed page was a page in the public dress.
@@ -127,7 +127,7 @@ Naming the commit: AFTER it lands, never before
   cached page goes stale when any section index above it changes, including the
   edit that removes the key. `/docs/frontmatter` says all of it.
 
-- SM797 (PENDING) **no front end serves source from disk.** The engine's half
+- SM797 (0e9a96cc) **no front end serves source from disk.** The engine's half
   shipped first (below); on a site with no ACL store the web server serves every
   existing file itself and none of it ran, so `/about.md` came back as markdown,
   front matter and all, from the front end - on exactly the sites that had never
@@ -143,7 +143,7 @@ Naming the commit: AFTER it lands, never before
   The `.brief`-only deny it replaces is gone. Existing vhosts take it when
   re-rendered.
 
-- SM842 (PENDING) **one way to deliver: a form calls a handler, the timer calls
+- SM842 (c2125071, ea97a3ce, d77f4a15) **one way to deliver: a form calls a handler, the timer calls
   a handler, and the destination decides who may make one.** A handler is a
   named function - send email, keep a file, store a row in a data table, send
   through a connector - and `Lazysite::Handlers` is now its one parser, one
@@ -166,52 +166,52 @@ Naming the commit: AFTER it lands, never before
   line naming the source and the handler, never the fields.
 
 
-- SM848 (PENDING) **the editor's Access section sits above the content box.**
+- SM848 (1aaeae2d) **the editor's Access section sits above the content box.**
   Who may read a file is wanted before editing it, not after scrolling past a
   body that grows with the page. It now follows the front-matter fields,
   ahead of Metadata and Content, which leaves the splitter between those two
   with the same pair to resize.
 
-- SM849 (PENDING) **the page editor reaches the page's history.** With content
+- SM849 (90e88b5d) **the page editor reaches the page's history.** With content
   history on, the editor offers History, which opens Files on that file's own
   History panel - its list page, its row and its panel open - so View, Diff
   and Restore stay one implementation. Nothing is offered when history is off
   or for a file that has no versions yet.
 
-- SM846 (PENDING) **the Cache page says Delete, names each copy's domain, and
+- SM846 (c20d4dc3, e6201652) **the Cache page says Delete, names each copy's domain, and
   keeps its button on the right.** A cache row built five cells into a
   three-column grid, so the button wrapped into the middle column. Only
   alias-host copies were tagged, which left every primary row to be
   inferred; `cache-list` now returns a `domain` on every entry. And the button
   said *Invalidate*, a consequence, for what is a delete of the cached copy.
 
-- SM844 (PENDING) **a template written for 0.12's raw data values is found
+- SM844 (1effa3ea) **a template written for 0.12's raw data values is found
   before a visitor finds it.** 0.12 rendered a stored value as live HTML and
   needed `| html`; 0.13 escapes at the sink, so the same template shows
   `&amp;lt;` - and only for values holding `&`, `<`, `>` or `"`. The
   data-tables page now says so and documents both `data-row-save` shapes, and
   `lazysite check` lists the pages that bind `db:` and also apply `| html`.
 
-- SM840 (PENDING) **the rename reaches the prose the manager pages could not.**
+- SM840 (b9c0681b) **the rename reaches the prose the manager pages could not.**
   Three extensions' own descriptions still said *plugin*, and so did the
   control API's error text, which also named the deprecated `plugin-list`.
   SM817's pass swept pages; a description is prose each extension publishes
   about itself, so a sweep of pages could not reach it.
 
-- SM839 (PENDING) **`plugin-save` takes a listing's id in its body as well.**
+- SM839 (2144029c) **`plugin-save` takes a listing's id in its body as well.**
   SM832 resolved an id on the `plugin` parameter only, so `{"script":
   "link-audit"}` was refused - with a message telling the caller to pass the id.
   Invisible for any extension whose id is its filename; the field found it on
   the one whose script is `audit.pl`.
 
-- SM837 (PENDING) **a remote page that cannot be fetched no longer names its
+- SM837 (0b436295) **a remote page that cannot be fetched no longer names its
   upstream.** A `.url` page whose fetch failed, with no cached copy, rendered
   *"Could not fetch remote content from"* the upstream address - to an anonymous
   visitor, unescaped, as a 200. A `.url` can name an internal host or carry a
   token. The visitor is now told the content is temporarily unavailable, the
   address goes to the log, and the response is 503.
 
-- SM797 partial (PENDING) **the anonymous static serve hands out no source.**
+- SM797 partial (65bd369e) **the anonymous static serve hands out no source.**
   `sanitise_uri` stripped a page extension once, so `/<page>.md.md` resolved to
   `<page>.md` and was served as raw markdown - a draft page's source, an api
   page's body, and `.url.url` revealing an upstream. Every trailing page
@@ -228,14 +228,14 @@ Naming the commit: AFTER it lands, never before
 
 - Docs: SM837 filed - a `.url` page whose fetch fails names its upstream to
   whoever asked, unescaped, as a 200. Found while proving SM797's collapse.
-- SM836 partial (PENDING) **one answer to "which tree owns this write".**
+- SM836 partial (b70b2db4) **one answer to "which tree owns this write".**
   Three faults in one cycle came from write paths disagreeing with the store
   about where a protected file lives, and two of the paths that answered
   correctly did so in the same five hand-written lines. The answer now lives in
   `Lazysite::Private::write_root`; WebDAV and uploads call it, and `t/lint/128`
   fails any other file that rebuilds it. A write path that resolves nothing at
   all is still invisible to any lint and is recorded as such.
-- SM802 (PENDING) **a URL remapper, for a site that replaced another on the same
+- SM802 (53a967e1) **a URL remapper, for a site that replaced another on the same
   hostname.** Prefix rules per domain send an old link, and everything under
   it, to a destination the operator names - path and query kept, 302 unless a
   rule asks for 301. It answers only when no page and no alias does, and matches
@@ -248,7 +248,7 @@ Naming the commit: AFTER it lands, never before
   may set rules for that domain and for no host that is not a registered
   domain - stricter than `domain-set`, because a redirect for a host this
   instance merely answers is a reach. Ships switched off.
-- SM838 (PENDING) **a line break in an extension setting could add lines to
+- SM838 (4339e8ec) **a line break in an extension setting could add lines to
   `lazysite.conf`.** `plugin-save` checked each key against the extension's
   schema and never the value, and every value is written on a line of its own -
   for four extensions, into `lazysite.conf`. Reproduced: one save to the Logging
@@ -256,7 +256,7 @@ Naming the commit: AFTER it lands, never before
   SM647 boundary from *manage_config* to *manage_domains and manage_users*. A
   value containing a line break is now refused, naming the setting, before
   anything is written.
-- SM222 partial (PENDING) **the audit trail can be switched off, and the switch
+- SM222 partial (f872b420) **the audit trail can be switched off, and the switch
   is answerable.** `audit_trail: off` stops recording and keeps everything
   already recorded; a site that never set it is recording, because the setting
   is on when absent. `audit-trail-set` needs *Site config* **and** the new
