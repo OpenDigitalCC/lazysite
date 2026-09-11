@@ -1690,13 +1690,8 @@ sub resolve_under_docroot {
     # WebDAV keys its ACL decisions on the REQUEST path, not on the resolved
     # absolute one, so unlike the processor there is no key-derivation to fix
     # here - authorise() already receives the docroot-relative rel.
-    my $root = $DOCROOT;
-    if ( length $rel ) {
-        my ( undef, $where )
-            = Lazysite::Private::resolve_for_write( $DOCROOT, $rel );
-        $root = Lazysite::Private::private_root($DOCROOT)
-            if $where eq 'private';
-    }
+    # SM836: one answer to "which tree owns this", shared with every write path.
+    my $root = Lazysite::Private::write_root( $DOCROOT, $rel );
 
     my $droot = realpath($root);
     return { err => 500 } unless defined $droot;

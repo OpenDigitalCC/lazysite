@@ -61,6 +61,13 @@ Naming the commit: AFTER it lands, never before
 
 - Docs: SM837 filed - a `.url` page whose fetch fails names its upstream to
   whoever asked, unescaped, as a 200. Found while proving SM797's collapse.
+- SM836 partial (PENDING) **one answer to "which tree owns this write".**
+  Three faults in one cycle came from write paths disagreeing with the store
+  about where a protected file lives, and two of the paths that answered
+  correctly did so in the same five hand-written lines. The answer now lives in
+  `Lazysite::Private::write_root`; WebDAV and uploads call it, and `t/lint/128`
+  fails any other file that rebuilds it. A write path that resolves nothing at
+  all is still invisible to any lint and is recorded as such.
 
 ## 0.13.12 - EDGE: extensions by name, and the paths that never asked (2026-09-10)
 

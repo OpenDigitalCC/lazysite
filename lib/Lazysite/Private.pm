@@ -40,7 +40,7 @@ use Errno          qw(EXDEV);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
-    is_private move_in move_out stray_public count_private ensure_store);
+    write_root is_private move_in move_out stray_public count_private ensure_store);
 
 # The store's directory name. A leading dot would hide it from a sysop
 # looking at the tree, and the point is that they can see where their private
@@ -163,6 +163,30 @@ sub resolve_for_write {
         pop @parts;
     }
     return ( "$docroot/$rel", 'public' );
+}
+
+# SM836: WHICH TREE OWNS A WRITE TARGET - the docroot, or the private store.
+#
+# Every write path has to answer this before it touches the filesystem, and until
+# now the ones that answered it each wrote the same five lines by hand: call
+# resolve_for_write, discard the path, and swap in private_root when the answer
+# was 'private'. lazysite-dav.pl did it; Manager::Upload did it after SM836 found
+# it missing. Three faults in one release cycle came from write paths that
+# disagreed with the store about where a gated file lives - SM438 (a mirror update
+# landed where nothing serves it), SM418/SM286 (an upload wrote a public copy
+# beside protected content) and SM836 (an upload could not find a protected folder
+# at all) - and every one was found by a person hitting it.
+#
+# So the answer lives here, once. A caller confines against the root this returns,
+# which is the whole of what the hand-written copies were doing; t/lint/128 fails
+# any other file that rebuilds it from resolve_for_write and private_root.
+#
+# An empty rel is the docroot itself.
+sub write_root {
+    my ( $docroot, $rel ) = @_;
+    return $docroot unless defined $rel && length $rel;
+    my ( undef, $where ) = resolve_for_write( $docroot, $rel );
+    return ( $where // '' ) eq 'private' ? private_root($docroot) : $docroot;
 }
 
 # A path that exists in BOTH trees. Always a fault: the private copy is the one

@@ -232,14 +232,8 @@ sub action_file_upload {
     # The confinement is unchanged in strength: the boundary is still a realpath
     # containment test, against whichever root actually owns the target. This is
     # the same resolution lazysite-dav.pl performs for a PUT or MKCOL into a
-    # gated section, and it must stay the same as that one.
-    my $root = $DOCROOT;
-    if ( length $rel_dir ) {
-        my ( undef, $where )
-            = Lazysite::Private::resolve_for_write( $DOCROOT, $rel_dir );
-        $root = Lazysite::Private::private_root($DOCROOT)
-            if ( $where // '' ) eq 'private';
-    }
+    # gated section - now literally the same call, Lazysite::Private::write_root.
+    my $root     = Lazysite::Private::write_root( $DOCROOT, $rel_dir );
     my $full_dir = length $rel_dir ? "$root/$rel_dir" : $root;
 
     unless ( -d $full_dir ) {
