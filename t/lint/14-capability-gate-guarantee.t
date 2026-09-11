@@ -145,7 +145,7 @@ is( "@divergent", '',
 # 0.8.1 site-backup-* gap class: capability-gated, state-changing, but not
 # POST-forced.
 my %COOKIE_READ = map { $_ => 1 } qw(
-    connector-list connector-calls
+    connector-list connector-calls remap-list
     domains-list domain-preview domain-check config-read bad-url-blocks
     backup-list backup-download lang-status git-status git-history git-history-summary git-show
     analyse_visitors plugin-read form-submissions form-list site-backup-inspect

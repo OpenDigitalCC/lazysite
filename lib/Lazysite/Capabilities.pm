@@ -204,7 +204,7 @@ my %ACTION_INFO = (
         grants => 'Add and remove the domains this instance serves, and export or apply a whole site as a package.',
         unlocks => {
             api => [ qw(domains-list domain-add domain-set domain-remove
-                    domain-preview domain-check
+                    domain-preview domain-check remap-list remap-save
                     site-backup-create site-backup-download site-backup-upload
                     site-backup-apply site-backup-delete site-backup-inspect) ],
             mcp => [qw(list_domains domain_set preview_domain site_backup site_apply)],

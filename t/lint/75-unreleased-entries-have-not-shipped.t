@@ -100,6 +100,12 @@ for my $tag ( grep { /\S/ } split /\n/, `git -C \Q$root\E tag --list 'v*.*.*'` )
         next unless defined $s && $s =~ /^(SM\d+)\b/;
         my $sm = $1;
         next if $s =~ /^SM\d+[^:]*:\s*file\b/i;
+        # "SM802 filed, SM803 fixed" is the same filing in another spelling. The
+        # check credits a commit to the FIRST SM in its subject, so that commit's
+        # code - SM803's fix - was read as SM802's work, and SM802 was reported as
+        # shipped silently in v0.13.10, whose own section says it was "filed as
+        # candidates and not built". Found landing SM802 in 0.13.13.
+        next if $s =~ /^SM\d+\s+filed\b/i;
         $shipped_sm{$sm} //= [$tag];
         push @{ $shipped_sm{$sm} }, $h;
     }

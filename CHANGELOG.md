@@ -68,6 +68,19 @@ Naming the commit: AFTER it lands, never before
   `Lazysite::Private::write_root`; WebDAV and uploads call it, and `t/lint/128`
   fails any other file that rebuilds it. A write path that resolves nothing at
   all is still invisible to any lint and is recorded as such.
+- SM802 (PENDING) **a URL remapper, for a site that replaced another on the same
+  hostname.** Prefix rules per domain send an old link, and everything under
+  it, to a destination the operator names - path and query kept, 302 unless a
+  rule asks for 301. It answers only when no page and no alias does, and matches
+  on a segment boundary, so `/web` never catches `/website-terms`. The
+  destination comes from the rules and never from the request. Each rule reports
+  how often it was followed and when it was last used, derived from the visitor
+  log - the last-used date says when a rule can go, and a report with no log to
+  read says so rather than showing zero. Rules are set per domain by
+  `remap-save` under *Domains & site packages*; a manager confined to one domain
+  may set rules for that domain and for no host that is not a registered
+  domain - stricter than `domain-set`, because a redirect for a host this
+  instance merely answers is a reach. Ships switched off.
 
 ## 0.13.12 - EDGE: extensions by name, and the paths that never asked (2026-09-10)
 

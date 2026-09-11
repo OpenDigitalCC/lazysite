@@ -2854,8 +2854,97 @@ sub main {
         return;
     }
 
+    # SM802: the URL remapper. LAST before the 404, and after the site's own
+    # aliases, so a real page and an alias both win - a migration rule can cover
+    # a link nobody else answers and can never shadow site content.
+    return if _remap_redirect();
+
     # No source found - serve 404 page
     not_found($uri);
+}
+
+# --- SM802: the URL remapper, on the render path --------------------------------
+# A MARKED COPY of Lazysite::Remap::parse_rules and match_rule, by the ADR 0001
+# convention for this module-free file. t/lint/129 runs both parsers over the
+# same text and fails if they accept different rules - the point being that the
+# rules a save accepted are exactly the rules a request honours.
+#
+# The destination comes from lazysite/remap/rules.conf and NEVER from the request.
+sub _remap_parse {
+    my ($text) = @_;
+    my ( @rules, %seen );
+    for my $raw ( split /\r?\n/, ( $text // '' ) ) {
+        ( my $l = $raw ) =~ s/#.*\z//;
+        $l =~ s/^\s+|\s+$//g;
+        next unless length $l;
+        my @f = split /\s+/, $l;
+        next if @f < 3 || @f > 4;
+        my ( $host, $prefix, $dest, $code ) = @f;
+        $host = lc $host;
+        $code //= 302;
+        next unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? (?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)* \z/x;
+        next unless $prefix =~ m{\A/};
+        next if $prefix =~ /[\s?#"'<>\\]/ || $prefix =~ m{(?:\A|/)\.\.(?:/|\z)} || $prefix =~ m{//};
+        next if $dest =~ /[\s"'<>\\]/;
+        next unless $dest =~ m{\Ahttps?://[A-Za-z0-9.-]+(?::\d{1,5})?(?:[/?].*)?\z}
+            || $dest =~ m{\A/(?!/)};
+        next unless $code =~ /\A30[12]\z/;
+        $prefix =~ s{(?<=.)/\z}{};
+        next if $seen{"$host $prefix"}++;
+        push @rules, { host => $host, prefix => $prefix, dest => $dest, code => $code + 0 };
+    }
+    return \@rules;
+}
+
+sub _remap_redirect {
+    return 0 unless _unit_enabled('plugins/remap.pl');
+    my $file = "$LAZYSITE_DIR/remap/rules.conf";
+    return 0 unless -f $file;
+    open my $fh, '<:utf8', $file or return 0;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $rules = _remap_parse($text);
+    return 0 unless @$rules;
+
+    my $host = _request_host();
+    return 0 unless length $host;
+    ( my $path = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '' ) =~ s/\?.*//s;
+    return 0 unless length $path;
+
+    for my $r (@$rules) {
+        next unless $r->{host} eq $host;
+        my $p = $r->{prefix};
+        my $rest;
+        if    ( $p eq '/' )                  { $rest = $path }
+        elsif ( $path eq $p )                { $rest = '' }
+        elsif ( index( $path, "$p/" ) == 0 ) { $rest = substr( $path, length $p ) }
+        else                                 { next }
+
+        ( my $base = $r->{dest} ) =~ s{/\z}{};
+        my ( $dpath, $dq ) = split /\?/, $base, 2;
+        my $loc = $dpath . $rest;
+        my @q   = grep { defined && length } ( $dq, $ENV{QUERY_STRING} );
+        $loc .= '?' . join( '&', @q ) if @q;
+        $loc =~ s/[\r\n]//g;
+
+        # Recorded, with the rule named, because the counts and the last-used
+        # date are DERIVED from this log (ruled 2026-09-09) - one source, no
+        # second store, and no extra write on the request path.
+        $ACCESS_REC{s}  = $r->{code};
+        $ACCESS_REC{rr} = $p;
+        log_event( 'INFO', $path, 'remap redirect', host => $host, to => $loc,
+            code => $r->{code} );
+
+        my $phrase = $r->{code} == 301 ? 'Moved Permanently' : 'Found';
+        my $loc_h  = _esc_html($loc);
+        print "Status: $r->{code} $phrase\r\n";
+        print "$_\r\n" for _security_headers();
+        print "Location: $loc\r\n";
+        print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+        print qq(<!DOCTYPE html><html><body>Moved to <a href="$loc_h">$loc_h</a></body></html>\n);
+        return 1;
+    }
+    return 0;
 }
 
 # Inline alias lookup for the 404 path: read lazysite/aliases.json and return
@@ -8820,6 +8909,9 @@ sub _access_record {
         # makes that visible whenever it happens, rather than only to sysops
         # who read one particular release's notes in one particular week.
         $line .= ',"ar":1'                        if $ACCESS_REC{ar};
+        # SM802: the remap rule that answered, so its count is derived here.
+        $line .= ',"rr":"' . _access_field( $ACCESS_REC{rr}, 200 ) . '"'
+            if defined $ACCESS_REC{rr};
         $line .= ',"b":' . ( $ACCESS_REC{b} + 0 ) if defined $ACCESS_REC{b};
         # SM151: the sanitised request Host, so multi-site (many domains under
         # one docroot) can split visitor stats per domain later. DNS-shaped and

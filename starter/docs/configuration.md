@@ -352,6 +352,44 @@ To pre-enable without the manager, list scripts in `lazysite.conf`:
       - plugins/form-handler.pl
       - plugins/audit.pl
 
+## URL remapper
+
+For a site that has **replaced another on the same hostname** while links to the
+old one are still in the world - notifications, invoices, helpdesk tickets. A
+rule sends a path prefix, and everything under it, to a destination you name,
+keeping the rest of the path and the query string:
+
+    /web/order?id=42   ->   https://backend.example.com/order?id=42
+
+It answers **only when nothing else does**: a real page and an alias both win,
+so a rule can cover an old link and can never shadow content. Prefixes match on
+a path boundary - `/web` covers `/web` and `/web/login`, never `/website-terms`.
+302 unless a rule asks for 301; a migration's destination can move, and a
+cached permanent redirect to a host that later moves is a trap.
+
+**Switch it on** on the Extension Manager page (it ships off). **Set a domain's
+rules** with the `remap-save` action, which needs *Domains & site packages* and
+replaces that one domain's rules:
+
+    {"host": "www.example.com",
+     "rules": [ {"prefix": "/web", "destination": "https://backend.example.com"},
+                {"prefix": "/helpdesk", "destination": "https://backend.example.com/support", "code": 301} ]}
+
+An empty `rules` list removes the domain's rules. `remap-list` returns them. A
+manager confined to one domain may set rules for that domain only, and never
+for a host that is not a registered domain.
+
+**The destination always comes from the rules, never from the request** - there
+is no `?to=`, and there will not be one, because that would make the site an
+open redirect.
+
+**When can a rule go?** *Rules and use*, on the extension's own row on the
+Extension Config page, shows how often each rule was followed and when it was
+last used, read from the visitor log. When the last-used date stops moving, the
+links it covered have stopped arriving. If the visitor log is not recording, the
+report says so rather than showing zero - "nobody followed it" and "nothing was
+recorded" are different answers, and only the first means a rule can go.
+
 ## Logging
 
 Log level and format are set in `lazysite.conf`:

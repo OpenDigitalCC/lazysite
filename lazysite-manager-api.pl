@@ -212,6 +212,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     themes-list-all theme-upload unlock user-revoke users version whoami
     start-page start-page-set
     connector-list connector-save connector-secret-set connector-delete connector-call connector-calls
+    remap-list remap-save
 );
 
 # SM230: the control API is not callable from a browser page, by design. Its
@@ -589,6 +590,7 @@ if ( $action eq 'csrf-token' ) {
 my %MUTATING = map { $_ => 1 } qw(
     form-delete start-page-set
     connector-save connector-secret-set connector-delete connector-call
+    remap-save
     data-migrate data-row-save data-row-delete data-table-save
     data-table-acl-set data-table-acl-remove
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
@@ -786,6 +788,7 @@ if ( !$token_auth ) {
         'bad-url-blocks' => 'manage_config',
         'domains-list'   => 'manage_domains', 'domain-add'    => 'manage_domains',
         'domain-set'     => 'manage_domains', 'domain-remove' => 'manage_domains',
+        'remap-list'     => 'manage_domains', 'remap-save'    => 'manage_domains', # SM802
         'domain-preview' => 'manage_domains', 'domain-check'  => 'manage_domains',
         'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
             # F3 audit: the account/group roster backs the ACL "grant to whom" picker
@@ -1043,6 +1046,8 @@ if ($token_auth) {
         'domains-list'    => [qw(manage_domains)],              # read-only domains view
         'domain-add'      => [qw(manage_domains)],
         'domain-set'      => [qw(manage_domains)],
+        'remap-list'      => [qw(manage_domains)],              # SM802
+        'remap-save'      => [qw(manage_domains)],
         'domain-remove'   => [qw(manage_domains)],
         'domain-preview'  => [qw(manage_domains)],              # SM155: pre-DNS render
         'domain-check'    => [qw(manage_domains)],              # SM156: live config check
@@ -1372,7 +1377,7 @@ if ($token_auth) {
 # do. SM508: briefs-list skips as a read; brief-delete is audited - removing a
 # record of intent is exactly what a trail should remember.
 my %skip = map { $_ => 1 } qw(
-    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names
+    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names remap-list
     cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
     layouts-available layouts-releases layouts-repo-get layouts-release-contents
     handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
@@ -1694,6 +1699,11 @@ elsif ( $action eq 'domain-set' ) {
 elsif ( $action eq 'domain-remove' ) {
     my $req = _json_body();
     $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
+}
+elsif ( $action eq 'remap-list' ) { $result = _remap_list() }    # SM802
+elsif ( $action eq 'remap-save' ) {
+    my $req = _json_body();
+    $result = _remap_save( { host => $req->{host}, rules => $req->{rules} } );
 }
 elsif ( $action eq 'domain-preview' ) {
     $result = domain_preview( $params{host} );
@@ -2775,6 +2785,84 @@ sub _connectors {
 
 sub _json_body {
     return $JSON_BODY //= ( eval { decode_json($body) } // {} );
+}
+
+# --- SM802: the URL remapper's two actions ------------------------------------
+#
+# Operator-only by ruling: a rule sends a visitor to another host, the same
+# authority as a connector's destination. manage_domains, because the ruling
+# calls this domain configuration, and PER HOST, so a save replaces one domain's
+# rules and can never touch another's.
+#
+# THE SCOPE CHECK IS STRICTER THAN domain-set's, deliberately. domain-set skips
+# a host with no content_root, and for a redirect that is a reach: this instance
+# answers for its primary hostname and for any unregistered host pointed at it,
+# so a scoped caller naming one could send another site's visitors anywhere. A
+# scoped caller may name only a REGISTERED domain whose content lies inside its
+# scope; everything else is refused.
+
+sub _remap_unit_off {
+    return undef if Lazysite::Manager::Plugins::plugin_enabled('plugins/remap.pl');
+    return { ok => 0, kind => 'disabled',
+        error => 'The URL remapper extension is switched off. An operator can '
+            . 'enable it on the Extension Manager page.' };
+}
+
+sub _remap_scopes {
+    return $token_auth ? @{ $token_caps{dav_scopes} || [] } : @REQUEST_SCOPES;
+}
+
+sub _remap_host_in_scope {
+    my ($host) = @_;
+    my @scopes = _remap_scopes();
+    return 1 unless @scopes;
+    my $root = domain_content_root($host);
+    return 0 unless defined $root && length $root;
+    return Lazysite::Manager::Common::outside_all_scopes( \@scopes, $root ) ? 0 : 1;
+}
+
+sub _remap_list {
+    if ( my $off = _remap_unit_off() ) { return $off }
+    require Lazysite::Remap;
+    my $r      = Lazysite::Remap::report( Lazysite::Paths::lazysite_dir($DOCROOT) );
+    my @scopes = _remap_scopes();
+    $r->{rules} = [ grep { _remap_host_in_scope( $_->{host} ) } @{ $r->{rules} } ] if @scopes;
+    return $r;
+}
+
+sub _remap_save {
+    my ($req) = @_;
+    if ( my $off = _remap_unit_off() ) { return $off }
+    require Lazysite::Remap;
+    my $host = lc( $req->{host} // '' );
+    return { ok => 0, kind => 'invalid', field => 'host',
+        error => 'remap-save needs a host: the domain whose rules these are.' }
+        unless length $host;
+    return { ok => 0, kind => 'forbidden',
+        error => "Domain '$host' is not a registered domain inside your assigned "
+            . 'scope, so you cannot set where its visitors are redirected.' }
+        unless _remap_host_in_scope($host);
+    my $rules = $req->{rules};
+    return { ok => 0, kind => 'invalid', field => 'rules',
+        error => 'rules must be a list of {prefix, destination, code} - an empty list removes this domain\'s rules.' }
+        unless ref $rules eq 'ARRAY';
+
+    my $lz = Lazysite::Paths::lazysite_dir($DOCROOT);
+    my ( $existing, undef ) = Lazysite::Remap::parse_rules( Lazysite::Remap::read_rules_text($lz) );
+    my @lines = map { join ' ', $_->{host}, $_->{prefix}, $_->{dest}, $_->{code} }
+        grep { $_->{host} ne $host } @$existing;
+    for my $r (@$rules) {
+        return { ok => 0, kind => 'invalid', field => 'rules', error => 'each rule must be an object' }
+            unless ref $r eq 'HASH';
+        push @lines, join ' ', $host, ( $r->{prefix} // '' ), ( $r->{destination} // '' ),
+            ( $r->{code} // 302 );
+    }
+    my $text = "# URL remapper rules (SM802) - host prefix destination [301|302]\n"
+        . join( "\n", @lines ) . "\n";
+    my $w = Lazysite::Remap::write_rules( $lz, $text );
+    log_event( 'INFO', $auth_user // '-', 'remap rules saved', host => $host,
+        rules => scalar @$rules ) if $w->{ok};
+    return $w;
 }
 
 # SM516 MA-3: a gate refusal is three statements in one order - record it,

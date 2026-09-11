@@ -167,6 +167,8 @@ tone: medium
 `read` | cookie only | path (query)
 `recent-changes` | cookie only | window (query)
 `regenerate-registries` | manage_content |  
+`remap-list` | manage_domains |  
+`remap-save` | manage_domains | host (body), rules (body)
 `renew-lock` | cookie only | path (query)
 `rotate-auth-secret` | cookie only |  
 `save` | cookie only | path (query), content (body), mtime (body)

@@ -242,6 +242,12 @@ my %API_ONLY = (
     'connector-list' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
     'connector-calls' => 'SM579 phase 2: gated on manage_connectors, which a calling agent does not hold',
 
+    # SM802: operator-only by ruling. A remap rule sends visitors to another
+    # host - the authority SM579 kept off MCP for connector destinations, by the
+    # ruling's own analogy. The listing goes with the save.
+    'remap-list' => 'SM802: operator-only by ruling - the authority SM579 kept off MCP for connector destinations',
+    'remap-save' => 'SM802: operator-only by ruling - a rule sends visitors to another host, as a connector destination does',
+
     # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
     # has no named twin because set_permissions with empty read/write lists
     # clears a rule - a twin would be a second spelling of the same operation.

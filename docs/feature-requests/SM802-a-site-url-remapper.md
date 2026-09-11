@@ -4,7 +4,8 @@ title: "SM802: a site URL remapper - prefix redirects, with a count and a last-u
 subtitle: "From a live migration: two sites are replacing Odoo websites on their existing hostnames, and mail already in the world - notifications, invoices, helpdesk tickets - carries links to paths the new site does not serve. The engine has no outward redirect at all. The request is well-specified and its second half, the count and last-used per rule, is the part that would normally be left out."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11, as ruled: per-domain, operator-only, counts derived from the visitor log, an extension doing one bounded act. Rules live in lazysite/remap/rules.conf and are written by remap-save (manage_domains) ONE HOST AT A TIME; remap-list returns them with each rule's hits and last-used date, read back from the access log, where every remap redirect is now recorded with its rule. The render path answers only when no page and no alias does, matches on a segment boundary, keeps path and query, defaults to 302, and takes the destination from the rules and never from the request. It is a contract extension, so it ships off and does nothing when switched off. THE SCOPE CHECK IS STRICTER THAN domain-set's: a scoped caller may name only a REGISTERED domain inside its scope, because domain-set's check lets through a host with no content root, and for a redirect that is a reach - this instance answers for any host pointed at it. The render path carries a marked copy of the parser, pinned against the module by t/lint/129. A manager page for editing rules is a later step: rules are set through the control API today, and the Extension Config page shows the report."
 ---
 
 # What is missing, verified

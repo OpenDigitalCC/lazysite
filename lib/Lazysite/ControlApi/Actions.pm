@@ -155,6 +155,9 @@ our %ACTION = (
     'domain-preview' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'query' } ] },
     'domain-remove' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body' }, { name => 'purge', in => 'body' } ] },
     'domain-set' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body' }, { name => 'key', in => 'body' }, { name => 'value', in => 'body' } ] },
+    # SM802: the URL remapper - per-host rules, operator-only.
+    'remap-list' => { caps => ['manage_domains'], params => [] },
+    'remap-save' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body', required => 1 }, { name => 'rules', in => 'body', required => 1 } ] },
     'domains-list'  => { caps => ['manage_domains'], params => [] },
     'file-download' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'file-upload'   => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
