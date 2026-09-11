@@ -1248,9 +1248,36 @@ sub update_user_hash {
 
 # H-3: per-IP login rate limit. Fails open if DB_File tie fails so a
 # broken rate-limit store cannot lock out all logins.
+# SM798: is the login rate limit extension on? Asked of the one reader of the
+# registry, so the sign-in CGI, the manager's listing and lazysite check agree.
+# The name is a literal here, not a file-scope variable: this script's main
+# flow runs above its later declarations, so one would still be undefined when
+# a login arrived (t/lint/39's shape) - and "off" is the answer an undefined
+# name gets.
+sub _rate_limit_switched_on {
+    require Lazysite::Manager::Plugins;
+    no warnings 'once';    # SM557: required at runtime
+    local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
+    return Lazysite::Manager::Plugins::plugin_enabled('plugins/login-rate-limit.pl');
+}
+
 sub check_login_rate {
     my ($ip) = @_;
-    return 1             unless $ip;
+    return 1 unless $ip;
+
+    # SM798, RULED 2026-09-10 AND 2026-09-11: A SWITCHABLE EXTENSION, ON BY
+    # DEFAULT. plugins/login-rate-limit.pl is the unit, and the registry says
+    # whether it is on - the installer lists it on every site, so this is off
+    # only where an operator switched it off. Off means nothing is counted and no
+    # counter is kept, and it says so in the same words as the two cases below:
+    # a site switched off on purpose and a site whose limiter broke must never
+    # look alike, and neither may look like a site that is counting.
+    unless ( _rate_limit_switched_on() ) {
+        log_event( 'WARN', 'auth',
+            'the login rate limiter is NOT in force: the login rate limit extension '
+                . 'is switched off, so attempts are not counted and every login is allowed' );
+        return 1;    # switched off, and said so
+    }
     make_path($AUTH_DIR) unless -d $AUTH_DIR;
 
     # SM022: do not capture the tie return value. A lexical holding

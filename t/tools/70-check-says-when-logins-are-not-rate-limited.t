@@ -21,12 +21,16 @@ use TestHelper qw(repo_root site_tempdir);
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-check.pl";
 
+# Switched on, as the installer leaves every site (SM798: an extension, on by
+# default); site(0) is one an operator switched off.
 sub site {
+    my ($on) = @_;
+    $on //= 1;
     my $doc  = site_tempdir();
     my $base = File::Basename::dirname($doc);
     make_path("$doc/lazysite/$_") for qw(auth cache logs manager);
     open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
-    print {$cf} "site_name: T\n";
+    print {$cf} "site_name: T\n" . ( $on ? "plugins:\n  - plugins/login-rate-limit.pl\n" : '' );
     close $cf;
     return ( $base, $doc );
 }
@@ -42,6 +46,15 @@ plan skip_all => 'DB_File is not installed here' unless eval { require DB_File; 
 subtest 'a working limiter says it is in force' => sub {
     my ( undef, $doc ) = site();
     like( check($doc), qr/login rate limiter is in force/, 'said, so its absence means something' );
+};
+
+subtest 'switched off, it says so in the same words, with the reason' => sub {
+    my ( undef, $doc ) = site(0);
+    my $out = check($doc);
+    like( $out, qr/login rate limiter is NOT in force: the login rate limit extension is\s+switched off/,
+        'reported as not in force, because it is switched off' )
+        or diag $out;
+    unlike( $out, qr/login rate limiter is in force/, 'and never as in force' );
 };
 
 subtest 'without DB_File it says the limiter is NOT in force, and what to install' => sub {

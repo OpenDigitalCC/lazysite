@@ -25,7 +25,9 @@ open my $uf, '>', "$docroot/lazysite/auth/users" or die $!;
 print $uf "alice:dummy-not-a-real-hash\n";
 close $uf;
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print $cf "site_name: R\nauth_redirect: /login\n";
+# SM798: switched on, as the installer leaves every site - the fail-open
+# cases below are about a limiter that is on and cannot run.
+print $cf "site_name: R\nauth_redirect: /login\nplugins:\n  - plugins/login-rate-limit.pl\n";
 close $cf;
 
 my $rate_db      = "$docroot/lazysite/auth/.login-rate.db";

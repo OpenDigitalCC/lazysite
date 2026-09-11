@@ -59,6 +59,15 @@ one way to say each thing). The upgrade converts the configuration and says so:
 
 `lazysite check` reports either key if it comes back.
 
+**Login rate limiting is now an extension, and the upgrade switches it on**
+(SM798). `plugins/login-rate-limit.pl` is listed in every site's `plugins:` list
+by the first upgrade that carries it, and on every fresh install, so nothing
+changes for a site unless its operator switches the extension off. Switched off,
+sign-in attempts are not counted and no counter is kept; the sign-in log and
+`lazysite check` both say the limiter is NOT in force, as they do when DB_File
+is missing (Debian: `libdb-file-perl`, now the extension's declared dependency).
+The upgrade does this once: switch it off afterwards and it stays off.
+
 **Re-render your vhost** (SM797). The shipped front-end templates now hand a
 page's markdown, `.url` and `.brief` files, backups, config, keys and executable
 source to the engine instead of serving them from disk - so `/about.md` renders

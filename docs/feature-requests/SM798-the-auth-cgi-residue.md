@@ -5,7 +5,7 @@ subtitle: "Security review, 0.13.8. The wild-facing auth handler came out of the
 brand: plain
 standard-margins: true
 status: partial
-status-note: "HALF BUILT 2026-09-09 on claude/sm798-sm799-the-smaller-two. The rate limiter still fails OPEN - failing closed would refuse every login on a host missing an optional module, which is a worse failure than not enforcing the cap - but it no longer does so in SILENCE: both unrunnable cases log a WARN saying the limiter is NOT IN FORCE, naming which of the two happened, the file, the error, and the Debian package for the missing module. That is SM784's rule applied where it belongs: the answer stays permissive, the log carries what was actually established. THE ORACLE IS NOW CLOSED (ruled 2026-09-09, built, verified on main 2026-09-10): the passwordless remote refusal is indistinguishable from an absent user and a wrong password - same 302 ?error=1, and THE SAME SLEEP, because matching only the status would have swapped one oracle for a slower, quieter one. The explanation it cost is not lost - it moved to the log and the audit trail, where an operator can reach it and an unauthenticated caller cannot. WHAT REMAINS: the per-IP-only scope, which would be a per-account limiter and is a design change rather than a fix; and the limiter becoming a switchable extension (ruled 2026-09-10), which waits on one decision - see 'The default an extension cannot express' below. BUILT 2026-09-11 (0.13.13): the health-check line - lazysite check says when the limiter is NOT in force (no DB_File, or a counter the sign-in CGI cannot open), in the log's words, with the fix; t/tools/70, reproduced first."
+status-note: "ALL BUT ONE DESIGN QUESTION BUILT. HALF BUILT 2026-09-09 on claude/sm798-sm799-the-smaller-two. The rate limiter still fails OPEN - failing closed would refuse every login on a host missing an optional module, which is a worse failure than not enforcing the cap - but it no longer does so in SILENCE: both unrunnable cases log a WARN saying the limiter is NOT IN FORCE, naming which of the two happened, the file, the error, and the Debian package for the missing module. That is SM784's rule applied where it belongs: the answer stays permissive, the log carries what was actually established. THE ORACLE IS NOW CLOSED (ruled 2026-09-09, built, verified on main 2026-09-10): the passwordless remote refusal is indistinguishable from an absent user and a wrong password - same 302 ?error=1, and THE SAME SLEEP, because matching only the status would have swapped one oracle for a slower, quieter one. The explanation it cost is not lost - it moved to the log and the audit trail, where an operator can reach it and an unauthenticated caller cannot. WHAT REMAINS: the per-IP-only scope, which would be a per-account limiter and is a design change rather than a fix. BUILT 2026-09-11 (0.13.13): the health-check line (lazysite check says when the limiter is NOT in force - no DB_File, a counter the sign-in CGI cannot open, or switched off; t/tools/70); and the switchable extension, ruled on by default the same day - plugins/login-rate-limit.pl, DB_File its owns.deps, listed by the installer on a fresh site and once on upgrade (recorded in the install state, so an operator's off stays off); switched off it counts nothing, keeps no counter and says NOT in force in the log and in lazysite check. t/unit/auth/25 (reproduced first: it could not be switched off), t/tools/03, t/tools/70."
 ---
 
 # The two items
@@ -166,7 +166,7 @@ actor - and nothing already written is touched.
 It also answers the constrained-resources case directly: an instance that never
 turns these on never pays for them, which is not something a "delete on disable"
 design could offer.
-# The default an extension cannot express (open, 2026-09-11)
+# The default an extension cannot express (ruled 2026-09-11)
 
 The ruling makes the limiter a switchable extension, with DB_File its declared
 dependency. Building it met the question the audit trail met the day before:
@@ -188,3 +188,26 @@ is on) rather than an extension toggle. The limiter can go either way:
 Either way, off stops counting and keeps no counter, and a switched-off limiter
 says NOT in force in the same words, in the log and in `lazysite check`. The
 per-account limiter is a separate design question and stays open.
+
+## Ruled 2026-09-11: an extension, on by default - and built
+
+The release manager chose the extension, on by default: DB_File becomes the
+extension's dependency as the first ruling intended, and nobody loses rate
+limiting by upgrading.
+
+- `plugins/login-rate-limit.pl` is the unit: `contract`, `owns.deps: [DB_File]`,
+  the counter as its storage. The sign-in CGI asks the registry through the one
+  reader, `Lazysite::Manager::Plugins::plugin_enabled`.
+- The installer lists it on a fresh install and on the first upgrade that
+  carries it, and records `login-rate-limit-on` in the install state's `once`
+  list. The name is the marker, not a version: a site reinstalled at the version
+  that introduced the step is not stepped again, so an operator's off stays off.
+- Off counts nothing and creates no counter, and says the limiter is NOT in
+  force - in the log on each attempt and in `lazysite check` - in the same words
+  as a limiter without DB_File or with an unopenable counter, each with its
+  reason.
+
+The first version of the test for "off" passed for the wrong reason: the
+extension's name sat in a file-scope variable the CGI's main flow had not yet
+reached, so the limiter read as off whatever the registry said. The "on" case
+caught it; the name is a literal in the check now.

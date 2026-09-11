@@ -38,7 +38,11 @@ subtest 'it still fails open' => sub {
 
 subtest 'and it says so, naming which of the two happened' => sub {
     my @warns = $sub =~ /log_event\( 'WARN'/g;
-    is( scalar @warns, 2, 'each unrunnable case logs' );
+    # SM798: and the third case, switched off on purpose, says it in the same
+    # words - so the two broken cases and the deliberate one are three WARNs.
+    is( scalar @warns, 3, 'each case where it is not counting logs' );
+    like( $sub, qr/is switched off/,
+        'the switched-off case says that' );
 
     like( $sub, qr/DB_File is not installed/,
         'the missing-module case names the module' );
@@ -54,8 +58,8 @@ subtest 'and it says so, naming which of the two happened' => sub {
     # The sentence that matters: not "a warning", but what is now untrue of
     # the site.
     my @claims = $sub =~ /(rate limiter is NOT in force)/g;
-    is( scalar @claims, 2,
-        'both say the limiter is NOT IN FORCE, rather than merely reporting a '
+    is( scalar @claims, 3,
+        'all three say the limiter is NOT IN FORCE, rather than merely reporting a '
             . 'fault - the operator needs the consequence, not the cause alone' );
 };
 

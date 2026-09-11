@@ -747,8 +747,34 @@ sub cmd_install {
             if $dropped;
     }
 
+    # ---- one-time steps (SM798) ----
+    #
+    # A step the site gets ONCE, recorded by name in the install state, so an
+    # operator's later choice is never undone by the next upgrade. The name is
+    # the marker rather than a version comparison: a site reinstalled at the
+    # version that introduced a step must not be re-stepped.
+    #
+    # login-rate-limit-on: the login rate limiter became an extension, and the
+    # registry lists what is ON - so without this, a fresh site would start
+    # with no rate limiting and every upgraded site would lose it (ruled
+    # 2026-09-11: on by default). Listed on a fresh install and on the first
+    # upgrade that knows about it; switched off afterwards, it stays off.
+    my @once = ( $state && ref $state->{once} eq 'ARRAY' ) ? @{ $state->{once} } : ();
+    unless ( grep { $_ eq 'login-rate-limit-on' } @once ) {
+        my ( $added, $err ) = enable_extension_in_conf( _conf_path( $o->{docroot} ),
+            'plugins/login-rate-limit.pl' );
+        if ( defined $err ) {
+            push @$warnings, "RATE LIMIT: could not switch the login rate limit extension on ($err) - "
+                . 'switch it on in the manager\'s extensions list, or this site has no login rate limiting';
+        }
+        else {
+            info('  conf:      switched on the login rate limit extension (SM798)') if $added;
+            push @once, 'login-rate-limit-on';
+        }
+    }
+
     # ---- write new state ----
-    write_state( $state_path, $manifest->{version}, $state_files );
+    write_state( $state_path, $manifest->{version}, $state_files, \@once );
 
     # ---- audit the deploy (SM117) ----
     # A fresh install records the channel it was seeded with (post_install_steps
@@ -854,6 +880,46 @@ sub convert_retired_conf_keys {
     return ( [], [], undef ) unless @changed;
     my ( $ok, $why ) = _replace_conf( $conf, \@out );
     return $ok ? ( \@changed, \@warn, undef ) : ( [], [], $why );
+}
+
+# SM798: list an extension in the site's registry, as the manager's enable does.
+# Returns ( $added, $error ): 1 when it was added, 0 when it was already there,
+# and an error when the conf could not be written. A missing conf is left alone
+# and reported as an error, so the step is not recorded as done.
+#
+# The registry is the `plugins:` block (or `extensions:`, its SM817 name - one
+# list spelled two ways), read by Lazysite::Manager::Plugins::_enabled_map. Text
+# in, text out: the installer loads no Lazysite module (SM767). Commented lines
+# are not a block, so the shipped example's own `# plugins:` prose is untouched.
+sub enable_extension_in_conf {
+    my ( $conf, $script ) = @_;
+    return ( 0, "no lazysite.conf at $conf" ) unless -f $conf;
+    open my $in, '<', $conf or return ( 0, "cannot read $conf: $!" );
+    my @lines = <$in>;
+    close $in;
+
+    my ( $head, $last );
+    for my $i ( 0 .. $#lines ) {
+        if ( !defined $head ) {
+            $head = $last = $i if $lines[$i] =~ /^(?:extensions|plugins)\s*:\s*$/;
+            next;
+        }
+        if ( $lines[$i] =~ /^\s+-\s+(.+?)\s*$/ ) {
+            return ( 0, undef ) if $1 eq $script;
+            $last = $i;
+            next;
+        }
+        last if $lines[$i] =~ /^\S/;
+    }
+    if ( defined $head ) {
+        splice @lines, $last + 1, 0, "  - $script\n";
+    }
+    else {
+        $lines[-1] .= "\n" if @lines && $lines[-1] !~ /\n\z/;
+        push @lines, "plugins:\n", "  - $script\n";
+    }
+    my ( $ok, $why ) = _replace_conf( $conf, \@lines );
+    return $ok ? ( 1, undef ) : ( 0, $why );
 }
 
 # =========================================================
@@ -1976,7 +2042,7 @@ sub load_state {
 }
 
 sub write_state {
-    my ( $path, $version, $files ) = @_;
+    my ( $path, $version, $files, $once ) = @_;
 
     # SM268 03-F7: record the RESOLVED install_dirs modes alongside the files.
     #
@@ -2000,7 +2066,8 @@ sub write_state {
         version        => $version,
         installed_at   => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files          => $files,
-        ( %dirs ? ( dirs => \%dirs ) : () ),
+        ( %dirs           ? ( dirs => \%dirs )          : () ),
+        ( $once && @$once ? ( once => [ sort @$once ] ) : () ),   # SM798: steps done once
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)

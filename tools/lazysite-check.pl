@@ -2102,6 +2102,22 @@ sub report_theme_assets_mirrored {
 # this is the surface an operator reads, and it said nothing, so a site with no
 # rate limiting looked healthy here. The same words as the log: NOT in force.
 sub report_login_rate_limit {
+    # Switched off is the first answer (SM798's ruling: an extension, on by
+    # default). Said in the same words, so a limiter an operator turned off and
+    # a limiter that broke both read as NOT in force, each with its reason.
+    {
+        require Lazysite::Manager::Plugins;
+        no warnings 'once';
+        local $Lazysite::Manager::Plugins::DOCROOT = $opt{docroot};
+        unless ( Lazysite::Manager::Plugins::plugin_enabled('plugins/login-rate-limit.pl') ) {
+            report( 'WARN',
+                'the login rate limiter is NOT in force: the login rate limit extension is '
+                    . 'switched off, so sign-in attempts are not counted and every one is allowed',
+                'switch it on in the manager\'s extensions list (plugins/login-rate-limit.pl), '
+                    . 'unless this site is meant to run without it' );
+            return;
+        }
+    }
     unless ( eval { require DB_File; 1 } ) {
         report( 'WARN',
             'the login rate limiter is NOT in force: DB_File is not installed, so '

@@ -43,13 +43,14 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
-- SM798 partial (PENDING) **`lazysite check` says when logins are not rate
-  limited.** The limiter fails open - without DB_File, or with a counter the
-  sign-in CGI cannot open, every attempt is allowed - and until now only the log
-  said so. The health check reports it in the same words, names the package or
-  the file, and `--fix` repairs the file's permissions; a working limiter is
-  reported as in force. Making the limiter a switchable extension waits on one
-  decision about its default.
+- SM798 partial (PENDING) **login rate limiting is an extension, on by default,
+  and visibly off when it is off.** To the rulings: `plugins/login-rate-limit.pl`
+  carries DB_File as its own dependency, the installer lists it on a fresh site
+  and once on upgrade (an operator who switches it off keeps it off), and off
+  means nothing is counted and no counter kept. Off, without DB_File, or with a
+  counter the sign-in CGI cannot open, the log and now `lazysite check` both say
+  the limiter is NOT in force, with the reason; `--fix` repairs the counter's
+  permissions. The per-account limiter stays a design question.
 
 - SM792 partial (PENDING) **the daemon trusts less of what it can be handed.**
   From the 0.13.8 review, each reproduced first: the stats job runs only the

@@ -992,6 +992,45 @@ subtest 'upgrade: the retired conf keys are converted, and said to be' => sub {
     like( $check, qr/key\(s\) the engine no longer reads: db_render_raw/, 'lazysite-check reports one put back by hand' );
 };
 
+# --- SM798: the login rate limiter is an extension, switched on ONCE ----------
+#
+# The registry lists what is on, so an extension nobody listed is off - which,
+# for the login rate limiter, would mean a fresh site with no rate limiting and
+# every upgraded site losing it. The installer lists it on a fresh install and on
+# the first upgrade that knows about it, records that it did, and never does it
+# again: an operator who switched it off keeps it off.
+subtest 'the login rate limit extension is switched on once, and only once' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my ( $rc1, $out1 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc1, 0, 'fresh ok' ) or diag $out1;
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    like( slurp($conf), qr/^plugins:\n(?:  - .*\n)*  - plugins\/login-rate-limit\.pl$/m,
+        'a fresh site lists it in its registry' );
+    ok( ( grep { $_ eq 'login-rate-limit-on' } @{ load_state($docroot)->{once} || [] } ),
+        'and the install state records that it was done' );
+
+    # The operator switches it off.
+    my $off = slurp($conf) =~ s/^  - plugins\/login-rate-limit\.pl\n//mr;
+    open my $w, '>', $conf or die $!;
+    print {$w} $off;
+    close $w;
+    my ( $rc2, $out2 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc2, 0, 'the next upgrade succeeds' ) or diag $out2;
+    unlike( slurp($conf), qr/login-rate-limit/, 'and leaves it off - the step is not done twice' );
+
+    # A site from before the extension existed: no record, no listing.
+    my $sp    = "$docroot/lazysite/.install-state.json";
+    my $state = JSON::PP::decode_json( slurp($sp) );
+    delete $state->{once};
+    open my $sw, '>', $sp or die $!;
+    print {$sw} JSON::PP::encode_json($state);
+    close $sw;
+    my ( $rc3, $out3 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc3, 0, 'an upgrade of such a site succeeds' ) or diag $out3;
+    like( slurp($conf), qr/^  - plugins\/login-rate-limit\.pl$/m, 'and switches the limiter on, so it keeps rate limiting' );
+    like( $out3, qr/switched on the login rate limit extension/, 'saying so' );
+};
+
 done_testing();
 
 # --- helpers ---
