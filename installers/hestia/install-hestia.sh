@@ -11,7 +11,19 @@ docroot="$5"
 
 TEMPLATE_DIR="$(dirname "$0")/files"
 CGIBIN="$home_dir/$user/web/$domain/cgi-bin"
-LAZYSITE_DIR="$docroot/lazysite"
+
+# SM850: the engine tree is <docroot>-lazysite once a site has been migrated
+# (SM293), and <docroot>/lazysite until then - Lazysite::Paths::lazysite_dir,
+# copied because this hook runs from Hestia with no engine to ask (t/lint/37
+# runs this copy against the module). Hestia runs a
+# template's hook again on every rebuild of the vhost, so building the inside
+# path here would lay a second tree into a migrated site's docroot.
+lazysite_dir() {
+    local d="$1"
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    if [ -d "$d-lazysite" ]; then printf '%s\n' "$d-lazysite"; else printf '%s\n' "$d/lazysite"; fi
+}
+LAZYSITE_DIR="$(lazysite_dir "$docroot")"
 
 # Install processor
 install -m 755 -o "$user" -g "$user" \

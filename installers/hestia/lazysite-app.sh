@@ -9,6 +9,17 @@
 user="$1"; domain="$2"; ip="$3"; home="$4"; docroot="$5"
 domdir="$(dirname "$docroot")"
 
+# SM850: where the site's engine tree is - <docroot>-lazysite once it has been
+# moved out of the document root (SM293), <docroot>/lazysite before. The rule
+# Lazysite::Paths::lazysite_dir states; t/lint/37 runs this copy against it.
+# This hook is copied into Hestia's template directory on its own, so it
+# carries the rule rather than sourcing it.
+lazysite_dir() {
+    local d="$1"
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    if [ -d "$d-lazysite" ]; then printf '%s\n' "$d-lazysite"; else printf '%s\n' "$d/lazysite"; fi
+}
+
 # install.pl writes plugins/, tools/ and lib/ as siblings of public_html, but
 # the Hestia domain root is mode 0551 (the user can't create files there).
 # Create them as root, owned by the user so install.pl can populate them.
@@ -29,7 +40,8 @@ find "$docroot" -type d -exec chown "$user":www-data {} \; -exec chmod 2775 {} \
 # rate-limit DBs - login depends on this) but off the world. On a fresh
 # domain these don't exist until install.pl runs; this also re-asserts the
 # perms on later rebuilds (e.g. after the users tool touched auth/).
-[ -d "$docroot/lazysite/auth" ]  && chmod 2770 "$docroot/lazysite/auth"
-[ -d "$docroot/lazysite/forms" ] && chmod 2770 "$docroot/lazysite/forms"
+lz="$(lazysite_dir "$docroot")"
+[ -d "$lz/auth" ]  && chmod 2770 "$lz/auth"
+[ -d "$lz/forms" ] && chmod 2770 "$lz/forms"
 
 exit 0

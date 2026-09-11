@@ -43,6 +43,32 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM850 (PENDING) **the front end and the Hestia scripts find a moved engine
+  tree too.** The rule that hands existing files to the engine once a site has an
+  ACL store tested only `<docroot>/lazysite/auth/acls.json`, so on a site whose
+  engine tree was moved beside the docroot it never fired and the front end
+  served every static file from disk. Every shipped guard - Hestia's Apache and
+  proxy templates, the Apache and nginx examples, the generated per-domain rules -
+  now tests both places, driven through real Apache and nginx by
+  `t/integration/96`. The Hestia deploy, list, update and hook scripts built the
+  old path too: on a migrated site the rollout read the version as `?`, and the
+  deploy took every upgrade for a first install and locked down the permissions
+  of a tree that was not there. They carry a copy of the resolver that
+  `t/lint/37` runs against the module, and reads the shipped shell as it reads
+  the Perl. Existing vhosts take the guard when rebuilt.
+
+- Rollout report (PENDING) **the Hestia rollout says what is left to do.** The
+  table `lazysite-hestia-update-all.sh` prints first gains ENGINE - `inside`,
+  `outside` or `BOTH`, a half-finished migration - and VHOST, whether the vhost
+  Hestia rendered carries this release's template or needs a rebuild, read from
+  a `# lazysite-template-rev:` line every Hestia template now carries
+  (`t/lint/135` keeps it moving with the templates). The summary adds CHECK,
+  `lazysite check` per updated site as `clean` or its counts. Three things an
+  operator had to remember to run, answered by the run. The updater also stops
+  mis-aligning rows when a docroot is missing and reporting the wrong FROM
+  version once some sites are out of scope, and it no longer falls back to
+  searching `/home` when the lister is absent - the lister ships beside it.
+
 - SM821 (ded1a141) **`whoami` says what an account may do and what it is, apart,
   and the same way on both surfaces.** MCP put the whole settings map - email,
   groups, token and MFA state - under `capabilities`, and the control API's

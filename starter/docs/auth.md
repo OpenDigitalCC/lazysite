@@ -407,10 +407,17 @@ If you run **any other web server** - Caddy, lighttpd, a CDN or a reverse proxy
 in front - you must add the equivalent rule yourself, or ACLs on static files
 will silently do nothing. The rule is:
 
-> If `<docroot>/lazysite/auth/acls.json` exists, route a request for an existing
-> file to `/cgi-bin/lazysite-auth.pl` instead of serving it from disk.
+> If `<docroot>/lazysite/auth/acls.json` or `<docroot>-lazysite/auth/acls.json`
+> exists, route a request for an existing file to `/cgi-bin/lazysite-auth.pl`
+> instead of serving it from disk.
 
-Two details that are easy to get wrong:
+Three details that are easy to get wrong:
+
+- **Test both places.** The second is where the store lives once a site's engine
+  tree has been moved out of the document root (`lazysite migrate-engine-tree`).
+  A rule that tests only the first stops firing the moment a site is migrated,
+  and nothing about the site looks different - that is how the shipped templates
+  behaved before 0.13.13.
 
 - **Route at `lazysite-auth.pl`, not at the processor.** The auth wrapper
   validates the session cookie and passes a trusted identity through. Pointing

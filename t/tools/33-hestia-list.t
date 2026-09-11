@@ -110,8 +110,13 @@ sub run_lister {
         'update-all discovers by template, not the marker union' );
     like( $ua, qr/EXCLUDED/,
         'update-all surfaces marker-only domains it deliberately skipped' );
-    like( $ua, qr/for state in .*\.install-state\.json/,
-        'update-all keeps the marker-glob fallback for an older STAGE' );
+    # N13-41: the fallback that globbed /home for install markers is gone. It
+    # could only run against a release without the lister - which ships beside
+    # this script, so there is none - and it could not see a site whose engine
+    # tree had moved out of the docroot (SM850).
+    like( $ua, qr/\[ -f "\$LISTER" \] \|\| \{ echo "\$0: no lister under STAGE/,
+        'update-all requires the lister it ships with' );
+    unlike( $ua, qr/for state in \/home/, 'and no longer globs /home for markers' );
 }
 
 done_testing();

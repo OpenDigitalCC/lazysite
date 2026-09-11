@@ -1,3 +1,4 @@
+# lazysite-template-rev: 2026-09-11
 #=========================================================================#
 # lazysite-fcgi Web Domain Template (FastCGI pool pattern)                #
 # Shipped by the lazysite-hestia package (SM139 increment 4); copy to     #
@@ -95,16 +96,22 @@
     # exist, and on a site with an ACL store every static file 404s. Verified
     # against Apache 2.4.67: 404 without PT, 200 with it. Existing vhosts must
     # be re-rendered for this to take effect.
-    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+    # SM850: and beside the docroot, where a site whose engine tree was moved out
+    # (migrate-engine-tree, SM293) keeps its ACL store - tested there too, or the
+    # guard never fires on a migrated site and every static is served off disk.
+    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}-lazysite/auth/acls.json -f
     RewriteCond %{REQUEST_URI} !^/cgi-bin/
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -f
     RewriteRule ^/(.*)$ /cgi-bin/lazysite-auth.pl [PT,L]
-    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}-lazysite/auth/acls.json -f
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md !-f
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f [OR]
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.shtml -f
     RewriteRule ^/([^.]+)$ /cgi-bin/lazysite-auth.pl [PT,L]
-    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}-lazysite/auth/acls.json -f
     RewriteCond %{DOCUMENT_ROOT}/index.md !-f
     RewriteCond %{DOCUMENT_ROOT}/index.html -f
     RewriteRule ^/$ /cgi-bin/lazysite-auth.pl [PT,L]

@@ -225,4 +225,112 @@ subtest 'nothing derives the engine dir behind the resolver' => sub {
         or diag( join "\n", @stale );
 };
 
+# N13-45: THE SHELL, TOO. The Hestia scripts that deploy, list and update sites
+# built "$DOC/lazysite" for themselves until 0.13.13, so on a migrated site the
+# rollout read its version as "?", listed it as never installed, re-ran the
+# first-install steps on every upgrade, and locked down permissions on a tree
+# that was no longer there - while the secrets in the real one kept whatever
+# modes the move left them. The Perl above was all this lint read. Each script
+# runs from Hestia or from a root shell with no engine to ask, so each carries a
+# copy of the rule; the copies are driven against the module here.
+my @SHELL_COPIES = qw(
+    installers/hestia/install-hestia.sh
+    installers/hestia/lazysite-app.sh
+    installers/hestia/lazysite-hestia-deploy.sh
+    installers/hestia/lazysite-hestia-list.sh
+    installers/hestia/lazysite-hestia-update-all.sh
+);
+
+subtest 'every shell copy of the resolver agrees with the module' => sub {
+    my $base = tempdir( CLEANUP => 1 );
+    my @sites;
+    for my $case ( [ 'unmigrated', 0 ], [ 'migrated', 1 ] ) {
+        my ( $name, $external ) = @$case;
+
+        # A space in the path: a copy that forgets its quotes answers with half
+        # a path, which a comparison of source text would never notice.
+        my $d = "$base/$name site/public_html";
+        make_path("$d/lazysite");
+        make_path( external_lazysite_dir($d) ) if $external;
+        push @sites, [ $name, $d ], [ "$name, docroot with a trailing slash", "$d/" ];
+    }
+
+    for my $rel (@SHELL_COPIES) {
+        open my $fh, '<', "$root/$rel" or die "$rel: $!";
+        my $src = do { local $/; <$fh> };
+        close $fh;
+        my ($fn) = $src =~ m{^(lazysite_dir\(\) \{\n.*?\n\}\n)}ms;
+        ok( $fn, "$rel carries the resolver as a function" ) or next;
+
+        for my $site (@sites) {
+            my ( $name, $d ) = @$site;
+            open my $out, '-|', 'bash', '-c', $fn . 'lazysite_dir "$1"', 'probe', $d
+                or die "bash: $!";
+            my $got = do { local $/; <$out> };
+            close $out;
+            chomp $got if defined $got;
+            is( $got, lazysite_dir($d), "$rel agrees with the module on a $name site" );
+        }
+    }
+};
+
+subtest 'no shipped shell builds the engine dir behind its resolver' => sub {
+    # The shape the Perl scan reads, in shell spellings: "$DOC/lazysite",
+    # "${DOCROOT}/lazysite", "$(dirname ...)/lazysite", a glob "*/lazysite".
+    my %allowed = (
+
+        # The copies of the resolver, driven above: its inside answer, and the
+        # "is there a tree inside too" half of the ENGINE column, which asks
+        # about the inside place by name (internal_lazysite_dir).
+        map( { $_ => [qr{else printf '%s\\n' "\$d/lazysite"; fi}] } @SHELL_COPIES ),
+        'installers/hestia/lazysite-hestia-list.sh' => [
+            qr{else printf '%s\\n' "\$d/lazysite"; fi},
+            qr{\[ -d "\$d/lazysite" \] && i=1},
+        ],
+        'installers/hestia/lazysite-hestia-update-all.sh' => [
+            qr{else printf '%s\\n' "\$d/lazysite"; fi},
+            qr{\[ -d "\$d/lazysite" \] && i=1},
+        ],
+
+        # The package staging directory the .deb is built from, not a site.
+        'tools/build-deb.sh' => [qr{SRC="\$STAGE/lazysite"}],
+
+        # A cache clear that must not descend into a tree left inside the
+        # docroot; a migrated site has none there, so it excludes nothing.
+        'tools/build-static.sh' => [qr{! -path "\*/lazysite/\*"}],
+    );
+
+    my @files;
+    File::Find::find( sub { push @files, $File::Find::name if /\.sh\z/ && -f },
+        "$root/installers", "$root/tools" );
+    push @files, grep { -f } glob("$root/*.sh");
+    cmp_ok( scalar @files, '>=', 10, 'the canary: found the shell that ships' );
+
+    my ( @offenders, %used );
+    for my $f ( sort @files ) {
+        ( my $rel = $f ) =~ s{\A\Q$root/\E}{};
+        open my $fh, '<', $f or die "$rel: $!";
+        my @lines = <$fh>;
+        close $fh;
+        for my $i ( 0 .. $#lines ) {
+            my $l = $lines[$i];
+            next if $l =~ /^\s*#/;
+            next unless $l =~ m#(?:\$\w+|\$[{][^}]+[}]|\$[(][^)]*[)]|\*|\$\d)/lazysite(?=[/"'\s;)]|$)#;
+            if ( my ($re) = grep { $l =~ $_ } @{ $allowed{$rel} || [] } ) {
+                $used{"$rel $re"} = 1;
+                next;
+            }
+            push @offenders, "$rel:" . ( $i + 1 ) . ": $l";
+        }
+    }
+    is_deeply( \@offenders, [],
+        'no shell builds "<docroot>/lazysite" for itself - it calls lazysite_dir' )
+        or diag( join '', @offenders );
+
+    my @stale = grep { !$used{$_} }
+        map { my $r = $_; map { "$r $_" } @{ $allowed{$r} } } sort keys %allowed;
+    is_deeply( \@stale, [], 'and every named exception is still in use' )
+        or diag( join "\n", @stale );
+};
+
 done_testing();

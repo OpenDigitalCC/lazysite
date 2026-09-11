@@ -1,3 +1,4 @@
+# lazysite-template-rev: 2026-09-11
 #=========================================================================#
 # lazysite-proxy Web Proxy Template (nginx in front of Apache)            #
 # Shipped by the lazysite-hestia package; copy to                         #
@@ -116,7 +117,11 @@ server {
             # try_files, and rewrite cannot target a named location. 418 is
             # arbitrary and never reaches the client.
             error_page 418 = @fallback;
+            # SM850: and beside the docroot, where a site whose engine tree was moved out
+            # (migrate-engine-tree, SM293) keeps its ACL store - tested there too, or the
+            # guard never fires on a migrated site and every static is served off disk.
             if (-f $document_root/lazysite/auth/acls.json) { return 418; }
+            if (-f $document_root-lazysite/auth/acls.json) { return 418; }
 
             try_files $uri @fallback;
         }

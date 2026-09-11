@@ -1,3 +1,4 @@
+# lazysite-template-rev: 2026-09-11
 #=========================================================================#
 # lazysite Web Domain Template                                            #
 # Markdown-driven pages with Template Toolkit rendering                   #

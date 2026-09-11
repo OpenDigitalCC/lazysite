@@ -114,6 +114,15 @@ Whatever the server, a correct front end does exactly this:
 6. Give the CGIs `DOCUMENT_ROOT` and the originally-requested path
    (Apache sets `REDIRECT_URL`; synthesise it elsewhere - the
    processor also falls back to `REQUEST_URI`).
+7. **Hand existing files to the auth wrapper once the site has an ACL
+   store** - when `<docroot>/lazysite/auth/acls.json` *or*
+   `<docroot>-lazysite/auth/acls.json` exists. The second is the store of
+   a site whose engine tree was moved out of the docroot; a guard testing
+   only the first goes quiet on every migrated site (SM850). Why the rule
+   tests a file rather than a path prefix, and how to verify it, is in
+   the auth guide (`/docs/auth`, *Your web server has to co-operate*).
+   The shipped templates are pinned to both by `t/lint/31` and driven
+   through real Apache and nginx by `t/integration/96`.
 
 Two additions apply only when the instance serves **more than one domain**, and
 both come from the same generator - see *Multi-domain statics* below.

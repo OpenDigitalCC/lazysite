@@ -189,7 +189,11 @@ server {
         # rewrite cannot target a named location. 418 is arbitrary and never
         # reaches the client - it is consumed by the error_page mapping above it.
         error_page 418 = @lazysite;
+        # SM850: and beside the docroot, where a site whose engine tree was moved out
+        # (migrate-engine-tree, SM293) keeps its ACL store - tested there too, or the
+        # guard never fires on a migrated site and every static is served off disk.
         if (-f $document_root/lazysite/auth/acls.json) { return 418; }
+        if (-f $document_root-lazysite/auth/acls.json) { return 418; }
         try_files $uri @lazysite;
     }
 

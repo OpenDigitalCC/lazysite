@@ -19,6 +19,20 @@
 # works straight from inside an extracted tarball: installers/hestia/..).
 set -e
 
+# SM850: where a site's engine tree is - <docroot>-lazysite once it has been
+# moved out of the document root (SM293), <docroot>/lazysite before. The rule
+# Lazysite::Paths::lazysite_dir states; t/lint/37 runs this copy against it.
+# Built by hand, this script took a migrated site for a FIRST-TIME install on
+# every upgrade (re-applying the Hestia web template and rebuilding the vhost),
+# re-ran the manager's first-run setup, and swept and locked the permissions of
+# an engine tree that was no longer there - leaving the real one's secrets as
+# the install wrote them.
+lazysite_dir() {
+    local d="$1"
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    if [ -d "$d-lazysite" ]; then printf '%s\n' "$d-lazysite"; else printf '%s\n' "$d/lazysite"; fi
+}
+
 U="$1"; DOMAIN="$2"
 STAGE="${3:-$(cd "$(dirname "$0")/../.." && pwd)}"
 [ -n "$U" ] && [ -n "$DOMAIN" ] || { echo "usage: $0 USER DOMAIN [STAGE_DIR]" >&2; exit 2; }
@@ -30,6 +44,7 @@ DOM="/home/$U/web/$DOMAIN"
 DOC="$DOM/public_html"
 CGI="$DOM/cgi-bin"
 [ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
+LZ="$(lazysite_dir "$DOC")"
 
 # Update-channel pre-check, BEFORE we touch anything. If this site is on the
 # 'stable' channel and the build is 'edge', the upgrade will be skipped - so bail
@@ -51,7 +66,7 @@ fi
 # would change Hestia state, force a vhost rebuild, and re-assert lazysite-app on
 # a domain whose template was deliberately changed (e.g. reverted to keep an
 # original static/SSI/PHP site working). Set LAZYSITE_APPLY_TEMPLATE=1 to force.
-STATE_FILE="$DOC/lazysite/.install-state.json"
+STATE_FILE="$LZ/.install-state.json"
 if [ -n "${LAZYSITE_APPLY_TEMPLATE:-}" ] || [ ! -f "$STATE_FILE" ]; then
   echo "==> applying lazysite-app web template (first-time setup)"
   "$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
@@ -66,7 +81,8 @@ fi
 # everything install.pl writes BEFORE running it: the docroot, the cgi-bin, and the
 # sibling lib/ plugins/ tools/ trees (DOCROOT/../{lib,plugins,tools}).
 echo "==> normalising ownership to $U:www-data (so the user-run install can write)"
-for tgt in "$DOC" "$CGI" "$DOM/lib" "$DOM/plugins" "$DOM/tools"; do
+# A moved engine tree is written by install.pl too, so it is on the list.
+for tgt in "$DOC" "$LZ" "$CGI" "$DOM/lib" "$DOM/plugins" "$DOM/tools"; do
   [ -e "$tgt" ] && chown -R "$U":www-data "$tgt" 2>/dev/null || true
 done
 
@@ -104,21 +120,28 @@ echo "==> permissions (CGI runs as www-data)"
 # mirrors absolute paths in deeply-nested directories; on a long-running site it
 # is by far the slowest part of the sweep below. Drop it first so the permission
 # pass stays fast (the next render rebuilds it with the right ownership).
-rm -rf "$DOC/lazysite/cache/tt" 2>/dev/null || true
+rm -rf "$LZ/cache/tt" 2>/dev/null || true
 # -RP: recurse without following symlinks (the cgi-bin links live outside $DOC,
 # but be explicit). Batched -exec (chmod once per many paths, not once per file)
 # - a per-file sweep over a large docroot takes many minutes and looks like a hang.
 chown -RP "$U":www-data "$DOC"
 find "$DOC" -type d -exec chmod 2775 {} +
 find "$DOC" -type f -exec chmod 664  {} +
+# A moved engine tree is not under $DOC, so it gets the same pass on its own:
+# the CGI writes it exactly as it wrote the tree inside the docroot.
+if [ "$LZ" = "$DOC-lazysite" ]; then
+  chown -RP "$U":www-data "$LZ"
+  find "$LZ" -type d -exec chmod 2775 {} +
+  find "$LZ" -type f -exec chmod 664  {} +
+fi
 echo "    permissions set"
-[ -d "$DOC/lazysite/auth" ]  && chmod 2770 "$DOC/lazysite/auth"
-[ -d "$DOC/lazysite/forms" ] && chmod 2770 "$DOC/lazysite/forms"
+[ -d "$LZ/auth" ]  && chmod 2770 "$LZ/auth"
+[ -d "$LZ/forms" ] && chmod 2770 "$LZ/forms"
 # Secrets must not be world-readable (the blanket 664 above would expose them);
 # 660 keeps them readable by the www-data group only.
 for sec in auth/.secret forms/.secret manager/.csrf-secret \
            auth/oauth.json auth/user-settings.json; do
-  [ -f "$DOC/lazysite/$sec" ] && chmod 660 "$DOC/lazysite/$sec"
+  [ -f "$LZ/$sec" ] && chmod 660 "$LZ/$sec"
 done
 
 # Optional: reload nginx after an upgrade. nginx serves the static manager assets
@@ -153,7 +176,7 @@ fi
 # run. (The old sentinel grepped the conf for manager_groups:, which SM138
 # retired in 0.6.5 - it never matched again, so setup-manager re-ran on every
 # deploy; harmless because it self-heals, but wrong.)
-if [ ! -f "$DOC/lazysite/auth/groups-settings.json" ]; then
+if [ ! -f "$LZ/auth/groups-settings.json" ]; then
   # First-run: bootstrap the manager in one step (account + admin group +
   # lazysite.conf + a generated password, printed below). Runs as the domain
   # user so the auth store and conf are written with the right ownership.

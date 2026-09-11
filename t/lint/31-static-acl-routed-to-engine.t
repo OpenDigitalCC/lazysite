@@ -233,4 +233,38 @@ for my $rel (@NGINX) {
         'Auth::Acl still treats "no list for this mode" as allowed' );
 }
 
+# SM850 / N13-44: EVERY GUARD ALSO LOOKS BESIDE THE DOCROOT.
+#
+# A site whose engine tree moved out of the document root (SM293) keeps its ACL
+# store at <docroot>-lazysite/auth/acls.json. A guard that tests only
+# <docroot>/lazysite/... never fires there, and every static is served off disk
+# with no ACL decision able to reach it - the front end's half of SM223, gone
+# inert with nothing to say so. So each Apache test carries [OR] and is followed
+# by its twin, and each nginx test has one. t/integration/96 drives both on the
+# real servers.
+{
+    my %twin_nginx = map { $_ => 1 } ( @NGINX,
+        qw(installers/hestia/lazysite-proxy.tpl installers/hestia/lazysite-proxy.stpl) );
+    for my $rel (@APACHE) {
+        my @lines = split /\n/, code_of( slurp("$root/$rel") );
+        my ( $guards, $twinned ) = ( 0, 0 );
+        for my $i ( 0 .. $#lines ) {
+            next unless $lines[$i] =~ m{RewriteCond\s+%\{DOCUMENT_ROOT\}/lazysite/auth/acls\.json\s+-f};
+            $guards++;
+            $twinned++
+                if $lines[$i] =~ /-f\s+\[OR\]\s*$/
+                && ( $lines[ $i + 1 ] // '' ) =~ m{^\s*RewriteCond\s+%\{DOCUMENT_ROOT\}-lazysite/auth/acls\.json\s+-f\s*$};
+        }
+        ok( $guards, "$rel has ACL guards" );
+        is( $twinned, $guards, "$rel: every guard also tests the moved engine tree's store" );
+    }
+    for my $rel ( sort keys %twin_nginx ) {
+        my $code = code_of( slurp("$root/$rel") );
+        my $here = () = $code =~ m{if\s+\(-f\s+\$document_root/lazysite/auth/acls\.json\)}g;
+        my $moved = () = $code =~ m{if\s+\(-f\s+\$document_root-lazysite/auth/acls\.json\)}g;
+        ok( $here, "$rel has an ACL guard" );
+        is( $moved, $here, "$rel: every guard has its moved-engine-tree twin" );
+    }
+}
+
 done_testing();

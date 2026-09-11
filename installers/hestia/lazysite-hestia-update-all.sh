@@ -123,6 +123,9 @@ DEPLOY="$STAGE/installers/hestia/lazysite-hestia-deploy.sh"
 [ -f "$DEPLOY" ] || { echo "$0: no deploy script under STAGE '$STAGE'" >&2; exit 2; }
 
 HESTIA=/usr/local/hestia
+# Where Hestia keeps <user>/web/<domain>/ and <user>/conf/web/<domain>/ - the
+# lister's knob, so the two scripts agree on one host layout.
+HOME_BASE="${LAZYSITE_HOME_BASE:-/home}"
 TPLDIR="$HESTIA/data/templates/web/apache2/php-fpm"
 # SM283: the nginx proxy layer. Hestia scans proxy templates here, one level
 # up from the web templates above (nginx as PROXY, not as web server).
@@ -151,6 +154,83 @@ PROXY_TPL='lazysite-proxy'
 # operator's first rollout of 0.10.10.
 in_list() { local x="$1"; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }
 
+# SM850: where a site's engine tree is - <docroot>-lazysite once it has been
+# moved out of the document root (SM293), <docroot>/lazysite before. The rule
+# Lazysite::Paths::lazysite_dir states; t/lint/37 runs this copy against it.
+# Built by hand here, the table read a migrated site's version and channel from
+# a directory that was no longer there and reported "?" and "(unset)".
+lazysite_dir() {
+    local d="$1"
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    if [ -d "$d-lazysite" ]; then printf '%s\n' "$d-lazysite"; else printf '%s\n' "$d/lazysite"; fi
+}
+
+# SM850: where the engine tree is, as the ENGINE column says it: inside, outside
+# (migrated), BOTH - a half-finished migration, always a fault, because the
+# engine reads the outside copy while the front end can still serve the inside
+# one - or none.
+engine_state() {
+    local d="$1" i=0 o=0
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    [ -d "$d/lazysite" ] && i=1
+    [ -d "$d-lazysite" ] && o=1
+    case "$i$o" in
+        10) echo inside ;;
+        01) echo outside ;;
+        11) echo BOTH ;;
+        *)  echo none ;;
+    esac
+}
+
+# The template revision a file carries (`# lazysite-template-rev: X`), or empty.
+template_rev() {
+    [ -f "$1" ] || return 0
+    sed -n 's/^[[:space:]]*#[[:space:]]*lazysite-template-rev:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$1" | head -1
+}
+
+# The VHOST column: is the vhost Hestia RENDERED for this domain from the
+# template revision this release ships? A template change reaches a site only
+# when its vhost is rebuilt, and nothing said which sites had been - SM797's
+# re-render was an instruction in UPGRADE.md an operator had to apply by memory.
+#   current  every lazysite-rendered file carries the staged revision
+#   rebuild  one carries an older revision, or none (rendered before the marker)
+#   -        no rendered vhost found where Hestia keeps them
+# A rendered nginx file counts only when it is lazysite's (the lazysite-proxy
+# template carries the marker; a stock proxy template does not, and the SM283
+# flag is what reports that).
+vhost_state() {
+    local u="$1" d="$2" want="$3" dir f rev seen=0 stale=0
+    dir="$HOME_BASE/$u/conf/web/$d"
+    for f in "$dir/apache2.ssl.conf" "$dir/apache2.conf" "$dir/nginx.ssl.conf" "$dir/nginx.conf"; do
+        [ -f "$f" ] || continue
+        rev=$(template_rev "$f")
+        case "$f" in
+            */nginx*) [ -n "$rev" ] || continue ;;
+        esac
+        seen=1
+        [ -n "$want" ] && [ "$rev" = "$want" ] || stale=1
+    done
+    if [ "$seen" = 0 ]; then echo '-'
+    elif [ "$stale" = 1 ]; then echo rebuild
+    else echo current
+    fi
+}
+
+# The CHECK column: `lazysite check` for one site, after the rollout's repair -
+# read-only - as clean, or its warning and failure counts. The lines behind the
+# counts are the check's own report, one command away.
+check_verdict() {
+    local out ok w f
+    out=$( perl "$LZS" check --domain "$1" 2>&1 ) || true
+    read -r ok w f < <( printf '%s\n' "$out" \
+        | sed -n 's/^\([0-9]*\) ok, \([0-9]*\) warning(s), \([0-9]*\) failure(s).*/\1 \2 \3/p' | tail -1 )
+    if [ -z "${ok:-}" ]; then echo '?'
+    elif [ "$f" = 0 ] && [ "$w" = 0 ]; then echo clean
+    elif [ "$f" = 0 ]; then echo "$w warn"
+    else echo "$f FAIL, $w warn"
+    fi
+}
+
 # --- reporting -------------------------------------------------------------
 #
 # Defined here for the SM324 reason the block above records: bash resolves a
@@ -166,14 +246,18 @@ in_list() { local x="$1"; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; 
 # found, only warnings and failures while it runs, and a summary table at the
 # end. --verbose restores the transcript.
 
-TBL_FMT='  %-42s %-12s %-9s %-9s %s\n'
+# ENGINE and VHOST (N13-41, N13-43): where each site's engine tree is, and
+# whether its rendered vhost carries this release's template. CHECK (N13-42):
+# what `lazysite check` says of each site after the rollout. All three used to
+# be steps an operator had to remember to run; the table answers them.
+TBL_FMT='  %-42s %-12s %-9s %-9s %-8s %-8s %s\n'
 
-table_head() { printf "$TBL_FMT" DOMAIN USER VERSION CHANNEL SCOPE; }
-table_row()  { printf "$TBL_FMT" "$1" "$2" "$3" "$4" "$5"; }
+table_head() { printf "$TBL_FMT" DOMAIN USER VERSION CHANNEL ENGINE VHOST SCOPE; }
+table_row()  { printf "$TBL_FMT" "$1" "$2" "$3" "$4" "$5" "$6" "$7"; }
 
-SUM_FMT='  %-42s %-9s %-9s %s\n'
-sum_head() { printf "$SUM_FMT" DOMAIN FROM TO RESULT; }
-sum_row()  { printf "$SUM_FMT" "$1" "$2" "$3" "$4"; }
+SUM_FMT='  %-42s %-9s %-9s %-16s %-8s %s\n'
+sum_head() { printf "$SUM_FMT" DOMAIN FROM TO CHECK VHOST RESULT; }
+sum_row()  { printf "$SUM_FMT" "$1" "$2" "$3" "$4" "$5" "$6"; }
 
 # What counts as worth interrupting a quiet run for. Deliberately broad: a
 # missed warning is the failure mode this whole change risks introducing, and a
@@ -233,34 +317,34 @@ ver_of() {   # print the "version" from an install-state.json, or "?"
 # reported below, so we never re-deploy over a domain the operator has moved off
 # lazysite. Fallback (older STAGE without the lister): the original marker glob,
 # which cannot see the template and so updates every marked tree.
-USERS=(); DOMAINS=(); VERS=(); EXCLUDED=()
-EXC_D=(); EXC_U=(); EXC_V=()
+USERS=(); DOMAINS=(); DOCS=(); VERS=(); EXCLUDED=()
+EXC_D=(); EXC_U=(); EXC_DOC=(); EXC_V=()
 LISTER="$STAGE/installers/hestia/lazysite-hestia-list.sh"
-if [ -f "$LISTER" ]; then
-    while IFS=$'\t' read -r u d doc; do
-        [ -n "$d" ] || continue
-        USERS+=( "$u" ); DOMAINS+=( "$d" )
-        VERS+=( "$(ver_of "$doc/lazysite/.install-state.json")" )
-    done < <(bash "$LISTER" --plain --template-only)
-    # Marker-only domains = the union minus the template set: excluded from the
-    # update, but surfaced so the operator can reconcile template vs marker.
-    declare -A _IN_TPL=()
-    for i in "${!DOMAINS[@]}"; do _IN_TPL["${USERS[$i]}/${DOMAINS[$i]}"]=1; done
-    while IFS=$'\t' read -r u d doc; do
-        [ -n "$d" ] || continue
-        if [ "${_IN_TPL[$u/$d]:-0}" != 1 ]; then
-            EXCLUDED+=( "$d (user $u)" )
-            EXC_D+=( "$d" ); EXC_U+=( "$u" )
-            EXC_V+=( "$(ver_of "$doc/lazysite/.install-state.json")" )
-        fi
-    done < <(bash "$LISTER" --plain)
-else
-    for state in /home/*/web/*/public_html/lazysite/.install-state.json; do
-        USERS+=(   "$(echo "$state" | cut -d/ -f3)" )
-        DOMAINS+=( "$(echo "$state" | cut -d/ -f5)" )
-        VERS+=(    "$(ver_of "$state")" )
-    done
-fi
+# The lister ships in the same release as this script, so it is always here.
+# (There was a fallback that globbed /home for install markers; it could only
+# run against a release that did not exist, and it could not see a site whose
+# engine tree had moved - SM850.)
+[ -f "$LISTER" ] || { echo "$0: no lister under STAGE '$STAGE'" >&2; exit 2; }
+# SM850: each site's DOCROOT is the lister's, carried through every phase below
+# rather than rebuilt from a /home pattern, and its engine tree is asked of
+# lazysite_dir.
+while IFS=$'\t' read -r u d doc; do
+    [ -n "$d" ] || continue
+    USERS+=( "$u" ); DOMAINS+=( "$d" ); DOCS+=( "$doc" )
+    VERS+=( "$(ver_of "$(lazysite_dir "$doc")/.install-state.json")" )
+done < <(bash "$LISTER" --plain --template-only)
+# Marker-only domains = the union minus the template set: excluded from the
+# update, but surfaced so the operator can reconcile template vs marker.
+declare -A _IN_TPL=()
+for i in "${!DOMAINS[@]}"; do _IN_TPL["${USERS[$i]}/${DOMAINS[$i]}"]=1; done
+while IFS=$'\t' read -r u d doc; do
+    [ -n "$d" ] || continue
+    if [ "${_IN_TPL[$u/$d]:-0}" != 1 ]; then
+        EXCLUDED+=( "$d (user $u)" )
+        EXC_D+=( "$d" ); EXC_U+=( "$u" ); EXC_DOC+=( "$doc" )
+        EXC_V+=( "$(ver_of "$(lazysite_dir "$doc")/.install-state.json")" )
+    fi
+done < <(bash "$LISTER" --plain)
 
 n=${#DOMAINS[@]}
 NEWVER="$(ver_of "$STAGE/release-manifest.json")"
@@ -296,15 +380,20 @@ fi
 # nothing, and is the same code the per-site deploy obeys. A second copy in bash
 # would be one fact in two places, which is the defect this project keeps
 # closing.
-IN_USERS=(); IN_DOMAINS=(); OUT_OF_SCOPE=()
-CHANS=(); SCOPES=()
+IN_USERS=(); IN_DOMAINS=(); IN_DOCS=(); IN_VERS=(); OUT_OF_SCOPE=()
+CHANS=(); SCOPES=(); ENGINES=(); VHOSTS=()
+STAGED_REV="$(template_rev "$STAGE/installers/hestia/lazysite-app.stpl")"
 for i in "${!DOMAINS[@]}"; do
     _d="${DOMAINS[$i]}"; _u="${USERS[$i]}"
-    _dr="/home/$_u/web/$_d/public_html"
+    _dr="${DOCS[$i]}"
+    ENGINES+=( "$(engine_state "$_dr")" )
+    VHOSTS+=( "$(vhost_state "$_u" "$_d" "$STAGED_REV")" )
     if [ ! -d "$_dr" ]; then
         # No docroot: leave it to the deploy loop to report properly rather than
-        # silently dropping it here.
-        IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" )
+        # silently dropping it here. Its row still gets a channel and a scope -
+        # skipping them left every later row reading the previous site's.
+        IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" ); IN_DOCS+=( "$_dr" ); IN_VERS+=( "${VERS[$i]}" )
+        CHANS+=( '?' ); SCOPES+=( 'in scope (no docroot)' )
         continue
     fi
     set +e
@@ -314,7 +403,7 @@ for i in "${!DOMAINS[@]}"; do
     if [ "$_cc" = 3 ]; then
         OUT_OF_SCOPE+=( "$_d" )
     else
-        IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" )
+        IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" ); IN_DOCS+=( "$_dr" ); IN_VERS+=( "${VERS[$i]}" )
     fi
     # SM356: say which channel each site is actually on. The fleet's policy was
     # only ever inferable from which sites got skipped, so a site sitting on a
@@ -323,7 +412,7 @@ for i in "${!DOMAINS[@]}"; do
     # MOST permissive setting. --channel-check reports that on stderr now; this
     # makes the normal case legible too.
     _ch=$(sed -n 's/^[[:space:]]*update_channel[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' \
-            "$_dr/lazysite/lazysite.conf" 2>/dev/null | head -1)
+            "$(lazysite_dir "$_dr")/lazysite.conf" 2>/dev/null | head -1)
     CHANS+=( "${_ch:-(unset)}" )
     SCOPES+=( "$( [ "$_cc" = 3 ] && echo 'out of scope' || echo 'in scope' )" )
 done
@@ -337,14 +426,14 @@ echo
 table_head
 for i in "${!DOMAINS[@]}"; do
     table_row "${DOMAINS[$i]}" "${USERS[$i]}" "${VERS[$i]}" \
-              "${CHANS[$i]:-?}" "${SCOPES[$i]:-?}"
+              "${CHANS[$i]:-?}" "${ENGINES[$i]:-?}" "${VHOSTS[$i]:-?}" "${SCOPES[$i]:-?}"
 done
 for i in "${!EXC_D[@]}"; do
     # Marker present, template moved away. Never silently deployed to: the
     # operator reconciles template against marker, and until they do this
     # domain is reported and left alone.
     table_row "${EXC_D[$i]}" "${EXC_U[$i]}" "${EXC_V[$i]}" '-' \
-              'excluded (not on lazysite-app)'
+              "$(engine_state "${EXC_DOC[$i]}")" '-' 'excluded (not on lazysite-app)'
 done
 echo
 printf '  %d candidate(s): %d in scope, %d out of scope, %d excluded\n' \
@@ -358,6 +447,11 @@ printf '  %d candidate(s): %d in scope, %d out of scope, %d excluded\n' \
 # From here on, these are THE sites.
 DOMAINS=( "${IN_DOMAINS[@]}" )
 USERS=(   "${IN_USERS[@]}" )
+# The docroots and FROM versions travel with the domains. The summary used to
+# index the whole candidate list's versions by an in-scope position, so an
+# out-of-scope site earlier in the list shifted every FROM that followed it.
+DOCS=(    "${IN_DOCS[@]}" )
+VERS=(    "${IN_VERS[@]}" )
 n=${#DOMAINS[@]}
 if [ "$n" = 0 ]; then
     echo
@@ -499,9 +593,8 @@ if [ "${DO_REAPPLY:-0}" = 1 ]; then
             d="${DOMAINS[$i]}"; u="${USERS[$i]}"
             in_list "$d" "${SKIPPED[@]}" && continue
             in_list "$d" "${FAILED[@]}"  && continue
-            # The docroot follows the Hestia layout the discovery loop above
-            # walks: /home/<user>/web/<domain>/public_html.
-            dr="/home/$u/web/$d/public_html"
+            # The lister's docroot for this site, carried from discovery.
+            dr="${DOCS[$i]}"
             [ -d "$dr" ] || { echo "    no docroot at $dr; skipping $d" >&2; continue; }
             if sudo -u "$u" perl "$ACLTOOL" reapply \
                  --docroot "$dr" --actor local --apply; then
@@ -586,14 +679,25 @@ echo
 printf '==> SUMMARY: %s\n' "$NEWVER"
 echo
 sum_head
+# CHECK and VHOST as they stand AFTER the rollout: the check is read-only and
+# runs once per in-scope site that installed; the vhost is re-read, because
+# --rebuild and --proxy render it again on the way.
+_chk_clean=0; _chk_warn=0; _vh_rebuild=0
 for i in "${!DOMAINS[@]}"; do
-    sum_row "${DOMAINS[$i]}" "${VERS[$i]:-?}" "$NEWVER" "${RESULTS[$i]:-?}"
+    _chk='-'
+    if [ -f "$LZS" ] && [ "${RESULTS[$i]:-}" = updated ]; then
+        _chk=$(check_verdict "${DOMAINS[$i]}")
+        if [ "$_chk" = clean ]; then _chk_clean=$(( _chk_clean + 1 )); else _chk_warn=$(( _chk_warn + 1 )); fi
+    fi
+    _vh=$(vhost_state "${USERS[$i]}" "${DOMAINS[$i]}" "$STAGED_REV")
+    [ "$_vh" = rebuild ] && _vh_rebuild=$(( _vh_rebuild + 1 ))
+    sum_row "${DOMAINS[$i]}" "${VERS[$i]:-?}" "$NEWVER" "$_chk" "$_vh" "${RESULTS[$i]:-?}"
 done
 for i in "${!OUT_OF_SCOPE[@]}"; do
-    sum_row "${OUT_OF_SCOPE[$i]}" '-' '-' 'not in scope (untouched)'
+    sum_row "${OUT_OF_SCOPE[$i]}" '-' '-' '-' '-' 'not in scope (untouched)'
 done
 for i in "${!EXC_D[@]}"; do
-    sum_row "${EXC_D[$i]}" "${EXC_V[$i]}" '-' 'excluded (untouched)'
+    sum_row "${EXC_D[$i]}" "${EXC_V[$i]}" '-' '-' '-' 'excluded (untouched)'
 done
 echo
 printf '  %d updated, %d failed, %d skipped, %d out of scope, %d excluded\n' \
@@ -602,6 +706,12 @@ printf '  %d updated, %d failed, %d skipped, %d out of scope, %d excluded\n' \
     printf '  repair: %d clean, %d need a human\n' "${_rep_clean:-0}" "${_rep_human:-0}"
 [ -n "${_probe_ok:-}" ] && \
     printf '  probe:  %d clean, %d exposed\n' "${_probe_ok:-0}" "${_probe_bad:-0}"
+[ -f "$LZS" ] && \
+    printf '  check:  %d clean, %d with warnings or failures (lazysite check --domain D shows each)\n' \
+        "$_chk_clean" "$_chk_warn"
+[ "$_vh_rebuild" -gt 0 ] && \
+    printf '  vhost:  %d site(s) render an older template - rebuild them to take this release'"'"'s front-end rules (--rebuild, or v-rebuild-web-domain USER DOMAIN)\n' \
+        "$_vh_rebuild"
 [ "$VERBOSE" = 0 ] && \
     echo '  (quiet report; re-run with --verbose for every phase in full)'
 

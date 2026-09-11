@@ -4,7 +4,7 @@ subtitle: "Found building SM842: the form handler read its forms from inside the
 brand: plain
 standard-margins: true
 status: shipped
-status-note: "SHIPPED 2026-09-11 (0.13.13). Every hand-built <docroot>/lazysite path in the shipped Perl - 110 places across 38 files, not the two named here - asks Lazysite::Paths, and t/lint/37 now reads every file instead of nine. A configured `lazysite/...` path (nav_file) and the file surfaces' `lazysite/...` carve-outs (validate_path, WebDAV) resolve to the engine tree too. Each fixed behaviour was reproduced on a migrated fixture before the fix: t/unit/data/62, t/unit/manager/184 and 185, t/unit/dav/26. Not done here, from reading only: the front-end ACL guard in the shipped vhost templates (below)."
+status-note: "SHIPPED 2026-09-11 (0.13.13). Every hand-built <docroot>/lazysite path in the shipped Perl - 110 places across 38 files, not the two named here - asks Lazysite::Paths, and t/lint/37 now reads every file instead of nine. A configured `lazysite/...` path (nav_file) and the file surfaces' `lazysite/...` carve-outs (validate_path, WebDAV) resolve to the engine tree too. Each fixed behaviour was reproduced on a migrated fixture before the fix: t/unit/data/62, t/unit/manager/184 and 185, t/unit/dav/26. The front half, found from reading and then reproduced: every shipped front-end ACL guard also tests the store beside the docroot (13 files and the generator; t/integration/96 on real Apache and nginx, t/lint/31), and the Hestia deploy, list, update and hook scripts find the tree through a shell copy of the resolver that t/lint/37 drives against the module (t/tools/71)."
 ---
 
 # What was found
@@ -68,24 +68,50 @@ missed them because it read nine named files for two spellings (`$docroot`,
 - The migrated-site fixture the filing asked for: a declared table, a `db:`
   binding and a form into the table through the real handler (t/unit/data/62).
 
-# Not done here
+# The front end and the shell (0.13.13, N13-41..45)
 
-**The front-end ACL guard in the shipped vhost templates** - graded from reading,
-not reproduced. The Hestia Apache and proxy templates and the nginx snippet route
-an existing static file through the engine when `<docroot>/lazysite/auth/acls.json`
-exists (`%{DOCUMENT_ROOT}/lazysite/auth/acls.json`, `$document_root/lazysite/...`).
-On a migrated site that file is beside the docroot, so the guard never fires. The
-private store is the protection - a protected file is moved out of the served
-tree, so the front end has nothing to serve - which makes this guard defence in
-depth rather than the gate; it goes inert exactly where the engine tree has
-moved. The fix is an `[OR]` for `%{DOCUMENT_ROOT}-lazysite/auth/acls.json` (and
-the nginx equivalent), and wants proving against a real Apache and nginx, which
-is why it is not in this change.
+This section was "Not done here" in the first change. It is done, and each half
+was reproduced before it was fixed.
+
+- **The front-end ACL guard.** The Hestia Apache and proxy templates, the Apache
+  and nginx examples, and the snippet `DomainRewrites` emits routed an existing
+  static file through the engine only when `<docroot>/lazysite/auth/acls.json`
+  existed. On a migrated site that file is beside the docroot, so the guard never
+  fired: an Apache vhost served a moved site's statics straight off disk, and
+  nginx never handed them to the engine. The private store was still the
+  protection - a protected file is moved out of the served tree - so this was
+  defence in depth going inert exactly where the tree had moved. Every guard now
+  tests both places (`%{DOCUMENT_ROOT}/lazysite/... [OR]
+  %{DOCUMENT_ROOT}-lazysite/...`; a second `if (-f $document_root-lazysite/...)`
+  for nginx). t/integration/96 drives each Apache guard block and the Hestia
+  proxy template on a real Apache and nginx - no store serves the file, a moved
+  store and an inside store route it - and failed 20 times against the old
+  templates, with its controls passing. t/lint/31 requires both tests in every
+  guard.
+- **The Hestia scripts.** `lazysite-hestia-deploy.sh`, `lazysite-hestia-list.sh`,
+  `lazysite-hestia-update-all.sh` and the two template hooks built
+  `$DOC/lazysite` for themselves. On a migrated site the rollout read the version
+  as `?` and the channel as unset, the lister flagged `NO-INSTALL-MARKER`, and
+  the deploy took every upgrade for a first install - re-applying the template,
+  rebuilding the vhost, re-running setup-manager - and swept and locked the
+  permissions of a tree that was not there, leaving the real one's secrets as
+  the install wrote them. Each now carries a shell copy of the resolver, and
+  t/lint/37 runs every copy against `Lazysite::Paths::lazysite_dir` on both
+  layouts and reads the shipped shell for a hand-built path, as it reads the
+  Perl. Hestia runs a template's hook again on every vhost rebuild, which is why
+  the superseded `install-hestia.sh` was fixed too rather than left.
+- **What the rollout reports** (asked for by the release manager while this was
+  being built): an ENGINE column - `inside`, `outside` or `BOTH` - in the table
+  it prints first; VHOST - whether the rendered vhost carries this release's
+  template, by a `# lazysite-template-rev:` line every Hestia template now
+  carries and t/lint/135 keeps honest; and CHECK, `lazysite check` per updated
+  site, in the summary. t/tools/71.
 
 # What is not known
 
 Whether any site has been migrated. `lazysite migrate-engine-tree --all` exists
 and nothing here records it being run. If none has, all of the above was latent.
+The rollout's ENGINE column now answers this per site on the next run.
 
 # Related
 

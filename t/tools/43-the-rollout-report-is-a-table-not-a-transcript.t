@@ -52,15 +52,16 @@ my sub run_bash {
 
 subtest 'a candidate appears once, with everything known about it' => sub {
     my ( $out, $rc ) = run_bash(
-        qq{table_head\ntable_row a.example alice 0.11.7 edge "in scope"\n} );
+        qq{table_head\ntable_row a.example alice 0.11.7 edge outside rebuild "in scope"\n} );
     is( $rc, 0, 'the table renders' );
-    like( $out, qr/DOMAIN\s+USER\s+VERSION\s+CHANNEL\s+SCOPE/,
-        'the header names version, channel and scope' )
-        or diag( 'These are the four facts the operator asked for in one '
-            . 'place: what was found, what it runs, what it is set to, and '
-            . 'whether this release is for it.' );
-    like( $out, qr/a\.example\s+alice\s+0\.11\.7\s+edge\s+in scope/,
-        'and a row carries all four' );
+    like( $out, qr/DOMAIN\s+USER\s+VERSION\s+CHANNEL\s+ENGINE\s+VHOST\s+SCOPE/,
+        'the header names version, channel, engine, vhost and scope' )
+        or diag( 'These are the facts the operator asked for in one place: what '
+            . 'was found, what it runs, what it is set to, where its engine tree '
+            . 'is, whether its vhost carries this release, and whether this '
+            . 'release is for it (N13-41, N13-43).' );
+    like( $out, qr/a\.example\s+alice\s+0\.11\.7\s+edge\s+outside\s+rebuild\s+in scope/,
+        'and a row carries all of them' );
 };
 
 subtest 'a clean site says nothing at all' => sub {

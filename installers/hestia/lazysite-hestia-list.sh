@@ -92,10 +92,15 @@ done
 # ---- collect: marker-detected trees (cross-check) ---------------------------
 MARK_KEYS=()
 declare -A SEEN_MARK=()
-for state in "$HOME_BASE"/*/web/*/public_html/lazysite/.install-state.json; do
+# SM850: a site whose engine tree was moved out of the docroot keeps its marker
+# beside it, in public_html-lazysite/ - read both, or every migrated site reads
+# as NO-INSTALL-MARKER.
+for state in "$HOME_BASE"/*/web/*/public_html/lazysite/.install-state.json \
+             "$HOME_BASE"/*/web/*/public_html-lazysite/.install-state.json; do
     rel="${state#"$HOME_BASE"/}"
     u="${rel%%/*}"
     d="${rel#*/web/}"; d="${d%%/*}"
+    [ "${SEEN_MARK[$u/$d]:-0}" = 1 ] && continue    # a tree in BOTH places counts once
     MARK_KEYS+=("$u/$d"); SEEN_MARK["$u/$d"]=1
 done
 
@@ -107,6 +112,31 @@ if [ "$TPL_ONLY" != 1 ]; then
         [ "${SEEN_TPL[$k]:-0}" = 1 ] || ALL+=("$k")
     done
 fi
+
+# SM850: where a site's engine tree is - <docroot>-lazysite once it has been
+# moved out of the document root (SM293), <docroot>/lazysite before. The rule
+# Lazysite::Paths::lazysite_dir states; t/lint/37 runs this copy against it.
+lazysite_dir() {
+    local d="$1"
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    if [ -d "$d-lazysite" ]; then printf '%s\n' "$d-lazysite"; else printf '%s\n' "$d/lazysite"; fi
+}
+
+# SM850: inside, outside (migrated), BOTH - a half-finished migration, always a
+# fault: the engine reads the outside copy while the front end can still serve
+# the inside one - or none.
+engine_state() {
+    local d="$1" i=0 o=0
+    while [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+    [ -d "$d/lazysite" ] && i=1
+    [ -d "$d-lazysite" ] && o=1
+    case "$i$o" in
+        10) echo inside ;;
+        01) echo outside ;;
+        11) echo BOTH ;;
+        *)  echo none ;;
+    esac
+}
 
 ver_of() {    # version from an install-state.json, or "-"
     # (perl -ne exits 0 on a missing file, so test first rather than ||)
@@ -137,9 +167,16 @@ fi
 for k in "${ALL[@]}"; do
     u="${k%%/*}"; d="${k#*/}"
     doc="$HOME_BASE/$u/web/$d/public_html"
-    ver=$(ver_of "$doc/lazysite/.install-state.json")
-    ch=$(chan_of "$doc/lazysite/lazysite.conf")
+    lz=$(lazysite_dir "$doc")
+    ver=$(ver_of "$lz/.install-state.json")
+    ch=$(chan_of "$lz/lazysite.conf")
     flags=''
+    # SM850: where the engine tree is. Inside is the default and says nothing;
+    # a migrated tree is noted, and one in BOTH places is the fault it always is.
+    case "$(engine_state "$doc")" in
+        outside) flags="$flags engine=outside" ;;
+        BOTH)    flags="$flags ENGINE-IN-BOTH-PLACES(SM293)" ;;
+    esac
     [ "${SUSPENDED[$k]:-0}" = 1 ]  && flags="$flags SUSPENDED"
     [ "${SEEN_TPL[$k]:-0}" = 1 ]  || flags="$flags NO-TEMPLATE(marker only)"
     [ "${SEEN_MARK[$k]:-0}" = 1 ] || flags="$flags NO-INSTALL-MARKER"
@@ -149,7 +186,7 @@ for k in "${ALL[@]}"; do
     # the moment someone protects a folder, with nothing to warn them.
     if [ "${PROXY_ON[$k]:-0}" = 1 ] \
         && [ "${PROXY_TPL_OF[$k]:-}" != "$PROXY_TPL_WANTED" ]; then
-        if [ -f "$doc/lazysite/auth/acls.json" ]; then
+        if [ -f "$lz/auth/acls.json" ]; then
             flags="$flags ACL-BYPASSED-BY-PROXY(SM283)"
         else
             flags="$flags proxy-tpl=${PROXY_TPL_OF[$k]:-none}"

@@ -123,7 +123,9 @@ sub apache_snippet {
             # rewrite target cannot match itself.
             "# $h: route this domain's statics through the engine when ACLs exist",
             "RewriteCond %{HTTP_HOST} =$h [NC]",
-            'RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f',
+            # SM850: and beside the docroot, where a moved engine tree keeps it.
+            'RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f [OR]',
+            'RewriteCond %{DOCUMENT_ROOT}-lazysite/auth/acls.json -f',
             "RewriteCond %{REQUEST_URI} !^/(?:$exempt)(?:/|\$)",
             "RewriteCond %{DOCUMENT_ROOT}/$r%{REQUEST_URI} -f",
             # PT, not a bare [L]: in vhost context mod_rewrite treats a
@@ -181,6 +183,7 @@ sub nginx_snippet {
         '#   location / {',
         '#       error_page 418 = @lazysite;',
         '#       if (-f $document_root/lazysite/auth/acls.json) { return 418; }',
+        '#       if (-f $document_root-lazysite/auth/acls.json) { return 418; }',
         '#       try_files $lz_content_root$uri $uri @lazysite;',
         '#   }',
         '#',
@@ -208,6 +211,7 @@ sub nginx_snippet {
         "#   location ~ ^/(?:$identity)\$ {",
         '#       error_page 418 = @lazysite;',
         '#       if (-f $document_root/lazysite/auth/acls.json) { return 418; }',
+        '#       if (-f $document_root-lazysite/auth/acls.json) { return 418; }',
         '#       try_files $lz_content_root$uri =404;',
         '#   }';
     return join( "\n", @out ) . "\n";

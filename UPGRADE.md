@@ -98,6 +98,40 @@ templates). If you maintain your own vhost, apply contract item 5 in
 `docs/reference/webserver-wiring.md`. On a multi-domain instance, regenerate the
 per-domain block (`... rewrites --docroot <docroot>`) as well.
 
+The same re-render carries a second fix (SM850): the rule that hands existing
+files to the engine once a site has an ACL store now also looks for the store
+beside the docroot, where it is on a site whose engine tree was moved out
+(`lazysite migrate-engine-tree`). Before, that rule never fired on a migrated
+site, and the front end served its static files from disk whatever the ACL said
+- the private store still held back what had been moved into it. If you
+maintain your own vhost, apply contract item 7 in the same reference.
+
+**On Hestia, the rollout now tells you what is left** (N13-41..43). The table
+`lazysite-hestia-update-all.sh` prints first has two new columns:
+
+- **ENGINE** - where the site's engine tree is: `inside` the docroot, `outside`
+  (migrated), or `BOTH`, a half-finished migration, which is always a fault.
+- **VHOST** - whether the vhost Hestia rendered for the site carries this
+  release's template (`current`) or an older one (`rebuild`). Every shipped Hestia
+  template now carries a `# lazysite-template-rev:` line for this. Every site
+  reads `rebuild` on the first rollout of 0.13.13, because no earlier template
+  had the line - which is also true: none of them has this release's rules yet.
+  Run the rollout with `--rebuild`, or `v-rebuild-web-domain USER DOMAIN` per
+  site, and the column turns `current`.
+
+The summary at the end adds **CHECK** - `lazysite check` for each site that
+updated, as `clean` or its warning and failure counts - and VHOST as it stands
+after the run, with a count of the sites still to rebuild.
+
+The Hestia scripts also stop assuming the engine tree is inside the docroot. On
+a migrated site the rollout used to read the version as `?` and the channel as
+unset, the lister flagged `NO-INSTALL-MARKER`, and the deploy treated every
+upgrade as a first install - re-applying the template, rebuilding the vhost and
+re-running the setup-manager step - while its permission sweep and secret
+lockdown went to a directory that was no longer there. They now find the tree
+where it is. `update-all` requires the lister it ships with; the fallback that
+searched `/home` for install markers is gone.
+
 ## Upgrading to 0.10.19 from 0.10.18
 
 **This is a BETA build** - the first promotion off the edge line. A site takes
