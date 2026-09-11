@@ -14,7 +14,9 @@ search: false
      only in the docs: an author never supplies a URL. That is the whole SSRF
      answer, and a page that let one be typed into a form would undo it. -->
 <div class="mg-note mg-note-info">A connector is a destination this site may send to,
-written <strong>here</strong> and referenced by name from a form or a page. An author never
+written <strong>here</strong> and reached from a form or the schedule through a connector
+handler (on the Handlers page), or from a page. A URL on its own is enough: a connector
+needs no credential to send. An author never
 supplies a URL &mdash; that is what stops the site being pointed at an internal address.
 The credential is held apart from the definition and is never shown back: you can set it
 or replace it, and the list says whether one is in place.</div>
@@ -221,6 +223,8 @@ function editorFor(id) {
     + field(f + 'name', 'Label', 'text', c.name || '', 'What this destination is, for the person reading the list.')
     + field(f + 'url', 'URL', 'text', c.url || '', 'https:// anywhere, or http:// to 127.0.0.1 for a service on this host.')
     + selectField(f + 'method', 'Method', ['POST', 'GET'], c.method || 'POST', 'GET sends the payload as a query string.')
+    // SM842: what a webhook could send, now that outbound HTTP is a connector.
+    + selectField(f + 'format', 'Body', ['json', 'slack'], c.format || 'json', 'json sends the fields as an object; slack sends them as one message, which a Slack incoming webhook takes. POST only.')
     + field(f + 'secret_header', 'Credential header', 'text', c.secret_header || 'Authorization', 'The header the credential is sent in.')
     + field(f + 'secret_prefix', 'Credential prefix', 'text', c.secret_prefix === undefined ? 'Bearer ' : c.secret_prefix, 'Put before the credential. Blank for a bare key.')
     + field(f + 'rate_per_hour', 'Calls per hour', 'number', c.rate_per_hour === undefined ? 60 : c.rate_per_hour, 'The cap that stands between a mistake and a bill. 0 removes it.')
@@ -352,6 +356,7 @@ function saveConnector(id) {
     name: val(f + 'name'),
     url: val(f + 'url'),
     method: val(f + 'method'),
+    format: val(f + 'format'),
     secret_header: val(f + 'secret_header'),
     secret_prefix: val(f + 'secret_prefix'),
     rate_per_hour: val(f + 'rate_per_hour'),

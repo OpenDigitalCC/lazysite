@@ -66,12 +66,16 @@ our %PAGES = (
     # send to. manage_connectors, the capability that already gates every
     # connector action - writing a destination IS the authority here.
     'connectors' => { label => 'Connectors', caps => ['manage_connectors'] },
+    # SM842: the named functions a form or the schedule calls. Any of the
+    # three destination capabilities reaches it; each handler's own type then
+    # decides what that account may change.
+    'handlers' => { label => 'Handlers', caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ] },
     # SM759: registry keys, as the conf lists them - a bare name matches nothing.
     'data' => { label => 'Data tables', caps => ['manage_data'], plugin => 'plugins/data.pl' },
     'stats' => { label => 'Visitor statistics', caps => [], plugin => 'plugins/stats.pl' },
 );
 my @PAGE_ORDER = qw(index files nav appearance plugins plugin-config users groups
-    sessions domains cache backups audit connectors data stats);
+    sessions domains cache backups audit connectors handlers data stats);
 
 sub manager_pages { return map { { id => $_, %{ $PAGES{$_} } } } @PAGE_ORDER }
 

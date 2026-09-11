@@ -70,16 +70,24 @@ sub slurp {
         'editor: no beforeunload lock release (cancelling the leave prompt keeps the lock)' );
 }
 
-# --- plugin-config.md: config forms, handler forms, form targets -------------
+# --- plugin-config.md: config forms (SM842 moved the handler forms) -------
 {
     my $page = slurp('starter/manager/plugin-config.md');
     like( $page, qr/class="mg-note mg-note-info"/, 'plugin-config: dirty-note markup present' );
     like( $page, qr/markPluginDirty/,       'plugin-config: config forms mark dirty' );
-    like( $page, qr/markHandlerDirty/, 'plugin-config: handler add/edit forms mark dirty' );
-    like( $page, qr/markTargetsDirty/, 'plugin-config: form targets mark dirty' );
     like( $page, qr/clearPluginDirty\(pluginId\)/,
         'plugin-config: config save success clears dirty (before the reload)' );
     like( $page, qr/mgDirtyGuard\.clear/, 'plugin-config: clears route to the shared guard' );
+}
+
+# --- handlers.md: every editor on the page (SM842) -------------------------
+{
+    my $page = slurp('starter/manager/handlers.md');
+    like( $page, qr/class="mg-dirty-note">Unsaved changes/, 'handlers: dirty-note markup present' );
+    like( $page, qr/mgDirtyGuard\.set\(key, 'dirty-' \+ key\)/, 'handlers: an edit registers dirty state' );
+    like( $page, qr/function cleanEditor\(key\) \{ mgDirtyGuard\.clear\(key\); \}/,
+        'handlers: a save clears it through the shared guard' );
+    unlike( $page, qr/addEventListener\('beforeunload'/, 'handlers: no page-local beforeunload' );
 }
 
 # --- appearance.md: the layouts-repo field ----------------------------------

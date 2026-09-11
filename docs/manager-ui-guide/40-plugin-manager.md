@@ -35,18 +35,18 @@ Where
 : Content -> Extension Config
 
 Do
-: Open the form handler, add an SMTP handler, save. Then open a child config -
-  an individual form's `.conf`.
+: Open the Form SMTP extension's Configure and set the mail transport; run its
+  Validate action. Then open the Form Handler's Submissions.
 
 Expect
 : The form is built from the extension's declared schema, so the fields and their
   types come from the extension rather than from the manager. Saving writes only the
-  keys the schema declares. Child configs are listed per the extension's declared
-  pattern, with the excluded ones (`smtp.conf`, `handlers.conf`) kept out.
+  keys the schema declares. The Form Handler's row links to the Handlers page, where
+  handlers and form bindings are configured (see *Handlers*), and opens the
+  submissions viewer.
 
 Negative
-: Credentials and destinations live in operator-only config: an agent may
-  *reference* a handler by id and can never read or set where it delivers.
+: The password is never shown back: a blank password field keeps the stored one.
 
 ## Notification routing
 

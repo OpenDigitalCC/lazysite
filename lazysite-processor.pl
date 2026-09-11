@@ -6793,13 +6793,15 @@ sub render_content {
         # can actually grant it. SM191 generalises that hint, so the content-area
         # caps (content/nav/themes/layouts) and audit are surfaced as well.
         # SM579 phase 2: manage_connectors joins them for the Connectors page.
+        # SM842: manage_forms, for the Handlers page, which any of the three
+        # destination capabilities (forms, data, connectors) reaches.
         # A capability the layout gates on and this list omits is a nav entry
         # that is invisible to everyone, including its holder - t/lint/83 asks
         # exactly that question, and asked it of this.
         for my $cap (
             qw(manage_config manage_domains manage_users
             manage_content manage_nav manage_themes manage_layouts audit
-            manage_data manage_connectors)
+            manage_data manage_connectors manage_forms)
             )
         {
             $manager_caps{$cap}

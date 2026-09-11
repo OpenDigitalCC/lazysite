@@ -18,25 +18,17 @@ search: false
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var smtpPlugin = null;
-var allHandlers = [];
-var handlerTypes = [];
-var smtpConnectionLoaded = false;
-var smtpConnectionValues = {};
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
 
 // SM118 pattern (field report): every explicit-save surface on this page - the
-// per-plugin config forms, the handler add/edit forms and the form targets -
-// flags unsaved changes via the shared mgDirtyGuard (manager layout). Each
-// surface gets its own key so saving or cancelling one never un-flags another.
+// per-plugin config forms - flags unsaved changes via the shared mgDirtyGuard
+// (manager layout). Each surface gets its own key so saving or cancelling one
+// never un-flags another. SM842: the handler and form-target forms moved to
+// the Handlers page, which carries its own.
 function markPluginDirty(id)   { mgDirtyGuard.set('plugin-' + id, 'dirty-' + id); }
 function clearPluginDirty(id)  { mgDirtyGuard.clear('plugin-' + id); }
-function markHandlerDirty(fid) { mgDirtyGuard.set('handler-' + fid, 'handler-dirty-' + fid); }
-function clearHandlerDirty(fid){ mgDirtyGuard.clear('handler-' + fid); }
-function markTargetsDirty(f)   { mgDirtyGuard.set('targets-' + f, 'targets-dirty-' + f); }
-function clearTargetsDirty(f)  { mgDirtyGuard.clear('targets-' + f); }
 
 // SM664: the all-files history overview, moved here from the Files page.
 //
@@ -177,13 +169,6 @@ function mgPluginModalClose(force) {
   if (ov.parentNode) ov.parentNode.removeChild(ov);
 }
 
-function shouldRenderPlugin(plugin, allPlugins) {
-  if (plugin.id === 'form-smtp') {
-    return !allPlugins.some(function(p) { return p.id === 'form-handler' && p._enabled; });
-  }
-  return true;
-}
-
 function loadPlugins() {
   document.getElementById('plugin-list').textContent = 'Scanning...';
   fetch(API + '?action=extension-list')
@@ -195,6 +180,7 @@ function loadPlugins() {
       }
       window._plugins = data.plugins || [];
       renderPlugins(data.plugins || []);
+      openRequestedSubmissions();
     });
 }
 
@@ -208,24 +194,18 @@ function renderPlugins(plugins) {
   }
 
   var html = '';
-  var childPlugins = [];
-
-  enabled.forEach(function(p) {
-    if (!shouldRenderPlugin(p, plugins)) return;
-    html += renderPluginCard(p);
-    if (p.child_configs) childPlugins.push(p);
-  });
-
+  enabled.forEach(function(p) { html += renderPluginCard(p); });
   document.getElementById('plugin-list').innerHTML = html;
-  childPlugins.forEach(function(p) { loadChildConfigs(p); });
+}
 
-  // Initialise handler section if form-handler is enabled
-  var fhPlugin = plugins.find(function(p) { return p.id === 'form-handler' && p._enabled; });
-  if (fhPlugin) {
-    handlerTypes = fhPlugin.handler_types || [];
-    smtpPlugin = plugins.find(function(p) { return p.id === 'form-smtp' && p._enabled; });
-    loadHandlers();
-  }
+// SM842: the Handlers page links a file handler's store here, to the
+// submissions viewer, as ?submissions=<store directory>.
+function openRequestedSubmissions() {
+  var m = /[?&]submissions=([^&]+)/.exec(window.location.search);
+  if (!m) return;
+  var dir = decodeURIComponent(m[1]);
+  if (!/^\/[A-Za-z0-9_\/.-]*\/$/.test(dir) || /\.\./.test(dir)) return;
+  toggleSubmissions('', dir);
 }
 
 // SM640: a LINE per enabled plugin - name, state, and a way in - rather than
@@ -277,6 +257,12 @@ function renderPluginCard(plugin) {
   }
   // SM664: content history's way in is a VIEW, not a config form - it declares
   // an empty config_schema, so without this its row would offer nothing at all.
+  // SM842: the form handler's configuration is the Handlers page; its row
+  // keeps the two things that are about what ARRIVED rather than where it goes.
+  if (plugin.id === 'form-handler') {
+    html += '<a class="mg-btn mg-btn-sm" href="/manager/handlers">Handlers</a>';
+    html += '<button class="mg-btn mg-btn-sm" data-impact="inert" onclick="toggleSubmissions(\'\', \'/lazysite/forms/submissions/\')">Submissions</button>';
+  }
   if (plugin.id === 'content-history') {
     html += '<button class="mg-btn mg-btn-sm" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
   }
@@ -295,9 +281,6 @@ function renderPluginCard(plugin) {
   html += '</div>';
   if (plugin.id === 'bad-url-blocker') {
     html += '<div class="mg-card-body mg-expand-body" id="blocked-body" style="display:none">Loading&hellip;</div>';
-  }
-  if (plugin.child_configs) {
-    html += '<div class="mg-card-body" id="children-' + plugin.id + '">Loading...</div>';
   }
   // SM085: an action result may ask for a choice (needs_choice) - the
   // conflict list + choice buttons render here.
@@ -592,79 +575,6 @@ function renderAuditReport(url) {
     });
 }
 
-// --- Form handler: child configs ---
-
-function loadChildConfigs(plugin) {
-  var cc = plugin.child_configs;
-  if (!cc) return;
-  var container = document.getElementById('children-' + plugin.id);
-
-  handlerTypes = plugin.handler_types || [];
-
-  var fetches = [
-    fetch(API + '?action=handler-list').then(function(r) { return r.json(); }),
-    fetch(API + '?action=list&path=/' + (cc.pattern || '').replace(/\/[^/]*$/, ''))
-      .then(function(r) { return r.json(); })
-  ];
-  if (smtpPlugin) {
-    fetches.push(fetch(API + '?action=extension-read&plugin=form-smtp', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: smtpPlugin._script })
-    }).then(function(r) { return r.json(); }));
-  }
-
-  Promise.all(fetches).then(function(results) {
-    var handlersData = results[0];
-    var filesData = results[1];
-    allHandlers = (handlersData.ok ? handlersData.handlers : []) || [];
-
-    if (results[2] && results[2].ok) {
-      smtpConnectionValues = results[2].values || {};
-      smtpConnectionLoaded = true;
-    }
-
-    container.innerHTML = '<div id="handler-list"></div>';
-    renderHandlerList();
-
-    // Build Form Connections as a separate card
-    var exclude = cc.exclude || [];
-    var dir = (cc.pattern || '').replace(/\/[^/]*$/, '');
-    var files = [];
-    if (filesData.ok && filesData.entries) {
-      files = filesData.entries.filter(function(e) {
-        return e.type === 'file' && e.name.match(/\.conf$/) && exclude.indexOf(e.name) < 0;
-      });
-    }
-
-    var existing = document.getElementById('form-connections-card');
-    if (existing) existing.remove();
-
-    var cardHtml = '<div class="mg-plugin-card" id="form-connections-card">';
-    cardHtml += '<div class="mg-plugin-title">Form Connections</div>';
-    cardHtml += '<div class="mg-plugin-desc">Connect each form to its dispatch handlers.</div>';
-    if (files.length) {
-      files.forEach(function(f) {
-        var formName = f.name.replace(/\.conf$/, '');
-        cardHtml += '<div class="mg-form-entry">';
-        cardHtml += '<div class="mg-form-entry-header">';
-        cardHtml += '<span class="mg-form-name">' + esc(formName) + '</span>';
-        cardHtml += '<button class="mg-btn mg-btn-sm" onclick="toggleFormTargets(\'' + esc(formName) + '\')">Edit targets</button>';
-        cardHtml += '<a href="/manager/edit?path=/' + encodeURIComponent(dir + '/' + f.name) + '" style="font-size:11px;color:var(--mg-accent);">Edit raw</a>';
-        cardHtml += '</div>';
-        cardHtml += '<div id="form-targets-' + formName + '" style="display:none"></div>';
-        cardHtml += '</div>';
-      });
-    } else {
-      cardHtml += '<p style="font-size:13px;color:var(--mg-text-muted);">No form configs found.</p>';
-    }
-    cardHtml += '<div class="mg-status" id="status-form-connections"></div>';
-    cardHtml += '</div>';
-
-    var pluginCard = document.getElementById('plugin-' + plugin.id);
-    pluginCard.insertAdjacentHTML('afterend', cardHtml);
-  });
-}
-
 // --- Blocked addresses (SM128, moved here by SM703) ---
 
 function toggleBlocked(btn) {
@@ -734,117 +644,6 @@ function unblockIp(ip) {
       loadBlocked();
     })
     .catch(function (e) { showStatus('Error: ' + e.message, true); });
-}
-
-// --- Handler list (grouped by type) ---
-
-function renderHandlerList() {
-  var typeOrder = ['smtp', 'file', 'webhook'];
-  var typeLabels = { smtp: 'Email (SMTP)', file: 'File storage', webhook: 'Webhooks' };
-  var typeAddLabel = { smtp: '+ Add email handler', file: '+ Add file handler', webhook: '+ Add webhook' };
-
-  var html = '';
-
-  typeOrder.forEach(function(type) {
-    var ofType = allHandlers.filter(function(h) { return h.type === type; });
-
-    html += '<div class="mg-handler-group" id="mg-handler-group-' + type + '">';
-    html += '<div class="mg-handler-group-header">';
-    html += '<span class="mg-handler-group-label">' + typeLabels[type] + '</span>';
-    html += '<button class="mg-btn mg-btn-sm" onclick="showAddHandlerForm(\'' + type + '\')">' + typeAddLabel[type] + '</button>';
-    html += '</div>';
-
-    ofType.forEach(function(h) {
-      var enabled = h.enabled !== 'false';
-      html += '<div class="mg-handler-item" id="handler-' + h.id + '">';
-      // The same row idiom as Files and Data, rather than a fourth way of
-      // drawing a line with a name and some buttons on it.
-      html += '<div class="mg-row mg-handler-item-header">';
-      html += '<span class="mg-handler-name">' + esc(h.name || h.id) + '</span>';
-      html += '<span class="mg-tag ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
-      // File-storage handlers: inline "View submissions" slot. Populated
-      // asynchronously once we know whether the configured directory
-      // exists on disk. data-submissions-for="<id>" lets one fetch
-      // update both the inline slot and the equivalent row in the
-      // expanded edit form in a single callback.
-      if (h.type === 'file') {
-        html += '<span data-submissions-for="' + esc(h.id) + '" class="mg-handler-submissions" style="margin-left:0.5rem">';
-        html += '<span style="font-size:0.8rem;color:var(--mg-text-light)">Checking...</span>';
-        html += '</span>';
-      }
-      html += '<div class="mg-handler-item-actions">';
-      html += '<button class="mg-btn mg-btn-sm" onclick=\'editHandler(' + JSON.stringify(h).replace(/'/g, "&#39;") + ')\'>Edit</button>';
-      html += '<button class="mg-btn mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
-      html += '</div></div>';
-      html += '<div class="mg-expand mg-expand-body mg-handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
-      html += '<div class="mg-expand mg-expand-body mg-submissions-panel" id="submissions-panel-' + esc(h.id) + '" style="display:none"></div>';
-      html += '</div>';
-    });
-
-    if (ofType.length === 0) {
-      html += '<p class="mg-empty">No ' + typeLabels[type].toLowerCase() + ' handlers configured.</p>';
-    }
-
-    // SM639/SM640: EACH GROUP OWNS ITS WIZARD SLOT.
-    //
-    // There used to be one wizard node after the whole list, and opening the
-    // form MOVED it into the group being added to. That relocation is what
-    // kept this section out of the shared config modal - a modal destroyed on
-    // close takes the moved node with it - and both filings recorded it as
-    // the blocker. Nothing moves now: the slot is rendered where it is used.
-    html += '<div class="mg-handler-wizard" id="add-handler-wizard-' + type + '" style="display:none"></div>';
-
-    html += '</div>';
-  });
-
-  document.getElementById('handler-list').innerHTML = html;
-
-  // Kick off the "View submissions" probe for each file handler.
-  allHandlers.forEach(function(h) {
-    if (h.type === 'file') checkSubmissionsDir(h);
-  });
-}
-
-// Normalise a handler.path (e.g. "lazysite/forms/submissions" or
-// "/lazysite/forms/submissions") to the shape the manager-api's `list`
-// action and the file browser's hash navigation both expect: leading /
-// and trailing /.
-function submissionsPath(raw) {
-  if (!raw) return '/';
-  var p = String(raw);
-  if (p.charAt(0) !== '/') p = '/' + p;
-  if (p.charAt(p.length - 1) !== '/') p = p + '/';
-  return p;
-}
-
-function checkSubmissionsDir(handler) {
-  var slots = document.querySelectorAll(
-    '[data-submissions-for="' + handler.id + '"]');
-  if (!slots.length) return;
-
-  var path = submissionsPath(handler.path);
-  fetch(API + '?action=list&path=' + encodeURIComponent(path))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var html;
-      if (data.ok) {
-        // SM182: open an inline, escaped submissions TABLE. (The raw .jsonl
-        // store lives in the reserved lazysite/ tree and can't be opened in the
-        // file editor, so we render it here instead of deep-linking to Files.)
-        html = '<button class="mg-btn mg-btn-sm" onclick=\'toggleSubmissions('
-             + JSON.stringify(handler.id).replace(/'/g, '&#39;') + ', '
-             + JSON.stringify(path).replace(/'/g, '&#39;')
-             + ')\'>View submissions</button>';
-      } else {
-        html = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
-      }
-      slots.forEach(function(el) { el.innerHTML = html; });
-    })
-    .catch(function() {
-      slots.forEach(function(el) {
-        el.innerHTML = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
-      });
-    });
 }
 
 // --- SM182/SM187: submissions viewer (scrollable modal + per-row delete) -----
@@ -1059,578 +858,6 @@ function setSubsBody(html, title) {
   var t = document.getElementById('subs-modal-title');
   if (t && title) t.textContent = title;
   if (b) b.innerHTML = html;
-}
-
-// --- Wizard: add handler ---
-
-function showAddHandlerForm(type) {
-  hideAddWizard();
-
-  var wizard = document.getElementById('add-handler-wizard-' + type);
-  if (!wizard) return;
-
-  // Move wizard inside the relevant group
-
-  // Skip step 1 - go directly to step 2 for the given type
-  var name = nameForType(type);
-  var html = '<div class="mg-wizard">';
-  html += '<div class="mg-wizard-title">Add handler</div>';
-  html += renderStep2Form(type, name, null, false);
-  html += '<div id="wizard-status"></div>';
-  html += '</div>';
-
-  wizard.innerHTML = html;
-  wizard.style.display = 'block';
-  applyShowWhen(wizard);
-}
-
-function nameForType(type) {
-  return { smtp: 'Email delivery', file: 'Local storage', webhook: 'Webhook' }[type] || 'New handler';
-}
-
-function typeLabelFor(type) {
-  return { smtp: 'Send email (SMTP)', file: 'Save to file', webhook: 'Webhook' }[type] || type;
-}
-
-function hideAddWizard() {
-  // Every slot, because there is one per group now and any of them may be open.
-  var slots = document.querySelectorAll('.mg-handler-wizard');
-  for (var i = 0; i < slots.length; i++) {
-    slots[i].innerHTML = '';
-    slots[i].style.display = 'none';
-  }
-  // Closing the wizard - by Cancel or after a successful save - discards it.
-  clearHandlerDirty('new');
-}
-
-// --- Step 2 form (shared by add and edit) ---
-
-function renderStep2Form(type, name, existingData, isEdit) {
-  var d = existingData || {};
-  // Dirty key per form instance: the add wizard is 'new', an edit form is the
-  // handler id - so several open forms track (and clear) independently.
-  var fid = isEdit ? d.id : 'new';
-  var html = '<div oninput="markHandlerDirty(\'' + esc(fid) + '\')" onchange="markHandlerDirty(\'' + esc(fid) + '\')">';
-
-  if (isEdit) {
-    html += '<div class="mg-field">';
-    html += '<label>ID</label>';
-    html += '<span class="mg-readonly-value">' + esc(d.id || '') + '</span>';
-    html += '</div>';
-    html += '<div class="mg-field">';
-    html += '<label>Type</label>';
-    html += '<span class="mg-readonly-value">' + esc(typeLabelFor(type)) + '</span>';
-    html += '</div>';
-  }
-
-  html += '<div class="mg-sec">Handler settings</div>';
-  html += '<div class="mg-field">';
-  html += '<label>Name</label>';
-  html += '<input type="text" id="wiz-name" value="' + esc(d.name || name) + '" required>';
-  html += '</div>';
-  html += '<div class="mg-field">';
-  html += '<label>Enabled</label>';
-  html += '<input type="checkbox" id="wiz-enabled"' + (d.enabled !== 'false' ? ' checked' : '') + '>';
-  html += '</div>';
-
-  if (type === 'smtp') html += renderSmtpFields(d);
-  else if (type === 'file') html += renderFileFields(d);
-  else if (type === 'webhook') html += renderWebhookFields(d);
-  // SM772: every other type renders from the schema the plugin declares, so
-  // a type added to the plugin (connector, db, the next one) is configurable
-  // the day it is offered - the field found "Connector (SM579)" in this list
-  // with no way to say which connector.
-  else html += renderSchemaFields(type, d);
-
-  html += '<div class="mg-wizard-actions">';
-  if (isEdit) {
-    html += '<button type="button" class="mg-btn" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Save</button>';
-    html += '<button type="button" class="mg-btn" onclick="cancelHandlerEdit(\'' + esc(d.id) + '\')">Cancel</button>';
-  } else {
-    html += '<button type="button" class="mg-btn" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
-    html += '<button type="button" class="mg-btn" onclick="hideAddWizard()">Cancel</button>';
-  }
-  html += ' <span id="handler-dirty-' + esc(fid) + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes</span>';
-  html += '</div>';
-  html += '</div>';
-
-  return html;
-}
-
-function renderSmtpFields(d) {
-  var sv = smtpConnectionValues || {};
-  var html = '';
-
-  html += '<div class="mg-sec">Email settings</div>';
-  html += '<div class="mg-field"><label>From address</label>';
-  html += '<input type="email" id="wiz-from" value="' + esc(d.from || 'webforms@example.com') + '" required>';
-  html += '</div>';
-  html += '<div class="mg-field"><label>To address</label>';
-  html += '<input type="email" id="wiz-to" value="' + esc(d.to || 'admin@example.com') + '" required>';
-  html += '</div>';
-  html += '<div class="mg-field"><label>Subject prefix</label>';
-  html += '<input type="text" id="wiz-subject_prefix" value="' + esc(d.subject_prefix !== undefined ? d.subject_prefix : '[Contact] ') + '">';
-  html += '</div>';
-
-  if (!smtpPlugin) return html;
-
-  html += '<div class="mg-sec">SMTP connection</div>';
-
-  var method = sv.method || 'sendmail';
-  html += '<div class="mg-field"><label>Send method</label>';
-  html += '<select id="wiz-method" onchange="applyShowWhen(this.closest(\'.mg-wizard\')||this.closest(\'.mg-handler-edit-form\'))">';
-  ['sendmail', 'smtp'].forEach(function(o) {
-    html += '<option' + (method === o ? ' selected' : '') + '>' + o + '</option>';
-  });
-  html += '</select></div>';
-
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="sendmail">';
-  html += '<label>Sendmail path</label>';
-  html += '<input type="text" id="wiz-sendmail_path" value="' + esc(sv.sendmail_path || '/usr/sbin/sendmail') + '">';
-  html += '</div>';
-
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<label>Host</label>';
-  html += '<input type="text" id="wiz-host" value="' + esc(sv.host || 'localhost') + '">';
-  html += '</div>';
-
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<label>Port</label>';
-  html += '<input type="number" id="wiz-port" value="' + esc(sv.port || '587') + '" min="1" max="65535">';
-  html += '</div>';
-
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<label>TLS</label>';
-  html += '<select id="wiz-tls">';
-  var tlsVal = sv.tls || 'false';
-  ['false', 'starttls', 'true'].forEach(function(o) {
-    html += '<option' + (tlsVal === o ? ' selected' : '') + '>' + o + '</option>';
-  });
-  html += '</select></div>';
-
-  var authVal = sv.auth === 'true' || sv.auth === '1';
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<label>Authentication</label>';
-  html += '<input type="checkbox" id="wiz-auth"' + (authVal ? ' checked' : '') + ' onchange="applyShowWhen(this.closest(\'.mg-wizard\')||this.closest(\'.mg-handler-edit-form\'))">';
-  html += '</div>';
-
-  // Auth fields: nested inside a smtp-only wrapper so they hide when method != smtp
-  html += '<div class="mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
-  html += '<label>Username</label>';
-  html += '<input type="text" id="wiz-username" value="' + esc(sv.username || '') + '">';
-  html += '</div>';
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
-  html += '<label>Password</label>';
-  html += '<input type="password" id="wiz-password" placeholder="leave blank to keep current" autocomplete="new-password">';
-  html += '</div>';
-  html += '<div class="mg-field mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
-  html += '<label>Password file (optional alternative)</label>';
-  html += '<input type="text" id="wiz-password_file" value="' + esc(sv.password_file || '') + '" placeholder="e.g. lazysite/forms/.smtp-password">';
-  html += '</div>';
-  html += '</div>';
-
-  // SM137: staged connection check (host/port/TLS/auth). Runs against the SAVED
-  // smtp.conf, so save first; the note says so.
-  html += '<div class="mg-field"><label>Connection</label><div>';
-  html += '<button type="button" class="mg-btn mg-btn-sm" onclick="validateSmtp(this)">Validate SMTP connection</button>';
-  html += ' <span class="mg-muted" style="font-size:0.8rem">checks the saved settings - save changes first</span>';
-  html += '<div class="smtp-validate-result" style="margin-top:4px;font-size:0.85rem"></div>';
-  html += '</div></div>';
-
-  return html;
-}
-
-// SM137: run the form-smtp validate action and show the staged verdict inline.
-function validateSmtp(btn) {
-  var out = btn.parentNode.querySelector('.smtp-validate-result');
-  var p = (window._plugins || []).find(function(x) { return x.id === 'form-smtp'; });
-  if (!p) { if (out) out.textContent = 'The Form SMTP extension is not available.'; return; }
-  btn.disabled = true;
-  if (out) { out.textContent = 'Checking host, port, TLS, auth…'; out.style.color = ''; }
-  fetch(API + '?action=extension-action&plugin=form-smtp', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: p._script, action_id: 'validate' })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    btn.disabled = false;
-    if (!out) return;
-    if (d && d.ok) { out.style.color = 'var(--mg-ok,#1a7f37)'; out.textContent = d.message || 'OK.'; }
-    else { out.style.color = 'var(--mg-danger,#b03a3a)'; out.textContent = (d && d.error) || 'Validation failed.'; }
-  })
-  .catch(function(e) { btn.disabled = false; if (out) { out.style.color = 'var(--mg-danger,#b03a3a)'; out.textContent = 'Error: ' + e.message; } });
-}
-
-function renderFileFields(d) {
-  var html = '<div class="mg-sec">File settings</div>';
-  html += '<div class="mg-field"><label>Directory</label>';
-  html += '<input type="text" id="wiz-path" value="' + esc(d.path || 'lazysite/forms/submissions') + '" required>';
-  html += '</div>';
-  // Only show the "View submissions" row on edit (not add): the handler
-  // needs an id before we can probe. d.id is present on edit, absent on
-  // the add wizard. checkSubmissionsDir() will populate the slot.
-  if (d.id) {
-    html += '<div class="mg-field"><label>Submissions</label>';
-    html += '<div data-submissions-for="' + esc(d.id) + '">';
-    html += '<span style="font-size:0.8rem;color:var(--mg-text-light)">Checking...</span>';
-    html += '</div></div>';
-  }
-  return html;
-}
-
-// SM772: the fields a handler type declares (handler_types[].schema from the
-// Form Handler plugin), minus name and enabled which the step-2 form renders
-// itself. Each input is wiz-<key>, which is how saveHandlerFromWizard reads
-// it back.
-function schemaFieldsFor(type) {
-  var def = null;
-  handlerTypes.forEach(function(t) { if (t.type === type) def = t; });
-  return ((def && def.schema) || []).filter(function(f) {
-    return f.key !== 'name' && f.key !== 'enabled';
-  });
-}
-
-function renderSchemaFields(type, d) {
-  var fields = schemaFieldsFor(type);
-  if (!fields.length) return '';
-  var html = '<div class="mg-sec">' + esc(typeLabelFor(type)) + ' settings</div>';
-  fields.forEach(function(f) {
-    var cur = d[f.key] !== undefined ? d[f.key] : (f.default !== undefined ? f.default : '');
-    html += '<div class="mg-field"><label>' + esc(f.label || f.key) + '</label>';
-    if (f.type === 'boolean') {
-      html += '<input type="checkbox" id="wiz-' + esc(f.key) + '"' + (String(cur) === 'true' ? ' checked' : '') + '>';
-    } else {
-      html += '<input type="' + (f.type === 'email' ? 'email' : 'text') + '" id="wiz-' + esc(f.key) + '" value="' + esc(String(cur)) + '"' + (f.required ? ' required' : '') + '>';
-    }
-    if (f.note) html += '<div class="mg-note">' + esc(f.note) + '</div>';
-    html += '</div>';
-  });
-  return html;
-}
-
-function renderWebhookFields(d) {
-  var html = '<div class="mg-sec">Webhook settings</div>';
-  html += '<div class="mg-field"><label>URL</label>';
-  html += '<input type="url" id="wiz-url" value="' + esc(d.url || '') + '" required placeholder="https://">';
-  html += '</div>';
-  html += '<div class="mg-field"><label>Format</label>';
-  html += '<select id="wiz-format">';
-  var fmt = d.format || 'json';
-  ['json', 'slack'].forEach(function(o) {
-    html += '<option' + (fmt === o ? ' selected' : '') + '>' + o + '</option>';
-  });
-  html += '</select></div>';
-  return html;
-}
-
-// --- Save handler (add or edit) ---
-
-function saveHandlerFromWizard(existingId, type, isEdit) {
-  var handlerData = {
-    type: type,
-    name: val('wiz-name'),
-    enabled: (document.getElementById('wiz-enabled') || {}).checked ? 'true' : 'false'
-  };
-
-  if (!handlerData.name) { mgShowWarning('Name is required', true); return; }
-
-  handlerData.id = existingId || slugify(handlerData.name);
-  if (!existingId && allHandlers.some(function(h) { return h.id === handlerData.id; })) {
-    handlerData.id = handlerData.id + '-' + Date.now().toString().slice(-4);
-  }
-
-  var smtpConnData = null;
-
-  if (type === 'smtp') {
-    handlerData.from = val('wiz-from');
-    handlerData.to = val('wiz-to');
-    handlerData.subject_prefix = val('wiz-subject_prefix');
-    if (!handlerData.from || !handlerData.to) {
-      mgShowWarning('From and To addresses are required', true);
-      return;
-    }
-    if (smtpPlugin) {
-      smtpConnData = {
-        method: val('wiz-method'),
-        sendmail_path: val('wiz-sendmail_path'),
-        host: val('wiz-host'),
-        port: val('wiz-port'),
-        tls: val('wiz-tls'),
-        auth: (document.getElementById('wiz-auth') || {}).checked ? 'true' : 'false',
-        username: val('wiz-username'),
-        password_file: val('wiz-password_file')
-      };
-      // Password: only send when typed - plugin-save merges per key, so leaving
-      // it blank keeps the stored one (never echoed back).
-      if (val('wiz-password')) smtpConnData.password = val('wiz-password');
-    }
-  } else if (type === 'file') {
-    handlerData.path = val('wiz-path');
-    if (!handlerData.path) { mgShowWarning('Directory path is required', true); return; }
-  } else if (type === 'webhook') {
-    handlerData.url = val('wiz-url');
-    handlerData.format = val('wiz-format');
-    if (!handlerData.url) { mgShowWarning('URL is required', true); return; }
-  } else {
-    // SM772: read back exactly what renderSchemaFields drew, and refuse a
-    // required field here as the writer refuses it - by name.
-    var missing = null;
-    schemaFieldsFor(type).forEach(function(f) {
-      var el = document.getElementById('wiz-' + f.key);
-      if (!el) return;
-      var v = f.type === 'boolean' ? (el.checked ? 'true' : 'false') : el.value;
-      if (f.required && !v && !missing) missing = f.label || f.key;
-      handlerData[f.key] = v;
-    });
-    if (missing) { mgShowWarning(missing + ' is required', true); return; }
-  }
-
-  var statusId = isEdit ? 'handler-edit-status-' + existingId : 'wizard-status';
-  var statusEl = document.getElementById(statusId);
-  if (statusEl) statusEl.textContent = 'Saving...';
-
-  fetch(API + '?action=handler-save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(handlerData)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(res) {
-    if (!res.ok) throw new Error(res.error || 'Handler save failed');
-    if (smtpConnData && smtpPlugin) {
-      return fetch(API + '?action=extension-save&plugin=form-smtp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script: smtpPlugin._script, values: smtpConnData })
-      }).then(function(r) { return r.json(); });
-    }
-    return { ok: true };
-  })
-  .then(function(res) {
-    if (!res.ok) throw new Error(res.error || 'SMTP config save failed');
-    smtpConnectionLoaded = false;
-    if (isEdit) cancelHandlerEdit(existingId);
-    else hideAddWizard();
-    loadHandlers();
-  })
-  .catch(function(err) {
-    mgShowWarning('Error: ' + err.message, true);
-    if (statusEl) statusEl.textContent = '';
-  });
-}
-
-function slugify(str) {
-  return str.toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 40);
-}
-
-// --- Edit handler ---
-
-function editHandler(handler) {
-  var div = document.getElementById('handler-edit-' + handler.id);
-  if (!div) return;
-
-  if (div.style.display !== 'none') { cancelHandlerEdit(handler.id); return; }
-
-  if (handler.type === 'smtp' && !smtpConnectionLoaded && smtpPlugin) {
-    div.textContent = 'Loading...';
-    div.style.display = 'block';
-    fetch(API + '?action=extension-read&plugin=form-smtp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: smtpPlugin._script })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      smtpConnectionValues = data.values || {};
-      smtpConnectionLoaded = true;
-      div.innerHTML = renderStep2Form(handler.type, handler.name, handler, true)
-        + '<div id="handler-edit-status-' + handler.id + '"></div>';
-      applyShowWhen(div);
-    });
-  } else {
-    div.innerHTML = renderStep2Form(handler.type, handler.name, handler, true)
-      + '<div id="handler-edit-status-' + handler.id + '"></div>';
-    div.style.display = 'block';
-    applyShowWhen(div);
-    // Re-probe so the new edit-form slot gets populated; the collapsed
-    // slot updates at the same time because both carry the same
-    // data-submissions-for attribute.
-    if (handler.type === 'file') checkSubmissionsDir(handler);
-  }
-}
-
-function cancelHandlerEdit(id) {
-  var div = document.getElementById('handler-edit-' + id);
-  if (div) { div.innerHTML = ''; div.style.display = 'none'; }
-  // Closing the edit form - by Cancel or after a successful save - discards it.
-  clearHandlerDirty(id);
-}
-
-// --- Handler delete and refresh ---
-
-function deleteHandler(handlerId) {
-  mgConfirm('Delete handler "' + handlerId + '"?', { danger: true, ok: 'Delete' }).then(function(__ok) {
-    if (!__ok) return;
-    fetch(API + '?action=handler-delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: handlerId })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(res) {
-    if (res.ok) { mgClearWarning(); loadHandlers(); }
-    else { mgShowWarning(res.error || 'Delete failed', true); }
-  });
-  });
-}
-
-function loadHandlers() {
-  fetch(API + '?action=handler-list&_t=' + Date.now())
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      allHandlers = (data.ok ? data.handlers : []) || [];
-      renderHandlerList();
-      refreshOpenTargets();
-    });
-}
-
-function refreshOpenTargets() {
-  var cards = document.querySelectorAll('[id^="form-targets-"]');
-  for (var i = 0; i < cards.length; i++) {
-    var div = cards[i];
-    if (div.style.display !== 'none' && div._targets) {
-      var formName = div.id.replace('form-targets-', '');
-      renderFormTargets(formName, div._targets);
-    }
-  }
-}
-
-// --- Form targets ---
-
-function toggleFormTargets(formName) {
-  var div = document.getElementById('form-targets-' + formName);
-  if (div.style.display !== 'none') { div.style.display = 'none'; return; }
-  div.textContent = 'Loading...';
-  div.style.display = 'block';
-
-  fetch(API + '?action=form-targets-read&form=' + encodeURIComponent(formName))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) { div.textContent = data.error; return; }
-      var targets = (data.targets || []).map(function(t) { return t.handler || ''; });
-      div._targets = targets;
-      renderFormTargets(formName, targets);
-    });
-}
-
-function renderFormTargets(formName, currentTargets) {
-  var div = document.getElementById('form-targets-' + formName);
-  if (!div) return;
-
-  var html = '<div style="margin-bottom:0.5rem">';
-
-  currentTargets.forEach(function(hid, idx) {
-    var usedByOthers = [];
-    currentTargets.forEach(function(id, i) {
-      if (i !== idx && id) usedByOthers.push(id);
-    });
-
-    html += '<div class="mg-field" style="margin-bottom:0.25rem">';
-    html += '<label>Target ' + (idx + 1) + '</label>';
-    html += '<select data-form="' + esc(formName) + '" data-idx="' + idx + '" onchange="updateFormTarget(this)">';
-    html += '<option value="">-- select handler --</option>';
-    allHandlers.forEach(function(h) {
-      if (usedByOthers.indexOf(h.id) >= 0 && h.id !== hid) return;
-      var typeLabel = {smtp:'email', file:'file', webhook:'webhook'}[h.type] || h.type;
-      var label = (h.name || h.id) + ' (' + typeLabel + ')';
-      html += '<option value="' + esc(h.id) + '"' + (h.id === hid ? ' selected' : '') + '>' + esc(label) + '</option>';
-    });
-    html += '</select>';
-    html += '<button class="mg-btn mg-btn-sm" data-impact="edit" onclick="deleteTarget(\'' + esc(formName) + '\',' + idx + ')">&times;</button>';
-    html += '</div>';
-  });
-
-  html += '</div>';
-  html += '<div class="mg-wizard-actions">';
-  html += '<button class="mg-btn mg-btn-sm mg-btn" onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
-  html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
-  // Re-rendered on every mutation, so seed the note from the guard's state.
-  var dirtyNow = mgDirtyGuard.isDirty('targets-' + formName);
-  html += ' <span id="targets-dirty-' + esc(formName) + '" class="mg-note mg-note-info"'
-       +  (dirtyNow ? '' : ' style="display:none"') + '>&#9679; Unsaved changes &mdash; click Save</span>';
-  html += '</div>';
-
-  div.innerHTML = html;
-}
-
-function updateFormTarget(el) {
-  var formName = el.dataset.form;
-  var idx = parseInt(el.dataset.idx, 10);
-  var div = document.getElementById('form-targets-' + formName);
-  if (!div || !div._targets) return;
-  div._targets[idx] = el.value;
-  markTargetsDirty(formName);
-  renderFormTargets(formName, div._targets);
-}
-
-function addTarget(formName) {
-  var div = document.getElementById('form-targets-' + formName);
-  if (!div._targets) div._targets = [];
-  var usedIds = div._targets.filter(function(id) { return id; });
-  var available = allHandlers.filter(function(h) { return usedIds.indexOf(h.id) < 0; });
-  if (available.length === 0) {
-    var msg = div.querySelector('.all-assigned-msg');
-    if (!msg) {
-      msg = document.createElement('div');
-      msg.className = 'all-assigned-msg';
-      msg.style.cssText = 'font-size:0.8rem;color:#6c757d;margin-top:0.25rem;';
-      msg.textContent = 'All handlers assigned.';
-      div.appendChild(msg);
-      setTimeout(function() { if (msg.parentNode) msg.remove(); }, 3000);
-    }
-    return;
-  }
-  div._targets.push('');
-  markTargetsDirty(formName);
-  renderFormTargets(formName, div._targets);
-}
-
-function deleteTarget(formName, idx) {
-  var div = document.getElementById('form-targets-' + formName);
-  if (!div || !div._targets) return;
-  div._targets.splice(idx, 1);
-  markTargetsDirty(formName);
-  renderFormTargets(formName, div._targets);
-}
-
-function saveFormTargets(formName) {
-  var div = document.getElementById('form-targets-' + formName);
-  var targets = (div._targets || []).filter(function(id) { return id; }).map(function(id) { return { handler: id }; });
-  var status = document.getElementById('status-form-connections');
-
-  fetch(API + '?action=form-targets-save&form=' + encodeURIComponent(formName), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ targets: targets })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.ok) {
-      mgClearWarning();
-      clearTargetsDirty(formName);
-      if (status) { status.textContent = 'Targets saved.'; setTimeout(function() { status.textContent = ''; }, 3000); }
-    } else {
-      mgShowWarning(data.error || 'Save failed', true);
-      if (status) status.textContent = '';
-    }
-  })
-  .catch(function(e) {
-    mgShowWarning('Error: ' + e.message, true);
-  });
 }
 
 loadPlugins();

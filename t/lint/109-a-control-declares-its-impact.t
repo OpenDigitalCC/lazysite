@@ -42,7 +42,7 @@ my %CEILING = (
     'cache.md' => 3,           'config.md' => 4,         'data.md' => 25,
     'domains.md' => 13,        'edit.md' => 7,           'files.md' => 27,
     'groups.md' => 6,          'index.md' => 0,          'nav.md' => 9,
-    'plugin-config.md' => 30,  'plugins.md' => 0,        'sessions.md' => 0,
+    'plugin-config.md' => 18,  'plugins.md' => 0,        'sessions.md' => 0,
     'stats.md' => 2,           'themes.md' => 0,         'users.md' => 36,
 );
 
