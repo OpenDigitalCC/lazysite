@@ -3,7 +3,8 @@ title: "SM843: a table has no generated key, so a form-fed table can hold only o
 subtitle: "Sites agent, 2026-09-11: an insert with no key value is refused, and no field type generates one - so an enquiry table keyed on email keeps only the latest enquiry"
 brand: plain
 standard-margins: true
-status: candidate
+status: superseded
+status-note: "ALREADY ANSWERED, verified 2026-09-11 and not built. The generated key the filing asks for exists: a table that declares no key (or key: id) numbers its own rows as an integer id, which an insert omits and no field may shadow (Lazysite::Data::Descriptor _check_key). The table measured was keyed on a field, ref, so an insert had to carry it. A form-fed table that wants one row per enquiry leaves key: out; t/integration/76 now feeds such a table twice from the same email and gets two rows with distinct ids. What was missing was the sentence: /docs/data-tables has a section, 'A table that numbers its own rows'. A uuid type, the filing's second shape, is not asked for by anything that exists."
 ---
 
 # What was measured

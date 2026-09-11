@@ -144,7 +144,7 @@ references the variables listed in
       [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc %]">[% END %]
       [% theme_css %]
       [% IF theme_assets %]
-      <link rel="stylesheet" href="[% theme_assets %]/main.css">
+      <link rel="stylesheet" href="[% theme_assets %]/main.css?v=[% theme_version %]">
       [% END %]
     </head>
     <body>

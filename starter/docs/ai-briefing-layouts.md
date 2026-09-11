@@ -172,6 +172,11 @@ D013 additions:
   remote layouts (flat), or unset when no theme
 - `theme_css` - pre-rendered `<style>:root { ... }` block of CSS
   custom properties. Empty string when no theme.
+- `theme_version` - the cache key for the files under `theme_assets`:
+  a fingerprint of the theme's mirrored files, so
+  `[% theme_assets %]/main.css?v=[% theme_version %]` is a new URL when
+  the theme changes and the same URL when it does not. The engine
+  version where the mirror has no fingerprint yet. Always set.
 
 Auth variables:
 
@@ -260,7 +265,7 @@ need to duplicate CSS structure.
       [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc %]">[% END %]
       [% theme_css %]
       [% IF theme_assets %]
-      <link rel="stylesheet" href="[% theme_assets %]/main.css">
+      <link rel="stylesheet" href="[% theme_assets %]/main.css?v=[% theme_version %]">
       [% END %]
     </head>
     <body>

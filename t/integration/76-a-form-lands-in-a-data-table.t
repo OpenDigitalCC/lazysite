@@ -130,6 +130,34 @@ subtest 'a submission the types refuse leaves no row, and says so' => sub {
         or diag explain $rec;
 };
 
+subtest 'a table with no key of its own keeps every enquiry (SM843)' => sub {
+    # SM843 asked for a generated key, because a form-fed table keyed on the
+    # visitor's email keeps only their latest enquiry. The key it asked for
+    # already exists: a table that declares none numbers its rows as `id`. This
+    # is that table, fed twice by the same person.
+    open my $lf, '>', "$docroot/lazysite/db/tables/enquiry_log.yaml" or die $!;
+    print {$lf} "fields:\n  email:\n    type: text\n  message:\n    type: text\n";
+    close $lf;
+    apply_schema( $docroot, 'enquiry_log' );
+    open my $h2, '>>', "$docroot/lazysite/forms/handlers.conf" or die $!;
+    print {$h2} "  - id: log\n    type: table\n    name: Enquiry log\n    table: enquiry_log\n"
+        . "    fields: email=email,message=message\n";
+    close $h2;
+    open my $f2, '>', "$docroot/lazysite/forms/ask.conf" or die $!;
+    print {$f2} "targets:\n  - handler: log\n";
+    close $f2;
+
+    for my $msg (qw(first second)) {
+        my ( $ts, $tk ) = tokens();
+        like( post("_form=ask&_ts=$ts&_tk=$tk&_hp=&email=ada%40example.test&message=$msg"),
+            qr/"ok":1/, "the $msg enquiry is accepted" );
+    }
+    my @mine = grep { $_->{email} eq 'ada@example.test' }
+        @{ read_rows( $docroot, 'enquiry_log', as => 'operator' )->{rows} || [] };
+    is( scalar @mine, 2, 'both enquiries are rows - one per enquiry, not one per person' );
+    isnt( $mine[0]{id}, $mine[1]{id}, 'each numbered by the table itself' );
+};
+
 subtest 'the table it lands in is not published by landing there' => sub {
     # The capability choice the filing records: the table's rows stay governed
     # by the table's own declaration; `public` defaults CLOSED (SM519), so a

@@ -43,6 +43,23 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM830 (PENDING) **a theme's assets carry the theme's own version.** The
+  mirror writer records a fingerprint over every file it writes, and a layout
+  links `main.css?v=[% theme_version %]`, so an edited theme is a new URL and
+  browsers refetch it - where main.css and the rest keyed on the engine version
+  and were served from cache until the next release. It moves only when the
+  bytes do, so a re-activation expires nothing; a mirror from before it keys on
+  the engine version until its next activation. The shipped layouts in the
+  catalogue need the same one-word change, filed to the layouts agent.
+- SM843 closed, already answered: a table that declares no key numbers its own
+  rows, which is the one-row-per-enquiry shape it asked for;
+  `/docs/data-tables` now says so and `t/integration/76` feeds one twice.
+- SM829 partial (PENDING) **tools/commit-staged.sh commits and says what
+  landed** - the SHA, subject and branch once HEAD has moved, or NOT COMMITTED
+  with a non-zero exit, so nothing chained after it runs over a commit that did
+  not happen. Named beside the existing `tools/commit.sh`, the SM063 operator
+  flow, which is untouched.
+
 - Retired aliases (PENDING) **three spellings kept alive for a release are
   gone**, pre-stable, rather than carried into beta: the
   `manager_upload_blocked_paths` key (SM019c renamed it), `db_render_raw` (born

@@ -5,7 +5,7 @@ subtitle: "Nine slips in one day around the release path, catalogued. Only two c
 brand: plain
 standard-margins: true
 status: partial
-status-note: "PARTIAL 2026-09-10. Items 1 and 2 SHIPPED (be565159, b5864361, 157deb1e): tools/where.sh answers the question that precedes any work - branch, dirty, ahead/behind, every other claude/* branch ahead of the base, worktree holds, last-gate age - and reads without ever writing; tools/handoff.sh now returns the worktree to the base as part of saying READY, and reports NOT READY with the reason when it cannot. First live run on a branch carrying it released the branch itself. WHAT REMAINS: items 3 and 4 - a commit helper and a generated-file hook - deliberately not built, awaiting evidence that the chaining they guard against recurs."
+status-note: "PARTIAL 2026-09-11. Items 1 and 2 SHIPPED (be565159, b5864361, 157deb1e): tools/where.sh answers the question that precedes any work, and tools/handoff.sh returns the worktree to the base as part of saying READY. Item 3 BUILT on claude/n13-mop-up, on the 0.13.13 plan's record that the chaining recurred: tools/commit-staged.sh commits what is staged from a message file, reads HEAD back rather than trusting the exit status, and says COMMITTED with the SHA, subject and branch that landed - or NOT COMMITTED with the reason and a non-zero exit, so nothing chained after it runs. Named commit-staged.sh because tools/commit.sh already exists: it is the SM063 operator flow that docs/development.md documents, and it was left untouched. t/tools/69 runs it in a scratch repository against a refusing hook, an empty index and a partly staged edit. WHAT REMAINS: item 4, the generated-file hook, still waiting for the slip it guards against to recur."
 raised: 2026-09-10
 raised-by: release manager
 area: process
@@ -147,6 +147,20 @@ claude/<feature>` inside a `printf` that suggests it to the reader, and matched
 assertion has to know the difference between running a command and printing one,
 and it now checks line by line and only where a command is invoked.
 
-**Items 3 and 4 are not built**, per the recommendation: a commit helper and a
+**Items 3 and 4 were not built** at first, per the recommendation: a commit helper and a
 generated-file hook wait to see whether the chaining recurs now that state is
 legible.
+
+# BUILT 2026-09-11: item 3
+
+**`tools/commit-staged.sh MESSAGE-FILE`** is the commit and its own report. It
+refuses an empty index, commits with `git commit -F`, and then reads HEAD back:
+it reports a commit only when HEAD moved, as the SHA and subject that landed and
+the branch they landed on. A refusing hook's output is shown and followed by
+**NOT COMMITTED**, with a non-zero exit, so `commit-staged.sh && next` cannot run
+`next` over a commit that did not happen - item 2 in the catalogue. Changes left
+unstaged are pointed out rather than assumed to be in the commit.
+
+The name is not the one this filing proposed: `tools/commit.sh` exists, the
+SM063 operator flow documented in `docs/development.md`, and a helper is not a
+reason to replace somebody's workflow. Item 4 is still not built.

@@ -422,6 +422,15 @@ default_order: position     # or -position, for descending
 A binding that names its own order still wins; this fills the gap when one
 does not.
 
+### A table that numbers its own rows
+
+Leave `key:` out (or write `key: id`) and the table numbers its rows itself: an
+insert carries no key, and the store gives it the next integer as `id`. That is
+the shape for a table a form writes to - one row per enquiry - where the only
+value a visitor brings that could identify a row is their email, and a table
+keyed on that keeps only each person's latest. `id` is then reserved: no field
+may be called that.
+
 ### Saying a value is unique
 
 `key:` says which field identifies a row. To say that *another* field must also

@@ -7467,7 +7467,29 @@ sub resolve_layout_vars {
         $vars->{theme_css} = '';
     }
 
+    # SM830: [% theme_version %], the cache key for whatever theme_assets names,
+    # so a layout links `main.css?v=[% theme_version %]` and an edited theme is a
+    # new URL. Always set - the engine version where there is no mirror - so a
+    # template can use it unconditionally.
+    $vars->{theme_version} = _theme_version( $vars->{theme_assets} );
+
     return ( $layout, $layout_key );
+}
+
+# SM830: the mirror's own fingerprint, written by the manager when it writes the
+# mirror (Manager::Themes::_write_mirror_fingerprint) - a hash over every file,
+# so it moves when the bytes do and not on a re-activation of identical ones.
+# A mirror written before 0.13.13 has none until its next activation, and the
+# answer there is the engine version, which is what these links carried before.
+sub _theme_version {
+    my ($assets) = @_;
+    return _lazysite_version() unless defined $assets && $assets =~ m{\A/lazysite-assets/[A-Za-z0-9_/-]+\z};
+    if ( open my $fh, '<', "$DOCROOT$assets/.fingerprint" ) {
+        my $v = <$fh> // '';
+        close $fh;
+        return $1 if $v =~ /\A([0-9a-f]{12})\s*\z/;
+    }
+    return _lazysite_version();
 }
 
 # The built-in fallback layout, rendered into $$out_ref. Written out twice

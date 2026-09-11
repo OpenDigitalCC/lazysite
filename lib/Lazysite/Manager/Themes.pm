@@ -983,6 +983,42 @@ sub _mirror_layout_themes {
     return { themes => scalar @themes, mirrored => $done, results => \%results };
 }
 
+# SM830: ONE CACHE KEY FOR EVERYTHING IN A MIRROR, computed where the mirror is
+# written and read where a page is rendered.
+#
+# The tokens link keys on its own file's hash (the processor's
+# _asset_fingerprint). main.css and the rest are linked by LAYOUT templates,
+# which had nothing but the engine version to key on - so an edited theme kept
+# being served from every browser's cache until the next release. This is the
+# theme's own version: the first 12 hex of a sha256 over every file in the
+# mirror, by relative name and content, so it moves when and only when the
+# bytes do - not on a re-activation that rewrites identical files. The render
+# path reads it as [% theme_version %]; hashing the files there instead would
+# put a font's worth of reading on every uncached render.
+sub _write_mirror_fingerprint {
+    my ($dir) = @_;
+    my @files;
+    File::Find::find( { no_chdir => 1, wanted => sub { push @files, $File::Find::name if -f $File::Find::name } },
+        $dir );
+    my $sha = Digest::SHA->new(256);
+    for my $f ( sort @files ) {
+        ( my $rel = $f ) =~ s{\A\Q$dir\E/}{};
+        next if $rel eq '.fingerprint';
+        $sha->add("$rel\0");
+        $sha->addfile( $f, 'b' );
+        $sha->add("\0");
+    }
+    my $hex = substr( $sha->hexdigest, 0, 12 );
+    if ( open my $fh, '>', "$dir/.fingerprint" ) {
+        print {$fh} "$hex\n";
+        close $fh;
+        return $hex;
+    }
+    log_event( 'WARN', $action, 'theme mirror fingerprint not written - its pages key on the engine version',
+        dir => $dir, error => "$!" );
+    return undef;
+}
+
 sub _mirror_theme_assets {
     my ( $layout, $theme ) = @_;
     return { mirrored => 0, reason => 'no layout or theme named' }
@@ -1031,6 +1067,7 @@ sub _mirror_theme_assets {
             reason => 'the copy into the web asset mirror failed' };
     }
     _write_theme_tokens( $tdir, $staging );
+    _write_mirror_fingerprint($staging);
     my ( $sw_ok, $sw_err ) = _swap_in( $staging, $dest, undef );
     unless ($sw_ok) {
         system( 'rm', '-rf', $staging );

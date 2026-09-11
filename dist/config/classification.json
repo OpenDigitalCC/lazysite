@@ -236,6 +236,7 @@
     "^release-manifest\\.json$",
     "^sbom\\.json$",
     "^tools/commit\\.sh$",
+    "^tools/commit-staged\\.sh$",
     "^tools/release\\.sh$",
     "^tools/handoff\\.sh$",
     "^tools/where\\.sh$",
