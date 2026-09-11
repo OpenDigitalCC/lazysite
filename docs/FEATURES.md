@@ -95,7 +95,7 @@ YAML semantics). Recognised keys:
 | `tags` | Page tags, surfaced in `scan:`/registry objects |
 | `date` | `YYYY-MM-DD` publication date for feeds and `scan:` sort (mtime fallback) |
 | `tt_page_var` | Page-scoped Template-Toolkit variables (literal / `url:` / `scan:` / `${ENV}`) |
-| `layout`, `theme` | Per-page layout/theme override (name or remote URL) |
+| `layout`, `theme` | Per-page layout/theme override (name or remote URL). `theme` on a folder's `index.md` is inherited by every page beneath it (page, then nearest section, then domain; the content root's own index is the home page, not a section) - SM812 |
 | `raw` | Run the Markdown pipeline but emit **no layout wrapper** (default `text/plain`) |
 | `api` | Body is **pure TT, no Markdown, no layout** - for clean JSON endpoints |
 | `content_type` | Explicit `Content-type` header (with `raw`/`api`) |

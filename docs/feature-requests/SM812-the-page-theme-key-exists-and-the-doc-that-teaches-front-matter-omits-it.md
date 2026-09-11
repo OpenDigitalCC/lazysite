@@ -4,11 +4,11 @@ title: "SM812: the page theme key exists, and the doc that teaches front matter 
 subtitle: "The field reports that a page may override its layout but not its theme, and a shipped build hardcodes a stylesheet link to work around it - which silently disables that theme's own configuration block. The premise is wrong and the cost is real: a per-page `theme:` key shipped in SM120 and is documented in FEATURES.md, but not in /docs/frontmatter, which is the page a site author reads. The workaround was never necessary. Folder inheritance, the half that makes it usable across a section, genuinely does not exist."
 brand: plain
 standard-margins: true
-status: partial
+status: shipped
 raised: 2026-09-09
 raised-by: sites agent
 area: authoring
-status-note: "PART BUILT 2026-09-09: the documentation half is fixed on claude/0-13-10-changelog - starter/docs/frontmatter.md now documents `theme` beside `layout`, which is the whole of what stood between the reporting build and the feature it worked around. The FOLDER INHERITANCE half is not built and is a real request: setting a theme per page across a section is the same per-page discipline that already goes wrong with auth: and search:. The two design questions the filing raises - cache invalidation when an inherited theme changes, and page-over-folder-over-domain precedence - belong to that half."
+status-note: "SHIPPED 2026-09-11. The documentation half shipped in 0.13.10. The folder half is built: a theme on a folder's index.md dresses every page beneath it that does not name one itself. The filing's two design questions, answered. PRECEDENCE: the page, then the NEAREST section index that names a theme, then the domain's theme - and an inherited theme is treated exactly as a pin, including one the page's layout does not support. The content root's own index is the home page, not a section, so a home-page treatment never restyles the site; a domain's root is its own, and nothing above its content root is a section of it. CACHE: a page's cached render is fresh only while it post-dates every section index above it, as it already must post-date lazysite.conf and the nav file - every ancestor counts, because the edit that REMOVES a theme key leaves nothing to find. Deleting a section index outright leaves no mtime to compare, so pages beneath keep their render until their own next change or a cache clear; stated, not hidden. A gated section's index is read from the private store (SM286). Pinned by t/unit/processor/77, each rule seen to fail against its sabotage. SM820 (shipped) is what makes an inherited theme that was never activated render styled."
 ---
 
 # The correction first

@@ -43,6 +43,16 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM812 (PENDING) **a section names its theme once.** A `theme` on a folder's
+  `index.md` now dresses every page beneath it that does not name one itself -
+  the per-page discipline that goes wrong with `auth:` and `search:` is no longer
+  needed for a theme, where one missed page was a page in the public dress.
+  Precedence is the page, the nearest section, then the domain, and an inherited
+  theme behaves exactly as a pin. The content root's own index is the home page
+  rather than a section, so a home-page treatment never restyles the site. A
+  cached page goes stale when any section index above it changes, including the
+  edit that removes the key. `/docs/frontmatter` says all of it.
+
 - SM797 (PENDING) **no front end serves source from disk.** The engine's half
   shipped first (below); on a site with no ACL store the web server serves every
   existing file itself and none of it ran, so `/about.md` came back as markdown,

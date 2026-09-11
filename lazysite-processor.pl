@@ -405,6 +405,10 @@ my %STATIC_CT = (
             # way to break the application and the most prominent action
             # offered to the person most likely to click it.
             elsif ( $line =~ /^admin_bar\s*:\s*(\w+)/i ) { $m{admin_bar} = lc $1 }
+            # SM812: a section's index names the theme its pages inherit. Only a
+            # name the page key would accept is recorded, so an unusable value
+            # reads as absent and the walk carries on upwards.
+            elsif ( $line =~ /^theme\s*:\s*["']?([A-Za-z0-9_-]+)["']?\s*$/ ) { $m{theme} = $1 }
             elsif ( $line =~ /^content_type\s*:\s*(.+)/ ) {
                 ( my $v = $1 ) =~ s/^\s+|\s+$//g;
                 $m{content_type} = $v;
@@ -2131,6 +2135,19 @@ sub try_serve_cache {
     # host, so this is a lookup, not a second parse).
     my $nav_mtime = ( stat _nav_file_for( { resolve_site_vars() } ) )[9] // 0;
     $conf_mtime = $nav_mtime if $nav_mtime > $conf_mtime;
+
+    # SM812: and on the section index pages above it. A theme set on a section's
+    # index dresses every page beneath it, and each of those caches as its own
+    # .html with the resolved stylesheet baked in - so a section index changing
+    # must stale them, as the nav file does for every page. EVERY ancestor
+    # counts, not only one that names a theme today: the edit that REMOVES the
+    # key leaves nothing to find. (Deleting the index outright leaves no mtime
+    # at all; the pages beneath keep their render until their own next change or
+    # a cache clear.)
+    for my $idx ( _section_indexes($md_path) ) {
+        my $m = ( stat $idx )[9] // 0;
+        $conf_mtime = $m if $m > $conf_mtime;
+    }
 
     # SM311: a page may also depend on files it READS - `tt_page_var` json: and
     # scan: sources. Those are neither the .md nor the conf, so editing one used
@@ -7307,6 +7324,49 @@ sub fetch_remote_layout {
     return ( $cache_path, $cache_key );
 }
 
+# SM812: the section index pages above a page, nearest first - every index.md
+# between the page's own directory and the request's content root, NOT the
+# content root's own index.md.
+#
+# A section describes itself on its index page (SM656 reads admin_bar: there),
+# so a theme set once on docs/index.md dresses everything under docs/. The ROOT
+# index is left out on purpose: it is the home page, which routinely wears a
+# treatment of its own, and a home-page theme restyling the whole site would be
+# the surprise this feature exists to remove. The site's theme is set in
+# lazysite.conf, which is where that decision already lives.
+#
+# Relative to the content root, not the docroot, so a domain's own index is its
+# root - never a section of the primary site. Each index resolves through the
+# private store as the page does (SM286), so a gated section still has one.
+sub _section_indexes {
+    my ($md_path) = @_;
+    return () unless defined $md_path && length $md_path;
+    my $rel = _content_rel($md_path);
+    return () unless defined $rel;
+    my $croot = $REQUEST_CROOT // $DOCROOT;
+    my $top   = ( $croot eq $DOCROOT ) ? '' : _content_rel($croot);
+    return () unless defined $top;
+
+    my @out;
+    my $dir = $rel;
+    while ( $dir =~ s{/[^/]*\z}{} ) {
+        last if length $top && index( $dir, "$top/" ) != 0;
+        push @out, _content_abs("$DOCROOT/$dir/index.md");
+    }
+    return @out;
+}
+
+# The theme a page inherits from its nearest section that names one, or undef.
+# Sanitised as the page's own key is, by _peek_md.
+sub _section_theme {
+    my ($md_path) = @_;
+    for my $idx ( _section_indexes($md_path) ) {
+        my $theme = _peek_md($idx)->{theme};
+        return $theme if defined $theme;
+    }
+    return undef;
+}
+
 # SM249: resolve the layout and the active theme INTO $vars.
 #
 # Split out of render_template and moved ahead of the body render so that
@@ -7367,8 +7427,14 @@ sub resolve_layout_vars {
         # not reach for the pin on a page they meant to keep.
         # resolve_theme still gates on layout compatibility, so an incompatible pin
         # renders as no theme rather than breaking.
-        my $page_theme = ( defined $meta->{theme} && $meta->{theme} =~ /^[A-Za-z0-9_-]+$/ )
-            ? $meta->{theme} : $vars->{theme};
+        #
+        # SM812: precedence is the page, then its nearest section's index, then
+        # the site or domain theme. An inherited theme is treated exactly as a
+        # pin - including an incompatible one - so moving the key from each page
+        # to the section's index changes nothing about how a page renders.
+        my $page_theme = $meta->{theme};
+        $page_theme = _section_theme( $meta->{_md_path} ) // $vars->{theme}
+            unless defined $page_theme && $page_theme =~ /^[A-Za-z0-9_-]+$/;
         my $info = resolve_theme( $layout_key, $page_theme );
         if ( $info->{is_active} ) {
             $vars->{theme_name}   = $info->{theme_name};

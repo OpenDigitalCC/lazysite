@@ -39,6 +39,7 @@ Everything below the closing `---` is the page body. All keys are optional unles
 
 `theme`
 : A named theme for this page, overriding the one the domain has activated. Sanitised the same way as `layout`, and resolved against the page's layout - a theme a layout does not support renders as no theme rather than breaking the page. Shipped in SM120; documented here from SM812, because a build that could not find it in this list linked a stylesheet by hand instead, which silently disabled that theme's own configuration.
+: **Set it once for a section.** A `theme` on a folder's `index.md` applies to every page beneath that folder, at any depth, that does not name one itself. The order is: the page's own `theme`, then the nearest section index that names one, then the domain's theme. The site's home page (`/index.md`, or a domain's own root) is not a section - its `theme` dresses the home page only; the whole site's theme is set in `lazysite.conf`. Changing a section index re-renders the pages beneath it on their next visit.
 
 `search`
 : `true` or `false` to include or exclude the page from the search index. Defaults to the site-wide `search_default`.
