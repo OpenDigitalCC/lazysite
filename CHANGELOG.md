@@ -43,7 +43,7 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
-- SM821 (PENDING) **`whoami` says what an account may do and what it is, apart,
+- SM821 (ded1a141) **`whoami` says what an account may do and what it is, apart,
   and the same way on both surfaces.** MCP put the whole settings map - email,
   groups, token and MFA state - under `capabilities`, and the control API's
   `capabilities.ui` meant "may sign in" while MCP's meant the manager capability.
@@ -52,7 +52,7 @@ Naming the commit: AFTER it lands, never before
   and name the caller `user`. A breaking change for clients of either whoami;
   UPGRADE.md lists the moves.
 
-- SM670 (PENDING) **a control-API refusal answers with its HTTP status.**
+- SM670 (d85a473f) **a control-API refusal answers with its HTTP status.**
   Every refusal answered 200 with `ok: false`, so a client that checked the status
   line saw success. The status now follows the refusal's kind - 403, 404, 409,
   413, 429, 500, 207 for a partial write, 400 for anything else and for a refusal
@@ -60,7 +60,7 @@ Naming the commit: AFTER it lands, never before
   breaking change for a client that stops on a non-2xx status; the manager's own
   pages read the body and are unaffected.
 
-- SM798 partial (PENDING) **login rate limiting is an extension, on by default,
+- SM798 partial (60363849, 6d7cf53a) **login rate limiting is an extension, on by default,
   and visibly off when it is off.** To the rulings: `plugins/login-rate-limit.pl`
   carries DB_File as its own dependency, the installer lists it on a fresh site
   and once on upgrade (an operator who switches it off keeps it off), and off
@@ -69,7 +69,7 @@ Naming the commit: AFTER it lands, never before
   the limiter is NOT in force, with the reason; `--fix` repairs the counter's
   permissions. The per-account limiter stays a design question.
 
-- SM792 partial (PENDING) **the daemon trusts less of what it can be handed.**
+- SM792 partial (234caad6) **the daemon trusts less of what it can be handed.**
   From the 0.13.8 review, each reproduced first: the stats job runs only the
   plugin where a deploy puts it, not whatever `LAZYSITE_STATS_TOOL` names; a
   supervisor stops an orphaned service only if it is a copy of itself, so a
@@ -78,14 +78,14 @@ Naming the commit: AFTER it lands, never before
   drop is checked as the user drop always was. What Status shows while the
   runtime is off, and the unit sandboxing, stay open as decisions.
 
-- SM847 (PENDING) **a small button is small only in a row or a cell.** To the
+- SM847 (58f31f8c) **a small button is small only in a row or a cell.** To the
   ruling: `.mg-btn-sm` is sized small only inside a list row or a table cell, in
   all three styles, so a Refresh never sits smaller than the Add beside it - a
   toolbar, card head, settings line or page action is the standard size whatever
   its markup says. The rule is in the stylesheet, not at 147 call sites, and
   `t/lint/134` keeps it there.
 
-- SM793 (PENDING) **a submission reaches the operator as text.** To the
+- SM793 (e8715d2a) **a submission reaches the operator as text.** To the
   ruling: the submissions viewer builds its table from DOM nodes and
   `textContent`, and each row's buttons act through closures instead of an
   attribute holding a quoted id, so a stored value never passes through HTML and
@@ -93,7 +93,7 @@ Naming the commit: AFTER it lands, never before
   which is what the control API and MCP read. Its dialog and the extension
   configuration dialog close from the same corner control every sheet has.
 
-- SM852 partial (PENDING) **a package, a restore or a bundle puts a protected
+- SM852 partial (2d885319, 16cd8943) **a package, a restore or a bundle puts a protected
   page where it lives.** Applying a site package, restoring a backup taken
   before a folder was protected, and `lazysite-bundle-apply` each wrote a
   protected section's pages back into the served tree - beside the private
@@ -105,7 +105,7 @@ Naming the commit: AFTER it lands, never before
   hand-written `.html` - legacy static pages and include partials - with the
   renders. Each was reproduced before it was fixed. Three paths and two minor
   rows stay open for 0.13.14.
-- SM850 (PENDING) **a site whose engine tree moved beside the docroot works
+- SM850 (c72c8462) **a site whose engine tree moved beside the docroot works
   everywhere.** Moving `lazysite/` out of the document root (SM293) left 110
   places across 38 files building the old path by hand - the data tables, the
   scheduler, notifications, briefs, the stats and pandoc plugins and more - so on
