@@ -44,6 +44,12 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM848 (PENDING) **the editor's Access section sits above the content box.**
+  Who may read a file is wanted before editing it, not after scrolling past a
+  body that grows with the page. It now follows the front-matter fields,
+  ahead of Metadata and Content, which leaves the splitter between those two
+  with the same pair to resize.
+
 - SM849 (PENDING) **the page editor reaches the page's history.** With content
   history on, the editor offers History, which opens Files on that file's own
   History panel - its list page, its row and its panel open - so View, Diff

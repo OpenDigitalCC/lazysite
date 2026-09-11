@@ -110,6 +110,13 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 <div class="mg-field"><label style="width:60px;">search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
 </div>
 </details>
+<!-- SM848: Access sits ABOVE the content box. Who may read a file is a fact
+     wanted before editing it, not after scrolling past a long body - and above
+     Metadata, not between it and Content, so the splitter keeps its two halves. -->
+<details id="ed-perms-section" class="mg-stack-section" ontoggle="loadEditorPerms()">
+<summary class="mg-stack-header">Access<span class="mg-stack-hint">owner, and who may read or write this file</span></summary>
+<div id="ed-perms-body" class="mg-expand-body">Loading&hellip;</div>
+</details>
 <details id="ed-meta-section" class="mg-stack-section" ontoggle="edRefreshEditors()">
 <summary class="mg-stack-header">Metadata<span class="mg-stack-hint">YAML front matter</span></summary>
 <div id="ed-yaml-cm" class="mg-cm-yaml"></div>
@@ -118,10 +125,6 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 <details id="ed-content-section" class="mg-stack-section" ontoggle="edRefreshEditors()" open>
 <summary class="mg-stack-header">Content<span class="mg-stack-hint">Markdown</span></summary>
 <div id="ed-content-cm" class="mg-cm-content"></div>
-</details>
-<details id="ed-perms-section" class="mg-stack-section" ontoggle="loadEditorPerms()">
-<summary class="mg-stack-header">Access<span class="mg-stack-hint">owner, and who may read or write this file</span></summary>
-<div id="ed-perms-body" class="mg-expand-body">Loading&hellip;</div>
 </details>
 </div>
 <div id="ed-pane-switch" class="mg-pane-switch">

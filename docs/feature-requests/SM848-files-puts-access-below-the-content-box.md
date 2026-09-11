@@ -3,7 +3,8 @@ title: "SM848: on Files, 'Access - owner, and who may read or write this file' s
 subtitle: "Release manager, 2026-09-11, on 0.13.12: it should sit above it"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. The Access section (owner, and who may read or write this file) is in the editor Files opens, and it now sits after the front-matter fields and above Metadata and Content, rather than after the content box. Above Metadata rather than just above Content, so the splitter between those two still resizes exactly them. It still loads on first open. Pinned by section order in the editor pane's markup, not by a screenshot."
 ---
 
 # As reported
