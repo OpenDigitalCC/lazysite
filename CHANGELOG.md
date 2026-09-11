@@ -43,6 +43,13 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM833 (PENDING) **no Perl reference reaches a visitor.** A template that
+  interpolates a list or hash whole used to hand the visitor `ARRAY(0x55d4...)`,
+  heap address and all; SM833's own instance was fixed at its source, and every
+  page rendered from `.md` or `.url` now has the stringified reference removed
+  before it is cached, with the removal logged against the page. An address the
+  page's author wrote - a page about the bug - is left as written.
+
 - SM830 (PENDING) **a theme's assets carry the theme's own version.** The
   mirror writer records a fingerprint over every file it writes, and a layout
   links `main.css?v=[% theme_version %]`, so an edited theme is a new URL and

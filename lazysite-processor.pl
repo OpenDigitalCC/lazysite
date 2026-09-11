@@ -3488,6 +3488,9 @@ sub process_md {
         $page             = convert_p_links($page);
     }
 
+    # SM833: no Perl reference reaches a visitor, whatever produced it.
+    $page = _strip_leaked_refs( $page, $raw_text, $md_path );
+
     # Only cache if no query params - query responses are dynamic
     if ( !%$query ) {
         write_html( $html_path, $page );
@@ -3495,6 +3498,31 @@ sub process_md {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;
     }
 
+    return $page;
+}
+
+# SM833: A PERL REFERENCE NEVER REACHES THE PAGE.
+#
+# A template that interpolates a list or a hash whole - [% theme %], a db binding
+# read with the wrong accessor, a json: variable used as a value - stringifies
+# it, and the visitor is handed ARRAY(0x55d4...) with a heap address in it.
+# SM833's instance was fixed where it arose; this is the net under the next one,
+# at the one place every rendered page passes, rather than in each engine.
+#
+# Recognised by the live address, which no author typed: a token that also
+# appears in the page's own source is the author's - a page about this very bug
+# - and is left alone. What is removed is logged, naming the source, because a
+# page that silently loses a value is the next thing to be puzzled over.
+sub _strip_leaked_refs {
+    my ( $page, $source, $where ) = @_;
+    return $page unless defined $page && index( $page, '(0x' ) >= 0;
+    my $n = 0;
+    $page =~ s{((?:[A-Za-z_][\w:]*=)?(?:ARRAY|HASH|CODE|SCALAR|GLOB|REF|Regexp)\(0x[0-9a-f]+\))}
+              { ( defined $source && index( $source, $1 ) >= 0 ) ? $1 : do { $n++; '' } }gex;
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+        'a Perl reference reached the page and was removed - a template interpolates a list or hash whole',
+        count => $n, source => $where )
+        if $n;
     return $page;
 }
 
@@ -3566,6 +3594,7 @@ sub process_url {
         $page = convert_dt_links($page);
         $page = convert_p_links($page);
     }
+    $page = _strip_leaked_refs( $page, $raw, $url_path );    # SM833
 
     write_html( $html_path, $page );
     eval { update_registries() };
