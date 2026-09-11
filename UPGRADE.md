@@ -44,6 +44,18 @@ What changes for people and agents:
 - The daemon's `connectors-call` job is replaced by `schedule-run`. Its job
   account needs the capability of each scheduled handler's destination.
 
+**Re-render your vhost** (SM797). The shipped front-end templates now hand a
+page's markdown, `.url` and `.brief` files, backups, config, keys and executable
+source to the engine instead of serving them from disk - so `/about.md` renders
+the page and a stray `config.bak` is *not found*, whether or not the site has an
+ACL store. A package upgrade does not rewrite an installed vhost: run
+`lazysite-apache-vhost add` or `lazysite-nginx-vhost add` again for the domain
+with the options it was added with plus `--force` (an existing vhost is refused
+without it), or rebuild the domain in Hestia (which re-applies both the web and proxy
+templates). If you maintain your own vhost, apply contract item 5 in
+`docs/reference/webserver-wiring.md`. On a multi-domain instance, regenerate the
+per-domain block (`... rewrites --docroot <docroot>`) as well.
+
 ## Upgrading to 0.10.19 from 0.10.18
 
 **This is a BETA build** - the first promotion off the edge line. A site takes

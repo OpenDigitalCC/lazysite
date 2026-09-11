@@ -64,12 +64,14 @@ sub spit {
 spit( "$doc/upcoming/probe.$_",                                   $BYTES ) for @EXTS;
 spit( "$doc/lazysite/backups/preinstall-20260811T000000Z.tar.gz", 'SNAPSHOT' );
 spit( "$doc/upcoming/notes.md.brief", 'authoring intent, never public' );
+spit( "$doc/upcoming/page.md",        "---\ntitle: P\n---\nPAGE SOURCE\n" );
 spit( "$doc/sitemap.xml",             'PRIMARY SITE SITEMAP' );
 
 # The extension list includes gz and xml on purpose: those are the two that make
 # the /lazysite/ deny and the SM248 registry routes load-bearing rather than
 # decorative. It excludes .bin and .dat, so the fixture reproduces the original
-# split - some extensions on the list, some off it.
+# split - some extensions on the list, some off it. And it includes md, an
+# operator's mistake the SM797 hand-off has to survive.
 my $PORT = free_port();
 my $conf = render(
     "$root/installers/hestia/lazysite-proxy.tpl",
@@ -83,7 +85,7 @@ my $conf = render(
     '%home%'             => "$prefix/home",
     '%user%'             => 'siteuser',
     '%web_system%'       => 'apache2',
-    '%proxy_extensions%' => 'jpg|jpeg|png|pdf|txt|gz|xml',
+    '%proxy_extensions%' => 'jpg|jpeg|png|pdf|txt|gz|xml|md',
     '%%LOGDIR%%'         => "$prefix/logs/",
 );
 write_conf( $prefix, $conf, hestia => 1 );
@@ -138,10 +140,21 @@ subtest 'the engine directory is never served, whatever its extension' => sub {
     is( $ok_body, 'ORDINARY', 'so gz is genuinely on the static list' );
 };
 
-subtest 'a .brief sidecar is refused' => sub {
+subtest 'the engine\'s source types go to the origin, even one on the list' => sub {
+    # SM797: the origin hands them to the engine, which refuses a sidecar and
+    # renders a page asked for by its source name. So the proxy's job is to
+    # never answer them itself - and .md is on this fixture's extension list,
+    # which is the case where only the nested hand-off stands in the way.
     my ( $code, $body ) = get('/upcoming/notes.md.brief');
-    is( $code, 403, 'refused at the proxy' );
+    is( $code, 502, 'a .brief sidecar is handed to the origin' );
     unlike( $body, qr/authoring intent/, 'and the body never appears' );
+
+    ( $code, $body ) = get('/upcoming/page.md');
+    is( $code, 502, 'a page source on the extension list is handed on too' );
+    unlike( $body, qr/PAGE SOURCE/, 'not served from disk' );
+
+    ( $code, $body ) = get('/upcoming/probe.png');
+    is( $code, 200, 'while an asset beside it is still served here - the hand-off is by type' );
 };
 
 subtest 'the per-domain registries reach the engine even as real files' => sub {

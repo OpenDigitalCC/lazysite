@@ -49,6 +49,9 @@ sub spit {
 # The file the alias domain owns, and which the ACL is meant to govern.
 spit( "$d/docroot/sites/foo/private/aliasonly.pdf", "ALIAS-ONLY-SECRET\n" );
 
+# SM797: and one of its pages, by source name - a page, never a download.
+spit( "$d/docroot/sites/foo/about.md", "---\ntitle: About\n---\nALIAS-PAGE-SOURCE\n" );
+
 # The stub engine. Standing in for lazysite-auth.pl, which validates the cookie
 # and execs the processor; all this test needs to know is that the request
 # reached it rather than being answered off disk.
@@ -94,6 +97,7 @@ ScriptAlias /cgi-bin/ "$d/cgi-bin/"
     AllowOverride None
     Require all granted
 </Directory>
+FallbackResource /cgi-bin/lazysite-auth.pl
 $rewrites
 CONF
 
@@ -126,6 +130,16 @@ subtest 'with no ACL store the domain serves its own file directly' => sub {
         'a site with no ACLs pays nothing and keeps direct static serving - '
             . 'without this the next subtest would pass on a block that simply '
             . 'never serves anything' );
+};
+
+subtest 'SM797: a domain\'s page source is never served from its content root' => sub {
+    # The serve rule above answers any existing file in the domain's tree, so
+    # without its source-type condition this came back as markdown. It falls
+    # through to the engine instead, which renders the page - with no ACL store,
+    # which is the case the serve rule was fast for.
+    my $out = fetch('/about.md');
+    like( $out, qr/ROUTED-TO-ENGINE/, 'the engine answered' );
+    unlike( $out, qr/ALIAS-PAGE-SOURCE/, 'and Apache did not hand out the markdown' );
 };
 
 subtest 'an ACL store routes the domain statics through the engine' => sub {

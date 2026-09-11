@@ -250,6 +250,13 @@ alias (`aliases:` for 301s, `aliases_temp:` for 302s - SM134 + follow-ups).
   else 404 - there is no autoindex anywhere in the processor.
 - **System-dir & sidecar deny**: `/lazysite/*` → 403; `*.brief` authoring sidecars →
   404 (and excluded from scans/registries).
+- **Source is never served from disk** (SM797): every shipped front end (Apache,
+  Hestia's proxy and origin, nginx, and the generated per-domain rules) hands the
+  engine's source types - page markdown, `.url`, `.brief`, backups and editor
+  litter, config and keys, executable source - to the engine whether or not the
+  file exists, so `/about.md` renders `/about` and a backup is *not found* on every
+  front end, with or without an ACL store. `t/lint/131` pins each config to the
+  engine's own list.
 - **Template-injection defence**: front-matter values and resolved variables are
   stripped of `[%`/`%]`; every Template instance runs with `EVAL_PERL => 0`.
 - **Script-capable `content_type` downgrade** (ADR 0006, 0.8.0): a `raw:`/`api:`
@@ -1568,8 +1575,8 @@ rebuilds), and `install.pl` owns the code/seed deploy. The vhost wires
 `DirectoryIndex` → cached HTML, `FallbackResource` → the auth wrapper (not the
 processor directly - that would break login), a rewrite that fronts the real cgi-bin
 scripts with the wrapper, the **`RequestHeader unset X-Remote-*`/`X-Payment-*`
-trust-strip**, the `/dav` ScriptAlias, a `Require all denied` on `/lazysite/`, a
-`.brief` deny, and **`Options -Indexes`** (no directory listing). Since 0.7.2
+trust-strip**, the `/dav` ScriptAlias, a `Require all denied` on `/lazysite/`, the
+SM797 source hand-off, and **`Options -Indexes`** (no directory listing). Since 0.7.2
 the packaged flow (`lazysite-hestia` above: shipped templates +
 `lazysite-hestia-domain`) is the install path -
 `installers/hestia/INSTALL-RUNBOOK.md` is written around it; the hand-run

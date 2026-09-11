@@ -65,12 +65,6 @@ server {
         deny all;
     }
 
-    # SM073: .brief sidecars document authoring intent and are never public.
-    # Declared before the static location for the same reason.
-    location ~ \.brief$ {
-        deny all;
-    }
-
     # The two script surfaces are Apache's (ScriptAlias in the web template)
     # and must never be given static treatment here: a docroot file that
     # happened to sit under either path would be served in place of the
@@ -92,6 +86,15 @@ server {
 
     location / {
         proxy_pass http://%ip%:%web_port%;
+
+        # SM797: the engine's source types go to the origin, never off disk -
+        # ahead of the extension list, so they do even where an operator has
+        # added one of them to it. Apache then hands them to the engine
+        # (t/lint/131 pins the same list in both layers). The engine refuses
+        # to hand them out and renders a page asked for by its source name.
+        location ~* \.(?:md|url|brief|bak|swp|swo|orig|old|tmp|conf|ini|env|pem|key|pl|pm|cgi|fcgi|phtml|php|php3|php4|php5|phps|phar|htaccess|htpasswd)$ {
+            proxy_pass http://%ip%:%web_port%;
+        }
 
         location ~* ^.+\.(%proxy_extensions%)$ {
             root       %docroot%;

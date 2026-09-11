@@ -109,10 +109,18 @@ for my $rel ( sort keys %PROXY ) {
         like( $code, qr{location\s+\^~\s+/lazysite/\s*\{[^\}]*deny all},
             'denies the engine directory' );
 
-        # SM073 and SM248, which live in the Apache template and are equally
-        # unreachable when the proxy answers first.
-        like( $code, qr{location\s+~\s+\\\.brief\$\s*\{[^\}]*deny all},
-            'denies .brief sidecars' );
+        # SM073/SM797 and SM248, which live in the Apache template and are
+        # equally unreachable when the proxy answers first. The source types
+        # (.brief among them) go to the origin from a location nested AHEAD of
+        # the extension regex, so an operator's extension list cannot put one
+        # back on disk; t/lint/131 pins the list itself.
+        my $handoff = index( $code, 'location ~* \.(?:md|' );
+        my $ext_at  = index( $code, '(%proxy_extensions%)' );
+        cmp_ok( $handoff, '>=', 0, 'hands the engine\'s source types to the origin' );
+        cmp_ok( $handoff, '<', $ext_at, 'ahead of the extension list, which would otherwise serve one' )
+            if $handoff >= 0;
+        like( $code, qr{location\s+~\*\s+\\\.\(\?:[^)]*\bbrief\b[^)]*\)\$\s*\{\s*proxy_pass},
+            '.brief sidecars among them' );
         for my $reg (qw(sitemap.xml llms.txt robots.txt feed.rss feed.atom)) {
             my $q = quotemeta $reg;
             like( $code, qr{location\s+=\s+/$q\s*\{[^\}]*proxy_pass},

@@ -99,8 +99,18 @@ Whatever the server, a correct front end does exactly this:
    pattern behind SM248, SM268 H17 and SM283. Strip them anyway if you
    can: defence in depth is worth having, and it keeps the headers out
    of logs upstream.
-5. **Deny `/lazysite/` and `*.brief`** at the origin (engine
-   internals; authoring sidecars).
+5. **Deny `/lazysite/`** at the origin (engine internals), and **hand the
+   engine's source types to the engine** - never serve them from disk, whether
+   or not the file exists. They are `md url brief bak swp swo orig old tmp conf ini env pem key pl pm cgi fcgi phtml php php3 php4 php5 phps phar htaccess htpasswd`: the engine's own static-serve
+   refusals less `.shtml`/`.shtm`, a legacy SSI page being the front end's to
+   expand. The engine renders a page asked for by its source name
+   (`/about.md` is `/about`) and answers the rest *not found*; a front end
+   that serves them hands out a page's markdown, a backup or a key, on
+   exactly the sites that have never protected anything. Exempt `/cgi-bin/`
+   and `/dav`, which are script surfaces (a CGI is a `.pl`; a DAV write names
+   a `.md`). Where a front end cannot route to the engine, refuse them. The
+   shipped templates are pinned to this list by `t/lint/131` and driven
+   through real Apache and nginx by `t/integration/81`.
 6. Give the CGIs `DOCUMENT_ROOT` and the originally-requested path
    (Apache sets `REDIRECT_URL`; synthesise it elsewhere - the
    processor also falls back to `REQUEST_URI`).
@@ -208,7 +218,9 @@ server {
     root /srv/www/example.com/public_html;
     index index.htm index.shtml;        # NOT index.html (contract item 1)
     location ^~ /lazysite/ { deny all; }          # contract item 5
-    location ~ \.brief$    { deny all; }
+    location ~* ^/(?!cgi-bin/|dav(?:/|$)).*\.(?:md|url|brief|bak|swp|swo|orig|old|tmp|conf|ini|env|pem|key|pl|pm|cgi|fcgi|phtml|php|php3|php4|php5|phps|phar|htaccess|htpasswd)$ {
+        try_files /dev/null @lazysite;               # contract item 5
+    }
     location / { try_files $uri @lazysite; }      # contract items 1+2
     location @lazysite {
         # FCGI pattern: carve session-bearing misses out to the CGI
@@ -252,10 +264,14 @@ example.com {
     request_header -X-Remote-Email
     request_header -X-Payment-Verified
     request_header -X-Payment-Payer
-    # Contract item 5.
+    # Contract item 5. Refused here rather than rendered; give @source its
+    # own reverse_proxy to the pool, as @miss has, to render /about.md.
     respond /lazysite/* 403
-    @brief path *.brief
-    respond @brief 403
+    @source {
+        path_regexp (?i)\.(?:md|url|brief|bak|swp|swo|orig|old|tmp|conf|ini|env|pem|key|pl|pm|cgi|fcgi|phtml|php|php3|php4|php5|phps|phar|htaccess|htpasswd)$
+        not path /cgi-bin/* /dav /dav/*
+    }
+    respond @source 404
     # Contract items 1+2: existing files directly, page misses to the
     # anonymous pool socket over FastCGI.
     @miss not file
@@ -293,8 +309,11 @@ $HTTP["host"] == "example.com" {
     setenv.set-request-header = ("X-Remote-User" => "", "X-Remote-Groups" => "",
         "X-Remote-Name" => "", "X-Remote-Email" => "",
         "X-Payment-Verified" => "", "X-Payment-Payer" => "")
-    # Contract item 5.
-    $HTTP["url"] =~ "^/lazysite/|\.brief$" { url.access-deny = ("") }
+    # Contract item 5 (refused rather than handed to the engine).
+    $HTTP["url"] =~ "^/lazysite/" { url.access-deny = ("") }
+    $HTTP["url"] !~ "^/(cgi-bin|dav)(/|$)" {
+        $HTTP["url"] =~ "(?i)\.(md|url|brief|bak|swp|swo|orig|old|tmp|conf|ini|env|pem|key|pl|pm|cgi|fcgi|phtml|php|php3|php4|php5|phps|phar|htaccess|htpasswd)$" { url.access-deny = ("") }
+    }
     # Contract item 3: the cgi-bin, with .pl handed to the CGI engine.
     alias.url += ("/cgi-bin/" => "/srv/www/example.com/cgi-bin/")
     $HTTP["url"] =~ "^/cgi-bin/" { cgi.assign = (".pl" => "") }

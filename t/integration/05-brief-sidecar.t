@@ -44,16 +44,17 @@ like( $reg, qr{URL:\s*/about\b}, 'the real page is in the registry' );
 unlike( $reg, qr/about\.md\.brief/,  '.brief is NOT in the registry' );
 unlike( $reg, qr/SHOULD NOT APPEAR/, 'brief front-matter is never indexed' );
 
-# 3. The shipped Apache template denies .brief at the origin (the primary
-#    guard: FallbackResource serves existing files raw otherwise).
-# Every shipped vhost template must deny .brief - especially lazysite-app.*,
-# which is the one the deploy actually applies. (lazysite.* is the basic
-# variant.)
+# 3. The shipped Apache template hands .brief to the engine rather than serving
+#    it (FallbackResource serves existing files raw otherwise). SM797 made that
+#    one rule for every source type, so this is its .brief case; t/lint/131
+#    pins the whole list in every shipped front end, and t/integration/81
+#    drives it through real Apache.
 for my $t (qw( lazysite.tpl lazysite.stpl lazysite-app.tpl lazysite-app.stpl )) {
     open my $th, '<', repo_root() . "/installers/hestia/$t" or die "$t: $!";
     my $tpl = do { local $/; <$th> };
     close $th;
-    like( $tpl, qr/FilesMatch[^>]*brief/, "$t denies .brief at the origin" );
+    like( $tpl, qr/^\s*RewriteRule\s+\\\.\(\?:[^)]*\bbrief\b[^)]*\)\$\s+\/cgi-bin\/lazysite-/m,
+        "$t hands .brief to the engine at the origin" );
 }
 
 done_testing();

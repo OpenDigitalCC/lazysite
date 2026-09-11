@@ -9,7 +9,7 @@ this is the map. For running it afterwards see [OPERATOR.md](OPERATOR.md).
 
 - A **CGI-capable web server**. Apache is first-class: lazysite relies on
   `FallbackResource`, `ScriptAlias`, `mod_headers` (the `RequestHeader unset
-  X-Remote-*` trust-strip), `<FilesMatch>`, and `+ExecCGI`. nginx is supported
+  X-Remote-*` trust-strip), `mod_rewrite`, and `+ExecCGI`. nginx is supported
   through the `lazysite-nginx` glue package (fcgiwrap as the CGI bridge, or
   the pool below); other servers implement the contract in
   [reference/webserver-wiring.md](reference/webserver-wiring.md). For

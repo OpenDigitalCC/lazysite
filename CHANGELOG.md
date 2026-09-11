@@ -43,6 +43,22 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM797 (PENDING) **no front end serves source from disk.** The engine's half
+  shipped first (below); on a site with no ACL store the web server serves every
+  existing file itself and none of it ran, so `/about.md` came back as markdown,
+  front matter and all, from the front end - on exactly the sites that had never
+  protected anything. Every shipped front end now hands the engine's source types
+  (page markdown, `.url`, `.brief`, backup and editor litter, config and keys,
+  executable source) to the engine, whether or not the file exists: `/about.md`
+  renders `/about` and a backup is *not found*, on every front end, with or
+  without an ACL store. A hand-off rather than a deny, so there is one answer
+  and it is the engine's. Ten Apache templates, Hestia's two proxy templates,
+  both nginx examples and the generated per-domain rules carry the one list -
+  the engine's less `.shtml`/`.shtm`, which Apache expands - pinned by
+  `t/lint/131` and driven through real Apache and nginx by `t/integration/81`.
+  The `.brief`-only deny it replaces is gone. Existing vhosts take it when
+  re-rendered.
+
 - SM842 (PENDING) **one way to deliver: a form calls a handler, the timer calls
   a handler, and the destination decides who may make one.** A handler is a
   named function - send email, keep a file, store a row in a data table, send

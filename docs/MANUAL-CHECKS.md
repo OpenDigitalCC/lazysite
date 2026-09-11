@@ -542,10 +542,9 @@ Three specific things to look at, each of which the lint cannot see:
   is simply never reached and the file is served as before.
 - **no redirect loop** - the rewrite targets `/cgi-bin/lazysite-auth.pl`, and
   `/cgi-bin/` is excluded from the condition. Confirm a normal page still loads.
-- **the `.brief` deny** - Apache's `<FilesMatch>` matches the *resolved* file, so
-  once the request is rewritten to the CGI that deny no longer applies to it. The
-  processor's own guard covers it. Request a `.brief` on an ACL site and confirm
-  it 404s.
+- **the source hand-off** (SM797) - a `.brief`, a page's `.md` and a backup go to
+  the engine before any ACL rule, with or without an ACL store. Request
+  `/<page>.md` and confirm the rendered page, and a `.brief` and confirm it 404s.
 
 Remove the test `acls.json` afterwards, or the site keeps routing every static
 through the engine.

@@ -44,6 +44,22 @@
     # injects the bar. A purely static index.html home (no index.md) is still
     # served directly by the rewrite below.
     DirectoryIndex index.htm index.shtml
+    # SM797: what is SOURCE rather than asset is the engine's to answer, never
+    # this server's. The engine refuses to hand these types out and renders a
+    # page asked for by its source name (/about.md is /about) - but only for a
+    # request that reaches it, and a file that EXISTS is served from disk before
+    # lazysite is consulted. So these go to the engine whether or not the file
+    # exists and whether or not the site has an ACL store, and every front end
+    # gives the engine's answer. The list is the engine's (%STATIC_DENY in
+    # lazysite-processor.pl) less .shtml/.shtm, a legacy SSI page (SM133) being
+    # this server's to expand; t/lint/131 pins it here and in every other
+    # shipped front end. .brief sidecars (SM073) are on it.
+    #
+    # Before every rule that ends in [L]. /cgi-bin/ and /dav are the script
+    # surfaces; /lazysite/ keeps its own deny.
+    RewriteCond %{REQUEST_URI} !^/(?:cgi-bin|dav|lazysite)(?:/|$)
+    RewriteRule \.(?:md|url|brief|bak|swp|swo|orig|old|tmp|conf|ini|env|pem|key|pl|pm|cgi|fcgi|phtml|php|php3|php4|php5|phps|phar|htaccess|htpasswd)$ /cgi-bin/lazysite-auth.pl [NC,PT,L]
+
     # SM223: static files under access control. A file the web server serves
     # directly is reachable by anyone who knows its path, and no auth decision
     # lazysite makes can reach it - the [L] on every rule below is exactly the
@@ -109,12 +125,6 @@
     <Location /lazysite/>
         Require all denied
     </Location>
-    # SM073: .brief sidecars document authoring intent and are never public.
-    # FallbackResource only routes non-existent paths through, so an existing
-    # .brief is otherwise served raw - deny it here at the origin.
-    <FilesMatch "\.brief$">
-        Require all denied
-    </FilesMatch>
     <Directory %home%/%user%/web/%domain%/stats>
         AllowOverride None
     </Directory>

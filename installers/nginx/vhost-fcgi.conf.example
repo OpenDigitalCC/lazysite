@@ -62,11 +62,20 @@ server {
     location ^~ /lazysite/ {
         deny all;
     }
-    # SM073: .brief sidecars document authoring intent and are never
-    # public. try_files serves existing files directly, so deny them at
-    # the origin.
-    location ~ \.brief$ {
-        deny all;
+    # SM797: what is SOURCE rather than asset is the engine's to answer, never
+    # this server's. The engine refuses to hand these types out and renders a
+    # page asked for by its source name (/about.md is /about) - but try_files
+    # serves an existing file before lazysite is consulted. So these go to the
+    # engine whether or not the file exists, and every front end gives the
+    # engine's answer. The list is the engine's (%STATIC_DENY in
+    # lazysite-processor.pl) less .shtml/.shtm, a legacy SSI page (SM133) being
+    # served as the front end chooses; t/lint/131 pins it here and in every
+    # other shipped front end. .brief sidecars (SM073) are on it.
+    #
+    # The lookahead keeps the script surfaces out, so this does not depend on
+    # where the /cgi-bin/ and /dav regex locations sit below it.
+    location ~* ^/(?!cgi-bin/|dav(?:/|$)).*\.(?:md|url|brief|bak|swp|swo|orig|old|tmp|conf|ini|env|pem|key|pl|pm|cgi|fcgi|phtml|php|php3|php4|php5|phps|phar|htaccess|htpasswd)$ {
+        try_files /dev/null @lazysite;
     }
 
     # SM248: the per-domain registries must reach the engine, ALWAYS.
@@ -76,7 +85,7 @@ server {
     # domain's request finds a real file and nginx serves the wrong site's
     # sitemap, llms.txt and feeds. The engine has a correct per-Host handler
     # (SM151 P6) and it never runs, because the request never reaches it. Same
-    # structural cause as the .brief deny above.
+    # structural cause as the source hand-off above.
     #
     # An exact-match location beats the generic try_files with no file test, so
     # this works for every domain, now and for any added later, with no config

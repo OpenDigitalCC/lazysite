@@ -48,6 +48,17 @@ our @SITE_IDENTITY = qw(
     site.webmanifest
 );
 
+# SM797: the types that are source rather than asset, which a front end hands to
+# the engine instead of serving - the engine's %STATIC_DENY less the SSI pair
+# (a legacy .shtml page is the front end's to expand). The serve rule below must
+# not answer them from a domain's content root: an alias domain's about.md is a
+# page, and its backup or key is not the web server's to hand out. A copy,
+# because the processor is module-free (ADR 0001); t/lint/131 pins it.
+our @SOURCE_EXT = qw(
+    md url brief bak swp swo orig old tmp conf ini env pem key
+    pl pm cgi fcgi phtml php php3 php4 php5 phps phar htaccess htpasswd
+);
+
 # Parse a lazysite.conf and return an ordered list of { host, root } for every
 # alias host that declares a content_root. Chrome-only aliases (no content_root)
 # are skipped - they share the docroot and need no static rewrite.
@@ -93,6 +104,7 @@ sub apache_snippet {
         return join( "\n", @out ) . "\n";
     }
     my $identity = join '|', map { my $x = $_; $x =~ s/\./\\./g; $x } @SITE_IDENTITY;
+    my $source   = join '|', @SOURCE_EXT;
     for my $d (@$roots) {
         my ( $h, $r ) = ( $d->{host}, $d->{root} );
         push @out,
@@ -126,6 +138,10 @@ sub apache_snippet {
             "# $h: serve this domain's own static files",
             "RewriteCond %{HTTP_HOST} =$h [NC]",
             "RewriteCond %{REQUEST_URI} !^/(?:$exempt)(?:/|\$)",
+            # SM797: never a source type - that falls through to the engine,
+            # wherever the operator placed this block relative to the
+            # template's own hand-off rule.
+            "RewriteCond %{REQUEST_URI} !\\.(?:$source)\$ [NC]",
             "RewriteCond %{DOCUMENT_ROOT}/$r%{REQUEST_URI} -f",
             "RewriteRule ^/?(.*)\$ /$r/\$1 [L]",
             # SM248: this domain has no icon of its own, so the request would
@@ -176,6 +192,9 @@ sub nginx_snippet {
         '# direct static serving at full speed.',
         '# The /lazysite, /cgi-bin and /manager locations must be declared',
         '# BEFORE this one so they are never prefixed with a content root.',
+        '# SM797: keep the shipped source hand-off (the regex location listing',
+        '# md, url, brief and the rest) as it is - a regex location, it answers',
+        '# /about.md before this one on every host, so no content root serves one.',
         '',
         '# SM248: the site identity must never be INHERITED. The location above',
         '# falls back to $uri, which on a multi-domain instance is the PRIMARY',
