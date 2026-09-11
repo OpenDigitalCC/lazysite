@@ -142,6 +142,9 @@
       ov.innerHTML =
         '<div class="mg-modal-overlay"></div>' +
         '<div class="mg-modal-in">' +
+          // SM847: the close a sheet carries, in the same corner, so every
+          // overlay is dismissed the same way. It answers as Cancel does.
+          '<button type="button" class="mg-modal-close" aria-label="Close">&times;</button>' +
           '<div class="mg-modal-msg"></div>' +
           // SEVERAL FIELDS IN ONE ASKING. A two-part answer asked as two
           // consecutive prompts makes the operator hold the first in their
@@ -200,6 +203,7 @@
       }
       box.querySelector('.mg-modal-ok').onclick = function(){ close(collect()); };
       box.querySelector('.mg-modal-cancel').onclick = function(){ close((opts.prompt || opts.fields) ? null : false); };
+      box.querySelector('.mg-modal-close').onclick  = function(){ close((opts.prompt || opts.fields) ? null : false); };
       ov.addEventListener('click', function(e){ if (e.target === ov) close(opts.prompt ? null : false); });
     });
   }

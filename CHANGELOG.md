@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM847 partial (PENDING) **every dialog can be closed where you see it.**
+  Every sheet had a close in its header and no dialog did - not the shared
+  confirm and prompt, not the style preview. Each dialog now carries the same
+  close in the same corner, in all three styles, answering as Cancel; the style
+  guide shows it and `t/lint/133` holds every dialog and sheet on every page to
+  one. The small button is a named catalogue size used in toolbars as well as
+  rows, which is what makes Refresh smaller than Add - where it belongs is a
+  rule still to be made.
+
 - SM793 partial (PENDING) **every escape in the manager covers the apostrophe.**
   The submissions viewer's `esc()` - the one function between a stored form
   value and the operator's session - escaped `& < > "` and not `'`, and a sweep

@@ -203,6 +203,7 @@ or Cancel closes it.</span>
 <div class="mg-modal" id="sg-modal" hidden>
   <div class="mg-modal-overlay" onclick="sgClose('sg-modal')"></div>
   <div class="mg-modal-in">
+    <button type="button" class="mg-modal-close" aria-label="Close" onclick="sgClose('sg-modal')">&times;</button>
     <div class="mg-modal-msg">Type the table name to confirm.</div>
     <input class="mg-modal-input" value="">
     <label class="mg-modal-field"><span>.mg-modal-field &mdash; a labelled part of a multi-part asking</span>

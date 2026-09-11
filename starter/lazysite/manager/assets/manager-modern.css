@@ -709,6 +709,12 @@ summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 /* Prose is capped separately, so a long sentence wraps rather than stretching
    the dialog to the width of the screen. */
 .mg-modal-msg { margin-bottom: 12px; font-size: 14px; max-width: 44rem; }
+/* SM847: every dialog carries the close control a sheet carries, in the same
+   corner, so an overlay is dismissed the same way wherever it opened. Escape
+   and Cancel still close it; this is the one that can be seen. */
+.mg-modal-close { position: absolute; top: 8px; right: 8px; background: none; border: 1px solid transparent; color: var(--mg-text-muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 8px; }
+.mg-modal-close:hover { color: var(--mg-text); border-color: var(--mg-border); }
+.mg-modal-close ~ .mg-modal-msg { padding-right: 28px; }
 .mg-modal-input { width: 100%; margin-bottom: 14px; }
 /* A labelled field inside a modal, for an asking with more than one part. */
 .mg-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }

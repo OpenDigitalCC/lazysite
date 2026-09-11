@@ -355,6 +355,7 @@ function previewStyle(name) {
   wrap.innerHTML =
       '<div class="mg-modal-overlay"></div>'
     + '<div class="mg-modal-in" style="width:min(64rem,94vw);height:82vh;display:flex;flex-direction:column;">'
+    +   '<button type="button" class="mg-modal-close" aria-label="Close">&times;</button>'
     +   '<div class="mg-modal-msg"><strong>' + esc(name) + '</strong> &mdash; every manager component in this style. '
     +     'Nothing is saved by looking.</div>'
     +   '<iframe src="/manager/style-guide?style=' + encodeURIComponent(name) + '" '
@@ -365,6 +366,7 @@ function previewStyle(name) {
   function shut() { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }
   wrap.querySelector('.mg-modal-overlay').onclick = shut;
   wrap.querySelector('.mg-modal-actions .mg-btn').onclick = shut;
+  wrap.querySelector('.mg-modal-close').onclick = shut;
   document.body.appendChild(wrap);
 }
 
