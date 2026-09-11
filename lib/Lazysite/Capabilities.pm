@@ -122,8 +122,8 @@ my %ACTION_INFO = (
         # described a reach the grant had stopped having - the direction that
         # causes over-granting, since a sysop reading it would reach for
         # read_submissions when manage_forms would have done.
-        title => 'Wire forms to delivery handlers: which handler a form '
-            . 'delivers through, and the handler configuration itself. This '
+        title => 'Wire forms to delivery handlers - which handlers a form '
+            . 'calls - and configure the email and file handlers. This '
             . 'grant does NOT read submissions - SM652 narrowed '
             . '`form-submissions` and `form-list` to `read_submissions` on '
             . 'every channel, so an agent that processes leads needs that '
@@ -149,7 +149,12 @@ my %ACTION_INFO = (
         # of them real, four of them snake_case guesses at a kebab-case
         # surface and two of them MCP tool names aimed at the API.
         #
-        grants => 'Choose where a form\'s submissions are delivered - including to an address or URL nobody has pre-defined - and read what has been submitted: whatever each form collects, together with the submitter\'s IP address.',
+        # SM842: THE GRANT NO LONGER NAMES A NEW DESTINATION. It used to reach any
+        # URL through an inline form target; inline targets are gone, and
+        # outbound HTTP goes through a connector, which is manage_connectors'.
+        # What this grant configures is email and file delivery, and which
+        # existing handlers a form calls.
+        grants => 'Choose which handlers each form calls, and create, change and delete the email and file handlers - whose settings name the address mail goes to and the store a submission is kept in. A table handler needs manage_data and a connector handler manage_connectors. It does not read what was submitted; read_submissions does.',
         # SM435 was this defect pointed the other way: the descriptor CLAIMED
         # a path enforcement refused. Under-claiming is the quieter failure -
         # nothing 403s, nothing errors, the agent simply cannot find a door it
@@ -164,9 +169,15 @@ my %ACTION_INFO = (
             # advertised them would tell a holder it can do something the gate
             # refuses. That is the same stale claim SM652's own test caught in
             # form_list's MCP description.
-            api    => [qw(form-delete)],
-            mcp    => [qw(list_form_handlers bind_form delete_form)],
-            webdav => ['lazysite/forms/<name>.conf (not smtp.conf / handlers.conf)'],
+            # SM842: the handler actions are gated ANY-OF the three destination
+            # capabilities (then the handler's type decides), so all three
+            # name them - SM457's rule for cross-gated actions.
+            api => [ qw(form-delete form-targets-read form-targets-save
+                    handler-list handler-save handler-delete
+                    schedule-list schedule-save schedule-delete) ],
+            mcp => [ qw(bind_form delete_form list_handlers save_handler delete_handler
+                    list_schedule save_schedule delete_schedule) ],
+            webdav => ['lazysite/forms/<name>.conf (its targets name existing handlers; not smtp.conf, handlers.conf or schedule.conf)'],
         },
     },
     manage_themes => {
@@ -286,7 +297,11 @@ my %ACTION_INFO = (
             # connector-call is NOT here: the connector gates it (callers
             # groups, or this capability) and the API gate admits any
             # logged-in caller to the action, so the map may not claim it.
-            api => [qw(connector-list connector-save connector-secret-set connector-delete connector-calls)],
+            api => [ qw(connector-list connector-save connector-secret-set connector-delete connector-calls
+                    handler-list handler-save handler-delete form-targets-read
+                    schedule-list schedule-save schedule-delete) ],
+            # SM842: a connector handler is this capability's to configure.
+            mcp => [qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule)],
         },
     },
     manage_data => {
@@ -295,7 +310,9 @@ my %ACTION_INFO = (
         grants => 'Read and write every data table on this instance, and declare new ones. A table that names no domain is reachable by any holder, on any site here.',
         unlocks => {
             api => [
-                qw(data-tables data-table data-table-save data-rows
+                qw(handler-list handler-save handler-delete form-targets-read
+                    schedule-list schedule-save schedule-delete
+                    data-tables data-table data-table-save data-rows
                     data-migrate data-rebuild data-row-save data-row-delete
                     data-export data-import data-table-source data-migrate-plan
                     data-safety-exports
@@ -303,7 +320,8 @@ my %ACTION_INFO = (
             ],
 
             mcp => [
-                qw(list_data_tables describe_data_table save_data_table
+                qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule
+                    list_data_tables describe_data_table save_data_table
                     read_data_rows migrate_data_table rebuild_data_table
                     save_data_row delete_data_row
                     list_data_safety_exports
@@ -637,7 +655,9 @@ my @TASKS = (
     { id => 'wire-form', title => 'Wire a form to a handler',
         requires => ['manage_forms'],
         steps    => [
-            'call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming a sysop-defined handler',
+            'call list_handlers (MCP) or handler-list (control API) to see the handlers',
+            'call bind_form (MCP) or form-targets-save (control API), or PUT lazysite/forms/<name>.conf over WebDAV, naming existing handlers - never a destination',
+            'a handler that does not exist yet is made with save_handler / handler-save, and the destination decides the capability: manage_forms for email or file, manage_data for a table, manage_connectors for a connector',
         ],
     },
     { id => 'migrate-site', title => 'Migrate a site (package one domain and apply it elsewhere)',

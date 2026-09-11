@@ -37,10 +37,13 @@ close $fs;
 sub write_form {
     my ( $name, $extra ) = @_;
     open my $ff, '>', "$docroot/lazysite/forms/$name.conf" or die $!;
-    print {$ff} "spam_dwell: off\nrate_limit: off\n$extra- type: file\n";
+    print {$ff} "spam_dwell: off\nrate_limit: off\n${extra}targets:\n  - handler: store\n";
     close $ff;
     return;
 }
+open my $hcf, '>', "$docroot/lazysite/forms/handlers.conf" or die $!;
+print {$hcf} "handlers:\n  - id: store\n    type: file\n    name: Store\n";
+close $hcf;
 write_form( 'loud',  '' );
 write_form( 'quiet', "notify: off\n" );
 

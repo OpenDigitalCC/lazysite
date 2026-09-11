@@ -702,6 +702,25 @@ sub cmd_install {
                 . scalar(@verr) . " code-file mismatch(es) - run --verify" );
     }
 
+    # ---- the handler contract (SM842) ----
+    #
+    # Once, on an upgrade or reinstall: bring the site's old delivery shapes -
+    # inline form targets, webhook and db handlers, connector schedules - to the
+    # one shape the new engine reads. It runs AFTER the integrity check, so the
+    # code converting the site is the code that was just verified, and it runs
+    # the INSTALLED tool as a separate process, because this installer must not
+    # load the lib (SM767: it runs from a tarball that may not carry one). What
+    # it changed is printed; what it could not convert is a warning in the
+    # summary, because a form that no longer delivers must not hide behind a
+    # finished upgrade.
+    if ( $mode ne 'fresh' ) {
+        my ( $ok, $why ) = run_handler_conversion( $o->{docroot}, \%subs );
+        push @$warnings, 'HANDLERS: the SM842 conversion did not finish cleanly ('
+            . $why . ') - see the lines above, and run lazysite-handlers.pl convert '
+            . '--docroot ' . $o->{docroot} . ' as the site user once they are resolved'
+            unless $ok;
+    }
+
     # ---- invalidate rendered HTML (SM413) ----
     #
     # On an UPGRADE only: a fresh install has nothing rendered yet, and running
@@ -744,6 +763,34 @@ sub cmd_install {
     print_next_steps( $o->{docroot} );
 
     return 0;
+}
+
+# SM842: run the installed handler tool's conversion as the site's owner.
+# Returns ( ok, why ). A payload without the tool (an older one) has nothing
+# to convert. As root the child becomes the docroot's owner first, because the
+# tool refuses to write a site tree as root (SM139) and root-owned handler
+# files are what stops the manager saving them afterwards.
+sub run_handler_conversion {
+    my ( $docroot, $subs ) = @_;
+    my $tool = resolve_placeholders( '{DOCROOT}/../tools/lazysite-handlers.pl', $subs );
+    return ( 1, 'no handler tool in this payload' ) unless -f $tool;
+    info('Handlers: converting to the handler contract (SM842)');
+    my $pid = fork;
+    return ( 0, "cannot fork: $!" ) unless defined $pid;
+    if ( !$pid ) {
+        if ( $> == 0 ) {
+            my @st = stat $docroot;
+            if ( @st && $st[4] != 0 ) {
+                POSIX::setgid( $st[5] );
+                POSIX::setuid( $st[4] );
+            }
+        }
+        exec( $^X, $tool, 'convert', '--docroot', $docroot ) or POSIX::_exit(127);
+    }
+    waitpid $pid, 0;
+    my $rc = $? >> 8;
+    return ( 1, '' ) if $rc == 0;
+    return ( 0, $rc == 1 ? 'something was left unconverted' : "the tool exited $rc" );
 }
 
 # =========================================================

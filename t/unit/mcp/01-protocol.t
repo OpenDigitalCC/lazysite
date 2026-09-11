@@ -355,10 +355,10 @@ ok( ( grep { $_->{to} =~ m{/content/missing} } @{ $au->{broken_links} || [] } ),
 ok( ( grep { $_ eq '/content/p2' } @{ $au->{missing_title} || [] } ), 'audit_site flags a page missing a title' );
 ok( ( grep { $_->{pages} && @{ $_->{pages} } >= 2 } @{ $au->{duplicate_blocks} || [] } ), 'audit_site detects a duplicated block across pages' );
 
-# --- SM088: list_form_handlers + bind_form ---
-( $st, $r ) = call( 'list_form_handlers', {}, $bearer_lim );
+# --- SM088 / SM842: list_handlers + bind_form ---
+( $st, $r ) = call( 'list_handlers', {}, $bearer_lim );
 ok( ( grep { $_->{id} eq 'local-storage' && $_->{type} eq 'file' } @{ $r->{result}{structuredContent}{handlers} || [] } ),
-    'list_form_handlers returns the configured handler (id + type, no secrets)' );
+    'list_handlers returns the configured handler (id + type)' );
 ( $st, $r ) = call( 'bind_form', { form => 'review', handler => 'local-storage' }, $bearer_lim );
 ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'bind_form succeeds' );
 {

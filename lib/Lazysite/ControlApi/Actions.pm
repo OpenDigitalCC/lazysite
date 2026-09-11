@@ -173,8 +173,10 @@ our %ACTION = (
     # the least-privilege capability built for it.
     'form-submissions' => { caps => ['read_submissions'], params => [ { name => 'file', in => 'query' } ] },
     'form-submissions-delete-bulk' => { caps => undef, params => [ { name => 'file', in => 'query_or_body' }, { name => 'ids', in => 'body' } ] },
-    'form-targets-read' => { caps => undef, params => [ { name => 'form', in => 'query' } ] },
-    'form-targets-save' => { caps => undef, params => [ { name => 'form', in => 'query' }, { name => 'targets', in => 'body' } ] },
+    # SM842: a form's targets name handlers and nothing else, on the token
+    # channel as on every other.
+    'form-targets-read' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [ { name => 'form', in => 'query', required => 1 } ] },
+    'form-targets-save' => { caps => ['manage_forms'], params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'handlers', in => 'body', note => 'a list of handler ids; `targets` as [{handler: id}] is read the same way' }, { name => 'targets', in => 'body' } ] },
     'git-history' => { caps => ['manage_content'], params => [ { name => 'path', in => 'query' }, { name => 'limit', in => 'query' } ] },
     # SM664: reachable with either - the overview sits on the Plugin Config
     # page, whose audience holds manage_config, and is a reporting read.
@@ -193,9 +195,15 @@ our %ACTION = (
         # extracts the branch rather than trusting this table, so it said so.
         params => [ { name => 'form', in => 'query_or_body' },
             { name => 'confirm', in => 'body' } ] },
-    'handler-delete' => { caps => undef, params => [ { name => 'id', in => 'body' } ] },
-    'handler-list'   => { caps => undef, params => [] },
-    'handler-save'   => { caps => undef, params => [] },
+    # SM842: handler CRUD reaches the token channel, reversing SM799's
+    # cookie-only rule. Any of the three destination capabilities opens the
+    # door; the handler's type then decides (Lazysite::Handlers::cap_for_type).
+    'handler-delete' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [ { name => 'id', in => 'body', required => 1 } ] },
+    'handler-list' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [] },
+    'handler-save' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [ { name => 'id', in => 'body', required => 1 }, { name => 'type', in => 'body', required => 1, note => 'smtp, file, table or connector; handler-list returns each type\'s fields' }, { name => 'name', in => 'body', required => 1 }, { name => 'enabled', in => 'body' } ] },
+    'schedule-list' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [] },
+    'schedule-save' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [ { name => 'id', in => 'body', required => 1 }, { name => 'handler', in => 'body', required => 1 }, { name => 'every', in => 'body', required => 1, note => 'seconds, at least 300' }, { name => 'payload', in => 'body', note => 'a flat object of fixed fields' }, { name => 'enabled', in => 'body' } ] },
+    'schedule-delete' => { caps => [ 'manage_forms', 'manage_data', 'manage_connectors' ], params => [ { name => 'id', in => 'body', required => 1 } ] },
     'key-revoke'     => { caps => undef, params => [] },
     'keys-list'      => { caps => undef, params => [] },
     'lang-status' => { caps => ['manage_content'], params => [ { name => 'group', in => 'query' } ] },

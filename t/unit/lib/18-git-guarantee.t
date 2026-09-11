@@ -176,22 +176,27 @@ my %EXEMPT = (
     'Plugins::action_plugin_action' => 'dispatches a plugin child process; a plugin '
         . 'that mutates content owns its capture (git-sync commits via Lazysite::Git '
         . 'and snapshots before any apply)',
-    'Plugins::action_handler_list'      => 'read-only',
-    'Plugins::action_form_targets_read' => 'read-only',
     'Plugins::action_form_submissions'  => 'read-only',
     'Plugins::action_form_list'         => 'read-only',
     'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',
-    'Plugins::action_handler_save'   =>
+    # --- Handlers (SM842: the handler contract moved out of Plugins) ---
+    'Handlers::action_handler_list'      => 'read-only',
+    'Handlers::action_form_targets_read' => 'read-only',
+    'Handlers::action_schedule_list'     => 'read-only',
+    'Handlers::action_handler_save'      =>
         'writes under lazysite/forms/ - excluded from the versioned set',
+    'Handlers::action_handler_delete'     => 'as action_handler_save',
+    'Handlers::action_form_targets_save'  => 'as action_handler_save',
+    'Handlers::action_schedule_save'      => 'as action_handler_save',
+    'Handlers::action_schedule_delete'    => 'as action_handler_save',
     # SM632: removes a form REGISTRATION, which lives under lazysite/forms/ and
     # is outside the versioned content set for the same reason handler-save is.
     # The page that used the form is content and is edited separately.
     'Plugins::action_form_delete' =>
-        'removes a conf under lazysite/forms/ - excluded from the versioned set',
-    'Plugins::action_handler_delete'         => 'as action_handler_save',
-    'Plugins::action_form_targets_save'      => 'as action_handler_save',
+        'removes a conf under lazysite/forms/ - excluded from the versioned set, as '
+        . 'Handlers::action_handler_save',
     'Plugins::action_form_submission_delete' =>
         'rewrites a submissions store under lazysite/forms/ - excluded from the versioned set',
     'Plugins::action_form_submission_confirm' =>
@@ -275,6 +280,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Upload  => [ "$root/lib/Lazysite/Manager/Upload.pm",  qr/^action_/ ],
         Backups => [ "$root/lib/Lazysite/Manager/Backups.pm", qr/^action_/ ],
         Plugins => [ "$root/lib/Lazysite/Manager/Plugins.pm", qr/^action_/ ],
+        Handlers => [ "$root/lib/Lazysite/Handlers.pm",       qr/^action_/ ],    # SM842
         Layouts => [ "$root/lib/Lazysite/Manager/Layouts.pm", qr/^action_/ ],
         Themes  => [ "$root/lib/Lazysite/Manager/Themes.pm",  qr/^action_/ ],
         # SM318: navigation moved out of the API script into its own module so

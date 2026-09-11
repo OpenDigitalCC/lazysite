@@ -71,9 +71,20 @@ ok( $visible, '_visible_fields is present' );
 like( $visible, qr/for my \$k \( sort keys %\$form \) \{\s*next if \$k =~ [^;]+;/,
     'and it is the one place the _-prefixed keys are skipped' );
 
-my @users = ( $code =~ /_visible_fields\(\s*\$form\s*\)/g );
+# SM842: delivery moved to Lazysite::Handlers. The form handler hands every
+# handler the visible fields and nothing else, and the deliverers there build
+# their records from what they were handed through their own filter - so a
+# caller without one (the schedule's payload) cannot leak a _-prefixed key.
+like( $code, qr/Lazysite::Handlers::deliver\(\s*\$id,\s*\{\s*_visible_fields\(\s*\\%form\s*\)\s*\}/,
+    'every handler is handed the visible fields and nothing else' );
+my $hsrc = do { open my $fh, '<', "$root/lib/Lazysite/Handlers.pm" or die $!; local $/; <$fh> };
+( my $hcode = $hsrc ) =~ s/^\s*#.*$//mg;
+my ($hvis) = $hcode =~ /\nsub _visible \{(.*?)\n\}/s;
+like( $hvis // '', qr/grep \{ !\/\\A_\/ \}/,
+    'the deliverers\' own filter drops every _-prefixed key' );
+my @users = ( $hcode =~ /_visible\(\$fields\)/g );
 cmp_ok( scalar @users, '>=', 3,
-    'the file, SMTP and webhook targets each build their record through it' );
+    'the file, SMTP and connector deliverers each build their record through it' );
 
 my $smtp = "$root/plugins/form-smtp.pl";
 SKIP: {

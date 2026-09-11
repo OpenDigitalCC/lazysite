@@ -116,6 +116,7 @@ my %REASON = (
     403 => 'Forbidden',             404 => 'Not Found',   405 => 'Method Not Allowed',
     409 => 'Conflict',              412 => 'Precondition Failed',
     413 => 'Payload Too Large',     415 => 'Unsupported Media Type',
+    422 => 'Unprocessable Entity',
     423 => 'Locked',                429 => 'Too Many Requests',
     500 => 'Internal Server Error', 502 => 'Bad Gateway',
     503 => 'Service Unavailable',   507 => 'Insufficient Storage',
@@ -592,6 +593,26 @@ sub do_put {
                 unlink $tmp;
                 $REFUSAL_DETAIL = $why;
                 return send_status( 415, body => "$err\n" );
+            }
+        }
+    }
+    # SM842: A FORM'S CONFIG MEETS THE BINDING RULES HERE TOO. Its targets name
+    # handlers that exist and nothing else - the same rule form-targets-save
+    # and bind_form apply - so an inline target cannot come back through the
+    # file door after the upgrade converted every one. 422: the request was
+    # well formed and its content is what the engine cannot take.
+    if ( $a{rel} =~ m{\Alazysite/forms/[A-Za-z0-9_-]+\.conf\z} ) {
+        require Lazysite::Handlers;
+        no warnings 'once';
+        local $Lazysite::Handlers::DOCROOT = $DOCROOT;
+        if ( open my $cf, '<:encoding(UTF-8)', $tmp ) {
+            my $text = do { local $/; <$cf> };
+            close $cf;
+            my $problems = Lazysite::Handlers::form_conf_problems($text);
+            if (@$problems) {
+                unlink $tmp;
+                $REFUSAL_DETAIL = join '; ', @$problems;
+                return send_status( 422, body => join( "\n", @$problems ) . "\n" );
             }
         }
     }
@@ -1481,15 +1502,18 @@ sub authorise {
     # (handler-save / form-targets-save) and MCP (bind_form) require, and the one
     # Capabilities.pm documents as owning lazysite/forms/<name>.conf (cross-plane
     # consistency, 0.8.1: WebDAV previously used manage_config). It only names
-    # which operator-defined handlers a form dispatches to, never credentials.
-    # The secret files - smtp.conf (SMTP creds), handlers.conf (handler
-    # definitions, addresses, webhook URLs), .smtp-password - and the submissions
-    # store stay denied, so an agent can wire a form to file storage but cannot
-    # read creds, add handlers, or read submissions.
+    # which handlers a form dispatches to, never credentials. The files that are
+    # not forms - smtp.conf (SMTP creds), handlers.conf (handler definitions,
+    # addresses) and schedule.conf (what the timer calls, SM842) - and
+    # .smtp-password and the submissions store stay denied: handlers and the
+    # schedule are created through the handler actions, where the DESTINATION
+    # decides who may (SM842), and a raw file write would skip that. A form's
+    # own config is shape-checked in do_put: its targets name existing
+    # handlers and nothing else.
     if ( $rel =~ m{^lazysite/forms/([A-Za-z0-9_-]+)\.conf$} ) {
         my $name = $1;
         return _deny( 403, "lazysite/forms/$name.conf is protected (it holds credentials/handler definitions) and is not editable over WebDAV" )
-            if $name eq 'smtp' || $name eq 'handlers';
+            if $name eq 'smtp' || $name eq 'handlers' || $name eq 'schedule';
         return undef if manage_forms_for($user);
         return _deny( 403, "editing lazysite/forms/$name.conf requires the manage_forms capability" );
     }

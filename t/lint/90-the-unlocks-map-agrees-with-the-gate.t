@@ -59,8 +59,11 @@ my %path_aware;    # tools reaching a capability by the SM653 path rule
 while ( $tools_block =~ /^\s{4}(\w+)\s*=>\s*\{(.*?)^\s{4}\},/gms ) {
     my ( $name, $body ) = ( $1, $2 );
     my ($c)  = $body =~ /^\s*cap\s*=>\s*'([^']+)'/m;
-    my ($ca) = $body =~ /^\s*cap_also\s*=>\s*'([^']+)'/m;
-    $gate{$name}       = [ grep { defined && length } ( $c, $ca ) ];
+    # SM842: cap_also names one capability, or a list of them.
+    my @ca;
+    if ( my ($one) = $body =~ /^\s*cap_also\s*=>\s*'([^']+)'/m ) { @ca = ($one) }
+    elsif ( my ($list) = $body =~ /^\s*cap_also\s*=>\s*\[([^\]]*)\]/m ) { @ca = $list =~ /'([^']+)'/g }
+    $gate{$name}       = [ grep { defined && length } ( $c, @ca ) ];
     # NOT line-anchored: path_aware is declared on the same line as cap
     # (`cap => 'manage_content', path_aware => 1,`), so /^\s*path_aware/ matched
     # none of the 29 and the exclusion set came back empty - which the

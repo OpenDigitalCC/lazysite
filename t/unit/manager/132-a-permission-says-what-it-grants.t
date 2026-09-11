@@ -62,10 +62,13 @@ my $caps = Lazysite::Capabilities::describe()->{capabilities} || {};
         'audit says the trail is instance-wide' );
     like( $caps->{audit}{grants}, qr/\bIP\b/,
         'and that entries carry a source IP' );
-    like( $caps->{manage_forms}{grants}, qr/not.{0,20}pre-defined|nobody has pre-defined/i,
-        'manage_forms says delivery can go somewhere nobody pre-defined' );
-    like( $caps->{manage_forms}{grants}, qr/submitt|IP/i,
-        'and that it reads what visitors sent' );
+    # SM842: it used to say delivery could go somewhere nobody pre-defined -
+    # the inline target, gone. What surprises now is that the destination, not
+    # this grant, decides who may make a table or connector handler.
+    like( $caps->{manage_forms}{grants}, qr/table handler needs manage_data and a connector handler manage_connectors/,
+        'manage_forms says which handlers are NOT its to make' );
+    like( $caps->{manage_forms}{grants}, qr/does not read what was submitted; read_submissions does/,
+        'and that it does not read what visitors sent (SM652)' );
     like( $caps->{purge}{grants}, qr/instance-wide|other sites/i,
         'purge says the backup store reaches other sites' );
     like( $caps->{manage_config}{grants}, qr/switch|service/i,

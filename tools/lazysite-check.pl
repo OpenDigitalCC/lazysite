@@ -1076,6 +1076,7 @@ sub run_checks {
 
     # --- 8h. templates written for 0.12's raw db values (SM844) ------------------
     report_double_escaped_db_templates();
+    report_unconverted_delivery();
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
@@ -1759,6 +1760,49 @@ sub report_double_escaped_db_templates {
     }
     else {
         report( 'OK', 'no page binds a data table and also applies | html to it' );
+    }
+    return;
+}
+
+# SM842: delivery shapes the handler contract no longer reads - an inline form
+# target, a webhook, api or db handler, a connector that schedules itself. The
+# upgrade converts them (install.pl runs lazysite-handlers.pl convert); this
+# says so when one survived, because each is a form or a timer that has quietly
+# stopped delivering. A text scan, not the converter, because this tool is
+# core-Perl by design; the converter is what repairs.
+sub report_unconverted_delivery {
+    my $forms = "$LZ/forms";
+    my @found;
+    if ( opendir my $dh, $forms ) {
+        for my $f ( sort grep { /\.conf\z/ } readdir $dh ) {
+            next if $f =~ /\A(?:smtp|schedule)\.conf\z/;
+            open my $cf, '<', "$forms/$f" or next;
+            my $text = do { local $/; <$cf> };
+            close $cf;
+            if ( $f eq 'handlers.conf' ) {
+                push @found, "handler '$1' is a '$2' handler"
+                    while $text =~ /^[ \t]*-[ \t]+id:[ \t]*(\S+)(?:(?!^[ \t]*-[ \t]+id:).)*?^[ \t]+type:[ \t]*(webhook|api|db)[ \t]*$/gmsx;
+                next;
+            }
+            push @found, "form '" . ( $f =~ s/\.conf\z//r ) . "' has an inline target"
+                if $text =~ /^[ \t]*-[ \t]+type:/m;
+        }
+        closedir $dh;
+    }
+    if ( open my $cj, '<', "$LZ/connectors/connectors.json" ) {
+        my $text = do { local $/; <$cj> };
+        close $cj;
+        push @found, 'a connector carries its own schedule (schedule_every)' if $text =~ /"schedule_every"/;
+    }
+    if (@found) {
+        report( 'WARN',
+            scalar(@found) . ' delivery setting(s) the engine no longer reads: ' . join( '; ', @found )
+                . ' - each is a form or a timer that delivers nothing until converted',
+            "run: lazysite-handlers.pl convert --docroot $opt{docroot} (as the site user); it says what it "
+                . 'changed and anything it could not' );
+    }
+    else {
+        report( 'OK', 'every form and schedule names a handler the engine reads' );
     }
     return;
 }

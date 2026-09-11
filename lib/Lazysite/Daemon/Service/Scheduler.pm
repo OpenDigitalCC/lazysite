@@ -97,16 +97,24 @@ our %JOBS = (
         run   => \&Lazysite::Daemon::Jobs::connectors_sweep,
     },
 
-    # SM579 phase 2, mode 1: call every connector whose declared interval has
-    # elapsed. ONE job, and this table stays a closed literal - a connector
-    # says how OFTEN it wants calling; it cannot add a job, change this
-    # schedule, or reach the identity gate. The tick is 300s because that is
-    # the floor a connector's schedule_every may declare; a connector asking
-    # for less would be told it runs every minute while it did not.
-    'connectors-call' => {
+    # SM842: THE SCHEDULE CALLS HANDLERS. ONE job, and this table stays a
+    # closed literal: a site's schedule (lazysite/forms/schedule.conf) says
+    # which handler to call, how often and with what fixed fields - it cannot
+    # add a job, change this interval, or reach the identity gate. It replaces
+    # connectors-call, which could call one kind of thing.
+    #
+    # `needs` is undef because the capability is the DESTINATION's, and differs
+    # per entry: the body asks, of each due entry, whether this job account
+    # holds the capability its handler's type needs - the same
+    # Lazysite::Handlers::cap_for_type that gates creating the handler, so the
+    # two cannot drift - and records a refusal for the entry when it does not.
+    # run_jobs is still required before the body runs at all.
+    #
+    # The tick is 300s because that is the floor an entry may declare.
+    'schedule-run' => {
         every => 300,
-        needs => 'manage_connectors',
-        run   => \&Lazysite::Daemon::Jobs::connectors_call_due,
+        needs => undef,
+        run   => \&Lazysite::Daemon::Jobs::schedule_run,
     },
 );
 
@@ -346,7 +354,7 @@ sub tick {
             next;
         }
 
-        my $res = eval { $job->{run}->( docroot => $root, actor => $user ) };
+        my $res = eval { $job->{run}->( docroot => $root, actor => $user, caps => $caps, now => $now ) };
         if ( !$res ) {
             my $detail = 'the job died; see the site log';
             $runs->{$name} = { last_run => $now, outcome => 'error',

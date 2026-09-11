@@ -16,74 +16,57 @@
 # make_path(dirname($path)) with no docroot is an attempt to create /forms at
 # the root of the filesystem, and then to write a config file into it. It fails
 # for want of permission on any sane host, which is luck, not design.
+#
+# SM842: handlers.conf moved to Lazysite::Handlers, the one reader and writer,
+# and the guard moved with it. The reader is now stronger than SM598 left it:
+# no docroot answers undef - "cannot tell" - rather than an empty list.
 use strict;
 use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-require Lazysite::Manager::Plugins;
+require Lazysite::Handlers;
 
 # --- 1. no docroot yields no path -------------------------------------------
-{
-    local $Lazysite::Manager::Plugins::DOCROOT = undef;
-    my $p = Lazysite::Manager::Plugins::_handlers_conf_path();
-    is( $p, undef, 'an undefined docroot yields no path at all' );
-}
-{
-    local $Lazysite::Manager::Plugins::DOCROOT = '';
-    my $p = Lazysite::Manager::Plugins::_handlers_conf_path();
-    is( $p, undef, 'and neither does an empty one' );
+for my $d ( undef, '' ) {
+    local $Lazysite::Handlers::DOCROOT = $d;
+    my $p = Lazysite::Handlers::handlers_file();
+    is( $p, undef, 'no docroot (' . ( defined $d ? 'empty' : 'undef' ) . ') yields no path at all' );
+    isnt( $p, '/forms/handlers.conf',
+        'never the filesystem-root path the concatenation used to produce' );
+    is( Lazysite::Handlers::schedule_file(), undef, 'nor a schedule path' );
 }
 
-# --- 2. it is never a root-anchored path ------------------------------------
-# The specific shape of the defect: "/forms/handlers.conf". Asserted directly,
-# because "undef" and "a path that happens to be wrong" are different failures
-# and only one of them is caught by the check above.
+# --- 2. a real docroot still works ------------------------------------------
 {
-    for my $d ( undef, '' ) {
-        local $Lazysite::Manager::Plugins::DOCROOT = $d;
-        my $p = Lazysite::Manager::Plugins::_handlers_conf_path();
-        isnt( $p, '/forms/handlers.conf',
-            'never the filesystem-root path the concatenation used to produce' );
-    }
-}
-
-# --- 3. a real docroot still works ------------------------------------------
-# The guard must not have made the ordinary case unreachable.
-{
-    local $Lazysite::Manager::Plugins::DOCROOT = '/srv/example/public_html';
-    my $p = Lazysite::Manager::Plugins::_handlers_conf_path();
+    local $Lazysite::Handlers::DOCROOT = '/srv/example/public_html';
+    my $p = Lazysite::Handlers::handlers_file();
     ok( defined $p, 'a real docroot still yields a path' );
-    like( $p, qr{^/srv/example/public_html/.*forms/handlers\.conf$},
-        'inside the site, where it belongs' );
+    like( $p, qr{^/srv/example/public_html.*/forms/handlers\.conf$}, 'inside the site, where it belongs' );
 }
 
-# --- 4. the writer refuses rather than writing to the root ------------------
-# The assertion that matters. A reader returning [] is survivable; a writer
-# creating /forms is not.
+# --- 3. the writer refuses rather than writing to the root ------------------
 {
-    local $Lazysite::Manager::Plugins::DOCROOT = undef;
-    my $rc = Lazysite::Manager::Plugins::_write_handlers_conf( [] );
-    ok( !$rc,         'the writer refuses when there is no docroot' );
+    local $Lazysite::Handlers::DOCROOT = undef;
+    my ( $ok, $why ) = Lazysite::Handlers::write_handlers( [] );
+    ok( !$ok,         'the writer refuses when there is no docroot' );
+    like( $why, qr/no docroot/, 'and says why' );
     ok( !-e '/forms', 'and created nothing at the filesystem root' );
 }
 
-# --- 5. the reader says no-docroot is not no-handlers ----------------------
-# Both return an empty list. One of them is a fault, and it says so once.
+# --- 4. the reader says no-docroot is not no-handlers ----------------------
 {
-    local $Lazysite::Manager::Plugins::DOCROOT = undef;
-    my $h = Lazysite::Manager::Plugins::_parse_handlers_conf();
-    is_deeply( $h, [], 'the reader still returns an empty list' );
-
-    my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Plugins.pm" or die $!;
-        local $/; <$fh>;
-    };
-    my ($fn) = $src =~ /(sub _parse_handlers_conf \{.*?\n\})/s;
-    like( $fn, qr/log_event/,
-        'and logs, so a missing docroot is distinguishable from a site with '
-            . 'no handlers configured - the two are not the same finding' );
+    local $Lazysite::Handlers::DOCROOT = undef;
+    my @log;
+    no warnings 'redefine';
+    local *Lazysite::Handlers::log_event = sub { push @log, [@_] };
+    is( Lazysite::Handlers::read_handlers(), undef,
+        'the reader answers undef - cannot tell - not an empty list' );
+    ok( ( grep { ( $_->[2] // '' ) =~ /no docroot/ } @log ),
+        'and logs, so a missing docroot is distinguishable from a site with no handlers' );
+    my $r = Lazysite::Handlers::action_handler_list();
+    ok( !$r->{ok}, 'and the listing refuses rather than showing an empty site' );
 }
 
 done_testing();

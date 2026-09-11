@@ -12,6 +12,10 @@
 # names come from handlers.conf, which no visitor can write. A form field
 # nobody mapped is dropped rather than guessed at - so a form growing a field
 # cannot grow a column, and a submitted field called `role` cannot become one.
+#
+# SM842: the `db` handler became `table` with keep_copy: false, and delivery
+# moved into Lazysite::Handlers - the same code the schedule calls. This file
+# drives it there, through deliver(), rather than through the plugin.
 use strict;
 use warnings;
 use Test::More;
@@ -26,6 +30,7 @@ BEGIN {
 }
 use TestHelper qw(repo_root);
 use Lazysite::Data::Tables qw(apply_schema read_rows);
+use Lazysite::Handlers ();
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -55,7 +60,9 @@ open my $hf, '>', "$docroot/lazysite/forms/handlers.conf" or die $!;
 print {$hf} <<'CONF';
 handlers:
   - id: store
-    type: db
+    type: table
+    name: Store
+    keep_copy: false
     table: enquiries
     fields: ref=ref,name=name,message=body,when=wanted_on
 CONF
@@ -74,42 +81,19 @@ sub set_plugins {
 }
 set_plugins(1);
 
-# dispatch_db takes the handler config and the parsed form - exactly what
-# dispatch() hands it. Driving it directly keeps this file about the DB half;
-# the surrounding form machinery has its own tests.
-#
-# LOADING THE PLUGIN EMITS AN HTTP RESPONSE. It has no `unless caller` guard -
-# plugins/data.pl has one, so the convention exists and this file simply lacks
-# it - so its top level runs and prints `Status: 200 OK` with a JSON body onto
-# STDOUT, straight into the middle of the TAP stream. The run came apart with
-# "tests out of sequence", which reads as a broken product rather than a
-# harness picking up somebody else's output.
-#
-# Redirected with select() rather than by reopening the handle: Test::Builder
-# CACHES STDOUT and STDERR, so closing and reopening either one breaks the
-# harness itself. select() moves only the default handle that an unqualified
-# print uses, which is exactly what the plugin writes to and nothing that
-# Test::More touches.
-{
-    local $ENV{DOCUMENT_ROOT} = $docroot;
-    my $swallowed = '';
-    open my $sink, '>', \$swallowed or die $!;
-    my $prev = select $sink;
-    do "$root/plugins/form-handler.pl";
-    select $prev;
-    close $sink;
+$Lazysite::Handlers::DOCROOT = $docroot;
 
-    ok( defined &main::dispatch_db, 'the db handler is defined' )
-        or BAIL_OUT( "could not load form-handler.pl: " . ( $@ || $! || '?' ) );
-    like( $swallowed, qr/Status:/,
-        'and loading it emitted an HTTP response, which this file absorbed' )
-        or diag( 'If this stops matching, the plugin has grown a caller guard '
-            . 'and the redirect above is no longer needed.' );
+# One handler record, delivered as a form would deliver it.
+sub dispatch_db {
+    my ( $h, $fields ) = @_;
+    my $r = Lazysite::Handlers::deliver( 'store', $fields,
+        origin => 'form', source => 'form:contact', store => 'contact',
+        handlers => [ { id => 'store', name => 'Store', keep_copy => 'false', %$h } ] );
+    return $r->{ok};
 }
-{ no warnings 'once'; $main::DOCROOT = $docroot; }
 
 my %handler = (
-    type   => 'db',
+    type   => 'table',
     table  => 'enquiries',
     fields => 'ref=ref,name=name,message=body,when=wanted_on',
 );
@@ -117,7 +101,7 @@ my %handler = (
 sub rows { return read_rows( $docroot, 'enquiries', as => 'operator' )->{rows} || [] }
 
 subtest 'a submission becomes a row' => sub {
-    my $ok = main::dispatch_db( \%handler,
+    my $ok = dispatch_db( \%handler,
         {   _form   => 'contact',
             ref     => 'E1',
             name    => 'Ada',
@@ -138,7 +122,7 @@ subtest 'AN UNMAPPED FIELD IS DROPPED, NOT STORED' => sub {
     # The submitter controls the form's field names. If an unmapped field found
     # its way into the row, a visitor could write to any column they could
     # guess - which is the whole reason the mapping is operator-only.
-    my $ok = main::dispatch_db( \%handler,
+    my $ok = dispatch_db( \%handler,
         {   _form => 'contact',
             ref   => 'E2',
             name  => 'Grace',
@@ -156,7 +140,7 @@ subtest 'AN UNMAPPED FIELD IS DROPPED, NOT STORED' => sub {
 };
 
 subtest 'a value the descriptor refuses fails the delivery' => sub {
-    my $ok = main::dispatch_db( \%handler,
+    my $ok = dispatch_db( \%handler,
         { _form => 'contact', ref => 'E3', when => '32nd of Never' } );
     ok( !$ok, 'the handler reports NOT delivered' )
         or diag( 'A visitor thanked for a submission that was silently '
@@ -166,20 +150,20 @@ subtest 'a value the descriptor refuses fails the delivery' => sub {
 };
 
 subtest 'the operator has to say where it goes' => sub {
-    ok( !main::dispatch_db( { type => 'db', fields => 'a=b' },
+    ok( !dispatch_db( { type => 'table', fields => 'a=b' },
             { _form => 'c', a => 'x' } ),
         'no table: refused' );
-    ok( !main::dispatch_db( { type => 'db', table => 'enquiries' },
+    ok( !dispatch_db( { type => 'table', table => 'enquiries' },
             { _form => 'c', name => 'x' } ),
         'no fields mapping: refused' )
         or diag( 'Mapping same-named fields automatically would mean a form '
             . 'gaining a field silently starts writing a column.' );
-    ok( !main::dispatch_db(
-            { type => 'db', table => '../../etc/passwd', fields => 'a=b' },
+    ok( !dispatch_db(
+            { type => 'table', table => '../../etc/passwd', fields => 'a=b' },
             { _form => 'c', a => 'x' } ),
         'a table name that is not one: refused' );
-    ok( !main::dispatch_db(
-            { type => 'db', table => 'enquiries', fields => 'name=../evil' },
+    ok( !dispatch_db(
+            { type => 'table', table => 'enquiries', fields => 'name=../evil' },
             { _form => 'c', name => 'x' } ),
         'a column name that is not one: refused' );
 };
@@ -189,7 +173,7 @@ subtest 'OFF MEANS OFF, on this path too' => sub {
     # would be the plugin still running after being turned off.
     set_plugins(0);
     my $before = scalar @{ rows() };
-    ok( !main::dispatch_db( \%handler,
+    ok( !dispatch_db( \%handler,
             { _form => 'contact', ref => 'E9', name => 'Nope' } ),
         'the handler refuses while the data plugin is disabled' );
     set_plugins(1);

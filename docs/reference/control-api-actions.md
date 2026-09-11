@@ -118,17 +118,17 @@ tone: medium
 `form-submission-delete` | cookie only | file (query_or_body), id (body)
 `form-submissions` | read_submissions | file (query)
 `form-submissions-delete-bulk` | cookie only | file (query_or_body), ids (body)
-`form-targets-read` | cookie only | form (query)
-`form-targets-save` | cookie only | form (query), targets (body)
+`form-targets-read` | manage_forms / manage_data / manage_connectors | form (query)
+`form-targets-save` | manage_forms | form (query_or_body), handlers (body), targets (body)
 `git-history` | manage_content | path (query), limit (query)
 `git-history-summary` | manage_content / manage_config |  
 `git-init` | manage_config |  
 `git-restore` | manage_content | path (query), sha (query)
 `git-show` | manage_content | path (query), sha (query)
 `git-status` | manage_content |  
-`handler-delete` | cookie only | id (body)
-`handler-list` | cookie only |  
-`handler-save` | cookie only |  
+`handler-delete` | manage_forms / manage_data / manage_connectors | id (body)
+`handler-list` | manage_forms / manage_data / manage_connectors |  
+`handler-save` | manage_forms / manage_data / manage_connectors | id (body), type (body), name (body), enabled (body)
 `key-revoke` | cookie only |  
 `keys-list` | cookie only |  
 `lang-status` | manage_content | group (query)
@@ -173,6 +173,9 @@ tone: medium
 `renew-lock` | cookie only | path (query)
 `rotate-auth-secret` | cookie only |  
 `save` | cookie only | path (query), content (body), mtime (body)
+`schedule-delete` | manage_forms / manage_data / manage_connectors | id (body)
+`schedule-list` | manage_forms / manage_data / manage_connectors |  
+`schedule-save` | manage_forms / manage_data / manage_connectors | id (body), handler (body), every (body), payload (body), enabled (body)
 `session-revoke` | cookie only |  
 `sessions-list` | cookie only |  
 `site-backup-apply` | manage_domains |  

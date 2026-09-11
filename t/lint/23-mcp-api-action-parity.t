@@ -137,6 +137,16 @@ my %PAIR = (
     # right way round: a create with no undo is what left a registration on a
     # live site that nobody with a token could remove.
     'form-delete'         => 'delete_form',
+    # SM842: the handler contract on both surfaces at once - handler CRUD
+    # reversed SM799's cookie-only rule, and bind_form stopped being MCP-only
+    # now that form-targets-save takes handler ids and nothing else.
+    'form-targets-save' => 'bind_form',
+    'handler-list'      => 'list_handlers',
+    'handler-save'      => 'save_handler',
+    'handler-delete'    => 'delete_handler',
+    'schedule-list'     => 'list_schedule',
+    'schedule-save'     => 'save_schedule',
+    'schedule-delete'   => 'delete_schedule',
     'git-history'         => 'list_versions',
     'git-history-summary' => 'list_content_history',
     'git-show'            => 'view_version',
@@ -250,6 +260,10 @@ my %API_ONLY = (
     # N13-04: switching the audit trail off is an operator act by ruling, and an
     # agent must not be able to switch off the record of what it does.
     'audit-trail-set' => 'N13-04: an agent must not be able to switch off the record of what it does',
+    # SM842: one form's handler list. list_handlers returns every binding
+    # already (used_by on each handler), so a twin would be a second read of
+    # the same fact.
+    'form-targets-read' => 'SM842: list_handlers carries every binding as used_by',
 
     # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
     # has no named twin because set_permissions with empty read/write lists
@@ -327,8 +341,6 @@ my %MCP_ONLY = (
     'theme_tokens'    => 'undecided',
     'create_theme'    => 'undecided',
     # SM262: create_theme's counterpart now exists; see the %PAIR entry.
-    'list_form_handlers' => 'undecided',
-    'bind_form'          => 'undecided',
     'audit_site'         => 'undecided',
     'create_form'        => 'undecided',
     'validate_page'      => 'undecided',

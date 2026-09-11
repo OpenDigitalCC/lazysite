@@ -26,6 +26,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM842: handlers, form bindings and the schedule from a shell - and the conversion install.pl runs from here on an upgrade.",
+      "pattern": "^tools/lazysite-handlers\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-handlers.pl",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/lazysite-domains\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-domains.pl",
       "bucket": "code"

@@ -72,6 +72,14 @@ elsif ( $verb eq 'acl' ) {
         ? run_tool_per_site( 'tools/lazysite-acl.pl', $targets, \@ARGV )
         : run_tool( 'tools/lazysite-acl.pl', @ARGV );
 }
+# SM842: handlers, form bindings, the schedule - and `convert`, which a fleet
+# can run with --all when an upgrade reported something left unconverted.
+elsif ( $verb eq 'handlers' ) {
+    my $targets = extract_site_targets( \@ARGV );
+    $targets
+        ? run_tool_per_site( 'tools/lazysite-handlers.pl', $targets, \@ARGV )
+        : run_tool( 'tools/lazysite-handlers.pl', @ARGV );
+}
 elsif ( $verb eq 'migrate-engine-tree' ) { exit cmd_migrate_engine_tree() }
 elsif ( $verb eq 'dev' )                 { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
 elsif ( $verb eq 'demo' )                { exit cmd_demo() }
@@ -144,6 +152,10 @@ Verbs:
                          who may read or write a file,
         a folder, or the whole site (lazysite-acl.pl). Same rules and
         same store as the manager, the control API and MCP.
+  handlers [args...]     Delivery handlers, form bindings and the schedule
+                         (also --domain NAME | --all), and `convert`, the
+        upgrade's conversion (lazysite-handlers.pl). Same rules as the
+        manager, the control API and MCP.
   dev [args...]          Local dev server (lazysite-server.pl).
   demo [--port N] [--dir PATH]
         Instant try-it: fresh-install a scratch site (default
@@ -1251,6 +1263,7 @@ lazysite - host-side management CLI for lazysite sites
   lazysite check [args...]
   lazysite users [args...]
   lazysite acl [args...]
+  lazysite handlers [args...]
   lazysite repair --docroot D | --domain NAME | --all [--dry-run]
   lazysite probe --docroot D | --domain NAME | --all
   lazysite migrate-engine-tree --docroot D | --all [--apply] [--back] [--min-version V]
@@ -1346,6 +1359,13 @@ Pass-through to C<tools/lazysite-acl.pl> (per-path access: who may read or
 write a file, a folder, or the whole site). Takes C<--domain NAME> or
 C<--all> in place of C<--docroot>, resolved from the registry. Same rules
 and same store as the manager, the control API and MCP.
+
+=item B<handlers> [args...]
+
+Pass-through to C<tools/lazysite-handlers.pl>: the delivery handlers a form or
+the schedule calls, which forms call which, and the schedule - and
+C<convert>, the conversion an upgrade runs (SM842). Takes C<--domain NAME> or
+C<--all> in place of C<--docroot>. A write needs C<--actor>.
 
 =item B<repair> --docroot D | --domain NAME | --all [--dry-run]
 

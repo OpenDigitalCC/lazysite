@@ -98,7 +98,6 @@ subtest 'a mode refusal names the mode that would work' => sub {
     Lazysite::Manager::Connectors::action_connector_save( 'tick', {
             url            => 'http://127.0.0.1:8787/echo',
             modes          => { scheduled => 1, authenticated => 0, public => 0 },
-            schedule_every => 300,
     } );
     my $all = Lazysite::Manager::Connectors::connectors();
     my ( $may, $why ) = Lazysite::Manager::Connectors::may_call( $all->{tick},

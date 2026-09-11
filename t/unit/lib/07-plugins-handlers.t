@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 # SM079a coverage: in-process tests for Manager::Plugins action handlers.
+# SM842: the handler, binding and schedule actions moved to Lazysite::Handlers
+# and are tested in t/unit/lib/34-one-way-to-deliver.t; what stays here is
+# the plugin registry and the submissions store.
 # Verifies the conf mutations and round-trip fidelity, not just that the
 # handlers ran, and pins the specific refusal reasons.
 use strict;
@@ -9,10 +12,10 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
+use Lazysite::Handlers ();
 use Lazysite::Manager::Plugins qw(
-    action_plugin_enable action_plugin_disable action_handler_save
-    action_handler_list action_handler_delete action_form_targets_save
-    action_form_targets_read action_form_submissions action_form_submission_delete
+    action_plugin_enable action_plugin_disable
+    action_form_submissions action_form_submission_delete
     action_form_list action_form_submission_confirm action_form_submissions_delete_bulk
     resolve_plugin_script);
 
@@ -27,24 +30,14 @@ for my $p (qw(log.pl audit.pl)) {
     print {$pf} "print '{\"id\":\"$p\",\"actions\":[]}' if \"@ARGV\"=~/--describe/; exit 0;\n";
     close $pf;
 }
-# SM772: the REAL form-handler plugin, so handler-save reads the handler
-# types it declares (the fixture's stubs describe no handler_types).
-use File::Copy qw(copy);
-copy( "$FindBin::Bin/../../../plugins/form-handler.pl", "$base/plugins/form-handler.pl" ) or die "copy: $!";
 $Lazysite::Manager::Plugins::DOCROOT = $d;
 $Lazysite::Manager::Plugins::action  = 'test';
+$Lazysite::Handlers::DOCROOT         = $d;
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$c} "site_name: T\n";
 close $c;
 
 sub slurp_conf { open my $f, '<', "$d/lazysite/lazysite.conf"; local $/; <$f> }
-sub handler_by_id {
-    my ($id) = @_;
-    my $hl = action_handler_list();
-    return undef unless $hl->{ok};
-    return ( grep { ( $_->{id} // '' ) eq $id } @{ $hl->{handlers} || [] } )[0];
-}
-
 # --- plugin enable / disable mutate the conf correctly ---
 ok( action_plugin_enable('plugins/log.pl')->{ok}, 'enable a plugin' );
 like( slurp_conf(), qr{plugins:\s*\n\s+- plugins/log\.pl}s, 'plugin added under a plugins: block' );
@@ -56,111 +49,6 @@ like( slurp_conf(), qr{audit\.pl}, 'the other plugin survives the disable' );
 my $bad = action_plugin_enable('');
 ok( !$bad->{ok}, 'empty script rejected' );
 like( $bad->{error}, qr/no script/i, 'with a "No script" error' );
-
-# --- handler config round-trips its fields ---
-my $hs = action_handler_save(
-    { id => 'email1', type => 'smtp', name => 'Email', to => 'ops@example.com' } );
-ok( $hs->{ok}, 'handler saved' );
-my $h = handler_by_id('email1');
-ok( $h, 'saved handler is listed' );
-is( $h->{type}, 'smtp',            'handler type round-trips' );
-is( $h->{to},   'ops@example.com', 'handler to-address round-trips' );
-ok( action_handler_delete('email1')->{ok}, 'handler deleted' );
-ok( !handler_by_id('email1'),              'deleted handler no longer listed' );
-my $hbad = action_handler_save( { id => '' } );
-ok( !$hbad->{ok}, 'handler with no id rejected' );
-like( $hbad->{error}, qr/handler id/i, 'with an "Invalid handler ID" error' );
-
-# --- SM772: a handler is saved by its declared schema -----------------------
-# The field bound the first form to a connector and found the handler saved
-# with ok:1 and no connector: the writer copied a fixed list of keys. Every
-# key a type's schema declares round-trips; a required key without a default
-# is refused by name; a type the plugin does not offer is refused by name.
-subtest 'SM772: the writer keeps what the schema declares and refuses what it requires' => sub {
-    my $r = action_handler_save( { id => 'probe', type => 'connector', name => 'Probe', connector => 'probe' } );
-    ok( $r->{ok}, 'a connector handler is saved' ) or diag $r->{error};
-    is( handler_by_id('probe')->{connector}, 'probe', 'and names its connector on read-back' );
-
-    $r = action_handler_save( { id => 'probe2', type => 'connector', name => 'Probe' } );
-    ok( !$r->{ok}, 'a connector handler without a connector is refused' );
-    is( $r->{error}, 'connector is required for a connector handler', 'by name' );
-    ok( !handler_by_id('probe2'), 'and nothing was written' );
-
-    $r = action_handler_save( { id => 'rows', type => 'db', name => 'Rows', table => 'leads' } );
-    ok( $r->{ok}, 'a db handler is saved' ) or diag $r->{error};
-    my $db = handler_by_id('rows');
-    is( $db->{table}, 'leads',                                  'its table round-trips' );
-    is( $db->{fields}, 'name=name,email=email,message=message', 'and a required key with a default is filled' );
-    ok( !action_handler_save( { id => 'rows2', type => 'db', name => 'Rows' } )->{ok}, 'a db handler without a table is refused' );
-
-    $r = action_handler_save( { id => 'mail', type => 'smtp', name => 'Mail', from => 'a@x.test', to => 'b@x.test', attach_files => 'true' } );
-    ok( $r->{ok}, 'an smtp handler is saved' );
-    is( handler_by_id('mail')->{attach_files}, 'true', 'attach_files - declared, never in the old list - round-trips' );
-
-    $r = action_handler_save( { id => 'odd', type => 'carrier-pigeon', name => 'Odd' } );
-    ok( !$r->{ok}, 'a type the plugin does not offer is refused' );
-    like( $r->{error}, qr/no handler type 'carrier-pigeon' - the form-handler plugin offers: .*connector.*db.*file.*smtp.*webhook/, 'naming what it offers' );
-
-    # every declared schema key of every type round-trips: the check that
-    # would have failed the moment `connector` was added to the plugin
-    my $types = Lazysite::Manager::Plugins::_handler_types();
-    ok( $types && $types->{connector}, 'the plugin describes its handler types to the writer' );
-    for my $t ( sort keys %$types ) {
-        my %in = ( id => "rt-$t", type => $t, name => "rt $t" );
-        $in{ $_->{key} } = "v-$_->{key}" for grep { $_->{key} !~ /\A(?:name|enabled)\z/ } @{ $types->{$t}{schema} };
-        my $rs = action_handler_save( \%in );
-        ok( $rs->{ok}, "every schema key of '$t' is accepted" ) or diag $rs->{error};
-        my $back = handler_by_id("rt-$t");
-        is( $back->{ $_->{key} }, "v-$_->{key}", "  $t.$_->{key} round-trips" )
-            for grep { $_->{key} !~ /\A(?:name|enabled)\z/ } @{ $types->{$t}{schema} };
-        action_handler_delete("rt-$t");
-    }
-    action_handler_delete($_) for qw(probe rows mail);
-};
-
-# --- form targets: clean single-format round-trips ---
-ok( action_form_targets_save( 'contact', [ { handler => 'email1' }, { handler => 'local-storage' } ] )->{ok},
-    'handler-format targets saved' );
-is_deeply( action_form_targets_read('contact')->{targets},
-    [ { handler => 'email1' }, { handler => 'local-storage' } ],
-    'all-handler targets round-trip exactly' );
-
-ok( action_form_targets_save( 'legacy', [ { type => 'file', path => 'submissions' } ] )->{ok},
-    'legacy type-format targets saved' );
-is_deeply( action_form_targets_read('legacy')->{targets},
-    [ { type => 'file', path => 'submissions' } ],
-    'all-type targets round-trip exactly' );
-
-# SM081 (fixed): a form mixing handler: + type: now round-trips BOTH targets in
-# document order (the read used to drop the type targets if any handler existed).
-action_form_targets_save( 'mixed', [ { handler => 'email1' }, { type => 'file' } ] );
-is_deeply( action_form_targets_read('mixed')->{targets},
-    [ { handler => 'email1' }, { type => 'file' } ],
-    'SM081 fixed: mixed-format read preserves both targets in order' );
-
-# DATA-LOSS GUARD: the manager "Edit targets" UI only knows HANDLER targets. When
-# it re-saves a form that has a legacy inline target, it sends only the handlers -
-# the inline target must NOT be erased (it was, before this fix).
-{
-    # A form authored (by hand / WebDAV) with a handler AND an inline target.
-    open my $fc, '>', "$d/lazysite/forms/legacymix.conf" or die $!;
-    print $fc "targets:\n  - handler: email1\n  - type: webhook\n    url: https://hook.example/x\n";
-    close $fc;
-    # The UI re-saves sending ONLY the handler set (its view of the world).
-    ok( action_form_targets_save( 'legacymix', [ { handler => 'email1' } ] )->{ok},
-        'save with only the handler succeeds' );
-    is_deeply( action_form_targets_read('legacymix')->{targets},
-        [ { handler => 'email1' }, { type => 'webhook', url => 'https://hook.example/x' } ],
-        'the legacy inline target is PRESERVED (not erased by a handler-only UI save)' );
-
-    # But a submission that DOES carry inline targets replaces wholesale (a future
-    # UI that manages them) - no duplication of the preserved set.
-    action_form_targets_save( 'legacymix',
-        [ { handler => 'email1' }, { type => 'file', path => 'submissions' } ] );
-    is_deeply( action_form_targets_read('legacymix')->{targets},
-        [ { handler => 'email1' }, { type => 'file', path => 'submissions' } ],
-        'a submission carrying inline targets replaces wholesale (no double-write)' );
-}
 
 # --- resolve_plugin_script (SM152: registry-only) ---
 is( resolve_plugin_script('plugins/log.pl'), "$base/plugins/log.pl",
@@ -234,7 +122,8 @@ unlink "$base/sample-plugin.pl";
 
 # --- SM214: form-list (PII-free form discovery for token clients) ------------
 {
-    action_handler_save( { id => 'local-storage', type => 'file', name => 'Local' } );
+    ok( Lazysite::Handlers::action_handler_save( { id => 'local-storage', type => 'file', name => 'Local' },
+            unconstrained => 1 )->{ok}, 'a file handler to count against' );
     open my $fc, '>', "$d/lazysite/forms/feedback.conf" or die $!;
     print {$fc} "targets:\n  - handler: local-storage\n";
     close $fc;

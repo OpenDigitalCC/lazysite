@@ -17,6 +17,7 @@ BEGIN {
         or plan skip_all => 'HTTP::Daemon/LWP/DBI/SQLite/YAML::PP not available';
 }
 use Lazysite::Manager::Connectors;
+use Lazysite::Handlers ();
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/db/tables", "$d/lazysite/auth" );
@@ -226,6 +227,36 @@ subtest 'delete takes the secret with it' => sub {
     ok( $r->{ok}, 'deleted' );
     my $sec = do { local ( @ARGV, $/ ) = "$d/lazysite/connectors/secrets.json"; <> };
     unlike( $sec, qr/tok-123/, 'the secret went with it' );
+};
+
+# SM842: THE WEBHOOK IS A CONNECTOR NOW. A connector with nothing but a URL
+# is the simple case, `format: slack` is the one thing a webhook could send that
+# a connector could not, and a form reaches it through a connector handler -
+# the same delivery the schedule calls.
+subtest 'a webhook is a connector: a URL, a slack body, a form through a handler' => sub {
+    my $bad = Lazysite::Manager::Connectors::action_connector_save( 'sl',
+        { url => "${base}echo", method => 'GET', format => 'slack' } );
+    ok( !$bad->{ok}, 'a slack body on a GET is refused - a GET sends no body' );
+    my $r = Lazysite::Manager::Connectors::action_connector_save( 'sl',
+        { url => "${base}echo", format => 'slack', modes => { public => 1 } } );
+    ok( $r->{ok}, 'a connector with only a URL (and public, for a form) is saved' ) or diag $r->{error};
+    is( $r->{connector}{rate_per_hour}, 60, 'with the default rate cap a webhook never had' );
+
+    local $Lazysite::Handlers::DOCROOT = $d;
+    make_path("$d/lazysite/forms");
+    ok( Lazysite::Handlers::action_handler_save(
+            { id => 'slack', type => 'connector', name => 'Slack', connector => 'sl' }, unconstrained => 1 )->{ok},
+        'a connector handler names it' );
+    my $out = Lazysite::Handlers::deliver( 'slack', { name => 'Ada', message => 'hi' },
+        origin => 'form', source => 'form:contact', store => 'contact' );
+    ok( $out->{ok}, 'a form submission delivers through it' ) or diag explain $out;
+    my $calls = Lazysite::Manager::Connectors::action_connector_calls( connector => 'sl' );
+    is( $calls->{calls}[0]{mode},    'public',       'as public invocation' );
+    is( $calls->{calls}[0]{trigger}, 'form:contact', 'naming the form' );
+    my $again = Lazysite::Manager::Connectors::call( 'sl', { name => 'Ada', message => 'hi' },
+        mode => 'public', actor => '' );
+    is( $again->{answer}{got}{text}, "*message*: hi\n*name*: Ada",
+        'and the body is the Slack message shape, one line per field' );
 };
 
 done_testing;

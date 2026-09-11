@@ -50,6 +50,7 @@ use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Plugins     qw(action_form_submissions action_form_list);
+use Lazysite::Handlers ();                # SM842: handlers, bindings, the schedule
 use Lazysite::Lang                 qw(set_members);
 
 our $VERSION = '0.1';
@@ -391,6 +392,7 @@ sub setup_context {
     $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
     $Lazysite::Manager::Plugins::DOCROOT       = $DOCROOT;
+    $Lazysite::Handlers::DOCROOT               = $DOCROOT;
     $Lazysite::Manager::Data::DOCROOT          = $DOCROOT;
     $Lazysite::Manager::Data::auth_user        = $user;    # SM468: schema-history actor
     $Lazysite::Manager::Common::action         = 'mcp';
@@ -1355,14 +1357,75 @@ my %TOOLS = (
                 { restrict_to_creator => 1, user => $user } );
         },
     },
-    list_form_handlers => {
-        description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are sysop-only and never returned.',
-        cap => 'manage_forms',
+    # SM842: HANDLERS ARE FUNCTIONS A FORM OR THE SCHEDULE CALLS BY NAME, and
+    # every surface creates, edits and deletes them - this one included,
+    # reversing SM799's cookie-only rule. The DESTINATION decides who may:
+    # a table handler needs manage_data, a connector handler manage_connectors,
+    # an email or file handler manage_forms. Any of the three opens these tools;
+    # Lazysite::Handlers refuses by name what the caller's grant does not cover.
+    list_handlers => {
+        description => 'List the delivery handlers - the named functions a form or the schedule calls - with each one\'s type, settings, whether it is enabled, the capability that governs it (cap), and what uses it (used_by: forms and schedule entries). Also returns `types`: every handler type with its fields, which is what save_handler accepts. A handler is created by whoever holds its destination\'s capability; binding a form to one that exists needs only manage_forms.',
+        cap      => 'manage_forms',
+        cap_also => [ 'manage_data', 'manage_connectors' ],
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _list_form_handlers() },
+        run => sub { Lazysite::Handlers::action_handler_list() },
+    },
+    save_handler => {
+        description => 'Create or replace a delivery handler by id. `type` is one of smtp (send email: from, to, subject_prefix, attach_files), file (save to a store: path), table (a row in a declared data table: table, fields as "form_field=column,...", keep_copy), or connector (send through a configured connector: connector). THE DESTINATION DECIDES: a table handler needs manage_data, a connector handler manage_connectors, smtp and file manage_forms - and changing a handler\'s type needs both. A field the type does not declare is refused by name. There is no webhook type: outbound HTTP goes through a connector.',
+        cap         => 'manage_forms',
+        cap_also    => [ 'manage_data', 'manage_connectors' ],
+        inputSchema => {
+            type                 => 'object',
+            properties           => _handler_properties(),
+            required             => [ 'id', 'type', 'name' ],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub { Lazysite::Handlers::action_handler_save( $_[0], caps => $_[2] ) },
+    },
+    delete_handler => {
+        description => 'Delete a delivery handler. Refused while any form or schedule entry uses it (the answer names them) - unbind those first. Needs the capability of the handler\'s destination.',
+        cap         => 'manage_forms',
+        cap_also    => [ 'manage_data', 'manage_connectors' ],
+        destructive => 1,
+        inputSchema => { type => 'object',
+            properties => { id => { type => 'string', description => 'the handler id' } },
+            required   => ['id'], additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Handlers::action_handler_delete( $_[0]->{id}, caps => $_[2] ) },
+    },
+    list_schedule => {
+        description => 'List the schedule: each entry names a handler, how often the timer calls it (every, in seconds) and the fixed fields it is called with (payload). Entries run as the daemon\'s job account, which must hold the capability of each handler\'s destination.',
+        cap      => 'manage_forms',
+        cap_also => [ 'manage_data', 'manage_connectors' ],
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Handlers::action_schedule_list() },
+    },
+    save_schedule => {
+        description => 'Create or replace a schedule entry: the timer calls `handler` every `every` seconds (at least 300) with `payload`, a flat object of fixed fields - nothing a visitor sends reaches a scheduled call. Needs the capability of the handler\'s destination. A connector handler must name a connector that permits scheduled invocation.',
+        cap         => 'manage_forms',
+        cap_also    => [ 'manage_data', 'manage_connectors' ],
+        inputSchema => { type => 'object',
+            properties => {
+                id => { type => 'string', description => 'the entry id' },
+                handler => { type => 'string', description => 'the handler to call, from list_handlers' },
+                every => { type => 'integer', description => 'seconds between calls, at least 300' },
+                payload => { type => 'object', description => 'the fields to call it with; text values only' },
+                enabled => { type => 'boolean' },
+            },
+            required => [ 'id', 'handler', 'every' ], additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Handlers::action_schedule_save( $_[0], caps => $_[2] ) },
+    },
+    delete_schedule => {
+        description => 'Remove a schedule entry. Needs the capability of the destination of the handler it calls.',
+        cap         => 'manage_forms',
+        cap_also    => [ 'manage_data', 'manage_connectors' ],
+        destructive => 1,
+        inputSchema => { type => 'object',
+            properties => { id => { type => 'string', description => 'the entry id' } },
+            required   => ['id'], additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Handlers::action_schedule_delete( $_[0]->{id}, caps => $_[2] ) },
     },
     form_list => {
-        description => 'List the site\'s FORMS (not handlers) so you can answer "which forms exist?" and "were any submitted?" without guessing store names. Returns per form: name, handler_types (smtp/file/webhook), has_store, and row_count (the submission COUNT only, never content; the "rows" key is a deprecated alias for that count, NOT the rows themselves). Needs read_submissions - the same capability on every channel (SM652; the control API accepted manage_forms until then, so the two doors disagreed about who may read a submission). Counts-only is deliberate, not a limitation: to read the submitted content call read_form_submissions, which needs the same capability. Pairs with list_form_handlers (the delivery handlers).',
+        description => 'List the site\'s FORMS (not handlers) so you can answer "which forms exist?" and "were any submitted?" without guessing store names. Returns per form: name, handler_types (smtp/file/table/connector), has_store, and row_count (the submission COUNT only, never content; the "rows" key is a deprecated alias for that count, NOT the rows themselves). Needs read_submissions - the same capability on every channel (SM652; the control API accepted manage_forms until then, so the two doors disagreed about who may read a submission). Counts-only is deliberate, not a limitation: to read the submitted content call read_form_submissions, which needs the same capability. Pairs with list_handlers (the delivery handlers).',
         cap => 'read_submissions',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { action_form_list() },
@@ -1387,7 +1450,7 @@ my %TOOLS = (
         },
     },
     create_form => {
-        description => 'THE way to add a form to a page - never hand-write <form>/<input> HTML (it has no delivery handler and ships dead). Inserts a native :::form block into the page and sets its "form: NAME" front matter. Give fields as "name | Label | rules" strings (rules: required, email, textarea, select:A,B,C, max:N); omit to scaffold a name/email/message contact form. The form RENDERS after this but does NOT deliver until you bind it: next call list_form_handlers, then bind_form(form: NAME, handler: ID).',
+        description => 'THE way to add a form to a page - never hand-write <form>/<input> HTML (it has no delivery handler and ships dead). Inserts a native :::form block into the page and sets its "form: NAME" front matter. Give fields as "name | Label | rules" strings (rules: required, email, textarea, select:A,B,C, max:N); omit to scaffold a name/email/message contact form. The form RENDERS after this but does NOT deliver until you bind it: next call list_handlers, then bind_form(form: NAME, handler: ID).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => {
             type       => 'object',
@@ -1435,24 +1498,26 @@ my %TOOLS = (
         },
     },
     bind_form => {
-        description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the sysop-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. PREFER A HANDLER: it is sysop-vetted and holds any credentials. If your grant needs to deliver somewhere the sysop has not pre-defined, pass `target` instead - {type: webhook|api, url: https://...} or {type: file, path: relative/dir} - which writes the delivery target directly into the form config. That is the same thing this capability can already do over WebDAV and the control API; it is offered here so the three surfaces agree rather than one being quietly weaker. NOT AN INLINE TARGET TYPE: delivery into a declared DATA TABLE is handler-only, and deliberately so. The inline route exists to reach somewhere the sysop has not pre-defined; a form writing rows into a declared table is precisely what the sysop should vet, and an inline table target would let any declared table be named as a destination without them wiring it. Ask the sysop for a handler. Writes lazysite/forms/<form>.conf.',
+        description => 'Wire a form to delivery by naming the handlers it calls. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_handlers to see the handlers. (3) call bind_form(form: NAME, handler: ID), or handlers: [ID, ...] for several. A :::form renders but does NOT deliver until bound. A form names handlers and nothing else - there is no inline target: to deliver somewhere new, create the handler (save_handler, with the capability its destination needs) and bind that. Replaces the form\'s handler list and keeps its other settings. Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {
                 form => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
-                handler => { type => 'string', description => 'an existing handler id from list_form_handlers (preferred)' },
-                target => { type => 'object',
-                    description => 'an inline delivery target, INSTEAD of handler: {type: webhook|api, url} or {type: file, path}. No credentials - those live in sysop-defined handlers.',
-                    properties => {
-                        type   => { type => 'string' },
-                        url    => { type => 'string' },
-                        path   => { type => 'string' },
-                        format => { type => 'string' },
-                    },
-                    additionalProperties => JSON::PP::false },
+                handler => { type => 'string', description => 'one handler id from list_handlers' },
+                handlers => { type => 'array', items => { type => 'string' },
+                    description => 'several handler ids, instead of handler' },
             },
             required => ['form'], additionalProperties => JSON::PP::false },
-        run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler}, $_[0]->{target} ) },
+        run => sub {
+            my ($a) = @_;
+            return { ok => 0, kind => 'invalid', field => 'handler', error => 'give handler or handlers, not both' }
+                if defined $a->{handler} && defined $a->{handlers};
+            my $ids = defined $a->{handlers} ? $a->{handlers} : defined $a->{handler} ? [ $a->{handler} ] : undef;
+            return { ok => 0, kind => 'invalid', field => 'handler',
+                error => 'handler is required - call list_handlers to see the configured ones' }
+                unless $ids;
+            return Lazysite::Handlers::action_form_targets_save( $a->{form}, $ids );
+        },
     },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
@@ -2922,155 +2987,22 @@ sub _audit_site {
 }
 
 
-# --- SM088: bind a form to a sysop-vetted delivery handler ------------
-# Handlers (with their destinations + credentials) live in handlers.conf and
-# are sysop-only. The connector may only REFERENCE an existing handler by id;
-# it never sees or sets a destination or secret.
-sub _list_form_handlers {
-    my $f = "$LAZYSITE_DIR/forms/handlers.conf";
-    return { ok => 1, handlers => [] } unless -f $f;
-    open my $fh, '<:utf8', $f or return { ok => 0, error => 'cannot read handlers.conf' };
-    local $/; my $c = <$fh>; close $fh;
-    my @h;
-    while ( $c =~ /^[ \t]*-[ \t]+id:[ \t]*(\S+)(.*?)(?=^[ \t]*-[ \t]+id:|\z)/gms ) {
-        my ( $id, $block ) = ( $1, $2 );
-        my %x = ( id => $id, type => 'unknown' );
-        $x{type}    = $1 if $block =~ /^[ \t]*type:[ \t]*(\S+)/m;
-        $x{name}    = $1 if $block =~ /^[ \t]*name:[ \t]*(.+?)[ \t]*$/m;
-        $x{enabled} = ( $block =~ /^[ \t]*enabled:[ \t]*(?:true|yes|1)[ \t]*$/mi )
-            ? JSON::PP::true : JSON::PP::false;
-        push @h, \%x;
+# SM842: save_handler's input schema, built from the handler catalogue so the
+# tool cannot offer a field the types do not declare or miss one they do.
+sub _handler_properties {
+    my %p = (
+        id => { type => 'string', description => 'the handler id: letters, digits, - or _' },
+        type    => { type => 'string', enum        => [@Lazysite::Handlers::TYPE_ORDER] },
+        name    => { type => 'string', description => 'a label for people' },
+        enabled => { type => 'boolean' },
+    );
+    for my $t (@Lazysite::Handlers::TYPE_ORDER) {
+        for my $f ( @{ $Lazysite::Handlers::TYPES{$t}{schema} } ) {
+            $p{ $f->{key} } //= { type => ( $f->{type} eq 'boolean' ? 'boolean' : 'string' ),
+                description => ( $f->{label} // $f->{key} ) . " ($t)" . ( $f->{note} ? " - $f->{note}" : '' ) };
+        }
     }
-    return { ok => 1, handlers => \@h };
-}
-
-# SM421: THE SURFACES AGREE, because the capability is the control.
-#
-# manage_forms could already write an inline delivery target over WebDAV (a raw
-# lazysite/forms/<name>.conf) and through the control API's form-targets-save,
-# which explicitly preserves and accepts inline targets. Only bind_form was
-# handler-only - so the SAME capability was strictly weaker on one surface, and
-# an agent delegated form-building through MCP had to ask an operator for
-# something the same grant could do elsewhere.
-#
-# The release manager's ruling: permission decides whether this is available;
-# where it is granted, the surface delivers it in full. So the fix is to add
-# the ability here rather than remove it there.
-#
-# A handler stays PREFERRED and the description says so - it is sysop-vetted
-# and holds credentials. An inline target carries no credential (the legacy
-# parser reads only type/url/format/path), so this cannot exfiltrate an SMTP
-# password; what it can do is name a destination, which is exactly what
-# manage_forms means.
-sub _bind_form {
-    my ( $form, $handler, $target ) = @_;
-    $form    = '' unless defined $form;
-    $handler = '' unless defined $handler;
-    return { ok => 0, error => 'form is required' } unless length $form;
-    return { ok => 0, error => "invalid name '$form'", kind => 'invalid-path' }
-        unless $form =~ /\A[A-Za-z0-9_-]+\z/;
-
-    return { ok => 0, error => 'give either handler or target, not both' }
-        if length $handler && ref $target eq 'HASH';
-
-    if ( ref $target eq 'HASH' ) {
-        my $t = _inline_target_block($target);
-        return $t unless ref $t eq 'HASH' && $t->{ok};
-        return _write_form_conf( $form, $t->{block},
-            { form => $form, target => $target->{type} } );
-    }
-
-    return { ok => 0, error => 'form and handler are required' }
-        unless length $handler;
-    return { ok => 0, error => "invalid name '$handler'", kind => 'invalid-path' }
-        unless $handler =~ /\A[A-Za-z0-9_-]+\z/;
-    my $hl = _list_form_handlers();
-    return $hl unless $hl->{ok};
-    unless ( grep { $_->{id} eq $handler } @{ $hl->{handlers} } ) {
-        return { ok => 0, kind => 'not-found',
-            error => "no handler '$handler' - call list_form_handlers to see the configured ones" };
-    }
-    return _write_form_conf( $form, "  - handler: $handler\n",
-        { form => $form, handler => $handler } );
-}
-
-# Validate an inline target and render its config block. Returns {ok=>1,block}
-# or an error hash. Deliberately strict about the SHAPE while saying nothing
-# about the destination: which URL a form may deliver to is the sysop's
-# decision, expressed by whether they granted manage_forms.
-sub _inline_target_block {
-    my ($t) = @_;
-    my $type = lc( $t->{type} // '' );
-
-    # smtp is absent on purpose: it needs a credential, and the legacy inline
-    # parser reads only type/url/format/path - so an inline smtp target would
-    # be a target that silently cannot deliver. Credentials live in
-    # operator-defined handlers, which is what list_form_handlers offers.
-    return { ok => 0, kind => 'invalid',
-        error => "target.type must be webhook, api or file (got '$type')" }
-        unless $type =~ /\A(?:webhook|api|file)\z/;
-
-    my %out = ( type => $type );
-    if ( $type eq 'file' ) {
-        my $path = $t->{path} // '';
-        $path =~ s{^/+|/+$}{}g;
-        return { ok => 0, kind => 'invalid',
-            error => 'target.path is required for a file target' }
-            unless length $path;
-        # Same confinement the rest of the file surface applies: relative, no
-        # traversal. A store outside the docroot is not a store.
-        return { ok => 0, kind => 'invalid-path',
-            error => "invalid target.path '$path'" }
-            if $path =~ m{(?:\A|/)\.\.(?:/|\z)} || $path =~ m{\A~};
-        $out{path} = $path;
-    }
-    else {
-        my $url = $t->{url} // '';
-        return { ok => 0, kind => 'invalid',
-            error => 'target.url is required for a webhook/api target' }
-            unless length $url;
-        return { ok => 0, kind => 'invalid',
-            error => 'target.url must be an http(s) URL' }
-            unless $url =~ m{\Ahttps?://\S+\z};
-        return { ok => 0, kind => 'invalid',
-            error => 'target.url must not contain a newline' }
-            if $url =~ /[\r\n]/;
-        $out{url} = $url;
-    }
-    if ( defined $t->{format} && length $t->{format} ) {
-        return { ok => 0, kind => 'invalid', error => 'invalid target.format' }
-            unless $t->{format} =~ /\A[A-Za-z0-9_-]+\z/;
-        $out{format} = $t->{format};
-    }
-
-    my $block = "  - type: $out{type}\n";
-    for my $k (qw(url path format)) {
-        $block .= "    $k: $out{$k}\n" if defined $out{$k};
-    }
-    return { ok => 1, block => $block };
-}
-
-# One writer for both shapes. Atomic: temp + rename, so a racing binder of the
-# same form never leaves a partial/empty .conf and a reader always sees a
-# complete binding.
-sub _write_form_conf {
-    my ( $form, $targets_block, $result ) = @_;
-    my $dir = "$LAZYSITE_DIR/forms";
-    return { ok => 0, error => 'forms directory is missing' } unless -d $dir;
-    my $conf = "$dir/$form.conf";
-    my $tmp  = "$conf.tmp.$$";
-    open my $fh, '>', $tmp
-        or return { ok => 0, error => "cannot write the form config: $!" };
-    my $wrote = print {$fh} "targets:\n$targets_block";
-    unless ( close($fh) && $wrote ) {
-        unlink $tmp;
-        return { ok => 0, error => "cannot write the form config: $!" };
-    }
-    unless ( rename $tmp, $conf ) {
-        unlink $tmp;
-        return { ok => 0, error => "cannot write the form config: $!" };
-    }
-    return { ok => 1, %$result, path => "/lazysite/forms/$form.conf" };
+    return \%p;
 }
 
 # --- SM102: agent/connector feedback ------------------------------------------
@@ -3269,7 +3201,7 @@ sub _create_form {
         path     => "/$slug",
         form     => $name,
         delivers => JSON::PP::false,
-        next     => "Form scaffolded but NOT delivering yet. Call list_form_handlers, "
+        next     => "Form scaffolded but NOT delivering yet. Call list_handlers, "
             . "then bind_form(form: '$name', handler: <id>) to wire delivery.",
     };
 }
@@ -3438,7 +3370,7 @@ sub _rename_page {
 # and per refusal. They live with %ANNOTATE now: same three lists, one place a
 # reader looks to find out what the dispatch believes about a tool.
 my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-    page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, form_list => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
+    page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_handlers => 1, list_schedule => 1, form_list => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
     list_versions => 1, list_content_history => 1, view_version => 1, # history reads: audit-skipped like the API's git-history/show
     display_names => 1 );    # SM778: a lookup of names the caller already sees
 
@@ -3514,7 +3446,12 @@ my %ANNOTATE = (
     read_page          => [ 1, 0, 0 ],
     validate_page      => [ 1, 0, 0 ],
     audit_site         => [ 1, 0, 0 ],
-    list_form_handlers => [ 1, 0, 0 ],
+    list_handlers   => [ 1, 0, 0 ],
+    list_schedule   => [ 1, 0, 0 ],
+    save_handler    => [ 0, 0, 1 ],    # a bound handler's destination is live delivery
+    delete_handler  => [ 0, 1, 0 ],    # refused while in use, so nothing live changes
+    save_schedule   => [ 0, 0, 1 ],    # what the timer calls
+    delete_schedule => [ 0, 1, 1 ],
     form_list          => [ 1, 0, 0 ],
     bind_form          => [ 0, 0, 1 ],
     write_file         => [ 0, 0, 1 ],
@@ -3609,8 +3546,18 @@ sub _path_only_for {
     # Offered on its own merits? Then it is not path-only, whatever the flag.
     return 0 if !defined $tool->{cap};
     return 0 if $caps->{ $tool->{cap} };
-    return 0 if defined $tool->{cap_also} && $caps->{ $tool->{cap_also} };
+    return 0 if grep { $caps->{$_} } _cap_also($tool);
     return 1;
+}
+
+# SM842: `cap_also` names one more capability, or a list of them - the handler
+# tools open for any of three destination capabilities. One reader, so
+# discovery and enforcement cannot disagree about the spelling.
+sub _cap_also {
+    my ($tool) = @_;
+    my $c = $tool->{cap_also};
+    return () unless defined $c;
+    return ref $c eq 'ARRAY' ? @$c : ($c);
 }
 
 sub _tool_callable {
@@ -3623,7 +3570,7 @@ sub _tool_callable {
     # SM576 part 1: the second capability a tool accepts, if it declares one.
     # Discovery must agree with tools/call or a grant is offered a tool it will
     # be refused, or refused one it may call - SM210's lesson either way round.
-    return 1 if defined $tool->{cap_also} && $caps->{ $tool->{cap_also} };
+    return 1 if grep { $caps->{$_} } _cap_also($tool);
     return 1
         if $tool->{path_aware} && ( $caps->{manage_themes} || $caps->{manage_layouts} );
     return 0;
@@ -3919,10 +3866,8 @@ elsif ( $method eq 'tools/call' ) {
         # ever granted manage_content. One optional key, read here and in
         # _tool_callable so discovery and enforcement agree, rather than a
         # second tool entry saying the same thing.
-        if ( !$cap_ok && defined $tool->{cap_also} && $caps->{ $tool->{cap_also} } ) {
-            $cap_ok = 1;
-        }
-        $need .= " or $tool->{cap_also}" if defined $tool->{cap_also};
+        $cap_ok = 1 if !$cap_ok && grep { $caps->{$_} } _cap_also($tool);
+        $need .= " or $_" for _cap_also($tool);
         if ( $tool->{path_aware} ) {
             my $a = $params->{arguments} || {};
             # SM661: the same list again, so the override and the confinement

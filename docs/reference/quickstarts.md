@@ -62,7 +62,9 @@ Requires: `manage_themes`, `manage_layouts`, `manage_content`
 
 Requires: `manage_forms`
 
-1. call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming a sysop-defined handler
+1. call list_handlers (MCP) or handler-list (control API) to see the handlers
+2. call bind_form (MCP) or form-targets-save (control API), or PUT lazysite/forms/<name>.conf over WebDAV, naming existing handlers - never a destination
+3. a handler that does not exist yet is made with save_handler / handler-save, and the destination decides the capability: manage_forms for email or file, manage_data for a table, manage_connectors for a connector
 
 ## Migrate a site (package one domain and apply it elsewhere)
 

@@ -178,6 +178,11 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     # SM687: reading the rule that says who may read a table. A read, like
     # acl-get which it mirrors; its two writers are in %MUTATING.
     data-table-acl-get
+
+    # SM842: the handler contract's three reads - the handlers, one form's
+    # binding, the schedule. Gated now that the Handlers page opens for any of
+    # three capabilities; their writers are in %MUTATING.
+    handler-list form-targets-read schedule-list
 );
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

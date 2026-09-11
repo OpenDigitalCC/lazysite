@@ -26,8 +26,11 @@ print {$cf} "site_name: T\n";
 close $cf;
 # The form: file target, rate limit of 2, spam controls off so the limiter is
 # the only gate under test.
+open my $hcf, '>', "$docroot/lazysite/forms/handlers.conf" or die $!;
+print {$hcf} "handlers:\n  - id: store\n    type: file\n    name: Store\n";
+close $hcf;
 open my $ff, '>', "$docroot/lazysite/forms/contact.conf" or die $!;
-print {$ff} "rate_limit: 2\nspam_dwell: off\n- type: file\n";
+print {$ff} "rate_limit: 2\nspam_dwell: off\ntargets:\n  - handler: store\n";
 close $ff;
 open my $sf, '>', "$docroot/lazysite/auth/.secret" or die $!;
 print {$sf} 'a' x 64;

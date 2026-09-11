@@ -4,10 +4,18 @@ package Lazysite::Manager::Connectors;
 #
 # A connector is a reusable, credentialed destination: a URL, the header its
 # secret travels in, the MODES it permits, the groups that may call it, a
-# rate cap, and optionally the data table its answers land in. The engine
-# could already POST a form to a URL (the webhook handler); what it could
-# not do is hold one credentialed destination that several forms, buttons
-# and jobs send through, decide WHO may cause the call, and keep the answer.
+# rate cap, and optionally the data table its answers land in - one
+# destination that several forms, buttons and scheduled calls send through,
+# deciding WHO may cause the call, and keeping the answer.
+#
+# SM842: IT IS THE ONLY WAY OUT OVER HTTP. The webhook and api handler types
+# were a second outbound path with none of the above - no credential, no
+# modes, no rate cap, no record - and they are gone: a form or the schedule
+# reaches a remote through a `connector` handler naming a connector. A
+# connector with nothing but a URL is the simple case, and `format: slack`
+# carries the one thing a webhook could do that a connector could not.
+# Scheduling moved out as well: `schedule_every` is refused here, because the
+# schedule (Lazysite::Handlers) calls any handler, a connector's included.
 #
 # THE RULE THAT DECIDES THE DESIGN (the release manager, 2026-09-03): the
 # risk of an outbound call is not what the remote does, it is who can cause
@@ -206,40 +214,41 @@ sub _normalise {
     return ( undef, 'a row_map needs a row_table to take the row from' )
         if %map && $rt eq '';
 
-    # SM579 phase 2: MODE 1, ON A TIMER. The interval and the payload are
-    # CONFIGURATION, which is what makes this the safest mode: no request is
-    # involved, so nothing a visitor sends can reach the destination.
-    #
-    # The payload is fixed and flat. A scheduled call that could take a row or
-    # a query would be a scheduler of arbitrary work, and the release manager's
-    # boundary is explicit that this is one bounded act and every
-    # generalisation is refused by default.
-    #
-    # The floor is 300 seconds. Not arbitrary: the sweep runs hourly and the
-    # daemon ticks on its own interval, so anything finer is a promise the
-    # scheduler cannot keep, and a connector asking for it would be told it is
-    # running every minute while it was not.
-    my $ev = $in->{schedule_every} // 0;
-    return ( undef, 'schedule_every must be a whole number of seconds' ) unless $ev =~ /\A\d+\z/;
-    $ev = 0 + $ev;
-    return ( undef, 'schedule_every must be 0 (off) or at least 300 seconds' )
-        if $ev && $ev < 300;
-    $c{schedule_every} = $ev;
-    my $sp = ref $in->{schedule_payload} eq 'HASH' ? $in->{schedule_payload} : {};
-    return ( undef, 'schedule_payload names more than 64 fields' ) if keys %$sp > 64;
-    my %fixed;
-    for my $k ( sort keys %$sp ) {
-        return ( undef, "schedule_payload: '$k' is not a field name" )
-            unless $k =~ /\A[A-Za-z][A-Za-z0-9_.-]{0,63}\z/;
-        my $v = $sp->{$k};
-        return ( undef, "schedule_payload: '$k' must be a string or a number" ) if ref $v;
-        $fixed{$k} = defined $v ? "$v" : '';
+    # SM842: THE BODY A WEBHOOK COULD SEND. `json` posts the fields as a JSON
+    # object; `slack` posts {"text": "*field*: value" per line}, which is what
+    # a Slack incoming webhook takes. A GET carries the fields in the query, so
+    # a body format means nothing there and is refused rather than ignored.
+    my $fmt = $in->{format} // 'json';
+    return ( undef, "format must be json or slack (got '$fmt')" ) unless $fmt =~ /\A(?:json|slack)\z/;
+    return ( undef, 'format slack needs method POST - a GET sends no body' )
+        if $fmt eq 'slack' && $c{method} eq 'GET';
+    $c{format} = $fmt;
+
+    # SM842: THE SCHEDULE IS NOT THE CONNECTOR'S ANY MORE. It was one bounded
+    # timer that could call one kind of thing; the schedule now calls any
+    # handler, and a connector is reached through a connector handler. Refused
+    # by name rather than dropped, because a caller that sends it expects it to
+    # do something - a key accepted and never read is the SM772 fault turned
+    # round.
+    for my $k (qw(schedule_every schedule_payload)) {
+        return ( undef, "$k is not a connector setting any more: schedules call handlers (SM842) - "
+                . 'make a connector handler for this connector and add it to the schedule' )
+            if exists $in->{$k};
     }
-    $c{schedule_payload} = \%fixed;
-    return ( undef, 'a connector with a schedule must permit scheduled invocation (modes.scheduled)' )
-        if $ev && !$c{modes}{scheduled};
 
     return ( \%c, '' );
+}
+
+# The same check the save applies, for the one caller outside this module that
+# builds a connector: the SM842 conversion, turning a webhook into one.
+sub normalise { return _normalise(@_) }
+
+# Write the whole store. The conversion edits several connectors and writes
+# once; everything else goes through the actions above.
+sub write_store {
+    my ($all) = @_;
+    return ( 0, 'the connector store must be a hash' ) unless ref $all eq 'HASH';
+    return _write_json( _file(), $all, 0660 );
 }
 
 # --- the actions (the control API and the manager call these) ---------------
@@ -700,7 +709,11 @@ sub call {
     );
     my @hdr = ( 'Content-Type' => 'application/json', 'X-Lazysite-Call' => $call_id );
     push @hdr, ( $c->{secret_header} => ( $c->{secret_prefix} // '' ) . $secret ) if defined $secret && length $secret;
-    my $body = JSON::PP->new->canonical->encode($payload);
+    my $body
+        = ( $c->{format} // 'json' ) eq 'slack'
+        ? JSON::PP->new->canonical->encode(
+        { text => join "\n", map { "*$_*: $payload->{$_}" } sort keys %$payload } )
+        : JSON::PP->new->canonical->encode($payload);
     my $res
         = $c->{method} eq 'GET'
         ? $ua->get( _with_query( $c->{url}, $payload ), @hdr )
@@ -859,68 +872,11 @@ sub action_connector_calls {
 # The scheduler's job (SM666): expire the record past its keep, and count
 # what never answered - so the run record says how many stuck calls there
 # are, which is the state an operator has to be able to see.
-# SM579 phase 2: EVERY CONNECTOR THAT IS DUE, CALLED ON THE TIMER.
 #
-# %JOBS is a closed literal and stays one - this is a single engine job that
-# reads the connector store, not a way for configuration to add a job. What a
-# connector may do is declare an interval; whether the job exists at all is
-# still the engine's decision, and the scheduler's identity gate still has to
-# pass before any of this runs.
-#
-# Due-ness is derived from the CALL RECORD rather than from a second state
-# file: the last non-refused call to this connector is when it last went out,
-# which is the fact, and a separate "last scheduled at" store would be a
-# second answer to the same question that could disagree with the first.
-sub due_scheduled {
-    my ($now) = @_;
-    $now ||= time;
-    my $all = connectors();
-    return ( undef, _store_unreadable() ) unless defined $all;
-    my @due;
-    for my $id ( sort keys %$all ) {
-        my $c = $all->{$id};
-        next unless $c->{schedule_every} && $c->{modes}{scheduled};
-        my $last = _last_call_at($id);
-        return ( undef, _calls_unreadable() . '; cannot tell which connectors are due' )
-            unless defined $last;
-        push @due, $id if $now - $last >= $c->{schedule_every};
-    }
-    return ( \@due, '' );
-}
-
-# When this connector last actually sent something. A refusal is not a call
-# that went out, for the same reason the rate cap does not count one.
-sub _last_call_at {
-    my ($id) = @_;
-    my $f = _calls_file();
-    open my $fh, '<:raw', $f or do {
-        return 0 if $!{ENOENT};    # nothing has ever been called: everything is due
-        cannot_read( 'connector calls', $f );
-        return undef;
-    };
-    my $last = 0;
-    while ( my $l = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($l) } or next;
-        next if ( $r->{state} // '' ) eq 'refused';
-        next unless ( $r->{connector} // '' ) eq $id;
-        $last = $r->{at} if ( $r->{at} // 0 ) > $last;
-    }
-    close $fh;
-    return $last;
-}
-
-# The timer's own invocation. mode => 'scheduled', so a connector that has not
-# opted into it is refused by may_call exactly as a request-time caller would
-# be - the declaration is the gate, and it is one gate for all three modes.
-sub call_scheduled {
-    my ($id) = @_;
-    my $all = connectors();
-    return { ok => 0, state => 'refused', error => _store_unreadable() } unless defined $all;
-    my $c = $all->{$id} or return { ok => 0, state => 'refused', error => "no connector '$id'" };
-    return call( $id, { %{ $c->{schedule_payload} || {} } },
-        mode => 'scheduled', actor => 'system:scheduler', trigger => 'timer' );
-}
-
+# SM842: a connector on a timer is a schedule entry calling a connector
+# handler (Lazysite::Handlers); the call arrives here through call() with mode
+# `scheduled`, so a connector that has not opted into it is refused by may_call
+# exactly as a request-time caller would be - one gate for all three modes.
 sub sweep {
     my ($docroot) = @_;
     local $DOCROOT = $docroot;

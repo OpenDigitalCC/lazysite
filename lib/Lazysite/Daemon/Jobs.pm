@@ -24,6 +24,7 @@ package Lazysite::Daemon::Jobs;
 use strict;
 use warnings;
 use File::Basename qw(dirname);
+use Lazysite::Util ();
 
 our $VERSION = '0.1';
 
@@ -105,39 +106,119 @@ sub connectors_sweep {
     return { ok => 1, kept => $r->{kept}, expired => $r->{expired}, unanswered => $r->{unanswered} };
 }
 
-# SM579 phase 2: MODE 1. Call every connector whose declared interval has
-# elapsed.
+# SM842: THE SCHEDULE. Call every entry whose interval has elapsed, through the
+# handler it names.
 #
-# ONE ENGINE JOB, not a job per connector. %JOBS stays the closed literal the
-# daemon's security review re-verified: a connector may declare how often it
-# wants to be called, and nothing a site writes can add a job, change the
-# schedule, or reach the scheduler's identity gate.
+# ONE ENGINE JOB, not a job per entry. %JOBS stays the closed literal the
+# daemon's security review re-verified: an entry says which handler, how often
+# and with what fixed fields, and nothing a site writes can add a job, change
+# the job's own interval, or reach the scheduler's identity gate.
 #
-# The outcome names each connector and what happened to it, because a
-# scheduled call is the one nobody watches - "3 called" tells an operator
-# nothing about which one has been failing since Tuesday.
-sub connectors_call_due {
+# THE DESTINATION DECIDES, HERE AS AT SAVE. An entry runs only when the job
+# account holds the capability its handler's type needs - asked through
+# Lazysite::Handlers::cap_for_type, the same function that gated creating the
+# handler. An entry the account may not run is REFUSED, not skipped: the
+# refusal is recorded against the entry with its reason and logged when the
+# reason changes, and it does not consume the entry's slot, so fixing the grant
+# takes effect on the next tick rather than a whole interval later.
+#
+# A DELIVERY THAT FAILS DOES consume the slot: retrying a remote that is down
+# every tick would hammer it. The failure is recorded with its reason, and the
+# handler's own audit line says the same.
+#
+# The outcome names each entry and what happened to it, because a scheduled
+# call is the one nobody watches - "3 ran" tells an operator nothing about
+# which one has been failing since Tuesday.
+sub schedule_run {
     my (%ctx) = @_;
-    require Lazysite::Manager::Connectors;
+    my $root  = $ctx{docroot};
+    my $now   = $ctx{now} // time;
+    require Lazysite::Handlers;
     no warnings 'once';
-    local $Lazysite::Manager::Connectors::DOCROOT = $ctx{docroot};
+    local $Lazysite::Handlers::DOCROOT = $root;
 
-    my ( $due, $why ) = Lazysite::Manager::Connectors::due_scheduled();
-    return { ok => 0, error  => $why }         unless defined $due;
-    return { ok => 1, detail => { due => 0 } } unless @$due;
+    my $schedule = Lazysite::Handlers::read_schedule();
+    return { ok => 0, error => 'lazysite/forms/schedule.conf could not be read; see the log' }
+        unless defined $schedule;
+    return { ok => 1, detail => { entries => 0 } } unless @$schedule;
 
-    my ( @called, @failed );
-    for my $id (@$due) {
-        my $r = Lazysite::Manager::Connectors::call_scheduled($id);
-        if ( $r->{ok} ) { push @called, $id }
-        else { push @failed, "$id: " . ( $r->{why} // $r->{state} // 'failed' ) }
+    my $runs = _read_schedule_runs($root);
+    return { ok => 0, error => 'the schedule run record could not be read; see the log' }
+        unless defined $runs;
+    my $due = Lazysite::Handlers::due_entries( $schedule, $runs, $now );
+    return { ok => 1, detail => { entries => scalar @$schedule, due => 0 } } unless @$due;
+
+    my $handlers = Lazysite::Handlers::read_handlers();
+    return { ok => 0, error => 'lazysite/forms/handlers.conf could not be read; see the log' }
+        unless defined $handlers;
+
+    my ( @ran, @failed, @refused );
+    for my $e (@$due) {
+        my $h   = Lazysite::Handlers::find_handler( $handlers, $e->{handler} // '' );
+        my $cap = $h ? Lazysite::Handlers::cap_for_type( $h->{type} ) : undef;
+        my $why
+            = !$h ? "no handler '" . ( $e->{handler} // '' ) . "'"
+            : !$cap ? "handler '$h->{id}' is a '$h->{type}' handler, which no longer delivers"
+            : !( $ctx{caps} || {} )->{$cap} ? "the job account '$ctx{actor}' does not hold $cap"
+            :                                 '';
+        if ( length $why ) {
+            my $prev = ( ref $runs->{ $e->{id} } eq 'HASH' ? $runs->{ $e->{id} }{refusal_reason} : '' ) // '';
+            $runs->{ $e->{id} } = { %{ $runs->{ $e->{id} } || {} },
+                outcome => 'refused', refused_at => $now, refusal_reason => $why };
+            Lazysite::Util::log_event( 'WARN', 'scheduler', 'schedule entry refused',
+                entry => $e->{id}, reason => $why ) unless $prev eq $why;
+            push @refused, "$e->{id}: $why";
+            next;
+        }
+        my $r = Lazysite::Handlers::deliver( $h->{id}, { %{ $e->{payload} || {} } },
+            origin => 'timer',     source   => "timer:$e->{id}", store => $e->{id},
+            actor  => $ctx{actor}, handlers => $handlers );
+        $runs->{ $e->{id} } = { last_run => $now, outcome => ( $r->{ok} ? 'ok' : 'failed' ),
+            ( $r->{ok} ? () : ( reason => $r->{why} // 'failed' ) ) };
+        if   ( $r->{ok} ) { push @ran,    $e->{id} }
+        else              { push @failed, "$e->{id}: " . ( $r->{why} // 'failed' ) }
     }
-    # NOT ok => 0 when one fails. The job DID what it was for; a connector
-    # whose remote is down is a fact about that connector, recorded here and
-    # in its own call record, and failing the whole job would put the
-    # scheduler into a retry loop over somebody else's outage.
-    return { ok => 1,
-        detail => { due => scalar @$due, called => \@called, failed => \@failed } };
+    _write_schedule_runs( $root, $runs );
+
+    # NOT ok => 0 when an entry fails. The job DID what it was for; a remote
+    # that is down is a fact about that entry, recorded here and in the audit
+    # trail, and failing the whole job would put the scheduler into a retry
+    # loop over somebody else's outage.
+    return { ok => 1, detail => { due => scalar @$due, ran => \@ran, failed => \@failed,
+            refused => \@refused } };
+}
+
+# When each schedule entry last ran - the job's own record, beside the
+# scheduler's, so due-ness survives a restart. SM766: a record that exists and
+# cannot be opened is not an empty record; treating it as one would run every
+# entry at once on every tick.
+sub _schedule_runs_file { return "$_[0]/lazysite/daemon/schedule-runs.json" }
+
+sub _read_schedule_runs {
+    my ($root) = @_;
+    my $f = _schedule_runs_file($root);
+    open my $fh, '<:utf8', $f or return $!{ENOENT} ? {} : Lazysite::Util::cannot_read( 'schedule run record', $f );
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $d = eval { JSON::PP->new->decode( $raw // '' ) };
+    return {} unless ref $d eq 'HASH';    # torn or hand-edited: every entry is due, once
+    delete $d->{$_} for grep { ref $d->{$_} ne 'HASH' } keys %$d;
+    return $d;
+}
+
+sub _write_schedule_runs {
+    my ( $root, $runs ) = @_;
+    my $f   = _schedule_runs_file($root);
+    my $tmp = "$f.tmp.$$";
+    require File::Path;
+    File::Path::make_path( dirname($f) ) unless -d dirname($f);
+    require JSON::PP;
+    open my $fh, '>:utf8', $tmp or return 0;
+    print {$fh} JSON::PP->new->canonical->pretty->encode($runs);
+    unless ( close $fh )       { unlink $tmp; return 0 }
+    unless ( rename $tmp, $f ) { unlink $tmp; return 0 }
+    return 1;
 }
 
 sub sessions_sweep {

@@ -1,21 +1,19 @@
 #!/usr/bin/perl
-# SM421: the same capability was weaker on one surface.
+# SM421, then SM842: the surfaces agree about how a form is bound.
 #
-# manage_forms could already write an inline delivery target two ways: a raw
-# lazysite/forms/<name>.conf over WebDAV, and the control API's
-# form-targets-save, which explicitly accepts and preserves inline targets.
-# Only MCP's bind_form was handler-only - so an agent delegated form-building
-# through MCP had to ask an operator for something the same grant could do
-# elsewhere, and the deny/allow story depended on which door was used.
+# SM421 made them agree by giving bind_form the inline delivery targets the
+# control API and WebDAV already accepted. SM842 made them agree the other way:
+# inline targets are gone from every surface, and a form names handlers and
+# nothing else. The ruling that did it was the release manager's - forms call
+# a handler, the handler may be a connector, the timer calls handlers too, one
+# way to do it - and SM579's, that where site data goes is a conferral of its
+# own (manage_connectors), which an inline webhook under manage_forms bypassed.
 #
-# The ruling: permission decides whether this is available; where it is
-# granted, the surface delivers it in full. So bind_form gains the ability
-# rather than the others losing it.
-#
-# What is asserted here is the CONTRACT - handler still preferred and still
-# validated, inline targets validated for shape, and no credential-bearing
-# type offered - because that is what makes "in full" safe rather than merely
-# permissive.
+# What is asserted here is the MCP half of that contract: bind_form offers no
+# inline target, says so, and binds through the SAME function the control
+# API's form-targets-save calls - so a refusal on one surface is a refusal on
+# the other by construction rather than by two implementations agreeing. The
+# behaviour of that function is t/unit/lib/34's.
 use strict;
 use warnings;
 use Test::More;
@@ -23,84 +21,29 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $mcp = repo_root() . '/lazysite-mcp.pl';
+my $root = repo_root();
+my $mcp  = "$root/lazysite-mcp.pl";
 plan skip_all => "no $mcp" unless -f $mcp;
 my $src = do { open my $fh, '<', $mcp or die $!; local $/; <$fh> };
+my $api = do { open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!; local $/; <$fh> };
 
-my ($block) = $src =~ /(sub _inline_target_block \{.*?\n\})/s;
-ok( $block, '_inline_target_block is present' ) or BAIL_OUT('cannot extract');
+my ($bind) = $src =~ /\n    bind_form => \{(.*?)\n    \},\n/s;
+ok( $bind, 'the bind_form tool is present' ) or BAIL_OUT('cannot find bind_form');
 
-## no critic (BuiltinFunctions::ProhibitStringyEval)
-eval "$block 1" or BAIL_OUT("cannot load: $@");
-## use critic
+unlike( $bind, qr/\btarget\s*=>\s*\{/, 'its schema offers no inline target' );
+like( $bind, qr/there is no inline target/i, 'and its description says so, and what to do instead' );
+like( $bind, qr/save_handler/, 'naming the tool that creates a handler' );
+like( $bind, qr/Lazysite::Handlers::action_form_targets_save\(/,
+    'it binds through the handler contract' );
+like( $api, qr/\$action eq 'form-targets-save'.*?Lazysite::Handlers::action_form_targets_save\(/s,
+    'and so does the control API - one function, two doors' );
 
-subtest 'a webhook target is accepted, and rendered as the parser reads it' => sub {
-    my $r = _inline_target_block(
-        { type => 'webhook', url => 'https://example.test/collect' } );
-    ok( $r->{ok}, 'accepted' ) or diag explain $r;
-    like( $r->{block}, qr/^\s+- type: webhook$/m, 'declares its type' );
-    like( $r->{block}, qr{^\s+url: https://example\.test/collect$}m,
-        'and its destination' );
-};
+unlike( $src, qr/sub _inline_target_block|sub _write_form_conf/,
+    'the inline-target writer and the whole-file form writer are gone' );
 
-subtest 'a file target is accepted and confined' => sub {
-    my $ok = _inline_target_block( { type => 'file', path => 'content/leads' } );
-    ok( $ok->{ok}, 'a relative path is accepted' );
-    like( $ok->{block}, qr{^\s+path: content/leads$}m, 'rendered' );
-
-    for my $bad ( '../escape', 'content/../../etc', '~root/x' ) {
-        my $r = _inline_target_block( { type => 'file', path => $bad } );
-        ok( !$r->{ok}, "refused: $bad" );
-    }
-};
-
-subtest 'the shape is validated even though the destination is not' => sub {
-    # Which URL a form may deliver to is the operator's decision, expressed by
-    # whether they granted manage_forms. The SHAPE is still checked, because a
-    # malformed target is a form that silently does not deliver.
-    # SM590: db and table delivery is HANDLER-ONLY, and the docs now say so.
-    # An inline target names a destination the operator has not vetted, and a
-    # form writing rows into a declared table is exactly what they should vet -
-    # so these two are refused here rather than merely undocumented.
-    for my $t (qw(db table)) {
-        my $r = _inline_target_block( { type => $t, path => 'anything' } );
-        ok( !$r->{ok}, "an inline '$t' target is refused - delivery into a table is handler-only" );
-        like( $r->{error}, qr/webhook, api or file/,
-            "the refusal of '$t' names the types that ARE allowed" );
-    }
-
-    ok( !_inline_target_block( { type => 'ftp', url => 'ftp://x/' } )->{ok},
-        'an unknown type is refused' );
-    ok( !_inline_target_block( { type => 'webhook' } )->{ok},
-        'a webhook with no url is refused' );
-    ok( !_inline_target_block( { type => 'webhook', url => 'not-a-url' } )->{ok},
-        'a non-http url is refused' );
-    ok( !_inline_target_block(
-            { type => 'webhook', url => "https://x/\nmalicious: y" } )->{ok},
-        'a newline in the url is refused - it would inject a config line' );
-    ok( !_inline_target_block( { type => 'file' } )->{ok},
-        'a file target with no path is refused' );
-};
-
-subtest 'smtp is deliberately NOT offered inline' => sub {
-    my $r = _inline_target_block(
-        { type => 'smtp', url => 'smtp://mail.test' } );
-    ok( !$r->{ok},
-        'refused: an inline smtp target needs a credential, and the legacy '
-            . 'parser reads only type/url/format/path - so it would be a '
-            . 'target that silently cannot deliver' );
-};
-
-subtest 'the handler path is unchanged and still preferred' => sub {
-    my ($bind) = $src =~ /(sub _bind_form \{.*?\n\})/s;
-    ok( $bind, '_bind_form is present' ) or return;
-    like( $bind, qr/no handler '\$handler'/,
-        'an unknown handler id is still refused by name' );
-    like( $bind, qr/give either handler or target, not both/,
-        'and the two ways are mutually exclusive' );
-    my ($desc) = $src =~ /bind_form => \{\s*description => '(.*?)',\n/s;
-    like( $desc, qr/PREFER A HANDLER/,
-        'the tool description still steers to the vetted handler first' );
-};
+# The DAV door: a raw form config is shape-checked by the same contract.
+my $dav = do { open my $fh, '<', "$root/lazysite-dav.pl" or die $!; local $/; <$fh> };
+like( $dav, qr/Lazysite::Handlers::form_conf_problems\(/,
+    'a form config PUT over WebDAV meets the same rules' );
 
 done_testing();

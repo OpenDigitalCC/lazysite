@@ -93,52 +93,28 @@ subtest 'a connector with no row source says so rather than sending nothing' => 
     like( $why, qr/row_table/, 'and names what the connector is missing' );
 };
 
-subtest 'the schedule is configuration, and it is bounded' => sub {
-    my $off = save( 'sched', url => 'https://example.test/x',
-        modes => { scheduled => 1 }, schedule_every => 60 );
-    ok( !$off->{ok}, 'an interval under the floor is refused' );
-    like( $off->{error}, qr/300/, 'and the floor is named' )
-        or diag explain $off;
-
-    my $nomode = save( 'sched', url => 'https://example.test/x', schedule_every => 900 );
-    ok( !$nomode->{ok},
-        'a schedule on a connector that does not permit scheduled invocation is refused' );
-
-    my $ok = save( 'sched', url => 'https://example.test/x',
-        modes            => { scheduled => 1 }, schedule_every => 900,
-        schedule_payload => { report    => 'daily' } );
-    ok( $ok->{ok}, 'with the mode declared, the schedule stands' ) or diag explain $ok;
-
-    my $nested = save( 'sched2', url => 'https://example.test/x',
-        modes            => { scheduled => 1 }, schedule_every => 900,
-        schedule_payload => { deep => { a => 1 } } );
-    ok( !$nested->{ok},
-        'the scheduled payload is flat - a nested one would be a workflow, not a fixed call' );
-};
-
-subtest 'a connector that has never run is due; one just called is not' => sub {
-    my ( $due, $why ) = Lazysite::Manager::Connectors::due_scheduled();
-    ok( $due, 'the due list resolves' ) or diag $why;
-    ok( ( grep { $_ eq 'sched' } @$due ),
-        'a scheduled connector with no calls behind it is due now' );
-    ok( !( grep { $_ eq 'orders' } @$due ),
-        'and one with no schedule never is, whatever its modes say' );
-
-    # A call went out a moment ago: not due again until the interval passes.
-    open my $fh, '>>', "$d/lazysite/connectors/calls.jsonl" or die $!;
-    print {$fh} qq({"connector":"sched","state":"ok","at":) . time . qq(}\n);
-    close $fh;
-    ( $due, $why ) = Lazysite::Manager::Connectors::due_scheduled();
-    ok( !( grep { $_ eq 'sched' } @$due ),
-        'a connector called a moment ago is not due again - the CALL RECORD is '
-            . 'the answer, so there is no second store to disagree with it' );
+# SM842: THE SCHEDULE IS NOT THE CONNECTOR'S ANY MORE. A connector on a timer
+# is a schedule entry calling a connector handler (t/unit/lib/34 and
+# t/unit/daemon/05); here, the connector refuses the old keys BY NAME, because
+# a caller that sends them expects them to do something.
+subtest 'a connector refuses the schedule keys it no longer owns' => sub {
+    for my $k (qw(schedule_every schedule_payload)) {
+        my $r = save( 'sched', url => 'https://example.test/x', modes => { scheduled => 1 },
+            $k => ( $k eq 'schedule_every' ? 900 : { report => 'daily' } ) );
+        ok( !$r->{ok}, "$k is refused" );
+        like( $r->{error}, qr/\Q$k\E is not a connector setting any more.*schedules call handlers/,
+            'and the refusal says where the schedule lives now' );
+    }
+    ok( !Lazysite::Manager::Connectors->can('due_scheduled'),
+        'the connector-only timer is gone - no second due-ness to disagree with the schedule' );
+    my $ok = save( 'sched', url => 'https://example.test/x', modes => { scheduled => 1 } );
+    ok( $ok->{ok}, 'a connector that PERMITS scheduled invocation is saved without them' );
 };
 
 # The declaration is the gate, and it is one gate for all three modes.
 subtest 'scheduled-only refuses a request-time invocation' => sub {
     save( 'timeronly', url => 'https://example.test/x',
-        modes          => { scheduled => 1, authenticated => 0, public => 0 },
-        schedule_every => 900 );
+        modes          => { scheduled => 1, authenticated => 0, public => 0 } );
     my $all = Lazysite::Manager::Connectors::connectors();
     my ( $may, $why )
         = Lazysite::Manager::Connectors::may_call( $all->{timeronly}, mode => 'authenticated',

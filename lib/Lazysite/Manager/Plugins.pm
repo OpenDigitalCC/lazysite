@@ -19,9 +19,9 @@ use Lazysite::Paths ();
 our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
-    action_handler_list action_handler_save action_handler_delete action_form_list
+    action_form_list
     action_form_delete
-    action_form_targets_read action_form_targets_save action_form_submissions
+    action_form_submissions
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
     resolve_plugin_script plugin_enabled
@@ -842,92 +842,14 @@ sub action_plugin_action {
     return $result;
 }
 
-# SM598: undef is an ANSWER here, and the callers must hear it.
-#
-# _lz is Lazysite::Paths::lazysite_dir($DOCROOT), which returns undef for an
-# undefined or empty docroot - a deliberate guard. This concatenated it anyway,
-# so the result was "/forms/handlers.conf": an absolute path at the FILESYSTEM
-# ROOT rather than anywhere inside a site. It surfaced as a Perl warning in the
-# 0.10.33 release run ("uninitialized value in concatenation"), and the tests
-# passed either way because nothing exists at that path, so the read found
-# nothing and the code around it treated that as "no handlers" - the wrong
-# answer, arriving indistinguishably from the right one.
-#
-# The WRITER is the sharper half: it does make_path(dirname($path)), which with
-# no docroot is an attempt to create /forms at the root of the filesystem. It
-# fails for want of permission on any sane host, which is luck rather than
-# design.
-sub _handlers_conf_path {
-    my $lz = _lz();
-    return undef unless defined $lz && length $lz;
-    return "$lz/forms/handlers.conf";
-}
-
-sub _parse_handlers_conf {
-    my $path = _handlers_conf_path();
-
-    # SM598: no docroot is not "no handlers". Both return an empty list, and one
-    # of them is a fault - so the fault says so once, in the log, rather than
-    # being read as an ordinary empty site.
-    unless ( defined $path ) {
-        log_event( 'WARN', 'handlers', 'no docroot: cannot locate handlers.conf' );
-        return [];
-    }
-    return [] unless -f $path;
-
-    open my $fh, '<:utf8', $path or return [];
-    my $text = do { local $/; <$fh> };
-    close $fh;
-
-    my @handlers;
-    while ( $text =~ /^\s{2}-\s+id:\s*(\S+)(.*?)(?=^\s{2}-\s+id:|\z)/gmsx ) {
-        my ( $id, $block ) = ( $1, $2 );
-        my %h = ( id => $id );
-        while ( $block =~ /^\s{4}(\w+)\s*:\s*(.+)$/mg ) {
-            my ( $k, $v ) = ( $1, $2 );
-            $v =~ s/\s+$//;
-            $h{$k} = $v;
-        }
-        push @handlers, \%h;
-    }
-    return \@handlers;
-}
-
-sub _write_handlers_conf {
-    my ($handlers) = @_;
-    my $path = _handlers_conf_path();
-
-    # SM598: refuse rather than write. Without a docroot this used to
-    # make_path("/forms") and then write handlers.conf at the filesystem root -
-    # a config file, outside every site, in a place nothing would ever read it
-    # back from.
-    unless ( defined $path ) {
-        log_event( 'ERROR', 'handlers', 'no docroot: refusing to write handlers.conf' );
-        return 0;
-    }
-
-    my $dir = dirname($path);
-    make_path($dir) unless -d $dir;
-
-    my $content = "# Form dispatch handlers\n";
-    $content .= "# Add handlers here and reference them from form .conf files\n\n";
-    $content .= "handlers:\n";
-
-    for my $h (@$handlers) {
-        $content .= "  - id: $h->{id}\n";
-        for my $k ( sort keys %$h ) {
-            next if $k eq 'id';
-            $content .= "    $k: $h->{$k}\n";
-        }
-    }
-
-    my ($wok) = write_file_checked( $path, $content );
-    return $wok;
-}
-
-sub action_handler_list {
-    my $handlers = _parse_handlers_conf();
-    return { ok => 1, handlers => $handlers };
+# SM842: handlers, their bindings and the schedule are Lazysite::Handlers' -
+# one reader and one writer for handlers.conf, where there were three parsers
+# that disagreed. What stays here reads them through it.
+sub _handlers_module {
+    require Lazysite::Handlers;
+    no warnings 'once';
+    $Lazysite::Handlers::DOCROOT = $DOCROOT;
+    return 'Lazysite::Handlers';
 }
 
 # SM214: enumerate the site's forms for a token client (or the manager) that can
@@ -938,7 +860,7 @@ sub action_handler_list {
 # forms exist?" and "which deliver to email vs storage, and did any come in?".
 sub action_form_list {
     my $dir      = _lz() . "/forms";
-    my $handlers = _parse_handlers_conf();
+    my $handlers = _handlers_module()->can('read_handlers')->() // [];
     my %by_id    = map { $_->{id} => $_ } @$handlers;
 
     my @forms;
@@ -946,7 +868,7 @@ sub action_form_list {
     for my $f ( sort readdir $dh ) {
         next unless $f =~ /^(.+)\.conf\z/;
         my $name = $1;
-        next if $name eq 'handlers' || $name eq 'smtp';
+        next if Lazysite::Handlers::is_reserved_form($name);
 
         # handler ids this form's targets reference
         my @hids;
@@ -954,7 +876,8 @@ sub action_form_list {
             local $/;
             my $t = <$cf>;
             close $cf;
-            while ( $t =~ /^\s*-\s*handler:\s*(\S+)/mg ) { push @hids, $1 }
+            my ($ids) = Lazysite::Handlers::parse_form_conf($t);
+            @hids = @$ids;
         }
         my %seen;
         my @types = grep { !$seen{$_}++ }
@@ -969,7 +892,7 @@ sub action_form_list {
             $store_dir = $h->{path} if defined $h->{path} && length $h->{path};
             last;
         }
-        my $store = "$DOCROOT/$store_dir/$name.jsonl";
+        my $store = Lazysite::Handlers::store_path($store_dir) . "/$name.jsonl";
         my ( $has, $rows ) = ( JSON::PP::false, 0 );
         if ( -f $store && open my $sf, '<', $store ) {
             $has = JSON::PP::true;
@@ -1011,184 +934,6 @@ sub action_form_list {
     };
 }
 
-# SM772: THE HANDLER TYPES ARE THE PLUGIN'S TO DECLARE. form-handler.pl
-# publishes handler_types[] with a schema per type (key, label, required,
-# default) - the wizard renders from it and the writer below keeps to it.
-# Returns { type => { schema => [...], label => ... } }, or undef when the
-# plugin cannot be described (absent from the registry, or says nothing).
-sub _handler_types {
-    my $full = resolve_plugin_script('plugins/form-handler.pl') or return undef;
-    my $desc = _describe($full)                                 or return undef;
-    my $list = $desc->{handler_types};
-    return undef unless ref $list eq 'ARRAY' && @$list;
-    return { map { ( $_->{type} => $_ ) } grep { ref $_ eq 'HASH' && defined $_->{type} } @$list };
-}
-
-# The keys every handler type may carry regardless of schema: the record's
-# own (type, name, enabled) and the SMTP transport keys the wizard writes
-# beside an smtp handler.
-my @HANDLER_BASE_KEYS = qw(type name enabled from to subject_prefix path url format
-    method sendmail_path host port tls auth username password_file);
-
-sub action_handler_save {
-    my ($data) = @_;
-    my $id = $data->{id} // '';
-    $id =~ s/[^a-zA-Z0-9_-]//g;
-    return { ok => 0, error => "Invalid handler ID" } unless $id;
-
-    my $handlers = _parse_handlers_conf();
-
-    # SM772: KEEP WHAT THE SCHEMA DECLARES, REFUSE WHAT IT REQUIRES AND WAS
-    # NOT GIVEN. The first version copied a fixed list of keys, so a
-    # `connector` handler lost its `connector`, a `db` handler its `table`
-    # and `fields`, an smtp handler its `attach_files` - each saved with
-    # ok:1 and each unable to work. The field found it on the first form
-    # bound to a connector: "a required field, dropped, with ok:true".
-    my $type = ( defined $data->{type} && length $data->{type} ) ? $data->{type} : 'file';
-    my $types = _handler_types();
-    my $def;
-    if ($types) {
-        $def = $types->{$type}
-            or return { ok => 0,
-            error => "no handler type '$type' - the form-handler plugin offers: " . join( ', ', sort keys %$types ) };
-    }
-    else {
-        log_event( 'WARN', 'handlers',
-            'the form-handler plugin could not be described; the handler is saved with the built-in field list only',
-            handler => $id, type => $type );
-    }
-    my %keys = map { ( $_ => 1 ) } @HANDLER_BASE_KEYS, map { $_->{key} } @{ $def->{schema} // [] };
-
-    # Build handler record from input
-    my %new = ( id => $id, type => $type );
-    for my $k ( sort keys %keys ) {
-        $new{$k} = $data->{$k} if defined $data->{$k} && length $data->{$k};
-    }
-    # Required and without a default: absent is a refusal, by name. A key
-    # with a default is filled the way the wizard fills it.
-    for my $f ( @{ $def->{schema} // [] } ) {
-        my $k = $f->{key};
-        next if defined $new{$k} && length $new{$k};
-        if ( defined $f->{default} && length $f->{default} ) { $new{$k} = $f->{default}; next }
-        return { ok => 0, error => "$k is required for a $type handler" } if $f->{required};
-    }
-
-    # Replace existing or append
-    my $found = 0;
-    for my $h (@$handlers) {
-        if ( $h->{id} eq $id ) {
-            %$h    = %new;
-            $found = 1;
-            last;
-        }
-    }
-    push @$handlers, \%new unless $found;
-
-    _write_handlers_conf($handlers)
-        or return { ok => 0, error => "Cannot write handlers.conf" };
-
-    return { ok => 1, id => $id };
-}
-
-sub action_handler_delete {
-    my ($id) = @_;
-    return { ok => 0, error => "No handler ID" } unless $id;
-
-    my $handlers = _parse_handlers_conf();
-    my @filtered = grep { $_->{id} ne $id } @$handlers;
-
-    if ( scalar @filtered == scalar @$handlers ) {
-        return { ok => 0, error => "Handler not found: $id" };
-    }
-
-    _write_handlers_conf( \@filtered )
-        or return { ok => 0, error => "Cannot write handlers.conf" };
-
-    return { ok => 1, deleted => $id };
-}
-
-sub action_form_targets_read {
-    my ($form_name) = @_;
-    $form_name //= '';
-    $form_name =~ s/[^a-zA-Z0-9_-]//g;
-    return { ok => 0, error => "Invalid form name" } unless $form_name;
-
-    my $path = _lz() . "/forms/$form_name.conf";
-    return { ok => 1, targets => [] } unless -f $path;
-
-    open my $fh, '<:utf8', $path or return { ok => 0, error => "Cannot read form config" };
-    my $text = do { local $/; <$fh> };
-    close $fh;
-
-    my @targets;
-
-    # SM081: parse the YAML-ish list in document order, recognising either a
-    # handler reference or an inline type config at EACH entry. (Previously the
-    # legacy type block was parsed only `if (!@targets)`, so a form mixing both
-    # formats silently dropped its type targets on read-back.)
-    for my $entry ( split /^[ \t]*-[ \t]+/m, $text ) {
-        if ( $entry =~ /\Ahandler:\s*(\S+)/ ) {
-            push @targets, { handler => $1 };
-        }
-        elsif ( $entry =~ /\Atype:\s*(\w+)/ ) {
-            my %t = ( type => $1 );
-            $t{url}    = $1 if $entry =~ /^\s*url:\s*(.+)$/m;
-            $t{format} = $1 if $entry =~ /^\s*format:\s*(.+)$/m;
-            $t{path}   = $1 if $entry =~ /^\s*path:\s*(.+)$/m;
-            $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
-            push @targets, \%t;
-        }
-    }
-
-    return { ok => 1, form => $form_name, targets => \@targets };
-}
-
-sub action_form_targets_save {
-    my ( $form_name, $targets ) = @_;
-    $form_name //= '';
-    $form_name =~ s/[^a-zA-Z0-9_-]//g;
-    return { ok => 0, error => "Invalid form name" } unless $form_name;
-
-    my $path = _lz() . "/forms/$form_name.conf";
-    my $dir  = dirname($path);
-    make_path($dir) unless -d $dir;
-
-    # DATA-LOSS GUARD: the manager UI ("Edit targets") only represents HANDLER
-    # targets - it collapses each target to its handler id. A form may also carry
-    # LEGACY INLINE targets (type/url/format/path) authored by hand or over
-    # WebDAV, which the UI cannot show and would therefore erase on save. Preserve
-    # any inline target already in the file, UNLESS this submission itself carries
-    # inline targets (a future UI that manages them). The manager only ever
-    # rewrites the handler set; inline targets survive verbatim.
-    my $submission_has_inline = grep { !$_->{handler} } @$targets;
-    my @preserved_inline;
-    unless ($submission_has_inline) {
-        my $existing = action_form_targets_read($form_name);
-        @preserved_inline = grep { !$_->{handler} } @{ $existing->{targets} || [] }
-            if $existing->{ok};
-    }
-
-    my $content = "targets:\n";
-    for my $t ( @$targets, @preserved_inline ) {
-        if ( $t->{handler} ) {
-            $content .= "  - handler: $t->{handler}\n";
-        }
-        else {
-            my $type = $t->{type} // 'file';
-            $content .= "  - type: $type\n";
-            for my $k (qw(url format path)) {
-                $content .= "    $k: $t->{$k}\n" if defined $t->{$k} && length $t->{$k};
-            }
-        }
-    }
-
-    my ( $wok, $werr ) = write_file_checked( $path, $content );
-    return { ok => 0, error => "Cannot write form config: $werr" }
-        unless $wok;
-
-    return { ok => 1, form => $form_name };
-}
-
 # SM182: read a form-submissions store (<dir>/<form>.jsonl, one JSON record per
 # line, as written by the form-handler local-storage target) and return it as a
 # STRUCTURED table - columns + rows - so the manager can render it safely.
@@ -1210,7 +955,7 @@ sub action_form_targets_save {
 # exactly what "use published APIs" exists to stop.
 sub submission_store_dirs {
     my %dirs = ( 'lazysite/forms/submissions' => 1 );
-    my $list = eval { _parse_handlers_conf() } || [];
+    my $list = eval { _handlers_module()->can('read_handlers')->() } || [];
     for my $h (@$list) {
         next unless ref $h eq 'HASH';
         next unless ( $h->{type} // 'file' ) eq 'file';
@@ -1255,11 +1000,19 @@ sub _submissions_path {
     return ( undef, undef, 'Invalid submissions file' )
         unless length $dir && $allowed{$dir};
 
-    my $abs  = "$DOCROOT/$rel";
+    # SM842: the store is where the file handler WRITES it - through the same
+    # resolver, so a store under lazysite/ is found in the engine tree wherever
+    # that tree is (SM293 can move it beside the docroot). Confined to the
+    # docroot or the engine tree, whichever the store resolved into.
+    ( my $leaf = $rel ) =~ s{.*/}{};
+    my $abs  = _handlers_module()->can('store_path')->($dir) . "/$leaf";
     my $real = realpath( -e $abs ? $abs : dirname($abs) );
+    my $lz   = _lz();
+    my $lzr  = defined $lz ? realpath($lz) : undef;
     return ( undef, undef, 'Invalid submissions file' )
         unless defined $real
-        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
+        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0
+        || ( defined $lzr && index( $real, "$lzr/" ) == 0 ) );
     return ( $abs, $rel, undef );
 }
 
@@ -1458,7 +1211,7 @@ sub action_form_delete {
         unless $name =~ /\A[A-Za-z0-9_-]+\z/;
     return { ok => 0, error => 'refusing to delete a reserved config',
         kind => 'invalid' }
-        if $name eq 'handlers' || $name eq 'smtp';
+        if _handlers_module()->can('is_reserved_form')->($name);
 
     my $conf = _lz() . "/forms/$name.conf";
     return { ok => 0, kind => 'no_such_form',

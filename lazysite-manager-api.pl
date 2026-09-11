@@ -38,11 +38,11 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
-    action_plugin_read action_plugin_save action_plugin_action action_handler_list
-    action_handler_save action_handler_delete action_form_targets_read action_form_targets_save
+    action_plugin_read action_plugin_save action_plugin_action
     action_form_submissions action_form_submission_delete action_form_list
     action_form_submission_confirm action_form_submissions_delete_bulk
     action_form_delete);
+use Lazysite::Handlers       ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -76,6 +76,7 @@ $Lazysite::Auth::Acl::DOCROOT            = $DOCROOT;
 $Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT     = $DOCROOT;
+$Lazysite::Handlers::DOCROOT             = $DOCROOT;           # SM842
 $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Nav::DOCROOT         = $DOCROOT;
@@ -214,6 +215,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     connector-list connector-save connector-secret-set connector-delete connector-call connector-calls
     remap-list remap-save
     audit-trail-set
+    schedule-list schedule-save schedule-delete
 );
 
 # SM230: the control API is not callable from a browser page, by design. Its
@@ -590,6 +592,7 @@ if ( $action eq 'csrf-token' ) {
 #
 my %MUTATING = map { $_ => 1 } qw(
     form-delete start-page-set
+    schedule-save schedule-delete
     connector-save connector-secret-set connector-delete connector-call
     remap-save
     audit-trail-set
@@ -658,6 +661,7 @@ my %DESTRUCTIVE = map { $_ => 1 } qw(
     brief-delete backup-delete theme-delete layout-delete artifact-backups-delete
     handler-delete form-submission-delete form-submissions-delete-bulk
     form-delete
+    schedule-delete
     site-backup-delete
 
     site-backup-apply
@@ -825,8 +829,19 @@ if ( !$token_auth ) {
         'preview-clear'    => 'manage_themes|manage_layouts',
         'artifact-backups-delete' => 'purge',        # SM591: no copy survives
         'nav-save'                => 'manage_nav',
-        'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
-        'form-targets-save'       => 'manage_forms',
+        # SM842: the door to the handler actions opens for any of the three
+        # destination capabilities; Lazysite::Handlers then decides by the
+        # handler's type (a table handler needs manage_data, a connector
+        # handler manage_connectors, email and file manage_forms). Binding a
+        # form to a handler that exists is manage_forms alone.
+        'handler-list'      => 'manage_forms|manage_data|manage_connectors',
+        'handler-save'      => 'manage_forms|manage_data|manage_connectors',
+        'handler-delete'    => 'manage_forms|manage_data|manage_connectors',
+        'schedule-list'     => 'manage_forms|manage_data|manage_connectors',
+        'schedule-save'     => 'manage_forms|manage_data|manage_connectors',
+        'schedule-delete'   => 'manage_forms|manage_data|manage_connectors',
+        'form-targets-read' => 'manage_forms|manage_data|manage_connectors',
+        'form-targets-save' => 'manage_forms',
         'form-delete'             => 'manage_forms',
         # SM652: read_submissions ONLY, so the two channels agree about who may
         # read a submission. MCP has required it for both since it was written;
@@ -1093,6 +1108,17 @@ if ($token_auth) {
         'form-submissions' => [qw(read_submissions)],
         'form-list'        => [qw(read_submissions)],
         'form-delete'      => [qw(manage_forms)],       # SM632: the inverse of bind_form
+            # SM842: handler CRUD on the token channel too, reversing SM799's
+            # cookie-only rule - the release manager's ruling that the destination
+            # decides, on every surface. See the cookie table for the door.
+        'handler-list'      => [qw(manage_forms manage_data manage_connectors)],
+        'handler-save'      => [qw(manage_forms manage_data manage_connectors)],
+        'handler-delete'    => [qw(manage_forms manage_data manage_connectors)],
+        'schedule-list'     => [qw(manage_forms manage_data manage_connectors)],
+        'schedule-save'     => [qw(manage_forms manage_data manage_connectors)],
+        'schedule-delete'   => [qw(manage_forms manage_data manage_connectors)],
+        'form-targets-read' => [qw(manage_forms manage_data manage_connectors)],
+        'form-targets-save' => [qw(manage_forms)],
         'bad-url-blocks'   => [qw(manage_config)],      # SM128: blocked-IP list
         'bad-url-block'    => [qw(manage_config)],      # SM704: block by hand
         'bad-url-unblock'  => [qw(manage_config)],
@@ -1393,6 +1419,7 @@ my %skip = map { $_ => 1 } qw(
     data-table-acl-get
     brief-read briefs-list notices layouts-manifest
     connector-list connector-calls
+    schedule-list
 );
 
 # %uskip: the same decision one level down, for the sub-actions action=users
@@ -2282,7 +2309,8 @@ elsif ( $action eq 'nav-save' ) {
     $result = action_nav_save( $req->{items} // [],
         $params{host} // $req->{host} );
 }
-elsif ( $action eq 'handler-list' ) { $result = action_handler_list() }
+elsif ( $action eq 'handler-list' ) { $result = Lazysite::Handlers::action_handler_list() }
+elsif ( $action eq 'schedule-list' ) { $result = Lazysite::Handlers::action_schedule_list() }
 elsif ( $action eq 'version' )      { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {
     $result = action_analyse_visitors(
@@ -2389,15 +2417,32 @@ elsif ( $action eq 'audit' ) {
 elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
 elsif ( $action eq 'channel-services' ) { $result = action_channel_services() }
 elsif ( $action eq 'handler-save' ) {
+    # The body IS the handler: the four keys every handler carries, and its
+    # type's own fields beside them (handler-list returns each type's), which
+    # the handler contract checks - one it does not declare is refused by name.
     my $req = _json_body();
-    $result = action_handler_save($req);
+    $req    = {} unless ref $req eq 'HASH';
+    $result = Lazysite::Handlers::action_handler_save(
+        { %$req, id => $req->{id}, type => $req->{type}, name => $req->{name}, enabled => $req->{enabled} },
+        _handler_who() );
 }
 elsif ( $action eq 'handler-delete' ) {
     my $req = _json_body();
-    $result = action_handler_delete( $req->{id} );
+    $result = Lazysite::Handlers::action_handler_delete( $req->{id}, _handler_who() );
+}
+elsif ( $action eq 'schedule-save' ) {
+    my $req = _json_body();
+    $result = Lazysite::Handlers::action_schedule_save(
+        { id => $req->{id}, handler => $req->{handler}, every => $req->{every},
+            payload => $req->{payload}, enabled => $req->{enabled} },
+        _handler_who() );
+}
+elsif ( $action eq 'schedule-delete' ) {
+    my $req = _json_body();
+    $result = Lazysite::Handlers::action_schedule_delete( $req->{id}, _handler_who() );
 }
 elsif ( $action eq 'form-targets-read' ) {
-    $result = action_form_targets_read( $params{form} );
+    $result = Lazysite::Handlers::action_form_targets_read( $params{form} );
 }
 elsif ( $action eq 'form-submissions' ) {
     $result = action_form_submissions( $params{file} );
@@ -2438,8 +2483,11 @@ elsif ( $action eq 'form-submissions-delete-bulk' ) {    # SM187: delete several
     $result = action_form_submissions_delete_bulk( $req->{file} // $params{file}, $req->{ids} );
 }
 elsif ( $action eq 'form-targets-save' ) {
+    # SM842: handler ids only - `handlers` (a list of ids), or `targets` as the
+    # manager has always sent them ({handler: id} each).
     my $req = _json_body();
-    $result = action_form_targets_save( $params{form}, $req->{targets} // [] );
+    $result = Lazysite::Handlers::action_form_targets_save( $req->{form} // $params{form},
+        $req->{handlers} // $req->{targets} );
 }
 elsif ( $action eq 'file-upload' ) {
     $result = action_file_upload( $path, $body );
@@ -4517,6 +4565,16 @@ sub _manager_groups_from_settings {
 # and three gates ask it. Its inputs cannot change between them within one
 # request: the cookie gate runs ahead of dispatch, and action_users' two calls
 # both run before it writes anything through the users tool.
+# SM842: who is asking, for Lazysite::Handlers' destination check. The token
+# channel carries its grant; a cookie session carries its account's, and an
+# operator passes every capability gate on this channel already, so it passes
+# this one.
+sub _handler_who {
+    return ( caps          => \%token_caps ) if $token_auth;
+    return ( unconstrained => 1 )            if _operator();
+    return ( caps          => _user_caps($auth_user) );
+}
+
 sub _operator {
     return $IS_OPERATOR //= ( _is_operator() ? 1 : 0 );
 }

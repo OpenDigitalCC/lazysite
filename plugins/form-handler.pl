@@ -16,87 +16,43 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
     print encode_json( {
             id            => 'form-handler',
             name          => 'Form Handler',
-            description   => 'Receives and dispatches contact form submissions',
-            version       => '1.1',
+            # SM842: the handler types, and which form calls which handler, are
+            # the handler contract's (Lazysite::Handlers) - listed by
+            # handler-list and configured on the Handlers page - rather than
+            # this plugin's to declare. It receives a POST and hands it on.
+            description => 'Receives form submissions and hands each to the handlers its form '
+                . 'names. Delivery is configured on the Handlers page.',
+            version       => '2.0',
             config_file   => '',
             config_schema => [],
-            handler_types => [
-                {
-                    type   => 'smtp',
-                    label  => 'Send email (SMTP)',
-                    schema => [
-                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true, default => 'Email delivery' },
-                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
-                        { key => 'from', label => 'From address', type => 'email', required => JSON::PP::true, default => 'webforms@example.com' },
-                        { key => 'to', label => 'To address', type => 'email', required => JSON::PP::true, default => 'admin@example.com' },
-                        { key => 'subject_prefix', label => 'Subject prefix', type => 'text', default => '[Contact] ' },
-                        { key => 'attach_files', label => 'Attach uploaded files', type => 'boolean', default => 'false',
-                            note => 'When on, files uploaded with the form are attached to the email and listed (name + size) below the message. Off by default. Mind your mail server\'s attachment size limits.' },
-                    ],
-                    note => 'SMTP connection settings (host, port, TLS) are configured under the Email (SMTP) group header.',
-                },
-                {
-                    type   => 'db',
-                    label  => 'Store in a data table',
-                    schema => [
-                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true, default => 'Store submissions' },
-                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
-                        { key => 'table', label => 'Table', type => 'text', required => JSON::PP::true,
-                            note => 'A table declared under Data tables. It must exist before submissions arrive.' },
-                        { key => 'fields', label => 'Field mapping', type => 'text', required => JSON::PP::true,
-                            default => 'name=name,email=email,message=message',
-                            note => 'form field=column, comma separated. REQUIRED, and it is what keeps a visitor from choosing where their data goes: a form field nobody maps here is dropped, so a form gaining a field cannot start writing a column.' },
-                    ],
-                    note => 'Needs the Data tables plugin to be enabled. Values are checked against the table\'s declared types, so a submission that does not fit is refused rather than stored wrong - the visitor is told the submission failed instead of being thanked for a lost one.',
-                },
-                {
-                    type   => 'file',
-                    label  => 'Save to file',
-                    schema => [
-                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true },
-                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
-                        { key => 'path', label => 'Storage directory', type => 'text', default => 'lazysite/forms/submissions' },
-                    ],
-                },
-                {
-                    # SM579: the PUBLIC trigger. A form submission goes through a
-                    # named connector - which must say `modes.public` itself,
-                    # or the send is refused. The implementor bounds WHAT is
-                    # sent (a select, not a free textbox - see the practice
-                    # docs); the connector bounds who and how often.
-                    type   => 'connector',
-                    label  => 'Connector (SM579)',
-                    schema => [
-                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true },
-                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
-                        { key => 'connector', label => 'Connector id', type => 'text', required => JSON::PP::true },
-                    ],
-                },
-                {
-                    type   => 'webhook',
-                    label  => 'Webhook',
-                    schema => [
-                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true },
-                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
-                        { key => 'url', label => 'Webhook URL', type => 'text', required => JSON::PP::true },
-                        { key => 'format', label => 'Format', type => 'select', options => [ 'json', 'slack' ], default => 'json' },
-                    ],
-                },
-            ],
-            child_configs => {
-                pattern    => 'lazysite/forms/*.conf',
-                exclude    => [ 'smtp.conf', 'handlers.conf' ],
-                label_from => 'filename',
-            },
-            actions => [],
+            actions       => [],
     } );
     exit 0;
 }
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
-my $LAZYSITE_DIR = "$DOCROOT/lazysite";
-my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
+
+# SM842: DELIVERY IS THE HANDLER CONTRACT'S, SO THE MODULE TREE IS REQUIRED.
+#
+# This plugin used to be module-free, so that a missing lib cost a member a
+# rate-limit waiver and never anybody a submission. That held only for the
+# file, email and webhook targets it carried copies of; the table and connector
+# targets needed the lib all along. There is one implementation of delivery
+# now, in Lazysite::Handlers, which the timer calls too - two copies would be
+# two answers to "where did this submission go". A host where the tree cannot
+# be found refuses the submission with the message below, which is the honest
+# outcome: the visitor is not thanked for something that was not delivered.
+_locate_lib();
+my $HANDLERS_OK  = eval { require Lazysite::Handlers; require Lazysite::Paths; 1 };
+my $HANDLERS_ERR = $HANDLERS_OK ? '' : ( $@ || 'unknown' );
+my $LAZYSITE_DIR
+    = $HANDLERS_OK ? ( Lazysite::Paths::lazysite_dir($DOCROOT) // "$DOCROOT/lazysite" ) : "$DOCROOT/lazysite";
+my $FORMS_DIR = "$LAZYSITE_DIR/forms";
+{
+    no warnings 'once';    # SM557: set at runtime, read by the module
+    $Lazysite::Handlers::DOCROOT = $DOCROOT if $HANDLERS_OK;
+}
 # SM415: where a native (no-JS) post redirects back to, captured after
 # parse_post and consumed by respond_ok/respond_error at the bottom -
 # declared here because the capture site precedes them in file order.
@@ -155,8 +111,14 @@ eval {
     # having none. The address is still logged, which is the fact that is
     # actually known.
 
-    my $conf     = load_form_conf($name);
-    my %handlers = load_handlers();
+    unless ($HANDLERS_OK) {
+        log_event( 'ERROR', $name,
+            'the engine modules could not be loaded, so this form cannot deliver',
+            error => $HANDLERS_ERR );
+        reject_user( 'This form is not accepting submissions right now. '
+                . 'Please contact the site owner.' );
+    }
+    my $conf = load_form_conf($name);
 
     check_honeypot( $form{_hp} // '' );
     check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret(),
@@ -172,16 +134,11 @@ eval {
     # submission, not written to the audit actor column, and not passed to
     # any handler. The submission stays actor-less; only the limiter learns
     # that SOME verified member is asking.
-    # THE MODULE TREE HAS TO BE FOUND FIRST (the resolve_db lesson, SM473):
-    # `prove -l` puts lib/ on @INC and a real install does not, so a bare
-    # require here passes every test and dies on every deployed submission.
-    # Same locate as the db target below - and the whole attempt degrades to
+    # The module tree was located at start-up (SM473: `prove -l` puts lib/ on
+    # @INC and a real install does not). The attempt still degrades to
     # ANONYMOUS on any failure, because a broken exemption must cost a member
     # a rate limit, never anybody a form.
     my $signed_in = eval {
-        unless ( $INC{'Lazysite/Auth/Session.pm'} ) {
-            _locate_lib();
-        }
         # SM557: the package is require'd at runtime, so this file mentions the
         # variable once by design - t/lint/04 refuses the 'used only once' warning.
         no warnings 'once';
@@ -225,9 +182,24 @@ eval {
         $form{_spam_reason} = $spam_reason;
     }
 
+    # SM842: each target NAMES a handler, and the handler contract delivers -
+    # the same code the schedule calls, one audit line per handler.
+    my $handlers  = Lazysite::Handlers::read_handlers();
     my $delivered = 0;
-    for my $target ( @{ $conf->{targets} } ) {
-        $delivered += ( dispatch( $target, \%form, \%handlers ) ? 1 : 0 );
+    for my $id ( @{ $conf->{targets} } ) {
+        my $r = Lazysite::Handlers::deliver(
+            $id, { _visible_fields( \%form ) },
+            origin      => 'form',
+            source      => "form:$name",
+            store       => $name,
+            ip          => $ENV{REMOTE_ADDR} // '',
+            actor       => '',                        # SM402: no verified actor
+            files       => $form{_files},
+            quarantined => $form{_quarantined},
+            spam_reason => $form{_spam_reason},
+            ( defined $handlers ? ( handlers => $handlers ) : () ),
+        );
+        $delivered++ if $r->{ok};
     }
 
     # If NOTHING actually accepted the submission - every target disabled, unknown,
@@ -269,28 +241,6 @@ if ($@) {
 
 # --- Config ---
 
-sub load_handlers {
-    my $path = "$FORMS_DIR/handlers.conf";
-    return () unless -f $path;
-
-    open my $fh, '<:utf8', $path or return ();
-    my $text = do { local $/; <$fh> };
-    close $fh;
-
-    my %handlers;
-    while ( $text =~ /^\s{2}-\s+id:\s*(\S+)(.*?)(?=^\s{2}-\s+id:|\z)/gmsx ) {
-        my ( $id, $block ) = ( $1, $2 );
-        my %h = ( id => $id );
-        while ( $block =~ /^\s{4}(\w+)\s*:\s*(.+)$/mg ) {
-            $h{$1} = $2;
-            $h{$1} =~ s/\s+$//;
-        }
-        $handlers{$id} = \%h;
-    }
-
-    return %handlers;
-}
-
 # SM231: is a top-level boolean key explicitly OFF in a form's own config
 # text? Absent, unparseable or anything else => 0 (not off), so the caller's
 # default stands.
@@ -303,32 +253,6 @@ sub _conf_flag_off {
         last;
     }
     return $off;
-}
-
-# The form's delivery targets: handler references if it uses the current
-# format, else the legacy inline type blocks. An empty list is the caller's to
-# reject - this only reads.
-sub _targets_from {
-    my ($text) = @_;
-    my @targets;
-
-    # New format: handler references
-    while ( $text =~ /^\s*-\s+handler:\s*(\S+)/mg ) {
-        push @targets, { handler => $1 };
-    }
-    return @targets if @targets;
-
-    # Legacy format: inline type config
-    while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
-        my ( $type, $block ) = ( $1, $2 );
-        my %t = ( type => $type );
-        $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
-        $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
-        $t{path}   = $1 if $block =~ /^\s*path:\s*(.+)$/m;
-        $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
-        push @targets, \%t;
-    }
-    return @targets;
 }
 
 # Optional binary-upload constraints. Present any of these keys to enable file
@@ -362,7 +286,16 @@ sub load_form_conf {
     my $text = do { local $/; <$fh> };
     close $fh;
 
-    my @targets = _targets_from($text);
+    # SM842: a form's targets name handlers and nothing else. An inline target
+    # left in a config the upgrade did not reach is said in the log - it is
+    # never delivered, because delivering it would be a second way to name a
+    # destination, one no listing shows and nobody with the destination's
+    # permission vetted.
+    my ( $ids, $inline ) = Lazysite::Handlers::parse_form_conf($text);
+    log_event( 'ERROR', $name, 'this form has inline targets, which no longer deliver - '
+            . 'run lazysite-handlers.pl convert (SM842)', count => scalar @$inline )
+        if @$inline;
+    my @targets = @$ids;
     reject("No targets configured for form '$name'") unless @targets;
 
     my $upload = _upload_rules($text);
@@ -444,215 +377,21 @@ sub _spam_assessment {
     return @reasons ? ( 1, join( ' + ', @reasons ) ) : ( 0, '' );
 }
 
-# --- Dispatch ---
-
-sub dispatch {
-    my ( $target, $form, $handlers_ref ) = @_;
-
-    my %h_config;
-    if ( $target->{handler} ) {
-        my $id = $target->{handler};
-        unless ( $handlers_ref->{$id} ) {
-            log_event( 'WARN', $form->{_form} // '-', 'unknown handler', handler => $id );
-            return 0;
-        }
-        %h_config = %{ $handlers_ref->{$id} };
-
-        if ( lc( $h_config{enabled} // 'true' ) eq 'false' ) {
-            return 0;    # handler disabled - did NOT deliver
-        }
-    }
-    else {
-        %h_config = %$target;
-    }
-
-    my $type = $h_config{type} // '';
-
-    if    ( $type eq 'file' )  { return dispatch_file( \%h_config, $form ) }
-    elsif ( $type eq 'db' )    { return dispatch_db( \%h_config, $form ) }
-    elsif ( $type eq 'table' ) { return dispatch_table( \%h_config, $form ) }
-    elsif ( $type eq 'smtp' )  { return dispatch_smtp( \%h_config, $form ) }
-    elsif ( $type eq 'webhook' || $type eq 'api' ) { return dispatch_webhook( \%h_config, $form ) }
-    elsif ( $type eq 'connector' ) { return dispatch_connector( \%h_config, $form ) } # SM579
-    else {
-        log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
-        return 0;
-    }
-}
-
-# DP-4: a form submission becomes a row in a typed table.
-#
-# THIS IS THE ANONYMOUS WRITE PATH, AND THE ONLY ONE. lazysite-data.pl refuses
-# an anonymous POST and says a form is how you collect data from visitors -
-# this is what it is pointing at. The difference is not the storage, it is
-# everything around it: a form has rate limits, spam assessment, quarantine, an
-# audit trail, and a handler an operator configured. A data binding taking
-# anonymous writes would rebuild that surface without any of it.
-#
-# SO THE OPERATOR'S HANDLER DECIDES EVERYTHING STRUCTURAL, and the visitor
-# decides only values. The table and the column names come from handlers.conf,
-# which is sysop-only; the form supplies values and nothing else. A form
-# that grows a field cannot grow a column, and a field nobody mapped is
-# DROPPED rather than guessed at.
-#
-#     - id: enquiries
-#       type: db
-#       table: enquiries
-#       fields: name=name,email=email,message=body
-#
-# `fields` reads FORM=COLUMN. It is REQUIRED: mapping same-named fields
-# automatically would mean a form gaining a field silently starts writing to a
-# column, which is the accident this whole shape exists to prevent.
-#
-# THE ROW GOES THROUGH THE SAME COERCION AS ANY OTHER WRITE, so a form cannot
-# put anything into the store that the API could not - a date that is not one,
-# a value outside an enum, a decimal with too many places. A refused value
-# fails the delivery rather than storing something wrong, because a visitor
-# told "thank you" about a submission that was silently dropped is the worst of
-# the available outcomes.
-#
-# THE MODULES ARE FOUND, NOT ASSUMED. This plugin loads no Lazysite modules -
-# it has the same standalone property the processor has - so the tree is
-# located here exactly as resolve_db locates it, and a host without the data
-# modules gets a DIAGNOSIS rather than a die that becomes a 500 (SM472).
-sub dispatch_db {
-    my ( $config, $form ) = @_;
-    my $fname = $form->{_form} // '-';
-
-    my $table = $config->{table} // '';
-    unless ( $table =~ /\A[a-z][a-z0-9_]*\z/ ) {
-        log_event( 'ERROR', $fname,
-            'db handler has no usable table name', table => $table );
-        return 0;
-    }
-
-    my $map = $config->{fields} // '';
-    unless ( length $map ) {
-        log_event( 'ERROR', $fname,
-            'db handler has no fields mapping - it must say which form field '
-                . 'goes in which column, as fields: name=name,email=email' );
-        return 0;
-    }
-
-    my $ok = eval {
-        unless ( $INC{'Lazysite/Data/Tables.pm'} ) {
-            _locate_lib();
-        }
-        require Lazysite::Data::Tables;
-        require Lazysite::Manager::Plugins;
-        1;
-    };
-    unless ($ok) {
-        log_event( 'ERROR', $fname,
-            'db handler needs the data modules and they could not be loaded',
-            error => ( $@ || 'unknown' ) );
-        return 0;
-    }
-
-    # A DISABLED PLUGIN STORES NOTHING. SM409's rule is that off means off, and
-    # a form quietly writing to a table an operator has switched off would be
-    # the plugin still running after being turned off.
-    {
-        no warnings 'once';    # SM557
-        local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-        unless (
-            Lazysite::Manager::Plugins::plugin_enabled('plugins/data.pl') )
-        {
-            log_event( 'ERROR', $fname,
-                'the data plugin is disabled, so this form cannot store a row',
-                table => $table );
-            return 0;
-        }
-    }
-
-    # VALUES ONLY. Every column is named by the operator's mapping; the form is
-    # read for values at those names and for nothing else.
-    my %row;
-    for my $pair ( split /\s*,\s*/, $map ) {
-        my ( $from, $to ) = split /\s*=\s*/, $pair, 2;
-        next unless defined $from && defined $to && length $from && length $to;
-        unless ( $to =~ /\A[a-z][a-z0-9_]*\z/ ) {
-            log_event( 'ERROR', $fname,
-                'db handler maps to something that is not a column name',
-                column => $to );
-            return 0;
-        }
-        next if $from =~ /\A_/;    # the _-prefixed keys are the form's own
-        $row{$to} = $form->{$from} if exists $form->{$from};
-    }
-
-    unless (%row) {
-        log_event( 'WARN', $fname,
-            'db handler stored nothing - no mapped field was submitted',
-            table => $table );
-        return 0;
-    }
-
-    my $r = Lazysite::Data::Tables::insert_row( $DOCROOT, $table, \%row );
-    unless ( $r && $r->{ok} ) {
-        # SAID, WITH THE REASON. "the submission failed" sends an operator to
-        # look at the form; "field 'when': '32nd' is not a date" sends them to
-        # the one line that is wrong.
-        log_event( 'ERROR', $fname, 'db handler could not store the row',
-            table => $table, why => ( $r->{error} // 'unknown' ) );
-        return 0;
-    }
-
-    log_event( 'INFO', $fname, 'form stored a row', table => $table );
-    return 1;
-}
-
-# SM569: a `table` handler is DP-4's db insert AND the JSONL submissions
-# store, together. The row goes through dispatch_db unchanged - the same
-# sysop-only mapping, the same plugin-enabled gate, the same insert_row
-# coercion as a live write - and the JSONL copy that the Submissions page,
-# the audit trail and SM187's bulk delete depend on is written alongside.
-# When the row is REFUSED (a value the declared types will not take), the
-# copy is still written and carries _row_refused: the rejected-import shape,
-# no row landed and the record says so - while the handler reports failure,
-# so the visitor is not thanked for a submission the table refused.
-sub dispatch_table {
-    my ( $config, $form ) = @_;
-    my $stored = dispatch_db( $config, $form );
-    my %copy   = %$form;
-    $copy{_row_refused} = 1 unless $stored;
-    my $filed = dispatch_file( $config, \%copy );
-    log_event( 'ERROR', $form->{_form} // '-',
-        'table handler stored the row but not the submissions copy' )
-        if $stored && !$filed;
-    return $stored;
-}
-
-# SM115: record a submission in the audit trail. The submitter is the public, so the
-# user is usually blank; written directly in Lazysite::Audit's pipe format (origin
-# "form"), since the handler does not load the lib.
-# SM222 / N13-04: A MARKED COPY of Lazysite::Audit::audit_trail_state, because
-# this handler writes the audit trail directly and does not load the lib. With
-# `audit_trail: off` the trail stops - and a switch that stopped the module and
-# not this line would leave every form submission still being recorded after an
-# operator was told the trail was off. t/lint/130 pins the two readers together.
-sub _audit_trail_off {
-    open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" or return 0;
-    my $state = 'on';
-    while ( my $l = <$fh> ) {
-        next unless $l =~ /^audit_trail\s*:\s*(\S+)\s*$/;
-        $state = lc($1) eq 'off' ? 'off' : 'on';
-    }
-    close $fh;
-    return $state eq 'off' ? 1 : 0;
-}
-
+# SM115: one line per submission in the audit trail - the submitter is the
+# public, so the actor is blank (SM402), and origin is "form". SM842: through
+# Lazysite::Audit, now that this plugin loads the module tree, so the trail
+# has one writer and one reading of its own switch (N13-04's marked copy and
+# the lint that pinned the two together are gone with the copy). Each
+# handler's outcome is its own line, written by Lazysite::Handlers::deliver.
 sub _audit_submission {
     my ( $form, $user, $ip ) = @_;
-    my $logdir = "$DOCROOT/lazysite/logs";
-    return unless -d $logdir;
-    return if _audit_trail_off();
-    $_ = defined $_ ? "$_" : '' for ( $form, $user, $ip );
-    s/[|\r\n]+/ /g for ( $form, $user, $ip );
-    my $ts = strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | $user | submit | $form | $ip | ok | form\n";
-    close $fh;
+    eval {
+        require Lazysite::Audit;
+        no warnings 'once';
+        local $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+        Lazysite::Audit::audit_log( $user, 'submit', $form, $ip, 'ok', 'form' );
+        1;
+    };
     return;
 }
 
@@ -748,64 +487,6 @@ sub _notify_submission {
     return;
 }
 
-sub dispatch_file {
-    my ( $config, $form ) = @_;
-
-    my $dir = $config->{path} || 'lazysite/forms/submissions';
-    $dir = "$DOCROOT/$dir" unless $dir =~ m{^/};
-    make_path($dir) unless -d $dir;
-
-    my $form_name = $form->{_form} // 'unknown';
-    $form_name =~ s/[^a-zA-Z0-9_-]//g;
-
-    my %record = _visible_fields($form);
-    $record{_submitted} = strftime( '%Y-%m-%dT%H:%M:%S', localtime );
-    $record{_ip}        = $ENV{REMOTE_ADDR} // 'unknown';
-    $record{_form}      = $form_name;
-
-    # SM216: carry the quarantine flag + reason onto the stored record so the
-    # Submissions viewer can surface and triage it. (The dispatch loop's own copy
-    # of %form set these; _-prefixed keys are otherwise dropped above.)
-    if ( $form->{_quarantined} ) {
-        $record{_quarantined} = JSON::PP::true;
-        $record{_spam_reason} = $form->{_spam_reason} // '';
-    }
-
-    # SM569: a table handler's JSONL copy records a refused row like a
-    # rejected import - the row did not land, and the copy says so.
-    $record{_row_refused} = JSON::PP::true if $form->{_row_refused};
-
-    # Binary uploads: store the files in a per-submission subdir next to the
-    # <form>.jsonl, and record the (sanitised) filenames + their dir in the record.
-    if ( $form->{_files} && @{ $form->{_files} } ) {
-        my $id = strftime( '%Y%m%dT%H%M%S', localtime )
-            . '-' . sprintf( '%04x', int( rand 65536 ) );
-        my ( $saved, $rel ) = save_uploads( $form->{_files}, $dir, $form_name, $id );
-        if (@$saved) {
-            $record{_files}     = $saved;
-            $record{_files_dir} = $rel;
-        }
-    }
-
-    my $log_path = "$dir/$form_name.jsonl";
-    open( my $fh, '>>:utf8', $log_path ) or do {
-        log_event( 'ERROR', $form->{_form} // '-', 'file write failed', path => $log_path, error => $! );
-        return 0;
-    };
-    flock( $fh, LOCK_EX );
-    my $wrote = print $fh encode_json( \%record ) . "\n";
-    flock( $fh, LOCK_UN );
-    # SM020 checked-write (review D5): a failed print surfaces at close (buffer
-    # flush). Without the check a disk-full submission was acknowledged as
-    # delivered while the record never landed - fail closed so the visitor is
-    # told delivery failed rather than thanked for a lost submission.
-    unless ( close($fh) && $wrote ) {
-        log_event( 'ERROR', $form->{_form} // '-', 'file write failed (flush)', path => $log_path, error => $! );
-        return 0;
-    }
-    return 1;
-}
-
 # Enforce the form's upload constraints; reject() (die) on the first violation.
 sub validate_uploads {
     my ( $files, $cfg ) = @_;
@@ -821,174 +502,6 @@ sub validate_uploads {
         reject_user( "File type not allowed: $f->{filename} (accepted: "
                 . join( ', ', @{ $cfg->{accept} } ) . ').' )
             unless $ext && $ok{$ext};
-    }
-    return;
-}
-
-# Path-safe: strip any directory component (traversal) and keep a conservative
-# whitelist of characters. Returns a bare, safe basename.
-sub _safe_filename {
-    my ($n) = @_;
-    $n =~ s{.*[\\/]}{};
-    $n =~ s/[^A-Za-z0-9._-]/_/g;
-    $n =~ s/^\.+//;
-    $n = 'file' unless length $n;
-    return substr( $n, 0, 100 );
-}
-
-# Write the uploaded files into <dir>/<form>.files/<id>/. Returns (\@saved_names,
-# $relative_subdir).
-sub save_uploads {
-    my ( $files, $dir, $form_name, $id ) = @_;
-    my $rel  = "$form_name.files/$id";
-    my $fdir = "$dir/$rel";
-    make_path($fdir) unless -d $fdir;
-    my @saved;
-    my $i = 0;
-    for my $f (@$files) {
-        $i++;
-        my $safe = _safe_filename( $f->{filename} );
-        $safe = "$i-$safe" if -e "$fdir/$safe";    # keep both if names collide
-        open my $w, '>:raw', "$fdir/$safe" or next;
-        print {$w} $f->{data};
-        close $w;
-        push @saved, $safe;
-    }
-    return ( \@saved, $rel );
-}
-
-sub dispatch_smtp {
-    my ( $config, $form ) = @_;
-
-    my $script = find_script('form-smtp.pl');
-    unless ($script) {
-        log_event( 'WARN', $form->{_form} // '-', 'smtp script not found' );
-        return;
-    }
-
-    my %fields = _visible_fields($form);
-
-    my %payload = ( config => $config, form => \%fields );
-
-    # When the SMTP handler is set to attach uploads, hand the files (base64) to
-    # form-smtp.pl so it can attach them and list them under the message.
-    my $attach = defined $config->{attach_files}
-        && lc("$config->{attach_files}") =~ /^(?:1|true|yes|on|enabled)$/;
-    if ( $attach && $form->{_files} && @{ $form->{_files} } ) {
-        require MIME::Base64;
-        $payload{files} = [ map {
-                { filename => $_->{filename},
-                    type => $_->{type},
-                    size => length( $_->{data}                      // '' ),
-                    data => MIME::Base64::encode_base64( $_->{data} // '' ),
-                }
-        } @{ $form->{_files} } ];
-    }
-
-    my $json = encode_json( \%payload );
-
-    require IPC::Open2;
-    my ( $child_out, $child_in );
-    my $pid = IPC::Open2::open2( $child_out, $child_in, $^X, $script, '--pipe' );
-    print $child_in $json;
-    close $child_in;
-    my $result = do { local $/; <$child_out> };
-    close $child_out;
-    waitpid $pid, 0;
-
-    my $r = eval { decode_json( $result // '' ) } // {};
-    unless ( $r->{ok} ) {
-        log_event( 'WARN', $form->{_form} // '-', 'smtp dispatch failed',
-            error => ( $r->{error} // 'no output' ) );
-    }
-    return $r->{ok} ? 1 : 0;
-}
-
-# SM579: a public form submission sent through a connector (mode 3). The
-# connector decides: it must permit public invocation (opt-in, never the
-# default) and its rate cap counts this call like any other. The visible
-# fields go as the payload, text only; the answer is kept by the connector
-# (its answer_table) and is not shown to the visitor here - the page that
-# renders the table is where it shows.
-sub dispatch_connector {
-    my ( $config, $form ) = @_;
-    my $id = $config->{connector} // '';
-    require Lazysite::Manager::Connectors;
-    no warnings 'once';
-    local $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
-    my %fields = _visible_fields($form);
-    my $r      = Lazysite::Manager::Connectors::call( $id, \%fields,
-        mode => 'public', actor => '', trigger => 'form:' . ( $form->{_form} // '-' ) );
-    unless ( $r->{ok} ) {
-        log_event( 'WARN', $form->{_form} // '-', 'connector handler did not deliver',
-            connector => $id, state => ( $r->{state} // '' ), why => ( $r->{error} // '' ) );
-    }
-    return $r->{ok} ? 1 : 0;
-}
-
-sub dispatch_webhook {
-    my ( $config, $form ) = @_;
-    my $url = $config->{url} or return;
-
-    my %fields = _visible_fields($form);
-
-    my $body;
-    if ( ( $config->{format} // 'json' ) eq 'slack' ) {
-        my $text = join "\n", map { "*$_*: $fields{$_}" } sort keys %fields;
-        $body = encode_json( { text => $text } );
-    }
-    else {
-        $body = encode_json( \%fields );
-    }
-
-    # SM790: the same two bounds the connector path now carries, for the same
-    # reasons and on the same argument.
-    #
-    # This is the OTHER egress path a public form can drive, and it had no
-    # bounds at all. A redirect sends the visitor's own submitted fields to a
-    # host the operator never configured; an uncapped body is read whole into
-    # memory by whatever process is serving the submission.
-    #
-    # The URL itself is NOT run through the SSRF guard, deliberately and for
-    # the same reason as the connector's: it lives in handlers.conf, which is
-    # in the reserved tree and blocklisted, so it is the operator's choice.
-    # What the operator did not choose is where a 3xx points.
-    require LWP::UserAgent;
-    my $ua = LWP::UserAgent->new(
-        timeout      => 10,
-        max_redirect => 0,
-        max_size     => 64 * 1024,
-    );
-    my $res = $ua->post( $url,
-        'Content-Type' => 'application/json',
-        Content        => $body );
-
-    if ( $res->is_redirect ) {
-        log_event( 'WARN', $form->{_form} // '-',
-            'webhook answered with a redirect and was not followed',
-            url => $url, status => $res->status_line );
-        return 0;
-    }
-    unless ( $res->is_success ) {
-        log_event( 'WARN', $form->{_form} // '-', 'webhook failed',
-            url => $url, status => $res->status_line );
-    }
-    return $res->is_success ? 1 : 0;
-}
-
-sub find_script {
-    my ($name) = @_;
-    # D022: $DOCROOT/../plugins/ is now the canonical home.
-    # The other paths stay as fallbacks so 0.1.0 installs
-    # still work during the upgrade transition, and sysops
-    # who choose a system-wide install layout keep working.
-    for my $path (
-        "$DOCROOT/../plugins/$name",
-        "$DOCROOT/../cgi-bin/$name",
-        "$DOCROOT/../$name",
-        "/usr/local/lib/lazysite/$name",
-    ) {
-        return $path if -f $path;
     }
     return;
 }
@@ -1321,14 +834,12 @@ sub _forward_diag {
     return;
 }
 
-# Put the engine's module tree on @INC, if it is findable from here.
-#
-# Four call sites carried this verbatim. It stays a RUNTIME unshift and must
-# never become a `use lib`: this plugin is module-free by design (SM425/SM136),
-# and every caller wraps its require in an eval so that a missing lib costs a
-# member a rate-limit waiver or an operator a bell - never anybody a
-# submission. The SM473 lesson is why it is needed at all: `prove -l` puts
-# lib/ on @INC and a real install does not.
+# Put the engine's module tree on @INC, if it is findable from here - relative
+# to the real file, so the cgi-bin symlink finds the lib beside plugins/. The
+# SM473 lesson is why it is needed at all: `prove -l` puts lib/ on @INC and a
+# real install does not. It runs once at start-up (SM842: delivery needs the
+# tree); the notify and forward helpers still call it, harmlessly, for the
+# case where that first attempt found nothing.
 sub _locate_lib {
     require Cwd;
     require File::Basename;

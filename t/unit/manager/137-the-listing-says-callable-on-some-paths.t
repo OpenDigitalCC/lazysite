@@ -77,7 +77,12 @@ my $po;
     my ($sub) = $src =~ /(sub _path_only_for \{.*?\n\})/s;
     ok( defined $sub, 'the predicate was extracted from the script' )
         or BAIL_OUT('cannot test the real rule, and will not test a copy');
-    $po = eval "package SM653Real; $sub; \\&_path_only_for"
+    # SM842: the predicate reads cap_also through one helper (a capability or a
+    # list of them), so the helper comes with it.
+    my ($also) = $src =~ /(sub _cap_also \{.*?\n\})/s;
+    ok( defined $also, 'and the cap_also reader it calls' )
+        or BAIL_OUT('cannot test the real rule, and will not test a copy');
+    $po = eval "package SM653Real; $also; $sub; \\&_path_only_for"
         or BAIL_OUT("could not compile the extracted sub: $@");
 }
 sub _po { return $po->(@_) }

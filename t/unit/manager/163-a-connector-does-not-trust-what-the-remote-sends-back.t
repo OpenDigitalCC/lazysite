@@ -72,14 +72,16 @@ subtest 'the CONFIGURED url is not run through the SSRF guard' => sub {
         'and the reason is written down where the check would have gone' );
 };
 
-subtest 'the webhook path gets the same two bounds' => sub {
-    my ($ua) = $form =~ /(my \$ua = LWP::UserAgent->new\(.*?\);)/s;
-    ok( $ua, 'the webhook agent was found' ) or return;
-    like( $ua, qr/max_redirect\s*=>\s*0/,
-        'the other egress a public form can drive does not follow a redirect '
-            . 'either - it would send the visitor\'s own fields to a host the '
-            . 'operator never configured' );
-    like( $ua, qr/max_size\s*=>/, 'and its body is capped' );
+# SM842: THE WEBHOOK PATH IS GONE, and that is the stronger form of "it gets
+# the same two bounds". It was a second egress a public form could drive, and
+# SM790 had to remember to bound it separately; now outbound HTTP goes through
+# a connector and nowhere else, so there is one agent to get right. Asserted as
+# absent, so a second path cannot come back without meeting this.
+subtest 'there is no second egress path to bound' => sub {
+    unlike( $form, qr/LWP::UserAgent/, 'the form handler builds no user agent of its own' );
+    my $h = src('lib/Lazysite/Handlers.pm');
+    unlike( $h, qr/LWP::UserAgent/, 'nor does the handler contract - a connector handler calls Connectors::call' );
+    like( $h, qr/Lazysite::Manager::Connectors::call\(/, 'which is the one agent, with max_redirect 0 and max_size' );
 };
 
 done_testing;

@@ -81,11 +81,26 @@ my @STORES = (
         modules => [
             'lib/Lazysite/Daemon/Supervisor.pm',
             'lib/Lazysite/Daemon/Service/Scheduler.pm',
+
+            # SM842: the schedule's own run record (schedule-runs.json) - when
+            # each entry last ran, so an unreadable one must not read as "never".
+            'lib/Lazysite/Daemon/Jobs.pm',
         ],
     },
     { dir => 'connectors',
         store   => 1,
         modules => ['lib/Lazysite/Manager/Connectors.pm'],
+    },
+
+    # SM842: A STORE NOW. It was classified as configuration the dispatcher
+    # reports on - true, and not enough: handlers.conf is read-modify-written
+    # by every surface that saves a handler, and a save over a file that could
+    # not be read would have replaced every handler with one (SM785's shape).
+    # Lazysite::Handlers is the one reader and writer of handlers.conf,
+    # schedule.conf and the form bindings.
+    { dir => 'forms',
+        store   => 1,
+        modules => ['lib/Lazysite/Handlers.pm'],
     },
 
     # NOT STORES. Each line is an argument, not a label.
@@ -108,11 +123,6 @@ my @STORES = (
         store => 0,
         why => 'SQLite owns the file; a store it cannot open is a DBI error carried to the '
             . 'caller, never an empty result set (Lazysite::Data::Connect)',
-    },
-    { dir => 'forms',
-        store => 0,
-        why => 'handler and form configuration, read by the form dispatcher, which reports '
-            . 'a form it cannot deliver rather than accepting the submission (SM781)',
     },
     { dir => 'briefs',
         store => 0,
