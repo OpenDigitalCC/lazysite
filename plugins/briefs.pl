@@ -29,7 +29,7 @@ sub describe {
             . '.brief sidecar in the content tree. Read and append over the '
             . 'control API (brief-read / brief-append) and MCP (read_brief / '
             . 'append_brief). SM576: WRITING one needs manage_briefs, which '
-            . 'this plugin declares; READING one is admitted by manage_briefs '
+            . 'this extension declares; READING one is admitted by manage_briefs '
             . 'or manage_content, so a site that has always granted '
             . 'manage_content keeps the reads it had.',
         # SM469/ADR 0009: a contract plugin executes only while enabled, and

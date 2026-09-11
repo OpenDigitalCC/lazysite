@@ -63,19 +63,20 @@ subtest 'a plugin resolves by the parameter the declaration names' => sub {
 subtest 'a missing plugin parameter is named as missing' => sub {
     my ( $full, $why ) = Lazysite::Manager::Plugins::_resolve_plugin_or_why( undef, undef );
     ok( !$full, 'nothing resolves' );
-    like( $why, qr/a plugin is required/, 'the refusal names the parameter' );
+    like( $why, qr/an extension is required/, 'the refusal names the parameter' );
     like( $why, qr/\?plugin=/,            'and the query-string spelling' );
     like( $why, qr/"script"/,             'and the body spelling' );
-    like( $why, qr/plugin-list/,          'and where the ids come from' );
+    like( $why, qr/extension-list/,       'and where the ids come from - by its current name' );
+    unlike( $why, qr/\bplugin-list\b/,   '...not the deprecated one (SM840)' );
     unlike( $why, qr/Plugin not found/,
         'it does not say the plugin is missing when the PARAMETER was - that '
             . 'sentence sent the field looking for a plugin that was there' );
 
     my ( $f2, $why2 ) = Lazysite::Manager::Plugins::_resolve_plugin_or_why( 'nosuchplugin', undef );
     ok( !$f2, 'a named plugin that is not installed still fails' );
-    like( $why2, qr/no plugin 'nosuchplugin' is installed/,
+    like( $why2, qr/no extension 'nosuchplugin' is installed/,
         'and THAT refusal is about the plugin, because that is what was wrong' );
-    like( $why2, qr/plugin-list/, 'still pointing at the list' );
+    like( $why2, qr/extension-list/, 'still pointing at the list' );
 };
 
 done_testing;

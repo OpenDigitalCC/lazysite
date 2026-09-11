@@ -44,6 +44,12 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM840 (PENDING) **the rename reaches the prose the manager pages could not.**
+  Three extensions' own descriptions still said *plugin*, and so did the
+  control API's error text, which also named the deprecated `plugin-list`.
+  SM817's pass swept pages; a description is prose each extension publishes
+  about itself, so a sweep of pages could not reach it.
+
 - SM839 (PENDING) **`plugin-save` takes a listing's id in its body as well.**
   SM832 resolved an id on the `plugin` parameter only, so `{"script":
   "link-audit"}` was refused - with a message telling the caller to pass the id.

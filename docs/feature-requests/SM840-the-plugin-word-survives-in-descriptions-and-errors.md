@@ -3,7 +3,8 @@ title: "SM840: 'plugin' survives in three extensions' own descriptions and in th
 subtitle: "Sites agent, 1312E-03, 2026-09-11: nav, titles, Groups, Users and Visitor Stats are clean; what remains is inside description prose and error text - which reaches an operator through any tooling"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. The word now reads extension in the three extensions' own descriptions (briefs, content-history, git-sync) and in the control API's error text, which also names extension-list rather than the deprecated plugin-list; ?plugin=<id> stays in the error because it is the wire parameter's real name. A sweep of all fourteen extensions' --describe output - name, description, action and config labels and notes - finds none left, and flags git-sync when the fix is reverted."
 ---
 
 # What remains

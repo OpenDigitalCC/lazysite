@@ -53,7 +53,7 @@ sub describe {
             . 'content plus lazysite.conf and nav.conf; it never includes secrets '
             . 'or personal data (accounts, form submissions, logs) nor generated '
             . 'caches, so it stays safe to sync to a private remote (the Remote '
-            . 'sync plugin). Full-system backups on the Backups page remain the '
+            . 'sync extension). Full-system backups on the Backups page remain the '
             . 'disaster-recovery mechanism for exactly what the history excludes.',
         version       => '1.0',
         config_file   => '',

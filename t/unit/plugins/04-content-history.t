@@ -168,7 +168,7 @@ SKIP: {
     is( $by_id{'content-history'}{_script}, 'plugins/content-history.pl',
         'with its plugins/ script path' );
     ok( $by_id{'git-sync'}, 'beside its sibling git-sync' );
-    like( $by_id{'git-sync'}{description}, qr/Content history plugin/,
+    like( $by_id{'git-sync'}{description}, qr/Content history extension/,
         'git-sync now points at the plugin, not the Backups page' );
 
     my $st = Lazysite::Manager::Plugins::action_plugin_action( 'content-history',

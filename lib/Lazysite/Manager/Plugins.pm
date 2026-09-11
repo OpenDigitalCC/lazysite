@@ -227,9 +227,9 @@ sub _resolve_plugin_or_why {
     my $named = join ' or ', grep { defined && length } ( $script, $plugin_id );
     return ( undef,
         length $named
-        ? "no plugin '$named' is installed - call plugin-list and pass a plugin's `id` or its `_script`"
-        : 'a plugin is required (in the query string as ?plugin=<id>, or in the '
-            . 'JSON body as {"script": "<id>"}); call plugin-list for the ids' );
+        ? "no extension '$named' is installed - call extension-list and pass an extension's `id` or its `_script`"
+        : 'an extension is required (in the query string as ?plugin=<id>, or in the '
+            . 'JSON body as {"script": "<id>"}); call extension-list for the ids' );
 }
 
 sub action_plugin_list {
