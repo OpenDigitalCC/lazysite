@@ -34,11 +34,14 @@ our $VERSION = '0.1';
 # Where the stats plugin lives. The same candidates the manager API tries
 # (_tool_path), because the layouts are the same: the repo, the Hestia domain
 # root with plugins/ beside public_html, and the packaged /usr/share/lazysite.
-# LAZYSITE_STATS_TOOL wins, as it does there, so a test can point at a stub.
+#
+# SM792: ONLY WHERE A DEPLOY PUTS IT. LAZYSITE_STATS_TOOL used to win here,
+# first and unconditionally, so whatever owned the runtime's environment could
+# name any script and the scheduler ran it. It was a test seam; the tests now
+# put their stub where the real lookup finds it, beside the docroot.
 sub _stats_tool {
     my ($root) = @_;
     for my $c (
-        $ENV{LAZYSITE_STATS_TOOL},
         dirname($0) . '/../plugins/stats.pl',
         "$root/../plugins/stats.pl",
         '/usr/share/lazysite/plugins/stats.pl',

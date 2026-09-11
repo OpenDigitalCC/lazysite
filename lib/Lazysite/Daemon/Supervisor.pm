@@ -211,6 +211,25 @@ sub _is_ours {
     return $now_ticks eq $started_ticks ? 1 : 0;
 }
 
+# SM792: is $pid a fork of a supervisor started as this one was - our own uid,
+# and the command line this process has? Unreadable is no: a supervisor that
+# cannot tell must not kill.
+sub _a_copy_of_us {
+    my ($pid) = @_;
+    my @st = stat "/proc/$pid";
+    return 0 unless @st && $st[4] == $>;
+    my ( $theirs, $ours ) = map { _cmdline($_) } ( $pid, 'self' );
+    return ( defined $theirs && defined $ours && $theirs eq $ours ) ? 1 : 0;
+}
+
+sub _cmdline {
+    my ($pid) = @_;
+    open my $fh, '<:raw', "/proc/$pid/cmdline" or return undef; # not a store: a pid that has gone is the ordinary case (t/lint/121)
+    my $c = do { local $/; <$fh> };
+    close $fh;
+    return ( defined $c && length $c ) ? $c : undef;
+}
+
 # --- status --------------------------------------------------------------
 
 # SM222's shape, and now SM222's CODE - the debt SM666 recorded is paid here.
@@ -622,6 +641,19 @@ sub run {
         # scheduler is a supervisor that kills something else.
         next unless defined $st->{start_ticks}
             && _is_ours( $old, $st->{start_ticks} );
+
+        # SM792: AND A COPY OF THIS SUPERVISOR. The pid and state files are the
+        # site user's to write, and /proc hands anyone a pid's start time, so the
+        # proof above can be copied from any process. An orphaned service is a
+        # fork of the supervisor that started it: the same uid and the same
+        # command line as this one, which the unit restarts with the same
+        # ExecStart. Anything else is left running, and said so.
+        unless ( _a_copy_of_us($old) ) {
+            log_event( 'WARN', 'daemon',
+                'a recorded service pid is not a service of this supervisor - left running',
+                service => $s->{name}, pid => $old );
+            next;
+        }
         log_event( 'WARN', 'daemon',
             'stopping an orphaned service from a previous supervisor',
             service => $s->{name}, pid => $old );
@@ -809,6 +841,7 @@ sub _read_state {
 # subprocess held the supervisor's own shutdown until systemd's TimeoutStopSec
 # killed the whole cgroup - with no log line of its own to say which service.
 our $STOP_DEADLINE = 30;
+our $KILL_GRACE    = 5;    # SM792: how long a KILLed child gets to be reaped
 
 sub _stop_children {
     my ( $child, $root ) = @_;
@@ -824,7 +857,15 @@ sub _stop_children {
                 'service did not stop within the deadline; killing it',
                 service => $name, pid => $pid, deadline => $STOP_DEADLINE );
             kill 'KILL', $pid;
-            waitpid( $pid, 0 );
+
+            # SM792: bounded. A blocking waitpid here held the supervisor's own
+            # shutdown on a child in uninterruptible sleep, which KILL does not
+            # reach until it wakes; systemd's cgroup kill is the backstop, and the
+            # log says which service it was waiting for.
+            _wait_gone( $pid, $KILL_GRACE )
+                or log_event( 'ERROR', 'daemon',
+                'service still there after KILL; not waiting for it',
+                service => $name, pid => $pid, waited => $KILL_GRACE );
         }
         unlink _pid_file( $root, $name );
         unlink _state_file( $root, $name );

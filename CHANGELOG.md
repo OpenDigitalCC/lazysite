@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM792 partial (PENDING) **the daemon trusts less of what it can be handed.**
+  From the 0.13.8 review, each reproduced first: the stats job runs only the
+  plugin where a deploy puts it, not whatever `LAZYSITE_STATS_TOOL` names; a
+  supervisor stops an orphaned service only if it is a copy of itself, so a
+  forged pid and start time can no longer make it kill another process; the wait
+  after KILL is bounded, so a stuck child cannot hold the shutdown; and the group
+  drop is checked as the user drop always was. What Status shows while the
+  runtime is off, and the unit sandboxing, stay open as decisions.
+
 - SM847 (PENDING) **a small button is small only in a row or a cell.** To the
   ruling: `.mg-btn-sm` is sized small only inside a list row or a table cell, in
   all three styles, so a Refresh never sits smaller than the Add beside it - a

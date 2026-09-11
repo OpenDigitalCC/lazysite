@@ -86,15 +86,9 @@ if ( defined $opt{user} && length $opt{user} ) {
     }
 
     if ( $> == 0 ) {
-        require POSIX;
-        $) = "$gid $gid";
-        $( = $gid;
-        unless ( POSIX::setuid($uid) ) {
-            print STDERR "lazysited: setuid $uid failed: $!\n";
-            exit 2;
-        }
-        if ( $> == 0 || $< == 0 ) {
-            print STDERR "lazysited: privilege drop failed (still root)\n";
+        my $err = _drop_privileges( $uid, $gid );
+        if ( defined $err ) {
+            print STDERR "lazysited: $err\n";
             exit 2;
         }
     }
@@ -127,3 +121,27 @@ if ( $opt{status} ) {
 }
 
 exit Lazysite::Daemon::Supervisor::run( docroot => $docroot );
+
+# Become $uid:$gid. Returns undef, or what failed.
+#
+# SM792: THE GID DROP IS CHECKED, AS THE UID DROP ALWAYS WAS. Assigning $) and
+# $( fails silently - the variables simply keep their old values - so a drop
+# that set the uid and not the group left the runtime in root's group with
+# nothing said. Each assignment is read back: the effective group and the one
+# supplementary group, then the real group, before the uid moves.
+#
+# Loads no Lazysite module: this runs as root, and the lib may be the site
+# user's to write. t/unit/daemon/13 drives it.
+sub _drop_privileges {
+    my ( $uid, $gid ) = @_;
+    $) = "$gid $gid";
+    my @eff = split ' ', $);
+    return "setgid $gid failed: the effective groups are $)"
+        unless @eff && !grep { $_ != $gid } @eff;
+    $( = $gid;
+    return "setgid $gid failed: the real gid is $(" unless ( split ' ', $( )[0] == $gid;
+    require POSIX;
+    return "setuid $uid failed: $!" unless POSIX::setuid($uid);
+    return 'privilege drop failed (still root)' if $> == 0 || $< == 0;
+    return undef;
+}

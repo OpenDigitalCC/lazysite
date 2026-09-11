@@ -68,6 +68,16 @@ sub slurp {
     return $s;
 }
 
+# SM792: the stats job runs only the plugin where a deploy puts it - here the
+# Hestia layout, plugins/ beside the docroot - so a stub is put there.
+sub install_stats {
+    my ( $root, $tool ) = @_;
+    mkdir "$root/../plugins";
+    unlink "$root/../plugins/stats.pl";
+    symlink $tool, "$root/../plugins/stats.pl" or die "symlink: $!";
+    return;
+}
+
 sub by_job {
     my ($done) = @_;
     return { map { $_->{job} => $_ } @$done };
@@ -217,8 +227,8 @@ print '{"ok":true,"days":[{"date":"2026-09-01"},{"date":"2026-09-02"}]}';
 STUB
     close $fh;
 
-    local $ENV{LAZYSITE_STATS_TOOL} = $stub;
-    local $ENV{STUB_RECORD}         = "$root/stub-record.txt";
+    install_stats( $root, $stub );
+    local $ENV{STUB_RECORD} = "$root/stub-record.txt";
     my $r = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
     is( $r->{'stats-rollup'}{outcome}, 'ok', 'the rollup ran' ) or diag explain $r;
 
@@ -254,7 +264,7 @@ subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub 
         "\n";
     close $fh;
 
-    local $ENV{LAZYSITE_STATS_TOOL} = "$ROOT/plugins/stats.pl";
+    install_stats( $root, "$ROOT/plugins/stats.pl" );
     my $r = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
     is( $r->{'stats-rollup'}{outcome}, 'ok', 'the real plugin ran under the job' )
         or diag explain $r;
@@ -274,7 +284,7 @@ subtest 'a job that reports failure is recorded with its reason' => sub {
     print {$fh} "exit 3;\n";
     close $fh;
 
-    local $ENV{LAZYSITE_STATS_TOOL} = $stub;
+    install_stats( $root, $stub );
     my $r = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
     is( $r->{'stats-rollup'}{outcome}, 'error', 'a plugin that exits non-zero is an error' );
     like( $r->{'stats-rollup'}{reason}, qr/exited 3/, 'with the exit status in the reason' );
@@ -287,7 +297,7 @@ subtest 'a job that reports failure is recorded with its reason' => sub {
 
     # No plugin at all: the failure names that, rather than "exited 2" or a
     # shell error.
-    local $ENV{LAZYSITE_STATS_TOOL} = "$root/does-not-exist.pl";
+    unlink "$root/../plugins/stats.pl";
     delete $runs->{'stats-rollup'};
     open my $w, '>', "$root/lazysite/daemon/scheduler-runs.json" or die $!;
     print {$w} JSON::PP::encode_json($runs);
