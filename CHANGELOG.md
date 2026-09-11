@@ -43,6 +43,14 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM798 partial (PENDING) **`lazysite check` says when logins are not rate
+  limited.** The limiter fails open - without DB_File, or with a counter the
+  sign-in CGI cannot open, every attempt is allowed - and until now only the log
+  said so. The health check reports it in the same words, names the package or
+  the file, and `--fix` repairs the file's permissions; a working limiter is
+  reported as in force. Making the limiter a switchable extension waits on one
+  decision about its default.
+
 - SM792 partial (PENDING) **the daemon trusts less of what it can be handed.**
   From the 0.13.8 review, each reproduced first: the stats job runs only the
   plugin where a deploy puts it, not whatever `LAZYSITE_STATS_TOOL` names; a

@@ -1068,6 +1068,9 @@ sub run_checks {
     # --- 8g. can this site's private store actually be written? (SM296) --------
     report_private_store_usable();
 
+    # --- 8g2. is the login rate limiter actually counting? (SM798) --------------
+    report_login_rate_limit();
+
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
 
@@ -2088,6 +2091,39 @@ sub report_theme_assets_mirrored {
             . 'Until then every page renders with no stylesheet and still '
             . 'returns 200, so nothing else will report it.'
     );
+    return;
+}
+
+# SM798: THE LOGIN RATE LIMITER FAILS OPEN, SO THIS IS WHERE IT SAYS SO.
+#
+# Without DB_File, or with a counter the sign-in CGI cannot open, every attempt
+# is allowed - deliberately, since refusing every login on a host missing an
+# optional module is the worse failure. The auth CGI logs that on each attempt;
+# this is the surface an operator reads, and it said nothing, so a site with no
+# rate limiting looked healthy here. The same words as the log: NOT in force.
+sub report_login_rate_limit {
+    unless ( eval { require DB_File; 1 } ) {
+        report( 'WARN',
+            'the login rate limiter is NOT in force: DB_File is not installed, so '
+                . 'sign-in attempts cannot be counted and every one is allowed',
+            'install DB_File (Debian: libdb-file-perl)' );
+        return;
+    }
+    my $db = "$LZ/auth/.login-rate.db";
+    if ( my @s = stat $db ) {
+        unless ( cgi_can( 4, @s ) && cgi_can( 2, @s ) ) {
+            report( 'WARN',
+                sprintf( 'the login rate limiter is NOT in force: its counter %s (%04o, %s:%s) '
+                        . 'cannot be opened by the CGI (%s), so every attempt is allowed',
+                    $db, $s[2] & 07777, owner_name($db), group_name($db), $exp_grp ),
+                sprintf( "chown %s:%s '%s' && chmod 0660 '%s'", $exp_user, $exp_grp, $db, $db ) );
+            push @chmod_fixes, [ 0660, $db, 'add' ];
+            $chown_needed = 1;
+            return;
+        }
+    }
+    report( 'OK', 'the login rate limiter is in force (per address; its counter is '
+            . ( -e $db ? 'usable' : 'created at the first sign-in' ) . ')' );
     return;
 }
 
