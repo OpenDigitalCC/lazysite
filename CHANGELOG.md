@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM846 (PENDING) **the Cache page says Delete, names each copy's domain, and
+  keeps its button on the right.** A cache row built five cells into a
+  three-column grid, so the button wrapped into the middle column. Only
+  alias-host copies were tagged, which left every primary row to be
+  inferred; `cache-list` now returns a `domain` on every entry. And the button
+  said *Invalidate*, a consequence, for what is a delete of the cached copy.
+
 - SM844 (PENDING) **a template written for 0.12's raw data values is found
   before a visitor finds it.** 0.12 rendered a stored value as live HTML and
   needed `| html`; 0.13 escapes at the sink, so the same template shows

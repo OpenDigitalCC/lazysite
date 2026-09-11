@@ -1968,8 +1968,29 @@ sub _host_content_root {
     return length $cr ? "$DOCROOT/$cr" : $DOCROOT;
 }
 
+# SM846: the name the primary site answers to, so a cached page from the
+# primary can say which domain it serves - on a multi-domain instance a list
+# that tags only the alias hosts leaves the untagged rows to be inferred.
+# The configured site_url names it; the ${SERVER_NAME} placeholder names no
+# host, and then the primary answers to whatever reaches it that is not an
+# alias, which the request this listing arrived on is - unless it came in on
+# an alias itself, when there is no name to give.
+sub _primary_domain_name {
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $r      = eval { Lazysite::Manager::Domains::domains_list() } || {};
+    my @rows   = @{ $r->{domains} || [] };
+    my ($prim) = grep { $_->{is_primary} } @rows;
+    my $url    = $prim ? ( $prim->{site_url} // '' ) : '';
+    return lc $1 if $url !~ /\$\{/ && $url =~ m{^https?://([^/:?#]+)}i;
+    ( my $req = lc( $ENV{SERVER_NAME} || $ENV{HTTP_HOST} || '' ) ) =~ s/:\d+\z//;
+    my %alias = map { lc( $_->{host} // '' ) => 1 } grep { !$_->{is_primary} } @rows;
+    return $req if $req =~ /\A[a-z0-9.-]+\z/ && !$alias{$req};
+    return 'default site';
+}
+
 sub action_cache_list {
     my @cached;
+    my $primary = _primary_domain_name();
     # Primary host: the .html mirror sits beside its .md in the content tree.
     find(
         sub {
@@ -1980,6 +2001,7 @@ sub action_cache_list {
             ( my $base = $File::Find::name ) =~ s/\.html$//;
             push @cached, {
                 path       => $rel,
+                domain     => $primary,
                 mtime      => ( stat $_ )[9],
                 has_source => _cache_source_exists($base),
             };
@@ -2008,6 +2030,7 @@ sub action_cache_list {
                 push @cached, {
                     path       => $url,
                     host       => $host,
+                    domain     => $host,
                     mtime      => ( stat $_ )[9],
                     has_source => _cache_source_exists("$croot/$base_rel"),
                 };

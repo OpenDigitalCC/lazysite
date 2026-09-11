@@ -3,7 +3,8 @@ title: "SM846: the cache page says 'invalidate' for what is a delete, hides whic
 subtitle: "Release manager, 2026-09-11, on 0.13.12: three things on one page"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. All three. The button: .mg-row is SM819's three-column grid and a cache row built five cells, so the last two wrapped to an implicit second row and the button sat in the middle column; the row now builds three (path with its domain tag, status and age, the button). The domain: cache-list returns a domain on every entry - an alias copy its host, a primary copy the host its site_url names, or with the ${SERVER_NAME} placeholder the name the request arrived on unless that is an alias, when it says 'default site' rather than a wrong name. The word: Delete on the row and Delete all at the top, in the confirmation, the status messages, the page note and the manager guide; the wire action keeps its name cache-invalidate. Measured by cell count in the rendered row, not by a screenshot."
 ---
 
 # As reported

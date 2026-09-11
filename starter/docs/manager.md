@@ -235,11 +235,13 @@ on the Appearance page.
 
 ### Cache
 
-`/manager/cache`. Cache inspection and invalidation:
+`/manager/cache`. The cached copies of rendered pages:
 
-- Lists all cached `.html` files with age and source status
-- Invalidate a single cached page
-- Clear all cache at once (useful after theme changes)
+- Lists every cached copy with the domain it serves, its age and whether its
+  source still exists
+- **Delete** removes one copy, for that domain only; the page renders afresh
+  on its next request
+- **Delete all** removes every copy at once (useful after theme changes)
 
 ### Audit
 

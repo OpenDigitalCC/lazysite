@@ -8,11 +8,13 @@ search: false
 
 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
 <button class="mg-btn" onclick="loadCache()">Refresh</button>
-<button class="mg-btn mg-btn-danger" onclick="clearAll()">Clear All Cache</button>
+<button class="mg-btn mg-btn-danger" onclick="clearAll()">Delete all</button>
 </div>
 
-<!-- SM110: alias-host copies are invalidated alongside, not listed. -->
-<div class="mg-note mg-note-info">The list shows every cached render &mdash; the primary site and each domain / sub&#8209;domain host (tagged with its host). A host's renders live in <code>lazysite/cache/hosts/&lt;host&gt;/</code>, not beside the content, so manage them here rather than in Files. <strong>Invalidate</strong> clears that entry (a host entry clears just that host); <strong>Clear All</strong> clears everything.</div>
+<!-- SM110: alias-host copies are deleted alongside, not listed. -->
+<!-- SM846: the buttons name the act - a cached copy is DELETED, and the next
+     request renders it afresh. "Invalidate" named the consequence. -->
+<div class="mg-note mg-note-info">Each row is a cached copy of a page, tagged with the domain it serves. A domain's copies live in <code>lazysite/cache/hosts/&lt;host&gt;/</code>, not beside the content, so manage them here rather than in Files. <strong>Delete</strong> removes that copy (for that domain only), and the page renders afresh on its next request; <strong>Delete all</strong> removes every copy.</div>
 
 <div class="mg-status" id="cache-stats"></div>
 
@@ -87,42 +89,45 @@ function renderCache(files) {
     var age = now - (f.mtime || 0);
     var statusClass = f.has_source ? 'mg-tag mg-tag-on' : 'mg-tag mg-tag-off';
     var statusLabel = f.has_source ? 'Has source' : 'Orphan';
-    // Per-alias-host renders are tagged with their host (subdomain); primary
-    // renders have no host. hostArg passes it through to a surgical invalidate.
-    var hostTag = f.host ? '<span class="mg-tag mg-tag-off" title="cached render for the ' + escHtml(f.host) + ' host">' + escHtml(f.host) + '</span>' : '';
+    // SM846: every row names the domain it serves - the primary's as well as
+    // each alias host's, so no row is left to be inferred. Only an alias host
+    // passes f.host through: that is what makes the delete surgical.
+    var domain = f.domain || f.host || '';
+    var domainTag = domain ? '<span class="mg-tag" title="cached copy served to ' + escHtml(domain) + '">' + escHtml(domain) + '</span>' : '';
     var hostArg = f.host ? ",'" + escHtml(f.host) + "'" : '';
+    // SM846/SM819: THREE cells, because .mg-row is a three-column grid. Five
+    // cells wrapped the last two to an implicit second row, which put the
+    // button in the middle column.
     html += '<div class="mg-row">';
-    html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(f.path) + '</span>';
-    html += hostTag;
-    html += '<span class="mg-tag ' + statusClass + '">' + statusLabel + '</span>';
-    html += '<span class="mg-file-meta">' + formatAge(age) + ' ago</span>';
-    html += '<button class="mg-btn mg-btn-sm" onclick="invalidate(\'' + escHtml(f.path) + '\'' + hostArg + ')">Invalidate</button>';
+    html += '<span class="mg-file-name"><span style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(f.path) + '</span>' + domainTag + '</span>';
+    html += '<span class="mg-file-meta"><span class="' + statusClass + '">' + statusLabel + '</span> ' + formatAge(age) + ' ago</span>';
+    html += '<span class="mg-row-actions"><button class="mg-btn mg-btn-sm" onclick="deleteCached(\'' + escHtml(f.path) + '\'' + hostArg + ')">Delete</button></span>';
     html += '</div>';
   }
   list.innerHTML = html;
 }
 
-function invalidate(path, host) {
+function deleteCached(path, host) {
   var url = API + '?action=cache-invalidate&path=' + encodeURIComponent(path);
   if (host) url += '&host=' + encodeURIComponent(host);
   fetch(url, { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Cache invalidated: ' + path + (host ? ' (' + host + ')' : ''));
+      showStatus('Deleted the cached copy of ' + path + (host ? ' (' + host + ')' : ''));
       loadCache();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function clearAll() {
-  mgConfirm('Clear all cached files? Pages will be re-rendered on next request.', { ok: 'Clear' }).then(function(__ok) {
+  mgConfirm('Delete every cached copy? Each page renders afresh on its next request.', { ok: 'Delete all' }).then(function(__ok) {
     if (!__ok) return;
     fetch(API + '?action=cache-invalidate&path=*', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Cleared ' + (data.count || 0) + ' cached files.');
+      showStatus('Deleted ' + (data.count || 0) + ' cached copies.');
       loadCache();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
