@@ -81,7 +81,23 @@ subtest 'a forged service record cannot make the supervisor kill another process
     my $victim = fork();
     die "fork: $!" unless defined $victim;
     if ( $victim == 0 ) { exec 'sleep', '60' or POSIX::_exit(127) }
-    select( undef, undef, undef, 0.3 );
+
+    # WAIT UNTIL IT IS SOMETHING ELSE. Until the exec lands, the child IS a copy
+    # of this process - same command line as the supervisor forked below - and
+    # the supervisor is right to stop a copy of itself. Under Devel::Cover the
+    # exec lands seconds late, because the instrument writes its data first, so
+    # a fixed 0.3s pause let the 0.13.13 coverage stage fork the supervisor
+    # while the "victim" was still a copy, and the test failed for a reason the
+    # code under test had right. So the command line is read until it is no
+    # longer ours, and that is asserted rather than assumed.
+    my $ours = Lazysite::Daemon::Supervisor::_cmdline('self');
+    my $theirs;
+    for ( 1 .. 200 ) {
+        $theirs = Lazysite::Daemon::Supervisor::_cmdline($victim);
+        last if defined $theirs && $theirs ne $ours;
+        select( undef, undef, undef, 0.1 );
+    }
+    isnt( $theirs, $ours, 'the canary: the other process has become something else' ) or return;
     my $ticks = Lazysite::Daemon::Supervisor::_start_ticks($victim);
     ok( defined $ticks, 'the canary: its start time is readable from /proc' ) or return;
     spit( "$d/lazysite/daemon/lives.pid", "$victim\n" );

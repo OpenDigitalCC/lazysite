@@ -97,6 +97,14 @@ sub run {
     local $ENV{PERL5OPT} = '';
     local $ENV{HARNESS_PERL_SWITCHES} = '';
 
+    # AND SO IS EVERY LAZYSITE_COVER_* SETTING, for the same reason one level
+    # up. release.sh exports LAZYSITE_COVER_SUITE_LOG for the real run, and the
+    # miniature coverage.sh inherited it: it truncated the release's suite log
+    # and wrote its own two-file run there, so the 0.13.13 build refused with a
+    # log whose head was the miniature's deliberate failure and a run of NUL
+    # bytes where the real output had been.
+    delete local @ENV{ grep {/^LAZYSITE_COVER_/} keys %ENV };
+
     my $out = qx(cd \Q$d\E && sh tools/coverage.sh $args 2>&1);
     return ( $? >> 8, $out );
 }
