@@ -101,6 +101,13 @@ sub _base_content_skip {
 #   skip              - docroot-relative names to prune (the default site's
 #                       copy excludes lazysite/ and the other domains' roots)
 #   drop_render_cache - skip a generated .html sitting beside its .md source
+#   site_rel          - the destination is the SITE'S tree at this docroot-
+#                       relative prefix ('' for the docroot itself), so each
+#                       file and folder resolves through
+#                       Lazysite::Private::resolve_for_write (SM852): a page in
+#                       a protected section lands in the private store, and no
+#                       public folder is made at a gated path - the folder that
+#                       would pull every later write under it out of the store
 #
 # SM559: the failures are RETURNED, never shared - the caller labels them
 # with the tree they came from.
@@ -141,6 +148,11 @@ sub _copy_tree {
                     }
                 }
                 my $target = length $rel ? "$dst/$rel" : $dst;
+                if ( defined $opt{site_rel} && length $rel ) {
+                    my $site = length $opt{site_rel} ? "$opt{site_rel}/$rel" : $rel;
+                    my ($abs) = Lazysite::Private::resolve_for_write( $DOCROOT, $site );
+                    $target = $abs if defined $abs;
+                }
                 if    ( -l $p ) { return }    # never follow/copy links
                 elsif ( -d $p ) {
                     # SM484: an unreadable DIRECTORY is where the silent omission
@@ -662,11 +674,16 @@ sub package_apply {
             remove_tree($target);
         }
     }
-    make_path($target) unless -d $target;
+    # SM852: the content root itself resolves too - a wholly protected root is
+    # in the store, and making it here would put a public folder at a gated path.
+    {
+        my ($root_abs) = length $croot ? Lazysite::Private::resolve_for_write( $DOCROOT, $croot ) : ($DOCROOT);
+        make_path($root_abs) if defined $root_abs && !-d $root_abs;
+    }
     # SM559: what the copies could not write, labelled by tree, is reported
     # in the result and logged - never left for a later call to find.
     my @copy_failed;
-    push @copy_failed, map { 'content/' . $_ } _copy_tree( "$stage/content", $target )
+    push @copy_failed, map { 'content/' . $_ } _copy_tree( "$stage/content", $target, site_rel => $croot )
         if -d "$stage/content";
 
     # 1b. DATA (DP-6). Restore only what the package actually carries, and

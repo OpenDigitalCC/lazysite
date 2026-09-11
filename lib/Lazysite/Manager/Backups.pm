@@ -751,6 +751,38 @@ sub safety_snapshot_or_refuse {
 # reversible. Rendered caches for restored sources are dropped afterwards -
 # the extracted files carry their ORIGINAL (older) mtimes, so without the
 # clear the mtime cache check would keep serving the pre-restore pages.
+# SM852: put each restored file where a write to that path belongs - the
+# private store for a protected section (existing content keeps its home; a new
+# path inherits its nearest existing ancestor's tree), the docroot otherwise.
+# Directories are made only as a file needs them, at the resolved location, so
+# no public folder appears at a gated path. A link is recreated as a link, as
+# the extraction into the docroot did. Returns { placed => N, failed => [...] }.
+sub _place_restored {
+    my ($stage) = @_;
+    my ( $placed, @failed ) = (0);
+    File::Find::find(
+        {   no_chdir => 1,
+            wanted   => sub {
+                my $p = $File::Find::name;
+                return if $p eq $stage || -d $p && !-l $p;
+                ( my $rel = substr( $p, length($stage) + 1 ) ) =~ s{\A\./}{};
+                my ($dst) = Lazysite::Private::resolve_for_write( $DOCROOT, $rel );
+                $dst //= "$DOCROOT/$rel";
+                make_path( dirname($dst) ) unless -d dirname($dst);
+                if ( -l $p ) {
+                    unlink $dst if -l $dst;
+                    symlink( readlink($p), $dst ) ? $placed++ : push @failed, "$rel: $!";
+                    return;
+                }
+                require File::Copy;
+                File::Copy::copy( $p, $dst ) ? $placed++ : push @failed, "$rel: $!";
+            },
+        },
+        $stage
+    );
+    return { placed => $placed, failed => \@failed };
+}
+
 sub action_backup_restore {
     my ($name) = @_;
     $name = '' unless defined $name;
@@ -807,8 +839,18 @@ sub action_backup_restore {
     # Cover every spelling, and add --anchored so the patterns cannot be
     # side-stepped by nesting. Belt and braces with the wildcard form, which
     # matches a `lazysite` segment wherever tar normalises it to.
+    # SM852: INTO A STAGING DIRECTORY, then each file to where it belongs.
+    #
+    # Extracted straight into the docroot, an archive taken before a folder was
+    # protected put that folder's pages back PUBLIC - beside the private copies
+    # the engine serves, and as a public folder that sends every later write
+    # under it out of the store. So the content lands here first and is placed
+    # by _place_restored, through the same resolver every other write uses. The
+    # excludes below still decide what is extracted at all.
+    my $stage = _dir() . "/.restore-$$-" . time;
+    make_path($stage);
     my $rc = system(
-        'tar',             'xzf', $full, '-C', $DOCROOT,
+        'tar',             'xzf', $full, '-C', $stage,
         '--no-same-owner', '--no-same-permissions',
         '--anchored',
         '--exclude=./lazysite', '--exclude=./lazysite/*',
@@ -836,9 +878,16 @@ sub action_backup_restore {
         '--exclude=*lazysite-private/*',
         '--exclude=*/lazysite/*',
     );
-    return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
-            . $safety->{name} . ')' }
-        if $rc != 0;
+    if ( $rc != 0 ) {
+        File::Path::remove_tree($stage);
+        return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
+                . $safety->{name} . ')' };
+    }
+    my $placed = _place_restored($stage);
+    File::Path::remove_tree($stage);
+    return { ok => 0, error => 'Restore could not place every file (safety snapshot kept: '
+            . $safety->{name} . '): ' . join( '; ', @{ $placed->{failed} } ) }
+        if @{ $placed->{failed} };
 
     # SM286: the private store, extracted in its OWN pass, into the docroot's
     # parent - because that is where it lives.
