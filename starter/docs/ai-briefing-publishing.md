@@ -265,11 +265,15 @@ server rejects writes to them:
 `/lazysite/auth/`
 : User and group credential store.
 
-`/lazysite/forms/smtp.conf`, `/lazysite/forms/handlers.conf`, `/lazysite/forms/submissions/`
-: SMTP credentials, handler definitions (addresses, webhook URLs), and the
-  submitted entries - secrets and data. But a form's own dispatch config,
-  `lazysite/forms/<name>.conf`, **is** writable with `manage_config` (it only
-  names handlers) - see *Wiring a form* under Tasks.
+`/lazysite/forms/smtp.conf`, `/lazysite/forms/handlers.conf`, `/lazysite/forms/schedule.conf`, `/lazysite/forms/submissions/`
+: SMTP credentials, handler definitions, the schedule, and the submitted
+  entries. Handlers and the schedule are created through the handler actions
+  (`save_handler`, `save_schedule` over MCP; `handler-save`, `schedule-save`
+  over the control API), where the handler's destination decides the
+  capability - never by writing the file. A form's own dispatch config,
+  `lazysite/forms/<name>.conf`, **is** writable with `manage_forms` (it only
+  names handlers, and a target that names anything else is refused with
+  422) - see *Wiring a form* under Tasks.
 
 `/lazysite/manager/`
 : Manager UI internals.
@@ -566,14 +570,17 @@ for file storage:
    ```
 
 2. `local-storage` ships by default and writes submissions to
-   `lazysite/forms/submissions/` - nothing else to set up. **Email delivery
-   needs the operator:** the SMTP credentials (`smtp.conf`) and the email
-   handler in `handlers.conf` are secrets you cannot write - ask the operator
-   to configure them, then reference that handler id here.
+   `lazysite/forms/submissions/` - nothing else to set up. A handler that
+   does not exist yet is made through the handler actions, not this file:
+   an email or file handler with `manage_forms`, a data-table handler with
+   `manage_data`, a connector handler with `manage_connectors` (see
+   [Forms](/docs/forms)). The SMTP credentials (`smtp.conf`) stay the
+   operator's.
 3. Submit a test entry and confirm it lands.
 
-You may write only the per-form `<name>.conf`; `smtp.conf`, `handlers.conf`,
-and the `submissions/` store are denied (secrets and data).
+You may write only the per-form `<name>.conf`, and only with targets that
+name existing handlers; `smtp.conf`, `handlers.conf`, `schedule.conf` and the
+`submissions/` store are denied over WebDAV.
 
 ### Rotating your token
 

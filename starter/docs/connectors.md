@@ -13,10 +13,13 @@ cap, and optionally the data table its answers land in. Several forms,
 callers and jobs send through one connector, so the credential is held once,
 engine-side, and never in a page or a form.
 
-The engine could already POST a form to a URL (the `webhook` handler). A
-connector adds three things: **who may cause the call** is decided before
-anything is sent; **how often** is capped per connector; and **the answer is
-kept** in a table a page can render from.
+A connector is **the only way site data leaves over HTTP** (SM842): a form or
+the schedule reaches a remote through a `connector` handler naming one. A
+connector with nothing but a URL is the simple case - no credential is
+required - and `format: slack` sends the fields as one Slack message. Beyond
+that, **who may cause the call** is decided before anything is sent; **how
+often** is capped per connector; and **the answer is kept** in a table a page
+can render from.
 
 ## Who may cause a call
 
@@ -41,11 +44,11 @@ in any other mode is refused by name:
 `scheduled`
 : The timer calls it, with no request involved at all - so nothing a visitor
   sends can reach the destination, which makes it the safest of the three by
-  construction. Set `schedule_every` (seconds, 300 or more) and
-  `schedule_payload` (a flat set of fixed fields) and the daemon calls it on
-  that interval. The payload is **fixed**: a scheduled call that could take a
-  row or run a query would be a scheduler of arbitrary work, and that is not
-  what this is.
+  construction. The schedule does the calling: an entry names a `connector`
+  handler for this connector, an interval and a fixed set of fields (see
+  *Calling on a timer*). The payload is **fixed**: a scheduled call that could
+  take a row or run a query would be a scheduler of arbitrary work, and that
+  is not what this is.
 
 ## Defining a connector
 
@@ -100,19 +103,23 @@ connector names an `answer_table`, is inserted there as a row - columns
 which a page then reads like any other table. A missing table is reported on
 the call, not skipped.
 
-A public form sends through the same connector by binding the `connector`
-handler - added on the Form Handler extension's page (choose "Connector",
-name the connector id) or written into `lazysite/forms/handlers.conf`:
+A public form sends through the same connector by binding a `connector`
+handler - made on the Handlers page (type "Send through a connector", choose
+the connector), with `save_handler` / `handler-save`, or with
+`lazysite-handlers.pl`, by an account holding `manage_connectors`:
 
 ```
 handlers:
   - id: crm
     type: connector
+    name: CRM
     connector: crm
 ```
 
-A connector handler that names no connector is refused when saved, by
-name, rather than stored unable to send.
+A connector handler that names no connector, or one that does not exist, is
+refused when saved, by name, rather than stored unable to send. Binding a
+form to it is refused while the connector does not permit `public`, because
+it would refuse every submission.
 
 ## What is recorded
 
@@ -175,23 +182,32 @@ gets the same answer as for a table that does not exist.
 
 ## Calling on a timer
 
+The connector permits it (`"modes": { "scheduled": 1 }`) and the **schedule**
+calls it: an entry in `lazysite/forms/schedule.conf` naming a `connector`
+handler for it, an interval and the fixed fields to send.
+
 ```
-"modes": { "scheduled": 1 },
-"schedule_every": 3600,
-"schedule_payload": { "report": "daily" }
+schedule:
+  - id: daily-report
+    handler: crm
+    every: 86400
+    payload: {"report":"daily"}
 ```
 
-The daemon calls every connector whose interval has elapsed. **Due-ness comes
-from the call record** - the last call that actually went out - so there is no
-second store that could disagree with it, and a refusal does not count as
-having run.
+The entry is saved on the Handlers page, with `save_schedule` /
+`schedule-save`, or with `lazysite-handlers.pl schedule-save`, by an account
+holding `manage_connectors`; the daemon's job account must hold it too. An
+entry naming a connector that does not permit `scheduled` is refused when
+saved. `schedule_every` and `schedule_payload` on the connector itself are
+gone: they are refused by name, and the upgrade to 0.13.13 turned each one into
+a schedule entry.
 
 The floor is 300 seconds, because the scheduler's own tick is 300 seconds and
 a finer interval would be a promise it cannot keep.
 
-A connector declaring a schedule must permit `scheduled`, and one that permits
-**only** `scheduled` refuses a request-time call - from a form, from the API,
-from an agent - with a message naming the mode it does allow.
+A connector that permits **only** `scheduled` refuses a request-time call -
+from a form, from the API, from an agent - with a message naming the mode it
+does allow.
 
 ## From an agent
 

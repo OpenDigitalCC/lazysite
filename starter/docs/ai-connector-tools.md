@@ -76,9 +76,9 @@ target, regardless of capability.
 The connector deliberately cannot reach operator-only surfaces. Attempts return a
 machine-readable `kind`:
 
-- `lazysite/forms/*.conf` and other config - `blocked-config` (delivery settings +
-  SMTP credentials are operator-only; use `bind_form` to reference a handler, never
-  to set one).
+- `lazysite/forms/*.conf` and other config - `blocked-config` (use the handler
+  tools below - `save_handler`, `bind_form`, `save_schedule` - rather than the
+  files; SMTP credentials are operator-only).
 - `lazysite/auth/*`, `.pl` scripts, the manager - `blocked`.
 - User administration, secrets, credential minting - not exposed at all.
 
@@ -153,9 +153,23 @@ analyse_visitors `{ window }`
 get_permissions `{ path }`
 : The ACL for a path (owner + read/write grants) - call before `set_permissions`.
 
-list_form_handlers
-: The configured form delivery handlers (id, type, name). No destinations or
-  credentials are returned.
+list_handlers
+: The delivery handlers - the named functions a form or the schedule calls - with
+  each one's type, settings, whether it is on, the capability that governs it
+  (`cap`) and what uses it (`used_by`); plus every form's handler list (`forms`)
+  and the fields each type takes (`types`). Opens for `manage_forms`,
+  `manage_data` or `manage_connectors`.
+
+save_handler `{ id, type, name, ... }` / delete_handler `{ id }`
+: Create, replace or delete a handler. **The destination decides**: a `table`
+  handler needs `manage_data`, a `connector` handler `manage_connectors`, `smtp`
+  and `file` need `manage_forms`; a refusal names the capability that would
+  work. A handler still used by a form or schedule entry is not deleted - the
+  answer names them. There is no webhook type: outbound HTTP is a connector.
+
+list_schedule / save_schedule `{ id, handler, every, payload }` / delete_schedule `{ id }`
+: What the timer calls: a handler, every so many seconds (300 or more), with
+  fixed fields. Same capability rule as the handler it calls.
 
 read_nav
 : The site navigation as a structured list (items + children) plus the raw
@@ -237,9 +251,10 @@ set_permissions `{ path, read, write, draft }`
   flow, granted access, and the section kept 404ing; least surprise says the
   trap gets named where the tool is learned.
 
-bind_form `{ form, handler }`
-: Wire a form to delivery by referencing an existing handler from
-  `list_form_handlers`. The connector never sets a destination or credential.
+bind_form `{ form, handler }` or `{ form, handlers: [...] }`
+: Wire a form to delivery by naming existing handlers from `list_handlers`.
+  Needs `manage_forms` only - and nothing but handler ids: to deliver
+  somewhere new, create the handler first.
 
 set_nav `{ items }`
 : Replace the site navigation - `items` is an ordered list of `{ label, url }`

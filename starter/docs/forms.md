@@ -9,19 +9,24 @@ register:
 
 lazysite forms are defined inline in page content using `:::form` blocks.
 The processor generates an HTML form with built-in anti-spam protection.
-Submissions are handled by a CGI script that validates and dispatches
-to named handlers defined in `lazysite/forms/handlers.conf`.
+Submissions are handled by a CGI script that validates them and hands
+each one to the **handlers** its form names. A handler is a named function -
+send an email, keep a file, store a row in a data table, send through a
+connector - and the schedule calls the same handlers on a timer. Handlers are
+configured on the manager's **Handlers** page, over the control API and MCP, or
+with `lazysite-handlers.pl`; they are stored in `lazysite/forms/handlers.conf`.
 
 ## Architecture
 
 Three config files work together:
 
 `lazysite/forms/FORMNAME.conf`
-: Per-form config. Lists the handler IDs that receive submissions.
+: Per-form config. Lists the handler IDs that receive submissions - and
+  nothing else: a target names a handler, never a destination.
 
 `lazysite/forms/handlers.conf`
-: Named dispatch handlers (email, file storage, webhooks). Each handler
-  has an `id`, `type`, and type-specific settings.
+: The handlers (email, file, data table, connector). Each has an `id`, a
+  `type`, a `name`, and its type's settings.
 
 `lazysite/forms/smtp.conf`
 : SMTP connection settings shared by all SMTP-type handlers.
@@ -33,9 +38,11 @@ same handler, and a form can dispatch to multiple handlers at once.
 
 1. Add `form: formname` to the page's front matter
 2. Add a `:::form` block with field definitions
-3. Create `lazysite/forms/formname.conf` pointing at a handler ID
-4. Define the handler in `lazysite/forms/handlers.conf`
-5. For SMTP handlers, configure `lazysite/forms/smtp.conf`
+3. Create the handler it delivers through, on the Handlers page (or with
+   `save_handler` / `handler-save`)
+4. Bind the form to it - the Forms list on the same page, `bind_form`, or
+   `form-targets-save`
+5. For email handlers, configure the Form SMTP extension (`lazysite/forms/smtp.conf`)
 
 ## Front matter
 
@@ -139,8 +146,16 @@ targets:
 ```
 
 Each entry references a handler by `id`. All listed handlers are
-dispatched on each submission. If one handler fails, the others still
-run.
+called on each submission. If one handler fails, the others still
+run, and the visitor is thanked when at least one delivered. Every
+handler's outcome is its own line in the audit trail - the form, the
+handler and whether it delivered, never the fields.
+
+The file's other keys (`rate_limit`, `upload_*`, `quarantine` and the rest,
+below) are the form's own and survive every binding. A config written over
+WebDAV is checked the same way the binding actions check it: a target that
+is not `- handler: <id>`, or names a handler that does not exist, is refused
+with 422 and the reason.
 
 ### Named handlers
 
@@ -163,14 +178,29 @@ handlers:
     path: lazysite/forms/submissions
 
   - id: slack-notify
-    type: webhook
+    type: connector
     name: Slack notification
     enabled: false
-    url: https://hooks.slack.com/services/XXX
-    format: slack
+    connector: slack
 ```
 
-Handlers with `enabled: false` are skipped.
+A handler with `enabled: false` delivers nothing; a form whose only handler is
+off refuses the visitor rather than thanking them. An absent `enabled` is on,
+everywhere.
+
+### Who may configure a handler
+
+**Where a handler sends decides who may create, change or delete it** (SM842):
+
+| Type | Needs |
+|---|---|
+| `smtp`, `file` | `manage_forms` |
+| `table` | `manage_data` |
+| `connector` | `manage_connectors` |
+
+Changing a handler's type needs both. **Binding** a form to a handler that
+already exists needs `manage_forms` alone - the vetting happened when the
+handler was made. A refusal names the capability that would work.
 
 ### Handler types
 
@@ -183,46 +213,52 @@ Handlers with `enabled: false` are skipped.
 : Writes each submission to a file under `path`. Useful for logging,
   offline processing, or testing without email infrastructure.
 
-`webhook`
-: POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
-  body, or `format: slack` for Slack-compatible `{"text": "..."}`.
-
 `connector`
 : Sends the submission through a named [connector](/docs/connectors) -
-  a credentialed destination the operator defined. The connector must
-  permit public invocation (`public: 1`, off by default) or the send is
-  refused; give the form fixed choices rather than free text for any field
-  that reaches the remote. Handler-only: it cannot be set as an inline
-  target.
-
-`db`
-: Inserts each accepted submission as a row in a declared data table,
-  under an operator-only `fields:` mapping. See
-  [Data tables](/docs/data-tables).
+  the only way data leaves the site over HTTP. A connector with nothing but
+  a URL is the simple case; it may add a credential, a rate cap and a record
+  of every call, and `format: slack` sends the Slack message shape. For a
+  form, the connector must permit public invocation (`modes.public`, off by
+  default) - binding a form to one that does not is refused, because it
+  would refuse every submission. Give the form fixed choices rather than
+  free text for any field that reaches the remote.
 
 `table`
-: The `db` insert **and** the `file` store together: the row lands in the
-  declared table and the JSONL submissions store is written alongside, so
-  the Submissions page, exports and bulk delete keep working. A submission
-  the table's types refuse leaves no row - the visitor is told the
-  submission failed, and the stored copy is marked `_row_refused`. See
-  [Data tables](/docs/data-tables).
+: Inserts each accepted submission as a row in a declared data table, under
+  a `fields:` mapping (`form_field=column,...`) that decides which field goes
+  in which column - a field nobody mapped is dropped. With `keep_copy: true`
+  (the default) the JSONL submissions store is written alongside, so the
+  Submissions page, exports and bulk delete keep working; a submission the
+  table's types refuse leaves no row, the visitor is told it failed, and the
+  stored copy is marked `_row_refused`. `keep_copy: false` stores the row
+  only. See [Data tables](/docs/data-tables).
 
-### Which types an agent may set inline
+There are no `webhook`, `api` or `db` handlers any more: a webhook is a
+connector, and `db` is `table` with `keep_copy: false`. The upgrade to
+0.13.13 converts them, and converts inline form targets into named
+handlers; `lazysite-check` reports anything it could not.
 
-A partner agent binding a form over MCP, WebDAV or the control API may
-name a handler by `id`, or pass an inline `target` for a delivery the
-operator has not pre-defined - `{type: webhook|api, url: ...}` or
-`{type: file, path: ...}`.
+### Handlers on a timer
 
-`db` and `table` are **handler-only**: they cannot be set as an inline
-target. The inline route exists to reach somewhere the operator has not
-defined, and a form writing rows into a declared data table is precisely
-what an operator should vet - an inline table target would let any
-declared table be named as a destination without them wiring it. To
-deliver a form into a table, an operator defines a `db` or `table`
-handler in `handlers.conf` and the agent binds to its `id`.
+The schedule calls handlers too: an entry names a handler, how often (in
+seconds, at least 300) and the fixed fields it is called with. It lives in
+`lazysite/forms/schedule.conf`, and is edited on the Handlers page,
+`save_schedule` / `schedule-save`, or `lazysite-handlers.pl schedule-save`.
+Nothing a visitor sends reaches a scheduled call.
 
+```yaml
+schedule:
+  - id: nightly-export
+    handler: crm
+    every: 86400
+    enabled: true
+    payload: {"source":"timer"}
+```
+
+The daemon runs each entry as its job account, which must hold the
+capability of the handler's destination - the same rule as above. An entry
+it may not run is refused by name in the run record and retried on the
+next tick once granted; a delivery that fails waits its interval.
 
 ## Where a submission is POSTed
 

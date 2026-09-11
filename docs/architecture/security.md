@@ -742,9 +742,11 @@ prefer a trusted-proxy IP allowlist over `auth_proxy_trusted: true`.
   PUT. A token client is bound by ownership like any partner (it is not an
   operator); the actions also honour the full deny-set.
 - **Forms:** a per-form dispatch config `lazysite/forms/<name>.conf` is
-  agent-writable with `manage_config` (it only names operator-defined handlers);
-  the secret files (`smtp.conf`, `handlers.conf`, `.smtp-password`) and the
-  submissions store stay denied to agents.
+  agent-writable with `manage_forms`, and a PUT is shape-checked - its targets
+  name existing handlers and nothing else (SM842). Handlers and the schedule
+  are made through the handler actions, where the handler's destination
+  decides the capability; `smtp.conf`, `handlers.conf`, `schedule.conf`,
+  `.smtp-password` and the submissions store stay denied over WebDAV.
 
 The agent-facing deny set (the dav enforcement, `/.well-known/ai-partner`, the
 onboarding brief, and `whoami`) is held identical by

@@ -547,8 +547,8 @@ tools: the HMAC secret, the user/group/settings files, and **any `*.pl` script**
 A config-driven layer adds blocked directories and extensions. The WebDAV
 authoriser denies the whole `lazysite/` subtree **except** three gated carve-outs:
 `nav.conf` (with `manage_nav` since 0.9.0), per-form `lazysite/forms/<name>.conf`
-(with `manage_forms` since 0.9.0, but never `smtp.conf`/`handlers.conf` which hold
-credentials), and
+(with `manage_forms` since 0.9.0, its targets naming existing handlers and nothing
+else since 0.13.13 - but never `smtp.conf`, `handlers.conf` or `schedule.conf`), and
 theme/layout authoring under `lazysite/layouts/**` (with the theme/layout
 capabilities). `lazysite.conf` itself is never WebDAV-writable. The blocklist
 applies on **reads too**, so script source can't be fetched. Failures return a
@@ -631,7 +631,10 @@ is retired - migrated groups received their capabilities explicitly). The pages:
 - **Nav editor** - drag-and-drop reorder, indent/outdent nesting, link-vs-heading
   toggle; saving rebuilds the all-pages cache (nav is on every page).
 - **Plugins** - per-plugin config forms (password fields never returned), action
-  buttons, and the **form handlers** + **form targets** UI.
+  buttons, and the form submissions viewer.
+- **Handlers** (0.13.13) - the named functions a form or the schedule calls, which
+  forms call which, and what the timer calls, in one page; each handler's fields
+  drawn from its type, a table or connector chosen from the site's own list.
 - **Themes** - installed-themes panel (activate/deactivate/rename/delete),
   **preview** any theme in your session via a signed cookie, **upload** a theme zip,
   and **install from GitHub Releases** of the configured layouts repo.
@@ -870,12 +873,20 @@ method is discoverable from the connector itself.
 Plugins are discovered by probing scripts that answer `--describe` (a JSON
 descriptor of config schema, actions, and provided capabilities), enabled via the
 `plugins:` config block, configured through generated forms (password fields never
-returned on read), and invoked via action buttons. **Form handlers** (`handlers.conf`)
-define named delivery targets - `smtp` (envelope here, connection in `smtp.conf`,
-delivered by `plugins/form-smtp.pl`), `file`, or `webhook` (JSON or Slack format)  - 
-and a form is wired to one or more handlers by its `<form>.conf`. The credentials
-and destinations live in operator-only config; an agent can *reference* a handler
-but never see or set a destination.
+returned on read), and invoked via action buttons.
+
+**Handlers** (`handlers.conf`, SM842) are named functions a form or the schedule
+calls - `smtp` (envelope here, connection in `smtp.conf`, delivered by
+`plugins/form-smtp.pl`), `file`, `table` (a row in a declared data table, with an
+optional submissions copy) or `connector` (the only way out over HTTP) - and a
+form is wired to one or more by its `<form>.conf`, which names handlers and
+nothing else. **The destination decides who may configure one**: a table handler
+needs `manage_data`, a connector handler `manage_connectors`, email and file
+handlers `manage_forms`; binding a form to one that exists needs `manage_forms`
+alone. Every surface - the Handlers page, the control API, MCP and
+`lazysite-handlers.pl` - creates, edits and deletes them through one module, and
+each delivery is one audit line. The **schedule** (`schedule.conf`) calls any
+handler on an interval with fixed fields, as the daemon's job account.
 
 ## Notifications
 
@@ -1239,8 +1250,8 @@ subset - see connector reliability below):
 | Group | Tools |
 |---|---|
 | Identity | `whoami` (id, capabilities, active layout/theme, full tool manifest, auth method + expiry), `describe_capabilities` (the capability map + task recipes, incl. `build-from-figma`) |
-| Read | `list_files`, `read_file` (reads a Template Toolkit `layout.tt` as text since SM202), `read_page` (parsed front matter + body), `list_pages`, `page_status` (will my edit reach visitors?), `search_files`, `preview_page` (server-side public render), `validate_page`, `audit_site`, `get_permissions`, `list_form_handlers`, `read_nav`, `list_layout_catalogue` (name/version/default_theme/`themes[]`/installed + description + tags, SM206), `theme_tokens` (token vocabulary + exemplar values, SM204), `read_form_submissions` (least-privilege submission read, `read_submissions`, SM187), `list_content_history` (per-file revision statistics, SM199) |
-| Write | `write_file` (validates on write; a `theme.json` runs the theme validator eagerly, SM205), `create_page`, `delete_page` (removes `.brief`, reports dangling refs), `rename_page` (`update_links`), `replace_text` (no silent clobber), `copy_file`, `move_file`, `delete_file`, `set_permissions`, `bind_form`, `set_nav`, `create_theme` (one-call validated theme scaffold, SM205) |
+| Read | `list_files`, `read_file` (reads a Template Toolkit `layout.tt` as text since SM202), `read_page` (parsed front matter + body), `list_pages`, `page_status` (will my edit reach visitors?), `search_files`, `preview_page` (server-side public render), `validate_page`, `audit_site`, `get_permissions`, `list_form_handlers`, `list_handlers`, `list_schedule`, `read_nav`, `list_layout_catalogue` (name/version/default_theme/`themes[]`/installed + description + tags, SM206), `theme_tokens` (token vocabulary + exemplar values, SM204), `read_form_submissions` (least-privilege submission read, `read_submissions`, SM187), `list_content_history` (per-file revision statistics, SM199) |
+| Write | `write_file` (validates on write; a `theme.json` runs the theme validator eagerly, SM205), `create_page`, `delete_page` (removes `.brief`, reports dangling refs), `rename_page` (`update_links`), `replace_text` (no silent clobber), `copy_file`, `move_file`, `delete_file`, `set_permissions`, `bind_form`, `save_handler`, `delete_handler`, `save_schedule`, `delete_schedule`, `set_nav`, `create_theme` (one-call validated theme scaffold, SM205) |
 | Site ops | `activate_theme`, `activate_layout`, `invalidate_cache` |
 | Domains | `site_backup` (package a domain) and `site_apply` (apply a package - the migration step), both `manage_domains`-gated (SM158/SM193). The fuller transport (inspect / download / upload) and the domain admin itself (`domain-add`/`-set`/`-preview`/`-remove`) are control-API only |
 
@@ -1254,8 +1265,9 @@ an approval card). The connector is **supervised, not autonomous**: bound by
 capabilities, ACLs, the deny-list, and the client's own approval. It is walled off
 by construction - form/SMTP configs, auth files, scripts, and the manager are
 denied with a machine-readable `kind`; user administration, secrets, and credential
-minting are **not exposed at all**. An agent can *wire* a form to a vetted handler
-(`bind_form`) but never set a destination or credential, and it can *read* form
+minting are **not exposed at all**. An agent can *wire* a form to a handler
+(`bind_form`), and create one only where its grant covers the handler's
+destination (`save_handler`); it never sets a credential, and it can *read* form
 submissions through the least-privilege `read_submissions` capability
 (`read_form_submissions`) without holding the broader `manage_forms`.
 
@@ -1283,16 +1295,18 @@ accessible, CSRF-token-and-honeypot-protected HTML form that submits via `fetch`
 a handler CGI and swaps to a success message. Delivery is configured by the
 operator: the form's `<form>.conf` references one or more named handlers in
 `handlers.conf`, each of type `smtp` (with shared connection config in `smtp.conf`  - 
-sendmail or authenticated SMTP with TLS), `file` (stored submissions), or `webhook`
-(custom JSON or Slack-formatted). The forms docs cover the field grammar, the
-webhook JSON contract, and SMTP setup. Credentials and destinations are
-operator-only and deny-listed from every publishing surface.
+sendmail or authenticated SMTP with TLS), `file` (stored submissions), `table` (a
+row in a declared data table) or `connector` (JSON or Slack-formatted, through a
+configured connector). The forms docs cover the field grammar, the helper JSON
+contract, and SMTP setup. Handlers are made through the handler actions, where
+the destination decides the capability; the files themselves are deny-listed
+from every publishing surface.
 
 **SMTP credentials and validation** (SM137): the connection config carries a
-**password** field - typed once into the Plugin Config form or the handler wizard,
+**password** field - typed once into the Form SMTP extension's configuration,
 stored in the operator-only `smtp.conf`, never shown back; `password_file:` remains
 as the alternative and is used only when no password is set. A **Validate SMTP
-connection** action in the wizard's connection section runs a staged check against
+connection** action on the Form SMTP extension's row runs a staged check against
 the SAVED settings and names the failing stage - host (DNS), port (TCP reach, with
 a plain probe first so a closed port is never mistaken for TLS), TLS (STARTTLS vs
 implicit vs none, suggesting the mode to try), or auth (rejected with the server
@@ -1412,7 +1426,7 @@ is the decision; the mode is not, today.
 | Control API `data-row-save` / `data-row-delete` | a grant holding `manage_data` | the operator and partner path |
 | MCP `save_data_row` / `delete_data_row` | the same | the twin of the above; the two are pinned to agree |
 | `/cgi-bin/lazysite-data.pl` | a signed-in **session**, not a partner token | the page's own script; a custom data app's route |
-| A form handler of `type: db` or `type: table` | a visitor, through a form | operator-vetted mapping only; not settable inline |
+| A `table` handler | a visitor, through a form; or the schedule | made by a `manage_data` holder, its mapping decides every column |
 
 The endpoint reads `order_by`, `order`, `limit` and `offset` **and no other
 query parameter** - anything else is ignored rather than refused, so a filter

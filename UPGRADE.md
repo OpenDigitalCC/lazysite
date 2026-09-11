@@ -1,5 +1,49 @@
 # Upgrade notes
 
+## Upgrading to 0.13.13 from 0.13.12
+
+**This release breaks how form delivery is written, and converts it for you.**
+It is the change the 0.13.x line was built towards: a form calls a named
+**handler**, the timer calls handlers too, and there is one way to say where
+data goes (SM842).
+
+What the upgrade converts, once, by running `lazysite-handlers.pl convert`
+from the newly installed tree (it prints what it changed):
+
+- **`webhook` and `api` handlers** become **connectors** - with the webhook's URL
+  and body format, public invocation, and no rate cap, as the webhook had - and
+  the handler becomes a `connector` handler naming it.
+- **`db` handlers** become `table` handlers with `keep_copy: false`.
+- **Inline targets in a form's config** (`- type: file`, `- type: webhook`)
+  become named handlers, reusing one that already delivers to the same place.
+  An inline target in a form that ALSO names a handler never delivered - the old
+  reader ignored it - so it is dropped, not woken up.
+- **A connector's own schedule** (`schedule_every`, `schedule_payload`) becomes an
+  entry in the new `lazysite/forms/schedule.conf`, calling a connector handler.
+
+What it cannot convert, and says so in the upgrade summary: a **webhook to a
+plain `http://` URL on another host** - a connector sends over https, or http to
+this host only. That handler delivers nothing until its URL is changed and the
+conversion is run again (`lazysite-handlers.pl convert --docroot <docroot>`, as
+the site user). `lazysite check` reports any shape the conversion left.
+
+What changes for people and agents:
+
+- Handlers are configured on the new **Handlers** page (System), not in the Form
+  Handler's section of Extension Config; the submissions viewer stays there.
+- **Who may make a handler depends on where it sends**: a table handler needs
+  Data (`manage_data`), a connector handler needs Connectors
+  (`manage_connectors`), email and file handlers need Forms (`manage_forms`).
+  Binding a form to an existing handler needs Forms alone. Handler actions are
+  now available to token clients too.
+- MCP's `list_form_handlers` is **`list_handlers`**; `bind_form` takes a handler
+  (or `handlers`) and no inline `target`. A form config written over WebDAV whose
+  targets are not existing handlers is refused with 422.
+- A connector save carrying `schedule_every` or `schedule_payload` is refused by
+  name - schedule it on the Handlers page instead.
+- The daemon's `connectors-call` job is replaced by `schedule-run`. Its job
+  account needs the capability of each scheduled handler's destination.
+
 ## Upgrading to 0.10.19 from 0.10.18
 
 **This is a BETA build** - the first promotion off the edge line. A site takes

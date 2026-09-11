@@ -85,7 +85,8 @@ lazysite/
 
 `plugins/form-handler.pl`
 : Receives form POSTs, validates (honeypot, HMAC timestamp, rate limit),
-  and dispatches to named handlers from `handlers.conf`.
+  and hands each submission to the handlers its form names, through
+  `Lazysite::Handlers` - the same delivery the schedule calls.
 
 `plugins/form-smtp.pl`
 : SMTP helper. Called via pipe from the form handler. Sends email using

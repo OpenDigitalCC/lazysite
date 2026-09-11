@@ -318,15 +318,20 @@ See [Authentication](/docs/auth) for full details.
 
 ## Forms
 
-Forms are configured in three files under `lazysite/forms/`:
+Forms are configured in files under `lazysite/forms/`:
 
 `FORMNAME.conf`
-: Per-form configuration. Lists dispatch targets by handler ID.
+: Per-form configuration. Lists the handlers it calls, by ID.
 
 `handlers.conf`
-: Named dispatch handlers. Each handler has an `id`, `type`, `name`,
-  and type-specific settings (e.g. `path` for file storage, `to`/`from`
-  for SMTP).
+: The handlers - named functions a form or the schedule calls. Each has an
+  `id`, `type` (`smtp`, `file`, `table` or `connector`), `name`, and its
+  type's settings. Edited through the Handlers page, the control API, MCP or
+  `lazysite-handlers.pl`, where the handler's destination decides the
+  capability.
+
+`schedule.conf`
+: What the timer calls: a handler, an interval, fixed fields.
 
 `smtp.conf`
 : SMTP connection settings shared by all SMTP-type handlers.

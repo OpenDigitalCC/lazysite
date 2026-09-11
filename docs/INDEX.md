@@ -119,6 +119,7 @@ The manager, page by page, as an operator meets it.
 | [`30-appearance.md`](30-appearance.md) - Appearance | Governing capabilities: manage_themes or manage_layouts - either opens the page, and the controls inside are gated separately. |
 | [`40-plugin-manager.md`](40-plugin-manager.md) - Extension Manager and Extension Config | Two adjacent menu items with a deliberate split: Extension Manager decides what runs, Extension Config decides how it behaves. |
 | [`45-data-tables.md`](45-data-tables.md) - Data tables | A table holds site data -- a product list, an events calendar, a directory. |
+| [`47-handlers.md`](47-handlers.md) - Handlers | A handler is a named function a form or the schedule calls: it sends email, keeps each submission in a file, stores a row in a data table, or sends th... |
 | [`50-users.md`](50-users.md) - Users | Governing capability: manage_users. |
 | [`60-groups.md`](60-groups.md) - Groups | Governing capability: manage_users. |
 | [`70-sessions-and-keys.md`](70-sessions-and-keys.md) - Sessions and keys | Governing capability: manage_users. |
@@ -221,4 +222,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*106 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*107 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

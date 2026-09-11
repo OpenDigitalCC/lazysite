@@ -43,6 +43,28 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM842 (PENDING) **one way to deliver: a form calls a handler, the timer calls
+  a handler, and the destination decides who may make one.** A handler is a
+  named function - send email, keep a file, store a row in a data table, send
+  through a connector - and `Lazysite::Handlers` is now its one parser, one
+  deliverer and one set of actions. The Handlers manager page, the control API
+  (`handler-*`, `schedule-*`, `form-targets-*`, now token-callable), MCP
+  (`list_handlers`, `save_handler`, `delete_handler`, `list_schedule`,
+  `save_schedule`, `delete_schedule`, `bind_form`) and `lazysite-handlers.pl`
+  all call it. A table handler needs `manage_data`, a connector handler
+  `manage_connectors`, email and file handlers `manage_forms`; binding a form
+  to one that exists needs `manage_forms` alone. **Breaking, and converted on
+  upgrade:** the `webhook`, `api` and `db` handler types are gone (a webhook is
+  a connector - a URL alone is enough, and `format: slack` sends the Slack
+  shape; `db` is `table` with `keep_copy: false`); inline form targets are
+  gone (a form names handlers only, on every surface including a WebDAV PUT);
+  a connector no longer schedules itself (`schedule_every` is refused by name
+  - the schedule, `lazysite/forms/schedule.conf`, calls any handler);
+  `list_form_handlers` is `list_handlers`. The upgrade runs
+  `lazysite-handlers.pl convert` and says what it changed and what it could
+  not; `lazysite check` reports anything left. Every delivery is one audit
+  line naming the source and the handler, never the fields.
+
 
 - SM848 (PENDING) **the editor's Access section sits above the content box.**
   Who may read a file is wanted before editing it, not after scrolling past a

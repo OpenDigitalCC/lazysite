@@ -28,7 +28,8 @@ DOCROOT/
       groups              # group memberships
     forms/
       contact.conf        # per-form config
-      handlers.conf       # named dispatch handlers
+      handlers.conf       # the handlers a form or the schedule calls
+      schedule.conf       # what the timer calls
       smtp.conf           # SMTP connection settings
     cache/                # HTML cache, plugin cache
     logs/
@@ -183,7 +184,9 @@ names) and `_files_dir` in the submission JSON. Filenames are reduced to a safe
 basename, so a path like `../../x` cannot escape the submission directory. The
 JSON never contains the file bytes, only the names.
 
-`lazysite/forms/handlers.conf` - named handlers:
+`lazysite/forms/handlers.conf` - the handlers (types `smtp`, `file`, `table`,
+`connector`), made through the handler actions, where the destination decides
+the capability (see [Forms](/docs/forms)):
 
 ```yaml
 handlers:
@@ -341,7 +344,8 @@ targets:
   - handler: email-delivery
 ```
 
-3. Add the handler to `lazysite/forms/handlers.conf` (see Forms above).
+3. Create the handler on the Handlers page, or with `handler-save` /
+   `save_handler` (see Forms above).
 4. If using SMTP, set up `lazysite/forms/smtp.conf`.
 
 ### Setting up SMTP email delivery

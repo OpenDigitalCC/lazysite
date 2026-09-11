@@ -511,15 +511,24 @@ endpoint refuses an anonymous write. **Use a form.** A form has rate limits,
 spam assessment, quarantine and an audit trail, and a data binding taking
 anonymous writes would rebuild that surface without any of it.
 
-Point a form handler at a table:
+Point a form at a table through a `table` handler - created on the Handlers
+page, with `save_handler` / `handler-save`, or with `lazysite-handlers.pl`, by
+an account holding **`manage_data`** (the destination decides who may
+configure a handler; see [Forms](/docs/forms)). It lands in
+`lazysite/forms/handlers.conf`:
 
 ```
 handlers:
   - id: store-enquiries
-    type: db
+    type: table
+    name: Enquiries
     table: enquiries
     fields: name=name,email=email,message=body
+    keep_copy: false
 ```
+
+Binding a form to it then needs only `manage_forms`. The schedule can call the
+same handler with fixed fields, as the daemon's job account.
 
 `fields` reads **form field = column**, and it is required. A form field nobody
 maps is **dropped**, so a form gaining a field cannot start writing a column,
@@ -533,9 +542,8 @@ quietly lost.
 The data extension must be enabled; a form pointed at a table while it is switched
 off refuses and says so.
 
-A handler of `type: table` takes the same `table` and `fields` keys and does
-the same insert, **and** keeps the JSONL submissions store written alongside --
-the Submissions page, `read_form_submissions`, exports and bulk delete keep
+With `keep_copy: true` - the default - the handler also keeps the JSONL
+submissions store written alongside the row -- the Submissions page, `read_form_submissions`, exports and bulk delete keep
 working exactly as for a `file` handler. A submission the table's types refuse
 leaves **no row** and the stored copy is marked `_row_refused`, the same shape
 as a rejected import row. Reading the **table's** rows is governed by the

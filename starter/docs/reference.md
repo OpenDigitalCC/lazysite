@@ -296,7 +296,8 @@ your deployment.
           groups                   <- group memberships
         forms/
           FORMNAME.conf            <- per-form target config
-          handlers.conf            <- named dispatch handlers
+          handlers.conf            <- the handlers a form or the schedule calls
+          schedule.conf            <- what the timer calls
           smtp.conf                <- SMTP connection settings
         cache/
           layouts/                 <- remote-layout cache

@@ -261,7 +261,8 @@ before removing anything if you intend to move it elsewhere.
           users               <- built-in auth users
           groups              <- built-in auth groups
         forms/
-          handlers.conf       <- named dispatch handlers
+          handlers.conf       <- the handlers a form or the schedule calls
+          schedule.conf       <- what the timer calls
           smtp.conf           <- SMTP connection settings
       assets/
         css/

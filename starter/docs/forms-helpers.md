@@ -7,10 +7,10 @@ register:
 
 ## Overview
 
-The built-in handler types (`smtp`, `file`, `webhook`) cover most
-needs. For anything more custom, use the `webhook` handler type to
-POST form data to a URL you control - a small CGI script that receives
-JSON and performs your action.
+The built-in handler types (`smtp`, `file`, `table`, `connector`) cover most
+needs. For anything more custom, send the form through a
+[connector](/docs/connectors) to a URL you control - a small CGI script that
+receives JSON and performs your action.
 
 This page documents the JSON contract so you can write those scripts.
 
@@ -82,27 +82,36 @@ if ($@) {
 
 ## Registering as a handler
 
-Add a webhook handler entry in `lazysite/forms/handlers.conf`:
+Make a connector for the helper's URL on the Connectors page - a URL on its
+own is enough, and `http://` is accepted for a service on this host - and
+permit **public** invocation, since a visitor's submission is what triggers
+it:
+
+```json
+{ "url": "http://localhost/cgi-bin/my-helper.pl", "modes": { "public": 1 } }
+```
+
+Then a `connector` handler naming it, on the Handlers page (or with
+`save_handler` / `handler-save`), which lands in `lazysite/forms/handlers.conf`:
 
 ```yaml
 handlers:
   - id: my-helper
-    type: webhook
+    type: connector
     name: My custom helper
     enabled: true
-    url: http://localhost/cgi-bin/my-helper.pl
-    format: json
+    connector: my-helper
 ```
 
-Reference it from the form's `.conf` file:
+And bind the form to the handler, which writes the form's `.conf` file:
 
 ```yaml
 targets:
   - handler: my-helper
 ```
 
-Use `format: json` for the contract documented on this page. Use
-`format: slack` for a Slack-compatible `{"text": "..."}` body.
+The connector's `format: json` (the default) sends the contract documented on
+this page; `format: slack` sends a Slack-compatible `{"text": "..."}` body.
 
 ## Testing with curl
 
@@ -135,8 +144,11 @@ $ua->post('https://hooks.example.com/endpoint',
 ## Notes
 
 - Helpers run as the web server user - ensure file permissions match
-- The handler does not check the helper's response - failures are
-  logged but do not prevent other targets from dispatching
+- A helper that answers anything but 2xx is a failed call: it is recorded
+  in the connector's call record and the audit trail, and the other handlers
+  on the form still run
+- A redirect is not followed - the connector records it as refused, because
+  its credential would travel with it
 - Multiple helpers can be configured for the same form
 - [Forms overview](/docs/forms) - full form setup guide
 - [SMTP configuration](/docs/forms-smtp) - the built-in email helper
