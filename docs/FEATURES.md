@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.12"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.13"
 brand: plain
 ---
 
@@ -1778,6 +1778,23 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.13.13** (2026-09-11, EDGE) - **One way to deliver, and every path finds a
+  moved engine tree.** A form calls a named handler - email, file, a data-table
+  row or a connector - and the timer calls handlers too; who may make one
+  depends on where it sends, and the upgrade converts webhooks, `db` handlers and
+  inline targets (SM842). A site whose engine tree was moved beside the docroot
+  works on every surface: the data store, scheduler, notifications, the file
+  surfaces, the front end's ACL guard and the Hestia scripts (SM850). No front end
+  serves a page's source, a backup or a key from disk (SM797). Writes into a
+  protected section - a form's store, a package apply, a restore, a bundle -
+  land where protection put them, and two data losses are closed (SM852). A
+  section names its theme once (SM812); a URL remapper answers for a site that
+  replaced another on the same hostname (SM802); the audit trail can be switched
+  off, answerably (SM222). Control-API refusals carry their HTTP status (SM670),
+  `whoami` separates capabilities from the account (SM821), and login rate
+  limiting is an extension, on by default (SM798). The Hestia rollout reports
+  each site's engine location, vhost template revision and check verdict.
 
 - **0.13.12** (2026-09-10, EDGE) - **Extensions by name, and the paths that
   never asked.** The render path reads the unit registry for the first time, so

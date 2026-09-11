@@ -42,8 +42,25 @@ Naming the commit: AFTER it lands, never before
   not. SM354's own entry went stale in its own landing, which is how this
   paragraph came to be written.
 
-## Unreleased
-- SM850 (PENDING) **the front end and the Hestia scripts find a moved engine
+## 0.13.13 - EDGE: one way to deliver, and every path finds a moved engine tree (2026-09-11)
+
+**This is the build meant to become beta, so it carries the breaking changes
+beta should not.** Form delivery has one shape - a form calls a named handler,
+the timer calls handlers too - and the upgrade converts what a site has
+(SM842). Three spellings kept alive for a release are gone. A control-API
+refusal answers with its HTTP status (SM670), and `whoami` says what an account
+may do apart from what it is (SM821). Each breaks a client; UPGRADE.md says what
+to read instead.
+
+**A site whose engine tree was moved out of the docroot was looked for where it
+used to be** - in 110 places across 38 Perl files, in the front end's ACL guard,
+and in the Hestia scripts that deploy and report on it (SM850). Every write into
+a protected section now lands where protection put it, including a package
+apply, a restore and a bundle (SM852). Each was reproduced before it was fixed.
+And the Hestia rollout reports what is left to do per site - where its engine
+tree is, whether its vhost carries this release, and what `lazysite check` says.
+
+- SM850 (2b6e8e2d) **the front end and the Hestia scripts find a moved engine
   tree too.** The rule that hands existing files to the engine once a site has an
   ACL store tested only `<docroot>/lazysite/auth/acls.json`, so on a site whose
   engine tree was moved beside the docroot it never fired and the front end
@@ -57,7 +74,7 @@ Naming the commit: AFTER it lands, never before
   `t/lint/37` runs against the module, and reads the shipped shell as it reads
   the Perl. Existing vhosts take the guard when rebuilt.
 
-- Rollout report (PENDING) **the Hestia rollout says what is left to do.** The
+- Rollout report (2b6e8e2d) **the Hestia rollout says what is left to do.** The
   table `lazysite-hestia-update-all.sh` prints first gains ENGINE - `inside`,
   `outside` or `BOTH`, a half-finished migration - and VHOST, whether the vhost
   Hestia rendered carries this release's template or needs a rebuild, read from
@@ -86,7 +103,7 @@ Naming the commit: AFTER it lands, never before
   breaking change for a client that stops on a non-2xx status; the manager's own
   pages read the body and are unaffected.
 
-- SM798 partial (60363849, 6d7cf53a) **login rate limiting is an extension, on by default,
+- SM798 partial (60363849, 6d7cf53a, 4452feca) **login rate limiting is an extension, on by default,
   and visibly off when it is off.** To the rulings: `plugins/login-rate-limit.pl`
   carries DB_File as its own dependency, the installer lists it on a fresh site
   and once on upgrade (an operator who switches it off keeps it off), and off
@@ -119,7 +136,7 @@ Naming the commit: AFTER it lands, never before
   which is what the control API and MCP read. Its dialog and the extension
   configuration dialog close from the same corner control every sheet has.
 
-- SM852 partial (2d885319, 16cd8943) **a package, a restore or a bundle puts a protected
+- SM852 partial (2d885319, 16cd8943, 33e74590) **a package, a restore or a bundle puts a protected
   page where it lives.** Applying a site package, restoring a backup taken
   before a folder was protected, and `lazysite-bundle-apply` each wrote a
   protected section's pages back into the served tree - beside the private
