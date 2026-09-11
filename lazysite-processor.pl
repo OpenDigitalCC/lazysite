@@ -2914,8 +2914,15 @@ sub sanitise_uri {
         $uri .= '/index';
     }
     else {
-        # Strip file extension
-        $uri =~ s/\.(html|md|url)$//;
+        # Strip the page extension - ALL of them (SM797). One strip let
+        # `/<page>.md.md` resolve to `<page>.md`, which still has an extension,
+        # so it went down the static branch and was served as SOURCE: a draft
+        # page's markdown, an api page's body, and `.url.url` revealing an
+        # upstream. Collapsing every trailing page extension sends that request
+        # to the page renderer instead, where draft: and access rules apply. This
+        # is the mechanism; the extension denylist in _serve_content_static is
+        # the belt.
+        1 while $uri =~ s/\.(html|md|url)$//;
     }
 
     # Reject null bytes
@@ -3119,11 +3126,57 @@ sub _static_cache_control {
     return 'Cache-Control: no-cache, must-revalidate';
 }
 
+# SM797: WHAT THE ANONYMOUS STATIC SERVE NEVER HANDS OUT, by the extension of the
+# CANONICAL path. DAV - the authenticated surface - refused dangerous types on
+# write while this, the anonymous one, served any extension as raw bytes.
+#
+# A DENYLIST, BY RULING (2026-09-09). An allowlist is stronger and was refused:
+# it stops a site serving a file type nobody listed, on upgrade, silently, and
+# the first anyone hears is from the field. For the same reason `json` is NOT
+# here - sites serve data and manifests as JSON on purpose, and a list that
+# quietly broke them would be the "wrong list worse than none" this filing warned
+# about. Each group below is a type with no legitimate reason to leave a content
+# directory as raw bytes:
+#
+#   the engine's own inputs  - md url brief: pages render, never download;
+#                              a .url's target is an upstream nobody chose to
+#                              publish, and a .brief is the operator's notes
+#   editor and backup litter - bak swp swo orig old tmp: left beside the thing
+#                              they copy, and a copy of anything is as private
+#                              as the original
+#   configuration and keys   - conf ini env pem key
+#   executable source        - EVERY type DAV refuses to accept as an upload,
+#                              pinned by t/lint/127 so the two cannot drift: a
+#                              type too dangerous to write is too dangerous to
+#                              hand out.
+#
+# A refused request is answered as NOT FOUND - the same as an absent file - so
+# this tells a scanner nothing it could not learn from a miss.
+#
+# FILLED AT COMPILE TIME, AND IT HAS TO BE. The request is dispatched from the
+# middle of this file (handle_one_request, near the FastCGI loop), long before
+# execution would reach a plain `my %STATIC_DENY = ...` down here - so the hash
+# would exist and be EMPTY when every request ran. The first version of this
+# did exactly that and the denylist refused nothing, silently; the end-to-end
+# test caught it and a unit test of the sub would not have.
+my %STATIC_DENY;
+BEGIN { %STATIC_DENY = map { $_ => 1 } qw(
+        md url brief
+        bak swp swo orig old tmp
+        conf ini env pem key
+        pl pm cgi fcgi shtml shtm phtml php php3 php4 php5 phps phar htaccess htpasswd
+) }
+
 sub _serve_content_static {
     my ( $root, $rel, $uri ) = @_;
     return 0 unless length $rel;
     my ($ext) = $rel =~ /\.([A-Za-z0-9]+)\z/;
     return 0 unless defined $ext;
+
+    # SM797: the belt. Checked on the REQUEST's extension here, and again on the
+    # canonical path below once it is resolved, because a symlink can carry an
+    # innocent name to a denied target.
+    return 0 if $STATIC_DENY{ lc $ext };
 
     # SM286: the file may live in the private store rather than under $root,
     # and the confinement test has to accept whichever tree answered - while
@@ -3153,6 +3206,12 @@ sub _serve_content_static {
     # makes exactly this test, with a comment saying why. One sink of three had
     # it; now two do, and the DAV half is filed as SM795's second part.
     return 0 if length $LAZYSITE_DIR && _path_under( $real, $LAZYSITE_DIR );
+
+    # SM797: and by the CANONICAL path's extension, for the reason SM795 gives
+    # above - the rule holds on what was resolved, never only on what was asked.
+    if ( my ($real_ext) = $real =~ /\.([A-Za-z0-9]+)\z/ ) {
+        return 0 if $STATIC_DENY{ lc $real_ext };
+    }
 
     # SM223: these are source-less statics on a content-rooted domain - the same
     # exposure as the fallback above, so the same gate. Returning 1 means the

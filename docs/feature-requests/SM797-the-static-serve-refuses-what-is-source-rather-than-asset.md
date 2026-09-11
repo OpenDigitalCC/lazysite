@@ -4,7 +4,8 @@ title: "SM797: the static serve refuses what is source rather than asset"
 subtitle: "Security review, 0.13.8. _serve_content_static hands out raw bytes for any file with a trailing-alphanumeric extension and has no denylist, while DAV - the surface an operator reaches - has @DANGEROUS_EXT. On a site with an ACL store or a per-domain content root, /<page>.md.md returns the markdown source including drafts, and stray .bak/.swp/.conf/.pl files are served verbatim."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL 2026-09-11: THE RULED HALF IS BUILT. The collapse in sanitise_uri - the actual mechanism - strips every trailing page extension, so /page.md.md renders the page under its draft and access rules instead of serving the markdown; and the denylist in _serve_content_static - the belt - refuses the engine's own inputs (md url brief), editor and backup litter, config and keys, and every type the upload surface refuses, checked on the requested AND the canonical path. json stays servable, by the ruling's own argument against lists that silently stop a site serving a type. THE FIRST BUILD DID NOTHING: the hash was a file-scope `my` initialised below the point the request is dispatched from, so it was empty when every request ran; an end-to-end test caught it, and the hash is filled at compile time. Each half is pinned on its own because they overlap: with the collapse reverted, the denylist still refuses md, so a request-level test cannot see the collapse is missing. WHAT REMAINS: this filing's third question, never ruled - whether the shipped Apache template's FilesMatch (which denies only .brief) grows to match. It matters: on a site with no ACL store and no content root the web server serves statics itself, and none of this code runs."
 ---
 
 # The finding

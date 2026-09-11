@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM797 partial (PENDING) **the anonymous static serve hands out no source.**
+  `sanitise_uri` stripped a page extension once, so `/<page>.md.md` resolved to
+  `<page>.md` and was served as raw markdown - a draft page's source, an api
+  page's body, and `.url.url` revealing an upstream. Every trailing page
+  extension now collapses, so the doubled URL gets exactly what the plain one
+  gets. The belt is a denylist on the static serve, checked on the requested and
+  the canonical path: the engine's own page sources, editor and backup litter,
+  config and keys, and every type the upload surface refuses - pinned by
+  `t/lint/127`. JSON stays servable; the ruling refused lists that silently stop
+  a site serving a type. **The first build refused nothing** - the list was
+  filled below the point the request is dispatched from, so it was empty when
+  every request ran - and it is now filled at compile time. The shipped Apache
+  template is not changed: that question was never ruled, and on a site with no
+  ACL store the web server serves statics without this code running at all.
+
+- Docs: SM837 filed - a `.url` page whose fetch fails names its upstream to
+  whoever asked, unescaped, as a 200. Found while proving SM797's collapse.
+
 ## 0.13.12 - EDGE: extensions by name, and the paths that never asked (2026-09-10)
 
 **Most of this release shares one shape: the right answer already existed, and
