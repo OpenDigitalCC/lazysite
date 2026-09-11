@@ -170,6 +170,7 @@ Review registers: one row per piece of feedback, with what was done or why not.
 | [`2026-06-23-seven-dimension-review.md`](2026-06-23-seven-dimension-review.md) - lazysite — seven-dimension review | Date: 2026-06-23 · Branch claude/hestia-install-fixes = main @ 8642ed9 (building 0.3.38) Reviewer: Claude (manual run; projkit not yet built). |
 | [`2026-07-11-field-validation.md`](2026-07-11-field-validation.md) - Field validation checklist - the 0.7.x line | Human review of everything shipped 0.7.0-0.7.4, on real infrastructure - 2026-07-11 |
 | [`2026-08-31-manager-review-register.md`](2026-08-31-manager-review-register.md) - Manager review, 2026-08-30/31: every item the release manager raised, and where it got to | One row per piece of feedback from the live-manager review sessions, with what was done or why it was not. Ninety-four done, two open. The done rows l... |
+| [`2026-09-11-docroot-write-paths.md`](2026-09-11-docroot-write-paths.md) - Docroot-built write paths against the private store (SM836 review, SM852) | Read-only survey of lib//*.pm, tools/*.pl, plugins/*.pl and lazysite-*.pl, taken 2026-09-11 from the working tree. |
 | [`README.md`](README.md) - lazysite - non-functional review record | Where the eight-dimension reviews live, and how they are named |
 
 # docs/releases
@@ -222,4 +223,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*107 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*108 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

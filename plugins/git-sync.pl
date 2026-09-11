@@ -406,8 +406,13 @@ sub _capture_worktree {
 sub _snapshot {
     my ( $docroot, $user ) = @_;
     require Lazysite::Manager::Backups;
-    local $Lazysite::Manager::Backups::DOCROOT      = $docroot;
-    local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$docroot/lazysite";
+    require Lazysite::Paths;
+    local $Lazysite::Manager::Backups::DOCROOT = $docroot;
+    # SM852 S7: WHERE THE ENGINE TREE IS, asked rather than assumed. On a site
+    # whose tree moved beside the docroot (SM293) "$docroot/lazysite" is inside
+    # the served tree, and this snapshot carries the private store - so every
+    # protected section landed in a tarball in the docroot.
+    local $Lazysite::Manager::Backups::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
     local $Lazysite::Manager::Backups::auth_user    = $user;
     my $r = eval { Lazysite::Manager::Backups::action_backup_create('prerestore') };
     return ( ref $r eq 'HASH' && $r->{ok} ) ? $r->{name} : undef;

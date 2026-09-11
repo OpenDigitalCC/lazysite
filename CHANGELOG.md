@@ -43,6 +43,19 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM852 partial (PENDING) **a form's store inside a protected section stays
+  there.** A file handler keeping submissions in the site's tree (`path:
+  members/submissions`) wrote the next submission into a freshly made public
+  `members/` once the section was protected - the visitor's data in the served
+  tree, and a public folder that pulled every later write under it out of the
+  private store too. Reproduced, then fixed: the store resolves as every other
+  write to the site's tree does. git-sync's pre-pull snapshot, which carries the
+  private store, no longer lands inside the docroot on a site whose engine tree
+  moved. Both came from SM836's review of every docroot-built write path -
+  sixty, recorded in `docs/review/` - which leaves seven bulk and configured
+  paths open under SM852.
+- SM836 (PENDING) closed: its remaining review is done, and what it found is SM852.
+
 - SM847 partial (PENDING) **every dialog can be closed where you see it.**
   Every sheet had a close in its header and no dialog did - not the shared
   confirm and prompt, not the style preview. Each dialog now carries the same

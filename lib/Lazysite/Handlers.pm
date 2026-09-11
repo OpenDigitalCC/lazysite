@@ -171,9 +171,15 @@ sub schedule_file { my $d  = forms_dir(); return defined $d ? "$d/schedule.conf"
 sub form_file     { my $d  = forms_dir(); return defined $d ? "$d/$_[0].conf"    : undef }
 
 # Where a file handler's store is. A path under lazysite/ is in the ENGINE tree,
-# which is not always inside the docroot (SM293 moves it beside it); anything
-# else is relative to the docroot; an absolute path is an operator's own choice
-# on a shell and is taken as written.
+# which is not always inside the docroot (SM293 moves it beside it); an absolute
+# path is an operator's own choice on a shell and is taken as written.
+#
+# Anything else is in the SITE's tree, and is resolved as every other write to
+# that tree is (SM852): a store inside a protected section is in the private
+# store, with its section. Built as "$DOCROOT/$r", the next submission made a
+# public copy of the gated folder and appended the visitor's data there - and a
+# public folder at a gated path then pulled every later write under it out of
+# the store too. The readers call this as well, so they find what was written.
 sub store_path {
     my ($rel) = @_;
     $rel = 'lazysite/forms/submissions' unless defined $rel && length $rel;
@@ -183,7 +189,9 @@ sub store_path {
         my $lz = _lz() // "$DOCROOT/lazysite";
         return defined $1 && length $1 ? "$lz/$1" : $lz;
     }
-    return "$DOCROOT/$r";
+    require Lazysite::Private;
+    my ($abs) = Lazysite::Private::resolve_for_write( $DOCROOT, $r );
+    return $abs // "$DOCROOT/$r";
 }
 
 # --- the one parser ----------------------------------------------------------

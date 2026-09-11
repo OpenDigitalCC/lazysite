@@ -12,8 +12,9 @@
 # WHAT THIS CANNOT SEE, said so nobody reads more into a pass: a write path that
 # resolves NOTHING at all - builds "$DOCROOT/$rel" and writes - is the SM418
 # shape, and no source pattern tells a deliberate docroot-only write (a theme, a
-# nav file, config under lazysite/) from a forgotten one. Twenty-nine such builds
-# exist and most are legitimate. That class still needs review per handler.
+# nav file, config under lazysite/) from a forgotten one. The review of every one
+# (sixty) is docs/review/2026-09-11-docroot-write-paths.md; what it found open is
+# SM852.
 use strict;
 use warnings;
 use Test::More;
