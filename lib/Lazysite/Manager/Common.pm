@@ -437,10 +437,13 @@ sub is_blocked_path {
 # is one definition of "a submission store" rather than a prefix here and an
 # allowlist there.
 #
-# Fails SAFE and QUIET: if the handler config cannot be read the answer is the
-# default prefix alone, which is what this function did before it knew about
-# configured stores. A store that cannot be enumerated must not become a store
-# that is ungated.
+# If the handler config cannot be read the answer is the default prefix alone,
+# which is what this function did before it knew about configured stores. That
+# is SAFE for the default store and OPEN for a configured one - so a caller must
+# have set the Manager modules' DOCROOT before asking. SM851: MCP asked before
+# its setup_context, under CGI that was every request, and a store at a
+# handler's own path was read without read_submissions. The handler reader now
+# logs when it has no docroot, which is how that came to light.
 sub _is_submission_store_path {
     my ($rel) = @_;
 

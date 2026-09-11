@@ -3895,6 +3895,15 @@ elsif ( $method eq 'tools/call' ) {
                 . "to see what your account currently holds and what each capability unlocks." );
     }
 
+    # SM851: THE CONTEXT FIRST. The carve-out below learns which directories are
+    # submission stores by reading handlers.conf through the Manager modules,
+    # and setup_context is what tells them the docroot. It ran after this pass,
+    # so under CGI - where every request is its process's first - the pass read
+    # no handlers.conf, knew only the default store, and a store at a file
+    # handler's own `path:` was read through read_file by a partner without
+    # read_submissions. The control API sets the same globals at file scope.
+    setup_context($user);
+
     # SM268 H4: the same carve-out gate the control API applies, from the same
     # definition in Manager::Common - nav.conf needs manage_nav and the
     # submission store needs read_submissions/manage_forms, whichever channel
@@ -3948,7 +3957,6 @@ elsif ( $method eq 'tools/call' ) {
         }
     }
 
-    setup_context($user);
     # SM593: the data surface confines itself by the caller's grant, from the
     # same dav_scopes this tool call was just checked against - so the control
     # API and MCP cannot disagree about which domain's tables a partner reaches.

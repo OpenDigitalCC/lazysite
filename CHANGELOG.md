@@ -43,6 +43,16 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM851 (PENDING) **a submission store at a handler's own path is carved out on
+  MCP.** The MCP carve-out pass learned which directories hold submissions
+  before the request's context told the modules where the site is, so under CGI
+  it knew only the default store, and a partner with `manage_content` but not
+  `read_submissions` read a store at a file handler's `path:` through
+  `read_file`. The context is now set first. Reproduced on `main` as well - it
+  predates SM842, whose one handler reader made it audible as a log line where
+  the old parser had failed silently. `t/unit/mcp/25` drives it as a real CGI
+  request.
+
 - SM812 (PENDING) **a section names its theme once.** A `theme` on a folder's
   `index.md` now dresses every page beneath it that does not name one itself -
   the per-page discipline that goes wrong with `auth:` and `search:` is no longer
