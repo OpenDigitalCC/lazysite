@@ -60,6 +60,23 @@ sub resolve {
     is( $got, 'plugins/log.pl', "...and so does the other one (logging)" );
 }
 
+# --- THE BODY ROUTE (SM839) --------------------------------------------------
+# plugin-save names its target in the body's `script` key. SM832 resolved an id
+# only for the `plugin` parameter, so {"script": "link-audit"} was refused - and
+# the refusal told the caller to pass the id. Both exceptions, on that route.
+{
+    my ($got) = resolve( undef, 'link-audit' );
+    is( $got, 'plugins/audit.pl', 'an id in the body script key resolves (link-audit)' );
+}
+{
+    my ($got) = resolve( undef, 'logging' );
+    is( $got, 'plugins/log.pl', '...and the other exception (logging)' );
+}
+{
+    my ( $got ) = resolve( undef, 'audit' );
+    is( $got, undef, 'a filename stem that is nobody\'s id is refused on this route too' );
+}
+
 # The STEM of a plugin whose id differs is not that plugin's id, and resolving it
 # would make "id" mean two things. The guess is confirmed against the declared id,
 # so it is refused rather than accepted by accident.

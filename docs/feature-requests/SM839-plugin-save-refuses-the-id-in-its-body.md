@@ -3,7 +3,8 @@ title: "SM839: plugin-save refuses a listing id in its body, and tells the calle
 subtitle: "Sites agent, 1312E-05, 2026-09-11: SM832 closed the id gap on the plugin parameter and left it open on the body's script key - the one route its own missing-argument error advertises"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. The confirmed id lookup SM832 added now runs for whichever name the caller supplied, the plugin parameter or plugin-save's body script key, so all four routes the field tried for link-audit resolve. t/unit/manager/170 gained the body route for both extensions whose id is not their filename; against the old resolver both fail."
 ---
 
 # What was measured

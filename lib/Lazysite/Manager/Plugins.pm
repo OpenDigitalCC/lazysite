@@ -203,19 +203,25 @@ sub _resolve_plugin_or_why {
     # the id the plugin itself declares before it is used. A guess that is not
     # confirmed falls through to asking every plugin, which is the slow path and
     # only runs when a caller has sent an id that is not also a filename.
-    if ( defined $plugin_id && $plugin_id =~ /\A[A-Za-z0-9_.-]+\z/ ) {
-        my $reg   = plugin_registry();
-        my $guess = "plugins/$plugin_id.pl";
+    # SM839: FOR EITHER NAME THE CALLER USED. SM832 ran this for the `plugin`
+    # parameter only, so plugin-save's body `script` - the route the missing-
+    # argument error below advertises - still refused an id, and its refusal
+    # told the caller to pass the id. It showed only for an extension whose id
+    # is not its filename: link-audit, whose script is audit.pl.
+    my $reg;
+    for my $want ( grep { defined && /\A[A-Za-z0-9_.-]+\z/ } ( $script, $plugin_id ) ) {
+        $reg //= plugin_registry();
+        my $guess = "plugins/$want.pl";
         if ( my $full = $reg->{$guess} ) {
             my $desc = _describe($full);
             return ( $full, '' )
-                if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $plugin_id;
+                if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $want;
         }
         for my $rel ( sort keys %$reg ) {
             next if $rel eq $guess;
             my $desc = _describe( $reg->{$rel} );
             return ( $reg->{$rel}, '' )
-                if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $plugin_id;
+                if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $want;
         }
     }
     my $named = join ' or ', grep { defined && length } ( $script, $plugin_id );

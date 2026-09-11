@@ -44,6 +44,12 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM839 (PENDING) **`plugin-save` takes a listing's id in its body as well.**
+  SM832 resolved an id on the `plugin` parameter only, so `{"script":
+  "link-audit"}` was refused - with a message telling the caller to pass the id.
+  Invisible for any extension whose id is its filename; the field found it on
+  the one whose script is `audit.pl`.
+
 - SM837 (PENDING) **a remote page that cannot be fetched no longer names its
   upstream.** A `.url` page whose fetch failed, with no cached copy, rendered
   *"Could not fetch remote content from"* the upstream address - to an anonymous
