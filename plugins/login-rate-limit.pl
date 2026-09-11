@@ -33,9 +33,11 @@ sub describe {
             . 'the log and lazysite check both say the limiter is not in force. '
             . 'Needs the DB_File Perl module (Debian: libdb-file-perl).',
         contract => 1,
-        owns     => {
+        # No `storage`: that is what a site package carries, and a per-address
+        # counter in the auth store is neither a directory the extension owns
+        # nor anything another site should receive.
+        owns => {
             deps         => ['DB_File'],
-            storage      => ['lazysite/auth/.login-rate.db'],
             capabilities => [],
         },
         actions => [],

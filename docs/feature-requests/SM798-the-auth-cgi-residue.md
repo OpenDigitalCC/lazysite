@@ -196,8 +196,10 @@ extension's dependency as the first ruling intended, and nobody loses rate
 limiting by upgrading.
 
 - `plugins/login-rate-limit.pl` is the unit: `contract`, `owns.deps: [DB_File]`,
-  the counter as its storage. The sign-in CGI asks the registry through the one
-  reader, `Lazysite::Manager::Plugins::plugin_enabled`.
+  and no `storage` - a site package carries what that names, and a per-address
+  counter in the auth store is nothing another site should receive. The
+  sign-in CGI asks the registry through the one reader,
+  `Lazysite::Manager::Plugins::plugin_enabled`.
 - The installer lists it on a fresh install and on the first upgrade that
   carries it, and records `login-rate-limit-on` in the install state's `once`
   list. The name is the marker, not a version: a site reinstalled at the version
