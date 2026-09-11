@@ -332,8 +332,10 @@ my $atok = uapi( $d, { action => 'token', username => 'agent' } )->{token};
 my $aw   = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'agent', $atok ) );
 ok( $aw->{ok}, 'agent account (login disabled): whoami works' );
-ok( !$aw->{capabilities}{ui},
-    '...and reports ui:false (interactive login disabled)' );
+# SM821: the login setting is the account's `interactive_login`; `ui` in
+# capabilities is the manager capability, a different fact.
+ok( !$aw->{account}{interactive_login},
+    '...and reports interactive_login:false (interactive login disabled)' );
 my $av = mapi( $d, QUERY_STRING => 'action=analyse_visitors',
     HTTP_AUTHORIZATION => basic( 'agent', $atok ) );
 unlike( $av->{error} // '', qr/manager|interactive/i,
@@ -385,10 +387,11 @@ uapi( $d, { action => 'group-add', username => 'partner', group => 'editors' } )
 my $who = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
 ok( $who->{ok}, 'whoami ok for a token client' );
-is( $who->{partner}, 'partner', 'whoami returns the caller id' );
+is( $who->{user}, 'partner', 'whoami returns the caller id, as `user` (SM821)' );
 ok( $who->{capabilities}{manage_themes},   'whoami reports manage_themes on' );
 ok( !$who->{capabilities}{manage_layouts}, 'whoami reports manage_layouts off' );
-ok( ( grep { $_ eq 'editors' } @{ $who->{groups} } ), 'whoami lists the caller groups (editors)' );
+ok( ( grep { $_ eq 'editors' } @{ $who->{account}{groups} || [] } ),
+    'whoami lists the caller groups (editors), in the account block (SM821)' );
 ok( ref $who->{plugins} eq 'ARRAY',        'whoami lists plugins' );
 ok( exists $who->{layouts}{active_layout}, 'whoami reports the active layout' );
 ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities from enabled plugins' );
@@ -396,7 +399,7 @@ ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities 
 # whoami needs no special capability - nocap can still introspect itself
 my $who2 = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
-ok( $who2->{ok} && $who2->{partner} eq 'nocap', 'whoami available without a capability' );
+ok( $who2->{ok} && $who2->{user} eq 'nocap', 'whoami available without a capability' );
 
 # --- SM565: whoami tells a stranger only its own shape ---------------------
 # Introspection stays open (above), but what it RETURNS to a caller at the

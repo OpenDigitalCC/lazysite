@@ -17,7 +17,7 @@ use JSON::PP                 ();
 use Lazysite::Util           ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface implied_by implications);
+our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface implied_by implications whoami_grant);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -750,6 +750,36 @@ sub implied_by {
     my ($cap) = @_;
     my $i = ( $ACTION_INFO{$cap} || {} )->{implied_by} || [];
     return @$i;
+}
+
+# SM821: WHAT AN ACCOUNT MAY DO, AND WHAT IT IS - APART, AND THE SAME ON EVERY
+# SURFACE. Takes the account's resolved settings (Lazysite::Auth::Verify::
+# effective_settings - what both whoamis start from) and returns
+# ( capabilities => {...}, account => {...} ).
+#
+# `capabilities` is exactly @CAP_KEYS, as booleans. `ui` among them is the
+# CAPABILITY - manager access granted by a group - which the settings map calls
+# `manager_ui`, because its own `ui` is a different thing: whether the account
+# may sign in interactively. The two sat side by side under one name each, with
+# opposite values on an ordinary partner account, and read as a contradiction.
+# That setting is `account.interactive_login` here.
+#
+# `account` is everything else the map carries - the record, not the grant:
+# groups, email, provenance, token and MFA state, scopes. MCP returned all of it
+# under `capabilities` and the control API returned none of it, so an agent that
+# changed surface saw a different shape for the same account.
+sub whoami_grant {
+    my ($s) = @_;
+    $s ||= {};
+    my %is_cap = map { $_ => 1 } @CAP_KEYS;
+    my %caps   = map {
+        my $held = $_ eq 'ui' ? $s->{manager_ui} : $s->{$_};
+        $_ => ( $held ? JSON::PP::true() : JSON::PP::false() )
+    } @CAP_KEYS;
+    my %account = map { $_ => $s->{$_} }
+        grep { !$is_cap{$_} && $_ ne 'manager_ui' } keys %$s;
+    $account{interactive_login} = ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true();
+    return ( capabilities => \%caps, account => \%account );
 }
 
 sub implications {

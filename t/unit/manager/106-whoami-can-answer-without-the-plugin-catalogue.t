@@ -52,7 +52,11 @@ subtest 'nothing else in the answer moved' => sub {
     # The parts a preflight actually reads must be unconditional: an agent
     # checking its grant before a run needs these whatever it asked about
     # plugins.
-    for my $key (qw(capabilities reachable groups scope site_capabilities)) {
+    # SM821: capabilities and account (groups among it) come from the one
+    # builder, spread unconditionally.
+    like( $fn, qr/^\s*Lazysite::Capabilities::whoami_grant\(\$s\),/m,
+        'capabilities and account are still answered unconditionally' );
+    for my $key (qw(reachable scope site_capabilities)) {
         like( $fn, qr/\b\Q$key\E\s*=>/, "$key is still answered unconditionally" )
             or diag( "A preflight reads $key. Making it conditional on the "
                 . 'plugin flag would trade one bloated answer for an '

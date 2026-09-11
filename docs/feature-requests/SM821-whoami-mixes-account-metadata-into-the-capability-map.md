@@ -4,7 +4,8 @@ title: "SM821: whoami mixes account metadata into the capability map, and names 
 subtitle: "1310E-01, reported as an observation rather than a defect and accepted as one. MCP's whoami returns 49 keys under `capabilities` against the control API's 27; the extra 22 are account-record fields - email, created_at, groups, mfa_enrolled, token_expires_at, disabled - sitting among the capability flags. Nothing is missing and no authority differs. But `manager_ui: true` beside `ui: false` on the same account reads as a contradiction until you know one is a channel capability from a group and the other is this channel."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11 (0.13.13), recommendation 1 with 2 falling out of it, as a pre-stable break rather than additive first. Both whoamis build `capabilities` and `account` with one function, Lazysite::Capabilities::whoami_grant, over the same resolved settings: `capabilities` is exactly @CAP_KEYS as booleans, `ui` among them the manager capability (what the map called manager_ui); `account` is the record - groups, email, display_name, provenance, token and MFA state, scopes - with the login setting as `interactive_login`. The control API's identity key is `user`, as MCP's. t/integration/95 drives both surfaces for the same account and compares them; reproduced first."
 raised: 2026-09-10
 raised-by: sites agent
 area: api
@@ -62,3 +63,33 @@ other currently sees a different shape for the same account.
 `inbox/2026-09-10-1310E-results-0.13.10.md`, ref 1310E-01, "one observation, not
 a defect". The 49-key identity with `effective_settings` and the `ui` /
 `manager_ui` definitions were read here.
+
+# What 0.13.13 did
+
+**One builder, two blocks, both surfaces.** `whoami_grant` takes the account's
+resolved settings - what both whoamis already started from - and returns:
+
+- `capabilities`: exactly the capability keys, as booleans. `ui` is the
+  capability - manager access granted by a group - which is what `manager_ui`
+  meant. There is no `manager_ui` any more.
+- `account`: everything else the settings map carried - the record, not the
+  grant - with the login setting renamed `interactive_login`, so the name says
+  which of the two it is.
+
+MCP had returned the whole settings map under `capabilities`; the control API had
+returned a filtered map whose `ui` was the LOGIN setting (the default-on one), so
+the same key meant different things on the two surfaces. Both now say the same
+thing, and `t/integration/95` compares them field for field.
+
+**Not additive.** The recommendation was to publish the split beside the flat map
+and deprecate the flat one. Pre-stable, the release manager's standing
+preference is to break compatibility rather than carry a legacy path, so the flat
+map is gone in one step, the control API's `partner` became `user` (MCP's name),
+and its top-level `groups` moved to `account.groups`. UPGRADE.md says what a
+client reads instead.
+
+**Why other fields still differ.** The two answers share their grant blocks
+(`capabilities`, `account`, `reachable`, `implied`, `services`,
+`engine_version`). The rest is surface-specific on purpose: MCP lists its
+`tools`; the control API carries its `scope` deny list, `layouts`, `themes` and
+`plugins` for the manager and for agents on that surface.

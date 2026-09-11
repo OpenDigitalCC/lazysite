@@ -466,7 +466,12 @@ my %TOOLS = (
             # Echo the tool list so an agent sees every tool it may call in one
             # call (the connector loads tools a few at a time, which can hide
             # some). SM525: filtered to this session's grant, as tools/list is.
-            return { ok => 1, user => $user, capabilities => $caps,
+            # SM821: `capabilities` and `account` from the one builder the
+            # control API's whoami uses. This returned $caps whole - the
+            # resolved settings map, account record and all, under a key that
+            # says capabilities.
+            return { ok => 1, user => $user,
+                Lazysite::Capabilities::whoami_grant($caps),
                 # SM612: THE BUILD THIS INSTANCE IS RUNNING. An agent asked to
                 # re-check a previous release's finding is in the one case
                 # where the build IS the question, and no token-readable

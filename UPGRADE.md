@@ -67,6 +67,16 @@ and still carries `ok: false`, so a client that reads the body, as the manager's
 own pages do, is unaffected. A client that stops on a non-2xx status before
 reading the body should read it anyway: that is where the reason is.
 
+**`whoami` separates what an account may do from what it is** (SM821), on both
+the control API and MCP. `capabilities` now holds only the capability keys, and
+`ui` in it means manager access (what `manager_ui` meant - that key is gone).
+Everything else moved to a new `account` block: `groups`, `email`,
+`display_name`, `created_by`/`created_at`/`managed_by`, token and MFA state,
+scopes, and `interactive_login` - the setting that `ui` used to report over the
+control API. The control API's `partner` is now `user`, as on MCP. A client that
+read `capabilities.ui` as "may sign in", `capabilities.email` or top-level
+`groups` reads `account.interactive_login`, `account.email` and `account.groups`.
+
 **Login rate limiting is now an extension, and the upgrade switches it on**
 (SM798). `plugins/login-rate-limit.pl` is listed in every site's `plugins:` list
 by the first upgrade that carries it, and on every fresh install, so nothing

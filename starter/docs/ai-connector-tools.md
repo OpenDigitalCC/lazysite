@@ -91,8 +91,14 @@ need `manage_content` unless noted.
 ### Identity
 
 whoami
-: Partner identity, capabilities, active layout/theme, the full `tools` manifest,
-  and the `auth` block (method + expiry). No capability required. Call it first.
+: Partner identity (`user`), `capabilities`, `account`, active layout/theme, the
+  full `tools` manifest, and the `auth` block (method + expiry). No capability
+  required. Call it first. `capabilities` holds exactly the capability keys, as
+  booleans - `ui` among them is manager access. `account` holds what the account
+  is rather than what it may do: `groups`, `email`, `display_name`, provenance
+  (`created_by`, `created_at`, `managed_by`), token and MFA state, scopes, and
+  `interactive_login` (whether it may sign in to the manager at all). The control
+  API's `whoami` carries the same two blocks from the same builder (SM821).
 
 describe_capabilities
 : The full capability map: every capability and what it unlocks (MCP tools,

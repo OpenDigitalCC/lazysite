@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM821 (PENDING) **`whoami` says what an account may do and what it is, apart,
+  and the same way on both surfaces.** MCP put the whole settings map - email,
+  groups, token and MFA state - under `capabilities`, and the control API's
+  `capabilities.ui` meant "may sign in" while MCP's meant the manager capability.
+  Both now return `capabilities` (exactly the capability keys; `ui` is manager
+  access) and `account` (the record, with `interactive_login`), from one builder,
+  and name the caller `user`. A breaking change for clients of either whoami;
+  UPGRADE.md lists the moves.
+
 - SM670 (PENDING) **a control-API refusal answers with its HTTP status.**
   Every refusal answered 200 with `ok: false`, so a client that checked the status
   line saw success. The status now follows the refusal's kind - 403, 404, 409,

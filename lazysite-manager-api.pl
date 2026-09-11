@@ -4405,16 +4405,13 @@ sub action_whoami {
     my $skip_plugins = ( defined $want_plugins && $want_plugins =~ /\A(?:0|no|false|off)\z/i ) ? 1 : 0;
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
 
-    my $allg   = ( users_api( { action => 'groups' } ) || {} )->{groups} || {};
-    my @groups = sort grep {
-        ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
-    } keys %$allg;
-
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
 
     return {
-        ok      => 1,
-        partner => $user,
+        ok => 1,
+        # SM821: `user`, as MCP's whoami names it - one name for the identity on
+        # both surfaces.
+        user => $user,
         # SM612: the same build field the MCP whoami carries. The two doors
         # answer the same question the same way, or an agent that switches
         # surface gets a different answer about the same instance.
@@ -4426,18 +4423,13 @@ sub action_whoami {
         # SM565: the group names are returned only to a caller who may manage
         # accounts; a floor caller learns its own shape, never the site's.
         ( $s->{manage_users} ? ( manager_groups => [ _manager_groups_from_settings() ] ) : () ),
-        # $s is the EFFECTIVE settings (from settings-get -> the resolver), so report
-        # every capability straight from it. SM126: derived from @CAP_KEYS (via
-        # capability_keys) so a new capability appears here automatically - the old
-        # hand-list had drifted, omitting delegate_sub_user_creation. `ui` keeps its
-        # default-on semantics (true unless explicitly disabled).
-        capabilities => {
-            map {
-                $_ => ( $_ eq 'ui'
-                    ? _json_bool( !( exists $s->{ui} && !$s->{ui} ) )
-                    : _json_bool( $s->{$_} ) )
-            } capability_keys()
-        },
+        # SM821: `capabilities` (exactly @CAP_KEYS; `ui` is the manager
+        # capability) and `account` (the record: groups, email, provenance,
+        # token and MFA state, and `interactive_login`), from the one builder
+        # MCP's whoami uses, over the EFFECTIVE settings. Before, this `ui`
+        # reported the login setting, and MCP put the whole settings map under
+        # `capabilities`.
+        Lazysite::Capabilities::whoami_grant($s),
         # SM491: per held capability, which channels of THIS grant reach it
         # (via) and which would but are off (requires). Same derivation as the
         # MCP whoami, so the two doors cannot disagree. THIS LINE WAS IN THE
@@ -4459,7 +4451,6 @@ sub action_whoami {
         # while the case that prompted this was WEBDAV - a grant holding it
         # while PROPFIND answered 404 for everyone.
         services => _service_state(),
-        groups   => \@groups,
         scope    => {
             # SM155: group-derived; a comma-joined list for a multi-domain editor.
             allow => ( @{ $s->{dav_scopes} || [] }
