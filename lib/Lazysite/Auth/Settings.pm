@@ -51,7 +51,7 @@ our @CAP_KEYS = qw(
     create_sub_users delegate_sub_user_creation
     manage_data write_data manage_briefs
     run_jobs manage_connectors
-    housekeeping purge);
+    housekeeping purge audit_switch);
 
 # SM591: the LATERAL grants. Deletion and tidying are the same job wherever they
 # happen, and they are the operations a sysop most often reserves to one

@@ -465,6 +465,21 @@ my %ACTION_INFO = (
         grants => 'Read this site\'s visitor figures. They are sanitised and IP-anonymised before this capability sees them, so they cannot identify an individual visitor.',
         unlocks => { api => [qw(analyse_visitors)], mcp => [qw(analyse_visitors)] },
     },
+    # N13-04, ruled 2026-09-10 and 2026-09-11: THE AUDIT TRAIL'S SWITCH IS NOT
+    # SITE CONFIGURATION. Turning the trail off is a different authority from
+    # configuring a site, so it does not travel with manage_config - the switch
+    # needs manage_config AND this. It sits in a group of its own
+    # (cap-audit-switch), which no role draws on by default: nobody can silence
+    # the trail until an administrator decides somebody should. Reading the
+    # trail is `audit`, a different grant in a different group.
+    audit_switch => {
+        section => 'Operations',
+        title   => 'Switch the audit trail off and on again. Always recorded: the '
+            . 'switch-off is written to the trail, naming who, before it stops, and '
+            . 'the switch-on as it resumes - so the gap has named edges.',
+        grants => 'Switch the audit trail off and on (audit-trail-set), together with Site config. Off stops recording and keeps everything already recorded. Granted to no role by default.',
+        unlocks => { api => [qw(audit-trail-set)] },
+    },
     audit => {
         section => 'Insight',
         # SM618: measured on edge 2026-08-26 under a grant holding `analytics`

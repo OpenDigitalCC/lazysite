@@ -247,6 +247,9 @@ my %API_ONLY = (
     # ruling's own analogy. The listing goes with the save.
     'remap-list' => 'SM802: operator-only by ruling - the authority SM579 kept off MCP for connector destinations',
     'remap-save' => 'SM802: operator-only by ruling - a rule sends visitors to another host, as a connector destination does',
+    # N13-04: switching the audit trail off is an operator act by ruling, and an
+    # agent must not be able to switch off the record of what it does.
+    'audit-trail-set' => 'N13-04: an agent must not be able to switch off the record of what it does',
 
     # SM431: acl-get/acl-set are paired with the permissions tools; acl-remove
     # has no named twin because set_permissions with empty read/write lists

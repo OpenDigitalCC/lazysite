@@ -3535,6 +3535,13 @@ sub _default_group_seed {
                 . 'token-exchange switches. Decides whether the remote '
                 . 'surfaces answer at all, for everyone already connected.',
             manage_services => 1 },
+        # N13-04: the audit trail's switch, in a group of its own by ruling.
+        'cap-audit-switch' => {
+            label       => 'Capability: audit trail switch', assignable => 0,
+            description => 'Switch the audit trail off and on. Needs Site config as '
+                . 'well. Every switch is itself recorded, and no role holds this '
+                . 'by default.',
+            audit_switch => 1 },
         'cap-people' => {
             label       => 'Capability: people', assignable => 0,
             description => 'Accounts, groups and sub-users, plus the operator '
@@ -3669,6 +3676,7 @@ sub _default_group_nesting {
         'cap-analytics' => [qw(analysts agent-ai mcp-ai)],
         'cap-audit'     => [qw(analysts)],
         'cap-tidy'      => [qw(site-admins)],
+        'cap-audit-switch' => [],    # N13-04: nobody, until an administrator decides
         'ch-ui' => [qw(content-editors design-team site-admins user-managers analysts)],
         'ch-files'  => [qw(content-editors design-team site-admins)],
         'ch-agent'  => [qw(agent-ai mcp-ai app-developers)],

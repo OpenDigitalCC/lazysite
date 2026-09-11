@@ -31,7 +31,7 @@ use Fcntl qw(O_WRONLY O_APPEND O_CREAT);
 use Exporter 'import';
 use Lazysite::Util ();
 
-our @EXPORT_OK = qw(audit_log);
+our @EXPORT_OK = qw(audit_log audit_trail_state);
 
 our $LAZYSITE_DIR;
 
@@ -45,9 +45,48 @@ sub _warn_once {
     return;
 }
 
+# THE AUDIT TRAIL'S OWN SWITCH (SM222, ruled 2026-09-10 and 2026-09-11).
+#
+# `audit_trail: off` in lazysite.conf stops the trail recording. It is its own
+# setting rather than an extension toggle, because the registry cannot say "on
+# unless switched off": `plugins:` lists what is on, and absence there means both
+# "switched off" and "never asked". So here ABSENCE IS ON, and only an explicit
+# `off` stops it. A value that is neither on nor off also reads as ON - an audit
+# trail that cannot tell what it was told keeps recording, which is the safe way
+# to be wrong.
+#
+# OFF STOPS COLLECTION AND KEEPS WHAT WAS COLLECTED (SM798's ruling). Nothing here
+# touches the file that exists.
+#
+# The form handler writes audit lines without loading this module, so it carries
+# a marked copy of this reader; t/lint/130 runs both over the same confs.
+my %_TRAIL_MEMO;    # conf path => [ mtime, size, state ]
+
+sub audit_trail_state {
+    my ($lzdir) = @_;
+    $lzdir //= $LAZYSITE_DIR;
+    return 'on' unless defined $lzdir;
+    my $conf = "$lzdir/lazysite.conf";
+    my @st   = stat $conf;
+    return 'on' unless @st;
+    my $memo = $_TRAIL_MEMO{$conf};
+    return $memo->[2] if $memo && $memo->[0] == $st[9] && $memo->[1] == $st[7];
+    my $state = 'on';
+    if ( open my $fh, '<', $conf ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^audit_trail\s*:\s*(\S+)\s*$/;
+            $state = lc($1) eq 'off' ? 'off' : 'on';
+        }
+        close $fh;
+    }
+    $_TRAIL_MEMO{$conf} = [ $st[9], $st[7], $state ];
+    return $state;
+}
+
 sub audit_log {
     my ( $user, $act, $target, $ip, $status, $origin, $detail ) = @_;
     return unless defined $LAZYSITE_DIR;
+    return if audit_trail_state() eq 'off';    # the switch: see above
     my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
     $_ = defined $_ ? "$_" : '' for ( $user, $act, $target, $ip, $status, $origin, $detail );
     s/[|\r\n]+/ /g for ( $user, $act, $target, $ip, $status, $origin, $detail );

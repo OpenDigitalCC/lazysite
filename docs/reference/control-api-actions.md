@@ -53,6 +53,7 @@ tone: medium
 `artifact-manifest` | manage_themes / manage_layouts |  
 `artifact-validate` | manage_themes / manage_layouts |  
 `audit` | audit | user (query), target (query), start (query), end (query), page (query), per_page (query)
+`audit-trail-set` | audit_switch | state (body), reason (body)
 `backup-create` | cookie only | scope (query)
 `backup-delete` | cookie only | name (query_or_body)
 `backup-download` | cookie only | name (query)

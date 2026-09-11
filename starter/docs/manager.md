@@ -255,6 +255,16 @@ requires the **Audit trail** permission - its own capability, separate from
 Analytics - granted through a group on the Groups page; it is read through an
 append-only cache, so only newly-appended lines are parsed on each load.
 
+**Switching the trail off.** An instance may run without an audit trail, and
+the trail can be switched off and on again with `audit-trail-set`
+(`{"state": "off", "reason": "..."}`). It needs **Site config** and the **audit
+trail switch** permission together - the second lives in a group of its own,
+*Capability: audit trail switch*, which no role holds by default, so nobody can
+silence the trail until an administrator decides somebody should. The switch
+is itself recorded: the switch-off is written to the trail, naming who and why,
+**before** recording stops, and the switch-on as it resumes, so the gap has two
+named edges. Off stops recording and keeps everything already recorded.
+
 ### Visitor statistics
 
 `/manager/stats`. A read-only dashboard from lazysite's own first-party access

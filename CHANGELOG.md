@@ -89,6 +89,17 @@ Naming the commit: AFTER it lands, never before
   SM647 boundary from *manage_config* to *manage_domains and manage_users*. A
   value containing a line break is now refused, naming the setting, before
   anything is written.
+- SM222 partial (PENDING) **the audit trail can be switched off, and the switch
+  is answerable.** `audit_trail: off` stops recording and keeps everything
+  already recorded; a site that never set it is recording, because the setting
+  is on when absent. `audit-trail-set` needs *Site config* **and** the new
+  *audit trail switch* permission, which lives in a group of its own that no role
+  holds by default. The switch-off is written to the trail, naming who and why,
+  **before** recording stops, and the switch-on as it resumes - so the gap has
+  two named edges. Both writers of the trail honour it, including the form
+  handler, which appends to it directly; a switch that stopped one and not the
+  other would leave form submissions recorded after an operator was told the
+  trail was off.
 
 ## 0.13.12 - EDGE: extensions by name, and the paths that never asked (2026-09-10)
 

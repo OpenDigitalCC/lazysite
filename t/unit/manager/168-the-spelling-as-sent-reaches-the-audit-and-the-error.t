@@ -149,7 +149,9 @@ sub call {
         # The second argument is the action. A literal one cannot be a
         # plugin-*/extension-* call: the only such site records the 'audit'
         # action's own refusal.
-        if ( $c =~ /\A\s*\$auth_user,\s*'/ ) { push @literal, $c }
+        # The ACTION is the second argument; whoever the first names, a quoted
+        # literal there is a fixed action - N13-04's audit-trail edges pass $who.
+        if ( $c =~ /\A\s*[^,]+,\s*'/ ) { push @literal, $c }
         else                                 { push @variable, $c }
     }
     cmp_ok( scalar @variable, '>=', 2, 'found the audit calls that record a variable action' );

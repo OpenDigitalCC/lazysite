@@ -626,10 +626,27 @@ sub dispatch_table {
 # SM115: record a submission in the audit trail. The submitter is the public, so the
 # user is usually blank; written directly in Lazysite::Audit's pipe format (origin
 # "form"), since the handler does not load the lib.
+# SM222 / N13-04: A MARKED COPY of Lazysite::Audit::audit_trail_state, because
+# this handler writes the audit trail directly and does not load the lib. With
+# `audit_trail: off` the trail stops - and a switch that stopped the module and
+# not this line would leave every form submission still being recorded after an
+# operator was told the trail was off. t/lint/130 pins the two readers together.
+sub _audit_trail_off {
+    open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" or return 0;
+    my $state = 'on';
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^audit_trail\s*:\s*(\S+)\s*$/;
+        $state = lc($1) eq 'off' ? 'off' : 'on';
+    }
+    close $fh;
+    return $state eq 'off' ? 1 : 0;
+}
+
 sub _audit_submission {
     my ( $form, $user, $ip ) = @_;
     my $logdir = "$DOCROOT/lazysite/logs";
     return unless -d $logdir;
+    return if _audit_trail_off();
     $_ = defined $_ ? "$_" : '' for ( $form, $user, $ip );
     s/[|\r\n]+/ /g for ( $form, $user, $ip );
     my $ts = strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );

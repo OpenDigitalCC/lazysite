@@ -158,6 +158,8 @@ our %ACTION = (
     # SM802: the URL remapper - per-host rules, operator-only.
     'remap-list' => { caps => ['manage_domains'], params => [] },
     'remap-save' => { caps => ['manage_domains'], params => [ { name => 'host', in => 'body', required => 1 }, { name => 'rules', in => 'body', required => 1 } ] },
+# N13-04: the audit trail's switch - audit_switch AND manage_config (the second checked in the dispatch).
+    'audit-trail-set' => { caps => ['audit_switch'], params => [ { name => 'state', in => 'body', required => 1 }, { name => 'reason', in => 'body' } ] },
     'domains-list'  => { caps => ['manage_domains'], params => [] },
     'file-download' => { caps => undef, params => [ { name => 'path', in => 'query' } ] },
     'file-upload'   => { caps => undef, params => [ { name => 'path', in => 'query' } ] },

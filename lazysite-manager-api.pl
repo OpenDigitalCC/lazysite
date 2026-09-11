@@ -213,6 +213,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     start-page start-page-set
     connector-list connector-save connector-secret-set connector-delete connector-call connector-calls
     remap-list remap-save
+    audit-trail-set
 );
 
 # SM230: the control API is not callable from a browser page, by design. Its
@@ -591,6 +592,7 @@ my %MUTATING = map { $_ => 1 } qw(
     form-delete start-page-set
     connector-save connector-secret-set connector-delete connector-call
     remap-save
+    audit-trail-set
     data-migrate data-row-save data-row-delete data-table-save
     data-table-acl-set data-table-acl-remove
     data-rebuild data-import data-table-drop data-safety-export-delete data-safety-export-restore
@@ -789,6 +791,7 @@ if ( !$token_auth ) {
         'domains-list'   => 'manage_domains', 'domain-add'    => 'manage_domains',
         'domain-set'     => 'manage_domains', 'domain-remove' => 'manage_domains',
         'remap-list'     => 'manage_domains', 'remap-save'    => 'manage_domains', # SM802
+        'audit-trail-set' => 'audit_switch',  # N13-04: AND manage_config, in the dispatch
         'domain-preview' => 'manage_domains', 'domain-check'  => 'manage_domains',
         'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
             # F3 audit: the account/group roster backs the ACL "grant to whom" picker
@@ -1046,8 +1049,9 @@ if ($token_auth) {
         'domains-list'    => [qw(manage_domains)],              # read-only domains view
         'domain-add'      => [qw(manage_domains)],
         'domain-set'      => [qw(manage_domains)],
-        'remap-list'      => [qw(manage_domains)],              # SM802
+        'remap-list'      => [qw(manage_domains)],                # SM802
         'remap-save'      => [qw(manage_domains)],
+        'audit-trail-set' => [qw(audit_switch)], # N13-04: AND manage_config, in the dispatch
         'domain-remove'   => [qw(manage_domains)],
         'domain-preview'  => [qw(manage_domains)],              # SM155: pre-DNS render
         'domain-check'    => [qw(manage_domains)],              # SM156: live config check
@@ -1377,7 +1381,7 @@ if ($token_auth) {
 # do. SM508: briefs-list skips as a read; brief-delete is audited - removing a
 # record of intent is exactly what a trail should remember.
 my %skip = map { $_ => 1 } qw(
-    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names remap-list
+    csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors start-page display-names remap-list audit-trail-set
     cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
     layouts-available layouts-releases layouts-repo-get layouts-release-contents
     handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
@@ -1704,6 +1708,10 @@ elsif ( $action eq 'remap-list' ) { $result = _remap_list() }    # SM802
 elsif ( $action eq 'remap-save' ) {
     my $req = _json_body();
     $result = _remap_save( { host => $req->{host}, rules => $req->{rules} } );
+}
+elsif ( $action eq 'audit-trail-set' ) {
+    my $req = _json_body();
+    $result = _audit_trail_set( { state => $req->{state}, reason => $req->{reason} } );
 }
 elsif ( $action eq 'domain-preview' ) {
     $result = domain_preview( $params{host} );
@@ -2863,6 +2871,70 @@ sub _remap_save {
     log_event( 'INFO', $auth_user // '-', 'remap rules saved', host => $host,
         rules => scalar @$rules ) if $w->{ok};
     return $w;
+}
+
+# --- N13-04: the audit trail's switch -----------------------------------------
+#
+# RULED 2026-09-10 and 2026-09-11. The trail stays switchable, and the switch is
+# ANSWERABLE: the switch-off is written to the trail, naming who, BEFORE it stops;
+# the switch-on is written as it resumes. So the gap has named edges rather than
+# being a silence. And turning the trail off is not the same authority as
+# configuring a site: it needs manage_config AND audit_switch, which lives in a
+# group of its own that no role draws on by default.
+#
+# The capability maps are OR lists - any listed capability admits - so they name
+# audit_switch, the narrower grant, and manage_config is required here, where
+# the refusal can name which of the two is missing.
+#
+# This action writes its own two edges, so it is skip-listed for the generic
+# audit line: that line would land after the trail stopped, or duplicate the
+# resumption.
+sub _audit_trail_set {
+    my ($req) = @_;
+    my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+    return { ok => 0, kind => 'forbidden',
+        error => 'Switching the audit trail needs Site config as well as the audit '
+            . 'trail switch permission. An administrator can grant both on the Groups page.' }
+        unless $caps->{manage_config} && $caps->{audit_switch};
+
+    my $state = lc( $req->{state} // '' );
+    return { ok => 0, kind => 'invalid', field => 'state',
+        error => "state must be 'on' or 'off'." }
+        unless $state eq 'on' || $state eq 'off';
+    ( my $reason = $req->{reason} // '' ) =~ s/[\r\n|]+/ /g;
+
+    require Lazysite::Audit;
+    my $lz  = Lazysite::Paths::lazysite_dir($DOCROOT);
+    my $was = Lazysite::Audit::audit_trail_state($lz);
+    return { ok => 1, state => $was, changed => JSON::PP::false } if $was eq $state;
+
+    my $origin = $token_auth ? 'api' : 'ui';
+    my $ip     = $ENV{REMOTE_ADDR} // '';
+    my $who    = $auth_user        // '-';
+
+    if ( $state eq 'off' ) {
+        # The edge FIRST, while the trail is still recording.
+        audit_log( $who, 'audit-trail-off', 'audit trail', $ip, 'ok', $origin, $reason );
+        my ( $ok, $err ) = Lazysite::Manager::Common::write_conf_key(
+            'audit_trail', 'off', "audit trail switched off by $who" );
+        unless ($ok) {
+            # Still on, so this is recorded: the trail must not claim a gap
+            # that did not happen.
+            audit_log( $who, 'audit-trail-off', 'audit trail', $ip, 'fail', $origin,
+                "NOT switched off: " . ( $err // 'write failed' ) );
+            return { ok => 0, error => "The audit trail was not switched off: " . ( $err // 'write failed' ) };
+        }
+    }
+    else {
+        my ( $ok, $err ) = Lazysite::Manager::Common::write_conf_key(
+            'audit_trail', 'on', "audit trail switched on by $who" );
+        return { ok => 0, error => "The audit trail was not switched on: " . ( $err // 'write failed' ) }
+            unless $ok;
+        # The edge AFTER, now the trail is recording again.
+        audit_log( $who, 'audit-trail-on', 'audit trail', $ip, 'ok', $origin, $reason );
+    }
+    log_event( 'WARN', $who, "audit trail switched $state", reason => $reason );
+    return { ok => 1, state => $state, changed => JSON::PP::true };
 }
 
 # SM516 MA-3: a gate refusal is three statements in one order - record it,
