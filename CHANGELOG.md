@@ -81,6 +81,14 @@ Naming the commit: AFTER it lands, never before
   may set rules for that domain and for no host that is not a registered
   domain - stricter than `domain-set`, because a redirect for a host this
   instance merely answers is a reach. Ships switched off.
+- SM838 (PENDING) **a line break in an extension setting could add lines to
+  `lazysite.conf`.** `plugin-save` checked each key against the extension's
+  schema and never the value, and every value is written on a line of its own -
+  for four extensions, into `lazysite.conf`. Reproduced: one save to the Logging
+  extension wrote a domain's `allowed_groups` into the file, which crossed the
+  SM647 boundary from *manage_config* to *manage_domains and manage_users*. A
+  value containing a line break is now refused, naming the setting, before
+  anything is written.
 
 ## 0.13.12 - EDGE: extensions by name, and the paths that never asked (2026-09-10)
 

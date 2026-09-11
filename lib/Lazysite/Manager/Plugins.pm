@@ -693,7 +693,30 @@ sub action_plugin_save {
     my %allowed = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
     my %safe;
     for my $k ( keys %$values ) {
-        $safe{$k} = $values->{$k} if $allowed{$k};
+        next unless $allowed{$k};
+
+        # SM838: A VALUE IS ONE LINE, and a line break in one is refused.
+        #
+        # Every value below is written as `key: value` on a line of its own, into
+        # the extension's config file - or, for an extension declaring
+        # config_keys, into lazysite.conf itself. Nothing stripped line breaks,
+        # and the allowlist above checks only the KEY. So a value carrying one
+        # added whatever lines followed it, past the allowlist: reproduced with a
+        # single save to the Logging extension, whose log_level wrote
+        # `alias.victim.example.allowed_groups: attackers` into lazysite.conf.
+        # plugin-save needs manage_config; that key is behind manage_domains AND
+        # manage_users by the SM647 ruling. The form never sends a newline; the
+        # API accepts any string.
+        #
+        # REFUSED, NOT STRIPPED. Stripping would store something other than what
+        # was sent and report success; a value that cannot be stored as sent is
+        # an error the caller has to see.
+        if ( defined $values->{$k} && !ref $values->{$k} && $values->{$k} =~ /[\r\n]/ ) {
+            return { ok => 0, kind => 'invalid', field => $k,
+                error => "'$k' contains a line break. Each setting is stored on one line, "
+                    . 'so a value cannot contain one.' };
+        }
+        $safe{$k} = $values->{$k};
     }
 
     my $config_file = $desc->{config_file} // '';
