@@ -97,18 +97,18 @@ for my $f (@files) {
     # Built as "$docroot/$p", a bundle recreated a gated section in the served
     # tree beside the protected copy, and the dry run called an existing
     # protected page a "create".
-    my ( $abs, $where );
+    my ( $abs, $where, $tree ) = ( undef, '', '' );
     if ( $p =~ m{\Alazysite/(.+)\z} ) {
         $abs   = Lazysite::Paths::lazysite_dir($docroot) . "/$1";
         $where = -e $abs ? 'engine' : '';
     }
     else {
         ( undef, $where ) = Lazysite::Private::resolve( $docroot, $p );
-        ($abs) = Lazysite::Private::resolve_for_write( $docroot, $p );
+        ( $abs, $tree ) = Lazysite::Private::resolve_for_write( $docroot, $p );
         $abs //= "$docroot/$p";
     }
     my $op = $where ? 'overwrite' : 'create';
-    $op .= ', protected' if index( $abs, Lazysite::Private::private_root($docroot) . '/' ) == 0;
+    $op .= ', protected' if ( $tree // '' ) eq 'private';
     push @ok, { path => $p, abs => $abs, op => $op, content => $f->{content} // '' };
 }
 

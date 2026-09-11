@@ -64,8 +64,12 @@ sub fixture {
     write_file( "$d/lazysite/nav.conf",           "Home | /\n" );
     write_file( "$d/sites/own/lazysite/nav.conf", "Home | /\n" );
 
-    # Generated renders, so a cache claim has something to be true about.
+    # Generated renders, so a cache claim has something to be true about. Each
+    # has its source beside it: an .html with none is content (SM133, SM852),
+    # and the sweep keeps it.
+    write_file( "$d/index.md",              "# Primary\n" );
     write_file( "$d/index.html",            '<html>primary</html>' );
+    write_file( "$d/sites/xisl/index.md",   "# Xisl\n" );
     write_file( "$d/sites/xisl/index.html", '<html>xisl</html>' );
 
     $Lazysite::Manager::Files::DOCROOT    = $d;
