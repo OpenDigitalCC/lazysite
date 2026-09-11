@@ -120,7 +120,8 @@ sub call { my $r = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
     ok( $fb, 'the feedback form is listed' );
     is_deeply( $fb->{handler_types}, ['file'], 'handler type resolved (file)' );
     ok( $fb->{has_store}, 'a submissions store is detected' );
-    is( $fb->{rows}, 2, 'row count is correct (a count, not content)' );
+    is( $fb->{row_count}, 2, 'row count is correct (a count, not content)' );
+    ok( !exists $fb->{rows}, 'under its one name - the rows alias is gone (N13-30)' );
     unlike( encode_json($fl), qr/alice|bob/, 'form_list carries no submission content (PII-free)' );
 }
 

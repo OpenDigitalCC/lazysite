@@ -137,9 +137,9 @@ every page that binds a table with `db:` and also uses `| html`, so those
 templates can be found before a visitor finds them. On a site still on 0.12,
 either upgrade, or keep markup out of any table a page renders.
 
-`db_render_raw: true` in `lazysite.conf` turns the escaping off for a site
-mid-migration. It is deprecated from the day it shipped, and says so in the log
-on every page that uses it.
+There is no switch that turns the escaping off. `db_render_raw`, which did,
+shipped deprecated and was removed in 0.13.13 - no site was found to need it -
+and an upgrade deletes the key.
 
 ### What you may ask for
 

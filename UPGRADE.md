@@ -44,6 +44,21 @@ What changes for people and agents:
 - The daemon's `connectors-call` job is replaced by `schedule-run`. Its job
   account needs the capability of each scheduled handler's destination.
 
+**Three settings that were kept alive for one release are gone** (pre-stable:
+one way to say each thing). The upgrade converts the configuration and says so:
+
+- `manager_upload_blocked_paths` in `lazysite.conf` is renamed to
+  `manager_blocked_paths`, its name since SM019c. Where both were set the old
+  line is dropped - the new key already won.
+- `db_render_raw` is deleted. `db:` values are always escaped (SM786); a site
+  that had it on is warned in the upgrade summary, because a value that carried
+  HTML now shows it as text.
+- `form-list` (and MCP `form_list`) returns the submission count as `row_count`
+  only; the `rows` alias for it is gone. `rows` is the array of submissions in
+  `form-submissions`, which is why the count needed another name.
+
+`lazysite check` reports either key if it comes back.
+
 **Re-render your vhost** (SM797). The shipped front-end templates now hand a
 page's markdown, `.url` and `.brief` files, backups, config, keys and executable
 source to the engine instead of serving them from disk - so `/about.md` renders

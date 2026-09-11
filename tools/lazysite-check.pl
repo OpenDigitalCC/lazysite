@@ -1077,6 +1077,7 @@ sub run_checks {
     # --- 8h. templates written for 0.12's raw db values (SM844) ------------------
     report_double_escaped_db_templates();
     report_unconverted_delivery();
+    report_retired_conf_keys();
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
@@ -1804,6 +1805,25 @@ sub report_unconverted_delivery {
     else {
         report( 'OK', 'every form and schedule names a handler the engine reads' );
     }
+    return;
+}
+
+# N13-30: lazysite.conf keys 0.13.13 stopped reading. The upgrade converts them
+# (install.pl convert_retired_conf_keys); this catches a site that took the code
+# some other way, or had one put back by hand. Silent when there is none.
+sub report_retired_conf_keys {
+    open my $fh, '<', "$LZ/lazysite.conf" or return;
+    my @found;
+    while ( my $l = <$fh> ) {
+        push @found, 'manager_upload_blocked_paths (its name is manager_blocked_paths)'
+            if $l =~ /^\s*manager_upload_blocked_paths\s*:/;
+        push @found, 'db_render_raw (db: values are always escaped now)' if $l =~ /^\s*db_render_raw\s*:/;
+    }
+    close $fh;
+    return unless @found;
+    report( 'WARN',
+        'lazysite.conf sets ' . scalar(@found) . ' key(s) the engine no longer reads: ' . join( '; ', @found ),
+        'rename manager_upload_blocked_paths to manager_blocked_paths, and delete db_render_raw' );
     return;
 }
 

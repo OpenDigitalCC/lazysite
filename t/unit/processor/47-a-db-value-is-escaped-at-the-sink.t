@@ -97,18 +97,17 @@ sub escape_rows {
         'an ordinary value does not trip the warning' );
 }
 
-# --- the override, which is born deprecated ---------------------------------
+# --- the override it was born with is gone (N13-30) -------------------------
+# db_render_raw shipped announced as deprecated and was removed in 0.13.13. A
+# site that still carries the key gets the escaping anyway - a flag the engine
+# no longer reads must not be able to turn a sink back into a hole.
 {
     open my $fh, '>>', $conf or die $!;
     print $fh "db_render_raw: true\n";
     close $fh;
 
-    my ( $rows, $log ) = escape_rows( [ { title => '<b>raw</b>' } ] );
-    is( $rows->[0]{title}, '<b>raw</b>',
-        'db_render_raw returns the value unescaped, for a site mid-migration' );
-    like( $log, qr/deprecated/,
-        'and says the flag is deprecated in the same breath - a compatibility '
-            . 'flag with no stated end becomes the configuration everyone copies' );
+    my ($rows) = escape_rows( [ { title => '<b>raw</b>' } ] );
+    is( $rows->[0]{title}, '&lt;b&gt;raw&lt;/b&gt;', 'db_render_raw no longer turns the escaping off' );
 }
 
 done_testing();

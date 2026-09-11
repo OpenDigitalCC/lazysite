@@ -674,8 +674,6 @@ sub load_upload_limits {
     my $conf_path = _lz() . "/lazysite.conf";
     return \%limits unless -f $conf_path;
 
-    my $new_key_seen = 0;
-    my $old_key_seen = 0;
     open my $fh, '<', $conf_path or return \%limits;
 
     # SM419: `while (<$fh>)` assigns the GLOBAL $_, so without this a caller
@@ -704,18 +702,6 @@ sub load_upload_limits {
             if ( length $v ) {
                 $limits{blocked_paths} = _conf_list($v);
             }
-            $new_key_seen = 1;
-        }
-        elsif (/^manager_upload_blocked_paths\s*:\s*(.+)/) {
-            # Deprecated alias; only honoured if the new key
-            # is absent. The new-key check happens after the
-            # loop because they may appear in either order.
-            my $v = $1;
-            $v =~ s/\s+$//;
-            if ( length $v ) {
-                $limits{_deprecated_blocked_paths} = _conf_list($v);
-            }
-            $old_key_seen = 1;
         }
         elsif (/^manager_upload_blocked_extensions\s*:\s*(.+)/) {
             my $v = $1;
@@ -749,17 +735,9 @@ sub load_upload_limits {
     }
     close $fh;
 
-    # Apply the deprecated alias only if the new key was not set.
-    # Log INFO so operators know to rename.
-    if ( $old_key_seen && !$new_key_seen
-        && exists $limits{_deprecated_blocked_paths} ) {
-        $limits{blocked_paths} = delete $limits{_deprecated_blocked_paths};
-        log_event( 'INFO', 'config',
-            'manager_upload_blocked_paths is deprecated; '
-                . 'rename to manager_blocked_paths in lazysite.conf' );
-    }
-    delete $limits{_deprecated_blocked_paths};
-
+    # N13-30: manager_upload_blocked_paths, the key's old name, is not read. The
+    # upgrade renames it (install.pl) and lazysite-check reports one left behind;
+    # pre-stable, an alias kept alive is a second way to say one thing.
     return \%limits;
 }
 

@@ -97,12 +97,11 @@ by eye: the site log names the table and the column, and says to remove the
 filter. Nothing breaks in the meantime - a double-escaped page is readable and
 wrong, not broken - which is why this is a warning and not a refusal.
 
-A site whose templates genuinely render authored HTML out of a column can set
-`db_render_raw: true` in `lazysite.conf` to keep the old behaviour while they are
-corrected. **That flag is deprecated the day it ships**: it exists to hold the
-door, not to be a setting, and it logs its own deprecation on every page that
-uses it. No site is known to need it - a survey of fourteen sites and around
-1,100 files found no column carrying authored HTML.
+**There is no switch that turns the escaping off.** `db_render_raw` did, shipped
+deprecated, and was removed in 0.13.13: a survey of fourteen sites and around
+1,100 files found no column carrying authored HTML, and an upgrade deletes the
+key. A template that needs markup from a table renders it from a column the
+template trusts, not from data an editor types.
 
 **Who sees the rows: the `public:` key** (SM476). A table is closed to
 anonymous visitors until its descriptor says `public: true` -- an unpublished

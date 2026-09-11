@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- Retired aliases (PENDING) **three spellings kept alive for a release are
+  gone**, pre-stable, rather than carried into beta: the
+  `manager_upload_blocked_paths` key (SM019c renamed it), `db_render_raw` (born
+  deprecated with SM786; no site was found to need it) and `form-list`'s `rows`
+  count (SM227 named it `row_count`). The upgrade renames the one key, deletes
+  the other and warns a site that had db escaping off; `lazysite check` reports
+  either if it comes back. The `plugin-*` action spellings stay: renaming them
+  on the wire needs the SM817 internals rename, which is after beta.
+
 - SM851 (PENDING) **a submission store at a handler's own path is carved out on
   MCP.** The MCP carve-out pass learned which directories hold submissions
   before the request's context told the modules where the site is, so under CGI

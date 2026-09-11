@@ -138,19 +138,18 @@ unlink "$base/sample-plugin.pl";
     ok( $fb, 'the feedback form is listed' );
     is_deeply( $fb->{handler_types}, ['file'], 'handler type resolved from handlers.conf (file)' );
     ok( $fb->{has_store}, 'the submissions store is detected' );
-    is( $fb->{rows}, 2, 'row count is correct' );
     ok( !( grep { $_->{name} eq 'handlers' || $_->{name} eq 'smtp' } @{ $fl->{forms} } ),
         'handlers.conf / smtp.conf are not listed as forms' );
     is_deeply(
         [ sort keys %$fb ],
-        [ sort qw(name handlers handler_types has_store rows row_count) ],
+        [ sort qw(name handlers handler_types has_store row_count) ],
         'a form entry carries only names + counts - no submission content (PII-free)' );
 
-    # SM227: `rows` means a COUNT here and an ARRAY OF ROWS in
-    # action_form_submissions. row_count is the unambiguous spelling; rows stays
-    # one release as a deprecated alias, so they must agree.
-    is( $fb->{row_count}, 2,           'row_count is the submission count' );
-    is( $fb->{row_count}, $fb->{rows}, 'the deprecated rows alias agrees with it' );
+    # SM227: `rows` meant a COUNT here and an ARRAY OF ROWS in
+    # action_form_submissions. row_count is the one spelling now; the alias kept
+    # for a release is gone (0.13.13), which the key list above pins.
+    is( $fb->{row_count}, 2, 'row_count is the submission count' );
+    unlike( $fl->{note}, qr/deprecated/, 'and the note no longer promises an alias' );
     like( $fl->{note}, qr/read_form_submissions/,
         'the response names the companion action' );
     like( $fl->{note}, qr/read_submissions/,

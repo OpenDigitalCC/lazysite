@@ -402,8 +402,8 @@ The manager `file-upload` action layers seven checks:
    `@BLOCKED_PATHS` list plus the `.pl` rule (`is_blocked_path`).
 6. Each target path is checked against the configurable
    `manager_blocked_paths` (renamed from
-   `manager_upload_blocked_paths` in SM019c; the old key is
-   still accepted with a deprecation log) and
+   `manager_upload_blocked_paths` in SM019c; the old key is not
+   read from 0.13.13, and the upgrade renames it) and
    `manager_upload_blocked_extensions` lists
    (`is_blocked_config`). The path list also gates
    `action_save`, `action_delete`, `action_mkdir`,

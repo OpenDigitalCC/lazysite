@@ -405,6 +405,13 @@ sub _write_conf_key {
         }
     }
     push @lines, "$key: $value\n" unless $found;
+    return _replace_conf( $conf, \@lines );
+}
+
+# Write @$lines over $conf, atomically. Returns ( ok, reason ) like the writer
+# above, which is its first caller; convert_retired_conf_keys is the second.
+sub _replace_conf {
+    my ( $conf, $lines ) = @_;
 
     # Preserve the original's mode and group across the atomic replace. The
     # temp file is born with the INVOKING user's umask and primary group, so
@@ -418,7 +425,7 @@ sub _write_conf_key {
     my @orig_stat = stat $conf;
     my $tmp       = "$conf.tmp.$$";
     open my $out, '>', $tmp or return ( 0, "Cannot write $tmp: $!" );
-    print {$out} @lines;
+    print {$out} @$lines;
     close $out;
     if (@orig_stat) {
         chmod $orig_stat[2] & 07777, $tmp;
@@ -719,6 +726,12 @@ sub cmd_install {
             . $why . ') - see the lines above, and run lazysite-handlers.pl convert '
             . '--docroot ' . $o->{docroot} . ' as the site user once they are resolved'
             unless $ok;
+
+        # N13-30: and the lazysite.conf keys the engine stopped reading.
+        my ( $changed, $warn, $err ) = convert_retired_conf_keys( _conf_path( $o->{docroot} ) );
+        info("  conf:      $_") for @$changed;
+        push @$warnings, @$warn;
+        push @$warnings, "CONF: could not convert the retired lazysite.conf keys ($err)" if $err;
     }
 
     # ---- invalidate rendered HTML (SM413) ----
@@ -791,6 +804,56 @@ sub run_handler_conversion {
     my $rc = $? >> 8;
     return ( 1, '' ) if $rc == 0;
     return ( 0, $rc == 1 ? 'something was left unconverted' : "the tool exited $rc" );
+}
+
+# N13-30: the settings 0.13.13 stopped reading, converted rather than kept alive
+# by an alias (pre-stable: one way to say a thing). Returns ( \@changed,
+# \@warnings, $error ).
+#
+#   manager_upload_blocked_paths -> manager_blocked_paths, its name since
+#       SM019c. Where both are set the old line is dropped: the new key already
+#       won, so the site's behaviour does not change.
+#   db_render_raw -> deleted. db: values are always escaped now (SM786). A site
+#       that had it ON renders differently from here, which is a warning in the
+#       summary rather than a line in the log.
+#
+# Text in, text out: the installer loads no Lazysite module (SM767). A line
+# that is a comment is left alone, so the shipped example's own prose is not
+# rewritten.
+sub convert_retired_conf_keys {
+    my ($conf) = @_;
+    return ( [], [], undef ) unless -f $conf;
+    open my $in, '<', $conf or return ( [], [], "cannot read $conf: $!" );
+    my @lines = <$in>;
+    close $in;
+
+    my $has_new = grep { /^\s*manager_blocked_paths\s*:/ } @lines;
+    my ( @out, @changed, @warn );
+    for my $l (@lines) {
+        if ( $l =~ /^(\s*)manager_upload_blocked_paths(\s*:.*)\z/s ) {
+            if ($has_new) {
+                push @changed, 'dropped manager_upload_blocked_paths (manager_blocked_paths is set, and already won)';
+                next;
+            }
+            push @out,     "$1manager_blocked_paths$2";
+            push @changed, 'renamed manager_upload_blocked_paths to manager_blocked_paths';
+            $has_new = 1;
+            next;
+        }
+        if ( $l =~ /^\s*db_render_raw\s*:\s*(\S*)/ ) {
+            push @changed, 'removed db_render_raw';
+            push @warn,
+                'DB_RENDER_RAW: this site had turned off the escaping of db: values, and that switch '
+                . 'is gone - a db: value that carried HTML now shows it as text. Escape where the '
+                . 'template renders instead (SM786)'
+                if $1 =~ /\A(?:enabled|true|yes|on|1)\z/i;
+            next;
+        }
+        push @out, $l;
+    }
+    return ( [], [], undef ) unless @changed;
+    my ( $ok, $why ) = _replace_conf( $conf, \@out );
+    return $ok ? ( \@changed, \@warn, undef ) : ( [], [], $why );
 }
 
 # =========================================================

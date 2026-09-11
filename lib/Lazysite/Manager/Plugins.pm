@@ -907,7 +907,6 @@ sub action_form_list {
             handler_types => \@types,
             has_store     => $has,
             row_count     => $rows,     # SM227: the unambiguous name
-            rows          => $rows,     # SM227: deprecated alias, see below
             };
     }
     closedir $dh;
@@ -917,9 +916,10 @@ sub action_form_list {
     # partner, who then specified a replacement store rather than asking for the
     # grant that already reads it. Two things caused that. The `rows` key means a
     # COUNT here and an ARRAY OF ROWS in the sibling action_form_submissions - the
-    # same name for two different things - so `row_count` is now the canonical
-    # spelling and `rows` stays only as a deprecated alias for one release. And a
-    # response that says nothing about its own scope leaves the reader to guess:
+    # same name for two different things - so the count is `row_count`, and the
+    # `rows` alias it kept for a release is gone (0.13.13, pre-stable: no aliases
+    # kept alive). And a response that says nothing about its own scope leaves the
+    # reader to guess:
     # the note names the companion action and the capability that unlocks it, so
     # the answer travels with the payload rather than living in a tool description
     # the reader has already moved past.
@@ -929,8 +929,7 @@ sub action_form_list {
         note  => 'Counts only - this action never returns submission content. To '
             . 'read the rows, call read_form_submissions (MCP) or form-submissions '
             . '(control API), which need the read_submissions capability. '
-            . '"row_count" is the count; the "rows" key is a deprecated alias for '
-            . 'it and will be removed.',
+            . '"row_count" is the count.',
     };
 }
 

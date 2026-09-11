@@ -5463,28 +5463,14 @@ sub resolve_db {
 # place every db value passes through, and a filter on the engine would also
 # escape values the engine itself puts in the stash, which are already escaped.
 #
-# THE OVERRIDE IS BORN DEPRECATED. `db_render_raw: true` in lazysite.conf turns
-# this off for a site whose templates still expect raw HTML. It ships announced
-# as deprecated, because its only purpose is to hold the door while templates are
-# corrected - a compatibility flag with no stated end becomes the configuration
-# everyone copies. The sites agent's survey of 14 sites and ~1,100 files found
-# NO site that authors HTML into a db column, so it ships set for nothing.
-#
-# (The ruling of 2026-09-08 called this a `manager.conf` override. There is no
-# manager.conf in this engine; the site config is lazysite.conf, which is where
-# it has gone.)
+# NO OVERRIDE. `db_render_raw` shipped with SM786 announced as deprecated, to
+# hold the door for a site whose templates expected raw HTML; the sites agent's
+# survey of 14 sites and ~1,100 files found none that authors HTML into a db
+# column, so 0.13.13 removed it (N13-30). The upgrade deletes the key and says so
+# where a site had it on; lazysite-check reports one left behind.
 sub _escape_db_rows {
     my ( $rows, $key, $table ) = @_;
     return $rows unless ref $rows eq 'ARRAY';
-
-    if ( _conf_flag_enabled('db_render_raw') ) {
-        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
-            'db_render_raw is set: db: values are NOT escaped on this site. '
-                . 'This flag is deprecated and will be removed - correct the '
-                . 'templates to escape where they render, then unset it',
-            key => $key, table => $table );
-        return $rows;
-    }
 
     for my $row (@$rows) {
         next unless ref $row eq 'HASH';

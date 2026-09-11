@@ -66,8 +66,8 @@ update_policy: manual
 #   built-in blocks). The "manager" prefix protects the manager UI
 #   from editing itself into a broken state; remove it if you want
 #   to edit manager pages via the manager.
-#   (Old name manager_upload_blocked_paths is still accepted for
-#   backward compatibility, with a deprecation log on startup.)
+#   (Its old name, manager_upload_blocked_paths, is not read; an
+#   upgrade renames it.)
 # manager_upload_blocked_extensions: comma-separated, no dots.
 #   Applies to uploads only - no reason to block downloading a
 #   file the operator already placed on disk.

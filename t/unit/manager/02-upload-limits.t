@@ -65,10 +65,20 @@ subtest 'invalid max_mb falls back' => sub {
 };
 
 subtest 'blocked_paths list parsed, slashes trimmed' => sub {
-    write_conf("manager_upload_blocked_paths: /foo/, bar, /baz/qux/\n");
+    write_conf("manager_blocked_paths: /foo/, bar, /baz/qux/\n");
     my $l = main::load_upload_limits();
     is_deeply( $l->{blocked_paths}, [ 'foo', 'bar', 'baz/qux' ],
         'paths parsed and trimmed' );
+};
+
+subtest 'the key\'s old name is not read (N13-30)' => sub {
+    # manager_upload_blocked_paths was an alias kept for a release; pre-stable,
+    # the upgrade renames it and nothing reads it. If it were still honoured,
+    # this site's list would be ['old'] rather than the defaults.
+    write_conf("manager_upload_blocked_paths: old\n");
+    my $l = main::load_upload_limits();
+    ok( !( grep { $_ eq 'old' } @{ $l->{blocked_paths} } ), 'the old key changes nothing' );
+    ok( ( grep { $_ eq 'lazysite/auth' } @{ $l->{blocked_paths} } ), 'the defaults stand' );
 };
 
 subtest 'blocked_extensions list parsed' => sub {
@@ -79,7 +89,7 @@ subtest 'blocked_extensions list parsed' => sub {
 };
 
 subtest 'trailing whitespace and empty entries' => sub {
-    write_conf("manager_upload_blocked_paths: a,,b ,  , c   \n");
+    write_conf("manager_blocked_paths: a,,b ,  , c   \n");
     my $l = main::load_upload_limits();
     is_deeply( $l->{blocked_paths}, [ 'a', 'b', 'c' ],
         'empty and whitespace entries filtered' );
@@ -88,7 +98,7 @@ subtest 'trailing whitespace and empty entries' => sub {
 # --- is_blocked_upload_target ---
 
 subtest 'blocks configured path prefixes' => sub {
-    write_conf("manager_upload_blocked_paths: secret/dir\n"
+    write_conf("manager_blocked_paths: secret/dir\n"
              . "manager_upload_blocked_extensions:\n");
     ok(  main::is_blocked_upload_target('secret/dir/a.txt'),
         'prefix match blocks' );
@@ -101,7 +111,7 @@ subtest 'blocks configured path prefixes' => sub {
 };
 
 subtest 'blocks configured extensions case-insensitively' => sub {
-    write_conf("manager_upload_blocked_paths:\n"
+    write_conf("manager_blocked_paths:\n"
              . "manager_upload_blocked_extensions: exe,bat\n");
     ok(  main::is_blocked_upload_target('foo.exe'), '.exe blocked' );
     ok(  main::is_blocked_upload_target('foo.EXE'), '.EXE blocked (case-insensitive)' );

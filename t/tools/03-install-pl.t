@@ -946,6 +946,52 @@ subtest 'an upgrade drops rendered HTML, and only that' => sub {
     # install state) rather than for anything this fixture can construct.
 };
 
+# --- N13-30: the retired lazysite.conf keys are converted on upgrade ----------
+#
+# Pre-stable, a renamed key is converted rather than kept alive by an alias. The
+# upgrade renames the old upload key and deletes db_render_raw, saying what it
+# did; a site that had db escaping OFF is told in the summary, because it
+# renders differently from here. lazysite-check reports one put back by hand.
+subtest 'upgrade: the retired conf keys are converted, and said to be' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my ( $rc1, $out1 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc1, 0, 'fresh ok' ) or diag $out1;
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    ok( -f $conf, 'the fresh install seeded a lazysite.conf' );
+
+    open my $af, '>>', $conf or die $!;
+    print {$af} "manager_upload_blocked_paths: private/stash\ndb_render_raw: true\n";
+    close $af;
+
+    my ( $rc2, $out2 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc2, 0, 'the upgrade succeeds' ) or diag $out2;
+    my $after = slurp($conf);
+    like( $after, qr/^manager_blocked_paths: private\/stash$/m, 'the upload key carries its value under its name' );
+    unlike( $after, qr/^\s*manager_upload_blocked_paths\s*:/m, 'and the old name is gone' );
+    unlike( $after, qr/^\s*db_render_raw\s*:/m, 'db_render_raw is deleted' );
+    like( $out2, qr/renamed manager_upload_blocked_paths to manager_blocked_paths/, 'the upgrade says what it renamed' );
+    like( $out2, qr/DB_RENDER_RAW: this site had turned off the escaping/,
+        'and warns a site that had db escaping off' );
+
+    my ( $rc3, $out3 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    unlike( $out3, qr/renamed manager_upload|DB_RENDER_RAW/, 'a second upgrade has nothing to convert and says nothing' );
+
+    open my $bf, '>>', $conf or die $!;
+    print {$bf} "manager_upload_blocked_paths: other\n";
+    close $bf;
+    my ( $rc4, $out4 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    $after = slurp($conf);
+    like( $after, qr/^manager_blocked_paths: private\/stash$/m, 'where both are set, the key that already won is kept' );
+    unlike( $after, qr/manager_upload_blocked_paths: other/, 'and the old one is dropped' );
+    like( $out4, qr/dropped manager_upload_blocked_paths/, 'saying so' );
+
+    open my $cf, '>>', $conf or die $!;
+    print {$cf} "db_render_raw: true\n";
+    close $cf;
+    my $check = `\Q$^X\E \Q$ROOT/tools/lazysite-check.pl\E --docroot \Q$docroot\E 2>&1`;
+    like( $check, qr/key\(s\) the engine no longer reads: db_render_raw/, 'lazysite-check reports one put back by hand' );
+};
+
 done_testing();
 
 # --- helpers ---
