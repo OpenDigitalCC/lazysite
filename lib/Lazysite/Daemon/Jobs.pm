@@ -23,8 +23,9 @@ package Lazysite::Daemon::Jobs;
 # what was done in numbers, not adjectives.
 use strict;
 use warnings;
-use File::Basename qw(dirname);
-use Lazysite::Util ();
+use File::Basename  qw(dirname);
+use Lazysite::Util  ();
+use Lazysite::Paths ();
 
 our $VERSION = '0.1';
 
@@ -192,7 +193,7 @@ sub schedule_run {
 # scheduler's, so due-ness survives a restart. SM766: a record that exists and
 # cannot be opened is not an empty record; treating it as one would run every
 # entry at once on every tick.
-sub _schedule_runs_file { return "$_[0]/lazysite/daemon/schedule-runs.json" }
+sub _schedule_runs_file { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/daemon/schedule-runs.json" }
 
 sub _read_schedule_runs {
     my ($root) = @_;

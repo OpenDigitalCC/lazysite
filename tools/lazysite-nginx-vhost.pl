@@ -36,6 +36,7 @@ BEGIN {
 }
 
 use Lazysite::DomainRewrites ();
+use Lazysite::Paths          ();
 
 Getopt::Long::Configure( 'no_ignore_case', 'bundling_override' );
 
@@ -268,8 +269,8 @@ sub cmd_rewrites {
     Getopt::Long::GetOptions( 'docroot=s' => \$o{docroot} ) or usage(2);
     fail('rewrites needs --docroot (the site public_html)') unless length $o{docroot};
     my $docroot = check_dir_opt( '--docroot', $o{docroot}, '' );
-    my $conf    = "$docroot/lazysite/lazysite.conf";
-    fail("no lazysite.conf under $docroot/lazysite") unless -f $conf;
+    my $conf    = Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf";
+    fail("no lazysite.conf at $conf") unless -f $conf;
     my $roots = Lazysite::DomainRewrites::read_domain_roots($conf);
     print Lazysite::DomainRewrites::nginx_snippet($roots);
     return 0;

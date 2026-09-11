@@ -138,7 +138,8 @@ sub main {
     no warnings 'once';    # SM557
                            # THE IDENTITY, verified here rather than taken from a header.
     require Lazysite::Auth::Session;
-    local $Lazysite::Auth::Session::LAZYSITE_DIR = "$docroot/lazysite";
+    require Lazysite::Paths;
+    local $Lazysite::Auth::Session::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
     # IT RETURNS A SESSION, NOT A NAME. verify_session_cookie answers
     # ( { user, sid, groups }, undef ) on success and ( undef, $why ) on
     # failure - so treating the first value as a username put the string
@@ -217,7 +218,8 @@ sub main {
         # THE CAPABILITY, resolved for the verified account. `writable=` on a
         # page cannot reach here and does not try; this is the only gate.
         require Lazysite::Auth::Settings;
-        local $Lazysite::Auth::Settings::AUTH_DIR = "$docroot/lazysite/auth";
+        require Lazysite::Paths;
+        local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . "/auth";
         my $caps = Lazysite::Auth::Settings::caps_for($user) || {};
         # SM682: manage_data OR write_data reaches a row write. They differ in
         # what `writable_by` then means - see below - so the check is here and

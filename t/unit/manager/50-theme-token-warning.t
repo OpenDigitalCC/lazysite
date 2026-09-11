@@ -64,6 +64,7 @@ jwrite( 'layouts/plain/themes/any/theme.json', {
 
 $Lazysite::Manager::Themes::DOCROOT      = $d;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = "$d/lazysite";
+$Lazysite::Manager::Common::DOCROOT      = $d;              # as the dispatcher sets it
 $Lazysite::Manager::Themes::auth_user    = 'tester';
 $Lazysite::Manager::Themes::action       = 'test';
 $Lazysite::Manager::Files::LOCK_DIR      = "$d/lazysite/manager/locks";

@@ -9,6 +9,19 @@ use Digest::SHA qw(hmac_sha256_hex);
 use File::Path  qw(make_path);
 use POSIX       qw(strftime);
 
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). Nothing is loaded here: the loads are lazy, so --describe
+    # answers even where the tree is not found.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 my $LOG_COMPONENT = 'payment-demo';
 
 # Plugin interface uniformity: every shipped plugin answers --describe (the
@@ -38,7 +51,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
-my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+my $LAZYSITE_DIR = _lz($DOCROOT);
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 my $COOKIE_NAME  = 'lazysite_payment_demo';
 my $COOKIE_MAX   = 3600;                      # 1 hour - demo payments expire
@@ -226,25 +239,27 @@ sub log_event {
     }
 }
 
+# SM850: the engine's tree - inside the docroot, or beside it on a site that
+# moved it out (SM293). Asked of the resolver, never built by hand: a path built
+# here kept working until the day a site migrated, then read and wrote a
+# directory that was no longer there.
+sub _lz {
+    my ($docroot) = @_;
+    require Lazysite::Paths;
+    return Lazysite::Paths::lazysite_dir($docroot);
+}
+
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
 # forward_line, so `forward_diagnostics: true` covers this plugin's
-# diagnostics as the docs promise. The module tree is located at runtime (the
-# SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
+# diagnostics as the docs promise. The module tree is found by the bootstrap at
+# the top (the SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the
 # operator a syslog copy, never a submission - STDERR has the line either way.
 sub _forward_diag {
     my ( $level, $line ) = @_;
     my %prio = ( DEBUG => 'debug', INFO => 'info', WARN => 'warning', ERROR => 'err' );
     eval {
-        unless ( $INC{'Lazysite/Util.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
-            require Lazysite::Util;
-        }
+        require Lazysite::Util;
         Lazysite::Util::forward_line( 'diag', $prio{$level} // 'info', $line );
         1;
     };

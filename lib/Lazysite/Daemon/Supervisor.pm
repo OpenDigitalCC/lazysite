@@ -39,6 +39,7 @@ use Errno               ();
 use Time::HiRes         ();
 use Lazysite::Util      qw(log_event cannot_read);
 use Lazysite::Lifecycle qw(lifecycle_status);
+use Lazysite::Paths     ();
 
 our $VERSION = '0.1';
 
@@ -124,7 +125,7 @@ sub services {
 
 sub _state_dir {
     my ($docroot) = @_;
-    return _docroot($docroot) . '/lazysite/daemon';
+    return Lazysite::Paths::lazysite_dir( _docroot($docroot) ) . '/daemon';
 }
 
 sub _pid_file {
@@ -286,7 +287,7 @@ sub job_account_checks {
     push @out, { check => 'job_account', ok => 1, message => "jobs run as '$user', which holds run_jobs" };
     require Lazysite::Auth::Settings;
     no warnings 'once';
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$root/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($root) . "/auth";
     my $caps = Lazysite::Auth::Settings::caps_for($user) || {};
     my $jobs = Lazysite::Daemon::Service::Scheduler::jobs();
     for my $name ( sort keys %$jobs ) {
@@ -908,7 +909,7 @@ sub _conf_number {
 
 sub conf_value {
     my ( $root, $key ) = @_;
-    my $f = _docroot($root) . '/lazysite/daemon.conf';
+    my $f = Lazysite::Paths::lazysite_dir( _docroot($root) ) . '/daemon.conf';
     open my $fh, '<:utf8', $f or return cannot_read( 'daemon.conf', $f );
     my $val;
     while ( my $line = <$fh> ) {

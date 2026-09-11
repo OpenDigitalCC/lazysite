@@ -38,7 +38,7 @@ our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
 # staying exportable.
 sub SESSION_COOKIE_NAME { return 'lazysite_auth' }
 
-our $LAZYSITE_DIR;    # "$DOCROOT/lazysite", set by the script
+our $LAZYSITE_DIR;    # the engine tree (Lazysite::Paths::lazysite_dir), set by the script
 
 # SM614: the session lifetime is a SETTING, and this is the one place it is
 # read. It was a constant here and a second constant in Manager/Sessions.pm,

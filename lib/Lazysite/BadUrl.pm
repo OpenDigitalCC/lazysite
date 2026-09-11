@@ -13,8 +13,9 @@ package Lazysite::BadUrl;
 
 use strict;
 use warnings;
-use JSON::PP ();
-use Fcntl    qw(:flock);
+use Lazysite::Paths ();
+use JSON::PP        ();
+use Fcntl           qw(:flock);
 use Exporter 'import';
 our @EXPORT_OK = qw(is_bad_url is_blocked record_and_check list_blocks block unblock);
 
@@ -32,8 +33,8 @@ my $BAD_RE = qr{
 my $BLOCK_CAP = 10_000;    # keep the blocked store bounded (drop oldest over this)
 my $HIT_CAP   = 20_000;    # keep the hit store bounded (drop oldest IPs over this)
 
-sub _blocked_path { return "$_[0]/lazysite/cache/bad-url-blocked.json" }
-sub _hits_path    { return "$_[0]/lazysite/cache/bad-url-hits.json" }
+sub _blocked_path { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/cache/bad-url-blocked.json" }
+sub _hits_path { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/cache/bad-url-hits.json" }
 
 # Does this request path look like a scanner probe? $extra is an optional arrayref
 # of sysop-added substrings.
@@ -70,7 +71,7 @@ sub record_and_check {
     my $window    = $opt{window}    || 3600;
     my $now       = $opt{now}       || time();
 
-    my $cache = "$docroot/lazysite/cache";
+    my $cache = Lazysite::Paths::lazysite_dir($docroot) . "/cache";
     return 0 unless -d $cache || mkdir $cache;
 
     # --- rolling-window hit counter (locked, atomic read-modify-write) ---
@@ -179,7 +180,7 @@ sub _update_blocked {
 # the decoded hashref (or {}) and returns the hashref to persist.
 sub _locked_rmw {
     my ( $docroot, $data, $mutate ) = @_;
-    my $cache = "$docroot/lazysite/cache";
+    my $cache = Lazysite::Paths::lazysite_dir($docroot) . "/cache";
     return unless -d $cache || mkdir $cache;
     open my $lk, '>', "$cache/.bad-url.lock" or return;
     flock $lk, LOCK_EX or do { close $lk; return };
@@ -192,7 +193,7 @@ sub _locked_rmw {
     if ( open my $fh, '>', $tmp ) {
         print {$fh} JSON::PP::encode_json($new);
         if ( close $fh ) { rename $tmp, $data or unlink $tmp }
-        else { unlink $tmp }
+        else             { unlink $tmp }
     }
     close $lk;    # release after the rename, so the RMW is fully serialised
     return $new;

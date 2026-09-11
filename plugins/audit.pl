@@ -19,6 +19,19 @@ use POSIX          qw(strftime);
 use File::Path     qw(make_path);
 use Cwd            qw(abs_path);
 
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). Nothing is loaded here: the loads are lazy, so --describe
+    # answers even where the tree is not found.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 my $LOG_COMPONENT = 'audit';
 
 # --- Image and asset extensions to ignore as link targets ---
@@ -131,13 +144,13 @@ sub collect_audit_results {
             }
     }, $DOCROOT );
 
-    if ( -d "$DOCROOT/lazysite/templates" ) {
+    if ( -d ( _lz($DOCROOT) . "/templates" ) ) {
         find( sub {
                 return unless -f && /\.tt$/;
                 my $rel = _rel_of($File::Find::name);
                 return if $rel =~ m{(^|/)\.};
                 extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
-        }, "$DOCROOT/lazysite/templates" );
+        }, _lz($DOCROOT) . "/templates" );
     }
 
     my @orphans;
@@ -188,7 +201,7 @@ sub run_scan {
     unlink $cache if -f $cache;
     # SM110: drop any per-alias-host copies of the report render too
     # (standalone plugin - inline rather than the Lazysite::Util helper).
-    my $hosts_dir = "$DOCROOT/lazysite/cache/hosts";
+    my $hosts_dir = _lz($DOCROOT) . "/cache/hosts";
     if ( opendir( my $hd, $hosts_dir ) ) {
         for my $h ( readdir $hd ) {
             next if $h =~ /^\./;
@@ -542,25 +555,27 @@ sub log_event {
     }
 }
 
+# SM850: the engine's tree - inside the docroot, or beside it on a site that
+# moved it out (SM293). Asked of the resolver, never built by hand: a path built
+# here kept working until the day a site migrated, then read and wrote a
+# directory that was no longer there.
+sub _lz {
+    my ($docroot) = @_;
+    require Lazysite::Paths;
+    return Lazysite::Paths::lazysite_dir($docroot);
+}
+
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
 # forward_line, so `forward_diagnostics: true` covers this plugin's
-# diagnostics as the docs promise. The module tree is located at runtime (the
-# SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
+# diagnostics as the docs promise. The module tree is found by the bootstrap at
+# the top (the SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the
 # operator a syslog copy, never a submission - STDERR has the line either way.
 sub _forward_diag {
     my ( $level, $line ) = @_;
     my %prio = ( DEBUG => 'debug', INFO => 'info', WARN => 'warning', ERROR => 'err' );
     eval {
-        unless ( $INC{'Lazysite/Util.pm'} ) {
-            require Cwd;
-            require File::Basename;
-            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-            }
-            require Lazysite::Util;
-        }
+        require Lazysite::Util;
         Lazysite::Util::forward_line( 'diag', $prio{$level} // 'info', $line );
         1;
     };

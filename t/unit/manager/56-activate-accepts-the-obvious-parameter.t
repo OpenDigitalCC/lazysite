@@ -32,6 +32,7 @@ close $tj;
 
 $Lazysite::Manager::Themes::DOCROOT      = $d;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = "$d/lazysite";
+$Lazysite::Manager::Common::DOCROOT      = $d;              # as the dispatcher sets it
 $Lazysite::Manager::Files::DOCROOT       = $d;
 $Lazysite::Manager::Files::LOCK_DIR      = "$d/lazysite/manager/locks";
 

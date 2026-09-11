@@ -1715,14 +1715,25 @@ sub resolve_under_docroot {
     # absolute one, so unlike the processor there is no key-derivation to fix
     # here - authorise() already receives the docroot-relative rel.
     # SM836: one answer to "which tree owns this", shared with every write path.
-    my $root = Lazysite::Private::write_root( $DOCROOT, $rel );
+    #
+    # SM850: and a `lazysite/...` rel - the sanctioned carve-outs authorise()
+    # has already ruled on - is in the engine tree, wherever it is. Rooted at
+    # the docroot, a PUT to lazysite/nav.conf on a site whose tree moved beside
+    # the docroot (SM293) looked for a directory that is not there.
+    my ( $root, $under ) = ( undef, $rel );
+    if ( $rel =~ m{\Alazysite(?:/(.*))?\z}s ) {
+        ( $root, $under ) = ( $LAZYSITE_DIR, $1 // '' );
+    }
+    else {
+        $root = Lazysite::Private::write_root( $DOCROOT, $rel );
+    }
 
-    my $droot = realpath($root);
+    my $droot = defined $root ? realpath($root) : undef;
     return { err => 500 } unless defined $droot;
-    if ( !length $rel ) {
+    if ( !length $under ) {
         return { abs => $droot, parent => $droot, parent_ok => 1 };
     }
-    my $abs = "$droot/$rel";
+    my $abs = "$droot/$under";
     ( my $parent = $abs ) =~ s{/[^/]*$}{};
     my $base = ( split m{/}, $rel )[-1];
     my $rp   = realpath($parent);

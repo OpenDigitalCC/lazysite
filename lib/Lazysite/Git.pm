@@ -17,14 +17,15 @@ package Lazysite::Git;
 
 use strict;
 use warnings;
-use Lazysite::Util qw(log_event);
+use Lazysite::Util  qw(log_event);
+use Lazysite::Paths ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(enabled initialised git_available git_dir init
     commit_paths commit_all commit_move file_log file_at file_diff file_diff_across
     path_at count_commits run_git breadcrumb_path health files_summary);
 
-sub git_dir { return "$_[0]/lazysite/git" }
+sub git_dir { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/git" }
 
 # Feature gate: conf key `git_history: enabled` AND an initialised repo.
 # Cached per docroot per process (CGI is one-shot; hooks may check repeatedly).
@@ -34,7 +35,7 @@ sub reset_cache { %ENABLED_CACHE = (); %AVAILABLE_CACHE = (); return }
 
 sub _conf_enabled {
     my ($docroot) = @_;
-    open my $fh, '<', "$docroot/lazysite/lazysite.conf" or return 0;
+    open my $fh, '<', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0;
     my $on = 0;
     while ( my $line = <$fh> ) {
         if ( $line =~ /^git_history\s*:\s*enabled\b/ ) { $on = 1; last }

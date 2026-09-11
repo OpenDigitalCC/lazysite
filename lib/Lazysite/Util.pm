@@ -9,7 +9,8 @@ package Lazysite::Util;
 
 use strict;
 use warnings;
-use POSIX ();
+use Lazysite::Paths ();
+use POSIX           ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention);
@@ -280,7 +281,7 @@ sub _conf_bool {
 sub service_enabled {
     my ( $docroot, $key ) = @_;
     return 0 unless defined $docroot && length $docroot && defined $key && length $key;
-    open my $fh, '<', "$docroot/lazysite/lazysite.conf" or return 0;
+    open my $fh, '<', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0;
     my $val = '';
     while ( my $l = <$fh> ) {
         if ( $l =~ /^\Q$key\E\s*:\s*(\S+)/ ) { $val = $1; last }
@@ -300,8 +301,8 @@ sub _forward_conf {
     unless ( defined $want{audit} && defined $want{diag} && defined $want{facility} ) {
         my $dir =
             defined $Lazysite::Audit::LAZYSITE_DIR ? $Lazysite::Audit::LAZYSITE_DIR
-            : defined $ENV{DOCUMENT_ROOT}          ? "$ENV{DOCUMENT_ROOT}/lazysite"
-            :                                        undef;
+            : defined $ENV{DOCUMENT_ROOT} ? Lazysite::Paths::lazysite_dir( $ENV{DOCUMENT_ROOT} )
+            :                               undef;
         if ( defined $dir && open my $fh, '<', "$dir/lazysite.conf" ) {
             while ( my $l = <$fh> ) {
                 $want{audit}    //= $1 if $l =~ /^forward_audit\s*:\s*(\S+)/;
@@ -370,7 +371,7 @@ sub forward_line {
 sub unlink_host_copies {
     my ( $docroot, $abs_html ) = @_;
     return 0 unless defined $docroot && length $docroot && defined $abs_html;
-    my $hosts = "$docroot/lazysite/cache/hosts";
+    my $hosts = Lazysite::Paths::lazysite_dir($docroot) . "/cache/hosts";
     return 0 unless -d $hosts;
     ( my $rel = $abs_html ) =~ s{^\Q$docroot\E/?}{};
     return 0 unless length $rel && $rel =~ /\.html\z/;
@@ -399,7 +400,7 @@ sub unlink_host_page {
     ( my $r = ( $rel // '' ) ) =~ s{^/+}{};
     return 0 unless length $r && $r =~ /\.html\z/;
     return 0 if $r =~ m{(?:^|/)\.\.(?:/|$)} || $r =~ /\0/;
-    my $copy = "$docroot/lazysite/cache/hosts/$host/$r";
+    my $copy = Lazysite::Paths::lazysite_dir($docroot) . "/cache/hosts/$host/$r";
     return ( -f $copy && unlink $copy ) ? 1 : 0;
 }
 
@@ -410,7 +411,7 @@ sub unlink_host_page {
 sub clear_host_cache {
     my ($docroot) = @_;
     return 0 unless defined $docroot && length $docroot;
-    my $hosts = "$docroot/lazysite/cache/hosts";
+    my $hosts = Lazysite::Paths::lazysite_dir($docroot) . "/cache/hosts";
     return 0 unless -d $hosts;
     require File::Path;
     File::Path::remove_tree( $hosts, { safe => 1 } );

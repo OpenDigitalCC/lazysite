@@ -35,6 +35,7 @@ package Lazysite::Manager::StartPage;
 # confines, audits or looks an account up by it.
 use strict;
 use warnings;
+use Lazysite::Paths ();
 use Exporter qw(import);
 our @EXPORT_OK = qw(parse_start_page validate_start_page start_page_choices
     resolve_start_page fallback_landing manager_pages current_start_page apply_start_page);
@@ -123,7 +124,7 @@ sub _caps_for {
     my ($user) = @_;
     require Lazysite::Auth::Settings;
     no warnings 'once';
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($DOCROOT) . "/auth";
     return Lazysite::Auth::Settings::caps_for($user) || {};
 }
 
@@ -131,7 +132,7 @@ sub _scopes_for {
     my ($user) = @_;
     require Lazysite::Auth::Settings;
     no warnings 'once';
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($DOCROOT) . "/auth";
     my @s = eval { Lazysite::Auth::Settings::resolve_user_scopes( $DOCROOT, $user ) };
     return @s;
 }
@@ -264,7 +265,7 @@ sub current_start_page {
     my ($user) = @_;
     require Lazysite::Auth::Settings;
     no warnings 'once';
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($DOCROOT) . "/auth";
     my $all = Lazysite::Auth::Settings::read_settings();
     return ( $all->{$user} || {} )->{start_page} // '';
 }
@@ -278,7 +279,7 @@ sub resolve_start_page {
     my ($user) = @_;
     require Lazysite::Auth::Settings;
     no warnings 'once';
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($DOCROOT) . "/auth";
     my $value = current_start_page($user);
     return { url => fallback_landing(), set => 0 } unless length $value;
 

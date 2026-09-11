@@ -47,6 +47,7 @@ setup_test_site($docroot);
 # product defect and was a fixture pointing at nothing.
 $Lazysite::Manager::Themes::DOCROOT      = $docroot;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = "$docroot/lazysite";
+$Lazysite::Manager::Common::DOCROOT      = $docroot;           # as the dispatcher sets it
 
 # And an identity, or acquire_lock reports the layout as "locked by another
 # session" - a refusal that looks like contention and is an unset caller.

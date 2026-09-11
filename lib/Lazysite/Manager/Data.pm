@@ -32,6 +32,7 @@ use Lazysite::Data::Connect    ();
 use Lazysite::Data::Access     ();
 use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
     _acl_allows _is_operator);
+use Lazysite::Paths ();
 use File::Path ();
 use JSON::PP   ();
 
@@ -1011,7 +1012,7 @@ sub _export_path {
         { ok => 0, error => "'$file' is not a safety export name", kind => 'name' } )
         unless $file =~ $EXPORT_NAME;
     my ( $table, $dropped, $stamp ) = ( $1, $2, $3 );
-    my $abs = "$DOCROOT/lazysite/db/rebuilds/$file";
+    my $abs = Lazysite::Paths::lazysite_dir($DOCROOT) . "/db/rebuilds/$file";
     return ( undef, { ok => 0, error => 'no such safety export', kind => 'not-found' } )
         unless -f $abs;
     return ( { abs => $abs, table => $table, dropped => $dropped, stamp => $stamp },
@@ -1020,7 +1021,7 @@ sub _export_path {
 
 sub action_data_safety_exports {
     if ( my $off = _gate() ) { return $off }
-    my $dir = "$DOCROOT/lazysite/db/rebuilds";
+    my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . "/db/rebuilds";
     my @out;
     if ( opendir my $dh, $dir ) {
         for my $f ( readdir $dh ) {

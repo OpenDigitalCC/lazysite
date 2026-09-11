@@ -25,6 +25,19 @@ use warnings;
 use JSON::PP qw(encode_json);
 use POSIX    ();
 
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). Nothing is loaded here: the loads are lazy, so --describe
+    # answers even where the tree is not found.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 my %arg;
 while (@ARGV) {
     my $a = shift @ARGV;
@@ -411,7 +424,17 @@ our %BUILT_IN = (
     ai           => $AI_RE,
 );
 
-sub _classifier_file { return "$DOCROOT/lazysite/stats/classifiers.json" }
+# SM850: the engine's tree - inside the docroot, or beside it on a site that
+# moved it out (SM293). Asked of the resolver, never built by hand: a path built
+# here kept working until the day a site migrated, then read and wrote a
+# directory that was no longer there.
+sub _lz {
+    my ($docroot) = @_;
+    require Lazysite::Paths;
+    return Lazysite::Paths::lazysite_dir($docroot);
+}
+
+sub _classifier_file { return _lz($DOCROOT) . "/stats/classifiers.json" }
 
 # name => [ built-in default, what it matches ]. The compiled forms live in
 # %RULES and are what classify() consults, so an override and a built-in are
@@ -750,7 +773,7 @@ exit 0;
 
 sub read_conf {
     my %c;
-    if ( open my $fh, '<', "$DOCROOT/lazysite/stats.conf" ) {
+    if ( open my $fh, '<', _lz($DOCROOT) . "/stats.conf" ) {
         while ( my $l = <$fh> ) { $c{$1} = $2 if $l =~ /^(\w+)\s*:\s*(.*?)\s*$/; }
         close $fh;
     }
@@ -762,7 +785,7 @@ sub read_conf {
 sub _site_domain {
     return $SITE_DOMAIN_MEMO if defined $SITE_DOMAIN_MEMO;
     my $host = '';
-    if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
+    if ( open my $fh, '<', _lz($DOCROOT) . "/lazysite.conf" ) {
         while ( my $l = <$fh> ) {
             if ( $l =~ m{^\s*site_url\s*:\s*\S*?://([^/\s]+)} ) { $host = $1; last }
         }
@@ -956,11 +979,11 @@ sub _error_surface {
 
 sub first_party_files {
     my @f;
-    if ( opendir my $dh, "$DOCROOT/lazysite/logs" ) {
+    if ( opendir my $dh, _lz($DOCROOT) . "/logs" ) {
         @f = sort grep { /^access-\d{8}[.]jsonl$/ } readdir $dh;
         closedir $dh;
     }
-    return map { "$DOCROOT/lazysite/logs/$_" } @f;
+    return map { _lz($DOCROOT) . "/logs/$_" } @f;
 }
 
 # SM335: THE MANAGER STATS PAGE READS THE SHARED TALLY.
@@ -1276,7 +1299,7 @@ sub _visitor_token {
 
 sub _day_str { return POSIX::strftime( '%Y-%m-%d', localtime( $_[0] ) ) }
 
-sub _cache_path { return "$DOCROOT/lazysite/cache/stats-export.json" }
+sub _cache_path { return _lz($DOCROOT) . "/cache/stats-export.json" }
 
 # SM340: BOTH shapes are valid caches and each ingester normalises the one it
 # gets. This accepted version 1 only, while the first-party ingester writes
@@ -1321,7 +1344,7 @@ sub _load_export_cache {
 
 sub _save_export_cache {
     my ($c) = @_;
-    my $dir = "$DOCROOT/lazysite/cache";
+    my $dir = _lz($DOCROOT) . "/cache";
     return unless -d $dir;
     # SM404: through the checked writer. Not canonical - this file is written on
     # every export and is the largest of the three, so the sort is a cost with
@@ -1338,7 +1361,7 @@ sub _save_export_cache {
 # and nothing for a sysop to configure. The day-buckets in the cache remain the
 # working aggregate; this mirrors them to disk. Past days are immutable once closed,
 # so a historical file is written once and only today's is refreshed each call.
-sub _stats_dir   { return "$DOCROOT/lazysite/stats" }
+sub _stats_dir   { return _lz($DOCROOT) . "/stats" }
 sub _daily_dir   { return _stats_dir() . '/daily' }
 sub _monthly_dir { return _stats_dir() . '/monthly' }
 
@@ -2145,7 +2168,7 @@ sub _sessionise {
 # A stated retention is easier to defend than an unstated one, and the deletion
 # ships with the recording rather than after it.
 
-sub _trails_dir { return "$DOCROOT/lazysite/stats/trails" }
+sub _trails_dir { return _lz($DOCROOT) . "/stats/trails" }
 
 sub _trails_enabled {
     my ($cfg) = @_;

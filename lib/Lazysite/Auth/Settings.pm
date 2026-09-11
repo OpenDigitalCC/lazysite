@@ -6,9 +6,10 @@ package Lazysite::Auth::Settings;
 
 use strict;
 use warnings;
-use Fcntl          qw(:flock);
-use JSON::PP       ();
-use Lazysite::Util qw(log_event secure_write_perms cannot_read);
+use Fcntl           qw(:flock);
+use JSON::PP        ();
+use Lazysite::Util  qw(log_event secure_write_perms cannot_read);
+use Lazysite::Paths ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
@@ -18,7 +19,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS);
 
-our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
+our $AUTH_DIR; # auth/ in the engine tree (Lazysite::Paths::lazysite_dir), set by the script
 
 # SM212: machine-token (lzs_) lifetime policy. The default is short; an operator
 # may set a per-account `token_ttl` up to a hard ceiling, and an account that
@@ -197,7 +198,7 @@ sub group_closure { return _group_closure(@_) }
 sub resolve_user_scopes {
     my ( $docroot, $user ) = @_;
     require Lazysite::Auth::DomainAccess;
-    my $domains = Lazysite::Auth::DomainAccess::read_domains("$docroot/lazysite/lazysite.conf");
+    my $domains = Lazysite::Auth::DomainAccess::read_domains( Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" );
     my @scopes = Lazysite::Auth::DomainAccess::effective_scopes(
         $domains, $user, [ _effective_groups($user) ] );
     my $all  = read_settings();
@@ -218,7 +219,7 @@ sub resolve_user_scopes {
 sub resolve_home_domain {
     my ( $docroot, $user ) = @_;
     require Lazysite::Auth::DomainAccess;
-    my $domains = Lazysite::Auth::DomainAccess::read_domains("$docroot/lazysite/lazysite.conf");
+    my $domains = Lazysite::Auth::DomainAccess::read_domains( Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" );
     my $hd = Lazysite::Auth::DomainAccess::effective_home_domain(
         $domains, $user, [ _effective_groups($user) ] );
     my $DA = Lazysite::Auth::DomainAccess::DENY_ALL_SCOPE();

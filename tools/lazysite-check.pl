@@ -722,7 +722,7 @@ sub run_checks {
                     . "addresses are now always truncated to their /24 and hashed "
                     . "before anything is stored, so this line has no effect",
                 "remove the anonymise_ip line from "
-                    . "'$DOC/lazysite/lazysite.conf'; if you were relying on "
+                    . "'$LZ/lazysite.conf'; if you were relying on "
                     . "un-anonymised addresses, that capability is gone "
                     . "deliberately and no setting restores it" );
         }
@@ -1509,7 +1509,7 @@ sub conf_value {
 # still to scope.
 sub report_unscoped_data_tables {
     my $d   = $opt{docroot};
-    my $dir = "$d/lazysite/db/tables";
+    my $dir = Lazysite::Paths::lazysite_dir($d) . "/db/tables";
     return unless -d $dir;
 
     # Several domains configured? `alias_hosts` is the list SM151 keys the
@@ -1734,7 +1734,7 @@ sub report_double_escaped_db_templates {
             { no_chdir => 1, wanted => sub {
                     my $p = $File::Find::name;
                     if ( -d $p ) {
-                        $File::Find::prune = 1 if $p eq "$d/lazysite";
+                        $File::Find::prune = 1 if $p eq Lazysite::Paths::internal_lazysite_dir($d);
                         return;
                     }
                     return unless $p =~ /\.md\z/;
@@ -1879,7 +1879,7 @@ sub report_engine_tree {
 
     require Lazysite::Paths;
     my $ext    = Lazysite::Paths::external_lazysite_dir($d);
-    my $inside = "$d/lazysite";
+    my $inside = Lazysite::Paths::internal_lazysite_dir($d);
 
     if ( Lazysite::Paths::stray_lazysite($d) ) {
         report(

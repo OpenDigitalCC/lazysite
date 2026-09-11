@@ -28,12 +28,13 @@ close $tj;
 
 $Lazysite::Manager::Themes::DOCROOT      = $d;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = "$d/lazysite";
+$Lazysite::Manager::Common::DOCROOT      = $d;              # as the dispatcher sets it
 # action_theme_activate takes an artifact lock, so the lock store must exist.
 $Lazysite::Manager::Files::DOCROOT  = $d;
 $Lazysite::Manager::Files::LOCK_DIR = "$d/lazysite/manager/locks";
 
 sub write_conf { open my $f, '>', "$d/lazysite/lazysite.conf" or die $!; print {$f} $_[0]; close $f }
-sub conf       { open my $f, '<', "$d/lazysite/lazysite.conf" or die $!; local $/; <$f> }
+sub conf { open my $f, '<', "$d/lazysite/lazysite.conf" or die $!; local $/; <$f> }
 
 write_conf("site_name: T\nlayout: base\ntheme: house\n");
 
@@ -44,7 +45,7 @@ write_conf("site_name: T\nlayout: base\ntheme: house\n");
     my $r = Lazysite::Manager::Themes::action_theme_activate( '/', {} );
     ok( !$r->{ok}, 'an empty theme name is an ERROR, not a silent deactivation' );
     is( $r->{kind}, 'missing-parameter', 'reported as a missing parameter' );
-    like( $r->{error}, qr/\bpath\b/, 'the message names the right parameter' );
+    like( $r->{error}, qr/\bpath\b/,     'the message names the right parameter' );
     like( $r->{error}, qr/deactivate=1/, 'and names how to deactivate on purpose' );
     like( conf(), qr/^theme: house$/m,
         'and the site theme is UNTOUCHED - the whole point' );

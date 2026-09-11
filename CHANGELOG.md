@@ -58,6 +58,29 @@ Naming the commit: AFTER it lands, never before
   which is what the control API and MCP read. Its dialog and the extension
   configuration dialog close from the same corner control every sheet has.
 
+- SM852 partial (PENDING) **a package, a restore or a bundle puts a protected
+  page where it lives.** Applying a site package, restoring a backup taken
+  before a folder was protected, and `lazysite-bundle-apply` each wrote a
+  protected section's pages back into the served tree - beside the private
+  copies, and as a public folder that pulled every later write under it out of
+  the store. Each now places a file where every other write to the site does;
+  the bundle's dry run says `overwrite, protected` instead of `create`. Two
+  data-loss findings from the same review: MCP `create_page` overwrote a
+  protected page it thought absent, and saving the nav file deleted every
+  hand-written `.html` - legacy static pages and include partials - with the
+  renders. Each was reproduced before it was fixed. Three paths and two minor
+  rows stay open for 0.13.14.
+- SM850 (PENDING) **a site whose engine tree moved beside the docroot works
+  everywhere.** Moving `lazysite/` out of the document root (SM293) left 110
+  places across 38 files building the old path by hand - the data tables, the
+  scheduler, notifications, briefs, the stats and pandoc plugins and more - so on
+  a migrated site a declared table read as undeclared, a form into a table
+  stored nothing, and a nav save made a stray engine tree inside the served tree
+  and answered ok. All of them ask where the tree is now, including a configured
+  `nav_file: lazysite/...` and the `lazysite/...` paths the file editor, MCP and
+  WebDAV write, and `t/lint/37` reads every shipped Perl file for the shape
+  instead of nine.
+
 - SM852 partial (bb69f4d2) **a form's store inside a protected section stays
   there.** A file handler keeping submissions in the site's tree (`path:
   members/submissions`) wrote the next submission into a freshly made public

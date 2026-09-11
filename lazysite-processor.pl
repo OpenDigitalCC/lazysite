@@ -5749,11 +5749,27 @@ sub _request_host {
 # the site's, or lazysite/nav.conf. One definition, because try_serve_cache
 # (SM536) has to stat the SAME file resolve_site_vars parses - two spellings
 # of "which nav file" is how a cache check comes to guard the wrong one.
+#
+# SM850: a configured nav_file is site-relative, and a leading `lazysite/` means
+# the engine tree wherever it is - _site_path, the module-free copy of
+# Lazysite::Paths::site_path that t/lint/37 drives against it. Joined to the
+# docroot, `lazysite/nav-2.conf` was read from a directory a migrated site no
+# longer has, and the domain rendered with no nav.
 sub _nav_file_for {
     my ($vars) = @_;
     return $vars->{nav_file}
-        ? "$DOCROOT/" . $vars->{nav_file}
+        ? _site_path( $LAZYSITE_DIR, $DOCROOT, $vars->{nav_file} )
         : "$LAZYSITE_DIR/nav.conf";
+}
+
+sub _site_path {
+    my ( $lz, $d, $rel ) = @_;
+    ( my $r = $rel ) =~ s{\A/+}{};
+    if ( $r =~ m{\Alazysite(?:/(.*))?\z}s ) {
+        my $tail = $1;
+        return defined $tail && length $tail ? "$lz/$tail" : $lz;
+    }
+    return "$d/$r";
 }
 
 sub parse_nav {

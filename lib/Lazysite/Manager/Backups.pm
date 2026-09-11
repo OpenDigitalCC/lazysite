@@ -20,6 +20,7 @@ use Exporter          qw(import);
 # BP-6: the attachment stream shared with the file downloads. Upload does not
 # load this module back, so naming it here costs no cycle.
 use Lazysite::Manager::Upload ();
+use Lazysite::Paths           ();
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete
     write_sha256 read_sha256 verify_sha256
@@ -942,7 +943,7 @@ sub action_backup_restore {
             wanted => sub {
                 my $p = $File::Find::name;
                 return unless $p =~ /\.html\z/ && -f $p;
-                return if index( $p, "$DOCROOT/lazysite" ) == 0;
+                return if index( $p, Lazysite::Paths::internal_lazysite_dir($DOCROOT) . '/' ) == 0;
                 ( my $src = $p ) =~ s/\.html\z/.md/;
                 return unless -f $src;
                 unlink $p and $cleared++;

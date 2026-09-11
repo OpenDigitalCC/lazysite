@@ -34,6 +34,7 @@ use strict;
 use warnings;
 use JSON::PP       ();
 use Lazysite::Util qw(log_event);
+use Lazysite::Paths ();
 use Exporter 'import';
 our @EXPORT_OK = qw(notify notify_types);
 
@@ -104,7 +105,7 @@ sub _template {
 
     # Per-site override first: a specific type beats the generic one.
     for my $key ( "$type.$endpoint", "default.$endpoint" ) {
-        my $path = "$docroot/lazysite/notify-templates/$key.tt";
+        my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-templates/$key.tt";
         next unless -f $path;
         open my $fh, '<:utf8', $path or next;
         local $/;
@@ -159,7 +160,7 @@ sub _render {
 sub _notify_conf {
     my ($docroot) = @_;
     my %c;
-    open my $fh, '<:utf8', "$docroot/lazysite/notify.conf" or return \%c;
+    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/notify.conf" or return \%c;
     while ( my $l = <$fh> ) {
         next if $l =~ /^\s*(?:#|$)/;
         $c{$1} = $2 if $l =~ /^([\w.-]+)\s*:\s*(.*?)\s*$/;
@@ -193,7 +194,7 @@ sub notify {
     my ( $docroot, $n ) = @_;
     return 0 unless defined $docroot && ref $n eq 'HASH' && length( $n->{message} // '' );
 
-    my $logdir = "$docroot/lazysite/logs";
+    my $logdir = Lazysite::Paths::lazysite_dir($docroot) . "/logs";
     return 0 unless -d $logdir;
 
     my $type = $n->{type} // 'event';
@@ -258,7 +259,7 @@ sub notify {
 sub _xmpp_conf {
     my ($docroot) = @_;
     return undef unless _plugin_enabled( $docroot, 'notify-xmpp.pl' );
-    my $path = "$docroot/lazysite/notify-xmpp.conf";
+    my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-xmpp.conf";
     open my $fh, '<', $path or return undef;
     my %c;
     while ( my $l = <$fh> ) {
@@ -281,7 +282,7 @@ sub _xmpp_conf {
 
 sub _conf_value {
     my ( $docroot, $key ) = @_;
-    open my $fh, '<:utf8', "$docroot/lazysite/lazysite.conf" or return '';
+    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return '';
     while ( my $l = <$fh> ) {
         if ( $l =~ /^\Q$key\E\s*:\s*(.+?)\s*$/ ) { close $fh; return $1 }
     }
@@ -294,7 +295,7 @@ sub _site_url  { return _conf_value( $_[0], 'site_url' ) }
 
 sub _plugin_enabled {
     my ( $docroot, $name ) = @_;
-    open my $fh, '<:utf8', "$docroot/lazysite/lazysite.conf" or return 0;
+    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0;
     my ( $in, $found ) = ( 0, 0 );
     while ( my $l = <$fh> ) {
         chomp $l;

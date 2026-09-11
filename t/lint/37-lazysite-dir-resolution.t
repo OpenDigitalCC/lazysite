@@ -26,6 +26,7 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
+use File::Find ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
@@ -106,33 +107,122 @@ subtest 'the processor agrees with the module' => sub {
     }
 };
 
+subtest 'the processor and the module agree where a configured path lives' => sub {
+    # SM850: a nav_file is site-relative, and `lazysite/...` means the engine
+    # tree wherever it is. The manager writes through Lazysite::Paths::site_path
+    # and the processor reads through its own copy; if they drift, a nav save
+    # answers ok and the live nav does not change. Driven, not compared as text.
+    my $src = do {
+        open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($block) = $src =~ m{\nsub _site_path \{\n(.*?)\n\}\n}s;
+    ok( $block, 'the processor maps a configured path in one place' ) or return;
+    unlike( $block, qr/Lazysite::/, 'without loading a Lazysite module (ADR 0001)' );
+    like( $src, qr/_site_path\( \$LAZYSITE_DIR, \$DOCROOT, \$vars->\{nav_file\} \)/,
+        'and the nav file a request renders with goes through it' );
+
+    ## no critic (BuiltinFunctions::ProhibitStringyEval)
+    my $proc = eval "sub { $block\n }" or die $@;
+    my $base = tempdir( CLEANUP => 1 );
+    for my $external ( 0, 1 ) {
+        my $d = "$base/s$external/public_html";
+        make_path("$d/lazysite");
+        make_path( external_lazysite_dir($d) ) if $external;
+        my $lz = lazysite_dir($d);
+        for my $rel ( qw(lazysite/nav.conf lazysite/nav-2.conf /lazysite/nav.conf lazysite sites/a/nav.conf
+            lazysite-assets/nav.conf) )
+        {
+            is( $proc->( $lz, $d, $rel ), Lazysite::Paths::site_path( $d, $rel ),
+                ( $external ? 'migrated' : 'unmigrated' ) . " site: '$rel' agrees" );
+        }
+    }
+};
+
 subtest 'nothing derives the engine dir behind the resolver' => sub {
     # The point of one resolver is that there is one. A file that rebuilds the
     # path itself keeps working today and silently stops finding the tree the
     # day a site is migrated - the failure this whole filing is about, one layer
     # down.
+    #
+    # SM850: EVERY FILE, NOT NINE. This used to read nine named entry points,
+    # and the modules they call were where the paths were built: the data store,
+    # the scheduler, the briefs, notifications, the stats and pandoc plugins -
+    # 110 places across 38 files, each reading and writing a directory that a
+    # migrated site no longer has. The form handler was found building SM842 by
+    # refusing every submission as "not configured"; the rest were found by
+    # reading. So the question is asked of everything that ships Perl, and the
+    # shape is any interpolated "<something>/lazysite" - the variable names
+    # varied ($docroot, $DOCROOT, $root, $d, $_[0], _docroot(...)), which is how
+    # a list of two spellings missed most of them.
+    #
+    # A line whose question really is about the in-docroot place (a content walk
+    # that must not descend into a stray tree, the migration reporting what it
+    # would move) calls Lazysite::Paths::internal_lazysite_dir.
+    my %allowed = (
+
+        # The two module-free copies of the resolver itself, driven above and
+        # compared with the module by the subtests before this one.
+        'lazysite-processor.pl' => [qr{return -d \$ext \? \$ext : "\$d/lazysite";}],
+        'install.pl'            => [qr{return -d \$ext \? \$ext : "\$d/lazysite";}],
+
+        # nginx configuration text, in nginx's own variable - a front end's
+        # rule, emitted for a sysop to paste, not a path this engine opens.
+        'lib/Lazysite/DomainRewrites.pm' => [qr{'#.*\$document_root/lazysite/}],
+
+        # A core-only root tool from its own package: it loads no Lazysite module,
+        # and sets modes on the tree the install it just ran laid out in a fresh
+        # docroot. And the `lazysite` CLI binary beside it, which is not a tree.
+        'tools/lazysite-hestia-domain.pl' => [
+            qr{"\$docroot/lazysite/auth", "\$docroot/lazysite/forms"},
+            qr{"\$bin/lazysite"},
+        ],
+
+        # Builds its own fixture site in a tempdir, unmigrated by construction,
+        # as the tests under t/ do.
+        'tools/bench.pl' => [qr{.}],
+    );
+
+    my @files;
+    File::Find::find(
+        sub { push @files, $File::Find::name if /\.(?:pm|pl)\z/ && -f },
+        "$root/lib", "$root/tools", "$root/plugins"
+    );
+    push @files, grep { -f } glob("$root/lazysite-*.pl"), "$root/install.pl";
+    cmp_ok( scalar @files, '>', 100, 'the canary: found the Perl that ships' );
+
     my @offenders;
-    for my $rel (
-        qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl
-        lazysite-dav.pl lazysite-mcp.pl lazysite-oauth.pl
-        tools/lazysite-users.pl tools/lazysite-acl.pl tools/lazysite-server.pl)
-        )
-    {
-        open my $fh, '<', "$root/$rel" or next;
+    my %used;
+    for my $f ( sort @files ) {
+        ( my $rel = $f ) =~ s{\A\Q$root/\E}{};
+        next if $rel eq 'lib/Lazysite/Paths.pm';
+        open my $fh, '<', $f or die "$rel: $!";
         my @lines = <$fh>;
         close $fh;
         for my $i ( 0 .. $#lines ) {
             my $l = $lines[$i];
-            next if $l     =~ /^\s*#/;                  # a comment describing it
-            next unless $l =~ m{\$DOCROOT/lazysite\b|\$docroot/lazysite\b};
-            next if $l =~ /lazysite-assets/;            # served, and stays in the docroot
-            next if $l =~ /lazysite\.conf\.example/;    # the seed template, not the tree
+            next if $l =~ /^\s*#/;    # a comment describing it
+            next
+                unless $l
+                =~ m{(?:\$\w+|\$\{\w+\}|\$_\[\d\]|\$ENV\{\w+\}|\$\w+->\{\w+\})/lazysite(?=[/"']|\s*$)}
+                || $l =~ m{\)\s*\.\s*['"]/lazysite(?=[/"'])};
+            if ( my ($re) = grep { $l =~ $_ } @{ $allowed{$rel} || [] } ) {
+                $used{"$rel $re"} = 1;
+                next;
+            }
             push @offenders, "$rel:" . ( $i + 1 ) . ": $l";
         }
     }
     is_deeply( \@offenders, [],
-        'no surface rebuilds "<docroot>/lazysite" for itself' )
+        'nothing builds "<docroot>/lazysite" for itself - it asks Lazysite::Paths' )
         or diag( join '', @offenders );
+
+    # An exception nothing needs any more is a hole waiting for a new line.
+    my @stale = grep { !$used{$_} }
+        map { my $r = $_; map { "$r $_" } @{ $allowed{$r} } } sort keys %allowed;
+    is_deeply( \@stale, [], 'and every named exception is still in use' )
+        or diag( join "\n", @stale );
 };
 
 done_testing();

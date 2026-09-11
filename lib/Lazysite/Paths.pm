@@ -41,9 +41,25 @@ use warnings;
 use File::Basename qw(dirname basename);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir stray_lazysite canonical_docroot);
+our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir internal_lazysite_dir site_path
+    stray_lazysite canonical_docroot);
 
 our $DIRNAME = 'lazysite';
+
+# SM850: the in-docroot location, whether or not anything is there yet.
+#
+# For the few callers whose question is about THAT place rather than where the
+# engine's tree is: a content walk that must not descend into an engine tree
+# left in the served tree, a migration reporting what it would move. Everything
+# that reads or writes engine state asks lazysite_dir instead - and t/lint/37
+# holds that nothing else builds the path by hand.
+sub internal_lazysite_dir {
+    my ($docroot) = @_;
+    return undef unless defined $docroot && length $docroot;
+    $docroot =~ s{/+\z}{};
+    return undef unless length $docroot;
+    return "$docroot/$DIRNAME";
+}
 
 # The out-of-docroot location, whether or not anything is there yet.
 sub external_lazysite_dir {
@@ -70,6 +86,31 @@ sub lazysite_dir {
     my $ext = external_lazysite_dir($docroot);
     return $ext if defined $ext && -d $ext;
     return "$docroot/$DIRNAME";
+}
+
+# SM850: where a site-relative path the operator configured lives.
+#
+# lazysite.conf names files by a path relative to the site - `nav_file:
+# lazysite/nav.conf`, `alias.<host>.nav_file: lazysite/nav-2.conf` - written
+# when the engine tree could only be inside the docroot. A leading `lazysite/`
+# means the ENGINE TREE, wherever it is; anything else is under the docroot.
+# Joining the path to the docroot instead read and wrote `<docroot>/lazysite/`
+# on a migrated site - a directory that is not there, so a nav save made a stray
+# engine tree in the served tree and the live nav did not change.
+#
+# The processor carries a module-free copy of this rule (ADR 0001) in
+# _nav_file_for; t/lint/37 drives both.
+sub site_path {
+    my ( $docroot, $rel ) = @_;
+    return undef unless defined $docroot && length $docroot && defined $rel;
+    $docroot =~ s{/+\z}{};
+    ( my $r = $rel ) =~ s{\A/+}{};
+    if ( $r =~ m{\A\Q$DIRNAME\E(?:/(.*))?\z}s ) {
+        my $tail = $1;
+        my $lz   = lazysite_dir($docroot);
+        return defined $tail && length $tail ? "$lz/$tail" : $lz;
+    }
+    return "$docroot/$r";
 }
 
 # SM556: the docroot a DISPATCHER hands every manager module, resolved once.

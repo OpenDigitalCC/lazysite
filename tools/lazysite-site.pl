@@ -32,6 +32,7 @@ BEGIN {
     }
 }
 use Lazysite::Manager::SitePackage qw(package_create);
+use Lazysite::Paths                ();
 
 my ( %opt, @pos );
 {
@@ -45,7 +46,7 @@ my ( %opt, @pos );
             if ( $k eq 'json' || $k eq 'clean' || $k eq 'adopt-source-identity' ) {
                 $opt{$k} = 1;
             }
-            else                                   { $opt{$k} = shift @a }
+            else { $opt{$k} = shift @a }
         }
         else { push @pos, $t }
     }
@@ -73,7 +74,7 @@ elsif ( $cmd eq 'apply' ) {
     die "lazysite-site: apply requires --package FILE\n" unless defined $opt{package};
     # --package may be a path, or a bare name already in lazysite/backups/.
     my $pkg = $opt{package};
-    $pkg = "$docroot/lazysite/backups/$pkg" if !-f $pkg && -f "$docroot/lazysite/backups/$pkg";
+    $pkg = Lazysite::Paths::lazysite_dir($docroot) . "/backups/$pkg" if !-f $pkg && -f ( Lazysite::Paths::lazysite_dir($docroot) . "/backups/$pkg" );
     die "lazysite-site: package not found: $opt{package}\n" unless -f $pkg;
     $result = Lazysite::Manager::SitePackage::apply_and_configure(
         $pkg,

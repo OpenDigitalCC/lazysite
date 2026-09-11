@@ -50,8 +50,16 @@ use warnings;
 use JSON::PP qw(encode_json);
 
 BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). Nothing is loaded here: the loads are lazy, so --describe
+    # answers even where the tree is not found.
     require Cwd;
     require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
 }
 
 # How long a conversion may take, and how big its input may be. Both are
@@ -278,10 +286,20 @@ sub _newest_mtime {
     return $newest;
 }
 
+# SM850: the engine's tree - inside the docroot, or beside it on a site that
+# moved it out (SM293). Asked of the resolver, never built by hand: a path built
+# here kept working until the day a site migrated, then read and wrote a
+# directory that was no longer there.
+sub _lz {
+    my ($docroot) = @_;
+    require Lazysite::Paths;
+    return Lazysite::Paths::lazysite_dir($docroot);
+}
+
 sub _cache_path {
     my ( $docroot, $rel ) = @_;
     ( my $flat = $rel ) =~ s{[^A-Za-z0-9._-]}{_}g;
-    return "$docroot/lazysite/cache/pdf/$flat.pdf";
+    return _lz($docroot) . "/cache/pdf/$flat.pdf";
 }
 
 sub convert {
@@ -396,7 +414,7 @@ sub convert {
         return { ok => 1, pdf => $cached, bytes => ( -s $cached ), cached => 1 };
     }
 
-    my $work = "$docroot/lazysite/cache/pandoc-$$-" . time;
+    my $work = _lz($docroot) . "/cache/pandoc-$$-" . time;
     require File::Path;
     File::Path::make_path($work);
     return { ok => 0, error => 'could not prepare a working directory' }
@@ -512,7 +530,7 @@ sub convert {
     }
     # Kept, so an unchanged document is never rendered twice.
     require File::Copy;
-    File::Path::make_path("$docroot/lazysite/cache/pdf");
+    File::Path::make_path( _lz($docroot) . "/cache/pdf" );
     if ( File::Copy::copy( $pdf, $cached ) ) {
         File::Path::remove_tree($work);
         return { ok => 1, pdf => $cached, bytes => ( -s $cached ), cached => 0 };
@@ -567,7 +585,7 @@ sub _brands_in {
 # when they wonder.
 sub plugin_init {
     my ($docroot) = @_;
-    my $dir = "$docroot/lazysite/brands";
+    my $dir = _lz($docroot) . "/brands";
     # Whether it was already there decides what the operator is told. The
     # release manager pressed Create, was told the folder was ready, and had
     # no way to tell that from having just made it - so they pressed it again.
@@ -634,7 +652,7 @@ NOTE
 # about whether there was anything there to do.
 sub plugin_clear {
     my ($docroot) = @_;
-    my $dir = "$docroot/lazysite/cache/pdf";
+    my $dir = _lz($docroot) . "/cache/pdf";
     return { ok => 1, message => 'There are no cached PDFs to clear.',
         cleared => 0 }
         unless -d $dir;

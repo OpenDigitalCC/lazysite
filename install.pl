@@ -1918,7 +1918,7 @@ sub read_retention {
     # grammar - and t/lint/122 holds the two together and holds that this
     # file never loads the lib.
     my $default = 3;
-    my $conf    = "$docroot/lazysite/lazysite.conf";
+    my $conf    = lazysite_dir_for($docroot) . '/lazysite.conf';
     return $default unless -f $conf;
     open my $fh, '<', $conf or return $default;
     my $val = $default;

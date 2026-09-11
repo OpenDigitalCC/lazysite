@@ -186,8 +186,9 @@ sub store_path {
     return $rel if $rel =~ m{\A/};
     ( my $r = $rel ) =~ s{/+\z}{};
     if ( $r =~ m{\Alazysite(?:/(.*))?\z} ) {
-        my $lz = _lz() // "$DOCROOT/lazysite";
-        return defined $1 && length $1 ? "$lz/$1" : $lz;
+        my $tail = $1;
+        my $lz   = _lz() // return undef;    # no docroot: nowhere to put it
+        return defined $tail && length $tail ? "$lz/$tail" : $lz;
     }
     require Lazysite::Private;
     my ($abs) = Lazysite::Private::resolve_for_write( $DOCROOT, $r );

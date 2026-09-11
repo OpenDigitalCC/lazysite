@@ -190,6 +190,16 @@ sub run {
 # REPORTS RATHER THAN REPAIRS. Creating the store here would mean a status
 # check that changes the thing it is reporting on, which is the shape this
 # programme keeps having to undo.
+# SM850: the engine's tree - inside the docroot, or beside it on a site that
+# moved it out (SM293). Asked of the resolver, never built by hand: a path built
+# here kept working until the day a site migrated, then read and wrote a
+# directory that was no longer there.
+sub _lz {
+    my ($docroot) = @_;
+    require Lazysite::Paths;
+    return Lazysite::Paths::lazysite_dir($docroot);
+}
+
 sub status {
     my ($docroot) = @_;
     my %out = ( ok => 1 );
@@ -199,11 +209,11 @@ sub status {
         $out{modules}{$m} = eval { require $path; 1 } ? 'present' : 'missing';
     }
 
-    my $store = "$docroot/lazysite/db/data.sqlite";
+    my $store = _lz($docroot) . "/db/data.sqlite";
     $out{store} = -f $store ? { exists => 1, bytes => -s $store }
         :   { exists => 0 };
 
-    my $dir = "$docroot/lazysite/db/tables";
+    my $dir = _lz($docroot) . "/db/tables";
     my @tables;
     if ( opendir my $dh, $dir ) {
         @tables = sort map { s/\.ya?ml\z//r }

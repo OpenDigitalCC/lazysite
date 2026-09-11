@@ -550,7 +550,8 @@ sub site_owner {
 # (or the key) is missing/unreadable.
 sub site_conf_value {
     my ( $docroot, $key ) = @_;
-    my $conf = "$docroot/lazysite/lazysite.conf";
+    _load_paths();
+    my $conf = Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf";
     open my $fh, '<', $conf or return undef;
     while ( my $l = <$fh> ) {
         next unless $l =~ /^\s*\Q$key\E\s*:\s*(\S+)/;
@@ -576,7 +577,8 @@ sub site_update_policy {
 # discoverable (never fatal - the sites listing shows '-').
 sub site_version {
     my ($docroot) = @_;
-    my $path = "$docroot/lazysite/.install-state.json";
+    _load_paths();
+    my $path = Lazysite::Paths::lazysite_dir($docroot) . "/.install-state.json";
     open my $fh, '<:raw', $path or return '';
     my $text = do { local $/; <$fh> };
     close $fh;
@@ -1004,6 +1006,29 @@ sub _targets_or_fail {
     return $sites;
 }
 
+# SM366: locate the Lazysite module tree relative to this script (run-in-place,
+# tarball and Hestia installs), falling back to the system @INC (package
+# installs), then load the resolver. The same bootstrap lazysite-users.pl has
+# always carried; without it this tool cannot start anywhere the modules are not
+# already on @INC, which is every install that is not a package.
+#
+# Called by the verbs that read a site's engine tree - Lazysite::Paths is the
+# only module this tool loads - at runtime, beside the load it exists for,
+# rather than in a BEGIN that fired on `lazysite version`. SM850: those verbs
+# ask it where the tree is, so a site that moved it out of the docroot is read
+# where it lives.
+sub _load_paths {
+    return if $INC{'Lazysite/Paths.pm'};
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+    require Lazysite::Paths;
+    return;
+}
+
 sub cmd_migrate_engine_tree {
     my %o = ( apply => 0, back => 0, all => 0 );
     Getopt::Long::GetOptions(
@@ -1017,23 +1042,7 @@ sub cmd_migrate_engine_tree {
     usage_error('give --docroot D or --all') unless $o{all} || $o{docroot};
     fail('--docroot and --all are mutually exclusive') if $o{all} && $o{docroot};
 
-    # SM366: locate the Lazysite module tree relative to this script
-    # (run-in-place, tarball and Hestia installs), falling back to the system
-    # @INC (package installs). The same bootstrap lazysite-users.pl has always
-    # carried; without it this tool cannot start anywhere the modules are not
-    # already on @INC, which is every install that is not a package.
-    #
-    # This is the ONLY verb that loads a Lazysite module, and it loads it at
-    # runtime one statement below - so the locator runs here, beside the load it
-    # exists for, rather than in a BEGIN that fired on `lazysite version`.
-    require Cwd;
-    require File::Basename;
-    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
-    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
-        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
-    }
-
-    require Lazysite::Paths;
+    _load_paths();
 
     my @targets;
     if ( $o{all} ) {
@@ -1078,7 +1087,7 @@ sub cmd_migrate_engine_tree {
             my $state =
                 Lazysite::Paths::stray_lazysite($doc) ? 'IN BOTH PLACES - refuses'
                 : -d Lazysite::Paths::external_lazysite_dir($doc) ? 'already outside'
-                : -d "$doc/lazysite"                              ? $note
+                : -d Lazysite::Paths::internal_lazysite_dir($doc) ? $note
                 :   'no engine tree found';
             printf "== %-28s %s  [%s]\n", $s->{name}, $state,
                 ( defined $ver && length $ver ? $ver : 'version unknown' );
@@ -1202,7 +1211,8 @@ sub cmd_demo {
     my $cgibin  = "$dir/cgi-bin";
     my $root    = payload_root();
 
-    if ( -f "$docroot/lazysite/.install-state.json" ) {
+    _load_paths();
+    if ( -f ( Lazysite::Paths::lazysite_dir($docroot) . "/.install-state.json" ) ) {
         print "lazysite: reusing the demo site at $dir\n";
     }
     else {

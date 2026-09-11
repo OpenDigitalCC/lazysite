@@ -39,6 +39,7 @@ use File::Basename            qw(dirname);
 use File::Path                qw(make_path);
 use Lazysite::Manager::Common qw(write_file_checked refusal_detail);
 use Lazysite::Manager::Themes qw(action_cache_invalidate);
+use Lazysite::Paths           ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(action_nav_read action_nav_save _nav_conf_info _nav_conf_path
@@ -72,7 +73,10 @@ sub _nav_conf_info {
     }
     my $rel       = defined $over ? $over : $base;
     my $inherited = defined $over ? 0     : ( length $host ? 1 : 0 );
-    return ( "$DOCROOT/$rel", $rel, $inherited, $base );
+
+    # SM850: `lazysite/...` is the engine tree, wherever it is - the file the
+    # processor renders with (its _nav_file_for asks the same rule).
+    return ( Lazysite::Paths::site_path( $DOCROOT, $rel ), $rel, $inherited, $base );
 }
 
 sub _nav_conf_path {
@@ -83,8 +87,8 @@ sub _nav_conf_path {
 
 # SM581: the paths that ARE a navigation on this instance.
 #
-# A nav lives where the domain's nav_file says: $DOCROOT/<nav_file> for the
-# primary (default lazysite/nav.conf), $DOCROOT/<alias.<host>.nav_file> for a
+# A nav lives where the domain's nav_file says: <nav_file> for the primary
+# (default lazysite/nav.conf), <alias.<host>.nav_file> for a
 # domain given its own. Every other path is content - INCLUDING one spelled to
 # look like a nav, which is the whole defect: a file at
 # <content-root>/lazysite/nav.conf is accepted, inert, and reported exactly like

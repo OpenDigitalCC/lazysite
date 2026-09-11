@@ -32,6 +32,7 @@ use warnings;
 use Lazysite::Util               qw(log_event cannot_read);
 use Lazysite::Daemon::Supervisor ();
 use Lazysite::Daemon::Jobs       ();
+use Lazysite::Paths              ();
 
 our $VERSION = '0.1';
 
@@ -145,7 +146,7 @@ sub resolve_job_user {
         if $user =~ /\Asystem:/;
 
     require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$root/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($root) . "/auth";
 
     # An account that is not in the user store is a typo or a deleted user,
     # and the remedy for either is not "grant run_jobs". The first version
@@ -167,7 +168,7 @@ sub resolve_job_user {
     # the unix user, which is the fact an operator needs.
     my ($who) = getpwuid($>);
     $who //= $>;
-    for my $store ( [ 'groups-settings.json', "$root/lazysite/auth/groups-settings.json" ], [ 'groups', "$root/lazysite/auth/groups" ] ) {
+    for my $store ( [ 'groups-settings.json', Lazysite::Paths::lazysite_dir($root) . "/auth/groups-settings.json" ], [ 'groups', Lazysite::Paths::lazysite_dir($root) . "/auth/groups" ] ) {
         my ( $what, $f ) = @$store;
 
         # SM770: ask by OPENING. `-e` said "nothing here" for a store inside a
@@ -203,7 +204,7 @@ sub _may_run_job {
 
 sub _state_file {
     my ($root) = @_;
-    return "$root/lazysite/daemon/scheduler-runs.json";
+    return Lazysite::Paths::lazysite_dir($root) . "/daemon/scheduler-runs.json";
 }
 
 # A record that exists and does not parse is reported, not swallowed. It reads
@@ -320,7 +321,7 @@ sub tick {
     my ( $user, $why ) = resolve_job_user( docroot => $root );
 
     require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$root/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($root) . "/auth";
     my $caps = defined $user
         ? Lazysite::Auth::Settings::caps_for($user)
         : {};

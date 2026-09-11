@@ -166,10 +166,20 @@ sub run {
 
 # --- config + validation ------------------------------------------------------
 
+# SM850: the engine's tree - inside the docroot, or beside it on a site that
+# moved it out (SM293). Asked of the resolver, never built by hand: a path built
+# here kept working until the day a site migrated, then read and wrote a
+# directory that was no longer there.
+sub _lz {
+    my ($docroot) = @_;
+    require Lazysite::Paths;
+    return Lazysite::Paths::lazysite_dir($docroot);
+}
+
 sub _conf {
     my ($docroot) = @_;
     my %conf;
-    if ( open my $fh, '<:utf8', "$docroot/lazysite/git-sync.conf" ) {
+    if ( open my $fh, '<:utf8', _lz($docroot) . "/git-sync.conf" ) {
         while ( my $line = <$fh> ) {
             next if $line =~ /^\s*#/;
             if ( $line =~ /^\s*([a-z_]+)\s*:\s*(.*?)\s*$/ ) { $conf{$1} = $2 }
@@ -247,7 +257,7 @@ sub _gate {
 # its password prompt with the token FROM THE ENVIRONMENT.
 sub _write_askpass {
     my ($docroot) = @_;
-    my $path = "$docroot/lazysite/git/sync-askpass.$$";
+    my $path = _lz($docroot) . "/git/sync-askpass.$$";
     unlink $path;
     sysopen my $fh, $path, O_WRONLY | O_CREAT | O_EXCL, 0700 or return undef;
     print {$fh} "#!/bin/sh\n"
@@ -430,13 +440,15 @@ sub _snapshot {
 sub _after_apply {
     my ( $docroot, $changed ) = @_;
     require File::Find;
+    require Lazysite::Paths;
+    my $inside  = Lazysite::Paths::internal_lazysite_dir($docroot) . '/';
     my $cleared = 0;
     File::Find::find(
         { no_chdir => 1,
             wanted => sub {
                 my $p = $File::Find::name;
                 return unless $p =~ /\.html\z/ && -f $p;
-                return if index( $p, "$docroot/lazysite" ) == 0;
+                return if index( $p, $inside ) == 0;
                 ( my $src = $p ) =~ s/\.html\z/.md/;
                 return unless -f $src;
                 unlink $p and $cleared++;

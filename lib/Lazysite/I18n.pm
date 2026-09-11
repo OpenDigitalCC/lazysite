@@ -17,6 +17,7 @@ package Lazysite::I18n;
 
 use strict;
 use warnings;
+use Lazysite::Paths ();
 use JSON::PP ();
 use Exporter 'import';
 our @EXPORT_OK = qw(chrome_string);
@@ -43,9 +44,10 @@ sub _overlay {
     my $key = ( $docroot // '' ) . "\0" . lc $lang;
     return $CACHE{$key} if exists $CACHE{$key};
 
-    my $path = ( $docroot // '' ) . "/lazysite/i18n/" . lc($lang) . ".json";
+    my $lz   = Lazysite::Paths::lazysite_dir($docroot);
+    my $path = defined $lz ? "$lz/i18n/" . lc($lang) . '.json' : undef;
     my $data = {};
-    if ( open my $fh, '<:raw', $path ) {
+    if ( defined $path && open my $fh, '<:raw', $path ) {
         local $/;
         my $raw = <$fh>;
         close $fh;

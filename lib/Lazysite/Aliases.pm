@@ -29,6 +29,7 @@ use warnings;
 use JSON::PP       ();
 use Fcntl          qw(:flock SEEK_SET);
 use Lazysite::Util qw(log_event);
+use Lazysite::Paths ();
 use Exporter 'import';
 our @EXPORT_OK = qw(index_page deindex_page lookup canonical_url_for alias_map_path
     list_aliases reindex_move reindex_copy md_rels);
@@ -46,9 +47,9 @@ our @EXPORT_OK = qw(index_page deindex_page lookup canonical_url_for alias_map_p
 # are not multi-domain. Only a content root gets a new file beside it.
 sub alias_map_path {
     my ( $docroot, $key ) = @_;
-    return "$docroot/lazysite/aliases.json"
+    return Lazysite::Paths::lazysite_dir($docroot) . "/aliases.json"
         if !defined $key || !length $key || $key eq '_root';
-    return "$docroot/lazysite/aliases/$key.json";
+    return Lazysite::Paths::lazysite_dir($docroot) . "/aliases/$key.json";
 }
 
 # The content root that serves $rel, as (root_rel, map_key). '' / '_root' for
@@ -352,7 +353,7 @@ sub _read {
 
 sub _update {
     my ( $docroot, $key, $mutate ) = @_;
-    return unless -d "$docroot/lazysite";
+    return unless -d Lazysite::Paths::lazysite_dir($docroot);
     my $f = alias_map_path( $docroot, $key );
     # A per-domain map lives in a directory the docroot map does not need.
     unless ( -f $f ) {

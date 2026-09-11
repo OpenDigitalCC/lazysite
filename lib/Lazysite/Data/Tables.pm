@@ -37,6 +37,7 @@ use Lazysite::Data::Value  qw(coerce_row);
 use Lazysite::Data::SQLite
     qw(select_sql count_sql insert_sql update_sql delete_sql observed_schema last_insert_key
     key_list_sql history_table_sql history_insert_sql history_rows_sql drop_table_sql);
+use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema schema_history insert_row update_row delete_row export_all_rows
@@ -48,7 +49,7 @@ sub _err {
     return { ok => 0, kind => 'data', error => $error, %extra };
 }
 
-sub descriptor_dir { return "$_[0]/lazysite/db/tables" }
+sub descriptor_dir { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/db/tables" }
 
 # Table names come from FILENAMES, and the filename is validated before it is
 # used for anything. A descriptor's own `table:` is not consulted for the name:
@@ -524,7 +525,7 @@ sub _safety_export {
     my $create_tail = exists $opt{create_tail} ? $opt{create_tail} : $tail;
 
     require Lazysite::Data::Export;
-    my $dir = "$docroot/lazysite/db/rebuilds";
+    my $dir = Lazysite::Paths::lazysite_dir($docroot) . "/db/rebuilds";
     unless ( -d $dir ) {
         require File::Path;
         eval { File::Path::make_path($dir); 1 }

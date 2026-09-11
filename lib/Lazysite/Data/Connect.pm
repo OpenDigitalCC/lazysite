@@ -31,6 +31,7 @@ package Lazysite::Data::Connect;
 
 use strict;
 use warnings;
+use Lazysite::Paths ();
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(read_handle write_handle store_path ensure_store
@@ -40,7 +41,7 @@ our $BUSY_TIMEOUT_MS = 5_000;
 
 sub store_path {
     my ($docroot) = @_;
-    return "$docroot/lazysite/db/data.sqlite";
+    return Lazysite::Paths::lazysite_dir($docroot) . "/db/data.sqlite";
 }
 
 # Create the directory, never the database file itself - DBI does that on

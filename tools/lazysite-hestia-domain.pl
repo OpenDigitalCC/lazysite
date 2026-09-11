@@ -284,6 +284,9 @@ sub cmd_add {
     # Secrets dirs: group-writable, off the world, so the web-server CGI
     # can mint auth/.secret and the rate-limit DBs (login depends on it).
     # Mode-only adjustments, same as the old template rebuild hook.
+    # SM850: built by hand on purpose - this core-only root tool loads no
+    # Lazysite module, and the tree is the one the install above just laid out
+    # in a fresh docroot, which is always inside it (t/lint/37 names it).
     for my $sec ( "$docroot/lazysite/auth", "$docroot/lazysite/forms" ) {
         next unless -d $sec;
         chmod 02770, $sec or fail("chmod $sec: $!");

@@ -12,6 +12,7 @@ use File::Path                qw(make_path);
 use File::Basename            qw(dirname);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path);
+use Lazysite::Paths           ();
 use Exporter 'import';
 our @EXPORT_OK = qw(action_brief_read action_brief_append
     action_briefs_list action_brief_delete
@@ -44,9 +45,9 @@ sub store_entry_move {
     my ( $docroot, $src_rel, $dst_rel ) = @_;
     return unless defined $docroot && length $docroot;
     for ( $src_rel, $dst_rel ) { return unless defined; s{\A/+}{}; return if m{\.\.} }
-    my $src = "$docroot/lazysite/briefs/$src_rel";
+    my $src = Lazysite::Paths::lazysite_dir($docroot) . "/briefs/$src_rel";
     return unless -e $src;
-    my $dst = "$docroot/lazysite/briefs/$dst_rel";
+    my $dst = Lazysite::Paths::lazysite_dir($docroot) . "/briefs/$dst_rel";
     make_path( dirname($dst) ) unless -d dirname($dst);
     rename $src, $dst
         or log_event( 'WARN', $src_rel, 'brief store entry not carried',
@@ -60,7 +61,7 @@ sub store_entry_remove {
     return unless defined $rel;
     $rel =~ s{\A/+}{};
     return if $rel =~ m{\.\.};
-    my $f = "$docroot/lazysite/briefs/$rel";
+    my $f = Lazysite::Paths::lazysite_dir($docroot) . "/briefs/$rel";
     if    ( -f $f ) { unlink $f }
     elsif ( -d $f ) { require File::Path; File::Path::remove_tree( $f, { safe => 1 } ) }
     return;
@@ -69,7 +70,7 @@ sub store_entry_remove {
 sub _store_path {
     my ($rel) = @_;
     $rel =~ s{\A/+}{};
-    return "$DOCROOT/lazysite/briefs/$rel";
+    return Lazysite::Paths::lazysite_dir($DOCROOT) . "/briefs/$rel";
 }
 
 # SM657 part two: the typed key, `type=row` first.
@@ -195,7 +196,7 @@ sub action_brief_append {
 # that most need deleting would be the gap all over again.
 sub action_briefs_list {
     if ( my $off = _gate() ) { return $off }
-    my $dir = "$DOCROOT/lazysite/briefs";
+    my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . "/briefs";
     my @briefs;
     if ( -d $dir ) {
         require File::Find;
@@ -269,7 +270,7 @@ sub action_brief_delete {
 
 # The status the Plugin Manager shows (SM495's lesson: a message, always).
 sub plugin_status {
-    my $dir = "$DOCROOT/lazysite/briefs";
+    my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . "/briefs";
     my ( $entries, $sidecars ) = ( 0, 0 );
     if ( -d $dir ) {
         require File::Find;

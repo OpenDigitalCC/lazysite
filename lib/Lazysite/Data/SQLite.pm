@@ -44,6 +44,7 @@ package Lazysite::Data::SQLite;
 
 use strict;
 use warnings;
+use Lazysite::Paths ();
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for add_reserved_column_sql
@@ -303,7 +304,7 @@ sub duplicate_value_sql {
 # The DSN for a docroot's store. One file, so a backup is a copy.
 sub dsn_for {
     my ($docroot) = @_;
-    return "dbi:SQLite:dbname=$docroot/lazysite/db/data.sqlite";
+    return 'dbi:SQLite:dbname=' . Lazysite::Paths::lazysite_dir($docroot) . '/db/data.sqlite';
 }
 
 # --- DML -------------------------------------------------------------------

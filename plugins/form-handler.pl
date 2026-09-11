@@ -14,8 +14,8 @@ my $LOG_COMPONENT = 'form-handler';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
     print encode_json( {
-            id            => 'form-handler',
-            name          => 'Form Handler',
+            id   => 'form-handler',
+            name => 'Form Handler',
             # SM842: the handler types, and which form calls which handler, are
             # the handler contract's (Lazysite::Handlers) - listed by
             # handler-list and configured on the Handlers page - rather than
@@ -46,9 +46,11 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
 _locate_lib();
 my $HANDLERS_OK  = eval { require Lazysite::Handlers; require Lazysite::Paths; 1 };
 my $HANDLERS_ERR = $HANDLERS_OK ? '' : ( $@ || 'unknown' );
-my $LAZYSITE_DIR
-    = $HANDLERS_OK ? ( Lazysite::Paths::lazysite_dir($DOCROOT) // "$DOCROOT/lazysite" ) : "$DOCROOT/lazysite";
-my $FORMS_DIR = "$LAZYSITE_DIR/forms";
+# SM850: the engine tree is wherever the resolver finds it - a site that moved it
+# out of the docroot keeps its form configs there. Without the modules nothing
+# below runs: the submission is refused before any of it is read.
+my $LAZYSITE_DIR = $HANDLERS_OK ? Lazysite::Paths::lazysite_dir($DOCROOT) : undef;
+my $FORMS_DIR    = defined $LAZYSITE_DIR ? "$LAZYSITE_DIR/forms"          : undef;
 {
     no warnings 'once';    # SM557: set at runtime, read by the module
     $Lazysite::Handlers::DOCROOT = $DOCROOT if $HANDLERS_OK;
@@ -416,7 +418,8 @@ sub _record_form_event {
     my ( $form, $outcome, $reason ) = @_;
     ( my $f = defined $form ? "$form" : '' ) =~ s/[^a-zA-Z0-9_-]//g;
     return unless length $f;
-    my $dir = "$DOCROOT/lazysite/stats/form-events";
+    return unless defined $LAZYSITE_DIR;
+    my $dir = "$LAZYSITE_DIR/stats/form-events";
     eval {
         make_path($dir) unless -d $dir;
         my $day = strftime( '%Y-%m-%d', localtime );
@@ -436,7 +439,8 @@ sub _record_form_event {
 # the manager reads for its unread badge. Best-effort (never blocks delivery).
 sub _notify_submission {
     my ( $form, $notify_off ) = @_;
-    my $logdir = "$DOCROOT/lazysite/logs";
+    return unless defined $LAZYSITE_DIR;
+    my $logdir = "$LAZYSITE_DIR/logs";
     return unless -d $logdir;
     ( my $f = defined $form ? "$form" : '' ) =~ s/[\r\n]+/ /g;
 

@@ -127,6 +127,16 @@ sub validate_path {
         audit_detail => refusal_detail( 'invalid-path', "'$rel_path' contains a .. segment", 'send a docroot-relative forward path' ) }
         if $rel_path =~ m{(?:\A|/)\.\.(?:/|\z)};
 
+    # SM850: A `lazysite/...` PATH IS IN THE ENGINE TREE, WHEREVER THAT IS. The
+    # carve-outs a partner reaches by path - nav.conf, the layouts and themes,
+    # brands, form submissions - are named `lazysite/...`, and joined to the
+    # docroot they were looked for inside it. On a site whose tree moved beside
+    # the docroot (SM293) a save made a stray engine tree in the served tree and
+    # answered ok, and a read said not found. Confined to the engine tree by the
+    # same strict, boundary-safe test as the two branches below, in its own
+    # tree; the blocklist still rules on the rel, which is unchanged.
+    return _validate_engine_path($rel_path) if $rel_path =~ m{\Alazysite(?:/|\z)};
+
     my $full = "$DOCROOT/$rel_path";
 
     # SM510: resolve against the NEAREST EXISTING ancestor, not only the
@@ -269,6 +279,36 @@ sub validate_path {
         # and anything reporting on a stray public copy.
         public_full => $canon,
     };
+}
+
+# SM850: validate_path for a rel under lazysite/ - the engine tree, inside the
+# docroot or beside it. The nearest-existing-ancestor walk and the containment
+# test are the docroot branch's, run against the engine tree's own root; rel is
+# rebuilt from the resolved path so a symlink cannot mint a second key.
+sub _validate_engine_path {
+    my ($rel_path) = @_;
+    my $lz         = _lz();
+    my $lzreal     = defined $lz ? realpath($lz) : undef;
+    return { ok => 0, kind => 'invalid-path',
+        error => "'$rel_path' is in the engine tree, and this site has none - run: lazysite check --fix",
+        audit_detail => refusal_detail( 'invalid-path', 'no engine tree', 'lazysite check --fix' ) }
+        unless defined $lzreal && -d $lzreal;
+
+    ( my $tail = $rel_path ) =~ s{\Alazysite/*}{};
+    my $full   = length $tail ? "$lz/$tail" : $lz;
+    my $anchor = $full;
+    $anchor = dirname($anchor) until -e $anchor;
+    my $real = realpath($anchor);
+    return { ok => 0, kind => 'invalid-path',
+        error => "'$rel_path' resolves outside the site (through a symlink or a mount) and is refused. Paths must stay inside the site's own tree.",
+        audit_detail => refusal_detail( 'invalid-path', "'$rel_path' resolves outside the site", 'use a path inside the site tree' ) }
+        unless $real && ( $real eq $lzreal || index( $real, "$lzreal/" ) == 0 );
+
+    my $canon = ( -e $full ) ? $real : $real . substr( $full, length($anchor) );
+    $canon =~ s{(?<=.)/+\z}{};
+    ( my $rest = $canon ) =~ s{\A\Q$lzreal\E/?}{};
+    my $rel = length $rest ? "lazysite/$rest" : 'lazysite';
+    return { ok => 1, full => $canon, rel => $rel, store => 'engine', public_full => $canon };
 }
 
 # SEC-2026-07 (M2): dav_scope confines a token/partner credential to one content
