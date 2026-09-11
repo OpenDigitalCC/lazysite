@@ -42,6 +42,8 @@ Naming the commit: AFTER it lands, never before
   not. SM354's own entry went stale in its own landing, which is how this
   paragraph came to be written.
 
+## Unreleased
+
 ## 0.13.13 - EDGE: one way to deliver, and every path finds a moved engine tree (2026-09-11)
 
 **This is the build meant to become beta, so it carries the breaking changes
