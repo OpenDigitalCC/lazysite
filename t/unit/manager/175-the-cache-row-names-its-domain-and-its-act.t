@@ -19,11 +19,11 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 use PageScript ();
 
 my $root    = repo_root();
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();
 make_path( "$docroot/lazysite/cache/hosts/fr.example", "$docroot/sites/en" );
 
 sub spew { my ( $p, $s ) = @_; open my $o, '>', $p or die "$p: $!"; print {$o} $s; close $o }
