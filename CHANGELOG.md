@@ -44,6 +44,13 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM844 (PENDING) **a template written for 0.12's raw data values is found
+  before a visitor finds it.** 0.12 rendered a stored value as live HTML and
+  needed `| html`; 0.13 escapes at the sink, so the same template shows
+  `&amp;lt;` - and only for values holding `&`, `<`, `>` or `"`. The
+  data-tables page now says so and documents both `data-row-save` shapes, and
+  `lazysite check` lists the pages that bind `db:` and also apply `| html`.
+
 - SM840 (PENDING) **the rename reaches the prose the manager pages could not.**
   Three extensions' own descriptions still said *plugin*, and so did the
   control API's error text, which also named the deprecated `plugin-list`.

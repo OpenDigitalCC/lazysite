@@ -3,7 +3,8 @@ title: "SM844: a template reading a data table cannot be written for both 0.12 a
 subtitle: "Sites agent, 2026-09-11: 0.12 renders a stored value as live HTML and needs | html; 0.13 escapes at the sink and | html double-escapes. The data-tables page says nothing about either"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. Options 1 and 2 are built, and the two save shapes alongside. The data-tables page now says db: values are escaped for you from 0.13.0, that | html on top double-escapes, and what to do on 0.12; it also documents both data-row-save shapes. lazysite check lists every page whose front matter binds db: and whose text applies | html inside [% %], across the docroot and the private store, skipping the engine tree; a page with db: and no html, or html and no db:, is not listed. Option 3 (an idempotent | html) is not taken: it needs a marker type on every escaped value, and the check names the files before anyone renders them."
 ---
 
 # What was measured

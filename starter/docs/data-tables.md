@@ -92,6 +92,14 @@ it, and save it again.
 - MCP: `save_data_row`, `read_data_rows`, `delete_data_row`
 - Control API: `data-row-save`, `data-rows`, `data-row-delete`
 
+A save has two shapes, and the difference is where the key goes:
+
+- **Insert** - the key is a field inside `row`, and there is no top-level `key`.
+- **Update** - the key is the top-level `key`, and it is **not** repeated inside
+  `row`. Repeating it is refused as *"'slug' is the row's key and cannot be
+  changed by an update"*: a key identifies the row, so an update cannot also
+  set it.
+
 On a page:
 
 ```yaml
@@ -109,6 +117,29 @@ and in the layout:
 [% total %] products
 [% FOREACH p IN products %]<li>[% p.name %] — [% p.price %]</li>[% END %]
 ```
+
+### Values are escaped for you - do not add `| html`
+
+**From 0.13.0, every value read with `db:` is HTML-escaped as it reaches the
+page.** `[% p.name %]` prints a row holding `<b>` or `<script>` as the text it is,
+never as markup, so a table anybody can write to cannot put script on a page
+that displays it.
+
+**So do not add `| html`.** On 0.13 it escapes a second time, and a value
+containing `&`, `<`, `>`, `"` or `'` shows as `&amp;lt;` or `&#39;` - quietly,
+and only for the rows that happen to contain one, which is how it goes unnoticed
+until somebody adds *Smith & Jones*.
+
+**On 0.12 and earlier it was the other way round**: values were printed raw, and
+`| html` was the correct advice. A template written correctly for 0.12 is
+therefore wrong on 0.13, and the upgrade does not say so. `lazysite check` lists
+every page that binds a table with `db:` and also uses `| html`, so those
+templates can be found before a visitor finds them. On a site still on 0.12,
+either upgrade, or keep markup out of any table a page renders.
+
+`db_render_raw: true` in `lazysite.conf` turns the escaping off for a site
+mid-migration. It is deprecated from the day it shipped, and says so in the log
+on every page that uses it.
 
 ### What you may ask for
 

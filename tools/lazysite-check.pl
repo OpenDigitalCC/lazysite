@@ -1074,6 +1074,9 @@ sub run_checks {
     # --- 8f. registries left behind from before they were served (SM293) --------
     report_stale_registries();
 
+    # --- 8h. templates written for 0.12's raw db values (SM844) ------------------
+    report_double_escaped_db_templates();
+
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
 
@@ -1704,6 +1707,62 @@ sub _probe_exts { return qw(png pdf txt css gz dat) }
 # WARN, not FAIL: a stale sitemap is an SEO problem, not a disclosure. And the
 # sysop may have authored their own on purpose, which the engine deliberately
 # yields to - so this names the files and explains, rather than deleting them.
+# SM844: A TEMPLATE WRITTEN CORRECTLY FOR 0.12 IS WRONG ON 0.13, AND NOTHING SAID.
+#
+# 0.12 printed a db: value raw, so `| html` was the right advice. 0.13 escapes
+# every db: value at the sink (SM786), so the same `| html` escapes a second time
+# and shows `&amp;lt;` - only for rows that contain & < > " ', so it can sit
+# unnoticed until somebody adds "Smith & Jones". The render log names the table
+# and column once a visitor hits it; this names the FILE before anyone does.
+#
+# A page is listed when its front matter binds a table with db: AND it uses
+# `| html` inside [% %]. That catches the page-body case. A layout that applies
+# `| html` to a db: variable cannot be tied to a binding from here, and the
+# message says so rather than implying the list is complete.
+sub report_double_escaped_db_templates {
+    my $d     = $opt{docroot};
+    my @roots = ($d);
+    if ( eval { require Lazysite::Private; 1 } ) {
+        my $store = Lazysite::Private::private_root($d);
+        push @roots, $store if $store && -d $store;
+    }
+    my @hits;
+    for my $root (@roots) {
+        File::Find::find(
+            { no_chdir => 1, wanted => sub {
+                    my $p = $File::Find::name;
+                    if ( -d $p ) {
+                        $File::Find::prune = 1 if $p eq "$d/lazysite";
+                        return;
+                    }
+                    return unless $p =~ /\.md\z/;
+                    open my $fh, '<', $p or return;
+                    my $text = do { local $/; <$fh> };
+                    close $fh;
+                    my ($fm) = $text =~ /\A---\s*\n(.*?)\n---\s*\n/s or return;
+                    return unless $fm   =~ /\bdb:\s*[a-z]/i;
+                    return unless $text =~ /\[%[^%]*\|\s*html\b[^%]*%\]/;
+                    push @hits, $p =~ s{\A\Q$root\E/}{}r;
+            } }, $root );
+    }
+    if (@hits) {
+        my @show = sort @hits;
+        my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
+        splice @show, 8 if @show > 8;
+        report( 'WARN',
+            scalar(@hits) . ' page(s) bind a data table with db: and also use | html: '
+                . join( ', ', @show ) . $more
+                . ' - db: values are escaped for you from 0.13.0, so | html escapes them a '
+                . 'second time and shows &amp;lt; for any value containing & < > or quotes',
+            'remove | html from the db: values in those templates; a layout that applies '
+                . '| html to a db: variable is not covered by this check' );
+    }
+    else {
+        report( 'OK', 'no page binds a data table and also applies | html to it' );
+    }
+    return;
+}
+
 sub report_stale_registries {
     my $d = $opt{docroot};
     return unless -d "$LZ/templates/registries";
