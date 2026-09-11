@@ -17,10 +17,9 @@ use warnings;
 use Test::More;
 use Time::HiRes qw(sleep);
 use File::Path  qw(make_path);
-use File::Temp  qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper   qw(repo_root);
+use TestHelper   qw(repo_root site_tempdir);
 use NginxHarness qw(nginx_bin render write_conf free_port http_get start_nginx stop_nginx);
 
 my $root = repo_root();
@@ -66,7 +65,7 @@ subtest 'Apache, the shipped CGI vhost' => sub {
     my $MODS   = '/usr/lib/apache2/modules';
     plan skip_all => 'apache2 not installed' unless $APACHE && -f "$MODS/mod_rewrite.so";
 
-    my $d = tempdir( CLEANUP => 1 );
+    my $d = site_tempdir( leaf => 'docroot' ) =~ s{/docroot\z}{}r; # the docroot is $d/docroot
     make_path( "$d/cgi-bin", "$d/logs" );
     fill_docroot("$d/docroot");
 
@@ -152,7 +151,7 @@ subtest 'nginx, the shipped CGI vhost' => sub {
     my $NGINX = nginx_bin();
     plan skip_all => 'nginx not installed' unless $NGINX;
 
-    my $prefix = tempdir( CLEANUP => 1 );
+    my $prefix = site_tempdir( leaf => 'docroot' ) =~ s{/docroot\z}{}r;
     fill_docroot("$prefix/docroot");
     my $PORT = free_port();
     my $conf = render(
