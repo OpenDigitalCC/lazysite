@@ -44,6 +44,12 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM849 (PENDING) **the page editor reaches the page's history.** With content
+  history on, the editor offers History, which opens Files on that file's own
+  History panel - its list page, its row and its panel open - so View, Diff
+  and Restore stay one implementation. Nothing is offered when history is off
+  or for a file that has no versions yet.
+
 - SM846 (PENDING) **the Cache page says Delete, names each copy's domain, and
   keeps its button on the right.** A cache row built five cells into a
   three-column grid, so the button wrapped into the middle column. Only

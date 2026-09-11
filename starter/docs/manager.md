@@ -89,6 +89,8 @@ The editor at `/manager/edit` shows:
 - Monospace editor for the page body
 - Live preview pane
 - Save button (writes file and invalidates cache)
+- **History** (when the Content history extension is enabled): opens this
+  file's History panel in Files - the same View, Diff and Restore as above
 - Collaborative edit lock - only one user can edit a file at a time
 
 Locks expire after 5 minutes and are renewed automatically while the

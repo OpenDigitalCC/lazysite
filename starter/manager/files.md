@@ -651,6 +651,7 @@ function renderFiles(files) {
   filePage = 0;
   populateTypeFilter(currentFiles);
   paintFiles();
+  if (typeof openPendingHistory === 'function') openPendingHistory();   // SM849
 }
 
 // Unrestricted (0) sorts before restricted (1).
@@ -1649,6 +1650,42 @@ function readInitDir() {
   // Clamp a bound editor to their own domain (the server would deny anything
   // outside it anyway).
   return withinScope(want) ? want : scopeRoot();
+}
+
+// SM849: the editor's History button arrives as ?history=<file path>. It is a
+// ROUTE to the panel this page already has, not a second copy of it: once the
+// folder is listed, go to the list page holding that file, open its row and
+// open its History. Consumed once - a later folder change does not re-open it.
+var PENDING_HISTORY = (function() {
+  var qs = location.search;
+  if (!qs || qs.length < 2) return '';
+  var params = qs.substr(1).split('&');
+  for (var i = 0; i < params.length; i++) {
+    var kv = params[i].split('=');
+    if (kv[0] === 'history') return decodeURIComponent(kv[1] || '');
+  }
+  return '';
+})();
+function openPendingHistory() {
+  var want = PENDING_HISTORY;
+  if (!want) return;
+  PENDING_HISTORY = '';
+  var list = filteredSortedFiles();
+  var idx = -1;
+  for (var i = 0; i < list.length; i++) { if (list[i].path === want) { idx = i; break; } }
+  if (idx < 0) { showStatus('No history to open: ' + want + ' is not in this folder.', true); return; }
+  if (!GIT.enabled) { showStatus('Content history is not enabled, so ' + want + ' has none to show.', true); return; }
+  filePage = Math.floor(idx / FILE_PAGE_SIZE);
+  paintFiles();
+  var rows = document.querySelectorAll('#file-rows tr[data-path]');
+  var row = null;
+  for (var j = 0; j < rows.length; j++) { if (rows[j].getAttribute('data-path') === want) { row = rows[j]; break; } }
+  var chev = row && row.querySelector('.mg-chev');
+  if (!chev) return;
+  togglePerms(chev);
+  var btn = row.nextElementSibling && row.nextElementSibling.querySelector('button[onclick^="toggleHistory"]');
+  if (btn) { toggleHistory(btn); }
+  if (row.scrollIntoView) row.scrollIntoView({ block: 'start' });
 }
 
 renderScopeSwitcher();

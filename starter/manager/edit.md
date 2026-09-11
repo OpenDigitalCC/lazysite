@@ -1042,5 +1042,28 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape' && !isDirty) { location.href = backUrl; }
 });
 
+// SM849: a way into this page's history from the page itself. Offered only
+// when content history is on - asked the same way Files asks - and only for a
+// file that exists, since a new one has no versions yet. It routes to Files'
+// own History panel for this file rather than copying it here, so View, Diff
+// and Restore stay one implementation. Leaving with unsaved edits is caught
+// by the shared dirty guard like any other link.
+function edOfferHistory() {
+  if (!filePath || isNew) return;
+  fetch(API + '?action=git-status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.ok || !d.enabled) return;
+      var view = document.getElementById('ed-view-link');
+      if (!view || document.getElementById('ed-history-link')) return;
+      var href = '/manager/files?' + (backFolder ? 'path=' + encodeURIComponent(backFolder) + '&' : '')
+               + 'history=' + encodeURIComponent(filePath);
+      view.insertAdjacentHTML('beforebegin',
+        '<a id="ed-history-link" class="mg-btn" href="' + esc(href) + '" title="Versions of this page: view, diff or restore">History</a>');
+    })
+    .catch(function() { /* no history offered */ });
+}
+
 loadFile();
+edOfferHistory();
 </script>

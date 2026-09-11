@@ -3,7 +3,8 @@ title: "SM849: the page editor has no way into that page's history"
 subtitle: "Release manager, 2026-09-11, on 0.13.12: when content history is enabled, editing a page should offer its history"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11. The editor's toolbar offers History when git-status says content history is on, and not for a new file, which has no versions yet. It is the route the filing asked for: it opens /manager/files?path=<folder>&history=<file>, and Files, once the folder is listed, turns to the list page holding the file, opens its row and opens its History panel - the one View, Diff and Restore implementation, not a copy. A file not in the folder, or history switched off since, is said so in the status bar. Leaving with unsaved edits is caught by the shared dirty guard."
 ---
 
 # As reported
