@@ -761,8 +761,8 @@ sub _place_restored {
     my ($stage) = @_;
     my ( $placed, @failed ) = (0);
     File::Find::find(
-        {   no_chdir => 1,
-            wanted   => sub {
+        { no_chdir => 1,
+            wanted => sub {
                 my $p = $File::Find::name;
                 return if $p eq $stage || -d $p && !-l $p;
                 ( my $rel = substr( $p, length($stage) + 1 ) ) =~ s{\A\./}{};
