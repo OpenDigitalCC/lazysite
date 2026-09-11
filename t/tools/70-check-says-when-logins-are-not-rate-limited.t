@@ -12,18 +12,18 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Basename ();
+use File::Path     qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-check.pl";
 
 sub site {
-    my $base = tempdir( CLEANUP => 1 );
-    my $doc  = "$base/public_html";
+    my $doc  = site_tempdir();
+    my $base = File::Basename::dirname($doc);
     make_path("$doc/lazysite/$_") for qw(auth cache logs manager);
     open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";

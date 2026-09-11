@@ -22,23 +22,21 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
+use File::Basename ();
 use FindBin;
 use POSIX    ();
 use JSON::PP ();
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper                           qw(grant_caps add_account repo_root);
-use Lazysite::Daemon::Supervisor         ();
+use TestHelper                   qw(grant_caps add_account repo_root site_tempdir);
+use Lazysite::Daemon::Supervisor ();
 use Lazysite::Daemon::Service::Scheduler ();
 
 my $ROOT = repo_root();
 
 sub site {
-    my $t = tempdir( CLEANUP => 1 );
-    mkdir "$t/site";
-    my $d = "$t/site/public_html";
-    mkdir $d;
+    my $d = site_tempdir();    # <tmp>/site/public_html, so plugins/ can sit beside it
+    my $t = File::Basename::dirname( File::Basename::dirname($d) );
     mkdir "$d/$_" for qw(lazysite lazysite/auth lazysite/daemon lazysite/logs lazysite/cache);
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$c} "site_name: t\nplugins:\n  - plugins/daemon.pl\n";
