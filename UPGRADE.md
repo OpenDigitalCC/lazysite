@@ -59,6 +59,14 @@ one way to say each thing). The upgrade converts the configuration and says so:
 
 `lazysite check` reports either key if it comes back.
 
+**Control API refusals now carry an HTTP status** (SM670). A client of
+`/cgi-bin/lazysite-manager-api.pl` that treated every response as 200 sees 403,
+404, 409, 413, 429, 207 or 400 on a refusal - by the refusal's `kind`, listed in
+`docs/ai-connector-tools.md` under the error model. The JSON body is unchanged
+and still carries `ok: false`, so a client that reads the body, as the manager's
+own pages do, is unaffected. A client that stops on a non-2xx status before
+reading the body should read it anyway: that is where the reason is.
+
 **Login rate limiting is now an extension, and the upgrade switches it on**
 (SM798). `plugins/login-rate-limit.pl` is listed in every site's `plugins:` list
 by the first upgrade that carries it, and on every fresh install, so nothing

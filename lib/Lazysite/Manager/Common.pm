@@ -22,7 +22,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
-    active_artifact_refusal refusal_detail);
+    active_artifact_refusal refusal_detail refusal_status);
 
 our $DOCROOT;    # set by the script
 
@@ -661,6 +661,26 @@ sub processor_path {
     return "$dir/lazysite-processor.pl";
 }
 
+# SM670 (ruled 2026-09-11): the HTTP status a control-API refusal answers with,
+# by its kind. Anything not listed - and a refusal with no kind - is the
+# caller's request refused: 400. `partial` is 207: part of the write happened,
+# so it is neither a success a status-keying client would skip nor a 4xx that
+# invites retrying a half-applied write. Server-side failures are 500.
+our %REFUSAL_STATUS = (
+    ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled) ),
+    ( map { $_ => '404 Not Found' } qw(not-found unknown-domain) ),
+    ( map { $_ => '409 Conflict' } qw(exists in-use confirm) ),
+    'too-large' => '413 Payload Too Large',
+    'rate'      => '429 Too Many Requests',
+    'partial'   => '207 Multi-Status',
+    ( map { $_ => '500 Internal Server Error' } qw(render-failed snapshot-failed no-cgi-headers empty-render) ),
+);
+
+sub refusal_status {
+    my ($kind) = @_;
+    return ( defined $kind && $REFUSAL_STATUS{$kind} ) || '400 Bad Request';
+}
+
 sub respond {
     my ($data) = @_;
 
@@ -687,10 +707,20 @@ sub respond {
     $data->{ok} = $data->{ok} ? JSON::PP::true : JSON::PP::false
         if ref $data eq 'HASH' && exists $data->{ok};
 
+    # SM670: A REFUSAL SAYS SO IN THE STATUS LINE TOO. Every refusal used to
+    # answer 200 with ok:false, so a client that checks the status first - the
+    # idiomatic shape in every language - saw success and then failed on a body
+    # it did not expect. The status comes from the refusal's kind
+    # (refusal_status); the body is unchanged and keeps ok:false for good, so
+    # the two registers agree rather than one replacing the other.
+    my $status = ( ref $data eq 'HASH' && exists $data->{ok} && !$data->{ok} )
+        ? refusal_status( $data->{kind} )
+        : '200 OK';
+
     # encode_json already emits UTF-8 bytes; print raw (a :utf8 layer would
     # double-encode non-ASCII content into mojibake).
     binmode(STDOUT);
-    print "Status: 200 OK\r\n";
+    print "Status: $status\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json($data);
 }

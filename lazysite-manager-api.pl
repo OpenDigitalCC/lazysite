@@ -2544,7 +2544,10 @@ elsif ( $action eq 'preview-clear' ) {
 }
 elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \%params ) }
 elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
-else { $result = { ok => 0, error => "Unknown action: $action" } }
+else {
+    # SM670: an action that does not exist is not found - 404, not 400.
+    $result = { ok => 0, kind => 'not-found', error => "Unknown action: $action" };
+}
 
 # Audit trail: record MATERIAL actions only - state changes and security grants
 # (who did what, TO WHAT, when, from where, outcome). Reads/browsing are NOT

@@ -43,6 +43,14 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM670 (PENDING) **a control-API refusal answers with its HTTP status.**
+  Every refusal answered 200 with `ok: false`, so a client that checked the status
+  line saw success. The status now follows the refusal's kind - 403, 404, 409,
+  413, 429, 500, 207 for a partial write, 400 for anything else and for a refusal
+  with no kind - and the body is unchanged. An unknown action answers 404. A
+  breaking change for a client that stops on a non-2xx status; the manager's own
+  pages read the body and are unaffected.
+
 - SM798 partial (PENDING) **login rate limiting is an extension, on by default,
   and visibly off when it is off.** To the rulings: `plugins/login-rate-limit.pl`
   carries DB_File as its own dependency, the installer lists it on a fresh site

@@ -3,7 +3,8 @@ title: "SM670: the control API refuses with HTTP 200 and `ok:false`, so a client
 subtitle: "Site agent, 2026-08-28, while proving the SM652 submissions split from outside: 'a status-code-keying client misses them'"
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-11 (0.13.13), to the release manager's ruling that day. A control-API refusal answers with an HTTP status from its kind - forbidden/not-yours/permission/blocked/disabled 403, not-found/unknown-domain 404 (an unknown action is given kind not-found), exists/in-use/confirm 409, too-large 413, rate 429, render/snapshot/CGI-output failures 500, partial 207 - and any other kind, or none, 400. ok:false stays in every body. No deprecation step: pre-stable, the release manager's standing preference is to break compatibility rather than carry the old register. The status lives in one table (Lazysite::Manager::Common::%REFUSAL_STATUS) read by the one writer, respond(). t/unit/manager/186, reproduced first. The manager's own pages parse the body whatever the status, so they are unaffected; MCP tool results are JSON-RPC and stay 200."
 ---
 
 # What was observed
@@ -61,4 +62,19 @@ declaration rather than the response), [[SM650]] (`kind: "partial"`, the refusal
 shape with no obvious status), [[SM237]] (telling "you may not" from "no such
 action", which this would make visible without parsing).
 
-# Not started
+# Ruled and built (2026-09-11)
+
+The release manager ruled the two cases the filing called awkward: **a refusal
+with no kind answers 400**, and **`partial` answers 207** - part of the write
+happened, so it is neither a success a status-keying client would pass over nor
+a 4xx that invites retrying a half-applied write. And the deprecation path above
+was not taken: before stable, breaking a client beats carrying two registers
+that disagree. The body keeps `ok:false` permanently, as this filing asked.
+
+The map is one table beside the one writer (`%REFUSAL_STATUS` and
+`respond()` in `Lazysite::Manager::Common`); a kind nobody mapped falls to 400
+rather than to 200. The unknown-action refusal had no kind and now carries
+`not-found`, so it answers 404 - which also makes [[SM237]]'s distinction
+visible without parsing. The manager's pages were surveyed first: every one
+parses the JSON body whatever the status (a `fetch` resolves on 4xx), so none
+changes behaviour.
