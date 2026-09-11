@@ -43,6 +43,13 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM847 (PENDING) **a small button is small only in a row or a cell.** To the
+  ruling: `.mg-btn-sm` is sized small only inside a list row or a table cell, in
+  all three styles, so a Refresh never sits smaller than the Add beside it - a
+  toolbar, card head, settings line or page action is the standard size whatever
+  its markup says. The rule is in the stylesheet, not at 147 call sites, and
+  `t/lint/134` keeps it there.
+
 - SM793 (PENDING) **a submission reaches the operator as text.** To the
   ruling: the submissions viewer builds its table from DOM nodes and
   `textContent`, and each row's buttons act through closures instead of an

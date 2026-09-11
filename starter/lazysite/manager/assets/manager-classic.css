@@ -297,7 +297,12 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
 .mg-btn-copy { background: var(--mg-surface); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
 .mg-btn-copy:hover { background: var(--mg-accent-bg); border-color: var(--mg-accent); color: var(--mg-accent-deep); }
 
-.mg-btn-sm { min-height: var(--mg-ctl-sm); padding: 0 10px; font-size: var(--mg-text-sm); }
+/* SM847: SMALL IS FOR A CONTROL INSIDE A LIST ROW OR A TABLE CELL - the release
+   manager's rule of 2026-09-11, held HERE rather than at every call site. A
+   toolbar, a card or sheet head, a settings line or a page action gets the
+   standard size whatever its markup says, so a Refresh beside an Add is never
+   the smaller of the two. t/lint/134 pins the container list, in every style. */
+.mg-row .mg-btn-sm, td .mg-btn-sm, .mg-handler-item .mg-btn-sm, .mg-nav-item .mg-btn-sm, .mg-file-item .mg-btn-sm, .mg-notif-item .mg-btn-sm { min-height: var(--mg-ctl-sm); padding: 0 10px; font-size: var(--mg-text-sm); }
 /* SM728: IMPACT IS DECLARED, AND THE APPEARANCE IS DERIVED FROM IT.
    `steel confirms, copper changes, red destroys` was a rule nothing could
    check, because nothing enumerated what an action DOES. A modifier class is

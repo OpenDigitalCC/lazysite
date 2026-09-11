@@ -31,7 +31,11 @@ unstyled is a gap in the stylesheet, not a licence to hand-style a page.</p>
 <button class="mg-btn mg-btn-outline">Outline</button>
 <button class="mg-btn mg-btn-danger">Delete</button>
 <button class="mg-btn mg-btn-copy">Copy</button>
-<button class="mg-btn mg-btn-sm">Small</button>
+</div>
+<p class="mg-sg-note"><code>mg-btn-sm</code> is small only inside a list row or a table cell, where a row carries several controls and the list is dense. Anywhere else - a toolbar, a card or sheet head, a settings line, a page action - it is the standard size, whatever the markup says: the stylesheet holds the rule, so a Refresh never sits smaller than the Add beside it (SM847).</p>
+<div class="mg-sg-demo">
+<div class="mg-row"><span class="mg-file-name">a listing row</span><span class="mg-row-meta">two controls, small</span><span class="mg-row-actions"><button class="mg-btn mg-btn-sm">Edit</button><button class="mg-btn mg-btn-sm mg-btn-danger">Delete</button></span></div>
+<div class="mg-toolbar"><button class="mg-btn">Add</button><button class="mg-btn mg-btn-sm">Refresh</button><span class="mg-sg-tag">a toolbar: the same markup, the standard size</span></div>
 </div>
 
 <h2 class="mg-sg-h">Status and toasts</h2>
