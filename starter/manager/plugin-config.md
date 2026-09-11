@@ -19,7 +19,7 @@ search: false
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 
-function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
 
 // SM118 pattern (field report): every explicit-save surface on this page - the

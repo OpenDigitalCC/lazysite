@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM793 partial (PENDING) **every escape in the manager covers the apostrophe.**
+  The submissions viewer's `esc()` - the one function between a stored form
+  value and the operator's session - escaped `& < > "` and not `'`, and a sweep
+  found it one of five helpers short (the command palette's lacked `"` too) plus
+  two hand-written inline escapes. All now cover five characters, the inline
+  ones call the page's `esc()`, and `t/lint/132` holds every manager surface to
+  it. Escaping server-side is a separate decision, because the same action feeds
+  the control API and MCP.
+
 - SM833 (PENDING) **no Perl reference reaches a visitor.** A template that
   interpolates a list or hash whole used to hand the visitor `ARRAY(0x55d4...)`,
   heap address and all; SM833's own instance was fixed at its source, and every

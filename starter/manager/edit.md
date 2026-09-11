@@ -522,7 +522,7 @@ function checkHtmlCacheThenLoad() {
 
 function showCacheNotice(mdPath) {
   var el = document.getElementById('ed-cache-notice');
-  var escPath = mdPath.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  var escPath = esc(mdPath);
   el.innerHTML = 'This is a cached page. Editing is disabled. ' +
     '<a href="/manager/edit?path=' + encodeURIComponent(mdPath) + '">Edit source: ' + escPath + '</a>';
   el.style.display = '';
@@ -936,11 +936,10 @@ function refreshPreview() {
       .then(function(text) {
         // Strip CGI headers if present
         text = text.replace(/^(Status:.*\n)?(Content-type:.*\n)?(Cache-Control:.*\n)*\n?/i, '');
-        var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var escaped = esc(text);
         var isJson = /^\s*[\[{]/.test(text);
         if (isJson) {
-          try { escaped = JSON.stringify(JSON.parse(text), null, 2)
-                  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); } catch(e) {}
+          try { escaped = esc(JSON.stringify(JSON.parse(text), null, 2)); } catch(e) {}
         }
         frame.srcdoc = '<html><body style="margin:0;padding:12px;font:13px/1.5 ui-monospace,monospace;background:var(--mg-surface);color:var(--mg-text);white-space:pre-wrap;word-break:break-all;">' + escaped + '</body></html>';
         document.getElementById('ed-preview-status').textContent = 'Raw output';

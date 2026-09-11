@@ -64,7 +64,7 @@ function showStatus(msg, isError) {
   setTimeout(function() { showStatus(''); }, 3000);
 }
 
-function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // SM118 pattern (field report): every mutation below edits only the in-memory
 // list - nothing touches nav.conf until Save - so each mutation path flags dirty

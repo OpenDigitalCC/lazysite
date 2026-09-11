@@ -4,7 +4,8 @@ title: "SM793: the submissions viewer is not the only thing standing between a p
 subtitle: "Security review, 0.13.8. The verdict is SAFE TODAY, and the filing is for the reason it is safe: form submission values are stored raw and returned raw, and the whole defence is one esc() in the manager's client-side viewer. A single future reader that forgets it - or an apostrophe-quoted attribute, which esc() does not cover - is stored XSS in the highest-privilege session on the site."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL 2026-09-11. THE CLIENT HALF IS BUILT, as the filing's first option: esc() covers the apostrophe. A sweep of every manager surface found the submissions viewer's esc() was one of five helpers short of it - config, nav, plugin-config and two in the manager layout (the command palette's was short of the double quote as well) - and two hand-written inline escapes in the editor, which now call the page's esc(). t/lint/132 pins the rule: any function on a manager surface that escapes < also escapes & > " and ', so which quote an attribute uses stops mattering and the next reader cannot write a four-character copy; seen to fail against the unfixed viewer. NOT BUILT, AND A DECISION: server-side escaping in action_form_submissions. The action is shared - the manager viewer, the control API's form-submissions and MCP's read_form_submissions all return it - so escaping there changes the DATA every token client reads (an agent would receive &lt; for <), where SM786 escaped at a sink that only renders HTML. The alternatives are escaping for the manager's call alone, or the viewer building its table with textContent so no esc() is needed at all; which is the release manager's call."
 ---
 
 # The finding

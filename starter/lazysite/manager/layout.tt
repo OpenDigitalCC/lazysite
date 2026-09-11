@@ -259,7 +259,7 @@
     var input = ov.querySelector('.mg-palette-input');
     var list  = ov.querySelector('.mg-palette-list');
     var sel = 0, filtered = [];
-    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
     function render(){
       var q = (input.value || '').toLowerCase();
       filtered = window.MG_DESTINATIONS.filter(function(d){ return d.label.toLowerCase().indexOf(q) !== -1; });
@@ -529,7 +529,7 @@
       function esc(x) {
         return String(x == null ? '' : x)
           .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
       return {
         chip: function(name, r, w) {
