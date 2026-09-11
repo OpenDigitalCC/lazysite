@@ -29,7 +29,9 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util ();
+use Lazysite::Util    ();
+use Lazysite::Paths   ();
+use Lazysite::Private ();
 
 my ( $docroot, $apply, $file, $as_user );
 while ( my $a = shift @ARGV ) {
@@ -88,8 +90,25 @@ for my $f (@files) {
         push @denied, { path => $p, why => 'denied path' };
         next;
     }
-    my $abs = "$docroot/$p";
-    my $op  = ( -e $abs ) ? 'overwrite' : 'create';
+    # SM852: WHERE EACH FILE BELONGS, asked rather than assumed. An engine-tree
+    # path goes to the engine tree, wherever it lives (SM293 moves it beside the
+    # docroot); a content path resolves as every other write to the site's tree
+    # does, so a page in a protected section is written into the private store.
+    # Built as "$docroot/$p", a bundle recreated a gated section in the served
+    # tree beside the protected copy, and the dry run called an existing
+    # protected page a "create".
+    my ( $abs, $where );
+    if ( $p =~ m{\Alazysite/(.+)\z} ) {
+        $abs   = Lazysite::Paths::lazysite_dir($docroot) . "/$1";
+        $where = -e $abs ? 'engine' : '';
+    }
+    else {
+        ( undef, $where ) = Lazysite::Private::resolve( $docroot, $p );
+        ($abs) = Lazysite::Private::resolve_for_write( $docroot, $p );
+        $abs //= "$docroot/$p";
+    }
+    my $op = $where ? 'overwrite' : 'create';
+    $op .= ', protected' if index( $abs, Lazysite::Private::private_root($docroot) . '/' ) == 0;
     push @ok, { path => $p, abs => $abs, op => $op, content => $f->{content} // '' };
 }
 
@@ -116,8 +135,10 @@ if (@post) {
     print "\nPost-extract actions to run:\n";
     for my $a (@post) {
         if ( $a eq 'clear-cache' ) {
-            print "  - clear the HTML cache (theme/layout/config change):\n";
-            print "      find $docroot -name '*.html' -delete\n";
+            # SM852: the cache, not every .html - a legacy page or an author's
+            # partial with no page source beside it is content (SM133, SM072).
+            print "  - clear the page cache (theme/layout/config change):\n";
+            print "      the manager's Cache page, or MCP invalidate_cache with path '*'\n";
         }
         else { print "  - $a\n" }
     }

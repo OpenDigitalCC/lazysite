@@ -37,7 +37,7 @@ for my $f (@files) {
     push @bare, $rel;
 }
 
-my $ceiling = 471;
+my $ceiling = 470;
 cmp_ok( scalar @bare, '<=', $ceiling,
     'tests handing a bare tempdir to the engine as a docroot: ' . scalar(@bare) . " <= ceiling $ceiling" )
     or diag( "A NEW test must use TestHelper::site_tempdir() (or put its docroot a level down by hand and say why).\n"

@@ -3211,8 +3211,13 @@ sub _create_page {
     my $slug = $a->{slug} // '';
     $slug = _norm_slug( $slug, dots => 1, md => 1, trail => 1 );
     return { ok => 0, error => 'slug required' } unless length $slug;
+    # SM852: EXISTS IN EITHER TREE. A protected page lives in the private store;
+    # asking the docroot alone read it as absent, and the save below - which
+    # resolves correctly - replaced the page this refusal exists to protect.
+    require Lazysite::Private;
+    my ( undef, $where ) = Lazysite::Private::resolve( $DOCROOT, "$slug.md" );
     return { ok => 0, kind => 'exists', error => "page already exists: /$slug (use write_file to overwrite)" }
-        if -e "$DOCROOT/$slug.md";
+        if $where || -e "$DOCROOT/$slug.md";
     my $fm = "---\n";
     $fm .= 'title: ' . _yaml_scalar( $a->{title} ) . "\n" if defined $a->{title} && length $a->{title};
     $fm .= 'subtitle: ' . _yaml_scalar( $a->{subtitle} ) . "\n" if defined $a->{subtitle} && length $a->{subtitle};

@@ -1383,6 +1383,11 @@ sub _invalidate_all_html {
             my $full = "$dir/$e";
             if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
             next unless $e =~ /\.html$/;
+            # SM852: a render only. An .html with no page source beside it is a
+            # legacy page or an author's partial, and a nav save deleted them
+            # all - the sweep Themes guards (SM072) was never guarded here.
+            ( my $base = $full ) =~ s/\.html\z//;
+            next unless Lazysite::Manager::Common::render_source_exists($base);
             $cleared++ if unlink $full;
         }
         closedir $dh;

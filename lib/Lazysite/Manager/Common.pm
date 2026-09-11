@@ -30,6 +30,17 @@ our $DOCROOT;    # set by the script
 # inside it before. Asked, never computed, so both layouts work on one
 # code path and a site migrates by moving the directory.
 sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
+
+# SM531 / SM852: is <base>.html a RENDER, or content? The processor renders
+# <page>.md and <page>.url alike, so an .html beside either is a generated cache
+# a sweep may drop. An .html with neither is a legacy static page (SM133) or an
+# author's include partial (SM072) - content, never to be deleted by a cache
+# sweep. One answer for every walk: Themes' sweeps asked it, and Files' nav-save
+# sweep did not, so saving the navigation deleted every hand-written page.
+sub render_source_exists {
+    my ($base) = @_;
+    return ( -f "$base.md" || -f "$base.url" ) ? 1 : 0;
+}
 our $action    = '';    # current request action (for log attribution)
 our $auth_user = '';    # current request user (for log attribution)
 

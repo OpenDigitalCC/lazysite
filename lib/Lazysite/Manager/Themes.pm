@@ -829,10 +829,9 @@ sub _set_theme_pointer {
 # dropped its render, the wildcard invalidate kept it, the listing said it had
 # no source, and the single-path branch refused it as not-a-cache. An .html
 # with NEITHER sibling is legacy static content (SM133) and is never a cache.
-sub _cache_source_exists {
-    my ($base) = @_;
-    return ( -f "$base.md" || -f "$base.url" ) ? 1 : 0;
-}
+# SM852: the rule itself lives in Manager::Common, so Files' nav-save sweep
+# answers it the same way - it was the one walk that did not ask.
+sub _cache_source_exists { return Lazysite::Manager::Common::render_source_exists( $_[0] ) }
 
 sub _invalidate_html_cache {
     find( sub {
