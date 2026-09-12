@@ -321,15 +321,15 @@ unless ($token_auth) {
     # security.md claimed) but "no credential required, and you are the
     # sysop". Two ways to be there:
     #
-    #   * a fresh install, before setup-manager has run. The window had no lower
+    #   * a fresh install, before setup-sysop has run. The window had no lower
     #     bound on a manual install.
     #   * a site pushed BACK into it - a manage_users delegate stripping ui /
     #     manage_users / manager from every group, which the lockout guard in
     #     cmd_group_settings_set did not prevent because it only ever covered the
     #     `manager` flag.
     #
-    # The intended first-run flow is the CLI: `lazysite-users.pl setup-manager`
-    # creates the first manager account and hands over the credential. Until it
+    # The intended first-run flow is the CLI: `lazysite-users.pl setup-sysop`
+    # creates the first sysop account and hands over the credential. Until it
     # has run there is no account to log in as, so refusing is not a loss of
     # function - it is the accurate answer. `local` remains the CLI's identity
     # and is unaffected; it never arrives over HTTP.
@@ -338,9 +338,14 @@ unless ($token_auth) {
             { ok => 0,
                 error => $site_secured
                 ? 'Authentication required'
+                # SM872: this named `setup-manager`, deleted by SM659 with no
+                # alias - so the one message a fresh install shows told the
+                # operator to run a command that exits 2. SM865 stopped the
+                # installer seeding an account, which makes this the FIRST thing
+                # a new operator reads.
                 : 'This site has no manager account yet. Create one from the '
                     . 'command line with: lazysite-users.pl --docroot <docroot> '
-                    . 'setup-manager'
+                    . 'setup-sysop --user <name>'
             }
         );
     }

@@ -80,10 +80,11 @@ subtest 'a placeholder site_url is the SAME case, and says so too' => sub {
             . 'absolute test, exactly as an absent site_url does.' );
 };
 
-subtest 'the API does not put a path in a key called url' => sub {
-    # account-approve, because that is the action whose reply carries this value
-    # and the one the expo's self-service flow calls (SM858).
-    my $d   = site_with('');
+# account-approve, because that is the action whose reply carries these values
+# and the one the expo's self-service flow calls (SM858).
+sub approve_reply {
+    my ($conf) = @_;
+    my $d   = site_with($conf);
     my $req = "$d/req.json";
     open my $rf, '>', $req or die $!;
     print {$rf} '{"action":"account-approve","username":"applicant",'
@@ -96,24 +97,51 @@ subtest 'the API does not put a path in a key called url' => sub {
     # reads as "no claim was minted", which is not what went wrong.
     my ($json) = $out =~ /^(\{.*\})\s*$/m;
     require JSON::PP;
-    my $r = eval { JSON::PP::decode_json( $json // '' ) } || {};
+    return ( eval { JSON::PP::decode_json( $json // '' ) } || {}, $json );
+}
+
+# SM872: BOTH site_url STATES, and `path` asserted for its SHAPE.
+#
+# The previous version of this subtest ran only the no-site_url fixture and
+# asserted `defined $r->{path}`. In that fixture path and url are both relative,
+# so the one state where they differ was never exercised - and the assertion
+# could not have failed anyway, because the bug was a path that was present and
+# wrong, not absent. The site agent found it on edge, which has an absolute
+# site_url, by reading the two fields side by side.
+#
+# feedback_verify_the_gate_tests_what_you_think: a fixture that cannot
+# distinguish the right answer from the wrong one is not coverage.
+subtest 'an absolute site_url: url is absolute, path is still a path' => sub {
+    my ( $r, $json ) = approve_reply("site_url: https://example.test\n");
     ok( $r->{claim}, 'the approval minted a claim' ) or diag($json);
 
-    # `url` is either absolute or absent. A caller cannot be expected to
-    # pattern-match a field named url to discover it is a path.
-    if ( defined $r->{url} ) {
-        like( $r->{url}, qr{^\w+://},
-            'url, when present, is absolute' )
-            or diag( 'SM858 returns this value to whoever approved a '
-                . 'registration. A path in a field named url is a wrong answer '
-                . 'that looks like a right one.' );
-    }
-    else {
-        ok( 1,                  'url is absent when it cannot be built' );
-        ok( defined $r->{path}, 'and the relative form is offered under its own name' )
-            or diag( 'The caller still needs the path - it just must not be '
-                . 'called a url.' );
-    }
+    like( $r->{url}, qr{^https://example\.test/claim\?},
+        'url is the absolute link' )
+        or diag( 'SM858 returns this value to whoever approved a registration.' );
+
+    like( $r->{path}, qr{^/claim\?},
+        'path is a path - it does NOT repeat the origin' )
+        or diag( "path came back as: " . ( $r->{path} // '(undef)' ) . "\n"
+            . 'This is the SM872 defect: SM863 fixed `url` and left `path` '
+            . "holding _claim_url's output, so on any site with an absolute "
+            . 'site_url the two were identical and neither carried a path. A '
+            . 'caller choosing between them got no signal from either.' );
+
+    isnt( $r->{path}, $r->{url},
+        'the two keys carry different things, which is why there are two' );
+};
+
+subtest 'no site_url: url is absent, path is the useful half' => sub {
+    my ( $r, $json ) = approve_reply('');
+    ok( $r->{claim}, 'the approval minted a claim' ) or diag($json);
+
+    ok( !defined $r->{url}, 'url is absent when it cannot be built' )
+        or diag( 'A path in a field named url is a wrong answer that looks '
+            . 'like a right one.' );
+    like( $r->{path}, qr{^/claim\?},
+        'and the relative form is offered under its own name' )
+        or diag( 'The caller still needs the path - it just must not be '
+            . 'called a url.' );
 };
 
 done_testing();

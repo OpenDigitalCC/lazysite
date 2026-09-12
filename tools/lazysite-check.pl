@@ -728,7 +728,17 @@ sub run_checks {
         }
     }
 
-    # --- 7. manager bootstrap (ties to setup-manager) ----------------------------
+    # --- 7. manager bootstrap (ties to setup-sysop) ------------------------------
+    #
+    # SM872: THE REMEDIES HERE NAMED `setup-manager`, WHICH SM659 DELETED WITH NO
+    # ALIAS - so every one of them handed the operator a command that exits 2.
+    # SM865 made it bite: the installer no longer seeds a `manager` account, so a
+    # fresh install now legitimately trips the first branch below and the very
+    # first thing a new operator is told to run does not exist. `setup-sysop`
+    # covers the first three (it seeds the group's capabilities, joins the
+    # account and writes `manager: enabled`); the fourth is an account that
+    # exists without a password, which is what a claim link is for.
+    my $SYSOP = "perl tools/lazysite-users.pl --docroot '$DOC' setup-sysop --user <name>";
     my $mgr_enabled = ( conf_value( $conf, 'manager' ) // '' ) =~ /enabled/i;
     {
         # SM138: manager groups are those whose SETTINGS entry grants manager access
@@ -743,11 +753,13 @@ sub run_checks {
             report( 'WARN',
                 "no group grants manager access - the manager is unconfigured "
                     . "(every authenticated user would be a manager)",
-                "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" );
+                $SYSOP );
         }
         elsif ( !$mgr_enabled ) {
+            # Not setup-sysop: the group is already there and only the conf key
+            # is missing, so name the one-line edit rather than an account step.
             report( 'WARN', "a manager group exists but 'manager: enabled' is not set",
-                "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" );
+                "add `manager: enabled` to $LZ/lazysite.conf" );
         }
         else {
             # is there a manager user with a password, in a manager group?
@@ -773,9 +785,10 @@ sub run_checks {
                 close $uf;
             }
             if ( !$have_mgr ) { report( 'WARN', "no user in a manager group (@groups)",
-                    "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" ) }
+                    $SYSOP ) }
             elsif ( !$have_pw ) { report( 'WARN', "manager user has no password (localhost-only)",
-                    "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" ) }
+                    "perl tools/lazysite-users.pl --docroot '$DOC' "
+                        . 'claim-create <username>   # mints a 24h self-service link' ) }
             else { report( 'OK', "manager bootstrapped (group + user + password)" ) }
 
             # SM471: A CAPABILITY ADDED AFTER THIS SITE WAS CREATED NEVER

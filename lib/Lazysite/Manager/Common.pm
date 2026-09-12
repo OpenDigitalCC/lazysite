@@ -666,10 +666,25 @@ sub processor_path {
 # caller's request refused: 400. `partial` is 207: part of the write happened,
 # so it is neither a success a status-keying client would skip nor a 4xx that
 # invites retrying a half-applied write. Server-side failures are 500.
+#
+# EVERY KEY HERE IS HYPHENATED, AND SIX KINDS IN THE TREE ARE NOT (SM872). A
+# kind the map does not know is not an error anywhere - it silently takes the
+# 400 default - so `no_such_table` answered "your request was malformed" for a
+# table that is simply absent, while lazysite-data.pl answered 404 for the same
+# condition. Two surfaces, two answers, no test in between. They are listed
+# below beside their hyphenated equivalents rather than renamed: `kind` is read
+# by clients and asserted across the suite, and a more specific name is worth
+# keeping - it is the STATUS that was wrong, not the vocabulary.
+#
+# t/lint/139 holds this closed: every `kind => '...'` the tree emits is either
+# a key here or named in that test's "400 is the right answer" list.
 our %REFUSAL_STATUS = (
     ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled) ),
-    ( map { $_ => '404 Not Found' } qw(not-found unknown-domain) ),
-    ( map { $_ => '409 Conflict' } qw(exists in-use confirm) ),
+    ( map { $_ => '404 Not Found' }
+            qw(not-found unknown-domain
+            no_such_table no_such_row no_such_form db-table-missing) ),
+    ( map { $_ => '409 Conflict' }
+            qw(exists in-use confirm needs_confirmation has_submissions) ),
     'too-large' => '413 Payload Too Large',
     'rate'      => '429 Too Many Requests',
     'partial'   => '207 Multi-Status',

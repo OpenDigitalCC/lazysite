@@ -187,7 +187,7 @@ unless ($DOCROOT) {
 
 # SM619: BECOME the site's owner before anything is written. This tool performs
 # sixteen writes into the site tree and had no notion of root at all, so
-# `sudo lazysite-users.pl ... setup-manager` created lazysite/auth/ owned
+# `sudo lazysite-users.pl ... setup-sysop` created lazysite/auth/ owned
 # root:root - and because that directory is setgid 02770, every file and
 # directory made beneath it afterwards inherited group root, including writes by
 # code that was itself careful. One sudo run, a whole tree.
@@ -1160,12 +1160,20 @@ sub _urlenc {
 # their own password. Uses the configured site_url for an absolute link when one
 # can be resolved (run via the CGI), else a relative path the sysop prefixes
 # with the site's address.
+# SM872: the RELATIVE form, always - no site base, no conditions. `_claim_url`
+# is this with an origin in front when one resolves, which is why the two are
+# one function apart rather than two spellings of the same string.
+sub _claim_path {
+    my ( $user, $claim ) = @_;
+    return '/claim?u=' . _urlenc($user) . '&c=' . _urlenc($claim);
+}
+
 sub _claim_url {
     my ( $user, $claim ) = @_;
     my $url = _site_base_url('');
     $url =~ s{/+$}{};
     my $base = ( $url =~ m{^\w+://[^/\s]+} ) ? $url : '';
-    return "$base/claim?u=" . _urlenc($user) . '&c=' . _urlenc($claim);
+    return $base . _claim_path( $user, $claim );
 }
 
 # SM863: SAY WHETHER THE THING CAN BE SENT.
@@ -2344,9 +2352,16 @@ sub cmd_account_approve {
     # a caller cannot be expected to pattern-match a field named `url` to
     # discover it is not one. `path` always carries the relative form, which the
     # caller still needs; `url` appears only when it can be honoured.
+    #
+    # SM872: AND `path` IS NOW ACTUALLY A PATH. SM863 fixed `url` and left
+    # `path` holding `_claim_url`'s output, so on any site with an absolute
+    # site_url the two came back identical and absolute - the comment above
+    # described a contract the line below did not keep. Found on edge by the
+    # site agent, not by t/tools/74, which asserted `path` was DEFINED in the
+    # one fixture where it is relative anyway.
     my $cu = _claim_url( $user, $claim->{claim} );
     return { ok => 1, user => $user, group => \@placed,
-        claim => $claim->{claim}, path => $cu,
+        claim => $claim->{claim}, path => _claim_path( $user, $claim->{claim} ),
         ( $cu =~ m{\A\w+://} ? ( url => $cu ) : () ) };
 }
 

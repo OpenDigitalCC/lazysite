@@ -48,15 +48,40 @@ cmp_ok( scalar keys %DISPATCHED, '>=', 30,
         . 'file vacuous rather than passing.' );
 
 # --- the readers that name commands to an operator ---------------------------
-my @READERS = qw(
-    installers/hestia/lazysite-hestia-deploy.sh
-    installers/hestia/lazysite-hestia-update-all.sh
-    installers/hestia/INSTALL-RUNBOOK.md
-    debian/lazysite-hestia.README.Debian
-    debian/lazysite-common.postinst
-    install.pl
-    README.md
+#
+# SM872: THIS WAS A HAND-PICKED LIST OF SEVEN, in a check whose first line says
+# "every reader". 102 shipped files name the users tool, and the list named the
+# seven the author of SM864 happened to be looking at - so `tools/lazysite-check.pl`,
+# which printed the dead verb in FOUR operator-facing remedies, sailed through a
+# check written to catch exactly that. The same failure the file's own header
+# describes, committed by the file itself.
+#
+# So the default is now inverted: every tracked file is a reader unless it is
+# somewhere the project RECORDS HISTORY, where naming a retired verb is correct
+# and removing it would falsify the record. That list is short, explicit, and
+# the only thing a future author has to think about.
+my @EXEMPT = (
+    qr{^CHANGELOG\.md$},           # dated entries describe the release they shipped in
+    qr{^docs/review/},             # eight-dimension snapshots, true as at their date
+    qr{^docs/feature-requests/},   # filings ABOUT a rename must quote the old name
 );
+
+my @READERS = grep {
+    my $rel = $_;
+    !( grep { $rel =~ $_ } @EXEMPT )
+} tracked_files();
+
+sub tracked_files {
+    my @out;
+    open my $ls, '-|', 'git', '-C', $root, 'ls-files' or return ();
+    while ( my $l = <$ls> ) {
+        chomp $l;
+        next if $l =~ m{^(?:t/|tmp/)};
+        push @out, $l;
+    }
+    close $ls;
+    return @out;
+}
 
 # Commands that were REMOVED and must not be named as though they work. Kept as
 # an explicit list rather than "anything not dispatched", because prose legitimately
@@ -68,22 +93,49 @@ my $checked = 0;
 for my $rel (@READERS) {
     my $src = slurp("$root/$rel");
     next unless defined $src;
+
+    # Only files that NAME the tool can instruct anyone to run one of its
+    # commands. Skipping the rest keeps the assertion count meaningful instead
+    # of asserting the obvious about several hundred unrelated files.
+    next unless $src =~ /lazysite-users\.pl|lazysite users/;
     $checked++;
 
     for my $dead ( sort keys %RETIRED ) {
-        # An instruction to RUN it: the name preceded by the tool, or by the
-        # `lazysite users` wrapper, on the same line. A sentence ABOUT the rename
-        # is not matched, and should not be.
-        my @bad = grep { /(?:lazysite-users\.pl|lazysite users)[^\n]*\b\Q$dead\E\b/ }
-            split /\n/, $src;
+        # An instruction to RUN it: the name near the tool, or near the
+        # `lazysite users` wrapper. A sentence ABOUT the rename is not matched,
+        # and should not be.
+        #
+        # SM872: NOT LINE BY LINE. lazysite-manager-api.pl:341 builds the
+        # user-facing "this site has no manager account yet" message by
+        # concatenating over three lines, putting `lazysite-users.pl` on one and
+        # `setup-manager` on the next - so a per-line grep saw two innocent lines
+        # and missed the single worst instance in the tree: an error message
+        # shown to the operator of a fresh install, naming a command that exits 2.
+        # Newlines, comment markers and string quotes are flattened out before
+        # matching. NOT the full stop: `.` is inside `lazysite-users.pl`, and
+        # stripping it made the first draft of this match nothing at all - a
+        # check that passes by finding nothing is worse than the gap it replaced.
+        ( my $flat = $src ) =~ s/[\n\r]+/ /g;
+        $flat =~ s/\s*(?:^|\s)#\s*/ /g;
+        $flat =~ s/['"]\s*[.,]?\s*['"]?/ /g;
+        $flat =~ s/\s+/ /g;
+        my @bad;
+        push @bad, $1
+            while $flat
+            =~ /((?:lazysite-users\.pl|lazysite users).{0,120}?\b\Q$dead\E\b)/gs;
         is( scalar @bad, 0, "$rel does not tell anyone to run '$dead'" )
             or diag( "$RETIRED{$dead}\n  " . join( "\n  ", @bad ) );
     }
 }
 
-cmp_ok( $checked, '>=', 5, 'the readers this checks were found on disk' )
-    or diag( "Only $checked of " . scalar(@READERS) . " readers exist - if they "
-        . 'moved, this list wants updating, not deleting.' );
+# The floor that stops this going vacuous. It is a FLOOR, not the count: files
+# come and go. If it trips, the discovery broke (git ls-files empty, the tree
+# moved) - which would make every assertion above pass by finding nothing.
+cmp_ok( $checked, '>=', 30, 'the shipped files naming the users tool were discovered' )
+    or diag( "Only $checked files were scanned. At the time this was written 49 "
+        . 'tracked files named the tool outside the historical record (102 '
+        . 'including it). A number far below that means discovery failed, not '
+        . 'that the tree shrank.' );
 
 # And the current name really is dispatched, so the advice these files now give
 # is advice that works.

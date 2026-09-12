@@ -44,6 +44,45 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM872 (PENDING) **four low-risk defects cleared before the stable cut.** All
+  four are the same shape - a declaration the code does not keep, in a place
+  nothing checked - and none touches a render path.
+
+  - **A refusal kind that cannot reach its status.** SM670's
+    `%REFUSAL_STATUS` is entirely hyphenated; six kinds in the tree are not, and
+    a kind the map does not know takes the 400 default in silence. So
+    `no_such_table` answered *"your request was malformed"* on the control API
+    while `lazysite-data.pl` answered 404 for the same condition - two surfaces,
+    two answers. `no_such_table`, `no_such_row`, `no_such_form` and
+    `db-table-missing` now answer 404; `needs_confirmation` and
+    `has_submissions` answer 409, like the `confirm` and `in-use` they mirror.
+    New `t/lint/139` holds it closed: every emitted kind is mapped or named as
+    deliberately 400, so the next one cannot regress in silence.
+  - **`setup-manager` named in five surviving places**, including the message a
+    site with no manager account shows its operator - which SM865 made the state
+    of every fresh install, so the first instruction a new operator read named a
+    command that exits 2. Two of `lazysite-check`'s four remedies were wrong
+    beyond the name and were rewritten, not renamed.
+  - **`t/lint/138` hand-picked seven readers** in a check whose own header says
+    "find every reader", which is why the four dead remedies shipped through it.
+    Every tracked file is now a reader unless it is where the project records
+    history; 49 files scanned where 7 were. It also matched line by line, which
+    hid the user-facing message above - it now flattens string glue first.
+  - **`path` held an absolute URL** wherever a `site_url` resolved, duplicating
+    `url` and carrying no path, against the contract stated in the comment above
+    it. Found on edge by the site agent. `t/tools/74` could not have caught it:
+    it asserted the key was DEFINED, in the one fixture where path and url are
+    both relative.
+
+  Cost: `work_users_tool_statements` 3263 -> 3267, all from `_claim_path`,
+  attributed by measurement; baseline moved one key by hand.
+
+  Docs: SM873 filed - `Tables.pm:275` builds `'store_' . $why->{reason}` at run
+  time, so that family of kinds can never be matched by a map keyed on literal
+  names and no static check can enumerate it. `t/lint/139` exempts the stem
+  explicitly, so it is known-unmapped rather than silently unmapped. SM871
+  (the `value:` quote truncation the site agent found) also remains open.
+
 ## 0.13.15 - BETA: what 1314E found, and two installers that spoke for themselves (2026-09-12)
 
 **The first build on the beta channel.** Six items, and the shape of them is the

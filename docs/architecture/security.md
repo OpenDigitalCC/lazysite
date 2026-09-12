@@ -241,8 +241,8 @@ Manager access is carried by **groups**. A group in
 (access to `/manager/*` and the manager API) and, for the operator
 powers, `manage_users`; an account holds the union of its groups'
 grants. Grants are edited on the manager Groups page or with
-`tools/lazysite-users.pl` (`setup-manager` seeds a fully-granted
-admin group).
+`tools/lazysite-users.pl` (`setup-sysop` seeds a fully-granted
+sysop group).
 
 If a group granting manager access exists: only members of such a
 group pass. Any other authenticated user gets redirected to
@@ -259,8 +259,8 @@ manager API skips the authentication check entirely in this mode and
 assigns the `local` operator sentinel
 (`lazysite-manager-api.pl:287-291`), so an unsecured site is
 reachable **with no credential at all**, as the operator. The
-intended first-run flow is `setup-manager` from the CLI, which
-creates the first manager account and ends the window; see
+intended first-run flow is `setup-sysop` from the CLI, which
+creates the first sysop account and ends the window; see
 `docs/architecture/permissions-and-secrets.md` for the whole model
 and for what a site can be pushed back into this state by.
 
