@@ -111,11 +111,62 @@ exists cannot be silently reassigned, and telling the visitor it is taken is an
 account-existence oracle. Allocating the name at APPROVAL, from the email,
 avoids both.
 
+# The site agent's 2026-09-11 filing, reconciled here
+
+The site agent filed *"a visitor cannot create their own account, so the
+signed-in write door has nobody to open it"*, saying duplicate risk was high and
+asking the engine to reconcile rather than spending its time searching. It is a
+duplicate of this filing and of [[SM674]], and it is right about that. Two parts
+of it are NOT already here and are kept:
+
+**THE ASYMMETRY, which is the sharpest way anyone has put this.**
+`/cgi-bin/lazysite-data.pl` accepts writes from a signed-in SESSION - a visitor
+maintaining their own rows is built, documented and working (SM682) - and
+nothing anywhere lets a visitor become signed in. The engine has the write door
+and no entrance to the building. Read from `lazysite-auth.pl`, whose dispatcher
+answers exactly five actions (login, logout, exchange, rotate, forgot), each of
+which needs an account that already exists.
+
+The agent also checked the one thing that looks like precedent and refused it:
+**SM076 is RFC 7591 OAuth *client* registration** - a connector registering
+itself - and must not be read as a person making an account.
+
+**THE USE CASE, dated and real.** Ten applicants at an expo apply for an
+advisory credit; the application is a structured record. What is wanted is that
+the applicant HOLDS their own application - comes back, corrects the budget,
+adds a document, sees whether it has been assessed. What is available today is a
+submission they can never see again, so every correction is a second submission
+and a reconciliation job. It generalises: a client updating a support case, a
+supplier keeping compliance details current, an applicant to a grant or a
+programme, somebody amending a booking. The last is the sharpest - the engine
+will TAKE a booking from an anonymous visitor and cannot let the same person
+change it five minutes later.
+
+Creating accounts in advance is not a workaround: at the moment somebody walks
+up to a stand, nobody knows who they are. That is what handing out a code is for.
+
+**What this changes about the estimate.** The chain the use case needs is nearly
+all built: the application form (forms pipeline), the pending state (the stored
+submission), `account-approve` (creates the account with no password, places it
+in the flagged groups, mints the claim link), the public `/claim` page, and
+row-level writes by the signed-in account (SM682). What is missing is the
+REMAINING half named at the top of this filing - the operator approves from a
+button on the submission rather than from the CLI, which needs the form to say
+which field is the address - plus the SM709 verification, now a proof rather
+than a wait.
+
+For ten applicants, this filing FINISHED is enough: the operator approves ten
+times. The agent's shape - `signup: off|invite|open`, unattended - is [[SM674]],
+and the invite mode it says matters most is what this already is, minus the
+button.
+
 # Related
 
 [[SM268]] (minting credentials is a human-at-a-browser operation - the ruling
 this asks to qualify), SM072 (the public claim redemption this reuses),
 [[SM501]] / SM401 / SM216 (the anti-abuse the forms pipeline already carries),
-[[SM674]] (open self-registration, if this is ever to be unattended).
+[[SM674]] (open self-registration, if this is ever to be unattended),
+[[SM682]] (the signed-in write door this exists to open),
+[[SM856]] (the same expo use case, its other half: the code in the URL).
 
 # Not started
