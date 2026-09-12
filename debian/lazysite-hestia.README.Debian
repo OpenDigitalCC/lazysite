@@ -100,9 +100,11 @@ Per-domain onboarding (3 steps)
    list.sh` flags such domains across the whole host, and
    `lazysite-hestia-update-all.sh --proxy` moves all of them at once.
 
-First-run site steps (manager password via
-`sudo -u <user> lazysite users --docroot <docroot> setup-manager`,
-optional `webdav_enabled: yes`) are unchanged - see the runbook.
+First-run site steps: create the first sysop with
+`sudo -u <user> lazysite users --docroot <docroot> setup-sysop --user <name>`,
+which issues a single-use link for that person to set their own password. A
+username is required and there is no default account (SM659). Optional
+`webdav_enabled: yes`. See the runbook.
 
 Switching patterns / removing a domain
 --------------------------------------

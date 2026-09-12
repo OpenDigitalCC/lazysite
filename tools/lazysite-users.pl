@@ -1168,6 +1168,35 @@ sub _claim_url {
     return "$base/claim?u=" . _urlenc($user) . '&c=' . _urlenc($claim);
 }
 
+# SM863: SAY WHETHER THE THING CAN BE SENT.
+#
+# _claim_url falls back to a bare path when no absolute site base can be
+# resolved, and that fallback is right - guessing a hostname and printing it
+# inside a credential-bearing URL would send someone to the wrong host, and the
+# primary host is not readable anyway (the domains store records it as the
+# literal "(default)"). What was wrong is that the path was printed under "send
+# this single-use self-service link to X", a sentence about something the
+# operator cannot send.
+#
+# TWO CAUSES, one output, and the second is the one that bites: no `site_url` at
+# all, OR a `site_url` of https://${SERVER_NAME} - the correct form for a site on
+# several hosts, which works under the CGI and collapses to "https://" on a
+# command line where there is no SERVER_NAME. So the operator who configured it
+# properly saw exactly what one who configured nothing saw.
+#
+# This matters most where it is guaranteed to happen: `account-approve` is
+# reachable only from the CLI, so an operator approving a registration is always
+# in the unresolvable case.
+sub _claim_link_lines {
+    my ( $user, $claim ) = @_;
+    my $u = _claim_url( $user, $claim );
+    return "  $u\n" if $u =~ m{\A\w+://};
+    return "  PATH ONLY - prefix it with your site's address before sending:\n"
+        . "    $u\n"
+        . "  No absolute site_url is set in lazysite.conf, or it resolves only\n"
+        . "  under the web server (\${SERVER_NAME} is empty on the command line).\n";
+}
+
 # The admin group must actually CONFER capabilities. The seeder only flags
 # manager_groups it can see in lazysite.conf, and setup-manager historically
 # wrote that key AFTER the first group write had already seeded - so on a fresh
@@ -1378,12 +1407,18 @@ sub cmd_setup_sysop {
         cli_audit( 'setup-sysop',       $group, "sysop account '$user'" );
         cli_audit( 'user-claim-create', $user,  'set-password claim issued' );
         unless ($API_MODE) {
-            print "\nManager account created (no password set).\n";
+            # SM863: NAME THE ACCOUNT AND THE GROUP IN THE LINE THAT REPORTS THE
+            # WORK. This said "Manager account created" - a sentence about a ROLE
+            # that parses as a NAME, which a release manager read as a second
+            # account called `manager` having appeared. It also used SM659's old
+            # vocabulary (the verb is setup-SYSOP now, and the group here is
+            # whatever the site flagged) and named the account two lines later,
+            # after the link.
+            print "\nSysop account '$user' created in group '$group'"
+                . " - no password set.\n";
             print "Send this single-use self-service link (expires in "
                 . int( $CLAIM_TTL / 3600 ) . "h) to '$user' to set their own password:\n";
-            print "  $claim_url\n";
-            print "  Username: $user\n";
-            print "  Group:    $group\n\n";
+            print _claim_link_lines( $user, $claim );
         }
         return { ok => 1, user => $user, group => $group,
             claim => $claim, claim_url => $claim_url };
@@ -2304,8 +2339,15 @@ sub cmd_account_approve {
         'registration approved'
             . ( @placed ? '; placed in ' . join( ',', @placed ) : '; no group' ) );
 
+    # SM863: `url` IS ABSOLUTE OR IT IS ABSENT. It used to carry whatever
+    # _claim_url returned, which is a bare path when no site base resolves - and
+    # a caller cannot be expected to pattern-match a field named `url` to
+    # discover it is not one. `path` always carries the relative form, which the
+    # caller still needs; `url` appears only when it can be honoured.
+    my $cu = _claim_url( $user, $claim->{claim} );
     return { ok => 1, user => $user, group => \@placed,
-        claim => $claim->{claim}, url => _claim_url( $user, $claim->{claim} ) };
+        claim => $claim->{claim}, path => $cu,
+        ( $cu =~ m{\A\w+://} ? ( url => $cu ) : () ) };
 }
 
 # The groups an approved registration joins: those an operator has flagged.
@@ -2480,8 +2522,8 @@ sub cmd_claim_create_cli {
     my ( $pos, %f ) = _take_flags( \@_, { '--reset' => [ 'revoke', 1 ] } );
     my $r = cmd_claim_create( $pos->[0], revoke => ( $f{revoke} // 0 ) );
     if ( ref $r eq 'HASH' && $r->{claim} ) {
-        print "Self-service link (single use; send this to the user):\n  "
-            . _claim_url( $pos->[0], $r->{claim} ) . "\n";
+        print "Self-service link (single use; send this to the user):\n"
+            . _claim_link_lines( $pos->[0], $r->{claim} );    # SM863
     }
 }
 
@@ -2506,7 +2548,11 @@ sub cmd_account_approve_cli {
     print "Approved '$r->{user}'"
         . ( @{ $r->{group} || [] } ? ' into ' . join( ', ', @{ $r->{group} } ) : ' (no group)' )
         . ".\n";
-    print "Self-service link (single use; send this to them):\n  $r->{url}\n";
+    # SM863: through the same helper as every other printer - `url` is now
+    # absent when no site base resolves, so interpolating it printed an empty
+    # line at exactly the moment the operator needs the link most.
+    print "Self-service link (single use; send this to them):\n"
+        . _claim_link_lines( $r->{user}, $r->{claim} );
     print "The address is on the account, so they can also request a fresh link themselves.\n"
         if defined $f{email} && length $f{email};
     return;

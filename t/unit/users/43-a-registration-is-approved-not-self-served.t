@@ -66,7 +66,19 @@ subtest 'approval creates the account and mints a claim' => sub {
     ok( $r->{ok}, 'approved' ) or diag( $r->{error} // '' );
     is( $r->{user}, 'learner1', 'naming the account' );
     ok( $r->{claim}, 'with a claim token' );
-    like( $r->{url} // '', qr{/claim}, 'and a link to redeem it' );
+
+    # SM863: `url` IS ABSOLUTE OR ABSENT, and `path` always carries the relative
+    # form. This asserted `url` alone, which passed while `url` could contain a
+    # bare path - a field named url holding something that is not one. This
+    # fixture configures no site_url, so there is no host to build from and the
+    # reply correctly offers `path` only.
+    my $where = $r->{url} // $r->{path} // '';
+    like( $where, qr{/claim}, 'and somewhere to redeem it' );
+    like( $r->{path} // '', qr{\A/claim}, 'the relative form is under `path`' );
+    ok( !defined $r->{url},
+        'and `url` is absent rather than carrying a path, with no site_url set' )
+        or diag( "url was: $r->{url} - a caller cannot be expected to "
+            . 'pattern-match a field named url to discover it is relative.' );
 
     # NO PASSWORD WAS SET. The operator never sees, chooses or transmits one -
     # which is the property /claim already has, and the reason this does not

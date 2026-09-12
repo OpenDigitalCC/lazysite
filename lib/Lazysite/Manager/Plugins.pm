@@ -1037,6 +1037,23 @@ sub action_form_submissions {
     # path - which is the distinction SM855 split form_store_dir and
     # form_store_file apart for.
     if ( !( defined $file && length $file ) && defined $form && length $form ) {
+        # SM870: A FORM THAT DOES NOT EXIST IS NOT AN EMPTY ONE.
+        #
+        # The store for an unknown form resolves to the DEFAULT directory, so the
+        # path is well-formed and simply absent - and absent read as empty, so
+        # this answered ok:true, total:0 naming a .jsonl that was never created.
+        # SM855's own shape one level up: a wrong-place read reported as nothing
+        # there. An operator approving registrations reads by form name, so a
+        # renamed or mistyped form told them nobody had registered.
+        #
+        # The empty answer for a form that EXISTS with no submissions yet is
+        # correct and is left alone - absent FORM and absent STORE are different
+        # facts and only one is a refusal.
+        my $fc = _handlers_module()->can('form_file')->($form);
+        return { ok => 0, kind => 'not-found',
+            error => "no form named '$form' - check the name against form-list" }
+            unless defined $fc && -f $fc;
+
         my $dir = _handlers_module()->can('form_store_dir')->($form);
         $file = "$dir/$form.jsonl" if defined $dir && length $dir;
     }

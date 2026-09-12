@@ -177,11 +177,31 @@ fi
 # retired in 0.6.5 - it never matched again, so setup-manager re-ran on every
 # deploy; harmless because it self-heals, but wrong.)
 if [ ! -f "$LZ/auth/groups-settings.json" ]; then
-  # First-run: bootstrap the manager in one step (account + admin group +
-  # lazysite.conf + a generated password, printed below). Runs as the domain
-  # user so the auth store and conf are written with the right ownership.
-  echo "==> first-run manager setup"
-  sudo -u "$U" perl "$DOM/tools/lazysite-users.pl" --docroot "$DOC" setup-manager
+  # SM864: THIS USED TO RUN `setup-manager`, WHICH SM659 DELETED WITH NO ALIAS.
+  #
+  # The tool answered "unknown command" and exited 2, correctly - and this script
+  # sets no -e and never looked at the status, so a fresh install announced
+  # "first-run manager setup", created nothing, and carried on. The sentinel
+  # below was never written either, so every later deploy repeated it. SM659
+  # updated INSTALL-RUNBOOK.md and missed this file; the runbook being right is
+  # what hid it.
+  #
+  # IT DOES NOT RUN A BOOTSTRAP AT ALL NOW, deliberately. setup-sysop REQUIRES a
+  # username, because SM659 established that a default account called `manager`
+  # is a shared role login and the audit trail then says `manager` did
+  # everything. A deploy cannot know who the first person is, and inventing a
+  # name is the thing that was removed. Deployment and first user are separate
+  # steps: a site with no accounts is a coherent state, not a half-built one.
+  #
+  # So this SAYS SO, and prints the command. Naming it here is the whole fix: the
+  # previous version's fault was not that it failed, but that it claimed to have
+  # done something.
+  echo "==> no accounts on this site yet - that is expected on a first deploy"
+  echo "    Create the first sysop when the person is ready to collect their link:"
+  echo "      sudo -u $U perl $DOM/tools/lazysite-users.pl \\"
+  echo "           --docroot $DOC setup-sysop --user <name>"
+  echo "    It issues a single-use link for them to set their own password, so no"
+  echo "    password is chosen for them or sent to them. There is no default login."
 fi
 
 # SM757: THE PERSISTENT RUNTIME, PROVISIONED HERE, EVERY TIME. This script is the

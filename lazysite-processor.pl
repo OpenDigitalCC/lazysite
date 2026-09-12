@@ -4269,11 +4269,33 @@ sub _render_form {
         # nothing that a typed one would not.
         my $val_attr = '';
         my $value    = $rules{value};
+
+        # SM868: WHICH SOURCE THE VALUE CAME FROM DECIDES WHETHER IT NEEDS
+        # ESCAPING, and conflating the two escaped it twice.
+        #
+        # A query value is ALREADY escaped: parse_query_string escapes &<>"' as
+        # it stores, "so TT renders it safely", because the same hash IS the
+        # `query.*`/`params.*` stash. A `value:` literal comes from the form
+        # definition and is raw. Escaping both sent `Smith & Sons` out as
+        # `Smith &amp;amp; Sons`, which the browser then displays as
+        # `Smith &amp; Sons`.
+        #
+        # Nothing was ever exposed - over-escaping is safe, which is exactly why
+        # my own test could not see it: it asserted the value arrived and that a
+        # hostile payload did not execute, and both hold when the value is
+        # escaped twice. The site agent found it by reading what a person reads,
+        # with a value containing `&`. My fixture used `ODX-0001`, and
+        # alphanumerics are a fixed point of HTML escaping - a test value that
+        # could not fail.
+        my $from_query = 0;
         if ( defined $rules{prefill} ) {
             my $p = $rules{prefill};
             my @declared = @{ ( ref $meta->{query_params} eq 'ARRAY' ) ? $meta->{query_params} : [] };
             if ( grep { $_ eq $p } @declared ) {
-                $value = $RENDER_QUERY{$p} if defined $RENDER_QUERY{$p} && length $RENDER_QUERY{$p};
+                if ( defined $RENDER_QUERY{$p} && length $RENDER_QUERY{$p} ) {
+                    $value      = $RENDER_QUERY{$p};
+                    $from_query = 1;
+                }
             }
             else {
                 log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
@@ -4283,7 +4305,10 @@ sub _render_form {
             }
         }
         if ( defined $value && length $value ) {
-            my $v = _esc_attr($value);
+            # Escape the RAW source only. parse_query_string already escaped
+            # &<>"' on the way in, which covers this attribute and the textarea
+            # below - both contexts - so a query value needs nothing further.
+            my $v = $from_query ? $value : _esc_attr($value);
             $val_attr = qq( value="$v");
         }
 
@@ -4307,7 +4332,12 @@ sub _render_form {
             # A textarea carries its value as CONTENT, not an attribute - and it
             # is escaped as text, not as an attribute, or a `<` in a prefilled
             # value would open a tag inside the field (SM856).
-            my $ta = ( defined $value && length $value ) ? _esc_html($value) : '';
+            # SM868: the same rule as the attribute above - a query value is
+            # already escaped, a `value:` literal is not.
+            my $ta
+                = ( defined $value && length $value )
+                ? ( $from_query ? $value : _esc_html($value) )
+                : '';
             $field_html = qq(    <textarea name="$name" id="$name")
                 . qq( maxlength="$max"$ph_attr$req_attr>$ta</textarea>\n);
         }

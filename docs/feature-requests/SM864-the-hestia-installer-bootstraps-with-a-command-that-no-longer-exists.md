@@ -41,19 +41,34 @@ the current tool:
 $ perl tools/lazysite-users.pl --docroot <fresh> setup-manager
 lazysite-users.pl: unknown command 'setup-manager'
 ... usage ...
-$ echo $?
-0
+$ echo $?          # measured WITHOUT a pipeline - see the correction below
+2
 ```
 
-So on a current build, a fresh Hestia install:
+**CORRECTION, 2026-09-12.** The first version of this filing said the tool exits
+**0**, and built an argument on it: that the installer could not detect the
+failure even if it checked. That was wrong. I measured it as
+`... setup-manager 2>&1 | head -5; echo "exit=$?"`, which reports **head's**
+status, not perl's. The dispatcher's `else` branch does `usage(); exit 2;` and
+does so correctly.
 
-1. prints `==> first-run manager setup`, which reads as success;
+The defect is real and simpler than I filed it. On a current build, a fresh
+Hestia install:
+
+1. prints `==> first-run manager setup`, which reads as the start of success;
 2. creates **no account, no admin group and no group-settings store**;
-3. **exits 0**, so neither the script (which sets no `-e`) nor an operator
-   reading the transcript sees a failure;
+3. **exits 2, which the script never looks at** - `lazysite-hestia-deploy.sh`
+   sets no `-e` and does not test the status of that command, so the run
+   continues as though it had worked. The tool reports honestly; the caller
+   discards the report;
 4. never writes `auth/groups-settings.json`, the first-run sentinel - so **every
    subsequent deploy runs it again and fails again**, announcing first-run setup
    each time.
+
+**The lesson is mine and it is the second time today.** Earlier I answered a
+question about a fresh install by probing a command, and here I answered a
+question about an exit code by reading the wrong process's status. Both times the
+measurement was taken next to the thing rather than on it.
 
 A site left in that state has no sysop at all. That is a coherent state by
 SM659's own argument - "deploying with no accounts is fine" - but it is not the
@@ -95,13 +110,15 @@ upgraded, this filing is wrong about the cause and I want to know.
 
 # The fix
 
-1. **The script calls `setup-sysop`** - and because that verb requires a name,
-   first-run bootstrap cannot be silent any more. The honest form is to print
-   the exact command for the operator to run rather than invent a username:
-   deployment and first user are separate steps, which is SM659's whole point.
-2. **An unknown command exits non-zero.** A tool that answers "unknown command"
-   with status 0 cannot be checked by any caller, which is why this survived. One
-   line, and it is the reason nothing caught the rest.
+1. **Stop calling a verb that cannot work, and stop claiming to do the thing.**
+   `setup-sysop` requires a name by design, so a first-run bootstrap cannot
+   create an account without inventing a username - which is exactly what SM659
+   removed. The honest form is to say there are no accounts and print the command
+   the operator runs, rather than announce a setup that did not happen.
+2. **The exit status is already right; the CALLER must read it.** Nothing needs
+   changing in the tool. What is missing is that
+   `lazysite-hestia-deploy.sh` discards a non-zero status from a step it has just
+   announced.
 3. **A lint that every command named in a shipped installer or README exists in
    the dispatcher.** This is the [[feedback_a_declaration_the_code_ignores]]
    shape: SM659 updated `INSTALL-RUNBOOK.md` and missed
@@ -109,7 +126,7 @@ upgraded, this filing is wrong about the cause and I want to know.
    The runbook being right is what hid it.
 4. **Say something about the existing `manager` accounts** - `lazysite-check`
    naming a shared-looking role account is enough; nothing should rename or
-   delete an account an operator may be signing in with.
+   delete an account an operator may be signing in with. Recorded as not built.
 
 # Related
 

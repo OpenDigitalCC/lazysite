@@ -80,13 +80,39 @@ subtest 'file still works, and wins when both are sent' => sub {
     is( $r->{total}, 1, 'and returns the submission' );
 };
 
-subtest 'an unknown form is not-found, not invalid' => sub {
-    # The store for a form that does not exist resolves to the DEFAULT
-    # directory, so the path is legitimate and simply absent - which is the
-    # empty answer, not a refusal. What must not happen is the path being
-    # reported as malformed.
+# SM870: A FORM THAT DOES NOT EXIST IS NOT AN EMPTY ONE.
+#
+# Found on edge in 1314E, in the code SM862 shipped the same morning: asking for
+# submissions by a form name that does not exist answered `ok: true, total: 0`,
+# naming a .jsonl that was never created. The store for an unknown form resolves
+# to the DEFAULT directory, so the path is well-formed and simply absent - and
+# absent read as empty.
+#
+# That is SM855's own shape one level up: a wrong-place read reported as nothing
+# there. It matters for the expo because the operator approving registrations
+# reads submissions by form name, so a renamed or mistyped form tells them
+# nobody has registered.
+#
+# The empty answer for a form that EXISTS with no submissions yet is correct and
+# must stay - that is the difference this asserts.
+subtest 'an unknown form is not-found, not an empty store' => sub {
     my $r = Lazysite::Manager::Plugins::action_form_submissions( undef, 'no-such-form' );
-    ok( $r->{ok}, 'an absent store reads as empty rather than refusing' )
+    ok( !$r->{ok}, 'refused rather than answered' )
+        or diag( 'ok:true/total:0 naming a file that was never created tells the '
+            . 'operator nobody registered. It is the same sentence as SM855: a '
+            . 'wrong-place read reported as nothing there.' );
+    is( $r->{kind}, 'not-found', 'as not-found' );
+    like( $r->{error}, qr/no-such-form/, 'naming the form that does not exist' );
+};
+
+subtest 'a form that exists with no submissions yet still reads as empty' => sub {
+    # The discriminating case: absent FORM and absent STORE are different facts,
+    # and only one of them is a refusal.
+    open my $ff, '>', "$lz/forms/quiet.conf" or die $!;
+    print {$ff} "targets:\n  - handler: to-file\n";
+    close $ff;
+    my $r = Lazysite::Manager::Plugins::action_form_submissions( undef, 'quiet' );
+    ok( $r->{ok}, 'a real form with no submissions answers, rather than refusing' )
         or diag( explain $r );
     is( $r->{total}, 0, 'with no rows' );
 };
