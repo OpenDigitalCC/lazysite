@@ -331,6 +331,7 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_account_reassign_cli          => 'delegates to cmd_account_reassign',
     cmd_account_promote_cli           => 'delegates to cmd_account_promote',
     cmd_account_scope_independent_cli => 'delegates to cmd_account_scope_independent',
+    cmd_account_approve_cli           => 'delegates to cmd_account_approve',
     cmd_claim_create_cli              => 'delegates to cmd_claim_create',
     cmd_claim_redeem_cli              => 'delegates to cmd_claim_redeem',
     cmd_partner_create_cli            => 'delegates to cmd_partner_create',
