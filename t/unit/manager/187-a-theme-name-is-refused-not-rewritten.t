@@ -25,14 +25,18 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
+
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper                qw(site_tempdir);
 use Lazysite::Manager::Themes ();
 
-my $docroot = tempdir( CLEANUP => 1 );
+# site_tempdir, not a bare tempdir: t/lint/118 caps how many tests hand the
+# engine a raw temporary directory as a docroot, and it sits one level down so
+# sibling writes (lazysite-assets/) go with it.
+my $docroot = site_tempdir();
 my $lz      = "$docroot/lazysite";
 my $themes  = "$lz/layouts/base/themes";
 make_path("$themes/Lumen");
