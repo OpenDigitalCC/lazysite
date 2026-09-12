@@ -4,7 +4,8 @@ title: "SM864: the Hestia installer's first-run bootstrap calls `setup-manager`,
 subtitle: "SM659 renamed the verb to `setup-sysop` and deliberately kept no alias. The runbook was updated; the shipped deploy script and the Debian README were not. The users tool answers an unknown command with a usage message and EXIT 0, so the installer cannot see the failure - and the first-run sentinel is never written, so every later deploy repeats it. The `manager` accounts on existing installs are the other half: the old verb took no `--user` and defaulted to an account literally called `manager`, the shared role account SM659 exists to prevent."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "SHIPPED 2026-09-12 for 0.13.15, in part. DONE: the deploy script no longer calls the dead verb and no longer runs a bootstrap at all - it says there are no accounts, which is a coherent state, and prints the setup-sysop command, because that verb requires a name and a deploy cannot know who the first person is. debian/lazysite-hestia.README.Debian is corrected. t/lint/138 checks every shipped installer, README and runbook against the dispatcher, so the next rename cannot land in one reader and survive in another - verified by putting the dead call back. NOT DONE: lazysite-check naming a shared-looking role account, which is how an operator would learn their existing `manager` account is there. Nothing renames or deletes it - an operator may be signing in with it - so surfacing it is the whole remaining job, and it belongs with lazysite-check's other site-state reports rather than here."
 raised: 2026-09-12
 raised-by: release manager (two fresh installs each carrying a `manager` account)
 area: packaging

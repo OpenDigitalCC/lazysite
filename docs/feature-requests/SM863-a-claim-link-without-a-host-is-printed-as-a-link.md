@@ -4,7 +4,8 @@ title: "SM863: a claim link with no host is printed under the words 'send this l
 subtitle: "`_claim_url` accepts the site base only if it matches `^\\w+://[^/\\s]+`, and falls back to a bare path otherwise. On the CLI that happens two ways - no `site_url` at all, and a `site_url` of `https://${SERVER_NAME}`, which collapses to `https://` because there is no SERVER_NAME in a command-line environment. Both print `/claim?u=...` beneath a sentence telling the operator to send it to someone."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "SHIPPED 2026-09-12 for 0.13.15, in part. DONE: `_claim_link_lines` names a path as a path and says which of the two causes applies (no site_url, or one that resolves only under the web server), every printer uses it - setup-sysop, claim-create and account-approve's CLI, the last of which was interpolating a now-absent `url` - and on the API `url` is absolute or absent while `path` always carries the relative form. The 'Manager account created' wording is fixed in the same block: it now names the account and the group. t/tools/74 covers all three site_url states plus the API contract. NOT DONE: offering a known alias host from the domains store as a labelled suggestion. The primary host is recorded as the literal '(default)' so there is no canonical name to read, and an alias is a real hostname but not necessarily the right one - so it needs a decision about whether a suggestion the operator must confirm is better than none, and that was not worth taking in a release cut to a deadline."
 raised: 2026-09-12
 raised-by: release manager (running setup-sysop)
 area: auth

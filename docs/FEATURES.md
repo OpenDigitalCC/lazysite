@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.14"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.15"
 brand: plain
 ---
 
@@ -1778,6 +1778,27 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.13.15** (2026-09-12, **BETA**) - **What the field found in 0.13.14, and two
+  installers that spoke for themselves.** The first build promoted to beta. No
+  new capability: 0.13.14 with its findings closed. A prefilled form value is
+  escaped once - `query_params` values are escaped as they are parsed, because
+  they become the `query.*` stash, and the prefill sink escaped them again, so
+  every name containing `&`, `<` or an apostrophe displayed as entity text
+  (SM868). A claim link with no host says so and names the setting that would
+  fix it, and on the API `url` is absolute or absent rather than sometimes
+  holding a path; the same block now names the account and group it created
+  instead of announcing "Manager account created" (SM863). Asking for the
+  submissions of a form that does not exist is 404 rather than an empty store,
+  so a renamed form no longer reports that nobody registered (SM870). The
+  Hestia first-run stops announcing a bootstrap it cannot perform, and a lint
+  checks every shipped installer and README against the dispatcher (SM864). A
+  fresh install seeds no account at all - the `manager` entry it used to copy
+  from an example file was a passwordless login in an admin group, which is
+  what SM659 removed from `setup-sysop` as a hazard (SM865). The Groups page
+  shows `Display Name (group-name)` again, because a tooltip cannot be searched,
+  copied, or seen on a touch device (SM866). Two of the six cannot execute on an
+  upgrade: SM864 and SM865 are fresh-install-only.
 
 - **0.13.14** (2026-09-12, EDGE) - **The page the author wrote, and an answer
   that names what happened.** Seven of the nine items are the same shape: the

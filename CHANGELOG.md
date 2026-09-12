@@ -43,7 +43,21 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
-- SM868 (PENDING) **a prefilled form value is escaped once.** `query_params`
+
+## 0.13.15 - BETA: what 1314E found, and two installers that spoke for themselves (2026-09-12)
+
+**The first build on the beta channel.** Six items, and the shape of them is the
+reason this one is promoted rather than left on edge: four are 1314E's findings
+against 0.13.14 - including one in a feature that shipped the same morning - and
+two are the installer and the Groups page saying something other than what they
+did. Nothing here is new capability. It is 0.13.14 with the things the field
+found in it closed.
+
+Two of the six cannot execute on an upgrade at all (SM864 and SM865 are both
+fresh-install-only), so for a site moving up from an earlier release the
+surface that changes is the form renderer and one manager page.
+
+- SM868 (2e6d5a07) **a prefilled form value is escaped once.** `query_params`
   values are escaped as they are parsed - they become the `query.*` stash, so
   they must be - and SM856's prefill sink escaped them again, so
   `?code=Smith %26 Sons` reached the browser as `Smith &amp;amp; Sons` and
@@ -54,7 +68,7 @@ Naming the commit: AFTER it lands, never before
   sink now escapes the raw source only. Found on edge by the site agent the day
   the feature shipped. [[SM869]] carries the robust refactor.
 
-- SM863 (PENDING) **a claim link says whether it can be sent, and the account
+- SM863 (2e6d5a07) **a claim link says whether it can be sent, and the account
   that was created is named.** With no absolute `site_url` - or with
   `https://${SERVER_NAME}`, which is correct for a multi-host site and collapses
   on the command line - the link was a bare `/claim?u=...` printed under "send
@@ -65,7 +79,7 @@ Naming the commit: AFTER it lands, never before
   block said "Manager account created" - SM659 residue, a sentence about a role
   that reads as a name - and now names the account and the group.
 
-- SM870 (PENDING) **a form that does not exist is not an empty one.** Asking for
+- SM870 (2e6d5a07) **a form that does not exist is not an empty one.** Asking for
   the submissions of an unknown form answered `ok: true, total: 0`, naming a
   `.jsonl` never created, because an unknown name resolves to the default store
   and an absent file reads as empty. The operator approving registrations reads
@@ -73,7 +87,7 @@ Naming the commit: AFTER it lands, never before
   404 `not-found`, naming the form; a form that exists with no submissions yet
   still reads as empty.
 
-- SM864 (PENDING) **the Hestia first-run stops announcing work it has not done.**
+- SM864 (2e6d5a07) **the Hestia first-run stops announcing work it has not done.**
   The deploy script called `setup-manager`, removed by SM659 with no alias, and
   never checked the status - so a fresh install printed "first-run manager
   setup", created nothing, and repeated on every later deploy. It no longer runs
@@ -82,7 +96,7 @@ Naming the commit: AFTER it lands, never before
   `t/lint/138` now checks every shipped installer, README and runbook against
   the dispatcher.
 
-- SM866 (PENDING) **the Groups page shows `Display Name (group-name)` again.**
+- SM866 (f7136dbf) **the Groups page shows `Display Name (group-name)` again.**
   SM665 had moved the group's internal name into the row's tooltip, reasoning
   that in a list of groups it was the same word twice - which is not so
   (`cap-content` is labelled "Capability: content"), and the case where the two
@@ -93,7 +107,7 @@ Naming the commit: AFTER it lands, never before
   name is back beside the label, the tooltip is kept as well, and a group whose
   label equals its name is still printed once.
 
-- SM865 (PENDING) **a fresh install creates no account, and says how to make
+- SM865 (8c8b7bdc) **a fresh install creates no account, and says how to make
   one.** The installer seeded `lazysite/auth/users` and `auth/groups` from their
   `.example` files, and `users.example` shipped exactly one entry - `manager:`,
   with `groups.example` putting it in `members` and `lazysite-admins`. So every
