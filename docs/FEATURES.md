@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.13"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.14"
 brand: plain
 ---
 
@@ -1778,6 +1778,31 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.13.14** (2026-09-12, EDGE) - **The page the author wrote, and an answer
+  that names what happened.** Seven of the nine items are the same shape: the
+  engine did one thing and reported another, with no error anyone could see. The
+  post-TT link pass rewrote Markdown syntax anywhere in the rendered page, so
+  0.13.13 shipped the Handlers page **dead** - one anchor spliced into a script,
+  every panel stuck at *Loading...* - and a lint now renders every manager page
+  and parses its scripts (SM853). Nine refusals an agent meets daily carry the
+  kind they always meant, so a permission problem and a spelling mistake no
+  longer both answer 400 (SM854). MCP reads a form's submissions from the store
+  that form is bound to rather than the default path, which had answered
+  `total: 0` while naming the wrong file (SM855), and reading submissions on the
+  control API takes the form's **name**, with an absent parameter named rather
+  than called invalid (SM862). A row written through the data endpoint records
+  the account that wrote it - an empty author already means "written
+  anonymously", so the row had been claiming something false rather than leaving
+  a gap (SM860). A theme name is used as given or refused: copy, rename and
+  delete no longer strip characters or fold case, so a copy cannot miss a
+  collision with a name already there (SM861). A partner's brief accounts for
+  every capability its grant holds, stating the channels it sets apart (SM859).
+  For the expo, two additions: a form field can carry a `value:` or a
+  `prefill:` from a declared URL parameter, so a code the link already holds is
+  not retyped (SM856), and an approved registration carries the address it came
+  from, so the person it was created for can fetch their own claim link
+  (SM858, partial - approving from the submission itself is still to come).
 
 - **0.13.13** (2026-09-11, EDGE) - **One way to deliver, and every path finds a
   moved engine tree.** A form calls a named handler - email, file, a data-table

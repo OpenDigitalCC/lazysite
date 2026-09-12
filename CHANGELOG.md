@@ -43,7 +43,21 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
-- SM862 (PENDING) **reading submissions names the parameter it wants, and takes
+
+## 0.13.14 - EDGE: the page the author wrote, and an answer that names what happened (2026-09-12)
+
+Nine items, seven of them the same shape: **the engine did one thing and said
+another.** A manager page that did not run, a refusal that reported the wrong
+kind of problem, a read from the wrong file answering `total: 0`, a brief that
+under-counted a grant, a row that recorded no author, a name quietly rewritten,
+an absent parameter called invalid. None produced an error anybody could see;
+all but one were found from outside, in the 1313E pass.
+
+The other two are for the expo: a link can arrive with the code already in the
+field, and an approved registration carries the address it came from, so the
+person it was created for can fetch their own way in.
+
+- SM862 (be8ee379) **reading submissions names the parameter it wants, and takes
   a form name.** `form-submissions` took `file` only, so `form=<name>` - what
   the MCP twin takes, and what `form-targets-read` takes on the same channel -
   arrived as no parameter, failed the path validator's `.jsonl` test and came
@@ -52,7 +66,7 @@ Naming the commit: AFTER it lands, never before
   resolver MCP uses, and when neither parameter arrives the refusal names both
   with `kind: missing-parameter`. `file` still works and still wins.
 
-- SM855 (PENDING) **MCP reads a form's submissions from the store that form is
+- SM855 (89003d4c) **MCP reads a form's submissions from the store that form is
   bound to.** `read_form_submissions` built the default path from the form name,
   so a form whose file handler names its own `path:` was read from a file that
   was not its store - and answered `ok: true, total: 0`, an empty success naming
@@ -61,7 +75,7 @@ Naming the commit: AFTER it lands, never before
   both readers call it. Found in the 1313E pass; the same shape as SM768, where a
   wrong-place read was reported as nothing there.
 
-- SM854 (PENDING) **the refusals an agent meets most carry their status.**
+- SM854 (b4b53c36) **the refusals an agent meets most carry their status.**
   SM670 derives the status from a refusal's `kind` and defaults to 400, and the
   dispatch gates set no kind: an action the account may not call and an action
   name the server does not recognise both answered 400 - a permission problem
@@ -71,7 +85,7 @@ Naming the commit: AFTER it lands, never before
   answers 400. `Invalid credentials` (401), `must be sent as POST` (405) and the
   bootstrap refusal stay open, because each needs a status the map does not have.
 
-- SM853 (PENDING) **the page a browser receives is the page the author wrote.**
+- SM853 (7d1c49f0) **the page a browser receives is the page the author wrote.**
   The post-TT link pass was documented as converting Markdown links inside `<p>`
   and its pattern ran over the whole rendered document, so `x[i](y)` became an
   anchor wherever it sat - in a script, a style, inline code, a fenced code
@@ -82,7 +96,7 @@ Naming the commit: AFTER it lands, never before
   The pass now converts text only. `t/lint/136` renders every manager page and
   runs each inline script through a real JavaScript parser, because the source
   was correct and only the served page was broken.
-- SM861 (PENDING) **a theme name is refused, never rewritten.** `theme-copy`,
+- SM861 (6fb06e47) **a theme name is refused, never rewritten.** `theme-copy`,
   `theme-rename` and `theme-delete` each stripped every disallowed character
   from the name they were given - including the SOURCE name, so a not-found
   could quote a theme the caller never typed - and copy and rename also
@@ -93,7 +107,7 @@ Naming the commit: AFTER it lands, never before
   what the site agent hit. All three now validate and refuse by name.
   `theme-activate` keeps its strip deliberately - SM247 depends on it.
 
-- SM860 (PENDING) **a row written through the data endpoint records who wrote
+- SM860 (98b659cf) **a row written through the data endpoint records who wrote
   it.** `created_by` is stamped from an actor `lazysite-data.pl` never supplied,
   so every row written by a signed-in account through the surface an app's own
   users write through recorded nobody - and an empty `created_by` already means
@@ -102,7 +116,7 @@ Naming the commit: AFTER it lands, never before
   is now passed; an anonymous write still records nobody. `t/lint/137` holds the
   "set by each surface" contract that a comment had been carrying alone.
 
-- SM859 (PENDING) **a partner's brief accounts for every capability its grant
+- SM859 (0d6b23c6) **a partner's brief accounts for every capability its grant
   holds.** The capability list is derived from the same keys `whoami` answers
   from, and then `ui`, `api` and `mcp` were deleted as channels rather than
   authority - silently, while `webdav` stayed, though it gates a surface in the
@@ -111,7 +125,7 @@ Naming the commit: AFTER it lands, never before
   brief now carries a `channels:` block naming each with the value the grant
   has, why they sit apart, and that `whoami` is the live answer.
 
-- SM856 (PENDING) **a form field can carry a value, so a code the link already
+- SM856 (994fdddb) **a form field can carry a value, so a code the link already
   holds is not retyped.** `query_params:` puts a URL value on the page and a page
   could print it, branch on it or head a section with it - and the form renderer
   had no `value` attribute and no rule that would set one, so the one place the
@@ -123,7 +137,7 @@ Naming the commit: AFTER it lands, never before
   textarea, whose value is content. A prefilled value is visitor-controllable
   exactly as a typed one is, and the documentation says so in those words.
 
-- SM858 partial (PENDING) **an approved registration carries the address it came
+- SM858 partial (0e12dfb5) **an approved registration carries the address it came
   from - and `account-approve` exists at the terminal.** Approval recorded no
   email, so `forgot` could never resolve an approved account and the claim link
   handed to the operator was the only way in, for ever; `--email` records it

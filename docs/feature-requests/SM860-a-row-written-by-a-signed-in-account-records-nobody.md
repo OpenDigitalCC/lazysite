@@ -4,7 +4,8 @@ title: "SM860: every row written through the data endpoint records no author, on
 subtitle: "`created_by` is stamped from an actor the endpoint never supplies. `lazysite-manager-api.pl` and `lazysite-mcp.pl` both set `Manager::Data::$auth_user`; `lazysite-data.pl` never does, so it passes the empty default, and `_stamp` writes undef. The field is not wrong - it is absent, and absent is exactly what the engine uses to mean 'written anonymously by a public form'. So a signed-in account's row is indistinguishable from a stranger's."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-12 for 0.13.14. `lazysite-data.pl` sets `Manager::Data::$auth_user` from the verified session, with `local` beside the DOCROOT it already localises and AFTER the require - assigning a package global before its module loads is silently undone by the module's own `our`. The fix passes the identity rather than filling the column, so an anonymous write still records nobody, and t/integration/98 asserts that direction too. t/lint/137 holds the 'set by each surface' contract a comment had been carrying alone: any top-level script calling the row writers must assign the actor, proven by removing the assignment, and it asserts it found at least three surfaces so a rename cannot leave it passing against nothing. Existing rows are NOT backfilled - see [[SM857]], whose ruled design treats an absent policy as shared for exactly that reason."
 raised: 2026-09-12
 raised-by: engine (found while sizing SM857)
 area: data
