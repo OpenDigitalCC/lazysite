@@ -43,6 +43,17 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM866 (PENDING) **the Groups page shows `Display Name (group-name)` again.**
+  SM665 had moved the group's internal name into the row's tooltip, reasoning
+  that in a list of groups it was the same word twice - which is not so
+  (`cap-content` is labelled "Capability: content"), and the case where the two
+  really do match was already excluded by an existing guard. A tooltip also does
+  not meet the requirement it was weighed against: it cannot be found with the
+  browser's search, cannot be copied, and does not exist on touch, so an
+  operator matching a group to a backend request had to hover every row. The
+  name is back beside the label, the tooltip is kept as well, and a group whose
+  label equals its name is still printed once.
+
 - SM865 (PENDING) **a fresh install creates no account, and says how to make
   one.** The installer seeded `lazysite/auth/users` and `auth/groups` from their
   `.example` files, and `users.example` shipped exactly one entry - `manager:`,

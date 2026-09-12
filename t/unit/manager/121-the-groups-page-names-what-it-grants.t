@@ -108,4 +108,66 @@ unlike( $w->{empty}, qr/already here keep it/,
 like( $w->{empty}, qr/not added to it from now on/,
     'while still naming the rule for what happens next' );
 
+# --- SM866: the group NAME is visible, not only on hover --------------------
+#
+# THIS REVERSES SM665, which moved the group name out of brackets and into the
+# row's `title` attribute. SM665's reason was "in a list of groups that is the
+# same word twice on every row" - and that is not true of the seeded set:
+# `cap-content` carries the label "Capability: content", `ch-files` carries its
+# own, and the case where label and name ARE the same was already excluded by
+# the existing `info.label !== g` guard, which renders the bare name alone.
+#
+# What SM665 kept was SM617's requirement that the technical name stay
+# DISCOVERABLE. A title attribute does not meet it for the use the release
+# manager actually has - "hard to locate groups when connecting with backend
+# requests": a tooltip cannot be searched for with the browser's find, cannot be
+# copied, and does not exist on a touch device. Discoverable by hover is not
+# discoverable when you are cross-referencing a name you must type somewhere
+# else.
+#
+# RUN, not grepped, for this file's own stated reason: the strings survive as
+# concatenation fragments whether or not anything emits them.
+my ($nm) = $src =~ /(var lbl\s*=\s*info\.label.*?\n\s*:\s*ge;)/s;
+ok( $nm, 'the page carries the group-name builder' )
+    or do { done_testing(); exit };
+
+open my $njs, '>', "$dir/name.js" or die $!;
+print {$njs} <<"JS";
+function escHtml(x) { return String(x == null ? '' : x); }
+function render(g, info) {
+    var ge = escHtml(g);
+    $nm
+    return name;
+}
+console.log(JSON.stringify({
+    labelled: render('cap-content', { label: 'Capability: content' }),
+    // A group whose label IS its name: the guard must not print it twice.
+    same:     render('members',     { label: 'members' }),
+    // And one with no label at all.
+    none:     render('sysops',      {})
+}));
+JS
+close $njs;
+my $n = eval { JSON::PP::decode_json(`\Q$node\E \Q$dir/name.js\E 2>&1`) };
+ok( $n, 'the group-name builder ran' ) or do { done_testing(); exit };
+
+like( $n->{labelled}, qr/Capability: content/,
+    'the display name is shown, which is what an operator chooses by' );
+like( $n->{labelled}, qr/\(cap-content\)/,
+    'and the internal name is shown BESIDE it, not only in a tooltip - it is '
+        . 'what the CLI, the audit trail and every backend request use' )
+    or diag( 'SM665 put the name in a title attribute. A tooltip cannot be '
+        . 'found with the browser\'s search, cannot be copied, and is absent '
+        . 'on touch - so an operator matching a group to a backend request had '
+        . 'to hover every row to find the one they meant.' );
+
+# The guard SM665's reasoning was actually about, still holding.
+my ($once) = ( $n->{same} =~ /members/ ? 1 : 0 );
+ok( $once, 'a group whose label equals its name still renders' );
+unlike( $n->{same}, qr/members.*\(members\)/s,
+    'and is NOT printed twice - which is the case SM665 was right about' );
+unlike( $n->{none}, qr/\(\s*\)/,
+    'a group with no label shows no empty brackets' );
+like( $n->{none}, qr/sysops/, 'just its name' );
+
 done_testing();

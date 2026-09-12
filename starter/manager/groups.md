@@ -256,14 +256,30 @@ function groupSummaryInner(g) {
   // read `cap-content` where the store said "Capability: content". The group
   // NAME is never hidden - it is what every other surface, the CLI and the
   // audit trail use, and the person reading this list is administering access.
-  // SM665: the group NAME moves into the tooltip rather than sitting in
-  // brackets beside the label. SM642 put it in brackets so an operator could
-  // see what every other surface calls the group; in a list of groups that is
-  // the same word twice on every row. The requirement from SM617 is that the
-  // technical name stay discoverable, not that it stay visible.
+  // SM665 moved the group NAME out of those brackets and into the row's
+  // tooltip, reasoning that "in a list of groups that is the same word twice on
+  // every row". SM866 PUTS IT BACK, because that reason does not hold and the
+  // requirement it was weighed against is stronger than it looked.
+  //
+  // It is not the same word twice: `cap-content` carries the label "Capability:
+  // content", and the case where the two ARE the same is already excluded by
+  // the guard on the next line, which renders the bare name alone. So SM665
+  // removed a second word that was genuinely different from the first.
+  //
+  // And SM617's requirement - that the technical name stay DISCOVERABLE - is
+  // not met by a title attribute for the thing an operator actually does with
+  // it. A tooltip cannot be found with the browser's search, cannot be copied,
+  // and does not exist on a touch device. The release manager's report is the
+  // measure: "hard to locate groups when connecting with backend requests" -
+  // that is reading a name in order to type it somewhere else, and hovering
+  // every row to find which one you meant is not discovery.
+  //
+  // The tooltip stays as well. It costs nothing and it names the thing in
+  // words for anyone who does hover.
   var lbl  = info.label && info.label !== g ? info.label : '';
   var name = lbl
-    ? '<span title="' + escHtml('Group "' + g + '"') + '">' + escHtml(lbl) + '</span>'
+    ? '<span title="' + escHtml('Group "' + g + '"') + '">' + escHtml(lbl)
+      + ' (' + ge + ')</span>'
     : ge;
 
   return '<span class="mg-acc-name">' + name + '</span>' + recentDot(g) +
