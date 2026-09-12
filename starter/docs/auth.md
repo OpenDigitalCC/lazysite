@@ -192,6 +192,26 @@ whichever groups are flagged to take registrations, and mints the claim link to
 send back. The person sets their own credential at `/claim`, so the operator
 never sees, chooses or transmits a password.
 
+```bash
+lazysite users --docroot /path/to/public_html \
+  account-approve jbloggs --email jbloggs@example.org
+```
+
+**Give it the address the registration came from.** `--email` records it on the
+account, and that one field is what turns the rest of the loop self-service: the
+person can go to the sign-in page, ask for a link, and receive a fresh one at
+their own address without the operator doing anything. Without it the claim link
+you were handed is the only way in, for ever - so if you lose it, you are
+minting another by hand.
+
+The link goes **to the address on the account**, never to whoever asked, which
+is what makes asking safe: the request proves nothing, the mailbox does. The
+answer is the same whether or not an account exists, so the form cannot be used
+to find out who has one.
+
+A malformed address creates nothing at all - the approval is refused before the
+account exists, rather than leaving a credential-less account behind for a typo.
+
 **Which group they land in is a group's own flag.** On the Groups page, a group
 can be marked *"add anonymous user registrations to this group"*. More than one
 group may carry it, and an approved account joins all of them.

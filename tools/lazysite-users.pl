@@ -634,7 +634,8 @@ if ($API_MODE) {
             # SM673: approve a registration request. Gated like every other
             # account-creating verb; the operator is the one calling it.
             $result = cmd_account_approve( $req->{username},
-                group => $req->{group}, actor => $req->{actor} );
+                group => $req->{group}, actor => $req->{actor},
+                email => $req->{email} );    # SM858
         }
         elsif ( $action eq 'claim-create' ) {
             my $r = cmd_claim_create( $req->{username},
@@ -770,6 +771,7 @@ elsif ( $cmd eq 'account-scope-independent' ) { cmd_account_scope_independent_cl
 elsif ( $cmd eq 'pairing-key' )               { cmd_pairing_key(@args) }
 elsif ( $cmd eq 'token-exchange' )            { cmd_token_exchange(@args) }
 elsif ( $cmd eq 'token-rotate' )              { cmd_token_rotate(@args) }
+elsif ( $cmd eq 'account-approve' )           { cmd_account_approve_cli(@args) }
 elsif ( $cmd eq 'claim-create' )              { cmd_claim_create_cli(@args) }
 elsif ( $cmd eq 'claim-redeem' )              { cmd_claim_redeem_cli(@args) }
 elsif ( $cmd eq 'mfa-enroll' )                { cmd_mfa_enroll(@args) }
@@ -2221,6 +2223,24 @@ sub cmd_account_approve {
     return { ok => 0, error => 'Username required' }
         unless defined $user && length $user;
 
+    # SM858: THE ADDRESS THE REGISTRATION CAME FROM, recorded on the account.
+    #
+    # Without it the claim link this mints is the only way in for ever: the
+    # operator has to carry the URL by hand, because `forgot` resolves an
+    # identifier to (username, address) and answers generically when there is
+    # no address - so the person it was created for can never fetch their own
+    # link. Recording it turns the self-service route on, using the machinery
+    # that already exists rather than a new public action.
+    #
+    # VALIDATED BEFORE ANYTHING IS CREATED. cmd_set dies on a malformed address,
+    # and dying after cmd_add would leave a credential-less account behind for
+    # a typo.
+    my $email = defined $opt{email} ? "$opt{email}" : '';
+    $email =~ s/^\s+|\s+$//g;
+    return { ok => 0, kind => 'invalid', field => 'email',
+        error => "'$email' is not an email address - approval creates nothing." }
+        if length $email && $email !~ /^[^@\s]+\@[^@\s]+\.[^@\s]+$/;
+
     # NO PASSWORD IS EVER SET HERE. The account is created credential-less and
     # the claim link is the only way in, so the operator never sees, chooses or
     # transmits a password - which is the property /claim already has and the
@@ -2257,6 +2277,18 @@ sub cmd_account_approve {
     for my $g (@want) {
         my $r = eval { cmd_group_add( $user, $g, $opt{actor} ) };
         push @placed, $g if $r && ( !ref $r || $r->{ok} );
+    }
+
+    # SM858: through cmd_set, the one writer of this setting - so the value is
+    # validated, written and audited exactly as it is from every other surface.
+    if ( length $email ) {
+        my $ok = eval { cmd_set( $user, 'email', $email ); 1 };
+        unless ($ok) {
+            my $why = $@ // 'the address could not be recorded';
+            chomp $why;
+            return { ok => 0, error => "the account was created but $why",
+                user => $user, group => \@placed };
+        }
     }
 
     my $claim = eval { cmd_claim_create( $user, actor => $opt{actor} ) };
@@ -2455,6 +2487,28 @@ sub cmd_claim_create_cli {
 sub cmd_claim_redeem_cli {
     my ( $user, $claim, $pw ) = @_;
     cmd_claim_redeem( $user, $claim, password => $pw );
+}
+
+# SM858: the CLI half of account-approve, WHICH THE USAGE HAS ADVERTISED SINCE
+# SM673 AND WHICH DID NOT EXIST. `account-approve someone` answered "unknown
+# command" while the help text described it in six lines - so the operator route
+# the filing named ("the operator calls this from the CLI or the API") was one
+# surface, not two. t/lint/88 now reads the usage text the other way round.
+sub cmd_account_approve_cli {
+    my ( $pos, %f ) = _take_flags( \@_,
+        { '--email' => [ 'email', 'v' ], '--group' => [ 'group', 'v' ] } );
+    my $r = cmd_account_approve( $pos->[0], email => $f{email}, group => $f{group} );
+    unless ( ref $r eq 'HASH' && $r->{ok} ) {
+        my $why = ( ref $r eq 'HASH' && $r->{error} ) ? $r->{error} : 'approval failed';
+        die "$why\n";
+    }
+    print "Approved '$r->{user}'"
+        . ( @{ $r->{group} || [] } ? ' into ' . join( ', ', @{ $r->{group} } ) : ' (no group)' )
+        . ".\n";
+    print "Self-service link (single use; send this to them):\n  $r->{url}\n";
+    print "The address is on the account, so they can also request a fresh link themselves.\n"
+        if defined $f{email} && length $f{email};
+    return;
 }
 
 # SM072 batch 4: enrol TOTP. Generates a secret + 8 single-use recovery
@@ -5079,12 +5133,16 @@ Commands:
   token-rotate USERNAME       Rotate the access token and reset its expiry
   brief USERNAME              Print the agent onboarding brief for a partner
                               (mints a fresh single-use pairing key each call)
-  account-approve USERNAME    Approve a registration request: create the account
+  account-approve USERNAME [--email ADDR] [--group NAME]
+                              Approve a registration request: create the account
                               with NO password, place it in the site's
                               any group flagged to take registrations, and
                               mint the single-use claim link in one step. The
                               person sets their own credential; the operator
                               never sees one. Requires full user management.
+                              --email records the address the registration came
+                              from, so they can request their own link later
+                              (SM858); a malformed one creates nothing.
   claim-create USERNAME       Mint a single-use setup/reset claim link (24h)
   claim-redeem USER TOKEN NEWPASSWORD
                               Redeem a claim and set the account's password

@@ -102,4 +102,48 @@ subtest 'no tool advertises a retired option' => sub {
         'nor does it call dav_scope/home_domain group settings' );
 };
 
+# SM858: AND THE OTHER DIRECTION, FOR COMMANDS - which this file's own header
+# claimed was covered and was not. It checked one retired OPTION by name, so a
+# command the usage described and the ladder never dispatched went unnoticed:
+# `account-approve` was documented in six lines from SM673 and answered "unknown
+# command 'account-approve'" for as long as it existed. A reader of --help had
+# no way to know, and the filing that shipped it said the operator could call it
+# from the CLI.
+subtest 'every command --help describes is one the tool dispatches' => sub {
+    # Any comparison against the command variable, not only a line that ends
+    # there: `$verb eq 'help' || $verb =~ /^-h$/` dispatches help in a compound
+    # condition, and an anchored pattern reads that as undispatched.
+    my %tools = (
+        'tools/lazysite-users.pl' => qr/\$cmd eq '([a-z][\w-]*)'/,
+        'tools/lazysite-cli.pl'   => qr/\$verb eq '([a-z][\w-]*)'/,
+    );
+    for my $rel ( sort keys %tools ) {
+        my $src   = slurp($rel);
+        my $usage = usage_text( $src, 'USAGE' );
+        ok( $usage, "$rel: usage() heredoc found" ) or next;
+
+        my $re = $tools{$rel};
+        my %dispatched = map { $_ => 1 } ( $src =~ /$re/mg );
+        cmp_ok( scalar keys %dispatched, '>=', 10, "$rel: the ladder was parsed" );
+
+        # A command line in the usage text: exactly two spaces, then the name.
+        # Both files also carry worked EXAMPLES at that indent ("  sudo -u
+        # siteuser lazysite provision \"), and the honest way to tell them apart
+        # is the first word: a line that starts with a shell word or the tool's
+        # own name is an invocation, not a command this tool dispatches. Trying
+        # to separate them by what FOLLOWS the name does not work - a real
+        # command line is followed by its flags, exactly as an example is.
+        my %an_example = map { $_ => 1 } qw(sudo perl bash sh cd export lazysite);
+        my @advertised = grep { !$an_example{$_} } ( $usage =~ /^ {2}([a-z][\w-]*)(?=\s|$)/mg );
+        cmp_ok( scalar @advertised, '>=', 10, "$rel: the usage list was parsed" );
+
+        my %seen;
+        my @phantom = grep { !$dispatched{$_} && !$seen{$_}++ } @advertised;
+        is_deeply( \@phantom, [], "$rel: --help describes nothing the ladder lacks" )
+            or diag( "advertised but not dispatched: @phantom\n"
+                . 'An operator reading --help types this and is told it does '
+                . 'not exist.' );
+    }
+};
+
 done_testing();
