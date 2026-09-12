@@ -73,6 +73,26 @@ Naming the commit: AFTER it lands, never before
   The pass now converts text only. `t/lint/136` renders every manager page and
   runs each inline script through a real JavaScript parser, because the source
   was correct and only the served page was broken.
+- SM861 (PENDING) **a theme name is refused, never rewritten.** `theme-copy`,
+  `theme-rename` and `theme-delete` each stripped every disallowed character
+  from the name they were given - including the SOURCE name, so a not-found
+  could quote a theme the caller never typed - and copy and rename also
+  lower-cased the target. Mixed case is valid everywhere else here (the
+  validator, the listing, WebDAV), so these three could not address half the
+  names the store permits, and the existence check compared the folded name: a
+  copy could miss a collision with a mixed-case theme already present, which is
+  what the site agent hit. All three now validate and refuse by name.
+  `theme-activate` keeps its strip deliberately - SM247 depends on it.
+
+- SM860 (PENDING) **a row written through the data endpoint records who wrote
+  it.** `created_by` is stamped from an actor `lazysite-data.pl` never supplied,
+  so every row written by a signed-in account through the surface an app's own
+  users write through recorded nobody - and an empty `created_by` already means
+  "written anonymously by a public form", so the row made a false claim about
+  its own provenance rather than leaving a blank. The verified session's account
+  is now passed; an anonymous write still records nobody. `t/lint/137` holds the
+  "set by each surface" contract that a comment had been carrying alone.
+
 - SM859 (PENDING) **a partner's brief accounts for every capability its grant
   holds.** The capability list is derived from the same keys `whoami` answers
   from, and then `ui`, `api` and `mcp` were deleted as channels rather than

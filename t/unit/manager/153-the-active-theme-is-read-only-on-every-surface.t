@@ -128,16 +128,21 @@ subtest 'the same verbs into the non-active theme stay open - that is the workfl
 };
 
 subtest 'action_theme_copy is the first step, on one call' => sub {
+    # SM861: the copy keeps the case it was asked for. This subtest is about the
+    # copy-then-activate workflow and asserted `live-next` only as a description
+    # of what the code did - no rationale here defended the folding, and it made
+    # half the names the store permits unaddressable. See
+    # t/unit/manager/187.
     my $r = Lazysite::Manager::Themes::action_theme_copy( 'live', 'Live-Next' );
     ok( $r->{ok}, 'the active theme can be copied' ) or diag explain $r;
-    is( $r->{name},   'live-next', 'the copy is named, lower-cased' );
+    is( $r->{name},   'Live-Next', 'the copy is named as it was asked for' );
     is( $r->{layout}, 'studio',    'under the active layout' );
     like( $r->{next}, qr/activate/, 'and the reply says what comes next' );
-    ok( -f "$tmp/lazysite/layouts/studio/themes/live-next/assets/main.css", 'the files are copied' );
-    ok( -f "$tmp/lazysite-assets/studio/live-next/main.css", 'and the asset mirror' );
+    ok( -f "$tmp/lazysite/layouts/studio/themes/Live-Next/assets/main.css", 'the files are copied' );
+    ok( -f "$tmp/lazysite-assets/studio/Live-Next/main.css", 'and the asset mirror' );
 
-    my $json = JSON::PP::decode_json( do { local ( @ARGV, $/ ) = "$tmp/lazysite/layouts/studio/themes/live-next/theme.json"; <> } );
-    is( $json->{name},        'live-next', 'theme.json names the copy, not the source' );
+    my $json = JSON::PP::decode_json( do { local ( @ARGV, $/ ) = "$tmp/lazysite/layouts/studio/themes/Live-Next/theme.json"; <> } );
+    is( $json->{name},        'Live-Next', 'theme.json names the copy, not the source' );
     is( $json->{copied_from}, 'live',      'and says where it came from' );
     is_deeply( $json->{config}, { colours => { primary => '#000' } }, 'the design tokens travel' );
 
@@ -145,18 +150,28 @@ subtest 'action_theme_copy is the first step, on one call' => sub {
     like( $conf, qr/^theme: live$/m, 'nothing changed on the live site - the pointer still names live' );
 
     # The copy is editable at once, through the same choke point that refused the source.
-    my $w = Lazysite::Manager::Files::action_save( 'lazysite/layouts/studio/themes/live-next/assets/main.css', 'themer', "body{color:green}\n", undef );
+    my $w = Lazysite::Manager::Files::action_save( 'lazysite/layouts/studio/themes/Live-Next/assets/main.css', 'themer', "body{color:green}\n", undef );
     ok( $w->{ok}, 'the copy accepts a write' ) or diag explain $w;
 
     # The creator registry knows whose it is (delete_theme's rule).
     my $reg = Lazysite::Manager::Themes::_read_created_registry();
-    is( $reg->{'studio/live-next'}, 'themer', 'the copier is recorded as the creator' );
+    is( $reg->{'studio/Live-Next'}, 'themer', 'the copier is recorded as the creator' );
 };
 
 subtest 'copy refusals are named' => sub {
-    my $r = Lazysite::Manager::Themes::action_theme_copy( 'live', 'live-next' );
+    # SM861: the name the previous subtest created, exactly as it created it.
+    # This asked for 'live-next' and collided only because the target was being
+    # folded - which is the defect: a copy could MISS a collision with a
+    # mixed-case theme already present, and a tester on edge hit that.
+    my $r = Lazysite::Manager::Themes::action_theme_copy( 'live', 'Live-Next' );
     ok( !$r->{ok}, 'a collision is refused' );
     is( $r->{kind}, 'exists', 'as exists' );
+
+    # And the case-differing name is now a DIFFERENT theme, not a silent
+    # collision with it.
+    my $other = Lazysite::Manager::Themes::action_theme_copy( 'live', 'live-next' );
+    ok( $other->{ok}, 'a name differing only in case is its own theme' )
+        or diag explain $other;
     $r = Lazysite::Manager::Themes::action_theme_copy( 'live', 'live' );
     ok( !$r->{ok} && $r->{kind} eq 'validation', 'a same-name copy is a validation refusal' );
     $r = Lazysite::Manager::Themes::action_theme_copy( 'nope', 'x' );

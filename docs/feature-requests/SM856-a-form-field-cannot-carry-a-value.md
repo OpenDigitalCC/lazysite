@@ -4,7 +4,8 @@ title: "SM856: a native form field cannot carry a value, so a code the URL alrea
 subtitle: "`query_params:` puts a URL value on the page, escaped, and a page can print it, branch on it, head a section with it. The form renderer emits no `value` attribute and has no rule that would set one - so the single place the value is needed is the one place it cannot go. One field rule, gated by the allowlist that already exists."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-09-12 for 0.13.14. `value:` and `prefill:` on a field rule, both resolved from `%RENDER_QUERY` and confined to the `query_params:` allowlist, so a parameter the page has not declared is refused and logged by name rather than silently emitted. `value:` escapes as an attribute, textarea content as text. t/unit/processor/80 holds it. The shipped docs say plainly that a prefilled value proves nothing about who holds the link - see [[SM857]] for the control that would."
 raised: 2026-09-11
 raised-by: site agent
 area: forms

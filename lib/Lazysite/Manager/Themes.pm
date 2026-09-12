@@ -1489,9 +1489,36 @@ sub _theme_declares_layout {
     return ( grep { $_ eq $layout } @{ $data->{layouts} } ) ? 1 : 0;
 }
 
+# SM861: a name the caller gave is used or refused - never edited.
+#
+# delete, rename and copy take a name as an IDENTITY: the thing to act on. All
+# three ran s/[^a-zA-Z0-9_-]//g over it first, so `Lumen!` silently became
+# `Lumen` and the verb acted on a different theme from the one named - on
+# delete, a destructive one. Copy and rename additionally lower-cased the
+# target, which made half the names the store permits unaddressable: mixed case
+# is valid in theme_config_issues, the theme listing lists mixed-case
+# directories, and WebDAV creates them, so these verbs were the outliers. A
+# tester copying `lumen` to `lumen-1312E-backup-...` got a second lower-case
+# theme that did not collide with the mixed-case one already there.
+#
+# DELIBERATELY NOT APPLIED TO theme-activate / layout-activate. Their strip is
+# load-bearing: SM247 depends on a punctuation-only value - the control API
+# defaults `path` to '/' - reducing to the empty string, so the deactivation
+# guard can name it as a missing parameter with wording written after a live
+# site was left unstyled. Refusing on the character would replace that message
+# with a validation error and undo the fix.
+sub _bad_theme_name {
+    my ( $label, $name ) = @_;
+    return undef if defined $name && $name =~ /^[A-Za-z0-9_-]+$/;
+    return { ok => 0, kind => 'validation', field => $label,
+        error => "$label '"
+            . ( defined $name ? $name : '' )
+            . "' must match [A-Za-z0-9_-]+" };
+}
+
 sub action_theme_delete {
     my ( $theme_name, $opts ) = @_;
-    $theme_name =~ s/[^a-zA-Z0-9_-]//g;
+    if ( my $bad = _bad_theme_name( 'name', $theme_name ) ) { return $bad }
     $opts ||= {};
 
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
@@ -1585,11 +1612,14 @@ sub action_theme_delete {
 
 sub action_theme_rename {
     my ( $old_name, $new_name ) = @_;
-    $old_name =~ s/[^a-zA-Z0-9_-]//g;
-    $new_name =~ s/[^a-zA-Z0-9_-]//g if defined $new_name;
-    $new_name = lc( $new_name // '' );
 
-    return { ok => 0, error => "Invalid name" } unless $old_name && $new_name;
+    # SM861: both names validated, neither edited. The "Invalid name" refusal
+    # that stood here answered for an empty name AFTER stripping - so a name
+    # that was entirely invalid characters reported as absent rather than as
+    # wrong, and one that was partly invalid was quietly accepted as something
+    # else. _bad_theme_name answers for both, naming the parameter.
+    if ( my $bad = _bad_theme_name( 'name',     $old_name ) ) { return $bad }
+    if ( my $bad = _bad_theme_name( 'new_name', $new_name ) ) { return $bad }
 
     # SM532: the two guards delete applies, applied here too. A rename of the
     # active theme, or of one a configured domain resolves to, used to answer
@@ -1647,11 +1677,12 @@ sub action_theme_rename {
 sub action_theme_copy {
     my ( $from, $to, $opts ) = @_;
     $opts ||= {};
-    $from =~ s/[^a-zA-Z0-9_-]//g if defined $from;
-    $to   =~ s/[^a-zA-Z0-9_-]//g if defined $to;
-    $to = lc( $to // '' );
-    return { ok => 0, kind => 'validation', error => 'Invalid name' }
-        unless defined $from && length $from && length $to;
+    # SM861: validated, not rewritten - and `to` keeps the case it was given.
+    # Lower-casing it meant the copy landed somewhere other than where the
+    # caller asked, and that the existence check below tested the FOLDED name,
+    # so a copy could miss a collision with a mixed-case theme already present.
+    if ( my $bad = _bad_theme_name( 'from', $from ) ) { return $bad }
+    if ( my $bad = _bad_theme_name( 'to',   $to ) )   { return $bad }
     return { ok => 0, kind => 'validation', error => 'The copy needs a different name' }
         if $from eq $to;
 

@@ -5,6 +5,7 @@ subtitle: "The release manager's question: most systems scope a user to their ow
 brand: plain
 standard-margins: true
 status: candidate
+status-note: "DESIGN RULED 2026-09-12, NOT BUILT, and deliberately NOT in 0.13.14. A row carries an explicit policy column - `personal` or `shared` - set by whatever creates the row, at write time; absent means shared, so existing data needs no migration and nothing is inferred from an empty `created_by`. Amending your own row's policy rides on `write_data`; amending anyone's needs `manage_data` (recommended over a new capability), which is the rule that stops a writer capturing a shared row. Handover is filed as reassignment, a third state, rather than pressed out of `shared`. BLOCKED ON [[SM860]]: until the data endpoint stamps the author, ownership would be tested against a field that is NULL wherever an app's own users wrote."
 raised: 2026-09-12
 raised-by: release manager (from the expo use case)
 area: data
@@ -88,33 +89,97 @@ Writes
 Both rest on the same unforgeable stamp, which is why this is a small feature
 rather than an access-control redesign.
 
-# What has to be decided before it is built
+# The design, as ruled 2026-09-12
 
-**1. Is the write confinement implicit in `write_data`, or a declared key?**
+The release manager's amendment, which replaces the descriptor-level
+`rows: own` this filing first proposed. It is a better design and the reason is
+worth stating: **a row's disposition is set by whatever creates the row, at the
+moment of writing, and is a field of its own.**
 
-| | For | Against |
-| --- | --- | --- |
-| Implicit (`write_data` always means own rows) | least privilege by default; nothing to forget | silently narrows a grant on any live site using `write_data` as a table-wide grant for staff |
-| Declared (`rows: own` in the descriptor) | existing apps unaffected; the intent is visible in the file | an author can forget it, and the default stays the weaker one |
+> "i dont propose null means shared, shared would be explicitely shared, and
+> rows with no field get created as shared. the time to set policy is at write,
+> so whatever is creating the row gets to say the policy. amend could be db cap
+> - update my row policy, update any row policy."
 
-**Recommended: declared, plus `lazysite check` naming every table that grants
-`write_data` without it.** Pre-stable the project prefers breaking compatibility
-over keeping legacy paths, but a silent narrowing here would break a live app's
-staff screen with no error to read - the check warning gets the visibility
-without the breakage.
+## A row carries a policy, and the policy is explicit
 
-**2. What does `(mine)` do for an anonymous viewer?** No rows, and the page
+Its own column, never inferred:
+
+| Policy | Who may write the row |
+| --- | --- |
+| `personal` | the account in `created_by`, and an operator |
+| `shared` | anyone the table already admits (`write_data` + `writable_by`) |
+
+**Absent means shared**, in both directions: a row written before this exists
+carries no policy field and reads as shared, and a writer that names no policy
+creates a shared row. So existing data keeps working unchanged and no migration
+has to guess.
+
+**What must NOT happen is inferring the policy from `created_by`.** An empty
+`created_by` already means "written anonymously by a public form" - and, until
+[[SM860]] lands, it also means "written by a signed-in account whose identity the
+data endpoint dropped". Reading shared out of that absence would give one
+representation three meanings and let a bug decide an access outcome. The policy
+column is separate and set on purpose; that is the whole point of it.
+
+## Amending a policy is a capability, not a special case
+
+Two rights, which answers "who may take a shared row private" without ad-hoc
+logic:
+
+- **my own row's policy** - carried by `write_data`, alongside writing the row
+- **any row's policy** - a stronger grant
+
+**Recommendation: the stronger right is `manage_data`, not a new capability.**
+`manage_data` already means "configure this table" and is already the operator
+grant on every data surface. A new capability has to be added to the capability
+map, the permissions grid, `describe-capabilities`, both channel gates and the
+docs - real cost, for a distinction `manage_data` already draws. If a middle
+tier is wanted later it can be minted then, against evidence.
+
+The asymmetry is deliberate and is the anti-capture rule: **a writer may give
+their own row away, never take someone else's.** Narrowing a shared row to
+personal is an amendment to a row you do not own, so it needs the stronger
+right.
+
+## Handover is reassignment, and it is not "shared"
+
+A row moving between people - intake to assessor - is not the same as a row open
+to everybody. Using `shared` for handover would leave every row that ever passed
+through two hands permanently writable by all, which is looser than the position
+this filing exists to reach. The precise verb changes the OWNER, and the accounts
+side already has both the shape and the name (`account-reassign`). Filed here as
+the third state rather than built, so `shared` is not pressed into doing it.
+
+# Still open
+
+**1. What does `(mine)` do for an anonymous viewer?** No rows, and the page
 should be gated anyway. It must not fall back to "all rows" - that is the
 failure mode this whole filing is about.
 
-**3. What if the table has no `created_by`?** `timestamps: true` is what
-supplies it. Without it, `(mine)` is an author error and should be refused by
-name at render, logged as such, not silently empty.
+**2. What if the table has no `created_by`?** `timestamps: true` is what
+supplies it. A `personal` row is untestable without it, so a table declaring
+policies needs timestamps, and `(mine)` on a table without them is an author
+error refused by name at render and logged as such - never silently empty.
 
-**4. The page cache.** Per-viewer rows cannot be cached for everyone. The
+**3. The page cache.** Per-viewer rows cannot be cached for everyone. The
 mechanism already exists - a gated page bypasses the cache - so `(mine)`
 must imply the same treatment. This is the reason the feature is not free, and
 the reason page rendering has been viewer-independent until now.
+
+**4. The consequence of a permissive default, which needs naming somewhere the
+author reads.** "Absent means shared" is right for compatibility and wrong for
+the expo case: a form handler writing applications creates SHARED rows unless it
+says otherwise, so every applicant could amend every other application - the
+exact outcome this filing was raised to prevent. **A handler that writes rows
+needs to be able to declare the policy it writes them with**, or the safe case
+is the one that takes extra work. That is a second piece of work, and it is the
+piece the expo actually depends on.
+
+**5. Existing rows are shared, so confinement protects nothing that already
+exists** - only rows written after it ships. Correct, and invisible: someone will
+assume otherwise. `lazysite check` should report, per table, how many rows carry
+no policy.
 
 # What this unblocks
 

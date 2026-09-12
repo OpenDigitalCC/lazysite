@@ -32,6 +32,11 @@ widths: 3cm | X | 6cm
 bold: 1
 tone: medium
 ---
+SM857 (b) | What does a `mine` binding show an **anonymous** viewer? | **No rows, never all rows.** The page should be gated anyway; falling back to everything is the failure this whole item exists to prevent.
+SM857 (c) | What if the table has **no `created_by`** (no `timestamps: true`)? | **Refuse at render, by name, in the log.** A `personal` row is untestable without the stamp, so a table carrying policies needs timestamps; a silently empty table reads as "no data" and is acted on as such.
+SM857 (d) | A `mine` page is **per-viewer, so it cannot be cached** for everyone. Accept that cost? | **Accept it and reuse the existing mechanism** - a gated page already bypasses the cache, and `mine` implies the same treatment. This is the reason the feature is not free and why rendering has been viewer-independent until now.
+SM857 (f) | "Absent means shared" is right for compatibility and wrong for the expo: **a form handler writing applications creates SHARED rows**, so every applicant could amend every other application. Should a handler be able to declare the policy it writes rows with? | **Yes, and it is the piece the expo actually depends on** - otherwise the safe case is the one that takes extra work. A second piece of work, after the row policy itself.
+SM857 (g) | The stronger "amend **any** row's policy" right - reuse `manage_data`, or mint a capability? | **Reuse `manage_data`.** It already means "configure this table" and is already the operator grant on every data surface; a new capability costs the map, the grid, `describe-capabilities`, both channel gates and the docs, for a distinction `manage_data` already draws.
 ```
 
 # The rate limiter as a plugin, answered
