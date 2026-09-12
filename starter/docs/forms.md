@@ -112,6 +112,40 @@ put it last among a field's rules.
 `max:N`
 : Sets `maxlength` attribute. Default is 1000 if not specified.
 
+`value:"TEXT"`
+: A default the field opens with. The visitor can change it; it is an
+  ordinary starting value, not a fixed one.
+
+`prefill:PARAM`
+: Fills the field from a **query parameter**, so a code the link already
+  carries does not have to be typed. The parameter must be declared in the
+  page's `query_params:` list - the allowlist is the gate, and a `prefill:`
+  naming a parameter the page never declared fills nothing and says so in the
+  render log. Where both are given, `value:` is the fallback and the URL wins
+  when the parameter is present.
+
+  ```markdown
+  ---
+  title: Apply
+  form: apply
+  query_params:
+    - c
+  ---
+
+  :::form
+  code | Your registration code | required max:12 prefill:c
+  name | Your name              | required
+  :::
+  ```
+
+  `/apply?c=ODX-4417` opens with the code already in the field - one tap from a
+  QR code or an emailed link.
+
+  **A prefilled value proves nothing.** It arrives from the URL, so a visitor
+  can change it exactly as they could change something they typed. Treat it as
+  what somebody claims, never as something the site has verified - if the value
+  must be trusted, check it after the submission arrives.
+
 ## Example
 
 ```markdown

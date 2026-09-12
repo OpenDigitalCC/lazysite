@@ -3427,9 +3427,19 @@ sub _serve_content_static {
     return 1;
 }
 
+# SM856: the request's DECLARED query values, for the form renderer's `prefill:`.
+#
+# The caller hands process_md a hash that has ALREADY been filtered to the page's
+# `query_params:` allowlist, which is the gate this rule relies on. It is held
+# here rather than threaded through render_content -> components -> _render_form,
+# and it is set per render so a pooled process cannot serve one visitor's value
+# to the next.
+our %RENDER_QUERY;
+
 sub process_md {
     my ( $md_path, $html_path, $md_mtime, $query ) = @_;
     $query //= {};
+    local %RENDER_QUERY = %{$query};
 
     my $raw_text = read_file($md_path);
     my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
@@ -4234,11 +4244,47 @@ sub _render_form {
             elsif ( $r =~ /^min:(\d+)/ )        { $rules{min}       = $1; }
             elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern}   = $1; }
             elsif ( $r =~ /^placeholder:(.+)/ ) { $rules{placeholder} = $1; }
+            elsif ( $r =~ /^value:(.*)/s )      { $rules{value}       = $1; }
+            elsif ( $r =~ /^prefill:(\S+)/ )    { $rules{prefill}     = $1; }
         }
         my $ph_attr = '';
         if ( defined $rules{placeholder} ) {
             my $ph = _esc_attr( $rules{placeholder} );
             $ph_attr = qq( placeholder="$ph");
+        }
+
+        # SM856: THE FIELD CAN CARRY A VALUE, and where it comes from is gated.
+        #
+        # `value:"..."` is a literal default. `prefill:<param>` takes the value of
+        # a query parameter and is REFUSED unless the page declares that
+        # parameter in `query_params:` - the allowlist is the gate, so prefill
+        # reaches nothing the page has not already admitted, and an undeclared
+        # parameter is an author error said out loud rather than an empty field
+        # nobody can explain. A parameter that IS declared but absent from this
+        # request leaves the literal standing.
+        #
+        # Escaped with _esc_attr, as placeholder, pattern and accept are: the
+        # value is visitor-controllable and must not be able to leave the
+        # attribute. It is also not a trust elevation - a prefilled value proves
+        # nothing that a typed one would not.
+        my $val_attr = '';
+        my $value    = $rules{value};
+        if ( defined $rules{prefill} ) {
+            my $p = $rules{prefill};
+            my @declared = @{ ( ref $meta->{query_params} eq 'ARRAY' ) ? $meta->{query_params} : [] };
+            if ( grep { $_ eq $p } @declared ) {
+                $value = $RENDER_QUERY{$p} if defined $RENDER_QUERY{$p} && length $RENDER_QUERY{$p};
+            }
+            else {
+                log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                    'form prefill names an undeclared query parameter',
+                    field => $name, param => $p,
+                    hint  => "add it to the page's query_params: list" );
+            }
+        }
+        if ( defined $value && length $value ) {
+            my $v = _esc_attr($value);
+            $val_attr = qq( value="$v");
         }
 
         my $req_attr = $rules{required} ? ' required' : '';
@@ -4258,8 +4304,12 @@ sub _render_form {
                 . $acc . $mult . qq($req_attr>\n);
         }
         elsif ( $rules{textarea} ) {
+            # A textarea carries its value as CONTENT, not an attribute - and it
+            # is escaped as text, not as an attribute, or a `<` in a prefilled
+            # value would open a tag inside the field (SM856).
+            my $ta = ( defined $value && length $value ) ? _esc_html($value) : '';
             $field_html = qq(    <textarea name="$name" id="$name")
-                . qq( maxlength="$max"$ph_attr$req_attr></textarea>\n);
+                . qq( maxlength="$max"$ph_attr$req_attr>$ta</textarea>\n);
         }
         elsif ( $rules{select} ) {
             $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
@@ -4330,7 +4380,7 @@ sub _render_form {
                 $attrs .= qq( pattern="$pat");
             }
             $field_html = qq(    <input type="$type" name="$name" id="$name")
-                . $attrs . $ph_attr . qq($req_attr>\n);
+                . $attrs . $ph_attr . $val_attr . qq($req_attr>\n);
         }
 
         push @{ $steps[-1]{fields} }, qq(  <div class="form-field">\n)
