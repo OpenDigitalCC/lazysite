@@ -215,6 +215,29 @@ sub main {
         require Lazysite::Manager::Data;
         local $Lazysite::Manager::Data::DOCROOT = $docroot;
 
+        # SM860: THE ACTOR, from the identity this endpoint has already proved.
+        #
+        # `our $auth_user = ''` in Manager::Data is a declaration that says "set
+        # by each surface". lazysite-manager-api.pl and lazysite-mcp.pl set it;
+        # this file did not - so action_data_row_save passed the empty default,
+        # Tables::_stamp resolved it to undef, and every row written through the
+        # endpoint an app's own users write through recorded NO AUTHOR.
+        #
+        # That is not a blank field. _stamp's contract is that an empty
+        # created_by means "the writer was not a signed-in account (a public
+        # form): an absence, never a guess" - so absence MEANS anonymous, and a
+        # signed-in account's row was making a false claim about itself.
+        #
+        # $user, never the request: it is the verified session's account, the
+        # same value the trusted headers above are rebuilt from. Empty for an
+        # anonymous caller, which is the one case that SHOULD record nobody -
+        # and the POST branch refuses those before this matters.
+        #
+        # AFTER the require, not before: assigning a package global that the
+        # module has not loaded yet is overwritten by its own `our` at compile
+        # time, which is a silent no-op.
+        local $Lazysite::Manager::Data::auth_user = $user;
+
         # THE CAPABILITY, resolved for the verified account. `writable=` on a
         # page cannot reach here and does not try; this is the only gate.
         require Lazysite::Auth::Settings;
