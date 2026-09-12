@@ -4896,12 +4896,34 @@ sub convert_dt_links {
 
 sub convert_p_links {
     my ($html) = @_;
-    # Convert unprocessed Markdown links inside <p> tags after TT rendering.
+    # Convert unprocessed Markdown links in TEXT after TT rendering.
     # Markdown links containing TT variables in the URL are parsed by
     # MultiMarkdown before TT runs, which strips the TT content from the URL.
     # After TT has resolved all variables, this pass converts any remaining
-    # Markdown link syntax in paragraph content to HTML anchor tags.
+    # Markdown link syntax in text content to HTML anchor tags.
+    #
+    # SM853: IN TEXT, WHICH IS NOT EVERYWHERE, and the name said `<p>` while the
+    # pattern said the whole document. `x[i](y)` is ordinary JavaScript and
+    # ordinary code prose, and this pass turned it into an anchor wherever it
+    # appeared - inside <script>, <style>, <code>, <pre> and even inside an
+    # attribute value. The Handlers page shipped in 0.13.13 with
+    # `BUILD[listId](key)` in its only script: the anchor broke the parse of the
+    # whole 26KB script, so every list stayed at "Loading..." and every button
+    # was inert, with nothing in any log. The page was correct; this pass ate it.
+    #
+    # So the pass now runs on text alone. Script, style, pre and code spans come
+    # out first, then every remaining tag - which is what keeps an attribute
+    # value out of reach as well - and both go back afterwards. The placeholder
+    # carries NULs, a byte no HTML document and no link target contains.
+    my @raw;
+    $html =~ s{(<(script|style|pre|code)\b[^>]*>.*?</\2\s*>)}{
+        push @raw, $1; "\0RAW" . $#raw . "\0"
+    }gsei;
+    $html =~ s{(<[^>]+>)}{ push @raw, $1; "\0RAW" . $#raw . "\0" }ge;
+
     $html =~ s{\[([^\]]+)\]\(([^)]+)\)}{<a href="$2">$1</a>}g;
+
+    $html =~ s{\0RAW(\d+)\0}{ $raw[$1] }ge;
     return $html;
 }
 

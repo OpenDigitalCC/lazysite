@@ -43,6 +43,17 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM853 (PENDING) **the page a browser receives is the page the author wrote.**
+  The post-TT link pass was documented as converting Markdown links inside `<p>`
+  and its pattern ran over the whole rendered document, so `x[i](y)` became an
+  anchor wherever it sat - in a script, a style, inline code, a fenced code
+  sample, even an attribute. 0.13.13 shipped the **Handlers page dead** because
+  of it: one anchor spliced into `BUILD[listId](key)` stopped its 26KB script
+  parsing, so every panel sat at *Loading...* and every button was inert, with
+  nothing in any log. Found from the browser by the site agent in the 1313E pass.
+  The pass now converts text only. `t/lint/136` renders every manager page and
+  runs each inline script through a real JavaScript parser, because the source
+  was correct and only the served page was broken.
 
 ## 0.13.13 - EDGE: one way to deliver, and every path finds a moved engine tree (2026-09-11)
 
