@@ -1018,7 +1018,37 @@ sub _submissions_path {
 sub _submission_row_id { substr( sha256_hex( $_[0] ), 0, 16 ) }
 
 sub action_form_submissions {
-    my ($file) = @_;
+    my ( $file, $form ) = @_;
+
+    # SM862: THE FORM NAME IS AN ACCEPTED WAY TO ASK, and an absent parameter is
+    # named rather than called invalid.
+    #
+    # This took `file` only - a relative path ending .jsonl inside a configured
+    # store - so `form=<name>`, which is what MCP's read_form_submissions takes
+    # and what `form-targets-read` takes on this very channel, arrived as no
+    # parameter at all. _submissions_path then failed its .jsonl test and
+    # answered "Invalid submissions file": a MISSING parameter reported as a BAD
+    # VALUE, which sent a site agent looking at a value it had never sent. The
+    # fourth time in one campaign (SM773's family).
+    #
+    # Resolved through Handlers, the same resolver MCP uses, so the two channels
+    # cannot disagree about where a form's submissions live. RELATIVE, because
+    # _submissions_path needs the configured directory rather than an absolute
+    # path - which is the distinction SM855 split form_store_dir and
+    # form_store_file apart for.
+    if ( !( defined $file && length $file ) && defined $form && length $form ) {
+        my $dir = _handlers_module()->can('form_store_dir')->($form);
+        $file = "$dir/$form.jsonl" if defined $dir && length $dir;
+    }
+
+    # NEITHER SENT. Answered by name, before the path validator gets a chance to
+    # describe an absence as a malformed value.
+    return { ok => 0, kind => 'missing-parameter',
+        error => 'No submissions named. Pass `form` with the form\'s name, or '
+            . '`file` with the path to its .jsonl store - `form` is the one to '
+            . 'reach for, and is what the MCP tool takes.' }
+        unless defined $file && length $file;
+
     my ( $abs, $rel, $err ) = _submissions_path($file);
     return { ok => 0, error => $err } if $err;
     return { ok => 1, file => $rel, columns => [], rows => [], total => 0, shown => 0 }

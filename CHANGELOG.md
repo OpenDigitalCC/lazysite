@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM862 (PENDING) **reading submissions names the parameter it wants, and takes
+  a form name.** `form-submissions` took `file` only, so `form=<name>` - what
+  the MCP twin takes, and what `form-targets-read` takes on the same channel -
+  arrived as no parameter, failed the path validator's `.jsonl` test and came
+  back as `Invalid submissions file`: an absence reported as a bad value, about
+  a value the caller never sent. A form name now resolves through the same
+  resolver MCP uses, and when neither parameter arrives the refusal names both
+  with `kind: missing-parameter`. `file` still works and still wins.
+
 - SM855 (PENDING) **MCP reads a form's submissions from the store that form is
   bound to.** `read_form_submissions` built the default path from the form name,
   so a form whose file handler names its own `path:` was read from a file that

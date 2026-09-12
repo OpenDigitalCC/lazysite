@@ -2447,7 +2447,10 @@ elsif ( $action eq 'form-targets-read' ) {
     $result = Lazysite::Handlers::action_form_targets_read( $params{form} );
 }
 elsif ( $action eq 'form-submissions' ) {
-    $result = action_form_submissions( $params{file} );
+    # SM862: `form` as well as `file`. MCP's twin takes a form name and this did
+    # not, so the reasonable call answered "Invalid submissions file" about a
+    # parameter that had never been sent.
+    $result = action_form_submissions( $params{file}, $params{form} );
 }
 elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
     $result = action_form_list();

@@ -171,7 +171,20 @@ our %ACTION = (
     'form-submission-delete' => { caps => undef, params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
     # SM652: manage_forms is definition-only now; reading a submission needs
     # the least-privilege capability built for it.
-    'form-submissions' => { caps => ['read_submissions'], params => [ { name => 'file', in => 'query' } ] },
+    # SM862: `form` is the one to reach for - it is what the MCP twin and
+    # form-targets-read take - and `file` stays for a store named by path.
+    # Neither is marked required: exactly one is needed, and the action answers
+    # for that by name rather than letting the path validator call an absence a
+    # malformed value.
+    'form-submissions' => {
+        caps   => ['read_submissions'],
+        params => [
+            { name => 'form', in => 'query',
+                note => 'the form\'s name; its store is resolved from the handler it binds to' },
+            { name => 'file', in => 'query',
+                note => 'the path to a .jsonl store, when naming one directly; `form` is preferred' },
+        ],
+    },
     'form-submissions-delete-bulk' => { caps => undef, params => [ { name => 'file', in => 'query_or_body' }, { name => 'ids', in => 'body' } ] },
     # SM842: a form's targets name handlers and nothing else, on the token
     # channel as on every other.
