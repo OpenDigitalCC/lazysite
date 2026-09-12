@@ -2703,6 +2703,21 @@ sub _onboarding_brief {
     my @mcaps      = sort keys %held;
     my $mcaps_yaml = join "\n", map { "  - $_" } @mcaps;
 
+    # SM859: AND THE BRIEF SAYS WHAT IT LEFT OUT.
+    #
+    # Deleting the channels above is deliberate, and silent - while `webdav`
+    # stays in the list, though it gates a surface exactly as api and mcp do. So
+    # a grant holding webdav, api, mcp and manage_content was briefed as holding
+    # two, and a partner comparing its brief with whoami found a difference with
+    # nothing to explain it. The site agent read it as capabilities added since
+    # the brief was minted; they had not been.
+    #
+    # Not by relitigating SM086 - the split is fine - but by stating it: the
+    # channels are named with the value the grant actually has, beside the
+    # authority list, and whoami is named as the live answer.
+    my $channels_yaml = join "\n",
+        map { sprintf '  %s: %s', $_, ( $s->{$_} ? 'true' : 'false' ) } qw(ui api mcp);
+
     # And the prose list must not be shorter than the truth. Anything held that
     # has no sentence above gets named plainly rather than omitted: an
     # unexplained capability in the list is a question the partner can ask, and
@@ -2833,6 +2848,13 @@ auth:
   scheme: basic                 # username = partner (this id), password = token
 capabilities:
 $mcaps_yaml
+channels:
+  # WHERE you may connect, as against what you may do. Listed apart from the
+  # capabilities above because that is how this engine models them (SM086) -
+  # `webdav` sits above because it is a capability that happens to gate a
+  # surface. This block is a snapshot taken when the brief was minted;
+  # `whoami` is the live answer and wins wherever the two differ.
+$channels_yaml
 scope:
   allow: ["$allow"]
   deny: ["/cgi-bin/", "/manager/", "/lazysite/auth/",

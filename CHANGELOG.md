@@ -73,6 +73,15 @@ Naming the commit: AFTER it lands, never before
   The pass now converts text only. `t/lint/136` renders every manager page and
   runs each inline script through a real JavaScript parser, because the source
   was correct and only the served page was broken.
+- SM859 (PENDING) **a partner's brief accounts for every capability its grant
+  holds.** The capability list is derived from the same keys `whoami` answers
+  from, and then `ui`, `api` and `mcp` were deleted as channels rather than
+  authority - silently, while `webdav` stayed, though it gates a surface in the
+  same way. A grant holding four was briefed as holding two, and the site agent
+  read the difference as capabilities added since the brief was minted. The
+  brief now carries a `channels:` block naming each with the value the grant
+  has, why they sit apart, and that `whoami` is the live answer.
+
 - SM856 (PENDING) **a form field can carry a value, so a code the link already
   holds is not retyped.** `query_params:` puts a URL value on the page and a page
   could print it, branch on it or head a section with it - and the form renderer
