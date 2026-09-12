@@ -43,6 +43,45 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM868 (PENDING) **a prefilled form value is escaped once.** `query_params`
+  values are escaped as they are parsed - they become the `query.*` stash, so
+  they must be - and SM856's prefill sink escaped them again, so
+  `?code=Smith %26 Sons` reached the browser as `Smith &amp;amp; Sons` and
+  displayed as entity text. Nothing was exposed (over-escaping is safe, which is
+  why the original tests could not see it: they asserted the value arrived and
+  that a payload did not execute, and both hold when it is escaped twice, and the
+  fixtures used alphanumerics, which are a fixed point of HTML escaping). The
+  sink now escapes the raw source only. Found on edge by the site agent the day
+  the feature shipped. [[SM869]] carries the robust refactor.
+
+- SM863 (PENDING) **a claim link says whether it can be sent, and the account
+  that was created is named.** With no absolute `site_url` - or with
+  `https://${SERVER_NAME}`, which is correct for a multi-host site and collapses
+  on the command line - the link was a bare `/claim?u=...` printed under "send
+  this single-use self-service link". Both causes now say which applies and name
+  the setting; the fallback itself stays, because guessing a hostname inside a
+  credential-bearing URL would send someone to the wrong host. On the API, `url`
+  is absolute or absent and `path` always carries the relative form. The same
+  block said "Manager account created" - SM659 residue, a sentence about a role
+  that reads as a name - and now names the account and the group.
+
+- SM870 (PENDING) **a form that does not exist is not an empty one.** Asking for
+  the submissions of an unknown form answered `ok: true, total: 0`, naming a
+  `.jsonl` never created, because an unknown name resolves to the default store
+  and an absent file reads as empty. The operator approving registrations reads
+  by form name, so a renamed or mistyped form said nobody had registered. Now
+  404 `not-found`, naming the form; a form that exists with no submissions yet
+  still reads as empty.
+
+- SM864 (PENDING) **the Hestia first-run stops announcing work it has not done.**
+  The deploy script called `setup-manager`, removed by SM659 with no alias, and
+  never checked the status - so a fresh install printed "first-run manager
+  setup", created nothing, and repeated on every later deploy. It no longer runs
+  a bootstrap: `setup-sysop` requires a name and a deploy cannot know who the
+  first person is, so it says there are no accounts and prints the command.
+  `t/lint/138` now checks every shipped installer, README and runbook against
+  the dispatcher.
+
 - SM866 (PENDING) **the Groups page shows `Display Name (group-name)` again.**
   SM665 had moved the group's internal name into the row's tooltip, reasoning
   that in a list of groups it was the same word twice - which is not so
