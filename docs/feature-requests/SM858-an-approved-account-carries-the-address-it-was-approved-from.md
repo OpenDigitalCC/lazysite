@@ -4,7 +4,8 @@ title: "SM858: an approved registration carries no email, so the person it was c
 subtitle: "`account-approve` creates the account, places it in the flagged groups and mints a claim link - and records no address, so the operator must carry the link by hand and `forgot` can never resolve that account afterwards. The self-service the release manager asked for is `forgot`, which already exists and is already safe; what is missing is the one field it needs."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
+status-note: "PARTIAL, BUILT 2026-09-12 for 0.13.14. `account-approve --email` records the address through cmd_set (validated BEFORE anything is created, so a typo leaves no credential-less account), and the API passes it through - which turns the self-service half on, because `forgot` then resolves that address and emails a fresh link to the mailbox on the account. FOUND WHILE BUILDING: the CLI command did not exist at all - the usage text has described account-approve since SM673 and the ladder never dispatched it, so the operator route that filing named was the API alone. Dispatched now, with --email and --group. t/lint/88 reads both tools' usage the other way round, which is the check that would have caught it and which its own header claimed to do. REMAINING: approval from a button on the Submissions view, which needs the form to declare `account_email:` - until then the operator passes the address rather than the system reading it off the submission."
 raised: 2026-09-12
 raised-by: release manager (expo loop)
 area: auth

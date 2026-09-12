@@ -73,6 +73,29 @@ Naming the commit: AFTER it lands, never before
   The pass now converts text only. `t/lint/136` renders every manager page and
   runs each inline script through a real JavaScript parser, because the source
   was correct and only the served page was broken.
+- SM856 (PENDING) **a form field can carry a value, so a code the link already
+  holds is not retyped.** `query_params:` puts a URL value on the page and a page
+  could print it, branch on it or head a section with it - and the form renderer
+  had no `value` attribute and no rule that would set one, so the one place the
+  value was needed was the one place it could not go. Two rules: `value:"..."`
+  for a literal default, and `prefill:<param>`, **refused unless the page
+  declares that parameter in `query_params:`** - the allowlist is the gate, and
+  an undeclared parameter fills nothing and says so in the render log. Escaped
+  where it lands: an attribute escape for an input, a text escape for a
+  textarea, whose value is content. A prefilled value is visitor-controllable
+  exactly as a typed one is, and the documentation says so in those words.
+
+- SM858 partial (PENDING) **an approved registration carries the address it came
+  from - and `account-approve` exists at the terminal.** Approval recorded no
+  email, so `forgot` could never resolve an approved account and the claim link
+  handed to the operator was the only way in, for ever; `--email` records it
+  through the one writer of that setting, validated before anything is created
+  so a typo leaves no half-made account. The CLI command itself had never been
+  dispatched, though the usage text has described it since SM673 - so the
+  operator route that filing named was the API alone. `t/lint/88` now reads a
+  tool's usage the other way round: every command `--help` describes must be one
+  the ladder dispatches, which is the check its own header claimed to make.
+  Approving from a button on the submission is still to come.
 
 ## 0.13.13 - EDGE: one way to deliver, and every path finds a moved engine tree (2026-09-11)
 
