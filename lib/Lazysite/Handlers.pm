@@ -195,6 +195,50 @@ sub store_path {
     return $abs // "$DOCROOT/$r";
 }
 
+# SM855: WHERE THIS FORM'S SUBMISSIONS ARE - one answer, for every reader.
+#
+# A form's store is not "the default directory": it is the path of the file
+# handler the form is bound to, and that handler may name its own (`path:`). The
+# control API's form-list worked this out inline, and MCP's read_form_submissions
+# did not - it built "lazysite/forms/submissions/<form>.jsonl" and answered
+# `ok: true, total: 0` for a store it had not looked at, naming a file that was
+# not the store. The site agent found it with a row sitting in the real one.
+#
+# Returns the absolute .jsonl path, or undef when there is no docroot to resolve
+# against. A form with no file handler has no store, and that is said by
+# returning the DEFAULT location, which the caller then finds absent - the same
+# answer as a form that has simply had no submissions.
+# The store DIRECTORY as configured - relative, as handlers.conf writes it.
+# Readers that confine a path (the submissions readers check it against the
+# configured stores) need the relative form; form_store_file below resolves it.
+sub form_store_dir {
+    my ($form) = @_;
+    my $dir = 'lazysite/forms/submissions';
+    return $dir unless defined $form && length $form;
+    my $fc = form_file($form);
+    if ( defined $fc && -f $fc ) {
+        my $text = _slurp( $fc, "form $form" );
+        if ( defined $text ) {
+            my ($ids) = parse_form_conf($text);
+            my $list = read_handlers() || [];
+            for my $id ( @{ $ids || [] } ) {
+                my $h = find_handler( $list, $id ) or next;
+                next unless ( $h->{type} // 'file' ) eq 'file';
+                $dir = $h->{path} if defined $h->{path} && length $h->{path};
+                last;
+            }
+        }
+    }
+    return $dir;
+}
+
+sub form_store_file {
+    my ($form) = @_;
+    return undef unless defined $form && length $form;
+    my $abs = store_path( form_store_dir($form) ) // return undef;
+    return "$abs/$form.jsonl";
+}
+
 # --- the one parser ----------------------------------------------------------
 #
 # The file shape is the one sysops have always hand-written, so it is read

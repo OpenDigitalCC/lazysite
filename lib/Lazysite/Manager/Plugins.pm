@@ -885,14 +885,12 @@ sub action_form_list {
 
         # submissions store: the file-target handler's path (default submissions/)
         # + <name>.jsonl. Count non-blank lines; never read the content.
-        my $store_dir = 'lazysite/forms/submissions';
-        for my $id (@hids) {
-            my $h = $by_id{$id} or next;
-            next unless ( $h->{type} // 'file' ) eq 'file';
-            $store_dir = $h->{path} if defined $h->{path} && length $h->{path};
-            last;
-        }
-        my $store = Lazysite::Handlers::store_path($store_dir) . "/$name.jsonl";
+        #
+        # SM855: through Handlers::form_store_file, which is this logic moved
+        # where both readers can reach it - MCP's read_form_submissions had its
+        # own version that knew only the default directory, and answered an empty
+        # success for a store this listing was already reporting as present.
+        my $store = Lazysite::Handlers::form_store_file($name) // '';
         my ( $has, $rows ) = ( JSON::PP::false, 0 );
         if ( -f $store && open my $sf, '<', $store ) {
             $has = JSON::PP::true;

@@ -43,6 +43,15 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM855 (PENDING) **MCP reads a form's submissions from the store that form is
+  bound to.** `read_form_submissions` built the default path from the form name,
+  so a form whose file handler names its own `path:` was read from a file that
+  was not its store - and answered `ok: true, total: 0`, an empty success naming
+  that file, while `form-list` reported the row in the real one. The rule now
+  lives once in `Lazysite::Handlers` (`form_store_dir`/`form_store_file`) and
+  both readers call it. Found in the 1313E pass; the same shape as SM768, where a
+  wrong-place read was reported as nothing there.
+
 - SM854 (PENDING) **the refusals an agent meets most carry their status.**
   SM670 derives the status from a refusal's `kind` and defaults to 400, and the
   dispatch gates set no kind: an action the account may not call and an action
