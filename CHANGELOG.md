@@ -43,6 +43,16 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM854 (PENDING) **the refusals an agent meets most carry their status.**
+  SM670 derives the status from a refusal's `kind` and defaults to 400, and the
+  dispatch gates set no kind: an action the account may not call and an action
+  name the server does not recognise both answered 400 - a permission problem
+  and a spelling problem, indistinguishable. Nine access-path refusals now carry
+  a kind that already existed, so they answer 403, 404, 413 or 429 as they
+  always meant to; every wording is unchanged and a validation refusal still
+  answers 400. `Invalid credentials` (401), `must be sent as POST` (405) and the
+  bootstrap refusal stay open, because each needs a status the map does not have.
+
 - SM853 (PENDING) **the page a browser receives is the page the author wrote.**
   The post-TT link pass was documented as converting Markdown links inside `<p>`
   and its pattern ran over the whole rendered document, so `x[i](y)` became an

@@ -282,7 +282,7 @@ my @REQUEST_SCOPES;          # SM158: the request's resolved dav_scopes (union),
             # reaches the same endpoint and is unaffected (it is gated by
             # `manager:`). Default off; opt in from the Services page.
             unless ( Lazysite::Util::service_enabled( $DOCROOT, 'control_api_enabled' ) ) {
-                _bail( { ok => 0, code => 'service_disabled',
+                _bail( { ok => 0, code => 'service_disabled', kind => 'disabled',
                         error => 'The control API (token access) is not '
                             . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
             }
@@ -507,13 +507,13 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         if ( $len > $max ) {
             log_event( 'WARN', 'file-upload', 'upload too large',
                 size => $len, max => $max, user => $auth_user );
-            _bail( { ok => 0,
+            _bail( { ok => 0, kind => 'too-large',
                     error => "Upload exceeds limit of "
                         . int( $max / 1024 / 1024 ) . " MB" } );
         }
         my $rate = check_upload_rate( $auth_user, $len );
         unless ( $rate->{ok} ) {
-            _bail( { ok => 0, error => $rate->{error} } );
+            _bail( { ok => 0, kind => 'rate', error => $rate->{error} } );
         }
     }
 
@@ -567,7 +567,7 @@ if ( $method eq 'POST' && !$token_auth ) {
         result => $valid ? 'ok' : 'fail' );
 
     unless ($valid) {
-        _bail( { ok => 0, error => 'Invalid or missing CSRF token' } );
+        _bail( { ok => 0, kind => 'forbidden', error => 'Invalid or missing CSRF token' } );
     }
 }
 
@@ -958,7 +958,8 @@ if ($token_auth) {
     # exempt (see above). Audited when it fires.
     if ( $token_caps{manager_ui} && $token_caps{ui} && !$introspection{$action} ) {
         _refuse(
-            { ok => 0, error => "This account can use the interactive manager UI, "
+            { ok => 0, kind => 'forbidden',
+                error => "This account can use the interactive manager UI, "
                     . "which is interactive-only: it cannot be driven over the API or MCP. "
                     . "Use a dedicated agent account (api/mcp capabilities, interactive login "
                     . "disabled) instead." },
@@ -975,7 +976,8 @@ if ($token_auth) {
     # it lacks the channel, per the SM072 introspection contract.
     unless ( $token_caps{api} || $introspection{$action} ) {
         _refuse(
-            { ok => 0, error => "The 'api' capability is required to use the "
+            { ok => 0, kind => 'permission',
+                error => "The 'api' capability is required to use the "
                     . "control API. Ask the operator to grant the api capability to your "
                     . "account's group." },
             'api', 'denied: api channel capability' );
@@ -1257,7 +1259,7 @@ if ($token_auth) {
             # "not built" and one that says "held back, and here is the
             # argument".
             my $why = $COOKIE_ONLY_REASON{$action};
-            respond( { ok => 0,
+            respond( { ok => 0, kind => 'forbidden',
                     error => "Action not available to token clients: $action_as_sent. It "
                         . 'exists, but is served only to the manager UI over a cookie '
                         . 'session'
@@ -1266,7 +1268,7 @@ if ($token_auth) {
                         . 'over this channel.' } );
         }
         else {
-            respond( { ok => 0,
+            respond( { ok => 0, kind => 'not-found',
                     error => "Unrecognised action name: '$action_as_sent'. This is not an "
                         . 'action - check the spelling and the query string (a '
                         . 'doubled "action=" is the usual cause). Call '
@@ -1290,7 +1292,7 @@ if ($token_auth) {
         my $d     = $need_caps{$action};
         my $names = ref $d ? join( ' or ', @$d ) : '';
         _refuse(
-            { ok => 0,
+            { ok => 0, kind => 'permission',
                 error => "Insufficient capability for $action"
                     . ( length $names ? " (needs $names)" : '' )
                     . ". Call describe-capabilities to see what your account "
