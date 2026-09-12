@@ -60,11 +60,40 @@ If a site ever genuinely needs unattended registration - a community, a
 directory, a customer portal - this is what it costs, and the honest order is to
 run SM673 first and find out how often the human step actually bites.
 
+# The release manager's framing, 2026-09-12
+
+Asked whether the expo could have self-service registration, the release
+manager described the attended loop as **minimum viable** and this one as the
+ideal, in these terms:
+
+> "the ideal is that the operator step is automatic (if enabled) and adds to
+> pre-set groups - and certainly beyond what we do on this build."
+
+Three things in that sentence are worth holding on to, because they answer
+questions this filing left open:
+
+- **"if enabled"** - a switch, off by default, which is the posture every other
+  public surface in this engine takes (the control API, MCP, WebDAV, the URL
+  remapper all ship off). It is also what keeps this from reaching a site that
+  never asked for it.
+- **"adds to pre-set groups"** - the group question this filing calls the
+  security crux is answered the way [[SM673]] answered it: the groups an
+  operator has FLAGGED, on the Groups page, where they can see what each grants
+  while deciding. No new mechanism is needed; the same flag serves both flows.
+- **"beyond what we do on this build"** - explicitly deferred, so the attended
+  flow ships first and the human step gets a chance to prove how often it bites,
+  which is the sequencing this filing recommended.
+
+What that leaves genuinely open for this filing, unchanged: email verification
+before an account is usable, a bound on unattended creation, and bulk undo.
+
 # Related
 
-[[SM673]] (the attended flow, which this presumes), SM268 (minting credentials
-as a human operation - this removes the human entirely, and should be read as
-overturning that ruling rather than qualifying it), [[SM232]] (subject-scoped
-export and erasure - the personal-data half of bulk removal).
+[[SM673]] (the attended flow, which this presumes), [[SM858]] (the address an
+approved account carries, which unattended creation would also need), SM268
+(minting credentials as a human operation - this removes the human entirely, and
+should be read as overturning that ruling rather than qualifying it),
+[[SM232]] (subject-scoped export and erasure - the personal-data half of bulk
+removal).
 
 # Not started
