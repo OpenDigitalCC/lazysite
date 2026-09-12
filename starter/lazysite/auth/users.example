@@ -1,7 +1,27 @@
-# lazysite demo users - copy to 'users' to enable auth
+# lazysite users - the FILE FORMAT, for a sysop writing this store by hand.
+#
+# THIS FILE IS NOT COPIED BY THE INSTALLER, and no account here is real.
+# Until SM865 the installer seeded `users` from this file, and this file named
+# an account called `manager` with no password, in the lazysite-admins group -
+# so every fresh install came with a passwordless admin login nobody had asked
+# for. A fresh install now has no accounts at all, which is deliberate: make
+# the first one with
+#
+#   lazysite-users.pl --docroot <docroot> setup-sysop --user <name>
+#
+# which names the person, issues a single-use link for them to set their own
+# password, and records who created the account. Prefer it to editing this
+# store: it keeps the audit trail naming a person rather than a role.
+#
 # Format: username:sha256hex(password)
 # Generate a hash: echo -n 'password' | sha256sum | cut -d' ' -f1
-# An empty password field means the account has no password set.
-# Such accounts can only sign in from localhost (127.0.0.1, ::1)
-# and will see a warning prompting them to set one.
-manager:
+#
+#   alice:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
+#
+# AN EMPTY PASSWORD FIELD means the account has no password set. Such an
+# account can sign in ONLY from localhost (127.0.0.1, ::1) and is refused
+# everywhere else with the same answer a wrong password gets, so it cannot be
+# used to discover that the account exists (SM798). It is a local bootstrap
+# state, not a way to leave an account open:
+#
+#   alice:

@@ -43,6 +43,22 @@ Naming the commit: AFTER it lands, never before
   paragraph came to be written.
 
 ## Unreleased
+- SM865 (PENDING) **a fresh install creates no account, and says how to make
+  one.** The installer seeded `lazysite/auth/users` and `auth/groups` from their
+  `.example` files, and `users.example` shipped exactly one entry - `manager:`,
+  with `groups.example` putting it in `members` and `lazysite-admins`. So every
+  new site came with a passwordless account in an admin group. It was never
+  reachable from outside (a no-password login is refused off localhost, and
+  refused indistinguishably from a wrong password since SM798), but it is the
+  shared role account SM659 deliberately removed from `setup-sysop` - so the two
+  halves of the codebase disagreed, and the installer's half won on every fresh
+  site. The seeding is gone; the next-steps text now opens with
+  `setup-sysop --user <name>` and says there is no default login; both example
+  files are now format documentation with placeholder names. An existing
+  `manager` account is left alone - an upgrade never touched it and still does
+  not, because an installer that deletes a login nobody asked it to delete is
+  worse than the account.
+
 
 ## 0.13.14 - EDGE: the page the author wrote, and an answer that names what happened (2026-09-12)
 

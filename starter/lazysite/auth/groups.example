@@ -1,4 +1,19 @@
-# lazysite demo groups - copy to 'groups' to enable group-based access
+# lazysite groups - the FILE FORMAT, for a sysop writing this store by hand.
+#
+# THIS FILE IS NOT COPIED BY THE INSTALLER, and no group or member here is
+# real. Until SM865 the installer seeded `groups` from this file, which put an
+# account called `manager` into lazysite-admins on every fresh install - see
+# users.example for what that meant.
+#
+# You will not usually write this by hand. `setup-sysop` creates the admin
+# group and the role and capability groups it needs, and the Groups page in the
+# manager is where membership and capabilities are set, where the grant of each
+# group can be seen while deciding.
+#
 # Format: groupname: user1, user2
-members: manager
-lazysite-admins: manager
+#
+#   members: alice, bob
+#   editors: alice
+#
+# A group grants nothing by itself: capabilities are held in group settings
+# (the Groups page), not here. This file records MEMBERSHIP only.

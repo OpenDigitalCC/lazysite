@@ -1503,25 +1503,32 @@ sub post_install_steps {
         rmdir $od if -d $od;    # only succeeds if empty
     }
 
-    # --- auth users/groups: seed from .example on fresh install ---
+    # --- auth users/groups: NOT seeded. SM865. ---
     #
-    # Runtime state. Not tracked in .install-state.json. On upgrade
-    # the live files are left alone (sysop-edited); we do nothing.
-    if ( $mode eq 'fresh' ) {
-        for my $f (qw(users groups)) {
-            my $src = lazysite_dir_for($docroot) . "/auth/$f.example";
-            my $dst = lazysite_dir_for($docroot) . "/auth/$f";
-            if ( -f $src && !-f $dst ) {
-                File::Copy::copy( $src, $dst )
-                    or die "Could not seed auth/$f: $!\n";
-                # 0660, not 0640: the auth store is co-managed by the CLI
-                # users tool (site user) and the www-data CGI (setgid auth
-                # dir); without group-write the manager cannot save users.
-                chmod 0660, $dst;
-                info("  seeded:    lazysite/auth/$f (from $f.example)");
-            }
-        }
-    }
+    # This copied auth/users and auth/groups from their .example files on a
+    # fresh install, and users.example shipped exactly one entry - `manager:` -
+    # with groups.example placing it in `members` AND `lazysite-admins`. So
+    # every new site came with a passwordless account in an admin group.
+    #
+    # The trailing colon means no password, and lazysite-auth.pl refuses a
+    # no-password login unless REMOTE_ADDR is 127.0.0.1 or ::1, so it was never
+    # reachable from outside. It is still the shared role account SM659
+    # deliberately removed from setup-sysop - "role accounts are how people end
+    # up sharing a password, and the audit trail then says `manager` did
+    # everything". The installer's half of that argument was winning on every
+    # fresh install, which is the disagreement this removes.
+    #
+    # NOTHING REPLACES IT, and that is the point. SM659 settled that a site with
+    # no accounts is a coherent state rather than a half-built one - "deploying
+    # with no accounts is fine" - because deployment and first user are separate
+    # steps. `setup-sysop --user NAME` is the one route, and print_next_steps
+    # now names it so the absence is stated rather than discovered.
+    #
+    # An UPGRADE was already untouched here (the block was fresh-only and
+    # guarded on !-f), and an existing `manager` account is left exactly where
+    # it is: an operator may be signing in with it, and an installer that
+    # deletes a login nobody asked it to delete is worse than the account.
+    # lazysite-check is the place to name it - see SM865.
 
     # --- nav.conf: seed from .example on fresh install ---
     if ( $mode eq 'fresh' ) {
@@ -2322,13 +2329,22 @@ sub print_next_steps {
     my $LAZYSITE_SHOWN = lazysite_dir_for($docroot);
     print STDERR <<"TEXT";
 Next steps:
-  1. Install a layout + theme via the manager UI at /manager/themes.
+  1. Create the first account. A fresh install has NO accounts - that is
+     deliberate, not a missing step, and there is no default login:
+
+       sudo -u <site user> perl $docroot/../tools/lazysite-users.pl \\
+            --docroot $docroot setup-sysop --user <name>
+
+     It prints a single-use link for that person to set their own password,
+     so no password is chosen for them or sent to them. Run it again with
+     another name for each further sysop.
+  2. Install a layout + theme via the manager UI at /manager/themes.
      A fresh install has no default layout - the processor falls
      back to a built-in template until a layout is installed and
      a compatible theme is activated via /manager/config. Set
      'layout:' and 'theme:' in lazysite.conf to point at them.
-  2. Edit $LAZYSITE_SHOWN/lazysite.conf to configure your site.
-  3. Replace $docroot/index.md with your content.
+  3. Edit $LAZYSITE_SHOWN/lazysite.conf to configure your site.
+  4. Replace $docroot/index.md with your content.
 
 TEXT
 }

@@ -1031,6 +1031,62 @@ subtest 'the login rate limit extension is switched on once, and only once' => s
     like( $out3, qr/switched on the login rate limit extension/, 'saying so' );
 };
 
+# --- SM865: a fresh install seeds NO account ---------------------------------
+#
+# The installer copied lazysite/auth/users and auth/groups from their .example
+# files on a fresh install, and users.example ships exactly one entry:
+#
+#     manager:
+#
+# with groups.example putting `manager` in `members` AND `lazysite-admins`. So
+# every fresh install came with a passwordless account in an admin group. The
+# trailing colon means no password, and lazysite-auth.pl refuses a no-password
+# login unless REMOTE_ADDR is 127.0.0.1 or ::1 - so it was not reachable
+# remotely - but it is exactly the shared role account SM659 removed from
+# setup-sysop, whose own comment says "role accounts are how people end up
+# sharing a password, and the audit trail then says `manager` did everything".
+# The two halves of the codebase disagreed, and the installer's half won on
+# every new site.
+#
+# The release manager found it on two fresh installs and ruled: the installer
+# must stop seeding it. RULED 2026-09-12.
+subtest 'a fresh install creates no account at all' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my ( $rc, $out ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc, 0, 'the fresh install succeeds' ) or diag $out;
+
+    my $lz = "$docroot/lazysite";
+    ok( !-f "$lz/auth/users", 'no auth/users store is seeded' )
+        or diag( "seeded users store contains:\n" . slurp("$lz/auth/users") );
+    ok( !-f "$lz/auth/groups", 'no auth/groups store is seeded' )
+        or diag( "seeded groups store contains:\n" . slurp("$lz/auth/groups") );
+
+    # THE NAME, not just the file: a future change that seeds a different
+    # example, or writes the store some other way, must not reintroduce it.
+    for my $f (qw(users groups)) {
+        next unless -f "$lz/auth/$f";
+        unlike( slurp("$lz/auth/$f"), qr/^manager\b/m,
+            "auth/$f names no `manager` account" );
+    }
+
+    # AND THE INSTALLER SAYS WHAT TO DO, because "no accounts" is a coherent
+    # state (SM659) but a silent one: an operator who is not told will look for
+    # a default login, which is how the seeded account got used in the first
+    # place.
+    like( $out, qr/setup-sysop/,
+        'the summary names setup-sysop, so the operator knows how to make the first account' )
+        or diag($out);
+
+    # The .example files stay - they document the FILE FORMAT, which a sysop
+    # writing one by hand needs - but they must not describe a privileged
+    # account as the thing to copy.
+    my $ex = "$lz/auth/users.example";
+    if ( -f $ex ) {
+        unlike( slurp($ex), qr/^manager\s*:/m,
+            'users.example no longer offers a `manager` account to copy' );
+    }
+};
+
 done_testing();
 
 # --- helpers ---
