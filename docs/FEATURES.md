@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.15"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.16"
 brand: plain
 ---
 
@@ -1778,6 +1778,26 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.13.16** (2026-09-13, **BETA**) - **What the tier-A walk found, and four
+  low-risk defects cleared.** The build that exists because a manual check
+  failed: 1315S-03, the tier-A ref that gates STABLE, was walked for the first
+  time on the 0.13.x line and found that undoing a site-package apply did not
+  put the target back. Two defects under it. The apply's safety snapshot was
+  taken UNSCOPED on the control API - SM412 built a `root` scope for exactly
+  that and fixed it inside the shared layer, which this surface opts out of, so
+  the snapshot covered the primary domain's tree instead of the target's. And a
+  restore is an overlay that removes nothing, so an apply which ADDS files could
+  never be undone by one, while the undo bar promised it put the site back; the
+  undo now clears the target first, confined to the archive's own folder and
+  refused outright where there is none (SM874). Alongside, the low-risk sweep
+  asked for before a stable cut: six refusal kinds that named a status they
+  could not reach now answer 404 or 409 rather than 400, with a lint so the next
+  one cannot regress silently; `setup-manager`, deleted with no alias, is gone
+  from the five places that still named it - including the message a fresh
+  install shows its operator; and `account-approve` returns a path in `path`
+  rather than a second copy of `url` (SM872). No new capability, and nothing in
+  the render path moves.
 
 - **0.13.15** (2026-09-12, **BETA**) - **What the field found in 0.13.14, and two
   installers that spoke for themselves.** The first build promoted to beta. No
