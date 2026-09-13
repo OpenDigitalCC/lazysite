@@ -58,7 +58,7 @@ tone: medium
 `backup-delete` | cookie only | name (query_or_body)
 `backup-download` | cookie only | name (query)
 `backup-list` | cookie only |  
-`backup-restore` | cookie only | name (query)
+`backup-restore` | cookie only | name (query), replace (query)
 `bad-url-block` | manage_config | ip (query)
 `bad-url-blocks` | manage_config |  
 `bad-url-unblock` | manage_config | ip (query)
