@@ -39,6 +39,10 @@ tone: medium
 ---
 2026-08-11 | 0.10.7-pre | Manager guide: Domains | PASS | operator
 2026-08-23 | 0.10.26+ | Manager guide: Data tables (DM-7) | walked 2026-08-24 (operator, all 10 steps pass; findings filed as SM502) - pass written; server half is the site agent's, browser half is the operator's | claude
+2026-09-12 | 0.13.15 | Tier A / A1 - hide a section, then publish it (1315S-01) | PASS - draft set in the browser, 404 to a signed-out visitor (not a sign-in prompt), Publish flipped the badge draft->gated and the row was retained | claude-code (site agent)
+2026-09-12 | 0.13.15 | Tier A / A2 - remove protection completely (1315S-02) | PASS - the remove confirmation is clearly distinguishable from Publish's and names the extra consequence (drops the read list); rule removed | claude-code (site agent)
+2026-09-12 | 0.13.15 | Tier A / A3 - apply a site package, then undo it (1315S-03) | FAIL - preview tracks the target correctly (241 new / 13 overwritten, and byte-identical when switched back) and the apply applies; but a fully confirmed undo left the target unchanged, its content root holding the primary's files. Filed; two defects confirmed and fixed for 0.13.16 | claude-code (site agent)
+2026-09-12 | 0.13.15 | Tier A / A4 - name a person the same way in four places (1315S-04) | FAIL on one clause - pickers are real selects, not free text, and do not submit the form; an unknown configured principal IS kept (no silent access loss); but it is never MARKED as unknown - `mgRights.chip` (layout.tt:539) takes no existence argument. Kept: pass. Marked: fail | claude-code (site agent)
 ```
 
 ## Committed before the next promotion

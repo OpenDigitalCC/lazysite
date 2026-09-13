@@ -44,7 +44,26 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM874 (PENDING) **an undo now puts the target back, and the apply's safety
+## 0.13.16 - BETA: what the tier-A walk found, and four low-risk defects cleared (2026-09-13)
+
+**The build that exists because a manual check failed.** 1315S-03 - the tier-A
+ref that gates STABLE - was walked for the first time on the 0.13.x line and
+found that undoing a site-package apply did not put the target back. Everything
+here is that, plus the low-risk sweep the release manager asked for before a
+stable cut: *"lets not ship known problems we could have fixed."*
+
+**No new capability.** Two fixes to a destructive control, four to things that
+said one thing and did another. A site upgrading from 0.13.15 changes in the
+Backups sheet and in what a refusal answers over the control API; nothing in the
+render path moves.
+
+The one thing this build does NOT settle: the reproduction of 1315S-03 shows a
+PARTIAL undo where the site agent saw the target wholly unchanged. Both defects
+found are real and fixed, and that difference is not explained from the
+repository. **1315S-03 wants re-walking on this build rather than closing.**
+
+- SM874 (e7deb394, 4fa4f6e3, 1f169076, ef55a4e7) **an undo now puts the target
+  back, and the apply's safety
   snapshot covers the right site.** Found by the site agent walking 1315S-03,
   the tier-A check that gates stable: after a fully confirmed undo the target
   domain still held the applied package. Two defects.
