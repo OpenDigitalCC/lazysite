@@ -89,7 +89,11 @@ our %ACTION = (
     'backup-delete' => { caps => undef, params => [ { name => 'name', in => 'query_or_body' } ] },
     'backup-download' => { caps => undef, params => [ { name => 'name', in => 'query' } ] },
     'backup-list'     => { caps => undef, params => [] },
-    'backup-restore' => { caps => undef, params => [ { name => 'name', in => 'query' } ] },
+    # SM874: `replace` is the undo-of-apply mode - the target folder is cleared
+    # before the snapshot is written back, so files a package ADDED are removed
+    # too. Absent or false keeps the historic overlay behaviour.
+    'backup-restore' => { caps => undef, params =>
+            [ { name => 'name', in => 'query' }, { name => 'replace', in => 'query' } ] },
     'bad-url-blocks' => { caps => ['manage_config'], params => [] },
     'bad-url-block' => { caps => ['manage_config'], params => [ { name => 'ip', in => 'query' } ] },
     'bad-url-unblock' => { caps => ['manage_config'], params => [ { name => 'ip', in => 'query' } ] },

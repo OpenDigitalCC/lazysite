@@ -40,10 +40,10 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(site_tempdir);
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Backups ();
 use Lazysite::Manager::Domains ();
@@ -69,7 +69,11 @@ sub entries {
 # package, and a TARGET domain to apply it to. The primary's pages matter -
 # they are what an unscoped snapshot wrongly sweeps up.
 sub fixture {
-    my $d = tempdir( CLEANUP => 1 );
+    # site_tempdir, not a bare tempdir: the engine gets a docroot a level down,
+    # so a code path that resolves the docroot's PARENT - the private store does
+    # exactly that - lands inside the fixture rather than in the tempdir root
+    # (t/lint/118 holds the line, and caught this file).
+    my $d = site_tempdir();
     make_path( "$d/lazysite/layouts/base", "$d/lazysite/backups",
         "$d/sites/source", "$d/sites/target" );
     spit(
