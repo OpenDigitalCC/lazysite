@@ -446,15 +446,55 @@ function refreshApplyPreview(panelId) {
     // 2. Readiness. A target whose DNS or TLS is not pointed yet is a warning
     // BEFORE the apply rather than a discovery after it. Not a blocker: staging
     // content ahead of a DNS cutover is a legitimate thing to do deliberately.
+    // SM876: READ THE CHECK THE ENGINE ACTUALLY RETURNS.
+    //
+    // This read `chk.dns.ok`, `chk.tls.ok` and `chk.vhost.ok`, and was wrong
+    // three times over. `domain-check` returns
+    //
+    //     { ok, host, all_pass, checks: [ { id, label, pass, detail }, ... ] }
+    //
+    // so `checks` is an ARRAY and not a map; the ids are `dns`, `host`, `ssl`
+    // and `terminates` - there is no `tls` and no `vhost`; and the field is
+    // `pass`, not `ok`. `undefined === false` is false, so no problem could
+    // ever be pushed and the warning branch was UNREACHABLE. Not "the warning
+    // did not fire for this host" - it had never fired for any host, and the
+    // green tick was unconditional.
+    //
+    // Found walking tier-B B6 (2026-09-13): a domain the engine's own
+    // domain-check reported as `dns pass=0 ... terminates pass=0` was shown as
+    // "is resolving and served", in green, with a tick. A missing readiness
+    // line leaves an operator to check; a false green tells them not to bother.
+    //
+    // THREE STATES, NOT TWO. `pass` is 1, 0, or NULL - and null is deliberate:
+    // behind a proxy or NAT the server cannot know its own public IP, so
+    // "Points to this server" is INDETERMINATE rather than failed (see
+    // Domains.pm). Treating null as a failure would warn on every proxied site;
+    // treating it as a pass would assert reachability nobody established. So it
+    // is its own answer, and the tick is claimed only when the engine says
+    // all_pass.
+    //
+    // The problem text is the engine's own label and detail rather than three
+    // strings invented here - one place says what a failing check means, and it
+    // is the place that ran it.
     if (chk && chk.ok) {
-      var probs = [];
-      if (chk.dns && chk.dns.ok === false) probs.push('DNS does not resolve here');
-      if (chk.tls && chk.tls.ok === false) probs.push('no valid TLS certificate');
-      if (chk.vhost && chk.vhost.ok === false) probs.push('no vhost is serving it');
-      h += probs.length
-        ? '<div class="mg-note mg-note-warn">&#9888; ' + escHtml(host) + ': ' + escHtml(probs.join('; '))
-          + '. The apply will still work &mdash; the content simply is not reachable yet.</div>'
-        : '<div class="mg-apply-ok">&#10003; ' + escHtml(host) + ' is resolving and served.</div>';
+      var probs = [], unknown = [], list = chk.checks || [];
+      for (var ci = 0; ci < list.length; ci++) {
+        var c = list[ci]; if (!c) continue;
+        if (c.pass === null || c.pass === undefined) { unknown.push(c.label); continue; }
+        if (Number(c.pass)) continue;
+        probs.push(c.label + ' — ' + c.detail);
+      }
+      if (probs.length) {
+        h += '<div class="mg-note mg-note-warn">&#9888; ' + escHtml(host) + ': '
+           + escHtml(probs.join('; '))
+           + '. The apply will still work &mdash; the content simply is not reachable yet.</div>';
+      } else if (chk.all_pass) {
+        h += '<div class="mg-apply-ok">&#10003; ' + escHtml(host) + ' is resolving and served.</div>';
+      } else {
+        h += '<div class="mg-note mg-note-info">' + escHtml(host)
+           + ': nothing is failing, but this could not be confirmed &mdash; '
+           + escHtml(unknown.join('; ')) + '. Behind a proxy that is normal.</div>';
+      }
     }
 
     // 3. The presentation keys, with the option to keep the target's own. Ticked
