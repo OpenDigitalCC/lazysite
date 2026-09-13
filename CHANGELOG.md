@@ -44,19 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM876 (PENDING) **the apply sheet reads the check the engine actually
-  returns.** Found by B6. It read `chk.dns.ok`, `chk.tls.ok` and `chk.vhost.ok`;
-  `domain-check` returns an ARRAY of `{id,label,pass,detail}` with ids
-  dns/host/ssl/terminates and no `tls` or `vhost`, and the field is `pass`. Every
-  lookup was undefined, `undefined === false` is false, and **the warning branch
-  was unreachable** - the green "is resolving and served" tick rendered
-  unconditionally, for every host, including one whose DNS did not resolve. A
-  wrong field name failed OPEN, into an assurance. Now walks `chk.checks`,
-  reports failures in the engine's own words, and distinguishes the third state:
-  `pass` is 1, 0 or NULL, and NULL is deliberate - behind a proxy the server
-  cannot know its own public IP. `t/lint/140` pins the sheet to the ids the
-  engine emits; seven of its thirteen assertions fail on the code as it shipped.
-
 ## 0.14.0 - STABLE: the first stable of the 0.13 line's work (2026-09-13)
 
 **The release that takes 20+ sites off 0.12.1.** No new capability: everything
@@ -80,6 +67,19 @@ B6 failed and **is fixed in this release** (SM876). **B8 has not been run** - it
 needs a browser-capable account holding `manage_services` and `manage_config`,
 and the agent that walks these holds neither. That is a gap in the evidence, not
 a defect found, and it is recorded here rather than left out.
+
+- SM876 (79fbdfa4) **the apply sheet reads the check the engine actually
+  returns.** Found by B6. It read `chk.dns.ok`, `chk.tls.ok` and `chk.vhost.ok`;
+  `domain-check` returns an ARRAY of `{id,label,pass,detail}` with ids
+  dns/host/ssl/terminates and no `tls` or `vhost`, and the field is `pass`. Every
+  lookup was undefined, `undefined === false` is false, and **the warning branch
+  was unreachable** - the green "is resolving and served" tick rendered
+  unconditionally, for every host, including one whose DNS did not resolve. A
+  wrong field name failed OPEN, into an assurance. Now walks `chk.checks`,
+  reports failures in the engine's own words, and distinguishes the third state:
+  `pass` is 1, 0 or NULL, and NULL is deliberate - behind a proxy the server
+  cannot know its own public IP. `t/lint/140` pins the sheet to the ids the
+  engine emits; seven of its thirteen assertions fail on the code as it shipped.
 
 **And the upgrade is rehearsed, not assumed.** 0.12.1 -> 0.13.x ran on 14 beta
 sites: 0 failed, repair clean, probe clean. That is the same jump the remaining
