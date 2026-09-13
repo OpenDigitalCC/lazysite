@@ -44,6 +44,46 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.13.17 - STABLE: 0.13.16's code, one rung up (2026-09-13)
+
+**Byte-for-byte the same engine as 0.13.16, cut to the stable channel.** No code
+changed. The ladder bakes the channel into `release-manifest.json` inside the
+tarball and the debs, so there is no promote verb - a promotion is a rebuild of
+the same commit at a higher rung, and the version number moves because burning
+one costs nothing and reusing one is forbidden (SM064).
+
+**Why this is the stable cut and 0.14.0 is not.** Tier B gates the MINOR bump,
+not stable (`docs/MANUAL-CHECKS.md`), and Tier B is not complete - B8 is blocked
+on an account holding `manage_config`. This build contains two batches of fixes
+and no new capability, so a patch number is the honest description of it. 0.14.0
+stays the next feature bump, with Tier B walked ahead of it.
+
+**What clears it.** All four tier-A checks have now been walked on the 0.13.x
+line for the first time, in a browser, by the site agent:
+
+- **A1 / A3 / A4 pass.** A3 - apply a site package and undo it - failed on
+  0.13.15 and passes here: the target returns to exactly its pre-apply contents,
+  and the prerestore snapshot is 5.07 MB against 17.38 MB for the same target on
+  0.13.15, which is the scoping fix visible as a number.
+- **A4 carries one failing clause**, accepted knowingly: an unknown configured
+  principal is KEPT but not MARKED (`mgRights.chip` has no marking branch). A
+  principal that does not exist grants nothing, so the cost is confusion rather
+  than exposure, and the fix threads a known-principal set through three sheets
+  of shared JS - not a stable-week change.
+
+**And the upgrade is rehearsed, not assumed.** 0.12.1 -> 0.13.x ran on 14 beta
+sites with 0 failed, repair clean and probe clean. That is the same jump the
+remaining stable sites make.
+
+**Shipping knowingly**, each recorded rather than discovered later: SM844 (a
+0.12-era page applying `| html` to a `db:` value double-escapes after upgrade -
+`lazysite check` names the files, and it reads front matter only, so a 0.12.1
+docroot can be surveyed BEFORE it is upgraded), SM871 (a quote in a `value:`
+literal truncates it and leaks the remainder into rules), A4's marking clause
+above, and the manager's Site settings landing page rendering blank for an
+account without `manage_config` - pre-existing, live on all 14 beta sites, and
+first in line for 0.13.17.
+
 ## 0.13.16 - BETA: what the tier-A walk found, and four low-risk defects cleared (2026-09-13)
 
 **The build that exists because a manual check failed.** 1315S-03 - the tier-A

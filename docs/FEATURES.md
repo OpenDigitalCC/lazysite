@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.16"
+subtitle: "Everything lazysite has and does, and why - as of v0.13.17"
 brand: plain
 ---
 
@@ -1778,6 +1778,21 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.13.17** (2026-09-13, **STABLE**) - **0.13.16's code, one rung up.** No code
+  changed: the channel is baked into `release-manifest.json` inside the tarball
+  and the debs, so a promotion is a rebuild of the same commit at a higher rung
+  and the version moves because a burnt number costs nothing (SM064). The first
+  stable on the 0.13 line, and the first cut where all four **tier-A** manual
+  checks have been walked in a browser against this line - A3 (apply a site
+  package, then undo it) failed on 0.13.15 and passes here, with the prerestore
+  snapshot at 5.07 MB against 17.38 MB for the same target, which is SM874's
+  scoping fix visible as a number. A4 carries one clause accepted knowingly: an
+  unknown configured principal is kept but not marked. Tier B gates the minor
+  bump rather than stable and is not complete, which is why this is 0.13.17 and
+  not 0.14.0 - the build contains fixes and no new capability, so a patch number
+  describes it honestly. The 0.12.1 upgrade is rehearsed rather than assumed: 14
+  beta sites, 0 failed, repair and probe clean.
 
 - **0.13.16** (2026-09-13, **BETA**) - **What the tier-A walk found, and four
   low-risk defects cleared.** The build that exists because a manual check
