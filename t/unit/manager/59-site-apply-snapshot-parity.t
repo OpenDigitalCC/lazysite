@@ -129,8 +129,28 @@ subtest 'every surface reaches the snapshotting path' => sub {
     # The control API may, because it takes its own first.
     like( $src{'lazysite-manager-api.pl'}, qr/snapshot\s*=>\s*0/,
         'the control API opts out, having already snapshotted' );
-    like( $src{'lazysite-manager-api.pl'}, qr/action_backup_create\('prerestore'\)/,
-        'and that is what it took' );
+
+    # SM874: THIS ASSERTION USED TO READ
+    #
+    #     like( $src{'lazysite-manager-api.pl'},
+    #           qr/action_backup_create\('prerestore'\)/, 'and that is what it took' );
+    #
+    # and it passed for four releases while the snapshot it pinned was UNSCOPED
+    # - the exact defect SM412 had just removed from the shared layer. Matching
+    # the call proved the call existed. It could not see that the call swept up
+    # the primary domain's whole tree instead of the target's, because a regex
+    # over a caller is not a test of the caller.
+    #
+    # So the presence check now insists on the SCOPE, and the behaviour is
+    # driven in t/unit/manager/62 against a real two-domain fixture. Keeping a
+    # source check at all is deliberate - it is what pins the three surfaces
+    # together - but it must pin the thing that was wrong.
+    like( $src{'lazysite-manager-api.pl'},
+        qr/action_backup_create\(\s*'prerestore',\s*\n?\s*\(\s*length \$croot \? \( root => \$croot \)/,
+        'and it scopes that snapshot to the target content root' )
+        or diag( 'The control API must pass root => $croot. Without it the '
+            . "apply's safety snapshot covers the wrong tree, so an undo "
+            . 'restores the wrong site - 1315S-03, tier A.' );
 
     # The description must no longer tell an agent the opposite.
     unlike( $src{'lazysite-mcp.pl'}, qr/A safety snapshot is NOT taken here/,

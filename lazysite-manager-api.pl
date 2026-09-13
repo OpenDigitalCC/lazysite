@@ -2531,7 +2531,14 @@ elsif ( $action eq 'backup-create' ) {
     $result = action_backup_create(
         ( $params{scope} // '' ) eq 'full' ? 'full' : undef );
 }
-elsif ( $action eq 'backup-restore' ) { $result = action_backup_restore( $params{name} ) }
+elsif ( $action eq 'backup-restore' ) {
+    # SM874: `replace` is the undo-of-apply mode - clear the archive's own
+    # folder first, so files the package added go too. Refused by the library
+    # when the archive covers no single folder, which is the case where
+    # clearing would mean clearing the docroot.
+    $result = action_backup_restore( $params{name},
+        replace => ( $params{replace} ? 1 : 0 ) );
+}
 elsif ( $action eq 'backup-delete' ) {
     my $req = _json_body();
     $result = action_backup_delete( $req->{name} // $params{name} );
@@ -3679,7 +3686,21 @@ sub action_site_backup_apply {
     # scope checks above on this surface; snapshot => 0 below stops the shared
     # layer taking a second one. SM183 moved the snapshot INTO the shared layer
     # so MCP and the CLI get it too - this surface always had it.
-    my $safety = action_backup_create('prerestore');
+    #
+    # SM874: SCOPED TO THE TARGET, which is the whole point of SM412 and which
+    # this surface never did. SM412 gave action_backup_create a `root` because
+    # "the safety snapshot before a site-package apply used to tar the whole
+    # docroot whatever the target" - then fixed it inside apply_and_configure.
+    # This surface passes `snapshot => 0` to opt OUT of that shared path and
+    # took its own, unscoped: so the one surface a person clicks kept the exact
+    # defect SM412 had just removed, for four releases.
+    #
+    # It survived because t/unit/manager/61 drives the LIBRARY, and
+    # t/unit/manager/59 asserted this call by SOURCE REGEX as evidence the
+    # surface "takes a snapshot" - proving it existed, never what it covered.
+    # An empty $croot means the primary, where unscoped IS the blast radius.
+    my $safety = action_backup_create( 'prerestore',
+        ( length $croot ? ( root => $croot ) : () ) );
 
     # SM378: the third copy of the same discard. A refusal that will not say
     # why is its own defect, and this is the surface a remote caller meets.

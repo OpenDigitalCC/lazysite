@@ -44,7 +44,36 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM872 (PENDING) **four low-risk defects cleared before the stable cut.** All
+- SM874 (PENDING) **an undo now puts the target back, and the apply's safety
+  snapshot covers the right site.** Found by the site agent walking 1315S-03,
+  the tier-A check that gates stable: after a fully confirmed undo the target
+  domain still held the applied package. Two defects.
+
+  `action_backup_create` gained a `root` scope in SM412 because the apply's
+  snapshot "used to tar the whole docroot whatever the target" - and SM412 fixed
+  it inside `apply_and_configure`. The control API passes `snapshot => 0` to opt
+  **out** of that path and took its own, unscoped, so the surface the manager UI
+  uses kept the defect SM412 had just removed. It survived because
+  `t/unit/manager/61` drives the library, and `t/unit/manager/59` asserted the
+  call by source regex - proving it existed, never what it covered.
+
+  And a restore is an overlay: it removes nothing, so an apply that ADDS files
+  cannot be undone by one, while the undo bar promised "puts the site back as it
+  was immediately before the apply". The field apply added 241 files. The undo
+  path now passes `replace`, which clears the archive's own folder first -
+  opt-in, confined to that scope, **refused outright when the archive covers no
+  single folder** (clearing a whole docroot is the case never to guess at), and
+  itself covered by the safety snapshot taken before it.
+
+  The undo also asked twice, in two dialogs that now contradicted each other;
+  it defers to one accurate confirmation. The generic restore wording promised
+  "newer files stay" and no newer-file logic exists - corrected to what it does.
+
+  **1315S-03 wants re-walking on this beta.** The reproduction shows a partial
+  undo where the agent saw the target wholly unchanged; both defects here are
+  real and fixed, but that difference is not explained from this repository.
+
+- SM872 (db023d26) **four low-risk defects cleared before the stable cut.** All
   four are the same shape - a declaration the code does not keep, in a place
   nothing checked - and none touches a render path.
 

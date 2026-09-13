@@ -184,26 +184,40 @@ function offerUndo(snapshot, host) {
     + '<button class="mg-btn mg-btn-sm" onclick="this.parentNode.remove()">Close</button>';
 }
 
+// SM874: the undo asks ONCE, and asks the real question.
+//
+// It used to confirm, then call restoreBackup, which confirmed again - three
+// clicks for one decision, and the site agent's first two 1315S-03 attempts
+// read as "undo does nothing" because they had answered only part of the chain.
+// Worse, the two dialogs now say different things: an undo REPLACES the target
+// and the generic restore overlays it. Two confirmations that contradict each
+// other are worse than one that is accurate, so this defers to restoreBackup's
+// - which is written for the mode it is passed.
 function undoApply(snapshot, btn) {
-  mgConfirm('Restore the pre-apply snapshot "' + snapshot + '"?\n\n'
-    + 'This puts the site back as it was immediately before the apply. The restore '
-    + 'takes its own snapshot first, so this is reversible too.',
-    { danger: true, ok: 'Undo the apply' }).then(function(ok) {
-    if (!ok) return;
-    restoreBackup(snapshot, btn);
-    var bar = document.getElementById('undo-bar');
-    if (bar) bar.remove();
-  });
+  restoreBackup(snapshot, btn, true);
+  var bar = document.getElementById('undo-bar');
+  if (bar) bar.remove();
 }
 
-function restoreBackup(name, btn) {
-  var msg = 'Restore "' + name + '"?\n\nIts files are written back over the site '
-          + '(newer files stay). A prerestore safety snapshot is taken first.';
+// `replace` is the undo path: the target folder is cleared before the snapshot
+// is written back, so files the apply ADDED are removed too. Without it a
+// restore is an overlay and an apply cannot be undone - which is what the
+// pre-apply snapshot exists for.
+function restoreBackup(name, btn, replace) {
+  var msg = replace
+    ? 'Undo the apply, restoring "' + name + '"?\n\n'
+      + 'The target folder is cleared and the snapshot written back, so files '
+      + 'the package ADDED are removed as well as changes to existing ones. A '
+      + 'prerestore safety snapshot is taken first, so this is reversible too.'
+    : 'Restore "' + name + '"?\n\nIts files are written back over the site, '
+      + 'replacing anything of the same name. Files that are not in the '
+      + 'snapshot are left alone. A prerestore safety snapshot is taken first.';
   var go = function(ok) {
     if (!ok) return;
     if (btn) btn.disabled = true;
     showStatus('Restoring ' + name + '...');
-    fetch(API + '?action=backup-restore&name=' + encodeURIComponent(name),
+    fetch(API + '?action=backup-restore&name=' + encodeURIComponent(name)
+              + (replace ? '&replace=1' : ''),
           { method: 'POST', credentials: 'same-origin' })
       .then(function(r) { return r.json(); })
       .then(function(d) {
@@ -215,7 +229,11 @@ function restoreBackup(name, btn) {
       })
       .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });
   };
-  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Restore' }).then(go); }
+  // SM874: the button carries the verb for the mode it is in - "Undo the apply"
+  // removes files, "Restore" does not, and an operator reading only the button
+  // should still be told which one they are about to do.
+  var verb = replace ? 'Undo the apply' : 'Restore';
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: verb }).then(go); }
   else { go(window.confirm(msg)); }
 }
 

@@ -785,7 +785,7 @@ sub _place_restored {
 }
 
 sub action_backup_restore {
-    my ($name) = @_;
+    my ( $name, %opt ) = @_;
     $name = '' unless defined $name;
     return { ok => 0, error => 'Invalid backup name' } unless _valid_name($name);
 
@@ -812,6 +812,55 @@ sub action_backup_restore {
     my $scope   = _archive_scope( \@members );
     my ( $safety, $refuse ) = safety_snapshot_or_refuse( 'restore', $scope );
     return $refuse if $refuse;
+
+    # SM874: REPLACE, for the one caller that needs a real undo.
+    #
+    # A restore is an OVERLAY: it writes the archive's files over the site and
+    # never removes anything. For recovering a damaged file that is right. For
+    # undoing a site-package apply it is not, and the undo bar promises "puts
+    # the site back as it was immediately before the apply" - which is false the
+    # moment the package ADDS a file. The field case added 241 files; the
+    # reproduction added one (tmp/repro-sm874-apply-undo.pl): after a fully
+    # confirmed undo the changed file reverted and the added file stayed.
+    #
+    # So `replace` clears the target first. Deletion is the reason this is
+    # opt-in and narrowly guarded rather than the default:
+    #
+    #   * ONLY within $scope - the archive's own common directory, which is the
+    #     blast radius _archive_scope already computes for the safety snapshot.
+    #   * REFUSED when there is no scope. A primary-site archive has no single
+    #     common directory, so "clear first" would mean clearing the docroot.
+    #     That is the one case where this must never guess (SM306 took a site
+    #     private by acting on an absent path; the lesson was to refuse).
+    #   * The safety snapshot above is already taken, and covers $scope, so the
+    #     deletion is itself reversible.
+    #   * The directory itself is kept - only its contents go - so ownership and
+    #     the setgid bit that lets the CGI write there survive.
+    if ( $opt{replace} ) {
+        return { ok => 0, kind => 'invalid',
+            error => 'Refusing to replace: this archive covers no single folder, '
+                . 'so there is nothing safe to clear first. Restore it as an '
+                . 'overlay instead.',
+            reason => 'no scope to confine the replace to' }
+            unless length $scope;
+
+        my $target = "$DOCROOT/$scope";
+        if ( -d $target ) {
+            if ( opendir my $dh, $target ) {
+                my @kids = grep { !/\A\.\.?\z/ } readdir $dh;
+                closedir $dh;
+                for my $k (@kids) {
+                    my $p = "$target/$k";
+                    -d $p ? File::Path::remove_tree($p) : unlink($p);
+                }
+            }
+            else {
+                return { ok => 0, kind => 'render-failed',
+                    error => "Refusing to replace: cannot read $scope to clear it "
+                        . "(safety snapshot kept: $safety->{name})" };
+            }
+        }
+    }
 
     # SEC-2026-07 (M-TAR): --no-same-permissions (with the existing
     # --no-same-owner) so a hostile or ancient tarball cannot restore setuid/
