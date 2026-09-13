@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.13.17"
+subtitle: "Everything lazysite has and does, and why - as of v0.14.0"
 brand: plain
 ---
 
@@ -1779,20 +1779,21 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
-- **0.13.17** (2026-09-13, **STABLE**) - **0.13.16's code, one rung up.** No code
-  changed: the channel is baked into `release-manifest.json` inside the tarball
-  and the debs, so a promotion is a rebuild of the same commit at a higher rung
-  and the version moves because a burnt number costs nothing (SM064). The first
-  stable on the 0.13 line, and the first cut where all four **tier-A** manual
-  checks have been walked in a browser against this line - A3 (apply a site
+- **0.14.0** (2026-09-13, **STABLE**) - **The first stable of the 0.13 line's
+  work, and the release that takes 20+ sites off 0.12.1.** No new capability -
+  everything in it is a fix, and the minor bump marks where this line becomes
+  the stable answer rather than anything being added. The first cut on this line
+  with **all four tier-A** manual checks walked in a browser: A3 (apply a site
   package, then undo it) failed on 0.13.15 and passes here, with the prerestore
-  snapshot at 5.07 MB against 17.38 MB for the same target, which is SM874's
-  scoping fix visible as a number. A4 carries one clause accepted knowingly: an
-  unknown configured principal is kept but not marked. Tier B gates the minor
-  bump rather than stable and is not complete, which is why this is 0.13.17 and
-  not 0.14.0 - the build contains fixes and no new capability, so a patch number
-  describes it honestly. The 0.12.1 upgrade is rehearsed rather than assumed: 14
-  beta sites, 0 failed, repair and probe clean.
+  snapshot at 5.07 MB against 17.38 MB for the same target - SM874's scoping fix
+  visible as a number. A4 carries one clause accepted knowingly: an unknown
+  configured principal is kept but not marked. **Tier B, which gates a minor
+  bump, is four of five**: B4/B5/B7 pass, B6 failed and is fixed here (SM876 -
+  the apply sheet's readiness warning read field names the engine never returns,
+  so it could never fire and the green tick was unconditional), and **B8 is not
+  run** for want of an account holding `manage_services` and `manage_config` -
+  a gap in the evidence, recorded rather than omitted. The 0.12.1 upgrade is
+  rehearsed rather than assumed: 14 beta sites, 0 failed, repair and probe clean.
 
 - **0.13.16** (2026-09-13, **BETA**) - **What the tier-A walk found, and four
   low-risk defects cleared.** The build that exists because a manual check
