@@ -765,10 +765,28 @@ sub _place_restored {
         { no_chdir => 1,
             wanted => sub {
                 my $p = $File::Find::name;
-                return if $p eq $stage || -d $p && !-l $p;
+                return if $p eq $stage;
                 ( my $rel = substr( $p, length($stage) + 1 ) ) =~ s{\A\./}{};
                 my ($dst) = Lazysite::Private::resolve_for_write( $DOCROOT, $rel );
                 $dst //= "$DOCROOT/$rel";
+
+                # SM874: A DIRECTORY IS CONTENT TOO, when it is empty.
+                #
+                # This skipped every directory member and let make_path below
+                # create whatever a file needed - which is correct for a
+                # directory that has files in it and loses one that does not.
+                # Invisible while a restore was purely additive: nothing was
+                # removed, so an empty folder simply stayed. `replace` clears
+                # the target first, which turned that silent gap into an empty
+                # folder an operator created and an undo deleted.
+                #
+                # The archive HAS the member - `./sites/target/emptydir/` is in
+                # it - so this is placing what was always carried, not widening
+                # what is restored.
+                if ( -d $p && !-l $p ) {
+                    make_path($dst) unless -d $dst;
+                    return;
+                }
                 make_path( dirname($dst) ) unless -d dirname($dst);
                 if ( -l $p ) {
                     unlink $dst if -l $dst;

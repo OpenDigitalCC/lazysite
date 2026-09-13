@@ -166,6 +166,42 @@ subtest 'replace puts the target back exactly' => sub {
     ok( -f "$d/sites/source/index.md", 'and so is the source domain' );
 };
 
+# The first version of this file used FLAT files only, and `replace` removes a
+# directory TREE. Everything below was unexercised until it was asked for, and
+# one of the four was a real loss: an empty directory did not come back.
+#
+# It was in the archive all along (`./sites/target/emptydir/` is a member) -
+# _place_restored skipped every directory member and let the file placer create
+# whatever a file needed. Harmless while a restore was additive, because nothing
+# was removed. `replace` clears first, so a folder an operator made and never
+# filled was deleted by the undo that was meant to restore it.
+subtest 'replace restores nested content, an empty folder and a dotfile' => sub {
+    my $d = fixture();
+    make_path("$d/sites/target/keep/nested");
+    make_path("$d/sites/target/emptydir");
+    spit( "$d/sites/target/keep/nested/original.md", "# target nested\n" );
+    spit( "$d/sites/target/.hidden",                 "dotfile\n" );
+    make_path("$d/sites/source/pkgdir/deep");
+    spit( "$d/sites/source/pkgdir/deep/page.md", "# package nested page\n" );
+
+    my $before = entries("$d/sites/target");
+    my $snap   = apply_to_target( $d, scoped => 1 );
+    ok( -d "$d/sites/target/pkgdir", 'the package brought a nested folder' );
+
+    my $r = Lazysite::Manager::Backups::action_backup_restore( $snap, replace => 1 );
+    ok( $r->{ok}, 'the replace restore succeeds' ) or diag( $r->{error} // '' );
+
+    is( entries("$d/sites/target"), $before,
+        'the target is exactly as it was, top level' );
+    is( slurp("$d/sites/target/keep/nested/original.md"), "# target nested\n",
+        'nested content came back' );
+    ok( -d "$d/sites/target/emptydir",
+        'an EMPTY folder came back - it is in the archive, and was being skipped' );
+    ok( -f "$d/sites/target/.hidden", 'and a dotfile survived' );
+    ok( !-e "$d/sites/target/pkgdir",
+        "the package's nested folder is gone" );
+};
+
 subtest 'replace REFUSES when the archive covers no single folder' => sub {
     my $d = fixture();
 
