@@ -63,6 +63,26 @@ our ( $REDIRECT_PAGE, $REDIRECT_FORM ) = ( '', '' );
 # Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
 # per-form size limits are even checked. Generous; real limits are per-form.
 my $MAX_POST_BYTES = 64 * 1024 * 1024;
+
+# N141B: the largest a single submitted FIELD may be.
+#
+# There was no such constant. Every field was passed through
+# sanitise_header($v, 10000), which TRUNCATES - so a value longer than ten
+# thousand characters was silently cut and the row stored with ok. A signature
+# captured as a data URL arrived with a valid PNG header and no IEND: not a
+# rejected submission, a corrupt one recorded as good. A corrupt value stored
+# with an ok is worse than a refused one, because nothing downstream can tell
+# it happened.
+#
+# Ten thousand bytes was 0.015% of the request this handler already accepts,
+# so it protected nothing that $MAX_POST_BYTES was not already protecting - it
+# only decided, silently, which submissions would be damaged rather than
+# refused.
+#
+# One mebibyte, and it REFUSES, naming the field. Generous enough that no
+# ordinary text field, long essay or captured signature reaches it, small
+# enough to stay a sane per-field bound well inside the request cap.
+my $MAX_FIELD_BYTES = 1024 * 1024;
 # SM523: the underscore keys a CLIENT may send (see parse_post).
 my %PROTOCOL_KEY = map { $_ => 1 } qw(_form _page _hp _ts _tk);
 
@@ -548,7 +568,7 @@ sub parse_post {
                 };
             }
             else {
-                _field_add( \%form, $name, sanitise_header( $body, 10000 ) );
+                _field_add( \%form, $name, field_value( $name, $body ) );
             }
         }
     }
@@ -561,7 +581,7 @@ sub parse_post {
             $v //= '';
             $v =~ s/\+/ /g;
             $v =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-            _field_add( \%form, $k, sanitise_header( $v, 10000 ) );
+            _field_add( \%form, $k, field_value( $k, $v ) );
         }
     }
     # SM523: the engine's status meta is ENGINE-OWNED. Every key that reaches a
@@ -778,6 +798,31 @@ sub sanitise_header {
     $max //= 1000;
     $val =~ s/[\r\n]/ /g;
     $val = substr( $val, 0, $max ) if length($val) > $max;
+    return $val;
+}
+
+# N141B: a submitted field's VALUE - refused when too long, never truncated.
+#
+# sanitise_header is for header-shaped values, where silently cutting an
+# over-long string is the safe thing to do and nobody is storing the result.
+# Calling it on every submitted field applied that reasoning to the data, and
+# the data is the one place truncation is unsafe: the row is kept, reported ok,
+# and nothing downstream can tell the value is not what was typed.
+#
+# THE NEWLINE HANDLING IS DELIBERATELY UNCHANGED. sanitise_header also folds CR
+# and LF to spaces, so a multi-line textarea is stored as one line. That is very
+# likely wrong too, but it changes the SHAPE of data on every existing site, so
+# it is a separate decision with its own blast radius - filed, not smuggled in
+# here. What this fixes is the one that destroys content outright.
+sub field_value {
+    my ( $name, $val ) = @_;
+    $val = '' unless defined $val;
+    if ( length($val) > $MAX_FIELD_BYTES ) {
+        my $kb = int( $MAX_FIELD_BYTES / 1024 );
+        reject_user( "The '$name' field is too long (limit ${kb} KB). "
+                . 'Nothing was saved - shorten it and send the form again.' );
+    }
+    $val =~ s/[\r\n]/ /g;
     return $val;
 }
 
