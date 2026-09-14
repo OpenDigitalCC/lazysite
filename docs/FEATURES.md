@@ -1790,10 +1790,15 @@ Newest first; releases are git tags.
   configured principal is kept but not marked. **Tier B, which gates a minor
   bump, is four of five**: B4/B5/B7 pass, B6 failed and is fixed here (SM876 -
   the apply sheet's readiness warning read field names the engine never returns,
-  so it could never fire and the green tick was unconditional), and **B8 is not
-  run** for want of an account holding `manage_services` and `manage_config` -
-  a gap in the evidence, recorded rather than omitted. The 0.12.1 upgrade is
-  rehearsed rather than assumed: 14 beta sites, 0 failed, repair and probe clean.
+  so it could never fire and the green tick was unconditional), and **B8 passes**
+  - walked while the build was still cutting, once the operator granted the
+  capabilities it needed, with all four channel counts recomputed independently
+  from the Groups data and the dormant flag appearing on holders only. The
+  shipped 0.14.0 tarball says B8 was not run, which was true when the build
+  started; the error is in the conservative direction and the build was allowed
+  to finish rather than re-cut. **Tier B is complete.** The 0.12.1 upgrade is
+  rehearsed rather than assumed - and has since been performed: 28 sites updated,
+  0 failed, 13 of them straight from 0.12.1, with no check failure anywhere.
 
 - **0.13.16** (2026-09-13, **BETA**) - **What the tier-A walk found, and four
   low-risk defects cleared.** The build that exists because a manual check

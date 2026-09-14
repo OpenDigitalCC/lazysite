@@ -62,11 +62,26 @@ line** - the register recorded NOTHING against 0.13.x before today.
   cost is confusion rather than exposure, and the fix threads a known-principal
   set through three sheets of shared JS.
 
-**Tier B gates a minor bump, and four of five are walked.** B4, B5 and B7 pass;
-B6 failed and **is fixed in this release** (SM876). **B8 has not been run** - it
-needs a browser-capable account holding `manage_services` and `manage_config`,
-and the agent that walks these holds neither. That is a gap in the evidence, not
-a defect found, and it is recorded here rather than left out.
+**Tier B gates a minor bump, and ALL FIVE are walked.** B4, B5, B7 and B8 pass;
+B6 failed and **is fixed in this release** (SM876).
+
+**CORRECTED AFTER THE TAG.** This section said "B8 has not been run" - true when
+the build started and false by the time it finished. The operator granted the
+capabilities it needed and the site agent walked it while the coverage stage was
+still running: all four channel counts recomputed independently from the Groups
+data and matched to the digit, group names included; MCP switched off, the
+dormant flag appearing on holders ONLY - not on a non-holder, not on other
+channels - and clearing when it was switched back.
+
+The build was allowed to finish rather than re-cut, because the error was in the
+conservative direction: it claimed LESS evidence than existed, so nothing shipped
+was overclaimed. The tarball for 0.14.0 therefore carries the cautious wording
+and this repository carries the true one. **Tier B is complete.**
+
+B8 also found one defect, filed and not fixed here: with a service already
+switched off, the Services holder line still reads *"Switching this off makes
+those grants inert"* - future tense for a decision already taken. The counts are
+right and the sentence is not. It is N141-01 in the 0.14.1 plan.
 
 - SM876 (79fbdfa4) **the apply sheet reads the check the engine actually
   returns.** Found by B6. It read `chk.dns.ok`, `chk.tls.ok` and `chk.vhost.ok`;
