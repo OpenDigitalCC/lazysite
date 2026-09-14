@@ -1006,10 +1006,43 @@ sub _submissions_path {
     my $real = realpath( -e $abs ? $abs : dirname($abs) );
     my $lz   = _lz();
     my $lzr  = defined $lz ? realpath($lz) : undef;
-    return ( undef, undef, 'Invalid submissions file' )
-        unless defined $real
-        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0
-        || ( defined $lzr && index( $real, "$lzr/" ) == 0 ) );
+
+    # N141E (SM852's MISS row, and the filing's guess about it was wrong).
+    #
+    # The row read: "Plugins::_rewrite_store (finds no store once its folder is
+    # gated - fixed by S1, since it reads through store_path; to verify)". It
+    # does read through store_path, and store_path resolves the gated store
+    # correctly - into the private store beside the docroot. THEN THIS CHECK
+    # REFUSED ITS OWN ANSWER, because it admitted two roots and the private
+    # store is a third. So the store was found and then declared invalid, and
+    # the operator was told "Invalid submissions file" about a file that is
+    # there, with their rows unreadable and undeletable.
+    #
+    # Verified rather than assumed (tmp/diagnose-gated-store.pl): store_path
+    # returns the private path, realpath agrees it exists, and it is not under
+    # $DOCROOT/ - which is the whole of it.
+    #
+    # WHAT IS NOT WIDENED. SM268 H1's guard is the one that matters here - the
+    # file must sit inside a CONFIGURED store directory - and it runs above,
+    # unchanged. That is what stops a read_submissions token reaching
+    # lazysite/auth/sessions.jsonl or another domain's leads. This check is the
+    # second, weaker fence: which ROOTS a store may live in. The private store
+    # is this site's own content, put there by this site's own protection
+    # feature, so it belongs on the list beside the other two - matched the same
+    # way, by exact root or a path beneath it, never by "somewhere outside".
+    my $privr = do {
+        require Lazysite::Private;
+        my $p = Lazysite::Private::private_root($DOCROOT);
+        defined $p ? realpath($p) : undef;
+    };
+
+    my $inside = defined $real
+        && ( $real eq $DOCROOT
+        || index( $real, "$DOCROOT/" ) == 0
+        || ( defined $lzr   && ( $real eq $lzr   || index( $real, "$lzr/" ) == 0 ) )
+        || ( defined $privr && ( $real eq $privr || index( $real, "$privr/" ) == 0 ) ) );
+
+    return ( undef, undef, 'Invalid submissions file' ) unless $inside;
     return ( $abs, $rel, undef );
 }
 
