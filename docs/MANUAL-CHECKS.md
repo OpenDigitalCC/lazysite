@@ -297,11 +297,18 @@ does not match what was chosen.
 Verification of things that are wrong-but-recoverable, or read-only.
 
 4. A draft section 404s to a signed-out visitor and is absent from
-   `/sitemap.xml`.
+   `/sitemap.xml`. **A GATED section is also absent from the sitemap** - found
+   while discriminating this check on 0.13.15, and worth knowing before you read
+   an absence as proof the section is draft rather than merely protected.
 5. A **scoped** (non-operator) manager sees only sections inside their scope.
    Security weight, but the filter itself is suite-covered
-   (`t/unit/manager/66`) - what is unverified is that the panel passes the
+   (`t/unit/manager/66`) - what is unverified is that the LISTING passes the
    request through it.
+   **Do not go looking for a panel: the card this check once named was retired
+   by SM635**, which `loadProtectedSections()` states in its own first line -
+   *"this no longer paints a card - it loads the map the LISTING reads"*.
+   Protection now shows as a padlock on the folder's own row, in Files. The
+   behaviour described above is unchanged and correct; only the furniture moved.
 6. The readiness warning appears for a target whose DNS is not pointed, and the
    apply is **still allowed**.
 7. **Keep this site's theme** on apply: content arrives, theme does not change.

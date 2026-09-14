@@ -371,10 +371,40 @@ abort_build() {
     exit 1
 }
 
-# Refuse EARLY if the staging filesystem cannot hold a gate run. Inodes as well
-# as bytes: bytes were never what ran out, and checking only those would repeat
-# the failure this guards against.
+# N141-02: THE STAGE PATH IS MADE ABSOLUTE BEFORE ANYTHING USES IT.
+#
+# A RELATIVE --stage-dir DID NOT FAIL - IT PRODUCED A WRONG VERDICT. The gate
+# runs as
+#
+#     GATE_OUT="$STAGE/.gate-output.txt"
+#     ( cd "$STAGE" && set -o pipefail && prove -lr t/ 2>&1 | tee "$GATE_OUT" )
+#
+# and the `cd` is load-bearing (see its own note below). With a relative $STAGE
+# the path in $GATE_OUT no longer resolves once we are inside it, so `tee` dies
+# with "No such file or directory", pipefail propagates, and the run is reported
+# as `test suite failed; not releasing.`
+#
+# Observed on the 0.13.16 cut: the suite printed "All tests successful. Result:
+# PASS" and the script refused the release on the next line. A wrong path
+# inverted the RESULT rather than raising an error, which is the worst available
+# behaviour - a green suite read as red, and (had the polarity gone the other
+# way) a red one could read as green.
+#
+# Resolved rather than refused, because a relative path is a reasonable thing to
+# type and there is nothing wrong with it until the cd. `mkdir -p` first so the
+# path exists to be resolved; `cd -P ... && pwd` rather than realpath, which is
+# not everywhere.
 mkdir -p "$STAGE_BASE"
+case "$STAGE_BASE" in
+    /*) ;;
+    *)
+        STAGE_BASE=$( cd -P "$STAGE_BASE" && pwd ) || {
+            echo "release.sh: --stage-dir '$STAGE_BASE' cannot be resolved; not releasing." >&2
+            exit 1
+        }
+        echo "==> stage dir resolved to $STAGE_BASE (it was relative; the gate cd's into it)"
+        ;;
+esac
 # `df -i --output=...` is REFUSED by coreutils - the options are mutually
 # exclusive - and the first version of this check used it, so the variable was
 # empty and the check silently did nothing. A guard that skips when it cannot

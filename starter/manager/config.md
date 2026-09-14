@@ -132,6 +132,12 @@ var availableLayouts = null;
 var capHolders = {};
 var channelForKey = {};
 
+// N141-01: whether each channel's service is ON, keyed by channel, straight
+// from `channel-services` - which already returns it as `services` and which
+// this page already fetches. It was being discarded, and the holder line below
+// was written as if the answer were unavailable.
+var serviceOn = {};
+
 // The counts come from action=users/capability-holders, which sits behind
 // manage_users - an operator with manage_config but not manage_users may edit
 // these switches and cannot enumerate accounts. That refusal is CORRECT and the
@@ -141,6 +147,7 @@ function loadCapabilityHolders() {
   fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
     .then(function(d) {
       channelForKey = (d && d.ok && d.channel_for_key) || {};
+      serviceOn     = (d && d.ok && d.services)        || {};
       // The users sub-dispatcher takes its action in the POST body. CSRF is
       // added by the manager's fetch wrapper, as everywhere else on this page.
       return fetch(API + '?action=users', {
@@ -171,11 +178,39 @@ function refreshServiceCounts() {
     // Groups are named (the operator can act on them); accounts are a count
     // only - the Users page answers "which account" per account, and listing
     // them here would put a roster on the settings screen for no gain.
+    // N141-01: THE TENSE FOLLOWS THE SWITCH.
+    //
+    // This sentence was a constant. It read "Switching this off makes those
+    // grants inert" whether the service was on or off - so an operator arriving
+    // at an ALREADY-DISABLED service was told what would happen if they did the
+    // thing that had already been done. Measured on 0.13.16 with MCP disabled:
+    // seven accounts were inert at the moment the page described them as the
+    // consequence of a future decision.
+    //
+    // The counts stay correct either way - the grants exist, the service is what
+    // changed - so this was never an arithmetic fault. It was false at exactly
+    // the moment it most needed to be true: the reader of an off service is
+    // asking "who is locked out RIGHT NOW", usually because something stopped
+    // working, and the page held the answer and phrased it as a hypothetical.
+    //
+    // The Users page already gets this right one screen away - a holder's grid
+    // marks the column "granted, but the service is OFF site-wide" - so the
+    // product knew and only one of two screens said so.
+    //
+    // THREE STATES, because `services` may not have arrived or may not name this
+    // channel. Unknown keeps the original wording, which is true as a general
+    // statement about switching a service off; only a service KNOWN to be off
+    // gets the present tense. Found walking tier-B B8.
+    var on  = serviceOn[channelForKey[key]];
+    var say = ( on === 0 || on === false )
+      ? ' &mdash; those grants are inert while this is off.'
+      : '. Switching this off makes those grants inert.';
+
     el.innerHTML = '<span class="mg-holder-count" title="'
       + esc(g ? 'Granted by: ' + (h.group_names || []).join(', ') : '')
       + '">Held by <b>' + g + '</b> group' + (g === 1 ? '' : 's')
       + ' / <b>' + u + '</b> account' + (u === 1 ? '' : 's')
-      + '. Switching this off makes those grants inert.</span>';
+      + say + '</span>';
   });
 }
 
