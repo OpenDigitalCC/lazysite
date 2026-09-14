@@ -44,8 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-Toward 0.14.1 - the first patch after stable. Fixes and one front-end
-addition; no engine feature work, per the two-week freeze.
+## 0.14.1 - STABLE: the upgrade restarts what holds the old code, and the manager stops under-reporting access (2026-09-14)
+
+The first patch after stable. Fixes and one front-end addition; no engine
+feature work, per the two-week freeze.
+
+Two of these were the same shape from opposite ends: a site reporting a
+version honestly while running older code, and a group card reporting a
+capability set honestly while omitting everything the group inherits. Both
+were surfaces telling the truth about the wrong thing.
 
 **An upgrade now restarts what holds the old code.**
 

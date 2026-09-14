@@ -11,12 +11,12 @@ standard-margins: true
 **stable** one. Edge and beta builds are deliberately absent: they exist to be
 tested by people who know they are testing, and a download link is not that.
 
-    lazysite-0.14.0.tar.gz              the whole engine, for any host
-    lazysite-0.14.0.tar.gz.sha256       its checksum
-    lazysite-common_0.14.0-1_all.deb    the engine (required)
-    lazysite-nginx_0.14.0-1_all.deb     nginx glue
-    lazysite-apache_0.14.0-1_all.deb    Apache glue
-    lazysite-hestia_0.14.0-1_all.deb    Hestia glue
+    lazysite-0.14.1.tar.gz              the whole engine, for any host
+    lazysite-0.14.1.tar.gz.sha256       its checksum
+    lazysite-common_0.14.1-1_all.deb    the engine (required)
+    lazysite-nginx_0.14.1-1_all.deb     nginx glue
+    lazysite-apache_0.14.1-1_all.deb    Apache glue
+    lazysite-hestia_0.14.1-1_all.deb    Hestia glue
 
 # Which one do I want
 
@@ -24,12 +24,12 @@ tested by people who know they are testing, and a download link is not that.
 server. The glue packages carry the vhost templates and nothing else, which is
 why they are small and why installing two of them is not useful.
 
-    sudo dpkg -i lazysite-common_0.14.0-1_all.deb lazysite-nginx_0.14.0-1_all.deb
+    sudo dpkg -i lazysite-common_0.14.1-1_all.deb lazysite-nginx_0.14.1-1_all.deb
 
 **Anywhere else, or to install without root:** the tarball. Verify it first -
 the checksum beside it is the one the release gate recorded:
 
-    sha256sum -c lazysite-0.14.0.tar.gz.sha256
+    sha256sum -c lazysite-0.14.1.tar.gz.sha256
 
 # Why the repository and not a release asset
 
@@ -38,15 +38,21 @@ repository to a file. It is a deliberate trade: **binaries in git are permanent*
 - nothing removes them - so this directory holds ONE release, replaced rather
 than accumulated.
 
-**The cost has grown, and the figure here is measured rather than estimated.**
-This directory used to say "about 8 MB" per release. The tarball below is
-**14.9 MB**, and with the four packages a release now adds roughly **18 MB** to
-the history, permanently - more than double the old estimate, because the engine
-grew and nothing here shrinks. That is not an argument against the trade; it is
-the trade at its current price, so whoever next decides whether to keep it is
-deciding with a real number.
+**The cost has grown sharply, and the figure here is measured rather than
+estimated.** This directory used to say "about 8 MB" per release. The tarball
+below is **24.5 MB**, and with the four packages this release adds roughly
+**27 MB** to the history, permanently.
 
-The durable record is the tag. Any release here can be rebuilt from `v0.14.0`
+**Most of that is not the engine.** Around 18 MB of the tarball is a copy of the
+PREVIOUS release, because `git archive` includes this directory in the release
+it builds - so each tarball carries the one before it. Filed as SM884: the fix
+is one `export-ignore` line, and until it lands the figure compounds rather than
+merely grows. The engine itself is roughly 6 MB.
+
+That is not an argument against the trade; it is the trade at its current price,
+and the price is currently wrong for a reason that is understood.
+
+The durable record is the tag. Any release here can be rebuilt from `v0.14.1`
 with `tools/release.sh`, and the tags go back much further than this directory
 ever will.
 
