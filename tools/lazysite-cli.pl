@@ -685,6 +685,96 @@ sub cmd_upgrade {
         unless length $cgibin;
 
     run_or_fail( _install_argv( $docroot, $cgibin, force => $o{force} ) );
+
+    # N142A: THIS PATH CANNOT RESTART, AND SAYS SO RATHER THAN LEAVING IT
+    # UNSAID. A single-site upgrade refuses root (above), and restarting a
+    # systemd unit needs it - so the one thing this cannot do is the thing that
+    # decides whether the upgrade takes effect for a pooled or long-running
+    # site. Silence here is what left two sites serving a previous engine after
+    # an upgrade that reported success.
+    #
+    # Printed only when there is something to restart: a site with no units is
+    # told nothing, because a reminder that never applies is one people learn
+    # to skip.
+    if ( -d '/run/systemd/system' && _have('systemctl') ) {
+        my @live = grep {
+            system( 'systemctl', 'is-active', '--quiet', $_ ) == 0
+        } map { "$_\@" . _domain_for_docroot($docroot) . '.service' }
+            qw(lazysited lazysite);
+        if ( @live && _domain_for_docroot($docroot) ) {
+            print "lazysite: this site keeps engine code between requests. "
+                . "Until these restart it goes on\n"
+                . "  serving the PREVIOUS engine. As root:\n";
+            print "    systemctl restart $_\n" for @live;
+        }
+    }
+    return 0;
+}
+
+# The registry entry name is the domain, which is what the units are
+# instantiated on. Returns '' when the docroot is not registered - in which
+# case there is nothing to name and nothing to say.
+sub _domain_for_docroot {
+    my ($docroot) = @_;
+    for my $s ( @{ read_registry() } ) {
+        my $sd = abs_path( $s->{docroot} // '' ) // ( $s->{docroot} // '' );
+        return $s->{name} if length $sd && $sd eq $docroot;
+    }
+    return '';
+}
+
+# N142A: AN UPGRADED SITE RUNS THE CODE IT WAS UPGRADED TO.
+#
+# N141-05 fixed this for lazysite-hestia-deploy.sh and stopped there, which was
+# the wrong place to stop: INSTALL-RUNBOOK.md marks that script superseded by
+# the packages, so the path most sites actually take is `lazysite upgrade`, and
+# it restarted nothing at all. The site agent asking an operator to restart the
+# daemon by hand after 0.14.1 is what surfaced it.
+#
+# WHY THE PACKAGE DOES NOT DO THIS, and is right not to. The deb's postinst says
+# so: "It does NOT restart instances - which sites restart, and when, is the
+# operator's call... a package upgrade must not take a fleet's runtimes down at
+# once." That reasoning is about a FLEET-WIDE package operation. `upgrade` is a
+# PER-SITE operation, and restarting the worker of the site just upgraded is the
+# narrowest possible action - it is the same argument N141-05 made, applied
+# where it bites.
+#
+# BOTH UNITS, because both hold engine code between requests: `lazysited@`, the
+# persistent runtime (SM757), and `lazysite@`, the FastCGI pool. A pooled worker
+# loads the engine once and serves many requests from it, so without this an
+# upgrade replaces the files and the worker goes on running what it already had
+# - which is how two sites reported `generator lazysite 0.13.13` on a 0.14.0
+# engine, on a freshly rendered 404.
+#
+# GUARDED THE SAME WAY as the deploy script: restarted only when the unit is
+# actually running, so an ordinary CGI site is untouched and silent. An
+# unconditional restart would fail noisily on most sites and teach operators to
+# skip the output.
+sub _restart_site_workers {
+    my ($domain) = @_;
+    return () unless defined $domain && length $domain;
+    return () unless -d '/run/systemd/system';
+    return () unless _have('systemctl');
+
+    my @restarted;
+    for my $unit ( "lazysited\@$domain.service", "lazysite\@$domain.service" ) {
+        next if system( 'systemctl', 'is-active', '--quiet', $unit ) != 0;
+        if ( system( 'systemctl', 'restart', $unit ) == 0 ) {
+            push @restarted, $unit;
+        }
+        else {
+            warn "lazysite: could not restart $unit - run: "
+                . "systemctl restart $unit\n";
+        }
+    }
+    return @restarted;
+}
+
+sub _have {
+    my ($bin) = @_;
+    for my $d ( split /:/, ( $ENV{PATH} // '' ) ) {
+        return 1 if length $d && -x "$d/$bin";
+    }
     return 0;
 }
 
@@ -733,7 +823,17 @@ sub cmd_upgrade_all {
         @cmd = _as_owner( $owner, @cmd ) if $is_root && $owner ne $me;
         print "== $s->{name}: $s->{docroot} (as $owner)\n";
         my $rc = system(@cmd);
-        if    ( $rc == 0 ) { push @done, $s->{name} }
+        if ( $rc == 0 ) {
+            push @done, $s->{name};
+
+            # N142A: the site now HAS the new code; make it RUN it. Only as
+            # root - a systemd unit is a system service, and the upgrade
+            # itself ran as the site's owner. A non-root --all upgrades only
+            # the caller's own sites, where it cannot restart anything, so it
+            # says so once at the end rather than per site.
+            my @r = $is_root ? _restart_site_workers( $s->{name} ) : ();
+            print "   restarted: " . join( ', ', @r ) . "\n" if @r;
+        }
         elsif ( $rc != -1 && ( $rc >> 8 ) == 3 ) {
             # install.pl exit 3 = clean channel skip (the site's
             # update_channel refused this payload; already explained and
