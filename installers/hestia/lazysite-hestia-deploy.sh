@@ -269,6 +269,36 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   else
     echo "    runtime provisioned; it starts within five minutes of the daemon plugin being enabled"
   fi
+
+  # N141-05: AND THE FastCGI POOL, WHICH NOTHING RESTARTED.
+  #
+  # A pooled worker is a long-lived process holding the engine it loaded at
+  # start. An upgrade replaces the files on disk and the worker goes on serving
+  # the OLD CODE until somebody restarts it - and until today the only place
+  # that restart appeared was INSTALL-RUNBOOK.md:177, as a sentence telling a
+  # human to remember. The comment above this block says the runtime is
+  # restarted "the way a pool restart does, without anybody remembering to",
+  # which reads as an assumption that the pool was already handled. It was not.
+  #
+  # Found from the outside: xisl.com and dhcf.eu reported `generator lazysite
+  # 0.13.13` on a 0.14.0 engine, including on a freshly rendered 404 for a path
+  # that had never been requested - which rules out the page cache. The version
+  # was not being misreported; it was HONEST. Those pages really were rendered
+  # by 0.13.13, because that is the code the worker was still running.
+  #
+  # Two consequences, and the second is the one that bites later: the site is
+  # not running the release the operator was told it is running, and
+  # `?v=` on the injected assets is pinned to the old number, so the cache-buster
+  # that exists to force a refetch stops moving at exactly the upgrade it is for.
+  #
+  # Guarded the same way as the runtime above - restarted only if it is actually
+  # running, so a site that does not use the pool is untouched and silent.
+  if systemctl list-unit-files "lazysite@*.service" >/dev/null 2>&1 \
+     && systemctl is-active --quiet "lazysite@$DOMAIN.service"; then
+    systemctl restart "lazysite@$DOMAIN.service" \
+      && echo "    FastCGI pool restarted on the new release" \
+      || echo "  (could not restart lazysite@$DOMAIN - run: systemctl restart lazysite@$DOMAIN)"
+  fi
 else
   echo "==> persistent runtime: no systemd on this host - not provisioned (the daemon plugin will report it)"
 fi

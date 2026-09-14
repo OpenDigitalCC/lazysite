@@ -173,7 +173,15 @@ pool socket. The pool is anonymous by design.
   `--force` overrides both, `--force-security` overrides both
   fleet-wide but only for a payload whose manifest declares
   `"security_critical": true`. `lazysite sites` lists the fleet.
-- **Pools**: a pool picks up upgraded site code on restart:
+- **Pools**: a pool picks up upgraded site code on restart, and the Hestia
+  deploy **now does that for you** (N141-05) - `lazysite@<domain>` is restarted
+  whenever it is running, beside the runtime restart. Until 0.14.1 this line was
+  the only place the restart appeared anywhere, as an instruction to remember,
+  and a pooled site went on serving the OLD ENGINE after an upgrade reported
+  success. It surfaced as two sites reporting `generator lazysite 0.13.13` on a
+  0.14.0 engine - on a freshly rendered 404, so not a cache. The version was
+  honest; the worker really was that old.
+  On a host the deploy script does not run, it is still yours:
   `systemctl restart lazysite@<domain>` after upgrading that site.
 - **Front end (SM283)**: a package upgrade **cannot** deliver this
   one. The layer at fault is nginx, and no Hestia proxy template
