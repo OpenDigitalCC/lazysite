@@ -11,12 +11,12 @@ standard-margins: true
 **stable** one. Edge and beta builds are deliberately absent: they exist to be
 tested by people who know they are testing, and a download link is not that.
 
-    lazysite-0.12.1.tar.gz              the whole engine, for any host
-    lazysite-0.12.1.tar.gz.sha256       its checksum
-    lazysite-common_0.12.1-1_all.deb    the engine (required)
-    lazysite-nginx_0.12.1-1_all.deb     nginx glue
-    lazysite-apache_0.12.1-1_all.deb    Apache glue
-    lazysite-hestia_0.12.1-1_all.deb    Hestia glue
+    lazysite-0.14.0.tar.gz              the whole engine, for any host
+    lazysite-0.14.0.tar.gz.sha256       its checksum
+    lazysite-common_0.14.0-1_all.deb    the engine (required)
+    lazysite-nginx_0.14.0-1_all.deb     nginx glue
+    lazysite-apache_0.14.0-1_all.deb    Apache glue
+    lazysite-hestia_0.14.0-1_all.deb    Hestia glue
 
 # Which one do I want
 
@@ -24,21 +24,29 @@ tested by people who know they are testing, and a download link is not that.
 server. The glue packages carry the vhost templates and nothing else, which is
 why they are small and why installing two of them is not useful.
 
-    sudo dpkg -i lazysite-common_0.12.1-1_all.deb lazysite-nginx_0.12.1-1_all.deb
+    sudo dpkg -i lazysite-common_0.14.0-1_all.deb lazysite-nginx_0.14.0-1_all.deb
 
 **Anywhere else, or to install without root:** the tarball. Verify it first -
 the checksum beside it is the one the release gate recorded:
 
-    sha256sum -c lazysite-0.12.1.tar.gz.sha256
+    sha256sum -c lazysite-0.14.0.tar.gz.sha256
 
 # Why the repository and not a release asset
 
 Because somebody asked to download it and this is the shortest path from a
 repository to a file. It is a deliberate trade: **binaries in git are permanent**
-- every stable release adds about 8 MB to the history and nothing removes it -
-so this directory holds ONE release, replaced rather than accumulated.
+- nothing removes them - so this directory holds ONE release, replaced rather
+than accumulated.
 
-The durable record is the tag. Any release here can be rebuilt from `v0.12.1`
+**The cost has grown, and the figure here is measured rather than estimated.**
+This directory used to say "about 8 MB" per release. The tarball below is
+**14.9 MB**, and with the four packages a release now adds roughly **18 MB** to
+the history, permanently - more than double the old estimate, because the engine
+grew and nothing here shrinks. That is not an argument against the trade; it is
+the trade at its current price, so whoever next decides whether to keep it is
+deciding with a real number.
+
+The durable record is the tag. Any release here can be rebuilt from `v0.14.0`
 with `tools/release.sh`, and the tags go back much further than this directory
 ever will.
 
@@ -50,4 +58,11 @@ VERSION tracks the last release on ANY channel and would point at an edge cut.
 
 That check exists because a download directory is exactly the kind of thing that
 goes stale invisibly: nothing fails, nothing warns, and somebody downloads a
-year-old build believing it is current. The lint fails the release instead.
+year-old build believing it is current. The lint fails the release instead - and
+it did exactly that here, the moment this release was recorded as stable while
+the directory still held its predecessor.
+
+It also refuses any OTHER version number anywhere on this page, which is why the
+paragraph above gives sizes and not the release they came from: an install line
+carrying a stale version is copy-pasteable and wrong, and prose explaining a
+stale version looks exactly like one to a reader skimming for a command.
