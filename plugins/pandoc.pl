@@ -328,10 +328,25 @@ sub convert {
     return { ok => 0, error => 'only Markdown pages can be converted' }
         unless $rel =~ /\.md\z/;
 
-    my $src = "$docroot/$rel";
-    return { ok => 0, error => 'no such page' } unless -f $src;
+    # N141B-A: RESOLVE BEFORE ASKING WHETHER IT EXISTS.
+    #
+    # This used to test `-f "$docroot/$rel"` here, which is the one place a
+    # gated page is NOT. A page under a draft or read ACL lives in the private
+    # store, and SM738 added the `resolve` callback precisely so this plugin
+    # could find it - but the plain test ran first and answered "no such page",
+    # so the resolver was never reached for the only class of page it exists to
+    # serve. page-pdf worked on exactly the pages that did not need it.
+    #
+    # The resolution is unchanged and still happens once; it has only moved
+    # ABOVE the existence and size checks, which now ask about the file that
+    # will actually be read. That also fixes a quieter bug: the size check was
+    # measuring a different file from the one converted whenever the two paths
+    # differed.
+    my $prim_abs = ref $o{resolve} eq 'CODE' ? $o{resolve}->($rel) : "$docroot/$rel";
+    return { ok => 0, error => 'no such page' }
+        unless defined $prim_abs && -f $prim_abs;
 
-    my $size = -s $src;
+    my $size = -s $prim_abs;
     return { ok => 0,
         error => "the page is larger than this converter accepts "
             . "($MAX_INPUT_BYTES bytes)" }
@@ -345,9 +360,7 @@ sub convert {
     # THE PARTS, IF ANY. Each is checked exactly as the document itself was:
     # inside the docroot, Markdown, and present.
     my @sources = ($rel);
-    # The primary resolves the same way its parts do.
-    my $prim_abs = ref $o{resolve} eq 'CODE' ? $o{resolve}->($rel) : "$docroot/$rel";
-    return { ok => 0, error => 'no such page' } unless defined $prim_abs && -f $prim_abs;
+    # The primary resolved above, the same way its parts do below.
     my @source_abs = ($prim_abs);
     for my $part ( @{ _parts_of( $docroot, $rel ) } ) {
         ( my $prel = $part ) =~ s{\A/+}{};

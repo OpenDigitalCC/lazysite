@@ -165,6 +165,21 @@ sub action_list {
     $dir_path =~ s{/+$}{};
     $dir_path = '/' if $dir_path eq '';
 
+    # N141B-B: THE LEADING SLASH IS OPTIONAL, as it already is on acl-get,
+    # acl-set, acl-remove and protected-sections. `list` alone required it, and
+    # did not say so: below, $list_rel strips leading slashes to decide which
+    # TREE the folder is in, and then the ORIGINAL $dir_path is concatenated
+    # onto that root - so "docs" built "<root>docs", realpath failed, and the
+    # caller was told the folder "does not exist, or it resolves outside the
+    # site tree". Neither was true, which is why the real cause is invisible
+    # from the message: nobody debugging it looks at the slash.
+    #
+    # Normalised HERE, beside the other spelling rules, so every line after
+    # this one sees a path in the single shape they all already assume -
+    # rather than at the point of use, which would leave the next reader of
+    # $dir_path to wonder which shape they have.
+    $dir_path = "/$dir_path" unless $dir_path =~ m{\A/};
+
     # SM286: a listing must show a section that lives in the private store, or
     # the manager reports an empty folder for content that is there.
     #

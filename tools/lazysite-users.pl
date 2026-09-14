@@ -5346,8 +5346,15 @@ channel x capability grid for a user.
 
 =item Bootstrap
 
-C<setup-manager> - one command to create the manager account, admin group and
-F<lazysite.conf> and set (or generate) a password. Idempotent.
+C<setup-sysop> - one command to create the sysop account and its group, and to
+hand over a setup link (C<--link>, the default) or a generated password.
+Idempotent. A username is required; there is no default.
+
+SM659 renamed this from C<setup-manager> and deliberately left B<no alias>,
+because the old name created a role account by default and that is the thing
+the rename fixes. This paragraph said C<setup-manager> until N141B-G, so anyone
+reading C<perldoc lazysite-users.pl> was told to run a command that does not
+exist, on the one page they would consult before their first successful command.
 
 =item Credentials and partners
 
