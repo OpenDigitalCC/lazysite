@@ -96,9 +96,16 @@ functional - the nav save with no `nav_file`, and the per-host cache unlinks.
   root is a protected folder makes an empty public folder and a public seeded
   `index.md`, and the domain then serves the seed.
 - **S6** git-sync pull: `git merge` writes into the docroot worktree, so a remote
-  commit adding a file under a protected folder makes it public.
+  commit adding a file under a protected folder makes it public. **Split out as
+  [[SM881]]** — the sibling rows' fix does not apply, because the write is
+  git's and happens first. **RULED 2026-09-14:** the engine gains an ACL-aware
+  resolver and git-sync asks it after a merge.
 - **S9** the per-content-root theme mirror recreates a fully gated content root.
   Whether a fully gated content root is a supported configuration is open.
+  **Split out as [[SM882]]**, and **RULED 2026-09-14:** it is supported, and it
+  must contain nothing public — so this IS a defect, and the assets move out of
+  the gated root. Both rulings want the same new resolver; S6 and S9 are now one
+  piece of work.
 - **MISS** `Plugins::_rewrite_store` (finds no store once its folder is gated -
   fixed by S1, since it reads through `store_path`; to verify) and
   `Domains::domain_remove` purge (removes only the public half and reports it
