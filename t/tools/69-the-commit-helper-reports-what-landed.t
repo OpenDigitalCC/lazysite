@@ -29,7 +29,11 @@ sub git { return run_cmd( 'git', '-C', $repo, @_ ) }
 git( 'init',   '-q',         '-b', 'claude/x' );
 git( 'config', 'user.email', 't@example.test' );
 git( 'config', 'user.name',  'T' );
-spit( "$repo/msg.txt", "the subject line\n\nbody\n" );
+# SM880: the helper now requires the provenance trailer, so every fixture
+# message carries one. This file is about what the helper REPORTS; the trailer
+# rules themselves are driven in t/tools/76.
+spit( "$repo/msg.txt",
+    "the subject line\n\nbody\n\nAssisted-by: Claude:claude-opus-5[1m]\n" );
 spit( "$repo/a.txt",   "one\n" );
 git( 'add', 'tools/commit-staged.sh', 'a.txt' );
 
