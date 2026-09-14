@@ -1094,6 +1094,7 @@ sub run_checks {
     report_double_escaped_db_templates();
     report_unconverted_delivery();
     report_retired_conf_keys();
+    report_shared_manager_account();    # N141D (SM864)
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
@@ -1840,6 +1841,57 @@ sub report_retired_conf_keys {
     report( 'WARN',
         'lazysite.conf sets ' . scalar(@found) . ' key(s) the engine no longer reads: ' . join( '; ', @found ),
         'rename manager_upload_blocked_paths to manager_blocked_paths, and delete db_render_raw' );
+    return;
+}
+
+# N141D (SM864, remaining half): say that a pre-SM659 shared `manager` account
+# is here.
+#
+# Before SM659 the bootstrap command created a ROLE ACCOUNT called `manager` by
+# default - one login, shared by whoever administered the site. SM659 replaced
+# it with setup-sysop, which names a person, and deliberately left no alias so
+# the old way could not be followed by habit. The installer half of this shipped.
+#
+# WHAT DID NOT: on a site that predates the change the account is simply still
+# there, and NOTHING SAYS SO. An operator who has never read SM659 has no reason
+# to look, and a shared credential nobody is reminded of is one nobody rotates,
+# scopes or retires - while the audit trail attributes every action it takes to
+# a name that is not a person.
+#
+# REPORTED, NOT REPAIRED, and the filing is explicit about why: "Nothing renames
+# or deletes it - an operator may be signing in with it." A check that silently
+# removed the account somebody uses to administer the site would be a far worse
+# defect than the one it closes.
+#
+# WARN, because the vocabulary is closed (OK/WARN/FAIL - SM584) and the other two
+# are both wrong: OK says there is nothing to do, and FAIL says the site is
+# broken, which it is not. It fires only on sites that predate SM659, so it is
+# not noise added to every report - and on the sites where it does fire it is
+# exactly the population that has never been told.
+sub report_shared_manager_account {
+    my $users = "$LZ/auth/users";
+    return unless -f $users;
+
+    open my $fh, '<', $users or return;
+    my $found = 0;
+    while ( my $l = <$fh> ) {
+        next if $l =~ /^\s*(?:#|$)/;
+        my ($name) = split /:/, $l, 2;
+        next unless defined $name;
+        $name =~ s/^\s+|\s+$//g;
+        $found = 1 if $name eq 'manager';
+    }
+    close $fh;
+    return unless $found;
+
+    report( 'WARN',
+        'this site has an account called "manager" - the shared role account '
+            . 'the bootstrap created before SM659',
+        'it still works and nothing here changes it. If a person is signing in '
+            . 'with it, give them their own account (users add NAME, then put '
+            . 'them in the same group) and disable this one; a shared login '
+            . 'records every action under a name that is not a person'
+    );
     return;
 }
 
