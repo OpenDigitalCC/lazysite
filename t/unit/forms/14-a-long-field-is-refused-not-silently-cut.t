@@ -136,4 +136,37 @@ ok( $ok->{ok}, 'an ordinary submission still succeeds' );
 my @all = records();
 is( $all[-1]{message}, 'Hello', 'and stores what was typed' );
 
+# --- N141C: the LINE BREAKS a visitor typed survive too ----------------------
+#
+# The same call used to fold CR and LF to spaces, so a message written as three
+# paragraphs was stored as one line and nobody was told. That is the truncation
+# defect applied to structure instead of length: a header-shaped rule imposed on
+# the data, silently, where the result IS kept.
+#
+# Ruled by the release manager: keep the newlines. The mail SUBJECT keeps its
+# own fold in form-smtp.pl, one line before it is used, which is where a header
+# genuinely cannot hold a newline.
+my $para = "Dear sir\n\nThe roof leaks.\n\nRegards";
+my $mp = post( name => 'Ada', message => $para );
+ok( $mp->{ok}, 'a multi-line message is accepted' );
+
+my @after = records();
+is( $after[-1]{message}, $para, 'and stored with its line breaks intact' )
+    or diag( 'Stored as: ' . ( $after[-1]{message} // '' )
+        . "\nFolding CR/LF here loses the paragraphs the visitor typed, keeps "
+        . 'the row, and reports success.' );
+
+like( $after[-1]{message}, qr/\n/, 'the stored value really contains a newline' );
+
+# CRLF and a lone CR are normalised to LF, so the store holds ONE spelling of
+# "line break" rather than three - a reader comparing two submissions should not
+# have to know which browser sent which.
+my $crlf = post( name => 'Ada', message => "one\r\ntwo\rthree" );
+ok( $crlf->{ok}, 'a CRLF submission is accepted' );
+my @norm = records();
+is( $norm[-1]{message}, "one\ntwo\nthree",
+    'CRLF and a bare CR are both normalised to LF' )
+    or diag( 'Three spellings of a line break in one store makes every later '
+        . 'comparison and export depend on the submitting browser.' );
+
 done_testing();

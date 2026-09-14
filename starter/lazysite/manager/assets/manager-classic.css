@@ -1285,6 +1285,13 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-submissions-table { width: 100%; font-size: 0.85em; }
 .mg-submissions-table th,
 .mg-submissions-table td { vertical-align: top; max-width: 22rem; overflow-wrap: anywhere; }
+
+/* N141C: the breaks the visitor typed. The value is set with textContent, so
+   it is already correct in the DOM - without this, HTML collapses a
+   three-paragraph message into one line and the page silently disagrees with
+   the store. pre-wrap, not pre: long lines must still wrap in a 22rem cell. */
+.mg-submissions-table td { white-space: pre-wrap; }
+
 /* A checkbox column should be as wide as a checkbox; equal share pushed the
    content that matters off the right-hand side. */
 .mg-submissions-table td:first-child,

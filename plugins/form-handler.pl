@@ -809,11 +809,24 @@ sub sanitise_header {
 # the data is the one place truncation is unsafe: the row is kept, reported ok,
 # and nothing downstream can tell the value is not what was typed.
 #
-# THE NEWLINE HANDLING IS DELIBERATELY UNCHANGED. sanitise_header also folds CR
-# and LF to spaces, so a multi-line textarea is stored as one line. That is very
-# likely wrong too, but it changes the SHAPE of data on every existing site, so
-# it is a separate decision with its own blast radius - filed, not smuggled in
-# here. What this fixes is the one that destroys content outright.
+# N141C: AND THE NEWLINES ARE KEPT. sanitise_header also folded CR and LF to
+# spaces, so a message typed as three paragraphs was stored as one line and the
+# visitor was never told. That is the same mistake as the truncation above,
+# applied to structure instead of length: a header-shaped rule imposed on the
+# data, silently, where the result IS kept.
+#
+# WHY IT IS SAFE TO STOP. Three consumers, checked rather than assumed:
+#
+#   * the submission STORE is JSONL, and JSON escapes a newline - a multi-line
+#     value has always been representable there, it simply never arrived;
+#   * the mail SUBJECT keeps its own fold, in form-smtp.pl, one line before it
+#     is used (`$subject =~ s/[\r\n]/ /g`). That is where a header truly cannot
+#     hold a newline, and the guard belongs there rather than three layers away
+#     on every field that will never become a header;
+#   * the mail BODY and the Submissions page want the breaks - showing them is
+#     the point.
+#
+# So the header rule now lives with the header, and the data keeps its shape.
 sub field_value {
     my ( $name, $val ) = @_;
     $val = '' unless defined $val;
@@ -822,7 +835,11 @@ sub field_value {
         reject_user( "The '$name' field is too long (limit ${kb} KB). "
                 . 'Nothing was saved - shorten it and send the form again.' );
     }
-    $val =~ s/[\r\n]/ /g;
+
+    # A lone CR (an old Mac line ending, and what a CRLF leaves if the LF is
+    # taken separately) is normalised to LF so the store holds one spelling of
+    # "line break" rather than three.
+    $val =~ s/\r\n?/\n/g;
     return $val;
 }
 

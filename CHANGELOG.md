@@ -44,6 +44,110 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+Toward 0.14.1 - the first patch after stable. Fixes and one front-end
+addition; no engine feature work, per the two-week freeze.
+
+**An upgrade now restarts what holds the old code.**
+
+- N141-05 (5a03492) the Hestia deploy restarts `lazysite@<domain>` beside
+  `lazysited@<domain>`. A FastCGI worker loads the engine once and serves many
+  requests from it, so an upgrade replaced the files and the worker went on
+  running what it already had. Two sites reported `generator lazysite 0.13.13`
+  on a 0.14.0 engine - including on a freshly rendered 404, which rules out the
+  page cache. **The version was honest**: those pages really were rendered by
+  0.13.13. Until this, the only mention of a pool restart anywhere in the tree
+  was one line of INSTALL-RUNBOOK.md asking a human to remember. The same
+  staleness also pinned `?v=`, the asset cache-buster, at the upgrade it exists
+  for.
+
+**Submitted data is kept whole, or refused by name.**
+
+- N141B (8459220) an over-long form field is refused, naming the field, instead
+  of being silently truncated at 10,000 characters and stored with `ok`. A
+  signature captured as a data URL arrived with a valid PNG header and no IEND -
+  a corrupt row recorded as good. The old cap was 0.015% of the request size the
+  handler already accepts, so it bounded nothing; it only chose, silently, which
+  submissions got damaged. Now a named 1 MiB `$MAX_FIELD_BYTES`.
+- N141C the line breaks a visitor typed are kept. The same call folded CR/LF to
+  spaces, so a message written as three paragraphs was stored as one line. The
+  mail *subject* keeps its own fold, in `form-smtp.pl`, which is where a header
+  genuinely cannot hold a newline.
+
+**Access control says what is true.**
+
+- SM879 (8c01aa4) the group card draws the capabilities a group INHERITS, ticked
+  and not editable, each naming the bundle it comes from. Since SM631 a role
+  holds nothing of its own, so **nine of the ten shipped roles rendered an
+  entirely unticked grid** while granting between three and eleven capabilities;
+  `site-admins` showed an empty grid and granted eleven. The dormant-service,
+  dormant-plugin and inert-group warnings were all direct-only and so could
+  never fire for most roles.
+- N141B-D (15087cf) the permissions grid names the group that actually SETS a
+  capability, not the role it was asked about. It credited the whole inherited
+  set to the direct role, so an operator following that name to revoke an access
+  landed on the one group where turning it off changes nothing.
+- N141B-E (15087cf) deleting a nested group removes it from its parents' member
+  lists. It left a phantom entry that was not a user and not a group, and the
+  parent's own delete guard then counted it - wedging the parent undeletable
+  behind a group that no longer existed.
+- N141-01 (d24ea33) the Services holder line follows the switch instead of
+  keeping the future tense at a service already off.
+
+**The record names its subject.**
+
+- N141B-C (15087cf) connector audit rows name the connector, `user-group-nest`
+  records both groups, and `user-group-settings-set` records the capability and
+  its new value. All three recorded an action and no subject, because actions
+  whose subject is not a file path passed no target and the default is the
+  request path.
+
+**Smaller fixes.**
+
+- N141B-A (a79135f) `page-pdf` converts a draft or gated page. `convert()`
+  tested `-f "$docroot/$rel"` before consulting the SM738 resolver, which is the
+  one place a gated page is not - so the plugin worked only on pages that did
+  not need it. The size limit was also measuring a different file from the one
+  converted.
+- N141B-B (a79135f) `list` accepts a folder path with or without a leading
+  slash, as its four sibling ACL actions already did, and stops reporting the
+  omission as "it does not exist, or it resolves outside the site tree".
+- N141B-G (a79135f) the users tool's POD names `setup-sysop`; SM659 removed
+  `setup-manager` with no alias four releases ago. `t/lint/144` now reads the
+  manual against the dispatch chain.
+- N141B-F (15087cf) the Stats "Who's calling" panel counts every class the
+  engine reports. `scanner` - 58.7% of traffic on the instrument - was missing
+  from a hard-coded list of five, so the largest class was absent and the bar
+  drew the rest as a complete whole. "Unique visitors" is relabelled People
+  (the human-only value is deliberate), and "0 log lines scanned." is gone: it
+  read a field nothing has ever sent.
+- N141-02 (d24ea33) a relative `--stage-dir` resolves instead of inverting the
+  release verdict - `All tests successful` followed by `test suite failed`.
+- N141-03 (d24ea33) two manual checks stop naming furniture SM635 retired.
+
+**Additions.**
+
+- SM878 (2c4714e) drag and drop onto the Files page, calling the existing
+  `uploadFiles()` rather than adding a second upload path. The Upload button
+  stays: a drop zone advertises itself to nobody and cannot be operated from a
+  keyboard.
+
+**Tooling and record.**
+
+- SM880 (efe16b4) `tools/commit-staged.sh` refuses a `Co-Authored-By:` trailer
+  and a message with no provenance. `/srv/projects/rules/git.md` has required
+  `Assisted-by:` since 15 July 2026 and says the harness prints the old trailer
+  in its own guidance - correct, and not enough: on 14 September the harness
+  instructed the switch, and only noticing stopped it.
+- Docs: SM877 (smtp `to_field`) and N141-04 filed; SM877's stated mitigation
+  does not hold, because form rate limiting is per source IP and the relay risk
+  is per destination.
+
+- Record: `t/lint/145` now asserts that a filing marked `shipped` is named
+  somewhere in this file - t/lint/26 checks only the other direction, so a
+  released item could be absent from the record and the suite stay green. On its
+  first run it found three (SM731, SM733, SM763), each added below to the
+  release that actually shipped it.
+
 ## 0.14.0 - STABLE: the first stable of the 0.13 line's work (2026-09-13)
 
 **The release that takes 20+ sites off 0.12.1.** No new capability: everything
@@ -1376,6 +1480,11 @@ unaided, the job checks named the missing capabilities, and then every job was
 refused for a capability the account held while Status called the running
 runtime "not started". One fault, seen from two sides.
 
+- SM763 (f2170c4) a render under instrumentation gets the time it needs -
+  `plugins/pandoc.pl` allows 90 s when Devel::Cover is loaded, 20 s otherwise.
+  A pandoc + XeLaTeX render that takes 8 s plain exceeded the 20 s ceiling
+  under the instrumented release gate, and the conversion was refused as a
+  timeout. *Recorded late, by t/lint/145.*
 - SM760 (3671a2f2) **the runtime and the request path were two unix users.**
   The deploy wrote `USER=<panel user>`; the request path on the host runs as
   `www-data`; both write `0660`. A grant on the Groups page had `www-data`
@@ -1947,6 +2056,13 @@ eleven sabotages passing against a function nothing invoked - and SM734's theme
 assets had never reached a content-root domain on any release since the mirror
 existed. Both were found from outside, by an agent testing the running fleet.
 
+- SM731 (4f791c5) the practice import refuses to publish a client's name.
+  `starter/docs/ai-briefing-practice.md` ships inside every installation and is
+  assembled from field notes written on real client sites, so the natural way to
+  make a point - naming the site it was learned on - would publish it.
+  *Recorded late, by t/lint/145.*
+- SM733 (131e77f) the practice sources move into the repository that ships them.
+  *Recorded late, by t/lint/145.*
 - SM734 shipped (c9e8ceec) **theme assets reach every content root.** A
   multi-site domain with a `content_root` serves `/lazysite-assets/` from THAT
   root - the vhost points its document root there, so the request is a static
