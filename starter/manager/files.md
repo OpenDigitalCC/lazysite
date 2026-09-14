@@ -30,7 +30,7 @@ search: false
 <button class="mg-btn" onclick="newFile()">Add File</button>
 <button class="mg-btn" onclick="newFolder()">Add Folder</button>
 <input type="file" id="upload-input" multiple style="display:none" onchange="uploadFiles(this.files)">
-<button class="mg-btn" onclick="triggerUpload()">Upload</button>
+<button class="mg-btn" onclick="triggerUpload()" title="Choose files to upload — or drag them onto this page">Upload</button>
 </div>
 <div class="mg-file-actions-right">
 <button class="mg-btn" id="alias-btn" onclick="openAliases()" title="Alternate URLs that redirect into this folder">Aliases</button>
@@ -1136,6 +1136,92 @@ function uploadFiles(files) {
     })
     .catch(function(e) { showStatus('Upload error: ' + e.message, true); });
 }
+
+// SM878: drop files onto the page to upload them into the folder on screen.
+//
+// A NEW WAY TO CALL uploadFiles(), NOT A SECOND UPLOAD PATH. A drop event's
+// dataTransfer.files IS a FileList, which is what uploadFiles already takes and
+// what the file input already hands it - so the POST, the overwrite
+// confirmation, the partial-success reporting and the audit behaviour are the
+// same code as the Upload button. If this ever needs its own request shape, it
+// has stopped being this change.
+//
+// THE BUTTON STAYS. A drop zone advertises itself to nobody, cannot be operated
+// from a keyboard, and does not exist on a touch device. This is additive.
+(function () {
+  var zone = document.getElementById('app');
+  if (!zone || !window.FileList) return;
+
+  // Only a drag carrying FILES from outside the browser. A text selection or a
+  // dragged link also fires these events, and treating those as an upload
+  // would flash a drop target at somebody who is not uploading anything.
+  function carriesFiles(e) {
+    var t = e.dataTransfer && e.dataTransfer.types;
+    if (!t) return false;
+    for (var i = 0; i < t.length; i++) if (t[i] === 'Files') return true;
+    return false;
+  }
+
+  // dragenter/dragleave fire for every child element the pointer crosses, so a
+  // boolean flickers off the moment the cursor passes from the table onto a row
+  // inside it. Counting enters against leaves is the standard answer.
+  var depth = 0;
+  function hint() {
+    var where = (typeof currentDir !== 'undefined' && currentDir !== '/')
+      ? currentDir : 'the top level';
+    return 'Drop to upload into ' + where;
+  }
+
+  // THE BROWSER'S DEFAULT IS TO NAVIGATE TO THE DROPPED FILE, discarding
+  // whatever is on the page - an unsaved rename, a filter, a selection. That
+  // has to be suppressed on the WHOLE DOCUMENT, not just the target: the misses
+  // are exactly the drops that would otherwise throw the page away.
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('drop', function (e) { e.preventDefault(); clear(); });
+
+  // A COUNTER CAN LEAK, so the end of any drag resets it outright. If an enter
+  // is ever missed - the listing re-renders mid-drag, the drag ends outside the
+  // window - the count never returns to zero and the outline stays on a page
+  // nobody is dragging over. Cheap to prevent, confusing to leave.
+  function clear() { depth = 0; zone.classList.remove('mg-drop-active'); }
+  document.addEventListener('dragend', clear);
+
+  zone.addEventListener('dragenter', function (e) {
+    if (!carriesFiles(e)) return;
+    depth++;
+    zone.classList.add('mg-drop-active');
+    zone.setAttribute('data-drop-hint', hint());
+  });
+  zone.addEventListener('dragleave', function (e) {
+    if (!carriesFiles(e)) return;
+    if (--depth <= 0) clear();
+  });
+  zone.addEventListener('drop', function (e) {
+    clear();
+    if (!carriesFiles(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // A DROPPED FOLDER IS NOT A FILE. It arrives as an entry that has to be
+    // walked with webkitGetAsEntry(); dataTransfer.files either omits it or
+    // carries something unreadable. Walking it is a bigger change than this one
+    // (recursion, per-directory creation, partial failure), so it is REFUSED BY
+    // NAME. The one thing not to do is accept the drop and upload nothing,
+    // which is what happens if this check is absent.
+    var items = e.dataTransfer.items;
+    if (items && items.length && items[0].webkitGetAsEntry) {
+      for (var i = 0; i < items.length; i++) {
+        var entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+        if (entry && entry.isDirectory) {
+          showStatus('Drop the files themselves, not the folder — '
+            + 'folders are not uploaded yet. Use Add Folder, then drop into it.', true);
+          return;
+        }
+      }
+    }
+    uploadFiles(e.dataTransfer.files);
+  });
+})();
 
 function handleSkipped(skipped, dir, files) {
   var msg = 'These files already exist:\n\n' + skipped.join('\n') + '\n\nOverwrite?';

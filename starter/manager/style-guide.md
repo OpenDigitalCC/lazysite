@@ -296,6 +296,19 @@ warning-coloured, because this is where a grant comes from, not a fault.</p>
   <span class="mg-cap-inherited" title="Inherited from cap-content — change it there, not here.">&#8618; cap-content</span></label>
 </div>
 
+<h2 class="mg-sg-h">The drop target</h2>
+<p class="mg-sg-note">SM878: applied to the Files page while files are dragged over it.
+The outline is <b>inset</b> so it cannot widen the page, and the hint (from
+<code>data-drop-hint</code>) has <code>pointer-events: none</code> so it can never swallow
+the drop it is advertising. The hint names the destination folder, because a drop into
+the wrong folder is cheaper to prevent than to undo.</p>
+<div class="mg-sg-demo">
+<div class="mg-drop-active" data-drop-hint="Drop to upload into /photos">
+<br><br>
+<span class="mg-sg-tag">.mg-drop-active</span>
+</div>
+</div>
+
 <h2 class="mg-sg-h">The collapsed vocabulary (SM-DS1)</h2>
 <p class="mg-sg-note">The design pass folded several near-duplicate families into one
 each. These are the survivors, registered so the pages have something to be converted

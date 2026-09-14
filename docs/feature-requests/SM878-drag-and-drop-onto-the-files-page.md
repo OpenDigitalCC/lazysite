@@ -4,8 +4,8 @@ title: "SM878: drag and drop onto the Files page, beside the Upload button"
 subtitle: "Uploading needs a button press and a file-picker round trip. Dropping files onto the listing is how every other file manager works, and the whole delivery path already exists - uploadFiles() takes a FileList, which is exactly what a drop event carries. The button STAYS: drag-and-drop is undiscoverable on its own and unusable by keyboard."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "RAISED 2026-09-14 by the release manager, explicitly 'can be done later'. NOT 0.14.1. The mechanism is already in place: files.md:1108 uploadFiles(files) accepts a FileList and does the POST, retry and conflict handling, so a drop handler is a new way to CALL it rather than a second upload path - which is the condition that keeps this small and keeps one code path answering for what lands on disk. Must land in the CURRENT DIRECTORY the listing is showing, must not fire on a drag that started inside the page (a file being reordered or moved is not an upload), and must not let the browser navigate away when a drop misses the target - the default action on a stray drop is to open the file, losing whatever is on screen. ADDITIVE ONLY: the Upload button stays, because a drop zone is invisible until you already know it is there and cannot be reached from a keyboard at all."
+status: shipped
+status-note: "RAISED 2026-09-14 by the release manager as 'can be done later', then BUILT the same day on claude/sm880-attribution-guard-and-drop-upload once it was confirmed to be front-end only. uploadFiles(files) already accepts a FileList, which is exactly what a drop event's dataTransfer.files is, so the drop handler CALLS it rather than adding a second upload path - the POST, overwrite confirmation, partial-success reporting and audit behaviour are unchanged. Drops land in currentDir, the folder on screen. The browser's default action on a dropped file is to NAVIGATE TO IT, discarding the page, so dragover and drop are suppressed on the whole document, not only the target - the misses are precisely the drops that would throw the page away. A dropped FOLDER is refused by name (webkitGetAsEntry().isDirectory), because walking a directory tree is a larger change and silently uploading nothing is the worst option. Only drags carrying 'Files' activate the target, so a dragged text selection or link does not flash one. The Upload button STAYS: a drop zone advertises itself to nobody, is keyboard-inaccessible and absent on touch. CORRECTION to the original filing below: it claimed the page already drags rows for move/reorder and that internal drags would need excluding. It does not - files.md had no drag handling of any kind. The claim was written from plausibility, not from the file, and checking it was what found that out."
 ---
 
 # SM878 — drag and drop onto the Files page
@@ -45,9 +45,13 @@ has grown into something that needs its own review.
 - **The target directory is the one on screen.** `uploadFiles()` reads the
   current `dir`; the drop handler must not introduce a second idea of where
   "here" is.
-- **Do not fire on internal drags.** The page already drags items for move and
-  reorder. A drop that originated inside the page is not an upload, and
-  treating it as one would re-upload a file onto itself.
+- ~~**Do not fire on internal drags.** The page already drags items for move and
+  reorder.~~ **Wrong, and worth recording.** `files.md` had no drag handling of
+  any kind — no `draggable`, no `dragstart`, nothing. I wrote that from what a
+  file manager usually does rather than from the file, and only found out by
+  checking before building. What the handler actually needs is the narrower
+  test that the drag carries `Files` at all, so a dragged text selection or link
+  does not light up a drop target.
 - **Cancel the browser's default on the whole drop surface.** An unhandled drop
   makes the browser navigate to the file, discarding unsaved state elsewhere on
   the page. This must be suppressed even outside the intended zone.

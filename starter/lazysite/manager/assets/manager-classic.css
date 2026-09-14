@@ -1001,6 +1001,23 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-chk-inherited input[disabled] { cursor: not-allowed; opacity: 0.75; }
 .mg-chk-inherited { color: var(--mg-text-muted); }
 
+/* SM878: the Files page while a file is being dragged over it. The outline is
+   INSET so it cannot add to the page's scroll width, and pointer-events stay
+   off the hint so it can never swallow the drop it is advertising. The hint
+   names the destination folder, because a drop into the wrong folder is
+   cheaper to prevent than to undo. */
+.mg-drop-active { position: relative; outline: 2px dashed var(--mg-accent-deep); outline-offset: -6px; }
+.mg-drop-active::after {
+  content: attr(data-drop-hint);
+  position: absolute; inset-inline: 0; top: 0;
+  padding: 6px 10px; text-align: center;
+  background: var(--mg-surface-alt); color: var(--mg-text);
+  border-bottom: 1px solid var(--mg-border);
+  font-size: var(--mg-text-sm); font-weight: 600;
+  pointer-events: none;
+}
+
+
 /* SM758: a category heading inside the Actions grid on the Groups page. */
 .mg-cap-section { margin: 10px 0 4px; }
 .mg-cred-reveal { margin: 6px 0; padding: 8px 10px; background: var(--mg-surface-alt); border: 1px solid var(--mg-border); font-size: var(--mg-text-sm); }
