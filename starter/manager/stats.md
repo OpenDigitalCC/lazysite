@@ -97,7 +97,22 @@ function renderStats(d) {
   // is visible on the page an operator actually reads.
   h += '<div class="mg-stat-tiles">'
      + tile('Page views', fmtNum(d.hits))
-     + tile('Unique visitors' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors))
+  // N141B-F: "Unique visitors" COUNTED PEOPLE ONLY, and did not say so.
+  //
+  // The tile showed 48 where totals.unique_visitors was 153, so the same field
+  // name meant two different measurements on two surfaces. The VALUE is
+  // deliberate and correct - stats.pl counts the human class here on purpose,
+  // because this tile sits beside Page views, which is also human-only, and
+  // summing every IP would put scanners in the headline. What was wrong was
+  // the label claiming all visitors.
+  //
+  // Relabelled rather than recomputed: changing the number would break the
+  // deliberate pairing with Page views, and the other classes are now counted
+  // in full in Who's calling below, which is where somebody asking about
+  // scanners should be looking.
+     + tile('People' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors),
+            'Unique human visitors. Every other kind of caller is counted in '
+          + 'Who’s calling below.')
      + tile('Images and files', fmtNum(d.asset_hits || 0))
      + tile('Data served', fmtBytes(d.bytes))
      + tile('Window', d.window_days + ' days')
@@ -105,8 +120,35 @@ function renderStats(d) {
 
   // Traffic breakdown - separates people from AI / bots / noise / operator.
   if (d.classes) {
-    var defs = [['human', 'People'], ['logged_in', 'Logged-in'], ['ai', 'AI assistants'],
-                ['bot', 'Bots'], ['noise', 'Noise / probes']];
+    // N141B-F: DERIVED FROM THE PAYLOAD, not listed here.
+    //
+    // This was a hard-coded list of five, and the engine has six classes. The
+    // missing one was `scanner` - 8,714 visits, 58.7% of the traffic on the
+    // instrument - so the tiles omitted the LARGEST class and the bar below
+    // drew the remaining 41.3% as if it were the whole.
+    //
+    // stats.pl already learned this lesson and says so at the point it builds
+    // the payload: it derives `classes` from @CLASSES "so a sixth class cannot
+    // be left off this view the way `scanner` was left off the index". This
+    // page was the view it meant. Copying the list again here is what put it
+    // one release behind the engine, so the list now comes from the answer and
+    // only the PRESENTATION - a human label, a colour - is held locally.
+    //
+    // A class with no entry below is still drawn, under its own key. An
+    // unlabelled class on the page is a small untidiness; a class missing from
+    // a total is a wrong number.
+    var LABELS = { human: 'People', logged_in: 'Logged-in', ai: 'AI assistants',
+                   bot: 'Bots', noise: 'Noise / probes', scanner: 'Scanners' };
+    var COLOURS = { human: '#2e8b57', logged_in: '#3a7bd5', ai: '#8e44ad',
+                    bot: '#d98a1f', noise: '#b03a3a', scanner: '#6b6b6b' };
+    var ORDER = ['human', 'logged_in', 'ai', 'bot', 'scanner', 'noise'];
+    var keys = Object.keys(d.classes).sort(function (a, b) {
+      var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+      if (ia < 0) ia = ORDER.length;
+      if (ib < 0) ib = ORDER.length;
+      return ia - ib || (a < b ? -1 : a > b ? 1 : 0);
+    });
+    var defs = keys.map(function (k) { return [k, LABELS[k] || k]; });
     // SM424: OPEN by default. This and Hits per day are the two an operator
     // opens the page for, so collapsing them by default would trade one
     // annoyance for another - the block exists so they CAN be shut, not so
@@ -121,7 +163,10 @@ function renderStats(d) {
     });
     au += '</div>';
     // Proportional split bar - a visual quick-read of the audience mix.
-    var mix = [['human','#2e8b57'],['logged_in','#3a7bd5'],['ai','#8e44ad'],['bot','#d98a1f'],['noise','#b03a3a']];
+    // The same derived set, so the bar and the tiles above it can never
+    // disagree about which classes exist - and mixTotal below sums every class
+    // the engine reported, which is what makes the percentages true.
+    var mix = defs.map(function (p) { return [p[0], COLOURS[p[0]] || '#8a8a8a']; });
     var mixTotal = mix.reduce(function (s, p) { return s + ((d.classes[p[0]] || {}).hits || 0); }, 0);
     if (mixTotal > 0) {
       au += '<div class="mg-split-bar" style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:0.4rem 0">';
@@ -255,9 +300,21 @@ function renderStats(d) {
     h += block( 'errors', 'Recent server errors', er, 0 );
   }
 
-  // Source - the disk path is never shown, and the raw log is never downloadable.
-  h += '<p class="mg-muted" style="margin-top:1rem">' + fmtNum(d.scanned_lines)
-     + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.</p>';
+  // N141B-F: REMOVED - "0 log lines scanned."
+  //
+  // This read `d.scanned_lines` and `d.capped`, and the engine has never sent
+  // either: `scanned_lines` appears nowhere else in the tree. fmtNum does
+  // `(+n || 0)`, so `+undefined` is NaN, NaN || 0 is 0, and the line rendered
+  // the constant string "0 log lines scanned." under a panel full of numbers -
+  // on every load, on every site, since it was written. `(capped)` could never
+  // appear at all.
+  //
+  // DELETED RATHER THAN IMPLEMENTED. A provenance line is a good idea and the
+  // reader would be right to want one, but the honest choice between "make the
+  // engine count lines" and "stop printing a number nobody measured" is the
+  // second: the first is new work, and until it is done the page should not
+  // claim a measurement. A panel that states its own scan size as zero
+  // undermines every figure above it.
   body.innerHTML = h;
   bindBlocks();
 }
@@ -295,8 +352,18 @@ function loadMonthly() {
     .catch(function () { /* best-effort: leave the block empty */ });
 }
 
-function tile(label, value) {
-  return '<div class="mg-stat-tile"><div class="mg-stat-value">' + sesc(value)
+// N141B-F: an optional NOTE on the label.
+//
+// Several tiles measure something narrower than their label suggests - People
+// counts humans only, beside a Page views that does the same - and the page had
+// nowhere to say so. The agent's report of four unnamed denominators on one
+// screen is this: the numbers were right and nothing said what each was of.
+//
+// A title attribute, not body text: the tiles are a glance, and a sentence
+// under each would stop them being one.
+function tile(label, value, note) {
+  return '<div class="mg-stat-tile"' + ( note ? ' title="' + sesc(note) + '"' : '' )
+       + '><div class="mg-stat-value">' + sesc(value)
        + '</div><div class="mg-stat-label">' + sesc(label) + '</div></div>';
 }
 // SM424: ONE BLOCK AT A TIME. The operator's report was that this page renders

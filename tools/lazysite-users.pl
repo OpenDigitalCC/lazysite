@@ -4124,18 +4124,37 @@ sub cmd_permissions_grid {
         grep { $_ eq $user } @{ $members{$g} || [] }
     } keys %members;
 
+    # N141B-D: name the group that actually SETS each capability.
+    #
+    # This used to attribute everything _caps_granted_by_group returned for a
+    # direct group TO that direct group. That set is the closure's union, so a
+    # role composed from bundles - which is every shipped role since SM631, and
+    # holds nothing of its own - had the grid naming it for capabilities it has
+    # switched off. An operator following that name to revoke the access landed
+    # on the one group where revoking changes nothing, and the access stayed.
+    #
+    # The attributed walk keeps which closure member set the flag, so the answer
+    # is the group an operator can act on. A capability set in more than one
+    # place lists all of them - turning it off in one still leaves it, and that
+    # is the fact a revoker needs first.
     my %granted_by;    # cap => [ groups granting it ]
+    my %seen_pair;
     for my $g (@direct) {
-        push @{ $granted_by{$_} }, $g for _caps_granted_by_group($g);
+        my $by = _caps_granted_by_group_attributed($g);
+        for my $k ( keys %$by ) {
+            for my $src ( @{ $by->{$k} } ) {
+                push @{ $granted_by{$k} }, $src unless $seen_pair{"$k\0$src"}++;
+            }
+        }
     }
     for my $g (@mygroups) {
         my $cfg = $gs->{$g} or next;
         for my $k ( @CAP_KEYS, 'manager' ) {
             next unless $cfg->{$k};
-            next if @{ $granted_by{$k} || [] };    # a role already explains it
-            push @{ $granted_by{$k} }, $g;
+            push @{ $granted_by{$k} }, $g unless $seen_pair{"$k\0$g"}++;
         }
     }
+    @{ $granted_by{$_} } = sort @{ $granted_by{$_} } for keys %granted_by;
     # SM126: derive the grid axes from @CAP_KEYS (the single source of truth) so a
     # new capability appears automatically. Channels are the fixed where-you-operate
     # set; actions are the rest. The hard-coded arrays here had to be kept in sync
@@ -4467,15 +4486,50 @@ sub _caps_granted_by_group {
     # this same defect, from `grantable` reading direct membership while
     # caps_for read the closure. Two walkers for one question is how the halves
     # disagree.
-    my %caps;
+    my $by = _caps_granted_by_group_attributed($group);
+    # Into a lexical first: `return sort ...` is undefined in scalar context,
+    # and every caller of this happens to want a list today. That is not a
+    # reason to leave a landmine for the one that does not.
+    my @out = sort keys %$by;
+    return @out;
+}
+
+# N141B-D: the same walk, keeping WHICH group each capability came from.
+#
+# _caps_granted_by_group answers "what does a person acquire here?" and throws
+# away the attribution - correct for the ceiling, which only needs the set. The
+# permissions grid needs the other half, and was reconstructing it by assuming
+# every capability in that set belonged to the group it asked about.
+#
+# It does not. A role composed from bundles (SM631) holds nothing of its own, so
+# the grid named the CHILD group for a capability the child has switched off,
+# and an operator following it to revoke the access found the one screen where
+# revoking changes nothing. Revocation is exactly the operation where being sent
+# to the wrong group means the access stays.
+#
+# ONE WALK, TWO VIEWS - the sub above now reads its answer from this one, so the
+# set and the attribution cannot disagree. SM268 02-5 was two walkers for one
+# question; this does not add a third.
+#
+# Returns { capability => [ groups that actually set it, sorted ] }. A
+# capability set in more than one place lists all of them, because that is the
+# truth an operator revoking it needs: turning it off in one still leaves it.
+sub _caps_granted_by_group_attributed {
+    my ($group) = @_;
+    my $gs = read_group_settings();
+
+    my %by;
     my @closure = Lazysite::Auth::Settings::group_closure($group);
-    for my $g ( $group, @closure ) {
+    my %seen;
+    for my $g ( grep { !$seen{$_}++ } ( $group, @closure ) ) {
         my $cfg = $gs->{$g};
         next unless ref $cfg eq 'HASH';
-        for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
+        for my $k ( @CAP_KEYS, 'manager' ) {
+            push @{ $by{$k} }, $g if $cfg->{$k};
+        }
     }
-    my @out = sort keys %caps;
-    return @out;
+    @{ $by{$_} } = sort @{ $by{$_} } for keys %by;
+    return \%by;
 }
 
 # Every capability an ACCOUNT currently holds.
@@ -5139,10 +5193,38 @@ sub cmd_group_delete {
             error => 'Remove all members before deleting this group ('
                 . scalar( @{ $members{$group} } ) . ' remaining).' };
     }
-    if ( exists $members{$group} ) { delete $members{$group}; write_groups(%members); }
-    if ( exists $gs->{$group} )    { delete $gs->{$group};    write_group_settings($gs); }
-    log_event( 'INFO', $group, 'group deleted' );
-    cli_audit( 'user-group-delete', $group );
+    # N141B-E: A DELETED GROUP MUST ALSO STOP BEING A MEMBER OF OTHER GROUPS.
+    #
+    # This deleted only $members{$group} - the group's OWN member list - and
+    # never looked for the group's NAME in anybody else's. Since SM121 a group
+    # can be nested inside another (group-nest pushes $sub into the parent's
+    # list), so deleting a nested group left its name behind in every parent:
+    # a member that is not a user, not a group, and refers to nothing.
+    #
+    # THE PARENT THEN COULD NOT BE DELETED EITHER. The guard above counts that
+    # list, so the parent reported "Remove all members before deleting this
+    # group (1 remaining)" for a member the UI cannot show and nobody can
+    # remove - a group wedged undeletable by a group that no longer exists.
+    # That is the shape the field hit.
+    #
+    # Done in the same write as the group's own removal: a deletion that half
+    # happened is worse than one that did not, and both halves are the same
+    # store.
+    my $unnested = 0;
+    for my $g ( keys %members ) {
+        next unless ref $members{$g} eq 'ARRAY';
+        my $before = scalar @{ $members{$g} };
+        @{ $members{$g} } = grep { $_ ne $group } @{ $members{$g} };
+        $unnested += $before - scalar @{ $members{$g} };
+    }
+    delete $members{$group};
+    write_groups(%members);
+
+    if ( exists $gs->{$group} ) { delete $gs->{$group}; write_group_settings($gs); }
+    log_event( 'INFO', $group, 'group deleted',
+        ( $unnested ? ( unnested_from => $unnested ) : () ) );
+    cli_audit( 'user-group-delete', $group,
+        ( $unnested ? "also un-nested from $unnested group(s)" : undef ) );
     return { ok => 1 };
 }
 

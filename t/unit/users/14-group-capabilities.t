@@ -156,10 +156,28 @@ sub api {
     my $g = api( $d, { action => 'permissions-grid', username => 'mc' } );
     ok( $g->{ok}, 'permissions-grid ok' );
     is_deeply( $g->{channels}, [qw(ui webdav api mcp)], 'grid lists the four channels' );
-    ok( ( grep { $_ eq 'mcp-ai' } @{ $g->{granted_by}{mcp} || [] } ),
-        'mcp channel granted by mcp-ai' );
-    ok( ( grep { $_ eq 'mcp-ai' } @{ $g->{granted_by}{manage_content} || [] } ),
-        'content action granted by mcp-ai' );
+    # N141B-D: THESE TWO ASSERTED THE DEFECT, and passed for four releases.
+    #
+    # They expected `mcp` and `manage_content` to be attributed to `mcp-ai`.
+    # mcp-ai sets NEITHER: since SM631 it is a composition that holds nothing of
+    # its own, and the flags live on `ch-agent` and `cap-content`. The old
+    # attribution walked the closure, collected the union, and credited all of
+    # it to the group it had asked about - so the grid named a role for
+    # capabilities that role has switched off, and this test agreed with it.
+    #
+    # The field report is the reason it matters: an operator following that name
+    # to REVOKE the access lands on the one group where turning it off changes
+    # nothing. The grid must name the group somebody can act on.
+    #
+    # The role is not lost - it is on the account's own group list, which is
+    # where "why does this person have it" is answered. This field answers
+    # "where do I go to change it", and those are different questions.
+    ok( ( grep { $_ eq 'ch-agent' } @{ $g->{granted_by}{mcp} || [] } ),
+        'mcp is attributed to ch-agent, the bundle that sets it' );
+    ok( !( grep { $_ eq 'mcp-ai' } @{ $g->{granted_by}{mcp} || [] } ),
+        'and NOT to mcp-ai, which does not' );
+    ok( ( grep { $_ eq 'cap-content' } @{ $g->{granted_by}{manage_content} || [] } ),
+        'manage_content is attributed to cap-content' );
     ok( !@{ $g->{granted_by}{ui} || [] }, 'mcp-ai does not grant the ui channel' );
 
     # SM197: the grid payload carries the per-capability channel SURFACE, so the

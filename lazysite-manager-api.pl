@@ -430,7 +430,7 @@ sub _audit_detail {
     return "$detail; spelling=deprecated";
 }
 
-my $path   = $params{path}   // '/';
+my $path = $params{path} // '/';
 # Mirror the per-request context into Manager::Common for log attribution.
 $Lazysite::Manager::Common::action      = $action;
 $Lazysite::Manager::Common::auth_user   = $auth_user;
@@ -801,7 +801,7 @@ if ( !$token_auth ) {
         'domain-set'     => 'manage_domains', 'domain-remove' => 'manage_domains',
         'remap-list'     => 'manage_domains', 'remap-save'    => 'manage_domains', # SM802
         'audit-trail-set' => 'audit_switch',  # N13-04: AND manage_config, in the dispatch
-        'domain-preview' => 'manage_domains', 'domain-check'  => 'manage_domains',
+        'domain-preview'  => 'manage_domains', 'domain-check' => 'manage_domains',
         'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
             # F3 audit: the account/group roster backs the ACL "grant to whom" picker
             # (Files, manage_content) and the domain-groups picker (Domains,
@@ -847,7 +847,7 @@ if ( !$token_auth ) {
         'schedule-delete'   => 'manage_forms|manage_data|manage_connectors',
         'form-targets-read' => 'manage_forms|manage_data|manage_connectors',
         'form-targets-save' => 'manage_forms',
-        'form-delete'             => 'manage_forms',
+        'form-delete'       => 'manage_forms',
         # SM652: read_submissions ONLY, so the two channels agree about who may
         # read a submission. MCP has required it for both since it was written;
         # the control API also accepted manage_forms, and the divergence was
@@ -1068,15 +1068,15 @@ if ($token_auth) {
         'briefs-list'     => [qw(manage_content manage_briefs)],
         'brief-delete'    => [qw(purge)],
         'data-row-delete' => [qw(manage_data write_data)],
-        'domains-list'    => [qw(manage_domains)],              # read-only domains view
+        'domains-list'    => [qw(manage_domains)],                # read-only domains view
         'domain-add'      => [qw(manage_domains)],
         'domain-set'      => [qw(manage_domains)],
         'remap-list'      => [qw(manage_domains)],                # SM802
         'remap-save'      => [qw(manage_domains)],
         'audit-trail-set' => [qw(audit_switch)], # N13-04: AND manage_config, in the dispatch
-        'domain-remove'   => [qw(manage_domains)],
-        'domain-preview'  => [qw(manage_domains)],              # SM155: pre-DNS render
-        'domain-check'    => [qw(manage_domains)],              # SM156: live config check
+        'domain-remove'  => [qw(manage_domains)],
+        'domain-preview' => [qw(manage_domains)],    # SM155: pre-DNS render
+        'domain-check'   => [qw(manage_domains)],    # SM156: live config check
         'lang-status' => [qw(manage_content)], # SM179 P6: set coverage (translation agent)
             # SM301: the twin of MCP's regenerate_registries. Same capability, and
             # now the same availability - the account that holds manage_content can
@@ -1126,9 +1126,9 @@ if ($token_auth) {
         'schedule-delete'   => [qw(manage_forms manage_data manage_connectors)],
         'form-targets-read' => [qw(manage_forms manage_data manage_connectors)],
         'form-targets-save' => [qw(manage_forms)],
-        'bad-url-blocks'   => [qw(manage_config)],      # SM128: blocked-IP list
-        'bad-url-block'    => [qw(manage_config)],      # SM704: block by hand
-        'bad-url-unblock'  => [qw(manage_config)],
+        'bad-url-blocks'    => [qw(manage_config)],    # SM128: blocked-IP list
+        'bad-url-block'     => [qw(manage_config)],    # SM704: block by hand
+        'bad-url-unblock'   => [qw(manage_config)],
         # SM097: page-URL list for the nav editor. SM568: a content read too,
         # so manage_content admits it - as it does the MCP twin list_pages.
         'pages' => [qw(manage_content manage_nav)],
@@ -2318,7 +2318,7 @@ elsif ( $action eq 'nav-save' ) {
 }
 elsif ( $action eq 'handler-list' ) { $result = Lazysite::Handlers::action_handler_list() }
 elsif ( $action eq 'schedule-list' ) { $result = Lazysite::Handlers::action_schedule_list() }
-elsif ( $action eq 'version' )      { $result = action_version() }
+elsif ( $action eq 'version' )       { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {
     $result = action_analyse_visitors(
         window => $params{window}, day   => $params{day},
@@ -2574,6 +2574,16 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
+
+    # N141B-C: what a SUCCESSFUL action wants to put on the record.
+    #
+    # $detail below is a failure channel - it is populated from the refusal and
+    # is '' whenever $ok. That left the successes of several actions saying less
+    # than their own failures, which is the wrong way round for a trail that
+    # exists to answer "what changed". This carries the specifics a success
+    # knows; it is folded into $detail only when nothing has gone wrong, so a
+    # refusal's reason is never displaced by it.
+    my $aud_extra = '';
     # SM503: a data action's material object is the TABLE, not the dispatcher
     # path - the sysop's trail showed data-import and data-row-save rows
     # all targeting "/", which answers none of the questions a trail exists
@@ -2604,6 +2614,49 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
             }
             else {
                 $aud_target = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';
+            }
+
+            # N141B-C: NESTING A GROUP RECORDED NOTHING - target empty, detail
+            # empty. The branch above looks for `group` and `username`, and the
+            # UI sends neither for a nest: it sends `sub` and `parent`. So the
+            # one change that alters what a whole group of people can do left an
+            # audit row naming an action and no subject at all.
+            #
+            # The CLI has recorded this correctly since SM121 - cli_audit(
+            # 'user-group-nest', "$sub\@$parent" ) - so the two surfaces
+            # disagreed about the same event, and only the one an operator
+            # actually uses was blank. Same spelling as the CLI, deliberately:
+            # an audit reader filtering on a target should not have to know
+            # which surface performed the change.
+            if ( $sub eq 'group-nest' && ref $b eq 'HASH' ) {
+                my ( $s, $p ) = ( $b->{sub} // '', $b->{parent} // '' );
+                $aud_target = "$s\@$p"       if length $s && length $p;
+                $aud_extra  = "nested in $p" if length $p;
+            }
+
+            # N141B-C: A CAPABILITY CHANGE NAMED THE GROUP AND NOT THE
+            # CAPABILITY. user-group-settings-set recorded which group was
+            # edited and neither which key changed nor what it became - so the
+            # row says somebody altered a group's permissions, and an auditor
+            # asking WHICH permission has to diff the store against a backup.
+            #
+            # A refusal already records why it was refused. A success recorded
+            # less than its own failure, which is the wrong way round for the
+            # record that exists to answer "what changed".
+            #
+            # The CLI again already does this (key $key=on, assignable=off,
+            # registration=on), so this is the UI catching up to a spelling
+            # that exists.
+            if ( $sub eq 'group-settings-set' && ref $b eq 'HASH' ) {
+                my $k = $b->{key} // '';
+                if ( length $k ) {
+                    my $v = $b->{value};
+                    $aud_extra = "key $k="
+                        . ( !defined $v ? '(cleared)'
+                        : ref $v           ? 'set'
+                        : $v =~ /\A[01]\z/ ? ( $v ? 'on' : 'off' )
+                        :                    $v );
+                }
             }
         }
     }
@@ -2665,6 +2718,10 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
             : ( ref $result eq 'HASH'
             ? ( $result->{audit_detail} || $result->{kind} || $result->{error} || '' )
             : '' );
+
+        # N141B-C: a success says what it did. Only when $ok, so the refusal
+        # reason above always wins the field it was written for.
+        $detail = $aud_extra if $ok && length $aud_extra;
 
         # SM465: an acl-set records WHAT THE RULE BECAME, and what it was.
         #
@@ -3927,6 +3984,30 @@ sub _audit_implicit_target {
     if ( $action =~ /^backup-(?:restore|download)\z/ ) {
         my $n = $params->{name} // $req->{name} // '';
         return $n if length $n;
+    }
+
+    # N141B-C: CONNECTORS - name the connector, not the request path.
+    #
+    # Every connector action recorded target='/'. A connector POST carries no
+    # file path, so the generic default was the request path, and there was no
+    # branch here to replace it: five audit entries that name WHAT was done and
+    # never WHICH connector it was done to.
+    #
+    # connector-secret-set is the sharp case. It is the entry an auditor reads
+    # to answer "whose credential changed, and when" - and it answered the
+    # second half only. With two connectors it is a coin toss; the agent found
+    # two calls to DIFFERENT connectors sharing a timestamp, so even ordering
+    # does not separate them.
+    #
+    # Deliberately a rule for the whole family rather than a case per action.
+    # The next connector verb should not have to remember this - the general
+    # shape of the defect, named at filing, is that actions whose subject is
+    # not a path pass no target at all.
+    if ( $action =~ /^connector-/ ) {
+        for my $k (qw(id connector)) {
+            my $v = $params->{$k} // $req->{$k} // '';
+            return $v if length $v;
+        }
     }
     return '';
 }

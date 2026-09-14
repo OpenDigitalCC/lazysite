@@ -28,13 +28,17 @@ use warnings;
 use Test::More;
 use JSON::PP    qw(decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use File::Temp  qw(tempdir);
 use File::Path  qw(make_path);
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(site_tempdir);
 
 my $PLUGIN = 'plugins/form-handler.pl';
 plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
 
-my $d = tempdir( CLEANUP => 1 );
+# A real docroot a level down, not a bare tempdir: $d is handed to the engine as
+# DOCUMENT_ROOT below, which is exactly what t/lint/118 is about.
+my $d = site_tempdir();
 make_path("$d/lazysite/forms");
 my $SECRET = 'test-secret-1234567890';
 open my $sf, '>', "$d/lazysite/forms/.secret" or die $!;
