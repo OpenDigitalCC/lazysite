@@ -20,7 +20,8 @@ use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
-use Lazysite::Paths ();
+use Lazysite::Paths   ();
+use Lazysite::Private ();    # N141D: purge reaches the private store too
 our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
@@ -931,7 +932,35 @@ sub domain_add {
 
     # Provision the content-root directory (+ optional seed). A directory that
     # already exists is fine (adopting an existing tree).
-    my $dir = "$DOCROOT/$rel";
+    #
+    # N141D (SM852 S3): ASK WHERE THE CONTENT ROOT ACTUALLY IS FIRST.
+    #
+    # This resolved nothing: it built "$DOCROOT/$rel" and tested `-d`, then
+    # `-e "$dir/index.md"`. A PROTECTED folder's bytes live in the private store
+    # beside the docroot, so both tests answered "not there" about content that
+    # was there - and domain_add created a public folder at the gated path and
+    # wrote a public seed page into it. The domain then served the seed instead
+    # of the client's homepage.
+    #
+    # Reproduced before fixing (tmp/repro-sm852-s3-seed-over-gated.pl): a
+    # protected index.md present, no public folder, and after the call a public
+    # folder and a public seed reading "# Client work".
+    #
+    # AND IT COMPOUNDS, which is SM852's central point: creating a public
+    # directory at a gated path pulls every LATER write under that folder into
+    # the served tree, including writes from the manager, MCP and DAV paths that
+    # resolve correctly - because those resolvers find the public directory
+    # first.
+    #
+    # ADOPTING, NOT MOVING. When the root already exists in the private store
+    # the right answer is to leave it alone: the operator is pointing a domain
+    # at content that is already there, which is the adoption case the comment
+    # above already describes. Relocating a protected tree on a domain-add would
+    # be a much larger decision than this call is making.
+    my ( $existing, $where ) = Lazysite::Private::resolve( $DOCROOT, $rel );
+    my $dir = ( defined $existing && $where eq 'private' )
+        ? $existing
+        : "$DOCROOT/$rel";
     unless ( -d $dir ) {
         eval { make_path($dir); 1 }
             or return { ok => 0,
@@ -1140,18 +1169,42 @@ sub domain_remove {
     my ( $ok, $err ) = _write( $content, "remove domain $host" );
     return { ok => 0, error => $err } unless $ok;
 
+    # N141D (SM852 MISS row): PURGE BOTH HALVES, AND ONLY CLAIM WHAT WAS DONE.
+    #
+    # This built its target as realpath("$DOCROOT/$clean") - the public path -
+    # and a protected section's bytes live in the PRIVATE STORE beside the
+    # docroot. So a domain whose content root is gated had the one thing most
+    # worth deleting left on disk, and the call answered `purged => 1`.
+    #
+    # Reproduced before fixing (tmp/repro-sm852-purge-reports-purged.pl): two
+    # files in the private store before, two after, purged => 1. An operator
+    # removing a domain to be rid of its content was told the content was gone,
+    # and what had actually been deleted was the empty public husk a gated
+    # folder leaves behind.
+    #
+    # THE CLAIM IS NOW DERIVED FROM WHAT HAPPENED. `$purged` counts the trees
+    # actually removed rather than being set to 1 by reaching the end of a
+    # block: a remove_tree that dies inside the eval used to leave purged => 1
+    # as well, so the flag reported the attempt and not the outcome. Each half
+    # is confined to its own root separately - the private store is NOT under
+    # the docroot, so the docroot containment check cannot speak for it, and
+    # reusing it would have been the same mistake in the other direction.
     my $purged = 0;
     if ( $opts{purge} && defined $rel ) {
         my $clean = _clean_content_root($rel);
         if ( defined $clean ) {
-            my $real  = realpath("$DOCROOT/$clean");
-            my $droot = realpath($DOCROOT);
-            if ( defined $real
-                && defined $droot
-                && $real ne $droot
-                && index( $real, "$droot/" ) == 0 )
-            {
-                eval { File::Path::remove_tree($real); $purged = 1; 1 };
+            my $priv_root = Lazysite::Private::private_root($DOCROOT);
+            for my $base ( $DOCROOT, $priv_root ) {
+                next unless defined $base && length $base;
+                my $real = realpath("$base/$clean") or next;
+                my $root = realpath($base)          or next;
+                next if $real eq $root;
+                next unless index( $real, "$root/" ) == 0;
+                eval {
+                    File::Path::remove_tree($real);
+                    $purged++ unless -e $real;
+                    1;
+                };
             }
         }
     }
