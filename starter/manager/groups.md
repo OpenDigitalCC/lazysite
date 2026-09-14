@@ -9,10 +9,14 @@ search: false
 <div class="mg-note mg-note-info">
 A <b>group</b> (<code>@name</code>) is a role: its <b>capabilities</b> (content,
 themes, analytics, &hellip;) are assigned here, and every member inherits the
-<b>union</b> of their groups' permissions. Add a user to a group below or from
-the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
-<b>Manager UI</b> channel capability; full user administration is the
-<b>Users &amp; groups</b> action.
+<b>union</b> of their groups' permissions. A capability can also arrive from a
+<b>bundle</b> the group is nested inside &mdash; most roles hold nothing of
+their own and get everything that way. Those are shown in the grid as
+<span class="mg-cap-inherited">&#8618; inherited</span>, ticked but not
+editable: change them on the bundle that grants them. Add a user to a group
+below or from the <a href="/manager/users">Users</a> page. Access to this
+Manager UI is the <b>Manager UI</b> channel capability; full user
+administration is the <b>Users &amp; groups</b> action.
 </div>
 
 <div class="mg-card">
@@ -198,7 +202,18 @@ function groupSummaryInner(g) {
   var members = Array.isArray(info.members) ? info.members : [];
   var caps = info.caps || {};
   var ge = escHtml(g);
-  var nOn = CAPS.filter(function(c) { return caps[c[0]]; }).length;
+  // SM879: the count on the summary line said DIRECT capabilities, so every
+  // shipped role but one read "0 capabilities" while granting between three and
+  // eleven. The number an operator scanning this list needs is what a member
+  // ends up with, so it counts direct and inherited together - and the tooltip
+  // splits them, because "0 of your own, 9 through bundles" is a different
+  // administrative situation from nine granted here.
+  var inh = info.inherited || {};
+  var nDirect = CAPS.filter(function(c) { return caps[c[0]]; }).length;
+  var nOn = CAPS.filter(function(c) {
+    return caps[c[0]] || (inh[c[0]] && inh[c[0]].length);
+  }).length;
+  var nInh = nOn - nDirect;
   // SM198: a group that grants capabilities but has NO members is inert - it
   // applies to no one (caps resolve only through membership). Flag it so the
   // create-group-then-forget-members trap is visible without opening the group.
@@ -287,7 +302,14 @@ function groupSummaryInner(g) {
     backend + origin + inert + rollup +
     '<span class="mg-acc-spacer"></span>' +
     '<span class="mg-acc-tags">' +
-    nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
+    '<span title="' + escHtml(
+        nInh > 0
+          ? nDirect + ' granted on this group, ' + nInh + ' inherited from the bundles it '
+            + 'belongs to. Open the group to see which.'
+          : 'All granted directly on this group.') + '">'
+    + nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies')
+    + (nInh > 0 ? ' <span class="mg-cap-inherited">(' + nInh + ' inherited)</span>' : '')
+    + '</span> &middot; ' +
     members.length + ' member' + (members.length === 1 ? '' : 's') + '</span>';
 }
 // SM496: the new-capabilities decision banner for one manager group.
@@ -343,7 +365,14 @@ function inertWarnHtml(g) {
   var info = allGroups[g] || {};
   var members = Array.isArray(info.members) ? info.members : [];
   var caps = info.caps || {};
-  var nOn = CAPS.filter(function(c) { return caps[c[0]]; }).length;
+  // SM879: inherited grants count here too. A role that holds nothing of its
+  // own, inherits nine capabilities and has no members is exactly as inert as
+  // one granted them directly - and under the old direct-only count it was the
+  // ONLY kind of group this warning could never fire for, which is most roles.
+  var inh = info.inherited || {};
+  var nOn = CAPS.filter(function(c) {
+    return caps[c[0]] || (inh[c[0]] && inh[c[0]].length);
+  }).length;
   if (!(nOn > 0 && members.length === 0)) return '';
   return '<div class="mg-cap-dormant" style="margin:0.25rem 0 0.4rem;">&#9888; '
     + 'This group grants ' + nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies')
@@ -401,6 +430,11 @@ function renderGroups() {
     var info = allGroups[g] || {};
     var members = Array.isArray(info.members) ? info.members : [];
     var caps = info.caps || {};
+    // SM879: {capability: [group, ...]} - what this group gets from the bundles
+    // it is nested inside, served already closed over the graph (see
+    // _group_settings_view). Absent on an older engine, which yields {} and the
+    // pre-SM879 grid rather than an error.
+    var inherited = info.inherited || {};
     var ge = escHtml(g);
     var h = '<details class="mg-acc" data-group="' + ge + '"><summary class="mg-acc-line" id="gsum-' + ge + '">' +
             groupSummaryInner(g) + '</summary>';
@@ -450,8 +484,14 @@ function renderGroups() {
       // SM180: a channel that IS granted but whose SITE service is switched off
       // is dormant - it does nothing until an admin enables the service. Flag it
       // so the grant is not silently inert.
+      // SM879: the dormant flags below asked `caps[c[0]]` - held DIRECTLY. Once
+      // inherited grants are drawn, that under-reports: a role inheriting `mcp`
+      // from ch-agent while the MCP service is off site-wide is exactly as
+      // dormant as one holding it directly, and the warning is the whole point.
+      // Both flags now ask whether the group HAS it, however it arrived.
+      var held = caps[c[0]] || (inherited[c[0]] && inherited[c[0]].length);
       var warn = '';
-      if (isChannel && caps[c[0]] && channelServices[c[0]] === 0) {
+      if (isChannel && held && channelServices[c[0]] === 0) {
         warn = ' <span class="mg-cap-dormant" title="Granted, but the ' + escHtml(c[1])
           + ' service is switched OFF site-wide — a site admin must enable it in '
           + 'Settings → Services for this grant to take effect.">&#9888;</span>';
@@ -468,7 +508,7 @@ function renderGroups() {
       // Hiding would also make the grid's contents depend on plugin state, so
       // two instances with identical groups would show different rows.
       var owner = capabilityPlugin[c[0]];
-      if (!isChannel && caps[c[0]] && owner && owner.enabled === false) {
+      if (!isChannel && held && owner && owner.enabled === false) {
         warn += ' <span class="mg-cap-dormant" title="Granted, but the '
           + escHtml(owner.name || owner.plugin) + ' extension is switched OFF — this '
           + 'grant does nothing until a site admin enables it on the Extension '
@@ -510,6 +550,46 @@ function renderGroups() {
           + ' aria-label="What this grants: ' + escHtml(grants) + '"'
           + ' title="' + escHtml(grants) + '">i</span>'
         : '';
+
+      // SM879: INHERITED FROM A BUNDLE, and therefore not this group's to change.
+      //
+      // Since SM631 a role holds nothing directly - agent-ai's grid was
+      // entirely unticked while its members held nine capabilities. The row is
+      // drawn from the same list as before; what changes is that a capability
+      // arriving through nesting is now DRAWN, as a filled but disabled box
+      // naming the bundle it comes from.
+      //
+      // DISABLED, NOT TICKED. A ticked live checkbox would be a lie twice: it
+      // would say this group grants it (the bundle does), and unticking it
+      // would write a direct DENY of something the group never held, which
+      // does not revoke the inherited grant - the operator would watch the box
+      // spring back and conclude the page is broken. The control has to be
+      // unusable because the action it implies does not exist here.
+      //
+      // A capability held BOTH ways keeps its editable box: the direct grant is
+      // real, revocable here, and the inheritance survives revoking it. Saying
+      // so on the row is the only way an operator can tell that unticking will
+      // not take the access away.
+      var from = inherited[c[0]];
+      if (from && from.length) {
+        var via = 'Inherited from ' + from.join(', ')
+          + ' — change it there, not here. This group cannot revoke it.';
+        if (caps[c[0]]) {
+          // Both: leave the real control alone and mark the row.
+          return '<label class="mg-chk" title="' + escHtml(c[0]) + '"><input type="checkbox" checked'
+            + ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1])
+            + ' <span class="mg-cap-inherited" title="' + escHtml('Granted here AND inherited from '
+              + from.join(', ') + '. Unticking removes only the grant made here — members keep it '
+              + 'through the bundle.') + '">&#8618; also inherited</span>'
+            + warn + info + '</label>';
+        }
+        return '<label class="mg-chk mg-chk-inherited" title="' + escHtml(c[0]) + '">'
+          + '<input type="checkbox" checked disabled aria-label="' + escHtml(c[1] + ' — ' + via) + '"> '
+          + escHtml(c[1])
+          + ' <span class="mg-cap-inherited" title="' + escHtml(via) + '">&#8618; '
+          + escHtml(from.join(', ')) + '</span>'
+          + warn + info + '</label>';
+      }
 
       // The technical name stays on the LABEL (SM617) and the sentence gets its
       // own marker: one hover answers "what is this called elsewhere", the

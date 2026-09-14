@@ -992,6 +992,15 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-inline-msg.mg-ok { color: var(--mg-success); }
 .mg-inline-msg.mg-err { color: var(--mg-danger); font-weight: 500; }
 .mg-cap-dormant { cursor: help; color: var(--mg-warning); font-size: 0.9em; font-weight: 600; }
+/* SM879: a capability this group INHERITS from a bundle it is nested inside.
+   Muted, not warning-coloured: it is a statement about where a grant comes
+   from, not a problem to fix. The checkbox beside it is rendered disabled,
+   because unticking it here would write a direct deny that does not revoke
+   the inherited grant - so the control must not invite the attempt. */
+.mg-cap-inherited { cursor: help; color: var(--mg-text-muted); font-size: 0.9em; }
+.mg-chk-inherited input[disabled] { cursor: not-allowed; opacity: 0.75; }
+.mg-chk-inherited { color: var(--mg-text-muted); }
+
 /* SM758: a category heading inside the Actions grid on the Groups page. */
 .mg-cap-section { margin: 10px 0 4px; }
 .mg-cred-reveal { margin: 6px 0; padding: 8px 10px; background: var(--mg-surface-alt); border: 1px solid var(--mg-border); font-size: var(--mg-text-sm); }

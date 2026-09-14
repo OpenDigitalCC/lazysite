@@ -284,6 +284,18 @@ section and not its point.</span>
   <span class="mg-cap-what" tabindex="0" role="img" aria-label="What this grants: an example sentence" title="An example sentence.">i</span></label>
 </div>
 
+<h2 class="mg-sg-h">An inherited capability</h2>
+<p class="mg-sg-note">SM879: a capability the group gets from a bundle it is nested
+inside, rather than one granted on the group itself. The box is <b>ticked and
+disabled</b> and the row is muted: the grant is real, and it is not this group's to
+revoke &mdash; unticking here would write a direct deny that changes nothing, so the
+control must not invite the attempt. The marker names the source. Muted rather than
+warning-coloured, because this is where a grant comes from, not a fault.</p>
+<div class="mg-sg-demo">
+<label class="mg-chk mg-chk-inherited"><input type="checkbox" checked disabled> Manage content
+  <span class="mg-cap-inherited" title="Inherited from cap-content — change it there, not here.">&#8618; cap-content</span></label>
+</div>
+
 <h2 class="mg-sg-h">The collapsed vocabulary (SM-DS1)</h2>
 <p class="mg-sg-note">The design pass folded several near-duplicate families into one
 each. These are the survivors, registered so the pages have something to be converted

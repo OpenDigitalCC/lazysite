@@ -4295,6 +4295,32 @@ sub _group_settings_view {
     for my $g ( keys %all ) {
         my $cfg = $gs->{$g} || {};
         my %caps = map { $_ => ( $cfg->{$_} ? JSON::PP::true() : JSON::PP::false() ) } @CAP_KEYS;
+
+        # SM879: WHAT A MEMBER ACTUALLY GETS, and which group it comes from.
+        #
+        # %caps above is what this group holds DIRECTLY, and that is all the
+        # Groups page has ever drawn. Since SM631 split the model into three
+        # layers, a role holds nothing of its own: agent-ai's grid is entirely
+        # unticked while its members hold nine capabilities through five
+        # bundles. Nine of the ten shipped roles are in that state, site-admins
+        # among them at eleven - so an operator opening a role to answer "what
+        # does this grant" was shown an empty grid and no way to find out.
+        #
+        # Derived SERVER-SIDE (SM286: the front end makes no decisions) and by
+        # closing the graph with the SAME walk authorisation uses, so what the
+        # page shows and what the engine enforces cannot drift. The closure is
+        # transitive and cycle-safe; a one-level parent scan - which is what the
+        # page could do for itself - would under-report a bundle nested inside
+        # another bundle and under-report it SILENTLY.
+        my @ancestors = grep { $_ ne $g }
+            Lazysite::Auth::Settings::group_closure_in( \%members, $gs, $g );
+        my %inherited;    # capability => [ groups it arrives from, sorted ]
+        for my $a ( sort @ancestors ) {
+            my $acfg = $gs->{$a} or next;
+            for my $k (@CAP_KEYS) {
+                push @{ $inherited{$k} }, $a if $acfg->{$k};
+            }
+        }
         # SM496: capabilities this release has that this MANAGER group has
         # never decided on - absent from the store entirely, as opposed to an
         # explicit 0 (declined) or 1 (granted). Derived here, server-side, so
@@ -4328,8 +4354,12 @@ sub _group_settings_view {
                 ? JSON::PP::true()
                 : JSON::PP::false()
             ),
-            caps    => \%caps,
-            members => ( $members{$g} || [] ),
+            caps => \%caps,
+            # SM879: only the capabilities actually inherited appear as keys, so
+            # an empty object is a truthful "this group inherits nothing" rather
+            # than nineteen falses the page would have to filter.
+            inherited => \%inherited,
+            members   => ( $members{$g} || [] ),
             # SM155: the domain binding - members are confined to dav_scope
             # (content root) on every channel; home_domain is the UI pointer.
             dav_scope   => ( defined $cfg->{dav_scope}   ? $cfg->{dav_scope}   : '' ),

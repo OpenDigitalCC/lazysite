@@ -140,10 +140,23 @@ sub _group_closure {
     my (@seed)     = @_;
     my %membership = _groups_membership();
     my $gs         = read_group_settings();
-    my %is_group   = map { $_ => 1 } ( keys %membership, keys %{$gs} );
+    return _group_closure_in( \%membership, $gs, @seed );
+}
+
+# The walk itself, against stores the CALLER supplies.
+#
+# Split out for SM879: the Groups page needs the ancestry of EVERY group at
+# once, and _groups_membership is not memoised - it opens and re-parses the
+# groups file on each call, so closing each group separately would read that
+# file once per group on a page that has already read it. Splitting keeps ONE
+# implementation of the walk rather than giving the display its own copy, which
+# is how the two would come to disagree about who inherits what.
+sub _group_closure_in {
+    my ( $membership, $gs, @seed ) = @_;
+    my %is_group = map { $_ => 1 } ( keys %{$membership}, keys %{ $gs || {} } );
     my %parent;    # sub-group => [ groups that list it as a member ]
-    for my $g ( keys %membership ) {
-        for my $m ( @{ $membership{$g} } ) {
+    for my $g ( keys %{$membership} ) {
+        for my $m ( @{ $membership->{$g} } ) {
             push @{ $parent{$m} }, $g if $is_group{$m} && $m ne $g;
         }
     }
@@ -158,6 +171,9 @@ sub _group_closure {
     }
     return keys %eff;
 }
+
+# Public: close a set of group names using stores the caller already holds.
+sub group_closure_in { return _group_closure_in(@_) }
 
 # The compound-expanded groups a USER belongs to: the groups that list them
 # directly, closed upward over sub-group membership.

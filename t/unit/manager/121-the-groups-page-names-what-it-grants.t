@@ -40,7 +40,9 @@ my $dir = tempdir( CLEANUP => 1 );
 open my $js, '>', "$dir/row.js" or die $!;
 print {$js} <<"JS";
 function escHtml(x) { return String(x == null ? '' : x); }
-var caps = { manage_content: 1 }, channelServices = {}, ge = 'ops';
+// manage_forms is granted directly AND inherited below, which is the case the
+// row has to distinguish from a purely inherited one.
+var caps = { manage_content: 1, manage_forms: 1 }, channelServices = {}, ge = 'ops';
 // SM427 added a per-capability sentence to the row. This test is about the
 // TECHNICAL NAME on the label; an empty map renders the row without the
 // sentence marker, which is the case it means to examine.
@@ -52,8 +54,17 @@ var CAP_GRANTS = {};
 // renders anything. Empty here: this test is about the technical name on the
 // label, and no plugin state is the case it means to examine.
 var capabilityPlugin = {};
+// SM879 added inherited grants to the row. The page defines this map at the top
+// of renderGroups; the stub has to mirror it or the extracted function throws
+// before rendering anything. TWO capabilities here, so one row can be examined
+// for the direct case and another for the inherited one.
+var inherited = { manage_themes: ['cap-design'], manage_forms: ['cap-content'] };
 $row
-console.log(JSON.stringify({ html: row(['manage_content', 'Create and edit pages'], false) }));
+console.log(JSON.stringify({
+    html:      row(['manage_content', 'Create and edit pages'], false),
+    inherited: row(['manage_themes',  'Manage themes'],         false),
+    both:      row(['manage_forms',   'Manage forms'],          false)
+}));
 JS
 close $js;
 my $got = eval {
@@ -67,6 +78,29 @@ like( $got->{html}, qr/title="manage_content"/,
         . 'surface calls it' );
 like( $got->{html}, qr/Create and edit pages/,
     'and keeps the human label, which is what an operator chooses by' );
+
+# --- SM879: a capability that arrives from a bundle -------------------------
+#
+# Since SM631 a role holds nothing of its own, so before this the grid showed
+# nine of the ten shipped roles as entirely unticked while they granted between
+# three and eleven capabilities. RUN rather than grepped, for this file's own
+# reason: the strings survive as fragments whether or not anything emits them.
+like( $got->{inherited}, qr/checked disabled/,
+    'an inherited capability is ticked and NOT editable' )
+    or diag( 'A live checkbox here claims the group grants it and invites an '
+        . 'unticking that writes a direct deny - which does not revoke the '
+        . 'inherited grant, so the box springs back and the page looks broken.' );
+like( $got->{inherited}, qr/cap-design/,
+    'and names the bundle it comes from, so the operator knows where to go' );
+
+# The BOTH case: a direct grant that is also inherited keeps its working
+# control, because the direct half is real and revocable here.
+unlike( $got->{both}, qr/disabled/,
+    'a capability granted directly AND inherited keeps its editable checkbox' );
+like( $got->{both}, qr/also inherited/,
+    'and says so, because unticking will not take the access away' )
+    or diag( 'Without this the operator unticks, sees the capability still in '
+        . 'force, and has no way to learn why.' );
 
 # --- SM616: the backend-group warning --------------------------------------
 # RUN, not grepped. The first version of this asserted the sentences existed in
