@@ -857,6 +857,46 @@ else
         printf '    %s_%s-1_all.deb  %s\n' "$pkg" "$VERSION" \
             "$(sha256sum "$DIST_DIR/${pkg}_${VERSION}-1_all.deb" | awk '{print $1}')"
     done
+
+    # --- SM887 D2: the claude.ai skill zip, WITH THE ENGINE INSIDE IT ---------
+    #
+    # Built here rather than beside the tarball because it needs the .deb that
+    # was just produced: the whole design is that the skill CARRIES the engine,
+    # so nothing is fetched from a host this project owns. An editor's network
+    # allowlist is theirs, not ours, and a skill that reached lazysite.io would
+    # work for the person who specified it and fail for everyone else.
+    #
+    # ONE DEB, NOT TWO. The filing said common + nginx; nginx ships vhost
+    # templates and a vhost-writing command, and the container has no web
+    # server to wire them into. It would be weight with no use.
+    #
+    # The version is in the FILENAME rather than only inside, because the one
+    # thing an editor has to be able to see is whether the skill they uploaded
+    # is older than their site.
+    SKILL_SRC="$STAGE/skills/claude-ai/lazysite"
+    if [ -d "$SKILL_SRC" ] && command -v zip >/dev/null 2>&1; then
+        SKILL_STAGE="$STAGE/.skill-zip/lazysite"
+        rm -rf "$STAGE/.skill-zip"
+        mkdir -p "$SKILL_STAGE"
+        cp -a "$SKILL_SRC"/. "$SKILL_STAGE/"
+        cp "$DIST_DIR/lazysite-common_${VERSION}-1_all.deb" "$SKILL_STAGE/"
+        ( cd "$STAGE/.skill-zip" && zip -qr "$DIST_DIR/lazysite-skill-$VERSION.zip" lazysite )
+        if [ -f "$DIST_DIR/lazysite-skill-$VERSION.zip" ]; then
+            printf '    lazysite-skill-%s.zip  %s\n' "$VERSION" \
+                "$(sha256sum "$DIST_DIR/lazysite-skill-$VERSION.zip" | awk '{print $1}')"
+        else
+            echo "release.sh: the skill zip was not produced - the release is" >&2
+            echo "release.sh: incomplete for claude.ai editors. No tag created." >&2
+            exit 1
+        fi
+    elif [ -d "$SKILL_SRC" ]; then
+        # NAMED, not skipped silently. An editor whose release has no skill zip
+        # has no way to tell that from a release that never had one.
+        echo "release.sh: zip(1) is not installed, so lazysite-skill-$VERSION.zip" >&2
+        echo "release.sh: was NOT built. Install zip and re-cut, or ship without" >&2
+        echo "release.sh: the claude.ai skill deliberately." >&2
+        exit 1
+    fi
 fi
 
 # --- tag ---
@@ -929,6 +969,11 @@ for deb in "$DIST_DIR"/*_"$VERSION"-1_all.deb; do
     [ -f "$deb" ] && cp "$deb" "$FINAL_DIST/"
 done
 
+# SM887 D2: and the claude.ai skill zip, for the same reason - it is built
+# inside the stage and would go with it.
+[ -f "$DIST_DIR/lazysite-skill-$VERSION.zip" ] \
+    && cp "$DIST_DIR/lazysite-skill-$VERSION.zip" "$FINAL_DIST/"
+
 # --- the tracked gate record (SM400) ---
 #
 # The manifest inside the artefact already attests the gate. This is the copy
@@ -979,6 +1024,8 @@ printf "    sha256:  %s\n" "$SHA256"
 for deb in "$FINAL_DIST"/*_"$VERSION"-1_all.deb; do
     [ -f "$deb" ] && printf "    package: %s\n" "$(basename "$deb")"
 done
+[ -f "$FINAL_DIST/lazysite-skill-$VERSION.zip" ] \
+    && printf "    skill:   lazysite-skill-%s.zip (claude.ai, carries the deb)\n" "$VERSION"
 if [ "$NO_FETCH" = 1 ]; then
     printf "    tag:     LOCAL AND UNPUSHED - tools/release.sh publish $VERSION\n"
 fi

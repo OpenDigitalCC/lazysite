@@ -82,6 +82,28 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM887 F1 (PENDING) **a claude.ai skill that checks a page by running it.**
+  `skills/claude-ai/lazysite/` — `SKILL.md`, `setup.sh`, `serve.sh`,
+  `fetch.pl`, and two reference files — plus `lazysite-skill-<version>.zip`,
+  built by `tools/release.sh` **with that release's `lazysite-common.deb`
+  inside it**. Nothing is fetched from a host this project owns, so it works
+  regardless of what an editor's container is allowed to reach; the version
+  matches the release by construction. Run cold in a real `ubuntu:24.04`
+  container: 8 seconds against a 60-second budget, renders a page, a
+  deliberately broken page exits 1, a second run is a no-op. `t/tools/83`.
+  Two things that run found: the base image has **no `curl`** (the skill
+  carries a core-Perl `fetch.pl` instead), and the dev server **refused to
+  start over `LWP::UserAgent`**, which nothing loads — see below.
+
+- SM887 F1 (PENDING) **the dev server demands only what it uses.** Its
+  preflight required `LWP::UserAgent`; `lazysite-common` lists libwww-perl
+  under *Recommends*, so an install carrying everything the engine *depends*
+  on would not start the dev server, and the error told the operator to install
+  a package they did not need. The processor requires LWP lazily, for remote
+  includes only, and the dev server never mentions it again. `t/unit/tools/04`
+  asserts the rule rather than the one module: a preflight that demands more
+  than the code uses turns an optional feature into an install blocker.
+
 - SM887 F2 (PENDING) **page validation is an engine capability, and a broken
   page exits non-zero.** `Lazysite::Validate` holds the checks — moved out of
   `lazysite-mcp.pl`, where they were reachable only by an authenticated partner

@@ -4,8 +4,8 @@ title: "SM887: a local lazysite so claude.ai can check an answer before giving i
 subtitle: "A skill that installs the current release into the claude.ai container, runs the dev server, renders the editor's content against the live site's own theme, and only then answers. Additional to MCP and not required by it: MCP writes to the site, this decides whether what is about to be written is right."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "PROPOSED 2026-09-15, briefed by the sites agent (inbox/briefing-claude-ai-lazysite-skill.md) with one container's constraints verified in it the same day; scoped to 0.14.3 by the release manager. THE INSTALL SOURCE IS THE WHOLE PROBLEM AND THE ANSWER IS TO NOT HAVE ONE. The briefing specifies fetching the release from GitHub, which this project has no published repo for. My first answer was to fetch from lazysite.io instead, because it was on the allowlist the briefing recorded - CORRECTED 2026-09-15 by the release manager: that allowlist was THAT editor's container, and no other editor's can be assumed to carry it. So the engine must arrive without any host this project controls being reachable. IT CAN: the briefing already asks for a zip of the skill folder attached to every release, so the zip CARRIES THE DEBS. Nothing is fetched, the version matches the release by construction, and the only network the install needs is archive.ubuntu.com for Perl dependencies - which is on every container's allowlist because the base image needs it. common + nginx is about 2.4 MB. This also removes SM884 as a prerequisite and most of the 60-second budget with it. OPEN DECISIONS are listed below and are mine to make, except the container for acceptance, which needs the operator."
+status: partial
+status-note: "BUILT 2026-09-15 AND AWAITING THE ONLY TEST THAT COUNTS. F2 (validation as an engine capability) and F1 (the skill itself) are both built; D3, the lazysite.io docs pointer, is filed to the sites agent. The cold run happened in a real ubuntu:24.04 container: A2 8 seconds against a 60-second budget, A3 renders, A4 exits 1, A6 is a 1-second no-op - recorded below with the two things the run found that reading would not have (the base image has no curl, and the dev server refused to start over a module nothing loads). A5 and the E2/E5/E7 constraints are CLAUDE.AI'S, not a container's, and the release manager offered to run it there - so this stays PARTIAL until they report, rather than being called done on the half that can be automated. PROPOSED 2026-09-15, briefed by the sites agent (inbox/briefing-claude-ai-lazysite-skill.md) with one container's constraints verified in it the same day; scoped to 0.14.3 by the release manager. THE INSTALL SOURCE IS THE WHOLE PROBLEM AND THE ANSWER IS TO NOT HAVE ONE. The briefing specifies fetching the release from GitHub, which this project has no published repo for. My first answer was to fetch from lazysite.io instead, because it was on the allowlist the briefing recorded - CORRECTED 2026-09-15 by the release manager: that allowlist was THAT editor's container, and no other editor's can be assumed to carry it. So the engine must arrive without any host this project controls being reachable. IT CAN: the briefing already asks for a zip of the skill folder attached to every release, so the zip CARRIES THE DEBS. Nothing is fetched, the version matches the release by construction, and the only network the install needs is archive.ubuntu.com for Perl dependencies - which is on every container's allowlist because the base image needs it. common + nginx is about 2.4 MB. This also removes SM884 as a prerequisite and most of the 60-second budget with it. OPEN DECISIONS are listed below and are mine to make, except the container for acceptance, which needs the operator."
 ---
 
 # What it is for
@@ -198,6 +198,46 @@ familiar box — a familiar box hides exactly the assumptions this will trip on.
 | A4 | A deliberately broken page exits non-zero |
 | A5 | A layout and theme copied from a real site render as that site's |
 | A6 | `setup.sh` run a second time in the same container is a no-op |
+
+## RUN 2026-09-15, in a real cold `ubuntu:24.04` container
+
+The .deb was built from the branch (`debian/changelog` is bumped at cut time,
+so it identifies itself as 0.10.8 — the payload is this tree), copied into a
+read-only mount at `/mnt/skills/user/lazysite`, and the container was root, as
+E1 says.
+
+| Ref | Result |
+| --- | --- |
+| A1 | Ubuntu 24.04.4, root, skill mount read-only |
+| A2 | **8 seconds cold**, against a 60-second budget; prints the version and one PASS line |
+| A3 | Homepage 200, 4,631 bytes of HTML; the instance endpoint answers |
+| A4 | **exit 1** on a page whose front matter never closes — the criterion nothing in the tree could meet before F2 |
+| A5 | **claude.ai's.** A real site's layout can be pulled — proven against a live site's `layout.tt` over MCP — but whether it RENDERS as that site's needs the editor's own connector and their own site |
+| A6 | Second run: 1 second, "engine already installed", "reusing the local site" |
+
+**TWO THINGS THE RUN FOUND THAT NO AMOUNT OF READING WOULD HAVE.**
+
+**`ubuntu:24.04` has no `curl`.** Every probe in the first draft reached for it,
+so the render check failed and reported that the dev server had not started —
+in a container the editor cannot inspect, about a tool rather than their page.
+The skill now carries `fetch.pl`, forty lines of core Perl over
+`IO::Socket::INET`. Perl is the one interpreter guaranteed to be there, because
+the engine depends on it.
+
+**The dev server refused to start over a module nothing loads.** Its preflight
+demanded `LWP::UserAgent`; `lazysite-common` lists libwww-perl under
+*Recommends*, so an install carrying everything the engine *depends* on still
+would not come up — and the message told the operator to install a package they
+did not need. The processor requires LWP lazily, inside `fetch_url` /
+`fetch_oembed`, for remote includes only, and the dev server never mentions it
+again. Removed, with `t/unit/tools/04` asserting the rule rather than the one
+module: a preflight that demands more than the code uses turns an optional
+feature into an install blocker.
+
+A third, smaller: **a zip does not reliably carry the execute bit**, and the
+mount is read-only so `chmod` is not available as a repair. `sh serve.sh`,
+never `./serve.sh` — the first cold run failed with "Permission denied", which
+reads as a sandbox problem rather than a file mode.
 
 **SETTLED 2026-09-15, and in two layers rather than one.**
 

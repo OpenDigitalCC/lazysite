@@ -36,11 +36,27 @@ use Lazysite::Paths ();
 
 # --- Module check ---
 
+# SM887 F1: LWP::UserAgent WAS IN THIS LIST AND IS NOT USED ANYWHERE.
+#
+# Not by this file - there is no other mention of it - and not eagerly by the
+# processor either: `require LWP::UserAgent` happens inside fetch_url /
+# fetch_oembed, deliberately deferred (P-1), so a page with no remote include
+# never loads it. The dev server was refusing to start over a module nothing in
+# the request path had asked for.
+#
+# FOUND BY RUNNING IT, in a clean Ubuntu 24.04 container with the deb installed
+# the way the packaging says: libwww-perl is a RECOMMENDS, so a
+# --no-install-recommends install has everything the engine declares it needs
+# and the dev server still would not come up. The message even told the
+# operator to `sudo apt-get install libwww-perl`, which is advice to fix a
+# problem they do not have.
+#
+# The rest of this list is real: the server binds a socket, and the processor
+# it drives hard-depends on Template Toolkit and MultiMarkdown.
 my @required = (
     [ 'IO::Socket::INET',    'libio-socket-inet6-perl' ],
     [ 'Text::MultiMarkdown', 'libtext-multimarkdown-perl' ],
     [ 'Template',            'libtemplate-perl' ],
-    [ 'LWP::UserAgent',      'libwww-perl' ],
     [ 'JSON::PP',            'libjson-perl' ],
 );
 
