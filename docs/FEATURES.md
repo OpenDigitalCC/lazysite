@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.14.0"
+subtitle: "Everything lazysite has and does, and why - as of v0.14.2"
 brand: plain
 ---
 
@@ -1778,6 +1778,34 @@ The recurring design principles, drawn from the feature-request record:
 # Part XIV - Version history (feature timeline)
 
 Newest first; releases are git tags.
+
+- **0.14.2** (2026-09-15, **STABLE**) - **Two ways a site could keep serving
+  the build it no longer runs.** 0.14.1 restarted the workers, and the field
+  then measured what that did not reach: ten sites answering a fresh,
+  uncacheable 404 as 0.14.1 while still serving home pages rendered by 0.14.0
+  or 0.13.15, five of them two releases behind on the page a visitor lands on.
+  **A render now depends on the engine that produced it** (SM886), as it
+  already depended on its source, the conf, the nav and its section indexes -
+  one line in the shared freshness check, which is why it reaches both cache
+  slots where SM413's 0.10.18 sweep reached only one (it walks
+  `lazysite/cache/`, and the primary host's render is the sibling `.html`
+  beside the `.md`). Nothing is deleted; each page re-renders once on next
+  request. **And `lazysite upgrade` now restarts the site it upgraded**
+  (N142A) - 0.14.1's headline fix had landed in the Hestia deploy script,
+  which INSTALL-RUNBOOK marks superseded, so the path a modern site actually
+  takes called no `systemctl` at all. Also: a failed backup can no longer
+  leave a 20-byte tarball in the listing that restores nothing (SM885 - `tar
+  czf` forks gzip, and the orphaned compressor recreated the name the refusal
+  had just removed).
+
+- **0.14.1** (2026-09-14, **STABLE**) - **The first patch after stable, and
+  two surfaces telling the truth about the wrong thing.** A site reporting a
+  version honestly while running older code, and a group card reporting a
+  capability set honestly while omitting everything the group inherits. The
+  upgrade restarts what holds the old engine between requests; the Groups page
+  shows inherited grants and names the group each capability comes from, so
+  `ai-agent` can be read for what it actually grants. Plus a form field length
+  refusal that names the field, and the SM852 gated-write rows that reproduced.
 
 - **0.14.0** (2026-09-13, **STABLE**) - **The first stable of the 0.13 line's
   work, and the release that takes 20+ sites off 0.12.1.** No new capability -
