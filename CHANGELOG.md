@@ -44,6 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM889 (PENDING) **the quiet rollout reports each finding once, and stops
+  mistaking prose for a finding.** The 0.14.2 fleet update printed ~200 lines
+  to say "29 updated, 0 failed", and the two largest sources were the same
+  cause: the filter matched the bare word `missing`. That caught 71 per-file
+  backup notes — and, once per site, the installer's line *"deliberate, not a
+  missing step, and there is no default login:"*, a sentence saying nothing is
+  wrong. `grep` printed that one line out of a fifteen-line block, so it
+  arrived ending in a colon with its continuation gone. **It was filed as a
+  second defect, "a truncated message". It is not truncated** — it is this one.
+  The pattern now wants a finding to look like one (a level marker, or a word
+  at the start of its clause), and findings are collected and reported once at
+  the end with the sites they affect, so one condition on 21 sites is one line
+  rather than 21 copies of the same 45 words. `--verbose` and the
+  print-everything-on-failure rule are unchanged. `t/tools/80`.
+
+- SM888 A7 (PENDING) **a form refused for its timing tells the visitor why.**
+  `reject('Submission too fast')` dies plain where `reject_user` dies `USER:…`,
+  and only `USER:` messages reach the submitter — so SM252's time token was
+  refusing correctly and its reason was discarded one word from being shown.
+  The two timing refusals (too fast, expired) now reach the visitor; the three
+  token refusals stay generic, because distinguishing "no token" from "wrong
+  token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+
 - SM888 F4 (PENDING) **a handler action's audit entry names the handler.**
   `handler-save` and `form-targets-save` recorded the dispatcher's `/` - the
   fourth family to hit the same cause after data (SM503) and connectors plus

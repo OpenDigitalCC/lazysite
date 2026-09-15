@@ -108,18 +108,65 @@ retried every five seconds rather than giving up. That is a different state from
 dead, and whether the two are connected is exactly what the readings above
 decide.
 
-# The ruling wanted
+# THE RULING, 2026-09-15
 
-**Which command is the upgrade for a tarball install?**
+I put three options to the release manager and **all three were refused**,
+because all three kept install and upgrade as one command that decides for
+itself which it is doing. What was asked for instead:
 
-| Ref | Option | Consequence |
-| --- | --- | --- |
-| R1 | `install.sh` is the path; the docs are right | The restart message and the unit handling belong **in the installer**, and `lazysite upgrade` is a convenience the docs should still mention. |
-| R2 | `lazysite upgrade` is the path; the docs are behind | The install page is updated to name it, and `install.sh` should say so when run directly on an existing install. |
-| R3 | Both are supported | Then both must restart, and both must say so — which is the answer that costs most and forgets least. |
+> One place for install, and another for upgrade, because they should be
+> purposefully chosen. Then all docs and scripts refer to the one way to do
+> each.
 
-Until this is ruled, V3 stays open and any further work on the restart risks
-being a fourth place to put it.
+| Ref | Requirement |
+| --- | --- |
+| U1 | **Install and upgrade are different commands.** Not one command with a mode, not two commands that both do both. |
+| U2 | The operator **chooses** which they are doing. The command does not infer it from the state of the disk. |
+| U3 | **Every doc and every script names the one way** to do each. No second spelling anywhere. |
+
+## Why the options I offered were all wrong
+
+Each of R1, R2 and R3 above answered "which command should carry the restart",
+and took for granted that one command handles both intents. That is the thing
+being objected to.
+
+**Today `install.sh` decides for you.** It reads the install state and picks
+`fresh`, `reinstall` or `upgrade`, then behaves accordingly. An operator runs
+the same words whether they mean *set this site up* or *move this site
+forward*, and finds out afterwards which one happened.
+
+The V3 walk shows what that costs. The operator ran the documented command on a
+**running** site and the summary told them:
+
+> Next steps: 1. Create the first account. A fresh install has NO accounts …
+
+That is not a wording defect. It is one command wearing two hats and choosing
+the wrong one to speak from — and nothing in the output said "this was an
+upgrade of a live site" because the command never had to be told that is what
+the operator meant.
+
+## What this settles, and what it opens
+
+**Settled:** the restart does not go in a third place. It goes in *upgrade*,
+wherever upgrade ends up living, because restarting what holds the old code is
+an upgrade's job and is meaningless on an install.
+
+**Open, and needing design rather than a ruling:**
+
+| Ref | Question |
+| --- | --- |
+| Q1 | What the two commands are actually called, across deb and tarball, so U3 can be satisfied with one name each |
+| Q2 | What each does when handed the other's job — refuse and name the right command, which is the only answer consistent with U2 |
+| Q3 | Whether `lazysite upgrade` becomes THE upgrade (and `install.sh` loses its upgrade mode), or the tarball keeps its own and both are named in the docs |
+| Q4 | What happens to `reinstall` - today a third mode, and under U2 it is either a deliberate verb of its own or it stops existing |
+
+Q4 is the interesting one. `reinstall` exists only because the command was
+guessing; once the operator says which they mean, "reinstall" is either
+something they would deliberately ask for or it is an artefact of the guessing.
+
+**Nothing is built against this yet.** The restart work stays where it is until
+the two verbs are settled, which is exactly the point of the ruling: a fourth
+placement was the risk, and the answer is to stop placing and start naming.
 
 # Related
 

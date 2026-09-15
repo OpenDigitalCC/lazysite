@@ -25,12 +25,12 @@ Refs are this plan's; the source ref is given so each row can be traced back.
 
 | Ref | Item | Source | State |
 | --- | --- | --- | --- |
-| P1 | The release tarball stops carrying the previous release - `download/ export-ignore`, 34.2 MB to 6.5 MB | [[SM884]] | **Committed**, `claude/n142f-sm884-export-ignore`. Handoff gate not yet run - it was held so it could not compete with the 0.14.2 build for memory. |
+| P1 | The release tarball stops carrying the previous release - `download/ export-ignore`, 34.2 MB to 6.5 MB | [[SM884]] | **DONE** - landed on `main`. It takes effect at 0.14.3: the 0.14.2 build was already running when it went in, so that tarball still carries 0.14.1. |
 
-P1 was listed first because F1 was thought to depend on it. **It no longer
-does** — the skill carries its own debs rather than fetching a tarball, so the
-60-second budget is an `apt-get` against the Ubuntu archive. P1 stays at the top
-because it is finished and waiting, not because anything is blocked on it.
+P1 was listed first because F1 was thought to depend on it, and then because it
+was finished and waiting. Neither is true now: the skill carries its own debs
+rather than fetching a tarball, and P1 has landed. Kept as the record of what
+0.14.3 already contains.
 
 ## The feature
 
@@ -122,17 +122,6 @@ these a visitor hits.
 | Ref | Item | Source | Why now |
 | --- | --- | --- | --- |
 | T1 | Nothing a token can reach names which service template a site runs | [[SM890]] | Asked for in the 0.14.1 test plan and again in the 0.14.2 one, and reported both times as the single fact the field cannot read. Each time it would have said whether a stale reading was a pooled worker or something else. **Every site is current now, so nothing is blocked - which is the moment to add a diagnostic**, rather than discovering for a third time that the question cannot be answered while something is broken. Carries one decision: public endpoint or partner-only. |
-
-## The dependency-shaped one
-
-| Ref | Item | Source | Note |
-| --- | --- | --- | --- |
-| D1 | Editing an included partial does not refresh the pages that include it | [[SM888]] A2 | The fix is to record each resolved include as a render dependency exactly as [[SM311]] records `json:` sources. The machinery exists and includes do not use it. |
-| D2 | A page in a protected section cannot include its own partials | [[SM888]] A3 | The guard should accept a resolved path under the content root **or** under that root's private store. Same family as [[SM852]]. |
-
-D1 and D2 are listed together because both are about includes and both touch the
-same guard; doing one without looking at the other would mean reading that code
-twice.
 
 ## Docs
 

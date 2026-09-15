@@ -74,14 +74,34 @@ subtest 'a clean site says nothing at all' => sub {
             . 'produce a table and nothing else.' );
 };
 
+# SM889 MOVED WHEN THIS IS PRINTED, not whether. Findings are now collected as
+# they occur and reported once at the end with the sites they affect, so that
+# one condition on twenty-one sites is one line rather than twenty-one copies
+# of the same sentence. The contract this subtest was written for - a filtered
+# line with no site attached is not actionable on a fleet - is unchanged and is
+# still what is asserted; the run now ends with report_findings.
 subtest 'a warning is surfaced, and says which site it came from' => sub {
     my ( $out, undef ) = run_bash(
-        q{set +e; run_quiet a.example bash -c 'echo ok; echo "WARN: perms drifted"; exit 0'} );
-    like( $out, qr/\[a\.example\]\s*WARN: perms drifted/,
-        'the warning is printed and attributed' )
+        q{set +e; run_quiet a.example bash -c 'echo ok; echo "WARN: perms drifted"; exit 0'; report_findings} );
+    like( $out, qr/WARN: perms drifted/, 'the warning is reported' );
+    like( $out, qr/sites:.*a\.example/,
+        'and says which site it came from' )
         or diag( 'A filtered line with no site attached is not actionable on '
             . 'a fleet - the operator cannot tell which site to look at.' );
     unlike( $out, qr/^\s*ok$/m, 'the ordinary line around it is not' );
+};
+
+subtest 'the same finding on three sites is one line naming three sites' => sub {
+    my ( $out, undef ) = run_bash( q{set +e;
+        for s in a.example b.example c.example; do
+            run_quiet "$s" bash -c 'echo "WARN: perms drifted"; exit 0'
+        done
+        report_findings} );
+    my @lines = grep { /perms drifted/ } split /\n/, $out;
+    is( scalar @lines, 1, 'reported once, not once per site' )
+        or diag("got:\n$out");
+    like( $out, qr/\[3\]/, 'with the count' );
+    like( $out, qr/a\.example.*b\.example.*c\.example/s, 'and all three sites' );
 };
 
 subtest 'a FAILURE keeps its whole output, and its status' => sub {

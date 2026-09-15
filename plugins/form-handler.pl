@@ -666,7 +666,29 @@ sub check_timestamp {
     my $expected = hmac_sha256_hex( $ts, $secret );
     reject('Invalid submission') unless $tk eq $expected;
     my $age = time() - $ts;
-    reject('Submission too fast') if $age < 3;
+
+    # SM888 A7: THE TIMING REFUSALS ARE SHOWN; THE TOKEN ONES ARE NOT.
+    #
+    # The field reported "a form posted within a second of page load fails with
+    # a generic error". It was refusing correctly - the floor is real - and the
+    # reason was discarded one word from being shown: reject() dies plain,
+    # reject_user() dies USER:, and only USER: reaches the submitter.
+    #
+    # The two kinds of refusal above and below are not the same kind of event,
+    # which is why this is not "make them all visible":
+    #
+    #   The three `Invalid submission` refusals are TOKEN failures - missing,
+    #   malformed, wrong HMAC - and they are what an attacker drives. Telling
+    #   them apart tells a forger which half of the attempt was wrong, so they
+    #   stay generic.
+    #
+    #   Too fast and expired happen to REAL PEOPLE holding a token this site
+    #   issued: the HMAC has already matched. Nothing is being probed - the
+    #   visitor typed quickly or left the page open. Telling them costs nothing
+    #   (the floor is three seconds and it is in this file) and saves them
+    #   retyping a form they believe ate their answer.
+    reject_user('That was too quick - please try again in a moment.')
+        if $age < 3;
 
     # SM501: per-form, defaulting to the shipped two hours. 0 disables the age
     # ceiling only - the HMAC above still has to match, so a submission cannot
@@ -674,7 +696,13 @@ sub check_timestamp {
     # applies. Undef is the default rather than "no limit", so a malformed value
     # in a form conf tightens nothing and loosens nothing.
     $window = 7200 unless defined $window;
-    reject('Submission expired') if $window && $age > $window;
+    # Shown, for the same reason as the floor above: this is a page that sat
+    # open, not a token that failed. A visitor told only "an error occurred"
+    # re-submits the same stale page and is refused identically.
+    reject_user(
+        'This form was open too long and has expired - please reload the page '
+            . 'and send it again.' )
+        if $window && $age > $window;
 }
 
 # SM401: the limit is PER FORM, and the default is unchanged.

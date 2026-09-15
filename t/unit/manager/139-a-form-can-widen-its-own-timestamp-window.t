@@ -33,10 +33,22 @@ my ($sub) = $src =~ /(sub check_timestamp \{.*?\n\})/s;
 ok( $sub, 'check_timestamp was extracted' ) or BAIL_OUT('nothing to test');
 
 our @rejected;    # package, not lexical - see below
+
+# SM888 A7: reject_user IS STUBBED TOO, and it has to be. check_timestamp now
+# uses both - the TOKEN refusals stay generic via reject(), while the two TIMING
+# refusals go through reject_user() so the visitor is told why. Stubbing only
+# reject() left the timing calls unresolved: the probe died somewhere else and
+# every window assertion failed, which looked like the window logic breaking
+# and was the stub not keeping up with the thing it stands in for.
+#
+# Both record into the same array because what this file tests is WHICH refusal
+# fired for a given age and window - the window logic - not how each one reaches
+# the submitter. That distinction is held by t/unit/forms/15.
 my $pkg = q{
     package SM501Probe;
     use Digest::SHA qw(hmac_sha256_hex);
-    sub reject { push @main::rejected, $_[0]; die "rejected\n" }
+    sub reject      { push @main::rejected, $_[0]; die "rejected\n" }
+    sub reject_user { push @main::rejected, $_[0]; die "rejected\n" }
 } . $sub;
 # NOTE: reject() above pushes to @main::rejected. Declaring `my @rejected` here
 # instead creates a DIFFERENT array that never receives anything, so every call
@@ -56,7 +68,7 @@ sub try {
 
 subtest 'the default is unchanged' => sub {
     is( try( 60, undef ), '', 'a fresh submission is accepted' );
-    is( try( 7300, undef ), 'Submission expired',
+    like( try( 7300, undef ), qr/expired/,
         'and one older than two hours is refused, as before' )
         or diag( 'The shipped default must not move for a form that says '
             . 'nothing - every existing form relies on it.' );
@@ -64,7 +76,7 @@ subtest 'the default is unchanged' => sub {
 
 subtest 'a form can widen its own window' => sub {
     is( try( 7300, 86400 ), '', 'an old submission is accepted with a day-long window' );
-    is( try( 90000, 86400 ), 'Submission expired',
+    like( try( 90000, 86400 ), qr/expired/,
         'and one past the widened window is still refused' )
         or diag( 'A window that accepts everything is not a window.' );
 };
@@ -81,7 +93,7 @@ subtest 'off disables the age ceiling and nothing else' => sub {
         or diag( 'If off skipped the HMAC this would be a replay hole, not a '
             . 'usability setting.' );
 
-    is( try( 1, 0 ), 'Submission too fast',
+    like( try( 1, 0 ), qr/too quick/,
         'and the too-fast floor still applies' );
 };
 

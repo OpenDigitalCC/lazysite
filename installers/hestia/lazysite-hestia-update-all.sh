@@ -259,10 +259,66 @@ SUM_FMT='  %-42s %-9s %-9s %-16s %-8s %s\n'
 sum_head() { printf "$SUM_FMT" DOMAIN FROM TO CHECK VHOST RESULT; }
 sum_row()  { printf "$SUM_FMT" "$1" "$2" "$3" "$4" "$5" "$6"; }
 
-# What counts as worth interrupting a quiet run for. Deliberately broad: a
-# missed warning is the failure mode this whole change risks introducing, and a
-# false positive costs one line.
-NOISE_RE='(WARN|WARNING|ERROR|FAIL|FAILED|CRITICAL|EXPOSED|refus|cannot|not writable|denied|Permission|missing)'
+# SM889: WHAT COUNTS AS A FINDING - and the old answer matched prose.
+#
+# This was deliberately broad on the argument that "a false positive costs one
+# line". It does not. Measured on the 0.14.2 fleet update: about 200 lines to
+# say 29 updated, 0 failed, and the two largest sources were bare words.
+#
+#   `missing` matched 71 per-file "backup: missing <path>" lines - one per
+#   deleted demo page per site.
+#
+#   `missing` ALSO matched, once per site, this line from the installer's
+#   fifteen-line Next steps block:
+#
+#       deliberate, not a missing step, and there is no default login:
+#
+#   which is a sentence saying nothing is wrong. grep printed that one line out
+#   of the block, so it arrived ending in a colon with its continuation gone
+#   and read as a truncated message. It was filed as a second defect; it is
+#   this one.
+#
+# So the pattern now wants a finding to LOOK like a finding: a level marker, or
+# a word at the start of its own clause - not any sentence containing "cannot"
+# or "missing" somewhere in the middle.
+#
+# Still deliberately generous about real findings: a missed warning is the
+# failure mode this filtering risks, and the grouping below means a genuine
+# repeat now costs one line rather than twenty-nine.
+# The case of the level markers is load-bearing: matching `warn`
+# case-insensitively would match "warning" inside any sentence, which is how
+# the old pattern caught prose. `Permission denied` is capitalised because that
+# is what strerror produces, and lowercasing it cost a real match in testing.
+NOISE_RE='(\[ *(warn|fail|error) *\]|^[[:space:]]*(WARN|WARNING|ERROR|FAIL|FAILED|CRITICAL|EXPOSED)\b|\b(WARN|ERROR|FAIL|FAILED|CRITICAL|EXPOSED):|not writable|[Pp]ermission denied|refused|refusing)'
+
+# Findings are collected and reported TOGETHER at the end, grouped by what they
+# say, rather than printed as they occur.
+#
+# The 0.14.2 run printed the same ~45-word probe warning 21 times and the same
+# ~90-word ACL paragraph 8 times. Those are not 29 findings; they are two
+# conditions with a set of sites each. Repeating identical prose per site also
+# asserts a per-site result the report does not have - and it BURIES the cases
+# that genuinely differ, which in that run was the extension list inside the
+# probe warning, varying between sites and invisible inside twenty-one copies.
+FINDINGS_FILE=$(mktemp -t lzs-findings.XXXXXX) || FINDINGS_FILE=''
+cleanup_findings() { [ -n "$FINDINGS_FILE" ] && rm -f "$FINDINGS_FILE"; }
+trap cleanup_findings EXIT
+
+# report_findings - print every collected finding once, with the sites it
+# affects. Silent when there is nothing, because a heading over an empty list
+# is the kind of line this change exists to remove.
+report_findings() {
+    [ -n "$FINDINGS_FILE" ] && [ -s "$FINDINGS_FILE" ] || return 0
+    echo
+    echo '==> findings (one line per distinct message, with the sites it affects)'
+    # Group by the message, collect the labels. Sorted so a run is comparable
+    # with the one before it.
+    sort "$FINDINGS_FILE" | awk -F'\t' '
+        { msg[$2] = msg[$2] (msg[$2] ? ", " : "") $1; n[$2]++ }
+        END {
+            for (m in n) printf "  [%d] %s\n      sites: %s\n", n[m], m, msg[m]
+        }' | sort
+}
 
 # run_quiet LABEL COMMAND...
 #
@@ -298,7 +354,19 @@ run_quiet() {
         printf '%s\n' "$out"
         printf -- '--- end %s ---\n' "$label"
     else
-        printf '%s\n' "$out" | grep -E "$NOISE_RE" | sed "s/^/  [$label] /" || true
+        # SM889: COLLECTED, not printed. Each finding is stored as
+        # label<TAB>message and reported once at the end with the sites it
+        # affects - see report_findings. Leading and trailing space is trimmed
+        # so the same message indented differently by two phases still groups.
+        if [ -n "$FINDINGS_FILE" ]; then
+            printf '%s\n' "$out" | grep -E "$NOISE_RE" \
+                | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+                | while IFS= read -r line; do
+                    [ -n "$line" ] && printf '%s\t%s\n' "$label" "$line" >> "$FINDINGS_FILE"
+                done || true
+        else
+            printf '%s\n' "$out" | grep -E "$NOISE_RE" | sed "s/^/  [$label] /" || true
+        fi
     fi
     return "$rc"
 }
@@ -712,6 +780,8 @@ printf '  %d updated, %d failed, %d skipped, %d out of scope, %d excluded\n' \
 [ "$_vh_rebuild" -gt 0 ] && \
     printf '  vhost:  %d site(s) render an older template - rebuild them to take this release'"'"'s front-end rules (--rebuild, or v-rebuild-web-domain USER DOMAIN)\n' \
         "$_vh_rebuild"
+report_findings
+
 [ "$VERBOSE" = 0 ] && \
     echo '  (quiet report; re-run with --verbose for every phase in full)'
 
