@@ -95,8 +95,16 @@ function renderStats(d) {
   // a headline number that drops without explanation reads as lost traffic. The
   // assets are shown beside it rather than dropped silently, so the subtraction
   // is visible on the page an operator actually reads.
+  // SM888 S3: AND IT NOW SAYS WHAT IT IS A COUNT OF. SM329 put the assets
+  // beside it so the subtraction was visible, and left the tile itself
+  // unqualified - so the number a sysop quotes as "our traffic" did not say it
+  // was human-only, which is the pairing with People that makes both tiles
+  // consistent (N141B-F).
   h += '<div class="mg-stat-tiles">'
-     + tile('Page views', fmtNum(d.hits))
+     + tile('Page views', fmtNum(d.hits),
+            'Pages fetched by human visitors in this window. Images and files '
+          + 'are the tile beside this one; every other kind of caller is in '
+          + 'Who’s calling below.')
   // N141B-F: "Unique visitors" COUNTED PEOPLE ONLY, and did not say so.
   //
   // The tile showed 48 where totals.unique_visitors was 153, so the same field
@@ -113,8 +121,26 @@ function renderStats(d) {
      + tile('People' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors),
             'Unique human visitors. Every other kind of caller is counted in '
           + 'Who’s calling below.')
-     + tile('Images and files', fmtNum(d.asset_hits || 0))
-     + tile('Data served', fmtBytes(d.bytes))
+     + tile('Images and files', fmtNum(d.asset_hits || 0),
+            'Images, stylesheets and downloads fetched successfully by human '
+          + 'visitors in this window.')
+  // SM888 S3: AND THE ONE THAT IS NOT HUMAN-ONLY SAYS SO.
+  //
+  // Measured in stats.pl, not assumed from the row it sits in: `bytes` is
+  // added for EVERY caller, before the human filter that Page views, People
+  // and Images and files all sit behind. So three tiles in this row count
+  // people and the fourth counts everyone, and nothing said which was which -
+  // an operator comparing Data served against Page views is dividing by the
+  // wrong population, and on a scanned site the difference is large.
+  //
+  // Stated rather than recomputed, for N141B-F's reason: the number is not
+  // wrong, and making it human-only would quietly change what a sysop has
+  // been reading. If it should become human-only that is a decision, not a
+  // label fix.
+     + tile('Data served', fmtBytes(d.bytes),
+            'Total bytes sent to EVERY caller in this window - people, AI, '
+          + 'bots and scanners alike. The other tiles in this row count '
+          + 'people only.')
      + tile('Window', d.window_days + ' days')
      + '</div>';
 
@@ -247,7 +273,16 @@ function renderStats(d) {
   // this payload while the page rendered neither, so an operator who enabled
   // search terms saw nothing happen and reasonably concluded it did not work.
   if (d.devices && Object.keys(d.devices).length) {
-    var dev = '<div class="mg-checks">';
+    // SM888 S3: WHAT THESE NUMBERS COUNT, stated in the block rather than in a
+    // title attribute. A tile is a glance and a tooltip suits it; an opened
+    // block is being read, and "mobile: 412" with no denominator invites the
+    // reader to assume visitors or sessions. They are PAGE VIEWS, human only,
+    // over the same window - assets are excluded on purpose (SM336 item 6),
+    // because counting a stylesheet would report the device that fetched it
+    // once per file the layout happens to load.
+    var dev = '<p class="mg-muted">Human page views in this window, by device. '
+            + 'Images and files are not counted.</p>'
+            + '<div class="mg-checks">';
     Object.keys(d.devices).sort(function (a, b) { return d.devices[b] - d.devices[a]; })
       .forEach(function (k) {
         dev += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ': ' + fmtNum(d.devices[k]) + '</span>';

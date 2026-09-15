@@ -82,6 +82,18 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM888 S3 (PENDING) **every headline figure on the Stats page says what it is
+  a count of.** N141B-F built `tile(label, value, note)` for exactly this and
+  applied it to one tile; four were bare — Page views, Images and files, Data
+  served, and the Devices block, where "mobile: 412" invited the reader to
+  assume visitors or sessions when they are human page views with assets
+  excluded. **And one tile counts a different population from the three beside
+  it**: `bytes` is accumulated for every caller, before the human filter the
+  others sit behind, so Data served includes scanners and now says so. Stated
+  rather than recomputed — making it human-only would quietly change a figure
+  sysops have been reading, which is a decision and not a label fix.
+  `t/lint/148` asserts the rule, so the next tile cannot arrive bare.
+
 - SM888 A2 (PENDING) **editing an included partial refreshes the pages that
   include it.** A shared header, footer or notice edited once updated nothing
   until every page including it was saved — and the person who maintains the
