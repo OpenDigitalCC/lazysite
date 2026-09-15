@@ -4009,6 +4009,29 @@ sub _audit_implicit_target {
             return $v if length $v;
         }
     }
+
+    # SM888 F4: HANDLERS AND FORM TARGETS - name the handler, not the path.
+    #
+    # The fourth family to need this, after data (SM503) and connectors plus
+    # group changes (N141B-C), and reported by the field AFTER those landed -
+    # so it is the residue of the same cause rather than a repeat of it.
+    #
+    # It matters for the same reason the connector one did: a handler decides
+    # which code a form's submissions are handed to, and form-targets-save
+    # decides which handlers a form reaches. A row saying somebody changed a
+    # handler, without saying which, cannot answer the question the trail
+    # exists for.
+    #
+    # TWO KEYS, because the two actions spell their subject differently, and
+    # this was measured rather than assumed: handler-save and handler-delete
+    # carry `id`, while form-targets-save refuses with "form is required" when
+    # sent an `id` - its subject is `form`.
+    if ( $action =~ /^(?:handler-|form-targets-)/ ) {
+        for my $k (qw(id form handler)) {
+            my $v = $params->{$k} // $req->{$k} // '';
+            return $v if length $v;
+        }
+    }
     return '';
 }
 

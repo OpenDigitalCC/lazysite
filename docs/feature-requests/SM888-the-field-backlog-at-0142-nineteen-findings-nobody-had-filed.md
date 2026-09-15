@@ -21,16 +21,28 @@ which the reporter had already noticed share a shape.
 
 # F - the audit trail cannot name its subject
 
-**Suspected one cause**: an action whose subject is not a path passes no target,
-and everything without a target falls through to `/`. `user-group-remove`
-already proves the `a@b` format works, so the shape exists and is not reached.
+**CORRECTED 2026-09-15: three of these four were already fixed when I filed
+them.** F1, F2 and F3 were closed by N141B-C in 0.14.1, with a resolver branch
+for the whole connector family and explicit cases for `group-nest` and
+`group-settings-set`, pinned by `t/unit/manager/158`. The walks that reported
+them ran against 0.13.15 and 0.13.16.
+
+I digested those reports without checking whether the work had since been done,
+which is the reading half of the same mistake this filing exists to fix: an
+inbox tells you what was true when it was written. **Only F4 was open**, and it
+is the one reported *after* N141B-C landed — the residue of the cause, not a
+repeat of it. Fixed, with `t/integration/100`.
+
+**The one cause**: an action whose subject is not a path passes no target, and
+everything without a target falls through to `/`. `user-group-remove` already
+proves the `a@b` format works, so the shape exists and is not reached.
 
 | Ref | Finding | Class | Evidence |
 | --- | --- | --- | --- |
-| F1 | Every connector audit event records its target as `/`, so the trail cannot say which connector sent data out, received a credential, or was saved | ENGINE | Five events (2 `connector-save`, 1 `connector-secret-set`, 2 `connector-call`) all `target=/`. `connector-calls` DOES record `connector: s08-req`, so the identifier exists and is simply not passed. Sharpest case is `connector-secret-set`. |
-| F2 | `user-group-nest` audits with no target and no detail - the operation that hands one group's whole capability set to another records no subject at all | ENGINE | `remove` records `s05-child@s05-parent`; `add` records `ui-test-2@s05-delegate`; `nest` records nothing. |
-| F3 | `user-group-settings-set` records the group but not the capability or the value, so consecutive grants are indistinguishable | ENGINE | Five consecutive rows against one group; one of them may have granted `api` and the trail cannot say which. Reporter's fix: `<capability>=<value>` in `detail`. |
-| F4 | `handler-save` and `form-targets-save` name `/` as their subject | ENGINE | Seen during the 0.14.1 edge walk; not in that report's do-not-refile list. |
+| ~~F1~~ | **ALREADY FIXED** (N141B-C, 0.14.1). Every connector audit event recorded its target as `/`, so the trail cannot say which connector sent data out, received a credential, or was saved | ENGINE | Five events (2 `connector-save`, 1 `connector-secret-set`, 2 `connector-call`) all `target=/`. `connector-calls` DOES record `connector: s08-req`, so the identifier exists and is simply not passed. Sharpest case is `connector-secret-set`. |
+| ~~F2~~ | **ALREADY FIXED** (N141B-C, 0.14.1). `user-group-nest` audited with no target and no detail - the operation that hands one group's whole capability set to another records no subject at all | ENGINE | `remove` records `s05-child@s05-parent`; `add` records `ui-test-2@s05-delegate`; `nest` records nothing. |
+| ~~F3~~ | **ALREADY FIXED** (N141B-C, 0.14.1). `user-group-settings-set` recorded the group but not the capability or the value, so consecutive grants are indistinguishable | ENGINE | Five consecutive rows against one group; one of them may have granted `api` and the trail cannot say which. Reporter's fix: `<capability>=<value>` in `detail`. |
+| F4 | `handler-save` and `form-targets-save` named `/` as their subject | ENGINE | **FIXED 2026-09-15.** The only row of this family that was genuinely open - reported on the 0.14.1 edge walk, AFTER N141B-C. Reproduced against the running API: `op | handler-save | / | fail`. Two keys, measured not assumed: handler actions carry `id`, `form-targets-save` carries `form` and refuses "form is required" when sent an id. `t/integration/100`. |
 
 **Why it matters beyond tidiness:** `connector-secret-set` and
 `user-group-nest` are the two operations in this set that move authority. An

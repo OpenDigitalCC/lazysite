@@ -44,6 +44,16 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM888 F4 (PENDING) **a handler action's audit entry names the handler.**
+  `handler-save` and `form-targets-save` recorded the dispatcher's `/` - the
+  fourth family to hit the same cause after data (SM503) and connectors plus
+  group changes (N141B-C), and the only one still open, because it was reported
+  *after* those landed. A handler decides which code a form's submissions are
+  handed to, so a row that cannot name it answers none of the questions a trail
+  exists for. The two actions spell their subject differently and that was
+  measured rather than read: handler actions carry `id`, `form-targets-save`
+  refuses "form is required" when sent one. `t/integration/100`.
+
 - SM884 (PENDING) **the release tarball no longer carries the previous
   release.** `git archive` ships every tracked path unless it is marked
   export-ignore, and `download/` holds a complete release - so each tarball

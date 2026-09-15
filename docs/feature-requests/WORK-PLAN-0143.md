@@ -48,16 +48,23 @@ host, and docker here is bounded by the standing rule about the daemon.
 
 | Ref | Item | Source |
 | --- | --- | --- |
-| A1 | An action whose subject is not a path records `/` - fix the pass-through, then confirm all four call sites | [[SM888]] F1-F4 |
+| A1 | An action whose subject is not a path records `/` | [[SM888]] F1-F4 | **DONE, and smaller than this plan said.** |
 
-Taken as one item because it is one defect. The four symptoms are connector
-events, `user-group-nest`, `user-group-settings-set` and `handler-save` /
-`form-targets-save`. Two of those - setting a connector secret, and nesting one
-group inside another - are operations that move authority, which is the reason
-this is in the release rather than in the backlog.
+**Three of the four were already fixed when I scoped this**, by N141B-C in
+0.14.1: the connector family, `user-group-nest` and `user-group-settings-set`,
+pinned by `t/unit/manager/158`. The walks reporting them ran on 0.13.15 and
+0.13.16, and I digested those reports without checking whether the work had
+since been done.
 
-`user-group-remove` already records `a@b`, so the shape exists and is simply not
-reached.
+Only `handler-save` / `form-targets-save` was open — reported on the 0.14.1 edge
+walk, *after* N141B-C, so it is the residue of the cause rather than a repeat.
+Reproduced against the running API (`op | handler-save | / | fail`) and fixed
+with a branch for the family; `t/integration/100`.
+
+Worth keeping: the two actions spell their subject differently, and that was
+**measured, not read off the dispatcher** — handler actions carry `id`, while
+`form-targets-save` refuses *"form is required"* when sent one. A fix written
+from the source alone would have covered half of it and passed a source check.
 
 ## The rollout report
 
