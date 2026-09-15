@@ -82,6 +82,28 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM888 A6 (PENDING) **a refused WebDAV write answers 403 whatever the body's
+  size.** The same refused PUT answered 403 under about 100 KB and 502 above
+  it, on byte-identical re-PUTs. A refusal decided from the PATH never touched
+  the body, so the client was left writing to a process that had exited — and
+  a front end cannot relay a response for a request that never finished. One
+  drain, in `send_response`, which is the one place every answer leaves
+  through. Reproduced first: a 512 KB refused PUT let the client write exactly
+  one pipe buffer and then broke the pipe. `t/unit/dav/30`.
+
+- SM888 A1 (PENDING) **the feeds emit dates a reader can parse.** RSS
+  `<pubDate>` gets RFC 822 and Atom `<updated>` gets RFC 3339; a front-matter
+  `date: 2026-08-14` went into both raw, and neither accepts it — so items were
+  shown undated, or dated "now" and re-sorted on every fetch. **This changes
+  published output for every feed subscriber at once.** The formatting is in
+  the engine, not the template: registry templates install under bucket `seed`,
+  so an upgrade never replaces them and a template-only fix would have left
+  every existing feed wrong. The day and month names are the engine's own,
+  because `strftime`'s are locale-dependent. A date nothing can parse is passed
+  through unchanged rather than replaced with the time of generation, and the
+  raw value stays available to custom templates as `date_raw`.
+  `t/integration/102`.
+
 - SM887 F1 (PENDING) **a claude.ai skill that checks a page by running it.**
   `skills/claude-ai/lazysite/` — `SKILL.md`, `setup.sh`, `serve.sh`,
   `fetch.pl`, and two reference files — plus `lazysite-skill-<version>.zip`,

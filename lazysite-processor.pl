@@ -6627,6 +6627,35 @@ sub _registry_stale {
                 } @registered;
             }
 
+            # SM888 A1: A FEED DATE IS FORMATTED FOR THE FEED IT GOES INTO.
+            #
+            # `date: 2026-08-14` went into RSS's <pubDate> and Atom's <updated>
+            # unchanged, and neither accepts it: pubDate wants RFC 822, updated
+            # wants RFC 3339. A reader given a date it cannot parse shows the
+            # item undated, or dates it "now" and re-sorts the feed on every
+            # fetch. Not a crash, which is why every feed this project has
+            # published has been wrong and looked fine.
+            #
+            # DONE HERE RATHER THAN IN THE TEMPLATE, and that is the whole
+            # reach of the fix: the registry templates install under bucket
+            # `seed`, so an upgrade never replaces them. A site installed a year
+            # ago keeps the template it was given. Fixing starter/ alone would
+            # fix new sites and leave every feed that has a subscriber wrong.
+            #
+            # The raw value stays available as `date_raw` for a site that has
+            # written its own template around it.
+            if ( $registry_name eq 'feed.rss' || $registry_name eq 'feed.atom' ) {
+                my $rss = $registry_name eq 'feed.rss';
+                @registered = map {
+                    my ( $r822, $r3339 ) = _feed_dates( $_->{date} );
+                    my $fmt = $rss ? $r822 : $r3339;
+                    +{ %$_,
+                        date_raw => $_->{date},
+                        ( defined $fmt ? ( date => $fmt ) : () ),
+                    };
+                } @registered;
+            }
+
             my $vars = {
                 %site_vars,
                 pages => \@registered,
@@ -6649,6 +6678,64 @@ sub _registry_stale {
         umask $old_umask;
     }
 }    # close P-3 _has_registries memo block
+
+# SM888 A1: one front-matter date, the two spellings the feed specifications
+# require. Returns ( RFC 822, RFC 3339 ), or the empty list when the value is
+# not a date this can read.
+#
+# THE MONTH AND DAY NAMES ARE OURS, not strftime's. %a and %b are LOCALE
+# DEPENDENT, and a host with a non-English locale would publish "jeu., 14 août"
+# into a feed whose specification names the English abbreviations - a fault
+# that appears on some hosts and not others, which is the worst kind to chase.
+#
+# AN UNPARSEABLE DATE IS PASSED THROUGH, not replaced. Substituting "now" would
+# make the feed re-sort itself on every fetch and tell the sysop nothing; the
+# page's front matter is where it is wrong and where it should be fixed.
+# THE TABLES LIVE INSIDE THE SUB, and that is not a style choice. Written as
+# file-scope `my @DOW = (...)` in an enclosing block, they are EMPTY here: this
+# is a CGI whose execution reaches the request handler thousands of lines
+# above, so a runtime assignment down here never runs before the sub is called.
+# The first cut published "<pubDate>, 14  2026 00:00:00 +0000</pubDate>" - a
+# date with no day and no month, which is worse than the raw value it replaced.
+# Twelve strings on a path that runs when a feed regenerates cost nothing.
+{
+
+    sub _feed_dates {
+        my ($raw) = @_;
+        my @DOW   = qw(Sun Mon Tue Wed Thu Fri Sat);
+        my @MON   = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+        return () unless defined $raw && length $raw;
+        my ( $y, $m, $d, $H, $M, $S ) = $raw =~ m{
+            \A \s* (\d{4}) - (\d{2}) - (\d{2})
+            (?: [T ] (\d{2}) : (\d{2}) (?: : (\d{2}) )? )?
+        }x or return ();
+        $H //= 0;
+        $M //= 0;
+        $S //= 0;
+        return () if $m < 1 || $m > 12 || $d < 1 || $d > 31;
+
+        require Time::Local;
+        my $epoch = eval {
+            Time::Local->can('timegm_modern')
+                ? Time::Local::timegm_modern( $S, $M, $H, $d, $m - 1, $y )
+                : Time::Local::timegm( $S, $M, $H, $d, $m - 1, $y - 1900 );
+        };
+        return () unless defined $epoch;
+
+        my @g = gmtime($epoch);
+        return (
+            sprintf(
+                '%s, %02d %s %04d %02d:%02d:%02d +0000',
+                $DOW[ $g[6] ], $g[3], $MON[ $g[4] ], $g[5] + 1900,
+                $g[2],         $g[1], $g[0]
+            ),
+            sprintf(
+                '%04d-%02d-%02dT%02d:%02d:%02dZ',
+                $g[5] + 1900, $g[4] + 1, $g[3], $g[2], $g[1], $g[0]
+            ),
+        );
+    }
+}
 
 # SM293 step 3: where a generated registry is cached, per content root.
 #

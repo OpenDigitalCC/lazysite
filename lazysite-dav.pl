@@ -78,6 +78,11 @@ my $OWNER_MAX      = 1024;    # bytes of client owner XML retained
 
 my $PUT_CHUNK = 65536;
 
+# SM888 A6: how many bytes of the request body this process has consumed, so a
+# refusal knows how much is still coming and send_response can finish reading
+# it. Request-lifetime state, declared with the rest of it (t/lint/39).
+my $BODY_READ = 0;
+
 # FDO-1: caps_for() answers for this process. Declared up here, with the
 # other request-lifetime state, so nothing is initialised below the
 # dispatch (t/lint/39). See _caps_for for what it is and why it is safe.
@@ -659,7 +664,8 @@ sub _stream_body {
         last if defined $remaining && $remaining <= 0;
         my $n = read( STDIN, $buf, $want );
         last unless $n;
-        $written += $n;
+        $written   += $n;
+        $BODY_READ += $n;    # SM888 A6: so a later refusal drains only the rest
         if ( $written > $max ) {
             close $out; unlink $tmp;
             return { failed => 'toobig' };
@@ -2121,8 +2127,51 @@ sub read_request_body {
     return '' unless defined $len && $len =~ /^\d+$/ && $len > 0;
     my $body = '';
     binmode STDIN;
-    read( STDIN, $body, $len );
+    my $n = read( STDIN, $body, $len );
+    $BODY_READ += $n if $n;
     return $body;
+}
+
+# SM888 A6: DRAIN A BODY WE REFUSED TO READ.
+#
+# A refusal decided from the PATH - the reserved tree, a missing capability, a
+# lock - answers before anything touches STDIN, and the client is still
+# sending. Under one pipe buffer the whole body fits and the client reads its
+# 403. Above it the client blocks writing to a process that has exited, and the
+# front end - which cannot relay a response for a request that never finished -
+# answers 502.
+#
+# So the status a caller saw depended on the size of a body the server had
+# decided not to look at, and the one status that means "stop asking" was the
+# one it stopped seeing. The field measured it as 403 under about 100 KB and
+# 502 above, on byte-identical re-PUTs.
+#
+# ONE DRAIN, AT THE ONE PLACE EVERY ANSWER LEAVES THROUGH. Putting it beside
+# each refusal would be the same mistake in fifteen copies, and the fifteenth
+# would be the one somebody adds next year.
+#
+# BEFORE the status is written, not after: the point is that the client
+# finishes sending, and a status printed into a buffer the client is not
+# reading yet helps nobody.
+#
+# Bounded by CONTENT_LENGTH minus what was already consumed - a successful PUT
+# has read it all and drains nothing - and stopped at EOF, so a header that
+# overstates the body cannot hold the process open.
+sub _drain_request_body {
+    my $len = $ENV{CONTENT_LENGTH};
+    return unless defined $len && $len =~ /^\d+$/;
+    my $remaining = $len - $BODY_READ;
+    return unless $remaining > 0;
+    binmode STDIN;
+    my $buf;
+    while ( $remaining > 0 ) {
+        my $want = $remaining < $PUT_CHUNK ? $remaining : $PUT_CHUNK;
+        my $n    = read( STDIN, $buf, $want );
+        last unless $n;
+        $remaining -= $n;
+        $BODY_READ += $n;
+    }
+    return;
 }
 
 sub copy_tree {
@@ -2198,6 +2247,13 @@ sub _write_failure {
 sub send_response {
     my ( $code, %o ) = @_;
     my $reason = $REASON{$code} // 'Status';
+
+    # SM888 A6: finish reading whatever the caller sent before answering. See
+    # _drain_request_body - a refusal decided from the path never touches the
+    # body, and a client left blocked on one is what a front end turns into a
+    # 502 over the top of a perfectly good 403.
+    _drain_request_body();
+
     binmode( STDOUT, ':utf8' );
     print "Status: $code $reason\r\n";
     # SM071 Phase 3 (P3.6): the retry contract - 423 (locked) and 429
