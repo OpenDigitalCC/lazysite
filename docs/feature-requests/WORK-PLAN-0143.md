@@ -73,28 +73,49 @@ from the source alone would have covered half of it and passed a source check.
 | Q1 | The quiet fleet rollout prints ~200 lines to say "29 updated, 0 failed" - [[SM701]]'s contract held and every phase added since ignored it | [[SM889]] | Raised by the release manager watching the 0.14.2 deploy. It is a regression, it gets worse with each phase added, and the fix is structural (one reporter that owns the verbosity level) rather than more conditionals. |
 | Q2 | One rollout message is truncated mid-sentence, ending in a colon with nothing after it, on all 29 sites | [[SM889]] D1 | A defect rather than noise, and independent of Q1. Whatever it was meant to say, nobody has read it for some time. |
 
-## The cheap and certain
+## Verified, 2026-09-15 - and most of what was here had already shipped
 
-Each of these was reported with its cause located or its fix quoted. They are
-here because they are small, not because they are urgent.
+**Seven rows in the first draft of this plan shipped in 0.14.1.** They were
+drawn from [[SM888]] without cross-checking the 0.14.1 CHANGELOG, and SM888 had
+itself been drawn from an inbox without that check. Struck below with what
+closed them, because a plan that overstates what is left is one somebody
+budgets from:
 
-| Ref | Item | Source | Size |
+| Was | Row | Closed by |
+| --- | --- | --- |
+| ~~C1~~ | `page-pdf` on a draft or gated page | N141B-A |
+| ~~C2~~ | `list` requires a leading slash | N141B-B |
+| ~~C3~~ | Services holder line keeps the future tense | N141-01 |
+| ~~C4~~ | "0 log lines scanned." | N141B-F, deleted rather than implemented |
+| ~~C5~~ | Site settings blank without `manage_config` | SM775 in 0.13.9; the padlock half was ruled out - you cannot padlock where somebody lands |
+| ~~S1~~ | stats bar hides 58.7% of its traffic | N141B-F |
+| ~~S2~~ | `granted_by` names the membership group | N141B-D |
+| ~~S3~~ | phantom member after deleting a nested group | N141B-E |
+
+## What is actually open
+
+| Ref | Item | Source | Note |
 | --- | --- | --- | --- |
-| C1 | `page-pdf` refuses any draft or gated page - move the `-f` docroot test after the resolver | [[SM888]] A4 | One line |
-| C2 | `list` requires a leading slash where its siblings do not, and calls a valid folder missing | [[SM888]] P1 | Normalise as four sibling actions already do |
-| C3 | The Services holder line keeps the future tense after the switch is thrown | [[SM888]] W1 | Copy |
-| C4 | "0 log lines scanned." under a screen of populated charts | [[SM888]] S4 | Copy, and the honest wording is already written |
-| C5 | Site settings offered unpadlocked and blank without `manage_config` | [[SM888]] W2 | Padlock, or an empty state naming the capability |
+| K1 | A refused DAV PUT answers 403 under ~100 KB and 502 above it | [[SM888]] A6 | **The cause is now located and it is smaller than it looked.** `authorise()` returns 403 and sends the status before anything reads STDIN, and nothing drains the unread body - so under the socket buffer the client sees the 403, and above it the client blocks on a body nobody reads and the front end answers 502. One refusal, one missing drain. Re-measured on 0.14.2 with byte-identical re-PUTs of the site's own live bytes. |
+| K2 | The shipped feeds emit the front-matter date raw | [[SM888]] A1 | Re-measured on 0.14.2 with the stale-render explanation ruled out. Changes published output for every feed subscriber at once, so it goes in deliberately rather than quietly. |
+| K3 | A form posted within a second fails with a generic error | [[SM888]] A7 | **No longer a guess.** `reject('Submission too fast')` dies plain, where `reject_user` dies `USER:...` and only `USER:` messages reach the submitter. SM252's token is refusing correctly and its reason is discarded one word away from being shown. |
+| K4 | Editing an included partial does not refresh the pages that include it | [[SM888]] A2 | `_resolve_include` reads the file and never records it; SM311's dependency machinery has four call sites and none is in the include path. |
+| K5 | A page in a protected section cannot include its own partials | [[SM888]] A3 | The include guard tests `_path_under($real, $REQUEST_CROOT)`, and the private store is a **sibling** of the docroot, not under it. |
+| K6 | Two stats blocks still name no denominator | [[SM888]] S3 | Partially done: N141B-F built `tile(label, value, note)` for exactly this and applied it to one tile. Page views and Devices still carry none. |
 
-## The sharp
+K4 and K5 stay together: both are about includes, both touch the same guard, and
+doing one without the other means reading that code twice.
 
-| Ref | Item | Source | Why now |
-| --- | --- | --- | --- |
-| S1 | The statistics panel hides 58.7% of its traffic and draws the remainder as a complete bar | [[SM888]] S1-S3 | A chart with a missing segment is worse than a table with a missing row. S2 and S3 come with it because they are the same screen and the same confusion: four denominators, none named. |
-| S2 | `granted_by` names the group the user is a member of, not the group where the capability is set | [[SM888]] G1 | It diverges **only when groups nest**, which SM631 made the normal case - so this gets worse on its own. An operator following it to revoke a capability lands on a screen where the tick is already clear. |
-| S3 | Deleting a nested group leaves the parent holding a phantom member and undeletable | [[SM888]] G2 | Same walk, same subsystem, and there is a workaround only because the reporter found one. |
-| S4 | A refused DAV PUT answers 403 under ~100 KB and 502 above it | [[SM888]] A6 | Reported twice, ten weeks apart, and **re-measured on 0.14.2 with a control that removes every other variable**: byte-identical re-PUTs of the site's own live bytes, 77 KB → 403, 284 KB → 502. Split by body size alone. |
-| S5 | The shipped feeds emit the front-matter date raw where RSS and Atom require a formatted timestamp | [[SM888]] A1 | **Moved IN, 2026-09-15.** It was held back because it changes published output for every feed subscriber at once - which is a reason to schedule it deliberately, not a reason to defer it indefinitely, and this plan is where that happens. Re-measured on 0.14.2: `<pubDate>2026-09-10</pubDate>` where RFC 822 wants `Thu, 10 Sep 2026 00:00:00 +0000`, and **a stale render cannot explain it** because the feed was regenerated by the PUT on the 0.14.2 engine. |
+**K3 first.** It is one word, the cause is located, and it is the only one of
+these a visitor hits.
+
+## Still deliberately out
+
+| Item | Source | Why |
+| --- | --- | --- |
+| The no-CDN gate | [[SM888]] C1-C2 | Confirmed still open. Wants a rendered-page fetch that follows stylesheets - a new capability for `lazysite check`, not a check added to it. Its own slot. |
+| The assets count including renders | [[SM888]] P2 | Confirmed still open, and cosmetic; the reporter said so. |
+| `required` on a single-box checklist, and its refusal copy | [[SM888]] A5 | Confirmed still open, both halves. The second needs the refusal path read before anything changes. |
 
 ## The diagnostic the last two releases both wanted
 

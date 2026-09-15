@@ -8,6 +8,62 @@ status: candidate
 status-note: "FILED 2026-09-15 at the release manager's direction - 'make sure all other items are digested and filed in the queue'. NOT NEW WORK: every row is a finding already reported by the sites agent, with its evidence, and in most cases with the fix the reporter proposed. The point of the filing is that an inbox is a queue of things to READ and a backlog is a queue of things to DO, and these had stayed in the first. GROUPED BY CAUSE, NOT BY REPORT: the F rows come from three different walks and one edge report and are one suspected defect - actions whose subject is not a path pass no target and fall through to '/'. Rows are classed ENGINE (this repo), ESTATE (a site or host, the sites agent's) or OPERATOR (needs a shell or credential nobody here holds); only ENGINE rows are candidates for a release. SELECTED FOR 0.14.3: see docs/feature-requests/WORK-PLAN-0143.md."
 ---
 
+# Verified against the tree, 2026-09-15 — and most of it was already done
+
+**Read this table before any row below.** Every row was checked against the
+current tree after two of them were found already fixed by accident. Eleven of
+nineteen had shipped in 0.14.1, from walks that ran on 0.13.15 and 0.13.16.
+
+| Row | Status | Closed by |
+| --- | --- | --- |
+| F1 connector audit target | **FIXED** | N141B-C, 0.14.1 |
+| F2 `user-group-nest` audit | **FIXED** | N141B-C, 0.14.1 |
+| F3 `user-group-settings-set` audit | **FIXED** | N141B-C, 0.14.1 |
+| F4 `handler-save` audit | **FIXED** | 2026-09-15, `t/integration/100` |
+| S1 scanner class omitted from the bar | **FIXED** | N141B-F, 0.14.1 |
+| S2 "Unique visitors" card | **FIXED** | N141B-F — **relabelled rather than recomputed**, deliberately. The value was a ruling, not an oversight. |
+| S3 four unnamed denominators | **PARTIAL** | N141B-F built the `tile(label, value, note)` mechanism *for this row* and applied it to one tile. **Page views and Devices still carry no note.** |
+| S4 "0 log lines scanned." | **FIXED** | N141B-F — deleted rather than implemented; the engine never sent the field |
+| G1 `granted_by` names the wrong group | **FIXED** | N141B-D, 0.14.1 |
+| G2 phantom member after delete | **FIXED** | N141B-E, 0.14.1 |
+| C1 no no-CDN gate | **OPEN** | — |
+| C2 `@import` invisible to a source scan | **OPEN** | — |
+| P1 `list` needs a leading slash | **FIXED** | N141B-B, 0.14.1 |
+| P2 assets count includes renders | **OPEN** (cosmetic) | — |
+| A1 feeds emit the raw date | **OPEN**, re-measured on 0.14.2 | — |
+| A2 includes are not render dependencies | **OPEN** | — |
+| A3 protected page cannot include its partials | **OPEN** | — |
+| A4 `page-pdf` on a gated page | **FIXED** | N141B-A, 0.14.1 |
+| A5 single-box checklist + refusal copy | **OPEN**, both halves | — |
+| A6 DAV PUT 403/502 | **OPEN**, cause now located | — |
+| A7 form posted within a second | **OPEN**, cause now located | — |
+| W1 Services holder tense | **FIXED** | N141-01, 0.14.1 |
+| W2 Site settings blank without the capability | **FIXED / not a defect** | SM775 in 0.13.9 added the empty state; the padlock half was ruled out — you cannot padlock the page somebody *lands* on |
+
+## Two causes this pass located, which the reports did not have
+
+**A6 — the 403/502 split has an explanation.** `lazysite-dav.pl:180-200`:
+`authorise()` returns 403 and sends the status **before anything reads STDIN**,
+and nothing anywhere drains the unread request body. Under the socket buffer the
+client's write completes and it sees the 403; above it the client blocks on a
+body nobody is reading and the front end answers 502. So it is one refusal and
+one missing drain, not two code paths — which makes it smaller than it looked.
+
+**A7 is no longer a guess.** `plugins/form-handler.pl:669` calls
+`reject('Submission too fast')` — and `reject` is `die "$_[0]\n"` (`:789`) while
+`reject_user` is `die "USER:..."` (`:792`). Only `USER:` messages reach the
+submitter (`:258-262`). So SM252's time token is refusing correctly and its
+reason is discarded one word away from being shown. The filing recorded this as
+*"likely, and that is a guess"*; it is now the cause, and the fix is one word.
+
+## What this says about the filing itself
+
+The digest was drawn from the inbox without cross-checking the 0.14.1 CHANGELOG,
+so it presented eleven closed items as open work. An inbox records what was true
+when it was written; a backlog is supposed to record what is true now, and the
+gap between those two is exactly what this filing was created to close. It
+reproduced the fault it was documenting.
+
 # Why a digest and not nineteen filings
 
 Three of these families are one defect each, reported from different angles by
