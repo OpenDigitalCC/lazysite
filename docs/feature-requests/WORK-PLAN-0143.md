@@ -59,6 +59,13 @@ this is in the release rather than in the backlog.
 `user-group-remove` already records `a@b`, so the shape exists and is simply not
 reached.
 
+## The rollout report
+
+| Ref | Item | Source | Why now |
+| --- | --- | --- | --- |
+| Q1 | The quiet fleet rollout prints ~200 lines to say "29 updated, 0 failed" - [[SM701]]'s contract held and every phase added since ignored it | [[SM889]] | Raised by the release manager watching the 0.14.2 deploy. It is a regression, it gets worse with each phase added, and the fix is structural (one reporter that owns the verbosity level) rather than more conditionals. |
+| Q2 | One rollout message is truncated mid-sentence, ending in a colon with nothing after it, on all 29 sites | [[SM889]] D1 | A defect rather than noise, and independent of Q1. Whatever it was meant to say, nobody has read it for some time. |
+
 ## The cheap and certain
 
 Each of these was reported with its cause located or its fix quoted. They are
