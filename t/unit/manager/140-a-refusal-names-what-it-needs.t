@@ -102,11 +102,22 @@ subtest 'SM708: the refusal happens BEFORE the write, not after it' => sub {
     unlike( $src, qr/_page_parse_refusal\(/,
         'and no longer calls one - action_save carries it' );
 
-    # The advisory path is a different thing and stays: _validate_page reports
+    # The advisory path is a different thing and stays: the validator reports
     # issues without refusing, which is right for a validator and wrong for a
     # write.
-    like( $src, qr/page_parse_issues/,
+    #
+    # SM887 F2 moved WHERE it lives, not what it does: the checks are
+    # Lazysite::Validate's now, and MCP is one of its callers. The property
+    # under test is that the advisory use still exists somewhere the validator
+    # runs - so it is asserted where the validator is.
+    my $vsrc = do {
+        open my $fh, '<', "$root/lib/Lazysite/Validate.pm" or die $!;
+        local $/; <$fh>;
+    };
+    like( $vsrc, qr/page_parse_issues/,
         'the ADVISORY use survives, because a validator reports rather than refuses' );
+    like( $src, qr/Lazysite::Validate::validate_content\(/,
+        'and MCP reaches it by calling the validator, not by keeping a copy' );
 };
 
 done_testing();

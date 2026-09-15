@@ -62,7 +62,18 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     front-matter-unterminated fence-close-unmatched component-fence-unmatched
     form-mailto form-third-party form-unbound form-unnamed
     public-credential public-phone public-postcode
+
+    form-binding-unchecked no-content unreadable
 );
+
+# SM887 F2: the three above are GROUP 2, and they are group 2 by construction
+# rather than by inspection - Lazysite::Validate is a REPORTER. It answers a
+# caller that asked "is this page all right", over MCP, from a test, or from
+# `lazysite validate` on a shell where the answer is an exit status; it is not
+# on any write path and nothing it returns reaches `respond`. `no-content` and
+# `unreadable` are the module saying it had nothing to read, which no HTTP
+# surface can produce at all: the MCP entry point resolves the page and returns
+# its own refusal before the validator is called.
 
 # `store_` is a PREFIX, not a kind: lib/Lazysite/Data/Tables.pm:275 builds
 # `'store_' . $why->{reason}` at run time, so the family can never be mapped by
