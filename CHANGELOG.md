@@ -66,6 +66,18 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM659 R2 (PENDING) **the every-file check reads POD as POD.** `t/lint/144`
+  guards the users tool's own manual, and a sabotage confirms it catches a
+  retired verb put back under "Bootstrap". `t/lint/138`, which reads every
+  shipped file, passed on the same sabotage: its rule wants the tool's name
+  within 120 characters of the dead verb, and a manual names its own tool once
+  at the top and then never again — so the same mistake in any OTHER tool's POD
+  was caught by nothing. It now scans POD blocks whole, excused by the same
+  words `t/lint/144` uses, so a sentence recording a rename stays legal and an
+  instruction to run a command that no longer exists does not. R1 needed no
+  change: the manual was corrected at N141B-G, and every occurrence left in the
+  tree is record rather than instruction.
+
 - SM890 (PENDING) **the public instance endpoint names the runtime.**
   `/.well-known/lazysite-instance.json` gains `"runtime"`, `cgi` or `pool`,
   beside the version it already reports. Twice running, the decisive question

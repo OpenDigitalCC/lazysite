@@ -133,8 +133,8 @@ these a visitor hits.
 
 | Ref | Item | Source | Note |
 | --- | --- | --- | --- |
-| R1 | `perldoc lazysite-users.pl` still tells an operator to run `setup-manager`, a command the dispatcher no longer accepts - and calls it idempotent, which makes it sound safe to try | [[SM659]] | The only non-comment occurrence left in the tree. Every other hit is a `#` comment recording history and should stay. |
-| R2 | The lint that swept the vocabulary does not read POD, which is why R1 survived it | [[SM659]] | Fixing R1 without this leaves the same gap for the next rename. |
+| R1 | `perldoc lazysite-users.pl` still tells an operator to run `setup-manager`, a command the dispatcher no longer accepts - and calls it idempotent, which makes it sound safe to try | [[SM659]] | **ALREADY CLOSED at N141B-G - the row was stale when it was written.** The Bootstrap entry names `setup-sysop`, and the paragraph beside it says the name changed and that there is no alias. The only occurrences left in the tree outside `#` comments are that paragraph, `docs/FEATURES.md` recording the deletion, `UPGRADE.md` describing what an old deploy script used to do, and `debian/changelog` - all record, none instruction. Verified by listing every tracked occurrence outside the historical record. |
+| R2 | The lint that swept the vocabulary does not read POD, which is why R1 survived it | [[SM659]] | **Half closed at N141B-G, and the other half is now closed.** `t/lint/144` reads the users tool's POD and fails on exactly this defect - confirmed by putting it back and watching it fail. But `t/lint/138`, the check that reads EVERY shipped file, passed on the same sabotage: its proximity rule wants the tool's name within 120 characters of the dead verb, and a manual names its own tool once at the top. So the same mistake in any OTHER tool's POD was caught by nothing. 138 now reads POD as POD, with `t/lint/144`'s excuse rule in the same words, and the sabotage fails it. |
 
 **R3 - the 322 code comments and ~2,079 documentation uses stay staged**, as
 SM659 decided and for its stated reason: `operator` genuinely means sysadmin in

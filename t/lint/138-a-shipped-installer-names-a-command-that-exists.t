@@ -89,7 +89,34 @@ sub tracked_files {
 # one is a defect, and an explicit list is what lets this check say which is which.
 my %RETIRED = ( 'setup-manager' => 'SM659 renamed it to setup-sysop, with no alias' );
 
-my $checked = 0;
+# SM659 R2 (0.14.3): THE POD OF ANY TOOL, WHEREVER THE NAME SITS ON THE PAGE.
+#
+# N141B-G found the users tool's own manual still saying "C<setup-manager> - one
+# command to create the manager account" four releases after the dispatcher
+# stopped accepting it - the one page an operator reads BEFORE their first
+# successful command. t/lint/144 now guards that file's POD, and it does it
+# well; this file did not, and a sabotage confirms why: the proximity rule below
+# wants the tool's name within 120 characters of the dead verb, and a manual
+# names its own tool once at the top and then never again. So the same mistake
+# in ANY OTHER tool's POD is still caught by nothing.
+#
+# PROSE ABOUT A RENAME IS NOT A DEFECT, and the excuse is the one t/lint/144
+# uses, deliberately the same rule in the same words: "renamed from
+# C<setup-manager>, no alias" is the most useful sentence on the page for
+# somebody holding an old runbook.
+sub pod_text {
+    my ($src) = @_;
+    my ( $out, $in ) = ( '', 0 );
+    for my $l ( split /\n/, $src ) {
+        if    ( $l =~ /^=cut\b/ ) { $in = 0; next }
+        elsif ( $l =~ /^=[a-z]/ ) { $in = 1 }
+        $out .= "$l\n" if $in;
+    }
+    return $out;
+}
+
+my $checked  = 0;
+my $with_pod = 0;
 for my $rel (@READERS) {
     my $src = slurp("$root/$rel");
     next unless defined $src;
@@ -125,8 +152,33 @@ for my $rel (@READERS) {
             =~ /((?:lazysite-users\.pl|lazysite users).{0,120}?\b\Q$dead\E\b)/gs;
         is( scalar @bad, 0, "$rel does not tell anyone to run '$dead'" )
             or diag( "$RETIRED{$dead}\n  " . join( "\n  ", @bad ) );
+
+        my $pod = pod_text($src);
+        next unless length $pod;
+        $with_pod++ if $dead eq ( sort keys %RETIRED )[0];
+        my @pod_bad;
+        while ( $pod =~ /\b\Q$dead\E\b/g ) {
+            my $at   = $-[0];
+            my $from = $at < 200 ? 0 : $at - 200;
+            my $near = substr $pod, $from, 400;
+            next if $near =~ /\b(?:renamed|removed|no alias|does not exist|retired)\b/i;
+            ( my $line = substr $pod, $at < 60 ? 0 : $at - 60, 140 ) =~ s/\s+/ /g;
+            push @pod_bad, $line;
+        }
+        is( scalar @pod_bad, 0, "$rel: its POD does not present '$dead' as a command" )
+            or diag( "$RETIRED{$dead}\n  "
+                . join( "\n  ", @pod_bad )
+                . "\n\nA manual is what an operator reads BEFORE their first "
+                . "successful command. Say the name is gone and what replaced "
+                . "it - the words 'renamed', 'removed', 'no alias', 'retired' "
+                . "in the same paragraph are what tells this check the "
+                . "sentence is history rather than instruction." );
     }
 }
+
+cmp_ok( $with_pod, '>=', 3, 'files with POD were among those scanned' )
+    or diag( 'The POD extraction found nothing to read, which would make every '
+        . 'POD assertion above pass by examining an empty string.' );
 
 # The floor that stops this going vacuous. It is a FLOOR, not the count: files
 # come and go. If it trips, the discovery broke (git ls-files empty, the tree
