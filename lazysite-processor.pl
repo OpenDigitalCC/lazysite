@@ -188,6 +188,14 @@ my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
 my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
 
+# SM311's dependency record: what this render READ, beyond its own source, so
+# the page cache can tell when it has gone stale. Declared here with the other
+# request-lifetime state (t/lint/39) because process_md resets it at the start
+# of a render and the recorders are scattered down the file - the full
+# reasoning is beside _tt_dep and write_deps.
+our @TT_DEPS;        # absolute paths this render read
+our $TT_DEP_LIVE;    # a source with no local mtime (url:) was used
+
 # SM293 step 3: the generated registries (sitemap.xml, llms.txt, the feeds) are
 # CACHED here and served by the engine, instead of being written as files at the
 # content root.
@@ -440,12 +448,16 @@ my %STATIC_CT = (
             # SM311: does this page read anything OTHER than itself?
             #
             # Only the presence of the block is recorded, not its contents. The
-            # cache-hit path needs one bit - "consult the dependency record" -
-            # and the record itself is written at render time by the code that
-            # actually resolved the sources, which is the only place that knows
-            # what a `scan:` glob matched. Parsing the sources here would mean
-            # two implementations of that question, and the second one would be
-            # the one that drifted.
+            # record itself is written at render time by the code that actually
+            # resolved the sources, which is the only place that knows what a
+            # `scan:` glob matched. Parsing the sources here would mean two
+            # implementations of that question, and the second one would drift.
+            #
+            # SM888 A2: THIS ANSWERS FOR TWO OF THE THREE SOURCE KINDS. An
+            # `::: include` is in the BODY, and this peek stops at the front
+            # matter on purpose - a scan puts 200 pages through it. So the
+            # cache-hit path asks this AND whether a record already exists,
+            # and the two together cover all three. See try_serve_cache.
             $m{tt_deps} = 1 if $line =~ /^tt_page_var\s*:\s*$/;
 
             # query_params: block
@@ -2185,8 +2197,28 @@ sub try_serve_cache {
     # costs one hash lookup. A page with them costs one small sequential read
     # plus a stat per recorded path, short-circuiting on the first one that is
     # newer.
+    # SM888 A2: OR A RECORD ALREADY EXISTS.
+    #
+    # The front-matter peek answers for the two source kinds SM311 built - a
+    # `tt_page_var:` block declares them - and cannot answer for a third: an
+    # `::: include` is in the BODY, and the peek deliberately stops at the
+    # front matter because 200 pages a scan later that read is not free. So a
+    # page whose only external read was a partial declared nothing here, its
+    # record was written and never consulted, and an edited partial updated
+    # nothing.
+    #
+    # BOTH, not either alone. The declaration keeps the safe direction for a
+    # declaring page whose record is MISSING - no record means unproven, which
+    # re-renders and rewrites it - and the record's existence covers the
+    # include case, where nothing in the front matter could have said so.
+    #
+    # What this still cannot see: an include-only page whose .deps was deleted
+    # while its .html was left in place. There is no such operation - clearing
+    # the cache removes the render, which re-renders and rewrites the record -
+    # so the gap needs somebody deleting one cache file and not its sibling by
+    # hand. Named rather than papered over.
     my $deps_ok = 1;
-    if ( _peek_md($md_path)->{tt_deps} ) {
+    if ( _peek_md($md_path)->{tt_deps} || -f deps_cache_path($base) ) {
         $deps_ok = deps_fresh( $base, $html_stat->[9] );
     }
 
@@ -3485,6 +3517,19 @@ sub process_md {
     my ( $md_path, $html_path, $md_mtime, $query ) = @_;
     $query //= {};
     local %RENDER_QUERY = %{$query};
+
+    # SM888 A2: THE RENDER'S DEPENDENCY RECORD STARTS HERE, which is where the
+    # render starts. It used to start inside resolve_tt_vars, which was the only
+    # recorder when SM311 wrote it - and is now called from resolve_site_vars
+    # and from render_content, both AFTER `::: include` has resolved. So the
+    # include recorded its partial and the reset threw it away, and write_deps
+    # found an empty list and removed the record. An included file was watched
+    # by nothing.
+    #
+    # One reset per render, at the top, and every recorder downstream of it
+    # survives to write_deps - which runs immediately after this returns.
+    @TT_DEPS     = ();
+    $TT_DEP_LIVE = 0;
 
     my $raw_text = read_file($md_path);
     my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
@@ -4860,10 +4905,24 @@ sub _resolve_include {
             $resolved = dirname($md_path) . '/' . $source;
         }
 
-        # Realpath check - reject if outside the content root or inside the
-        # lazysite/ management tree (always at the docroot root).
+        # SM888 A3: AND THE CONTENT ROOT'S TWIN IN THE PRIVATE STORE.
+        #
+        # Gating MOVES content out of the docroot into a sibling store (SM286),
+        # so a page in a protected section has its own partials in the store,
+        # not under the content root. `_path_under` refused them - and logged
+        # "include path invalid", which reads as an attempted traversal rather
+        # than a feature that does not reach behind a gate.
+        #
+        # `_path_under_content` is the predicate the rest of the engine already
+        # uses, and it is NOT "anywhere in the store": it accepts this content
+        # root's twin only, so one domain still cannot reach another domain's
+        # protected content. The lazysite/ exclusion below is untouched.
+        $resolved = _content_abs($resolved);
+
+        # Realpath check - reject if outside the content root (or its private
+        # twin) or inside the lazysite/ management tree.
         my $real = realpath($resolved);
-        if ( !_path_under( $real, $base )
+        if ( !_path_under_content( $real, $base )
             || _path_under( $real, "$LAZYSITE_DIR" ) )
         {
             log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include path invalid", source => $source );
@@ -4880,6 +4939,23 @@ sub _resolve_include {
             log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include failed", source => $source, error => $@ );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
+
+        # SM888 A2: THIS RENDER READ A FILE THAT IS NOT THE PAGE.
+        #
+        # SM311 built the record for exactly this and gave it four call sites,
+        # none of them here - so the cache was fresh whenever it post-dated the
+        # .md and lazysite.conf, and an edited partial is neither. A shared
+        # header, footer or notice changed once updated nothing until every
+        # page including it was saved.
+        #
+        # It is SM311's own complaint one layer along, including the part about
+        # who is affected: the person who maintains the partial is often not
+        # the person who holds `manage_content` on the pages that use it, so
+        # the recovery is not theirs to perform.
+        #
+        # The REAL path, as the json: reader records, so a symlinked partial is
+        # watched where it lives rather than where it was named.
+        _tt_dep($real);
     }
 
     # Determine extension from source
@@ -5338,8 +5414,9 @@ sub resolve_json {
 # the only place that knows what a glob actually matched. Deriving it a second
 # time from the front matter would be a second implementation of the same
 # question, and the second one is the one that drifts.
-our @TT_DEPS;        # absolute paths this render read
-our $TT_DEP_LIVE;    # a source with no local mtime (url:) was used
+# The two variables are DECLARED near the top of the file, with the rest of the
+# request-lifetime state: process_md resets them at the start of a render
+# (SM888 A2) and a `my`/`our` down here is not in scope up there.
 
 sub _tt_dep {
     my (@paths) = @_;
@@ -5691,9 +5768,12 @@ sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
 
-    # SM311: start a fresh dependency record for this render.
-    @TT_DEPS     = ();
-    $TT_DEP_LIVE = 0;
+    # SM311 started the render's dependency record here, when this was the only
+    # thing that recorded one. SM888 A2 moved it to process_md, the render's
+    # actual boundary: resolve_tt_vars is called from resolve_site_vars and from
+    # render_content, BOTH of which run after `::: include` has already
+    # resolved - so a reset here wiped what the include had recorded, and the
+    # record was written empty. See process_md.
 
     for my $key ( keys %$defs ) {
         my $val = strip_tt_directives( $defs->{$key} );

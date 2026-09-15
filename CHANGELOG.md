@@ -82,6 +82,26 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM888 A2 (PENDING) **editing an included partial refreshes the pages that
+  include it.** A shared header, footer or notice edited once updated nothing
+  until every page including it was saved — and the person who maintains the
+  partial is often not the one who holds `manage_content` on those pages, so
+  the recovery was not theirs to perform. Three faults stacked: the include
+  never recorded what it read; the reset that starts a render's dependency
+  record sat inside `resolve_tt_vars`, which runs AFTER the include, so the
+  entry was recorded and thrown away and the record was deleted as empty; and
+  the cache-hit path consulted the record only when the front matter declared
+  a `tt_page_var:` block, which an include never does. `t/integration/103`.
+
+- SM888 A3 (PENDING) **a page in a protected section can include its own
+  partials.** Gating moves content into a sibling store, so a protected page's
+  own partial is not under the content root — it was refused as a path
+  traversal and logged as one. The include guard now uses
+  `_path_under_content`, the predicate the rest of the engine already uses:
+  this content root or its own twin in the store, never the whole store, so one
+  domain still cannot reach another's protected content. The test asserts the
+  refusal of `lazysite/` FIRST.
+
 - SM888 A6 (PENDING) **a refused WebDAV write answers 403 whatever the body's
   size.** The same refused PUT answered 403 under about 100 KB and 502 above
   it, on byte-identical re-PUTs. A refusal decided from the PATH never touched
