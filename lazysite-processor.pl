@@ -15,7 +15,7 @@ use Encode qw(decode);
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
 use JSON::PP     qw(encode_json decode_json);
 use Digest::SHA  qw(hmac_sha256_hex sha256 sha256_hex);
-use MIME::Base64 qw(encode_base64);             # SM352: CSP script hashes
+use MIME::Base64 qw(encode_base64);                       # SM352: CSP script hashes
 use POSIX        qw(strftime);
 use Fcntl        qw(O_WRONLY O_APPEND O_CREAT LOCK_EX LOCK_NB LOCK_UN);
 # SM140: first-party access log
@@ -2149,6 +2149,16 @@ sub try_serve_cache {
         $conf_mtime = $m if $m > $conf_mtime;
     }
 
+    # SM886: and on the ENGINE. See _engine_mtime for why the install state is
+    # the file to watch. This is the fourth dependency of a render and the only
+    # one that was never here, which is why an upgrade could leave a homepage
+    # serving a build two releases old. It belongs in this running max because
+    # BOTH cache slots are judged here - the primary host's sibling .html and
+    # the alias hosts' entries under cache/hosts - so one line covers the slot
+    # install.pl's sweep reaches and the slot it does not.
+    my $engine_mtime = _engine_mtime();
+    $conf_mtime = $engine_mtime if $engine_mtime > $conf_mtime;
+
     # SM311: a page may also depend on files it READS - `tt_page_var` json: and
     # scan: sources. Those are neither the .md nor the conf, so editing one used
     # to leave the cache "fresh" and serve the previous render indefinitely.
@@ -3729,6 +3739,10 @@ sub is_fresh {
     return 0 if $h < ( stat($md_path) )[9];
     # A render also depends on the conf (see try_serve_cache); a cache that
     # predates a conf change is stale even if its source is unchanged.
+    # SM886: and on the engine that produced it - the cached 404 is a rendered
+    # page like any other, and a 404 carrying a two-release-old head contract is
+    # the same defect on the path a visitor reaches by accident.
+    return 0 if $h < _engine_mtime();
     return $h >= ( ( stat $CONF_FILE )[9] // 0 );
 }
 
@@ -7893,6 +7907,9 @@ sub _inject_data_helper {
 
 # SM112: read the installed release version once (from the install state).
 my $LAZYSITE_VERSION;
+# SM886: and when that state was last written, which is when this engine was
+# installed. Memoised beside the version and for the same reason.
+my $ENGINE_MTIME;
 # Enabled plugins from lazysite.conf's `plugins:` list, for conditional manager
 # nav (e.g. hide "Visitor statistics" when the stats plugin is disabled). Keyed
 # by both the raw entry (stats.pl) and its extensionless id (stats) so the layout
@@ -7970,6 +7987,36 @@ sub _asset_fingerprint {
     close $fh;
     return _lazysite_version() unless defined $bytes;
     return substr( sha256_hex($bytes), 0, 12 );
+}
+
+# SM886: WHEN THIS ENGINE WAS INSTALLED, as a cache dependency.
+#
+# A render bakes the engine into itself - the generator meta, the ?v= asset
+# busting tokens, the head contract, every security header the build emits. It
+# is therefore a dependency of the cached page exactly as lazysite.conf, the nav
+# file and the section indexes are, and it was the one never added. An upgrade
+# changes no source, so a page nobody edits kept its pre-upgrade render for
+# ever: the field measured that twice, most recently on ten sites serving home
+# pages from 0.14.0 and 0.13.15 while answering a fresh 404 as 0.14.1.
+#
+# THE INSTALL STATE IS THE RIGHT FILE TO WATCH. It is what the installer
+# rewrites on every install, upgrade and rollback, and it is already the source
+# of the version this render reports - so the fact the page claims about itself
+# and the fact the cache is judged on are the same fact. Keyed on its MTIME
+# rather than its version string, so a rollback to an older build invalidates
+# too; "different from the render" is the property that matters, not "newer".
+#
+# A site with no install state - the dev server, a test fixture - gets 0 and is
+# unaffected, which is the behaviour it had before this existed.
+#
+# Memoised per process, like _lazysite_version. A persistent worker that has not
+# been restarted is still RUNNING the old engine, so it is correct for it to go
+# on serving that engine's renders; N142A restarts the workers an upgrade
+# touches, and a restarted worker reads the new mtime.
+sub _engine_mtime {
+    return $ENGINE_MTIME if defined $ENGINE_MTIME;
+    $ENGINE_MTIME = ( stat "$LAZYSITE_DIR/.install-state.json" )[9] // 0;
+    return $ENGINE_MTIME;
 }
 
 sub _lazysite_version {
@@ -9144,7 +9191,7 @@ sub _access_record {
         # asset can go dark without anyone being told. A per-path refusal report
         # makes that visible whenever it happens, rather than only to sysops
         # who read one particular release's notes in one particular week.
-        $line .= ',"ar":1'                        if $ACCESS_REC{ar};
+        $line .= ',"ar":1' if $ACCESS_REC{ar};
         # SM802: the remap rule that answered, so its count is derived here.
         $line .= ',"rr":"' . _access_field( $ACCESS_REC{rr}, 200 ) . '"'
             if defined $ACCESS_REC{rr};

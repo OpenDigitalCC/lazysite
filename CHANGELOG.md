@@ -51,6 +51,19 @@ Naming the commit: AFTER it lands, never before
   20-byte empty gzip stream offered for restore. tar now writes into a staging
   directory and the finished archive is renamed into place, so the doomed
   pipeline never holds a path that the listing reads. `t/unit/manager/192`.
+- SM886 (PENDING) **a cached render no longer outlives the engine that produced
+  it.** A render is judged against its source, its conf, its nav and its section
+  indexes - and an upgrade changes none of those, so a page nobody edits kept
+  its pre-upgrade render for ever. SM413 fixed this in 0.10.18 for the slot the
+  homepage is not in: that sweep walks `lazysite/cache/`, which holds the ALIAS
+  hosts' pages, while the primary host's render is the sibling `.html` beside
+  the `.md`. The field measured the result on 2026-09-14 - ten sites answering
+  a fresh 404 as 0.14.1 while serving home pages rendered by 0.14.0 or 0.13.15,
+  five of them two releases behind. The engine's install state is now the fourth
+  dependency of a render, in the same running max as the other three, so one
+  line covers both cache slots. Keyed on its mtime, so a rollback invalidates
+  too. Nothing is deleted: a page re-renders once on its next request.
+  `t/integration/99`.
 
 ## 0.14.1 - STABLE: the upgrade restarts what holds the old code, and the manager stops under-reporting access (2026-09-14)
 
