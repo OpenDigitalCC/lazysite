@@ -5,7 +5,7 @@ subtitle: "A skill that installs the current release into the claude.ai containe
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "PROPOSED 2026-09-15, briefed by the sites agent (inbox/briefing-claude-ai-lazysite-skill.md) with the container's constraints verified in it the same day; scoped to 0.14.3 by the release manager. THE BRIEFING'S INSTALL SOURCE DOES NOT EXIST AND DOES NOT NEED TO: it specifies fetching the newest release deb from GitHub releases, and this project has no published GitHub repo - no remote grants push, and every tag to date is local and unpushed. It also does not need one: `*.lazysite.io` is already on the container's network allowlist, and download/ already holds exactly the current stable set with its .sha256, kept there by t/lint/113. So the skill installs from lazysite.io and the distribution channel is one that exists today. SM884 matters to this more than it looks: it takes the tarball from 34.2 MB to 6.5 MB, and the briefing's acceptance bar is a cold install under 60 seconds. OPEN DECISIONS are listed below and are mine to make, except the two that need the operator."
+status-note: "PROPOSED 2026-09-15, briefed by the sites agent (inbox/briefing-claude-ai-lazysite-skill.md) with one container's constraints verified in it the same day; scoped to 0.14.3 by the release manager. THE INSTALL SOURCE IS THE WHOLE PROBLEM AND THE ANSWER IS TO NOT HAVE ONE. The briefing specifies fetching the release from GitHub, which this project has no published repo for. My first answer was to fetch from lazysite.io instead, because it was on the allowlist the briefing recorded - CORRECTED 2026-09-15 by the release manager: that allowlist was THAT editor's container, and no other editor's can be assumed to carry it. So the engine must arrive without any host this project controls being reachable. IT CAN: the briefing already asks for a zip of the skill folder attached to every release, so the zip CARRIES THE DEBS. Nothing is fetched, the version matches the release by construction, and the only network the install needs is archive.ubuntu.com for Perl dependencies - which is on every container's allowlist because the base image needs it. common + nginx is about 2.4 MB. This also removes SM884 as a prerequisite and most of the 60-second budget with it. OPEN DECISIONS are listed below and are mine to make, except the container for acceptance, which needs the operator."
 ---
 
 # What it is for
@@ -24,29 +24,64 @@ answer — with a line saying what was and was not checked.
 content reaches the site. This is how the editor finds out, before that, whether
 it will work. Either works without the other.
 
-# The install source, which the briefing got wrong for a good reason
+# The install source: the skill carries the engine
 
 The briefing asks the skill to resolve the newest release asset from
 `api.github.com`. That cannot work: this project has **no published GitHub
 repository**. No remote grants push, and every tag to date is local and
-unpushed. A skill written to that instruction would fail on its first call in a
-way that looks like a network problem.
+unpushed. A skill written to that instruction fails on its first call in a way
+that looks like a network problem.
 
-It also does not need to work, because a channel already exists:
+**My first answer to that was also wrong, and worth recording because it is the
+tempting one.** I proposed fetching from lazysite.io, on the grounds that
+`*.lazysite.io` appears in the allowlist the briefing recorded. It does — *in
+the container that briefing was written in*. An allowlist is per editor, and
+nothing entitles us to assume another editor's carries a host this project
+happens to own. A skill that works for the person who specified it and fails
+for everyone else is worse than one that never worked, because the failure
+arrives as a support question rather than a test result.
 
-- `*.lazysite.io` is on the container's allowlist, verified in the briefing;
-- `download/` holds **exactly** the current stable release and its `.sha256`,
-  and [[SM884]]'s sibling lint `t/lint/113` is what keeps it that way — one
-  release, complete, named by the newest stable GATE-LOG row;
-- the digest is already there to verify the download, which a skill installing
-  into a fresh container should do rather than trust the transfer.
+So the engine must arrive **without any host this project controls being
+reachable at all**.
 
-So the skill fetches from lazysite.io, and the rule that keeps `download/`
-correct is the same rule that makes it a usable install source.
+It can, and the briefing already contains the mechanism without noticing it:
+*"a zip of the folder attached to each release, so editors always have a version
+that matches the deb."*
 
-**[[SM884]] is a prerequisite in practice.** The acceptance bar is a cold
-install under 60 seconds; the fix takes the tarball from 34,185,929 bytes to
-6,481,528. It lands at 0.14.3, which is this item's release.
+**Put the debs in the zip.**
+
+| | |
+| --- | --- |
+| Fetched from a host we control | nothing |
+| Network the install needs | `archive.ubuntu.com` only, for Perl dependencies — present on every container's allowlist because the base image itself needs it |
+| Version match | by construction; the zip **is** the release |
+| Size | `common` + `nginx` ≈ 2.4 MB |
+| Install | `apt-get install ./lazysite-common_*.deb ./lazysite-nginx_*.deb`, which the briefing confirms resolves Debian dependencies |
+
+This is better than any fetch, not merely a workaround for a missing one: there
+is no version-resolution step to get wrong, no digest to verify, no allowlist to
+depend on, and no failure mode where the editor's container reaches a *different*
+release than the skill was written for.
+
+**It also removes [[SM884]] as a prerequisite.** Nothing downloads the tarball,
+so the 60-second budget is an `apt-get` against the Ubuntu archive rather than a
+34 MB transfer. SM884 remains worth doing; it is no longer load-bearing here.
+
+## The one thing this costs
+
+The editor re-uploads the skill to pick up a new release. The briefing already
+accepts that shape — the zip is attached per release and uploaded to the account
+— so this makes an existing property load-bearing rather than adding a new
+burden. `SKILL.md` should print the bundled version on every run, so an editor
+on an old skill can see it.
+
+## If a published repository ever exists
+
+Then `api.github.com` becomes available as the briefing originally intended, and
+the skill could resolve the newest release instead of using its bundled one.
+That is a **decision about publishing this project**, not a packaging detail,
+and it is the operator's. Recorded here so the option is not rediscovered as a
+blocker: the bundled zip does not depend on it either way.
 
 # The environment, as verified
 
@@ -56,7 +91,7 @@ constraints rather than preferences:
 | Ref | Fact | What it forces |
 | --- | --- | --- |
 | E1 | Ubuntu 24.04, Perl 5.38.2, runs as root, `apt-get install ./file.deb` works | Debian dependencies only — CPAN is unreachable, which the deb already satisfies |
-| E2 | Network allowlist: github.com and friends, `*.lazysite.io`, Ubuntu archives, PyPI/npm/crates | The install source above; no other fetch may be attempted |
+| E2 | Network allowlist, **which is per editor**. The briefing's container listed github.com and friends, Ubuntu archives, PyPI/npm/crates — and `*.lazysite.io`, which was particular to that editor and must not be assumed anywhere else | Fetch nothing from a host this project owns. `archive.ubuntu.com` is the only one safe to rely on, because the base image needs it |
 | E3 | No inbound network | The dev server is reachable only from inside the container; the editor cannot open it, so every result must be text |
 | E4 | The filesystem resets between conversations | Install from scratch every time, under 60 seconds, in one or two tool calls |
 | E5 | Background processes live only for the conversation | The dev server is started per conversation and discarded |
@@ -72,7 +107,7 @@ under the mounted skill.
 | Ref | Deliverable |
 | --- | --- |
 | D1 | `skills/claude-ai/lazysite/` in this repo: `SKILL.md`, `setup.sh`, a dev-server start script, the reference files, and a `README.md` telling an editor how to upload it |
-| D2 | A zip of that folder attached to each release, so the skill always matches the deb |
+| D2 | A zip of that folder attached to each release, **carrying that release's `common` and front-end debs** — the skill is the distribution channel, which is what makes it work on any editor's allowlist |
 | D3 | A short note in the lazysite.io docs pointing editors to it |
 
 `SKILL.md` stays short — trigger, workflow, pointers. Detail belongs in the

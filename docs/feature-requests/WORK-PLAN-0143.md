@@ -27,8 +27,10 @@ Refs are this plan's; the source ref is given so each row can be traced back.
 | --- | --- | --- | --- |
 | P1 | The release tarball stops carrying the previous release - `download/ export-ignore`, 34.2 MB to 6.5 MB | [[SM884]] | **Committed**, `claude/n142f-sm884-export-ignore`. Handoff gate not yet run - it was held so it could not compete with the 0.14.2 build for memory. |
 
-P1 is listed first because **F1 below depends on it**: the skill's acceptance
-bar is a cold install under 60 seconds, and it is fetching that tarball.
+P1 was listed first because F1 was thought to depend on it. **It no longer
+does** — the skill carries its own debs rather than fetching a tarball, so the
+60-second budget is an `apt-get` against the Ubuntu archive. P1 stays at the top
+because it is finished and waiting, not because anything is blocked on it.
 
 ## The feature
 
@@ -123,15 +125,16 @@ work, not release work.
 
 # Order
 
-1. **P1** - land it; F1's install budget depends on it.
-2. **F2 decision**, then **A1**, then the C rows. A1 and the C rows are
-   independent of the skill and can be worked while F1's container dependency is
-   being settled.
+1. **P1** - land it; it is finished and waiting.
+2. **F2 decision**, then **A1**, then the C rows. All are independent of the
+   skill and can be worked while F1's container dependency is being settled.
 3. **F1**, once the container question is answered.
 4. **S** and **D** rows as the release allows; each is independently droppable.
 5. **R1/R2** with whichever pass touches `lazysite-users.pl`.
 
-Nothing here blocks anything else except P1 before F1, and F2 before F1.
+The only ordering constraint is **F2 before F1**: the skill should be built
+against the validation contract, not against whatever text the processor
+happens to print today.
 
 # Related
 
