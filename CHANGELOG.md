@@ -64,6 +64,22 @@ Naming the commit: AFTER it lands, never before
   `systemd-analyze verify`, which **exits 0** with both present - it reports on
   stderr and succeeds - so `t/lint/147` asserts the OUTPUT is empty over every
   shipped unit rather than asserting the command succeeded.
+- SM893 (PENDING) **every site is armed for the persistent runtime, and
+  `lazysite check` reports it.** Ruled by the release manager: install and
+  upgrade own the unit lifecycle, the runtime exists only so an extension can
+  be enabled, and a plain site may never enable it. `lazysite-hestia-domain
+  add` now always writes the runtime conf and enables the timer — it was
+  opt-in on a remembered `--daemon`, while the Hestia deploy already armed
+  every site on every run, so the two flows disagreed and a sysop enabling the
+  extension on a deb site got a runtime that never ran and nothing that said
+  why. `--daemon` is still accepted and now means nothing. `lazysite check`
+  gains a report over four states: the dangerous one is WANTED BUT NOT ARMED —
+  the extension enabled with nothing that can start it — and the common one is
+  ARMED AND IDLE, which it now says is *correct*, rather than leaving
+  `inactive (dead)` to be misread. It also separates a unit template that is
+  NOT INSTALLED from a timer that is merely disabled, because `systemctl
+  is-enabled` answers `not-found` for the first and sending an operator to
+  enable a unit that does not exist reads as their mistake. `t/tools/79`.
 
 - SM884 (PENDING) **the release tarball no longer carries the previous
   release.** `git archive` ships every tracked path unless it is marked

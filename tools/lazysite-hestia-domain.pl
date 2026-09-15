@@ -88,10 +88,14 @@ Verbs:
         (sudo -u USER lazysite provision), register it in
         /etc/lazysite/sites.d/, and with --fcgi write
         /etc/lazysite/pools/DOMAIN.conf and enable lazysite@DOMAIN.
-        With --daemon write /etc/lazysite/daemon/DOMAIN.conf and enable
-        lazysited@DOMAIN, the site's persistent runtime (SM666); it
-        does nothing until the site's sysop also enables the `daemon`
-        plugin - the unit is the host's switch, the plugin the site's.
+        ALWAYS writes /etc/lazysite/daemon/DOMAIN.conf and enables
+        lazysited@DOMAIN.timer, the site's persistent runtime (SM666).
+        That does nothing until the site's sysop also enables the
+        `daemon` plugin - the unit is the host's switch, the plugin the
+        site's - so a site not using it costs one short-lived process
+        every five minutes and shows as `inactive (dead)`, which is the
+        correct resting state and not a fault. --daemon is accepted and
+        ignored; it used to be how you asked for this.
         Afterwards apply BOTH templates yourself - the Apache one that
         carries the access rules, and the nginx proxy in front of it,
         which otherwise answers static requests before Apache sees them:
@@ -341,7 +345,25 @@ sub cmd_add {
     # daemon code. The OTHER switch is the `daemon` plugin, the site's own
     # and born disabled (ADR 0009); with the plugin off the unit starts,
     # exits 0 and stays quiet, which is why it is safe to enable here.
-    if ( $o{daemon} ) {
+    # SM893: ARMED FOR EVERY SITE, ruled by the release manager 2026-09-15.
+    #
+    # This used to be `if ( $o{daemon} )` - opt-in, on a flag somebody had to
+    # remember. The Hestia deploy path already armed every site on every run,
+    # so the two flows disagreed: a tarball site got the host half whether it
+    # wanted it or not, and a deb site got it only if the operator typed
+    # --daemon. A sysop who then enabled the plugin on such a site got a
+    # runtime that never ran and nothing that said why.
+    #
+    # Arming everyone is safe for the reason written below and already
+    # demonstrated by the tarball flow: with the plugin off the unit starts,
+    # exits 0 and stays quiet. The cost is one short-lived process every five
+    # minutes per site that is not using it; the benefit is that enabling the
+    # extension is all a sysop ever has to do.
+    #
+    # `--daemon` is still accepted and now means nothing. It is not removed,
+    # because runbooks and scripts pass it, and a flag that errors is a worse
+    # welcome than a flag that is already true.
+    {
         my $conf = daemon_conf_path($domain);
         # SM760: USER= is the unix user the REQUEST PATH writes as - the
         # pool's USER with --fcgi (the pool serves requests as the panel

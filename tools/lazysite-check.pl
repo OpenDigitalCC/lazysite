@@ -284,13 +284,13 @@ my $conf = "$LZ/lazysite.conf";
 # fixes: the printed report must reflect the post-fix tree, not the pre-fix
 # snapshot (SM139 increment 5).
 sub run_checks {
-    @results        = ();
+    @results          = ();
     @chmod_fixes      = ();
     @stale_registries = ();
-    $chown_needed   = 0;
-    $tt_cache_bad   = 0;
-    $git_fix_root   = '';
-    $git_shared_fix = '';
+    $chown_needed     = 0;
+    $tt_cache_bad     = 0;
+    $git_fix_root     = '';
+    $git_shared_fix   = '';
 
     # --- 1. ownership: nothing under lazysite/ should be foreign-owned -----------
     {
@@ -1098,6 +1098,9 @@ sub run_checks {
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
+
+    # --- 8i2. is this site's persistent runtime armed? (SM893) ----------------
+    report_daemon_runtime();
 
     # --- 8i. is the ACTIVE theme's stylesheet actually being served? (SM315) ----
     report_theme_assets_mirrored();
@@ -2042,6 +2045,160 @@ sub report_engine_tree {
 # write, and matched to THIS docroot rather than to the instance name, because
 # the instance name is conventionally the domain and nothing enforces that. A
 # check that reported the wrong site's setting would be worse than none.
+# SM893: IS THIS SITE'S PERSISTENT RUNTIME ARMED, AND DOES IT MATCH INTENT?
+#
+# The one command an operator runs to ask "is this site healthy?" has never
+# mentioned the daemon. So the only place the host half (conf + timer, root)
+# and the site half (the `daemon` plugin, the sysop) could be seen to disagree
+# was the manager's Status button, which nobody presses until something is
+# already wrong.
+#
+# The release manager ruled 2026-09-15 that every site is armed. That makes an
+# unarmed site a drift worth reporting - and it makes an ARMED, IDLE site the
+# normal resting state, which is the reading an operator most often gets wrong:
+# `inactive (dead)` here is correct, because a runtime whose plugin is off exits
+# 0 on purpose.
+#
+# FOUR STATES, NOT TWO. Armed/unarmed crossed with wanted/not-wanted, and the
+# dangerous cell is WANTED BUT NOT ARMED: the sysop has enabled the extension
+# and nothing will ever start it. That one is a FAIL; idle is an OK that says
+# so; unarmed-and-unwanted is a WARN against the ruling, not against the site.
+sub report_daemon_runtime {
+    my $dir = $ENV{LAZYSITE_DAEMON_DIR} || '/etc/lazysite/daemon';
+
+    # No directory at all means this host does not use the systemd flow (a
+    # plain tarball install with no units). Nothing to say - the same silence
+    # the pool check keeps. UNREADABLE is different from ABSENT and is said.
+    return unless -e $dir;
+    unless ( -d $dir && -r $dir ) {
+        report( 'WARN', "cannot read $dir, so the runtime's state is unknown",
+            'Run the check as a user that can read it, or as root.' );
+        return;
+    }
+
+    opendir my $dh, $dir or do {
+        report( 'WARN', "cannot list $dir, so the runtime's state is unknown" );
+        return;
+    };
+    my @confs = sort grep { /\.conf\z/ } readdir $dh;
+    closedir $dh;
+
+    # Which conf is THIS site's: the one whose DOCROOT resolves to ours. Same
+    # method as the front-door check, and for the same reason - the file is
+    # named for a domain and a docroot can be reached by more than one.
+    my $want = abs_path( $opt{docroot} ) // $opt{docroot};
+    my ( $mine, $instance );
+    for my $c (@confs) {
+        open my $fh, '<', "$dir/$c" or next;
+        my $doc;
+        while ( my $l = <$fh> ) {
+            $doc = $1 if $l =~ /^\s*DOCROOT\s*=\s*"?([^"\s]+)"?/;
+        }
+        close $fh;
+        next unless defined $doc;
+        my $r = abs_path($doc) // $doc;
+        next unless $r eq $want;
+        $mine     = "$dir/$c";
+        $instance = $c;
+        $instance =~ s/\.conf\z//;
+        last;
+    }
+
+    # The site's half: is the daemon extension enabled in this site's conf?
+    my $wanted = 0;
+    if ( open my $cf, '<', "$opt{docroot}/lazysite/lazysite.conf" ) {
+        while ( my $l = <$cf> ) {
+            $wanted = 1 if $l =~ m{^\s*-\s*plugins/daemon\.pl\s*$};
+        }
+        close $cf;
+    }
+
+    unless ( defined $mine ) {
+        if ($wanted) {
+            report( 'FAIL',
+                'the daemon extension is enabled and this site has no runtime '
+                    . 'config, so the runtime can never start',
+                "A host operator runs: lazysite-hestia-domain add <user> <domain> "
+                    . "(it writes $dir/<domain>.conf and enables the timer)." );
+        }
+        else {
+            report( 'WARN',
+                'this site is not armed for the persistent runtime',
+                'Every site is armed as of SM893, so that enabling the daemon '
+                    . 'extension is all a sysop has to do. Nothing is broken '
+                    . 'today - the extension is off - but enabling it would '
+                    . 'not work until a host operator provisions the site.' );
+        }
+        return;
+    }
+
+    # Armed. What systemd makes of it - and where systemd cannot be asked, say
+    # that rather than guessing from the file's presence.
+    my $systemctl = _have_systemctl();
+    unless ($systemctl) {
+        report( 'OK',
+            "armed for the persistent runtime ($instance)"
+                . ( $wanted ? ', and the daemon extension is enabled' : '' ),
+            'systemctl is not available here, so whether the timer is enabled '
+                . 'and the service running could not be read.' );
+        return;
+    }
+
+    my $timer_state = `systemctl is-enabled lazysited\@$instance.timer 2>/dev/null`;
+    $timer_state //= '';
+    $timer_state =~ s/\s+\z//;
+    my $running = ( system("systemctl is-active --quiet lazysited\@$instance.service 2>/dev/null") == 0 );
+
+    # NOT-FOUND IS NOT DISABLED, and the remedy is different. `is-enabled`
+    # answers `not-found` when the unit TEMPLATE is not installed at all, and
+    # `disabled` when it is installed and simply off. Reporting the first as
+    # the second sends an operator to run `systemctl enable` on a unit that
+    # does not exist - which fails, unhelpfully, and looks like their mistake.
+    if ( $timer_state eq 'not-found' ) {
+        report( $wanted ? 'FAIL' : 'WARN',
+            "this site has a runtime config but the lazysited\@ unit template "
+                . 'is not installed on this host'
+                . ( $wanted ? ' - the daemon extension is enabled and nothing can start it' : '' ),
+            'The units ship with the engine. Install the package (or run the '
+                . 'Hestia deploy) on this host; enabling the timer cannot work '
+                . 'until the template exists.' );
+        return;
+    }
+
+    my $timer_on = ( $timer_state eq 'enabled' || $timer_state eq 'enabled-runtime' );
+
+    if ( !$timer_on ) {
+        report( $wanted ? 'FAIL' : 'WARN',
+            "the runtime config exists but lazysited\@$instance.timer is not enabled"
+                . ( $wanted ? ' - the daemon extension is enabled and nothing will start it' : '' ),
+            "A host operator runs: systemctl enable --now lazysited\@$instance.timer" );
+        return;
+    }
+
+    if ($wanted) {
+        report( 'OK',
+            $running
+            ? "the persistent runtime is running ($instance)"
+            : "armed and the daemon extension is enabled; the timer starts the "
+                . "runtime within five minutes ($instance)" );
+        return;
+    }
+
+    # The common case, and the one that gets misread.
+    report( 'OK',
+        "armed and idle ($instance) - the daemon extension is not enabled, so "
+            . 'the runtime exits 0 and stays inactive, which is correct' );
+    return;
+}
+
+# systemctl, or not. Kept separate so the report above reads as four states
+# rather than as shell plumbing.
+sub _have_systemctl {
+    return 0 unless -d '/run/systemd/system';
+    for my $p (qw(/usr/bin/systemctl /bin/systemctl)) { return 1 if -x $p }
+    return 0;
+}
+
 sub report_front_door_mode {
     my $dir = '/etc/lazysite/pools';
     return unless -d $dir;    # no pools configured: plain CGI, nothing to say

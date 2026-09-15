@@ -43,21 +43,35 @@ sub run_tool {
 my $tool_src = slurp($TOOL);
 my $unit_src = slurp($UNIT);
 
-subtest 'the flag is declared and documented' => sub {
+# SM893 CHANGED THIS CONTRACT, and the subtest changed with it rather than
+# being loosened. The runtime used to be armed only on `--daemon`; the release
+# manager ruled 2026-09-15 that every site is armed, because the Hestia deploy
+# already did that for every site on every run and the two flows disagreed.
+#
+# What is still worth asserting is the part that has not changed: `--daemon` is
+# STILL ACCEPTED, so runbooks and scripts that pass it do not start erroring,
+# and the usage still says the plugin is the other switch - which is the one
+# sentence an operator must not miss, now more than before, because an armed
+# site that is doing nothing is the normal case rather than the unusual one.
+subtest 'the flag is still accepted, and the usage explains the two switches' => sub {
     like( $tool_src, qr/'daemon'\s*=>\s*\\\$o\{daemon\}/,
-        'GetOptions accepts --daemon' );
+        'GetOptions still accepts --daemon, so passing it is not an error' );
 
     my ( $rc, $out ) = run_tool('--help');
     is( $rc, 0, 'help exits 0' );
-    like( $out, qr/\[--daemon\]/,      'usage lists --daemon beside --fcgi' );
-    like( $out, qr/lazysited\@DOMAIN/, 'and names the unit it enables' );
+    like( $out, qr/lazysited\@DOMAIN/, 'usage names the unit it enables' );
     like( $out, qr/LAZYSITE_DAEMON_DIR/,
         'and the directory override the test rigs need' );
 
-    # The one sentence an operator must not miss: enabling the unit is half
-    # of two switches. A README that says --daemon "starts the daemon" would
-    # send them to systemctl status to find out why nothing runs.
-    like( $out, qr/until the site's sysop also enables the `daemon`\s+plugin/,
+    like( $out, qr/ALWAYS writes/,
+        'usage says the runtime conf is always written, not asked for' )
+        or diag( 'If the usage still reads as opt-in, an operator will go on '
+            . 'passing a flag that does nothing and assume its absence is why '
+            . 'a site is not running the daemon.' );
+
+    # Whitespace-tolerant: this sentence wraps, and where it wraps is not the
+    # contract - that the sentence is THERE is.
+    like( $out, qr/until\s+the\s+site's\s+sysop\s+also\s+enables\s+the\s+`daemon`\s+plugin/,
         'usage says the plugin is the other switch' );
     like( $tool_src, qr/two switches/i, 'and so does the POD' );
 };
@@ -66,8 +80,11 @@ subtest 'the conf the tool writes is the conf the unit reads' => sub {
     # The daemon block builds its conf from [ KEY => value ] pairs, the same
     # writer the pool uses. Isolate that block so the pool's extra keys
     # (GROUP, WORKERS, MAX_REQUESTS) are not mistaken for the daemon's.
-    my ($block) = $tool_src =~ /(if \( \$o\{daemon\} \) \{.*?\n    \})/s;
-    ok( $block, 'found the --daemon block' ) or return;
+    # SM893: anchored on the conf path rather than on `if ( $o{daemon} )`,
+    # which no longer exists - the block is now unconditional. The anchor that
+    # survives a change of control flow is the thing the block is FOR.
+    my ($block) = $tool_src =~ /(my \$conf = daemon_conf_path\(\$domain\);.*?\n    \})/s;
+    ok( $block, 'found the block that writes the runtime conf' ) or return;
 
     my %emitted = map { $_ => 1 } $block =~ /\[\s*([A-Z][A-Z_]+)\s*=>/g;
     is_deeply( [ sort keys %emitted ], [qw(DOCROOT USER)],
