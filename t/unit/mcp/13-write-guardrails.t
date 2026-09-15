@@ -26,39 +26,54 @@ my $src  = do {
     <$fh>;
 };
 
-# The validator body, so an assertion about a check cannot pass on a mention
-# somewhere else in the file.
-#
-# SM516 MC-10 split the seven checks out of _validate_page into named _check_*
-# subs that sit immediately above it and are called from nowhere else, so the
-# window is the FAMILY rather than the one sub. Still bounded, still not
-# "anywhere in the file" - which is the property this extraction exists for.
-my ($vp) = $src =~ /(sub _check_front_matter\b.*?sub _validate_page\b.*?)^sub /ms;
-ok( defined $vp, '_validate_page body located' );
-
 # --- SM243: the page-body guardrails ----------------------------------------
-my %EXPECT = (
-    'document-in-page'     => qr/<!DOCTYPE/,
-    'style-block-in-page'  => qr/<style/,
-    'api-page-is-a-document' => qr/api/,
-    'chrome-in-page'       => qr/<nav/,
-);
-for my $kind ( sort keys %EXPECT ) {
-    like( $vp, qr/kind\s*=>\s*'\Q$kind\E'/, "_validate_page warns '$kind'" );
+#
+# SM887 F2: DRIVEN, not read. These used to be asserted by grepping
+# lazysite-mcp.pl for `kind => '...'` inside a window around _validate_page,
+# because the validator could only be reached over authenticated HTTP against a
+# live site and a test had no other way in. It is a module now, so the checks
+# are run against a page that carries each mistake - which is what the
+# assertions were always trying to say.
+use Lazysite::Validate ();
+
+my $BAD = <<'PAGE';
+---
+title: Everything at once
+api: true
+---
+<!DOCTYPE html>
+<html><head><style>body { color: red }</style></head>
+<body>
+<nav><a href="/">Home</a></nav>
+<p>Words.</p>
+<footer>(c) me</footer>
+</body></html>
+PAGE
+
+my $r = Lazysite::Validate::validate_content( content => $BAD );
+my %warn = map { $_->{kind} => $_ } @{ $r->{warnings} };
+
+for my $kind (qw(document-in-page style-block-in-page api-page-is-a-document chrome-in-page)) {
+    ok( $warn{$kind}, "the validator warns '$kind' on a page that does it" )
+        or diag( 'got: ' . join( ', ', sort keys %warn ) );
 }
-like( $vp, $EXPECT{'document-in-page'},    'and really tests for a document body' );
-like( $vp, $EXPECT{'chrome-in-page'},      'and really tests for page-baked chrome' );
 
 # Each warning must name the ALTERNATIVE, not just the prohibition - the whole
 # lesson of SM228's refusal message.
-like( $vp, qr/STATIC FILE/,  'the document warning names the static-file route' );
-like( $vp, qr/theme/,        'the style warning points at the theme' );
-like( $vp, qr/unreachable/,  'the chrome warning names the real consequence' );
+like( $warn{'document-in-page'}{message} // '', qr/STATIC FILE/,
+    'the document warning names the static-file route' );
+like( $warn{'style-block-in-page'}{message} // '', qr/theme/,
+    'the style warning points at the theme' );
+like( $warn{'chrome-in-page'}{message} // '', qr/unreachable/,
+    'the chrome warning names the real consequence' );
 
-# They are warnings. If any of these became an issue/refusal, an ordinary write
-# would start failing.
-unlike( $vp, qr/push \@\$?issues,\s*\{\s*kind\s*=>\s*'(?:document-in-page|style-block-in-page|chrome-in-page)'/,
-    'none of the SM243 checks is raised as a blocking issue' );
+# They are warnings. If any became an issue, an ordinary write would start
+# failing - and now that is measurable rather than inferred from source.
+is_deeply( $r->{issues}, [],
+    'none of the SM243 checks is raised as a blocking issue' )
+    or diag( 'A page doing all four of these is poor and publishable. '
+        . 'Refusing it would break an ordinary write.' );
+ok( $r->{valid}, 'so the page is still valid' );
 
 # --- SM243: the theme guardrails --------------------------------------------
 {

@@ -66,6 +66,24 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM887 F2 (PENDING) **page validation is an engine capability, and a broken
+  page exits non-zero.** `Lazysite::Validate` holds the checks — moved out of
+  `lazysite-mcp.pl`, where they were reachable only by an authenticated partner
+  posting to a live site over HTTP, so nothing else in the tree could ask: not
+  the manager editor, not the control API, not CI, not a pre-commit hook, not a
+  person with a file. `lazysite validate FILE...` is the shell's way of asking,
+  and **exits 1 on an issue**, which is what makes `lazysite validate &&
+  publish` writable; nothing in the tree exited non-zero on a bad page before.
+  Warnings do not fail it — a warning is a judgement the author may have made
+  deliberately, and `--strict` is there when they should count. The two checks
+  that need a site (`db:` bindings, whether a named form is bound) now report
+  that they could not check rather than passing silently. MCP's `validate_page`
+  is a consumer: its shape is unchanged, and each message gained `severity` and
+  `file`. `lib/Lazysite/Validate.pm`, `tools/lazysite-validate.pl`,
+  `t/unit/lib/51`, `t/tools/82`; `t/unit/mcp/13`'s guardrail assertions now
+  DRIVE the validator instead of grepping the script for them, which was only
+  ever a workaround for its being unreachable.
+
 - SM659 R2 (PENDING) **the every-file check reads POD as POD.** `t/lint/144`
   guards the users tool's own manual, and a sabotage confirms it catches a
   retired verb put back under "Bootstrap". `t/lint/138`, which reads every

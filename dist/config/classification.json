@@ -32,6 +32,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM887 F2: page validation from a shell. Installed per site like the other tools, because the thing it validates is a site's content and a pre-publish check has to run where the content is.",
+      "pattern": "^tools/lazysite-validate\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-validate.pl",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/lazysite-domains\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-domains.pl",
       "bucket": "code"

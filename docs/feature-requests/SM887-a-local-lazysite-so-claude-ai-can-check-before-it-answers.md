@@ -156,6 +156,35 @@ The narrower option (shape it around what the skill needs) was refused for the
 reason worth keeping: a second consumer would want it reshaped, and reshaping
 something already shipped is a breaking change to a contract.
 
+## F2 BUILT 2026-09-15, and it answers Q4 on the way
+
+The survey Q4 asked for found one real content validator in the tree, and it
+was **inside `lazysite-mcp.pl`** - eight checks reachable only by an
+authenticated MCP partner posting to a live site over HTTP. Nothing else could
+ask: not the manager editor, not the control API, not CI, not a pre-commit
+hook, not a person with a file. And **nothing anywhere exited non-zero because
+a page was bad** - every surface answered `ok:1` and exit 0 - so A4 could not
+have been satisfied by anything that existed.
+
+| | |
+| --- | --- |
+| `lib/Lazysite/Validate.pm` | the checks, MOVED out of the MCP script rather than copied. Verified sub by sub against the originals: the only differences are the two docroot parameters and the third states below. |
+| `tools/lazysite-validate.pl`, `lazysite validate` | the shell's way of asking. **Exit 1 on an issue** - which is A4, and is what lets `lazysite validate page.md && publish` be written at all. Exit 2 for bad usage, so a typo does not read as a content failure. `--json` for a caller that parses, `--strict` when warnings should count. |
+| MCP `validate_page` | now a CONSUMER. Its return shape is unchanged - `issues`, `warnings`, `valid` - because partners parse it; each message gained `severity` and `file`, which is additive. |
+
+**Warnings do not fail it, and that is a decision rather than an omission.** A
+warning is a judgement the author may have made on purpose; a gate that fails
+on those is a gate people learn to bypass, which costs more than it saves.
+
+**The two checks that need a site now say so.** `db:` bindings need the table
+descriptors, and a named form needs its binding conf. Called without a docroot
+they report `db-binding-unchecked` / `form-binding-unchecked` rather than
+nothing - because a check that skips silently is a check that always passes,
+and the skill's whole first call is against a file with no site behind it yet.
+
+Q1-Q3 remain F1's to answer, and F1 is now built against this rather than
+around it.
+
 # Acceptance, and the dependency it carries
 
 The briefing is right that this must be tested on a fresh instance rather than a

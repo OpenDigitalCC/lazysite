@@ -78,6 +78,39 @@ Capabilities are channel x action grants carried by **groups**
   do-not-touch signal; it is a convention for new content, not a rename of the
   existing tree and not an enforced mechanism.
 
+## Validating page source (SM887 F2)
+
+`Lazysite::Validate` is the engine's page checker, and every surface that wants
+one calls it rather than growing its own. It was `_validate_page` inside
+`lazysite-mcp.pl`, reachable only by an authenticated partner over HTTP against
+a live site; it is a module now, so CI, a pre-commit hook, a test, or a person
+with a file can ask the same question and get the same answer.
+
+```perl
+use Lazysite::Validate qw(validate_content validate_file);
+my $r = validate_file( $path, docroot => $d );   # docroot optional
+#  { valid => 0|1, issues => [...], warnings => [...] }
+```
+
+On the shell, and the reason the exit status exists:
+
+```sh
+lazysite validate page.md && publish     # 1 on an issue, 2 on bad usage
+lazysite validate --docroot /srv/site --json page.md
+lazysite validate --strict page.md       # warnings count too
+```
+
+- **A message carries its own `severity`** (`issue` / `warning`), plus `kind`,
+  `message`, `line` where there is one, and `file` where the caller gave one.
+  MCP still returns them split into `issues` and `warnings`, because that is
+  what partners parse.
+- **`valid` is false only for an ISSUE.** A warning is a judgement the author
+  may have made deliberately, and a gate that failed on those would be a gate
+  people learn to bypass.
+- **Two checks need a site** - `db:` table bindings and whether a named form is
+  bound. Without a docroot they report that they could not check, rather than
+  passing: a check that skips silently is a check that always passes.
+
 ## Tests
 
 ### Which tests to run when (the tier ladder)

@@ -80,6 +80,10 @@ elsif ( $verb eq 'handlers' ) {
         ? run_tool_per_site( 'tools/lazysite-handlers.pl', $targets, \@ARGV )
         : run_tool( 'tools/lazysite-handlers.pl', @ARGV );
 }
+# SM887 F2: validation is an engine capability, so it has a verb like any
+# other. No --domain/--all fan-out: this takes FILES, and a site-wide sweep is
+# `lazysite check`'s job, not a second one that would drift from it.
+elsif ( $verb eq 'validate' ) { run_tool( 'tools/lazysite-validate.pl', @ARGV ) }
 elsif ( $verb eq 'migrate-engine-tree' ) { exit cmd_migrate_engine_tree() }
 elsif ( $verb eq 'dev' )                 { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
 elsif ( $verb eq 'demo' )                { exit cmd_demo() }
@@ -135,6 +139,13 @@ Verbs:
                          want for a capability decision, and is not what you
                          want for `add`. Preview with --all on a read-only
                          subcommand (`groups`, `list`) first.
+  validate [--docroot D] [--json] [--strict] FILE...
+        Check page SOURCE against the engine's own rules - front matter,
+        unclosed component fences, template parse errors, form rules and
+        delivery, HTML that belongs in a layout, values that should
+        probably not be public. Exits 1 on an issue, so it can gate a
+        publish. --docroot when there is a site: two checks need one and
+        say so when it is missing rather than passing silently.
   repair --docroot D | --domain NAME | --all [--dry-run]
         Run the doctor, apply its safe fixes, then CHECK AGAIN and
         report the state AFTER the repair, per site.
