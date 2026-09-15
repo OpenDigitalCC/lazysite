@@ -44,6 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM885 (PENDING) a failed backup can no longer leave a tarball the listing
+  calls a snapshot. `tar czf` forks gzip; the engine waited for tar, so a tar
+  that failed early was reaped while the orphaned compressor was still alive,
+  and it recreated the claimed name after the refusal had removed it - a
+  20-byte empty gzip stream offered for restore. tar now writes into a staging
+  directory and the finished archive is renamed into place, so the doomed
+  pipeline never holds a path that the listing reads. `t/unit/manager/192`.
+
 ## 0.14.1 - STABLE: the upgrade restarts what holds the old code, and the manager stops under-reporting access (2026-09-14)
 
 The first patch after stable. Fixes and one front-end addition; no engine
