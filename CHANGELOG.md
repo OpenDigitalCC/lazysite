@@ -44,6 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM884 (PENDING) **the release tarball no longer carries the previous
+  release.** `git archive` ships every tracked path unless it is marked
+  export-ignore, and `download/` holds a complete release - so each tarball
+  contained the one before it, which contained ITS predecessor. Measured with
+  the same archive command release.sh runs: 34,185,929 bytes and eight
+  `download/` entries before, 6,481,528 and zero after - 81% of the archive,
+  against an engine of about 6.5 MB. `dist/config/classification.json` already
+  excluded `^download/` from the release manifest, so the installer never
+  installed these files while the archive shipped them; the packaging now
+  agrees with the classification. **Takes effect at 0.14.3** - the 0.14.2 build
+  was already running when this landed, so that tarball still carries 0.14.1.
+  `t/lint/146` pins the pair, and asks git for the attribute rather than
+  reading the file's text.
+
 - SM885 (PENDING) a failed backup can no longer leave a tarball the listing
   calls a snapshot. `tar czf` forks gzip; the engine waited for tar, so a tar
   that failed early was reaped while the orphaned compressor was still alive,

@@ -13,3 +13,24 @@
 # SAME entry still conflict, and should - it removes the case where they are
 # merely both adding.
 CHANGELOG.md merge=union
+
+# SM884: the release tarball must not contain the previous release.
+#
+# release.sh packages with `git archive`, which ships every tracked path unless
+# it is marked export-ignore - and download/ holds a COMPLETE release: a
+# tarball, its digest and four debs. So each release shipped a copy of the one
+# before it, and because that copy contains ITS predecessor, the nesting
+# compounds. Measured on 0.14.1's tree: a 34.2 MB archive of which 27.7 MB -
+# 81% - is download/, against an engine of about 6.5 MB.
+#
+# THE TWO MECHANISMS ALREADY DISAGREED, which is what makes this a defect
+# rather than a judgement call. dist/config/classification.json:252 excludes
+# `^download/` from the release manifest, so the installer has never installed
+# these files and nothing in a deployed site reads them. The manifest said they
+# are not part of the release; the archive shipped them anyway. This makes the
+# packaging agree with the classification that was already there.
+#
+# Longstanding rather than new: 0.13.13, 0.13.16 and 0.14.0 each embed eight
+# download/ entries too. It only became expensive when download/ stopped
+# holding the small 0.12.1 set and started holding a full modern release.
+download/ export-ignore
