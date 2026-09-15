@@ -146,6 +146,16 @@ would, and it is filed as its own item rather than smuggled into a skill's
 scripts, because a validation contract the engine owns is worth more than a
 skill that greps for error text and breaks when the wording changes.
 
+**RULED 2026-09-15: build it as an ENGINE CAPABILITY, not as a dependency of
+this skill.** Validation becomes something the engine offers to anything that
+asks — this skill, CI, a pre-commit hook, the manager, MCP — and the skill is
+one consumer rather than the reason it exists. It lands before F1, and F1 is
+built against it.
+
+The narrower option (shape it around what the skill needs) was refused for the
+reason worth keeping: a second consumer would want it reshaped, and reshaping
+something already shipped is a breaking change to a contract.
+
 # Acceptance, and the dependency it carries
 
 The briefing is right that this must be tested on a fresh instance rather than a
@@ -160,11 +170,32 @@ familiar box — a familiar box hides exactly the assumptions this will trip on.
 | A5 | A layout and theme copied from a real site render as that site's |
 | A6 | `setup.sh` run a second time in the same container is a no-op |
 
-**DEPENDENCY, and it is the operator's:** A1 needs a container. I cannot install
-OS packages on this host, and docker use here is bounded by the standing rule
-that the daemon is not to be restarted. Whether this runs under docker, and on
-which host, is the operator's call and should be settled before the work starts
-rather than discovered at acceptance.
+**SETTLED 2026-09-15, and in two layers rather than one.**
+
+I raised the container as a blocking dependency and hedged about whether docker
+was usable here. It is: pulling `ubuntu:24.04` and running a throwaway container
+works, entirely at container level, and the daemon is never restarted — within
+the standing rule. The image is **Ubuntu 24.04.4 with Perl 5.38.2**, which is
+the environment E1 describes.
+
+**But the container is not the acceptance test, and should not pretend to be.**
+The release manager will run the skill **in a real claude.ai conversation** —
+the intended environment — and report what breaks. That is the same offer the
+briefing's author made, and it is worth more than any local approximation,
+because three of the constraints in E1-E7 cannot be reproduced in a container at
+all:
+
+| Ref | What only the real environment has |
+| --- | --- |
+| E2 | The actual per-editor network allowlist, rather than a local guess at it |
+| E5 | The conversation lifecycle — processes living only as long as the conversation |
+| E7 | The read-only `/mnt/skills/user/<name>/` mount |
+
+So: **docker for my own loop** — does `setup.sh` run cold, does it finish in
+time, is it idempotent, does a broken page exit non-zero — and **claude.ai for
+acceptance**. A1-A6 below are split accordingly when the work is done, and any
+criterion the container cannot reach is marked as claude.ai's rather than
+quietly ticked.
 
 # Related
 

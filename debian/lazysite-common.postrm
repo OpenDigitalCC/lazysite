@@ -1,7 +1,6 @@
 #!/bin/sh
 # lazysite-common.postrm - the pair of the postinst (F8.4): after the unit files
-# are removed, systemd should stop knowing them. Purge only touches what
-# dpkg does not; this package keeps no state of its own outside /etc/lazysite.
+# are removed, systemd should stop knowing them.
 set -e
 
 case "$1" in
@@ -9,6 +8,37 @@ case "$1" in
         if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
             systemctl --system daemon-reload >/dev/null 2>&1 || true
         fi
+        ;;
+esac
+
+# SM893 P4: PURGE REMOVES THE PER-SITE CONFIGS. Ruled 2026-09-15.
+#
+# It did not, and the header above used to claim "this package keeps no state of
+# its own outside /etc/lazysite" as though that settled it. It does keep state
+# there: one conf per provisioned site under daemon/ and pools/, written by
+# lazysite-hestia-domain. dpkg does not remove them, because the package never
+# shipped them - they were created after install.
+#
+# The consequence became sharper the day every site started being armed by
+# default: the unit templates gate on ConditionPathExists against these files,
+# so purging the package and installing it again SILENTLY RE-ARMS every instance
+# that host ever provisioned, including sites long since retired.
+#
+# PURGE ONLY, never remove. `remove` leaves configuration by Debian convention -
+# an operator removing the package to reinstall it expects their sites intact.
+# `purge` is the one that means "and the configuration too", which is exactly
+# what these are.
+#
+# NOT REMOVED HERE: /etc/lazysite itself, nor anything under a site's docroot.
+# A site's content, accounts and access rules are the operator's, and a package
+# operation is never the right thing to delete them with - SM721 is where
+# uninstalling a SITE is being worked out.
+case "$1" in
+    purge)
+        rm -f /etc/lazysite/daemon/*.conf /etc/lazysite/pools/*.conf 2>/dev/null || true
+        # Only if they are now empty: a directory the package shipped stays
+        # unless nothing is using it, and an operator may keep other files here.
+        rmdir /etc/lazysite/daemon /etc/lazysite/pools 2>/dev/null || true
         ;;
 esac
 

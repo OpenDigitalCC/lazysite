@@ -52,9 +52,33 @@ enough to decide what to restart ([[N142A]]), and `lazysite check` can see it
 from a shell. The gap is that **none of that is visible to the only party who
 routinely measures the estate from outside.**
 
-## Where it should live
+## Where it lives — RULED 2026-09-15
 
-Open, and worth deciding rather than assuming:
+**The public instance endpoint.** `/.well-known/lazysite-instance.json`.
+
+The decision it carried was whether a site's hosting shape is something a
+stranger may learn. Ruled that it is, and the reasoning the option carried
+stands on the record: **the site most likely to need diagnosing remotely is the
+one nobody holds a credential for.** A partner-only answer would have been
+readable exactly where it is least needed.
+
+So the endpoint that already exists to describe the running instance — already
+`Cache-Control: no-store`, already reporting the live engine version rather than
+the render's — gains the runtime alongside it.
+
+Not built yet. The shape to build:
+
+```json
+{ "version": "0.14.3", "runtime": "cgi|pool|daemon" }
+```
+
+with the value derived the way [[N142A]] already derives it when it decides
+what to restart, so there is one answer to "what is this site running" rather
+than a second one that can drift.
+
+## The options as they were put
+
+Kept because the reasoning is the record, not the outcome:
 
 - **`/.well-known/lazysite-instance.json`** already exists, already answers with
   `Cache-Control: no-store`, and already reports the live engine version rather

@@ -66,6 +66,15 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM893 P4 (PENDING) **`apt purge` removes the per-site runtime configs; `apt
+  remove` keeps them.** dpkg never removed them because the package never
+  shipped them — `lazysite-hestia-domain` writes one per provisioned site after
+  install — and the unit templates gate on their existence, so purging and
+  reinstalling silently re-armed every instance a host had ever provisioned.
+  Purge only: `remove` leaves configuration by Debian convention, and deleting
+  on both would wipe a fleet's provisioning during an ordinary upgrade cycle.
+  An operator's own files in those directories are untouched, and the directory
+  goes only if nothing else is using it. `t/tools/81`.
 
 - SM888 F4 (PENDING) **a handler action's audit entry names the handler.**
   `handler-save` and `form-targets-save` recorded the dispatcher's `/` - the
