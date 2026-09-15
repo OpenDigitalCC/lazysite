@@ -51,9 +51,30 @@
 
 [Unit]
 Description=lazysite persistent runtime (%i)
-Documentation=man:lazysite(1)
+# There is no lazysite(1) man page and there never has been. systemd does not
+# resolve Documentation= until something asks, so it sat here reading as a
+# reference for years and `systemd-analyze verify` is what finally said so:
+# "Command 'man lazysite(1)' failed with code 16". A pointer to a page that
+# does not exist is worse than none - it tells an operator to stop looking.
+Documentation=https://lazysite.io/docs/
 After=network.target
 ConditionPathExists=/etc/lazysite/daemon/%i.conf
+
+# SM891: THE START LIMIT BELONGS HERE, AND LIVED IN [Service] WHERE SYSTEMD
+# IGNORED IT.
+#
+# The supervisor's own restart handling covers a SERVICE dying; this covers the
+# supervisor itself. A runtime that cannot start at all should not be retried
+# tightly - the usual cause is configuration, which restarting will not fix.
+#
+# That reasoning was written down and has never been in force. These two keys
+# moved to [Unit] in systemd 230 (2016), and in [Service] they are parsed,
+# rejected and skipped: "Unknown key 'StartLimitIntervalSec' in section
+# [Service], ignoring." So a runtime failing on a bad config has been retried
+# every 5s for ever, with the rate limit that exists to stop it sitting four
+# lines below the Restart= it was meant to bound.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -63,12 +84,6 @@ ExecStart=/usr/bin/perl ${ENGINE}/tools/lazysited.pl \
     --docroot ${DOCROOT} --user ${USER}
 Restart=on-failure
 RestartSec=5
-
-# The supervisor's own restart handling covers a SERVICE dying; this covers the
-# supervisor itself. A runtime that cannot start at all should not be retried
-# tightly - the usual cause is configuration, which restarting will not fix.
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 # SEC-2026-07 (L-SYSTEMD), matching the pool: root is dropped inside the
 # process, so these directives shrink the blast radius of the long-running

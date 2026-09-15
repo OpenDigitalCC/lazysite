@@ -53,6 +53,17 @@ Naming the commit: AFTER it lands, never before
   exists for. The two actions spell their subject differently and that was
   measured rather than read: handler actions carry `id`, `form-targets-save`
   refuses "form is required" when sent one. `t/integration/100`.
+- SM891 (PENDING) **two directives in the shipped runtime unit that systemd was
+  ignoring.** `StartLimitIntervalSec` and `StartLimitBurst` sat in `[Service]`;
+  they moved to `[Unit]` in systemd 230, and in `[Service]` they are parsed,
+  rejected and skipped. The comment above them explains why a runtime that
+  cannot start should not be retried tightly - and that has never been in
+  force, so such a runtime has been retried every 5s for ever with its bound
+  inert. Also `Documentation=man:lazysite(1)`, a man page this project has
+  never shipped, in both units; now the docs URL. Found by one
+  `systemd-analyze verify`, which **exits 0** with both present - it reports on
+  stderr and succeeds - so `t/lint/147` asserts the OUTPUT is empty over every
+  shipped unit rather than asserting the command succeeded.
 
 - SM884 (PENDING) **the release tarball no longer carries the previous
   release.** `git archive` ships every tracked path unless it is marked

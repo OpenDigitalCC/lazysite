@@ -18,7 +18,10 @@
 
 [Unit]
 Description=lazysite FastCGI pool (%i)
-Documentation=man:lazysite(1)
+# SM891: there is no lazysite(1) man page. `systemd-analyze verify` reports
+# "Command 'man lazysite(1)' failed with code 16" - a pointer to a page that
+# does not exist tells an operator to stop looking.
+Documentation=https://lazysite.io/docs/
 After=network.target
 ConditionPathExists=/etc/lazysite/pools/%i.conf
 
