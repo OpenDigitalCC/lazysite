@@ -28,6 +28,49 @@ If yes, it is an app and it needs a store. If no, it is a page. Most prototypes
 answer no without meaning to, because the browser makes it so easy not to
 notice - see *State that only exists in one browser*, below.
 
+## Name the app, and give its parts one home
+
+Reported from the field in September 2026, after building a real app whose
+parts ended up in three places. Nothing failed; the app worked. It was simply
+impossible to say, afterwards, what the app *was* - which pages belonged to it,
+which table was its, which form fed it - because nobody had answered three
+questions at the start, and the answers are not recoverable later without
+reading everything.
+
+**Settle these before the first page is written.** They take a minute each and
+they are the layer below the design system: that section starts at the schema,
+and this one decides where the schema is allowed to live.
+
+1. **What is the app called?** One name, used as the URL segment, the table
+   prefix and the folder. `kit` gives `/kit/`, a `kit_items` table and a
+   `/kit/` content folder. Not three near-synonyms - "equipment", "kit-list",
+   "inventory" - which is what happens when each part is named by whoever
+   built that part.
+
+2. **Is it internal or public?** Not "will we protect it later". A public app
+   and an internal one differ in where the content has to live from the first
+   write: an internal app belongs in its own protected folder, and moving a
+   folder under a gate afterwards moves its pages into the private store and
+   breaks every link that pointed at them. See *Build a non-public app inside
+   its own protected folder*.
+
+3. **Where do its parts live?** All of them under the app's own name:
+
+   | Part | Where |
+   | --- | --- |
+   | Pages | `/<app>/` - one folder, index page included |
+   | Tables | `<app>_<thing>` - the prefix is what makes them findable |
+   | Forms | named `<app>-<purpose>`, bound to a handler |
+   | The group that may use it | one group, named for the app |
+
+**Write the three answers down in the app's index page**, in front matter or a
+short paragraph. The next agent to touch it - which is often the same agent
+three months later, with no memory of it - then has the name, the audience and
+the layout of the thing in the first file they open. An app is also the only
+kind of work here whose parts do not announce their relationship: pages are
+found by path, tables by prefix, and forms by name, and none of those point at
+each other.
+
 ## Start with the design system, not the pages
 
 The failure mode this avoids: a design tool emits one HTML page with the

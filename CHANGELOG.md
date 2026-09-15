@@ -82,6 +82,17 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- X1 (PENDING) **the app practice gains "Name the app, and give its parts one
+  home".** Reported from building a real app whose parts ended up in three
+  places: nothing failed, and afterwards nobody could say what the app *was* —
+  which pages were its, which table, which form — because the name, the
+  audience and the layout had never been settled and are not recoverable later
+  without reading everything. Three questions with one answer each, placed
+  before *Start with the design system*: that section begins at the schema, and
+  this one decides where the schema may live. Written into
+  `docs/practice/app-practice.md`, the importer's source — an edit to the
+  generated briefing is overwritten at the next cut.
+
 - SM888 S3 (PENDING) **every headline figure on the Stats page says what it is
   a count of.** N141B-F built `tile(label, value, note)` for exactly this and
   applied it to one tile; four were bare — Page views, Images and files, Data

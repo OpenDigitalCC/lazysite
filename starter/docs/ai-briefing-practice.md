@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.14.2
+     engine-version: 0.14.3
      imported: 2026-09-15
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=e6493f4a4d56310b3d14877b33be7596972507edaf28e3a53cd9503b3241de98 modified=2026-09-09
-     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=ff672ff8ec01e3d2e89d640704cde731d30ca8f541336b47115bff7962f23f65 modified=2026-09-09
-     body-sha256: eb845ba141b0e32390c0473dcaa8afefce6369af032195d187a4a79f65cf19a8
+     source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=79a3068e9597c73f7cea535d660862446335da198793f1e7623eefca17632e9f modified=2026-09-15
+     body-sha256: cf080661bbd45aa83b5d94ffce3a44a1a08b0c860b3e54330a0d7d4301f2a282
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.14.2**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.14.3**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -606,6 +606,49 @@ Each of these cost real time; none is obvious from reading.
 If yes, it is an app and it needs a store. If no, it is a page. Most prototypes
 answer no without meaning to, because the browser makes it so easy not to
 notice - see *State that only exists in one browser*, below.
+
+## Name the app, and give its parts one home
+
+Reported from the field in September 2026, after building a real app whose
+parts ended up in three places. Nothing failed; the app worked. It was simply
+impossible to say, afterwards, what the app *was* - which pages belonged to it,
+which table was its, which form fed it - because nobody had answered three
+questions at the start, and the answers are not recoverable later without
+reading everything.
+
+**Settle these before the first page is written.** They take a minute each and
+they are the layer below the design system: that section starts at the schema,
+and this one decides where the schema is allowed to live.
+
+1. **What is the app called?** One name, used as the URL segment, the table
+   prefix and the folder. `kit` gives `/kit/`, a `kit_items` table and a
+   `/kit/` content folder. Not three near-synonyms - "equipment", "kit-list",
+   "inventory" - which is what happens when each part is named by whoever
+   built that part.
+
+2. **Is it internal or public?** Not "will we protect it later". A public app
+   and an internal one differ in where the content has to live from the first
+   write: an internal app belongs in its own protected folder, and moving a
+   folder under a gate afterwards moves its pages into the private store and
+   breaks every link that pointed at them. See *Build a non-public app inside
+   its own protected folder*.
+
+3. **Where do its parts live?** All of them under the app's own name:
+
+   | Part | Where |
+   | --- | --- |
+   | Pages | `/<app>/` - one folder, index page included |
+   | Tables | `<app>_<thing>` - the prefix is what makes them findable |
+   | Forms | named `<app>-<purpose>`, bound to a handler |
+   | The group that may use it | one group, named for the app |
+
+**Write the three answers down in the app's index page**, in front matter or a
+short paragraph. The next agent to touch it - which is often the same agent
+three months later, with no memory of it - then has the name, the audience and
+the layout of the thing in the first file they open. An app is also the only
+kind of work here whose parts do not announce their relationship: pages are
+found by path, tables by prefix, and forms by name, and none of those point at
+each other.
 
 ## Start with the design system, not the pages
 
@@ -1589,7 +1632,7 @@ Imported on **2026-09-15** by `tools/import-field-practice.pl`, for the engine v
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-09-09 |
-| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-09 |
+| `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-15 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
