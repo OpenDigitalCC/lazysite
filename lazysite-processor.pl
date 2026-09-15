@@ -1943,8 +1943,19 @@ sub handle_one_request {
 # size via FCGI::ProcManager; 0/unset = single worker, the spawner manages),
 # LAZYSITE_FCGI_MAX_REQUESTS (worker recycles after N requests; memory
 # hygiene; default 500).
+#
+# SM890: WHICH OF THE TWO THIS IS, kept where the branch is taken. Nothing a
+# request carries named the backend it came from, so an outside reader asking
+# "is this a pooled worker still holding the old engine?" - the decisive
+# question in two releases running - had to infer it. Set here rather than
+# derived later because this is the only place that KNOWS: a conf file's
+# existence would say what the host intended, and a header set by the front
+# proxy answers about the proxy (SM283).
+my $RUNTIME = 'cgi';
+
 my $_fcgi = eval { require FCGI; FCGI::Request() };
 if ( $_fcgi && $_fcgi->IsFastCGI() ) {
+    $RUNTIME = 'pool';
     my $workers = ( $ENV{LAZYSITE_FCGI_WORKERS} || 0 ) + 0;
     my $pm;
     if ( $workers > 0 && eval { require FCGI::ProcManager; 1 } ) {
@@ -1963,6 +1974,12 @@ if ( $_fcgi && $_fcgi->IsFastCGI() ) {
 else {
     handle_one_request();
 }
+
+# The accessor exists because the request handlers are compiled ABOVE this
+# point and so cannot see the lexical - the same shape _lazysite_version() has
+# for $LAZYSITE_VERSION. Only ever 'pool' or 'cgi'; a value that has not been
+# through here is a bug, not a third state.
+sub _runtime { return $RUNTIME }
 
 # Parse the request's query string into a hash of name => value.
 # Values are URL-decoded, UTF-8 decoded, and HTML-escaped so they
@@ -2317,7 +2334,25 @@ sub main {
         # the VERSION file in a source tree that may not be the one serving.
         my $ver = _lazysite_version();
         $ver = '' unless defined $ver && $ver =~ /\A[0-9A-Za-z._-]{0,32}\z/;
-        print qq({"ok":1,"instance":"$inst","host":"$rhost","version":"$ver"});
+
+        # SM890: AND WHAT IS SERVING IT. Ruled 2026-09-15 that a site's hosting
+        # shape may be public: the site most likely to need diagnosing remotely
+        # is the one nobody holds a credential for, so a partner-only answer
+        # would have been readable exactly where it is least needed.
+        #
+        # MEASURED, NOT CONFIGURED - this is the process answering for itself,
+        # which is the one reading that cannot drift from what is true.
+        #
+        # TWO VALUES, NOT THE THREE THE FILING PROPOSED. `lazysited@`, the
+        # persistent runtime, binds no socket and serves no request; it is the
+        # background job supervisor. A field that says what answered this
+        # request can never return it, and pretending otherwise would put a
+        # value in the enum that nothing can ever produce. Whether the daemon
+        # is armed is a separate fact with a separate reader - `lazysite check`
+        # reports it (SM893 P3).
+        my $runtime = _runtime();
+        print qq({"ok":1,"instance":"$inst","host":"$rhost",)
+            . qq("version":"$ver","runtime":"$runtime"});
         return;
     }
 

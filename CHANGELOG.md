@@ -66,6 +66,20 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+- SM890 (PENDING) **the public instance endpoint names the runtime.**
+  `/.well-known/lazysite-instance.json` gains `"runtime"`, `cgi` or `pool`,
+  beside the version it already reports. Twice running, the decisive question
+  about a site reading a stale engine was "is this a pooled worker still holding
+  the old code?", and nothing a request carried could answer it —
+  `x-lazysite-front` names the front proxy, and split 3/4 across the seven stale
+  sites at 0.14.2, so reading it as the backend would have been confidently
+  wrong. Measured from the process that answered, not from a conf file, so it
+  says what IS serving rather than what was intended. `lazysited@` is
+  deliberately not a value: it binds no socket and serves no request, and
+  `lazysite check` is what reports whether it is armed. Documented in
+  `docs/OPERATOR.md`. `t/integration/101` drives both modes and asserts they
+  differ.
+
 - SM893 P4 (PENDING) **`apt purge` removes the per-site runtime configs; `apt
   remove` keeps them.** dpkg never removed them because the package never
   shipped them — `lazysite-hestia-domain` writes one per provisioned site after

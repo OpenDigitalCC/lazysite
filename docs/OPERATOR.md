@@ -317,6 +317,34 @@ systemctl restart lazysited@<domain>
   IP after repeated scanner-probe hits; review and unblock on the manager **Stats**
   page, and tune the threshold/window on **Plugin Config**.
 
+## What a site is running, read from outside
+
+`GET /.well-known/lazysite-instance.json` answers without a credential, is
+`Cache-Control: no-store`, and describes the **running instance** rather than
+the render:
+
+```json
+{ "ok": 1, "instance": "<per-install id>", "host": "example.com",
+  "version": "0.14.3", "runtime": "cgi" }
+```
+
+- **`version`** is the installed release, read from the install state - not the
+  `<meta name="generator">` in a page, which records the build that *rendered*
+  that page and is correctly older on a cached page (SM434).
+- **`runtime`** is `cgi` or `pool`, and it is what the answering process **is**,
+  not what the host configured. `pool` means a persistent FastCGI worker
+  (`lazysite@<domain>.service`) served the request, so an upgrade does not take
+  effect there until it restarts; `cgi` means a fresh process per request, so a
+  stale version reading cannot be a held-open worker (SM890).
+
+The persistent runtime (`lazysited@`) is deliberately **not** a value here: it
+binds no socket and serves no requests, so nothing it does can answer one. For
+whether it is armed on a site, run `lazysite check` on the host, which reports
+all four states (SM893).
+
+`x-lazysite-front`, where present, names the **front proxy** template - a
+different question, and not a substitute for this one.
+
 ## Troubleshooting
 
 | Symptom | Cause |
