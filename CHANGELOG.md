@@ -66,18 +66,52 @@ Naming the commit: AFTER it lands, never before
   directory and the finished archive is renamed into place, so the doomed
   pipeline never holds a path that the listing reads. `t/unit/manager/192`.
 - SM886 (PENDING) **a cached render no longer outlives the engine that produced
+## 0.14.2 - STABLE: the two remaining ways a site could serve a build it no longer ran (2026-09-15)
+
+0.14.1 restarted the workers - on a path the estate does not take - and left
+the renders alone. The field measured both halves on 2026-09-14: seven sites
+answering a fresh, uncacheable 404 from an engine one to three releases old,
+and ten more answering 0.14.1 from that same probe while serving home pages
+rendered by 0.14.0 or 0.13.15, five of them two releases behind on the page a
+visitor lands on.
+
+Both were the same shape as 0.14.1's own headline - a fix that was real and
+did not reach where it was needed.
+
+- N142A (d6328b9) **`lazysite upgrade` restarts the site it upgraded.**
+  N141-05 shipped the restart into the Hestia deploy script, which
+  INSTALL-RUNBOOK marks superseded by the packages - so the path a modern site
+  actually takes called no `systemctl` at all, and the headline fix of 0.14.1
+  did not reach the estate it was cut for. Both units now restart for each
+  upgraded site, guarded on the unit actually being live: `lazysited@` (the
+  persistent runtime) and `lazysite@` (the pool). The single-site path refuses
+  root by design and so cannot restart anything; it now names the live units
+  and prints the exact commands, and says nothing where there is no unit,
+  because a reminder that never applies is one people learn to skip.
+  `t/tools/78`.
+- SM886 (40fdfa5) **a cached render no longer outlives the engine that produced
   it.** A render is judged against its source, its conf, its nav and its section
   indexes - and an upgrade changes none of those, so a page nobody edits kept
   its pre-upgrade render for ever. SM413 fixed this in 0.10.18 for the slot the
   homepage is not in: that sweep walks `lazysite/cache/`, which holds the ALIAS
   hosts' pages, while the primary host's render is the sibling `.html` beside
-  the `.md`. The field measured the result on 2026-09-14 - ten sites answering
-  a fresh 404 as 0.14.1 while serving home pages rendered by 0.14.0 or 0.13.15,
-  five of them two releases behind. The engine's install state is now the fourth
-  dependency of a render, in the same running max as the other three, so one
-  line covers both cache slots. Keyed on its mtime, so a rollback invalidates
-  too. Nothing is deleted: a page re-renders once on its next request.
-  `t/integration/99`.
+  the `.md`. The engine's install state is now the fourth dependency of a
+  render, in the same running max as the other three, so one line covers both
+  cache slots. Keyed on its mtime, so a rollback invalidates too. Nothing is
+  deleted: a page re-renders once on its next request. `t/integration/99`.
+- SM885 (a15dd90) **a failed backup can no longer leave a tarball the listing
+  calls a snapshot.** `tar czf` forks gzip; the engine waited for tar, so a tar
+  that failed early was reaped while the orphaned compressor was still alive,
+  and it recreated the claimed name after the refusal had removed it - a
+  20-byte empty gzip stream offered for restore. tar now writes into a staging
+  directory and the finished archive is renamed into place, so the doomed
+  pipeline never holds a path the listing reads; the staging directory is
+  renamed before it is deleted, so an orphan cannot recreate anything inside
+  it either. `t/unit/manager/192`.
+
+Docs: the field-practice briefing re-imported at 0.14.2, and `docs/FEATURES.md`
+given the 0.14.1 and 0.14.2 entries it had gone without - it was shipped inside
+the 0.14.1 tarball still saying it described 0.14.0.
 
 ## 0.14.1 - STABLE: the upgrade restarts what holds the old code, and the manager stops under-reporting access (2026-09-14)
 
