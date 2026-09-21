@@ -119,6 +119,18 @@ Naming the commit: AFTER it lands, never before
   The two timing refusals (too fast, expired) now reach the visitor; the three
   token refusals stay generic, because distinguishing "no token" from "wrong
   token" tells a forger which half of the attempt was wrong. `t/unit/forms/15`.
+
+  **And the reword broke the count, which is now fixed too.** SM216-2's
+  classifier recovered the reason code for the stats day-buckets by matching
+  the refusal's *prose* (`/Submission too fast/`); after the reword those words
+  existed nowhere, both timing refusals fell through to "not a control", and
+  the report's "controls stopped N" silently lost two of its five reasons — no
+  event line at all, not even one `stats.pl` could file under `other`.
+  Reproduced before fixing; no test had ever named the classifier. The code
+  now travels with the refusal, set by the control that fires and read once
+  at the catch, so rewording a message cannot break it again. The matcher is
+  gone. `t/unit/forms/16` drives all five controls and reads the bucket off
+  disk — and its roll-call fails on a sixth control added without a code.
 - X1 (PENDING) **the app practice gains "Name the app, and give its parts one
   home".** Reported from building a real app whose parts ended up in three
   places: nothing failed, and afterwards nobody could say what the app *was* —

@@ -36,7 +36,7 @@ nineteen had shipped in 0.14.1, from walks that ran on 0.13.15 and 0.13.16.
 | A4 `page-pdf` on a gated page | **FIXED** | N141B-A, 0.14.1 |
 | A5 single-box checklist + refusal copy | **OPEN**, both halves | — |
 | A6 DAV PUT 403/502 | **OPEN**, cause now located | — |
-| A7 form posted within a second | **OPEN**, cause now located | — |
+| A7 form posted within a second | **FIXED in two halves** — the visitor is told why (K3), and the block is counted again (the K3 fix had broken the count; see below) | K3, then n145a |
 | W1 Services holder tense | **FIXED** | N141-01, 0.14.1 |
 | W2 Site settings blank without the capability | **FIXED / not a defect** | SM775 in 0.13.9 added the empty state; the padlock half was ruled out — you cannot padlock the page somebody *lands* on |
 
@@ -55,6 +55,22 @@ one missing drain, not two code paths — which makes it smaller than it looked.
 submitter (`:258-262`). So SM252's time token is refusing correctly and its
 reason is discarded one word away from being shown. The filing recorded this as
 *"likely, and that is a guess"*; it is now the cause, and the fix is one word.
+
+**And the one-word fix broke the count, 2026-09-21.** K3 reworded the two
+timing refusals so a person could read them. `_block_reason` — SM216-2's
+classifier that turns a refusal into a reason code for the stats day-buckets —
+recovered the code by matching the refusal's *prose*: `/Submission too fast/`,
+`/Submission expired/`. After the reword those words existed nowhere in the
+tree, both refusals fell through to `''`, and the caller reads `''` as "not an
+anti-spam control" and records **nothing** — not even a `blocked` line with an
+empty reason, which `stats.pl` would have bucketed as `other`. So "controls
+stopped N" silently lost two of its five reasons. Reproduced against the
+handler (a POST inside the floor: the new message, the correct refusal, and no
+form-events directory at all; a successful POST in the same run wrote its
+`stored` line). No test named `_block_reason` or any of the five codes, so
+nothing caught it. The code now travels *with* the refusal — set by the control
+that fires, read once at the catch — and the matcher is gone; `t/unit/forms/16`
+drives all five controls and reads the bucket off disk.
 
 ## What this says about the filing itself
 

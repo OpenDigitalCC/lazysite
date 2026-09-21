@@ -59,6 +59,13 @@ my $FORMS_DIR    = defined $LAZYSITE_DIR ? "$LAZYSITE_DIR/forms"          : unde
 # parse_post and consumed by respond_ok/respond_error at the bottom -
 # declared here because the capture site precedes them in file order.
 our ( $REDIRECT_PAGE, $REDIRECT_FORM ) = ( '', '' );
+# SM888 A7: which anti-spam control refused this POST, set by reject() /
+# reject_user() and read once by the catch at the bottom of the main eval.
+# Declared HERE for the same reason as the pair above - the catch precedes the
+# subs in file order, and `our` scopes from its point of declaration, so
+# declaring it beside the subs is a compile error under strict rather than a
+# silent empty value. The reasoning for the mechanism is with those subs.
+our $BLOCK_REASON = '';
 
 # Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
 # per-form size limits are even checked. Generous; real limits are per-form.
@@ -253,8 +260,9 @@ if ($@) {
     $err =~ s/\s+$//;
     log_event( 'ERROR', $name, 'processing failed', error => $err, ip => $ENV{REMOTE_ADDR} // 'unknown' );
     # SM216-2: an anti-spam control blocked this POST - count it (per form, by
-    # reason) so the report shows "controls stopped N", not silence.
-    if ( my $reason = _block_reason($err) ) { _record_form_event( $name, 'blocked', $reason ); }
+    # reason) so the report shows "controls stopped N", not silence. The code
+    # comes from the control that fired, not from the message it printed.
+    if ( length $BLOCK_REASON ) { _record_form_event( $name, 'blocked', $BLOCK_REASON ); }
     # USER: messages (e.g. upload too large / wrong type) are safe to show the
     # submitter; everything else gets a generic message.
     if ( $err =~ /^USER:(.*)/s ) { respond_error($1); }
@@ -417,17 +425,12 @@ sub _audit_submission {
     return;
 }
 
-# SM216-2: map an anti-spam reject message to a stable reason code, or '' if the
-# failure was not a spam control (method / validation / delivery - not counted).
-sub _block_reason {
-    my ($err) = @_;
-    return 'honeypot' if $err =~ /Spam detected/;
-    return 'too_fast' if $err =~ /Submission too fast/;
-    return 'expired'  if $err =~ /Submission expired/;
-    return 'token'    if $err =~ /Invalid submission/;
-    return 'rate'     if $err =~ /Rate limit exceeded/;
-    return '';
-}
+# SM216-2's five reason codes, kept here as the vocabulary rather than as a
+# matcher: honeypot, too_fast, expired, token, rate. Each is passed by the
+# control that raises the refusal (see `reject` / `reject_user`), and a refusal
+# with no code is not an anti-spam control - method, validation, delivery - and
+# is deliberately not counted. plugins/stats.pl buckets whatever code arrives
+# and has its own `other` fallback, so it needs no matching list.
 
 # SM216-2: append one outcome line so the stats plugin can fold blocked-vs-stored
 # counts into its day-buckets. Append-only, one line per event, so concurrent
@@ -656,15 +659,15 @@ sub _fold_quantities {
 
 sub check_honeypot {
     my ($hp) = @_;
-    reject('Spam detected') if defined $hp && length $hp;
+    reject( 'Spam detected', 'honeypot' ) if defined $hp && length $hp;
 }
 
 sub check_timestamp {
     my ( $ts, $tk, $secret, $window ) = @_;
-    reject('Invalid submission') unless $ts && $tk;
-    reject('Invalid submission') unless $ts =~ /^\d+$/;
+    reject( 'Invalid submission', 'token' ) unless $ts && $tk;
+    reject( 'Invalid submission', 'token' ) unless $ts =~ /^\d+$/;
     my $expected = hmac_sha256_hex( $ts, $secret );
-    reject('Invalid submission') unless $tk eq $expected;
+    reject( 'Invalid submission', 'token' ) unless $tk eq $expected;
     my $age = time() - $ts;
 
     # SM888 A7: THE TIMING REFUSALS ARE SHOWN; THE TOKEN ONES ARE NOT.
@@ -687,7 +690,7 @@ sub check_timestamp {
     #   visitor typed quickly or left the page open. Telling them costs nothing
     #   (the floor is three seconds and it is in this file) and saves them
     #   retyping a form they believe ate their answer.
-    reject_user('That was too quick - please try again in a moment.')
+    reject_user( 'That was too quick - please try again in a moment.', 'too_fast' )
         if $age < 3;
 
     # SM501: per-form, defaulting to the shipped two hours. 0 disables the age
@@ -701,7 +704,7 @@ sub check_timestamp {
     # re-submits the same stale page and is refused identically.
     reject_user(
         'This form was open too long and has expired - please reload the page '
-            . 'and send it again.' )
+            . 'and send it again.', 'expired' )
         if $window && $age > $window;
 }
 
@@ -741,7 +744,7 @@ sub check_rate_limit {
     my $hour  = int( time() / 3600 );
     my $key   = "$ip:$hour";
     my $count = $db{$key} || 0;
-    if ( $count >= $limit ) { untie %db; reject('Rate limit exceeded'); }
+    if ( $count >= $limit ) { untie %db; reject( 'Rate limit exceeded', 'rate' ); }
     $db{$key} = $count + 1;
 
     # Purge the stale hours ONCE PER HOUR, not once per submission. The keys
@@ -814,10 +817,33 @@ sub respond_error {
     print encode_json( { ok => 0, error => $msg } );
 }
 
-sub reject { die "$_[0]\n"; }
+# SM888 A7 (second half): A REFUSAL CARRIES ITS OWN REASON CODE.
+#
+# `_block_reason` used to recover the code by matching the refusal's PROSE -
+# /Submission too fast/, /Submission expired/ and three more. The first half of
+# A7 reworded two of those messages so a real visitor could read them, and left
+# the matcher looking for words that no longer exist anywhere in the tree. Both
+# refusals then fell through to '' , which the caller reads as "not an anti-spam
+# control" and records NOTHING - so the report's "controls stopped N" silently
+# dropped two of its five reasons, and no test noticed because none existed.
+#
+# The fix is not a better regex. The code is now SET where the refusal is
+# raised, by the line that knows which control fired, and read once at the
+# catch. Rewording a message cannot break it, because nothing reads the words.
+#
+# $BLOCK_REASON is declared at the top of the file, beside $REDIRECT_PAGE and
+# for the same file-order reason stated there.
+
+sub reject {
+    $BLOCK_REASON = defined $_[1] ? $_[1] : '';
+    die "$_[0]\n";
+}
 
 # Like reject(), but the message IS shown to the submitter (upload limits etc.).
-sub reject_user { die "USER:$_[0]\n"; }
+sub reject_user {
+    $BLOCK_REASON = defined $_[1] ? $_[1] : '';
+    die "USER:$_[0]\n";
+}
 
 # --- Utilities ---
 
