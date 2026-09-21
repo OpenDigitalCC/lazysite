@@ -1067,7 +1067,7 @@ version snapshots are managed on the Appearance page. A **full-system** backup c
 site *including* the `lazysite/` infra (config, auth, forms, nav, themes/layouts) -
 only the backups dir and regenerable caches are excluded. Because it carries the
 auth secrets, in-app restore refuses a full backup; a system user restores it with
-`install.pl --restore-full <file> --docroot X [--domain Y]`, where `--domain`
+`lazysite backups --docroot X --restore-full <file> [--domain Y]`, where `--domain`
 rewrites the site domain on restore - the **cross-domain migration** path (build on
 a temporary domain, then move content, config and accounts to the final one).
 
@@ -1477,8 +1477,10 @@ deletes the copy. One grant cannot both destroy a table and remove the evidence.
 
 ## The installer
 
-`install.sh` is a thin shim over `install.pl`, a ~960-line manifest-driven,
-upgrade-aware, core-Perl installer. It reads a `release-manifest.json` (built from a
+`install.pl` is a manifest-driven, core-Perl installer, driven by the `lazysite`
+CLI's `provision`, `upgrade` and `reinstall` verbs - which of the three it is
+doing comes from `--mode`, not from the state of the disk (SM892). `install.sh`
+is a signpost to those verbs and installs nothing. It reads a `release-manifest.json` (built from a
 **classification** ruleset that decides where each file lands) and tracks installed
 state in `lazysite/.install-state.json` (a SHA map). On upgrade, **code files are
 always overwritten**, but **seed files are preserved if the operator edited them**

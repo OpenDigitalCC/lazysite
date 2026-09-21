@@ -67,7 +67,7 @@ upgraded when the channel above accepts the payload; `manual` sites are skipped
 and upgraded only when the operator chooses. A release whose manifest declares
 `"security_critical": true` can be pushed through both gates with
 `lazysite upgrade --all --force-security`. Set the key with
-`install.pl --policy auto|manual --docroot <docroot>` (audited as `policy-set`).
+`lazysite policy auto|manual --docroot <docroot>` (audited as `policy-set`).
 
 ## Cutting a stable release (operator)
 

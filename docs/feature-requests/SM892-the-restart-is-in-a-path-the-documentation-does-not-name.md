@@ -4,11 +4,11 @@ title: "SM892: the restart is in a path the documentation does not name, and the
 subtitle: "V3 could not be walked, and finding out why produced two facts that undercut N142A's reasoning: the published tarball upgrade is install.sh, which names no unit and prints no restart line - and on the operator's host 28 of 29 runtime units are dead and no pool unit exists at all. Needs a ruling before anything is built."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-15
 raised-by: sites agent
 area: installers
-status-note: "Q1-Q4 ANSWERED 2026-09-21 and the design is settled; NOTHING IS BUILT YET. Three site verbs chosen by the operator and never inferred - `provision`, `upgrade`, `reinstall` - living in the `lazysite` CLI, which is the ONE way on both distributions (verified: payload_root resolves an unpacked tarball, so the same verb works there). install.pl stops guessing and stops being operator-facing; install.sh becomes a signpost rather than a second spelling. The release manager asked whether the site verb should be `deploy`: the distinction behind the question is right, and `deploy` cannot carry it because this tree already means two other things by it, one of them the operator's build-push watcher pointing the opposite way across the wire. `provision` already draws it - install the package, provision the site. `reinstall` is NOT `repair`: reinstall re-lays the payload at the installed version and leaves content alone, repair fixes the permissions and state around files that are already right. A survey of the whole tracked tree found the same operator task named FOUR ways depending on which file a reader opens, which is what U3 is really about. OPEN, and it carries a RULING rather than a fix. THE THIRD INSTANCE OF ONE PATTERN: N141-05 put the pool restart in the Hestia deploy script, which INSTALL-RUNBOOK marks superseded; N142A moved it to `lazysite upgrade`; and the published install page for a tarball install names NEITHER - it documents `sudo bash install.sh --docroot ... --cgibin ...` and contains the string 'lazysite upgrade' zero times and 'systemctl' zero times (operator ran it 2026-09-15, output quoted below, no restart line and no reminder). So the restart has now been put in two places, neither of which the documentation sends a tarball operator to. AND THERE WAS ALMOST NOTHING TO RESTART: the operator's unit listing shows ONE active lazysited@ unit out of 29, the other 28 inactive dead, and NO lazysite@ pool unit under the lazysite* glob at all. N142A's guard - restart only what is running - therefore passed for exactly one site, and for none of the seven that had been reading old code. WHAT CAUSED THE SEVEN TO COME CURRENT AT 0.14.2 IS THEREFORE NOT ESTABLISHED; SM886 is the candidate and this filing does not claim it. The readings that would settle it are named below and are the operator's to run."
+status-note: "THE RULING IS BUILT; WHAT REMAINS IS A READING ONLY THE OPERATOR CAN TAKE. U1/U2/U3 and D1-D5 are shipped: three site verbs chosen by the operator and never inferred - `provision`, `upgrade`, `reinstall` - in the `lazysite` CLI, which is the one way on both distributions (payload_root resolves an unpacked tarball, so the same verb works with no package installed). install.pl takes --mode and refuses to choose one; install.sh prints the verbs and exits 2, and the two Hestia scripts that used to call it now drive install.pl directly with an explicit mode. Nineteen readers repointed across README, the published install page, UPGRADE, OPERATOR, FEATURES, development, the configuration and reference pages, the manager guide and two deb READMEs; `t/lint/149` holds every tracked file to it and `t/tools/86` holds the verbs to what the documents now promise. Three operations that D4 stranded gained verbs rather than a pointer back to the implementation: `backups` (list, --restore, --restore-full), and `--dry-run` on all three site verbs. Two more that four documents set by running install.pl gained verbs too - `channel` and `policy` - and both take --domain/--all, where install.pl offered a shell loop because it believed there was no registry. WHAT IS STILL OPEN, and it is the part this filing never claimed: what made seven sites come current at 0.14.2 is NOT ESTABLISHED. N142A had nothing to act on (one of 29 runtime units active, no pool unit at all), SM886 is the candidate, and the two systemctl readings named below are the operator’ to run. THE THIRD INSTANCE OF ONE PATTERN, for the record: N141-05 put the pool restart in the Hestia deploy script, which INSTALL-RUNBOOK marks superseded; N142A moved it to `lazysite upgrade`; and the published install page named neither - it documented `sudo bash install.sh --docroot ... --cgibin ...` and contained the string 'lazysite upgrade' zero times and 'systemctl' zero times. The restart stays in upgrade and reinstall, and the page now sends the reader there."
 ---
 
 # Why V3 could not be walked
@@ -223,6 +223,62 @@ what changes is that an operator can ask for it.
 **One thing the survey settles about it:** no operator-facing document tells
 anyone how to ask for a reinstall, and no command accepts the word. It has been
 reachable only by accident — re-running the installer at the same version.
+
+# WHAT WAS BUILT, 2026-09-21
+
+| Ref | Outcome |
+| --- | --- |
+| D1 | `provision`, `upgrade`, `reinstall` dispatched by `tools/lazysite-cli.pl`. Each checks the declaration against the site and refuses the other two by name, with the version it found. |
+| D2 | One way on both distributions. `payload_root()` resolves `$bin/..`, so `perl tools/lazysite-cli.pl provision ...` works from an unpacked tarball with no package installed. |
+| D3 | `install.pl` requires `--mode` and refuses to choose one. `declared_mode()` replaced the classifier: the same state it used to read is now what the declaration is checked against. |
+| D4 | `install.sh` prints the three verbs and exits 2. The two Hestia scripts that called it - the only machine callers in the tree - now drive `install.pl` directly with an explicit `--mode`. |
+| D5 | Nineteen readers repointed, and `t/lint/149` holds every tracked file to it. |
+
+## What D4 broke, and what that cost
+
+Making the signpost refuse everything invalidated four blocks of live advice
+that told an operator to run `install.sh` with paths: listing backups,
+restoring one, previewing an upgrade, restoring a full-system backup. The
+choice at that point was between naming `install.pl` in an operator document -
+which D3 says stop doing - and giving each operation a word.
+
+Reaching past the CLI to the implementation is how the CLI becomes the
+second-best way to do something, and a second-best way is a second spelling. So
+they got words:
+
+| Added | Replaces |
+| --- | --- |
+| `backups --docroot D` / `--restore` / `--backup PATH` | `install.sh --list-backups`, `--restore` |
+| `backups --restore-full FILE [--domain N]` | `install.pl --restore-full`, named in OPERATOR.md, FEATURES.md, the manager guide and the manager's own Backups page |
+| `--dry-run` on `provision`, `upgrade`, `reinstall` | `install.sh --dry-run` |
+| `channel VALUE`, `policy VALUE`, each taking `--docroot` / `--domain` / `--all` | `install.pl --channel` / `--policy`, named in four documents |
+
+**The `--all` on the last pair is the substantive gain.** `install.pl`'s own
+comment offered a shell loop over docroots, "because lazysite has no central
+site registry - the host knows the sites". It has had one since [[SM139]], and
+`upgrade --all`, `check --all` and `repair --all` all read it. A channel
+decision is exactly the kind that arrives for a whole fleet at once.
+
+`provision --dry-run` stops before the registry write as well as the install: a
+preview that leaves a registry entry behind has told the fleet a site exists
+that was never installed, which is this filing's own failure shape with a
+different surface.
+
+## Two things the gates found in this work
+
+Recorded because both were mine and both would otherwise have shipped as
+passing checks:
+
+- **`t/lint/149`'s first draft reported the one call site in the tree that gets
+  it right.** It matched lazily from `install.pl` to the first `--cgibin`, and
+  in the CLI's `_install_argv` that token sits immediately before `--mode` - so
+  the window ended exactly where the evidence began. It was measuring argument
+  order, not the declaration.
+- **`t/tools/86`'s restart-on-preview assertion measured the absence of
+  systemd.** `_say_what_needs_restarting` returns at once unless the docroot is
+  a registered site with a live unit, and a temp docroot is neither, so the
+  line was absent with or without the guard. It is now a source check that
+  states its own limit, the way `t/tools/78` does for the same call.
 
 # Related
 

@@ -82,15 +82,15 @@ works on staging and production.
   releases; `certified` only builds whose compliance records were walked,
   `beta` takes beta and stable builds, any other value (the default)
   accepts everything. Out-of-channel upgrades are skipped and audited. Set
-  with `install.pl --channel edge|beta|stable|certified --docroot ...` or from
-  Manager → Site settings. See
+  with `lazysite channel edge|beta|stable|certified --docroot ...` (or
+  `--domain <site>` / `--all`), or from Manager → Site settings. See
   [Update channel](/docs/features/configuration/update-channel).
 
 `update_policy`
 : `auto` or `manual` (default). Whether a fleet-wide `lazysite upgrade --all`
   run (deb-managed hosts) touches this site at all: `manual` sites are
   skipped and upgraded only deliberately. Set with
-  `install.pl --policy auto|manual --docroot ...` (audited as `policy-set`).
+  `lazysite policy auto|manual --docroot ...` (audited as `policy-set`).
 
 `log_level`
 : `ERROR`, `WARN`, `INFO` (default), or `DEBUG`.

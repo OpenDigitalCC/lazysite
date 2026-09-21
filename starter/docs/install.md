@@ -50,29 +50,77 @@ see the manual installation section below.
 
 ## Installation
 
-### HestiaCP
+### You install the package; you provision a site
 
-The installer registers lazysite as a HestiaCP web template. Once installed,
-apply it to any domain from the control panel and the processor and starter
-files are deployed automatically on rebuild.
+Two different acts, and lazysite keeps them apart on purpose:
+
+| Act | What it touches |
+| --- | --- |
+| **Installing lazysite** on a host | the engine payload and the `lazysite` command. No site tree is touched. |
+| **Provisioning a site** | one domain's docroot and `cgi-bin`. |
+
+So a host with lazysite installed and no sites provisioned is a normal state,
+and installing a newer lazysite never changes a site by itself.
+
+### The site commands
+
+Three verbs, and **you say which one you mean.** None of them works out your
+intention from the state of the disk, and each refuses rather than quietly
+doing one of the others:
 
 ```bash
-git clone https://github.com/OpenDigitalCC/lazysite.git
-cd lazysite
-sudo bash install.sh --docroot /path/to/public_html --cgibin /path/to/cgi-bin
+lazysite provision --docroot /path/to/public_html --cgibin /path/to/cgi-bin
+lazysite upgrade   --docroot /path/to/public_html
+lazysite reinstall --docroot /path/to/public_html
 ```
 
-`install.sh` is a thin wrapper around `install.pl`; the Perl
-installer reads `release-manifest.json` and tracks installed
-state at `{docroot}/lazysite/.install-state.json` so re-runs
-upgrade in place without losing content you've edited. See
-[Upgrading](#upgrading) below.
+| Verb | Use it when | It refuses when |
+| --- | --- | --- |
+| `provision` | the site does not exist yet | something is already installed there |
+| `upgrade` | the site should move to this version | nothing is installed, or the site is already at this version |
+| `reinstall` | this version's files were edited or lost and should go back to what the release ships | the versions differ — that is an upgrade |
 
-Then in HestiaCP:
+`reinstall` leaves content, accounts and configuration alone. It is not
+[`repair`](#if-something-is-wrong-and-the-version-is-not-changing), which
+touches no files at all.
+
+Run them as the **site's own user**, never with `sudo`: they refuse root, so
+that nothing in a site tree ends up owned by root. Each verb reads
+`release-manifest.json` from the payload and records what it installed at
+`{docroot}/lazysite/.install-state.json`.
+
+### From an unpacked tarball
+
+There is no `lazysite` on `PATH` until the package is installed, so run the
+command out of the tree you unpacked. It finds its own payload:
+
+```bash
+tar xf lazysite-<version>.tar.gz
+cd lazysite-<version>
+perl tools/lazysite-cli.pl provision \
+    --docroot /path/to/public_html --cgibin /path/to/cgi-bin
+```
+
+The verbs and their options are identical. A tarball is how the code reaches
+the host; it is not a different way to install a site.
+
+`install.sh` in the tarball root installs nothing. It is kept only to point
+anyone who still types it at the three verbs above.
+
+### HestiaCP
+
+lazysite registers itself as a HestiaCP web template, so a domain is set up
+from the control panel and the engine is deployed on rebuild. Install the
+`lazysite-common` and `lazysite-hestia` packages, copy the templates into
+Hestia's template directories, then per domain:
 
 1. Edit your domain
-2. Set the web template to `lazysite`
+2. Set the web template to `lazysite-cgi` (or `lazysite-fcgi`)
 3. Save and rebuild
+
+The full sequence, including the nginx proxy layer and the per-domain
+onboarding command, is in `installers/hestia/INSTALL-RUNBOOK.md` in the
+release.
 
 ### Manual Apache installation
 
@@ -177,46 +225,83 @@ AI tools, paste it as context at the start of the conversation.
 
 ## Upgrading
 
-Re-run `install.sh` against the same `--docroot` and `--cgibin` to
-upgrade. Seed files you have edited (starter pages, docs) are
-preserved; code files (processor, extensions, manager UI) are
-always refreshed.
+Install the newer lazysite on the host, then move each site to it:
 
 ```bash
-sudo bash install.sh --docroot /path/to/public_html --cgibin /path/to/cgi-bin
+lazysite upgrade --docroot /path/to/public_html
 ```
 
-Before applying an upgrade, the installer creates a backup
-tarball at `{docroot}/lazysite/backups/`. Inspect the plan
-before committing:
+Seed files you have edited (starter pages, docs) are preserved; code files
+(processor, extensions, manager UI) are always refreshed. Run it as the site's
+user — it refuses root.
+
+Inspect the plan before committing to it:
 
 ```bash
-bash install.sh --docroot /path/to/public_html --cgibin /path/to/cgi-bin --dry-run
+lazysite upgrade --docroot /path/to/public_html --dry-run
 ```
 
-`backup_retention` in `lazysite.conf` controls how many
-backups are kept (default 3; 0 = keep all).
+`--dry-run` reports what would change and writes nothing at all. It is a
+single-site preview and does not combine with `--all`.
 
-### If upgrade goes wrong
+Before applying an upgrade — or a reinstall — lazysite writes a backup tarball
+to `{docroot}/lazysite/backups/`. `backup_retention` in `lazysite.conf`
+controls how many are kept (default 3; 0 = keep all).
+
+### A whole host at once
 
 ```bash
-bash install.sh --docroot /path/to/public_html --restore
+sudo lazysite upgrade --all
 ```
 
-Restores the most recent backup. For a specific backup:
+As root this drops to each site's own user, so no site tree is written as root.
+Sites whose `update_policy` is `manual` (the default) are skipped unless
+`--force` is given, and each site's `update_channel` is then honoured — see
+[Update channel](/docs/features/configuration/update-channel).
+
+### After an upgrade, restart anything that holds engine code
+
+An ordinary CGI site reads the engine fresh on every request and needs nothing.
+A site running the persistent runtime or the FastCGI pool has the previous
+engine in memory and goes on serving it until the worker restarts. `upgrade`
+and `reinstall` name the units to restart when there are any; `upgrade --all`,
+which runs as root, restarts them itself.
+
+### If something is wrong and the version is not changing
+
+Two different problems, two different commands:
+
+| Symptom | Command |
+| --- | --- |
+| engine files were edited or lost; put the shipped ones back | `lazysite reinstall --docroot D` |
+| the files are right but ownership, modes or missing directories are not | `lazysite repair --docroot D` |
+
+`repair` changes no files; `reinstall` replaces them and leaves content,
+accounts and configuration alone.
+
+### If an upgrade goes wrong
+
+List the backups:
 
 ```bash
-bash install.sh --docroot /path/to/public_html --restore --backup /path/to/backup.tar.gz
+lazysite backups --docroot /path/to/public_html
 ```
 
-List available backups:
+Put the most recent one back:
 
 ```bash
-bash install.sh --docroot /path/to/public_html --list-backups
+lazysite backups --docroot /path/to/public_html --restore
 ```
 
-Restore does not touch runtime state (auth users, cache, logs)
-and invalidates the rendered HTML cache afterwards.
+Or a specific one:
+
+```bash
+lazysite backups --docroot /path/to/public_html --restore \
+    --backup /path/to/backup.tar.gz
+```
+
+Restoring does not touch runtime state (auth users, cache, logs) and
+invalidates the rendered HTML cache afterwards.
 
 ## Uninstall
 

@@ -465,7 +465,7 @@ for i in "${!DOMAINS[@]}"; do
         continue
     fi
     set +e
-    bash "$STAGE/install.sh" --channel-check --docroot "$_dr" >/dev/null 2>&1
+    perl "$STAGE/install.pl" --channel-check --docroot "$_dr" >/dev/null 2>&1
     _cc=$?
     set -e
     if [ "$_cc" = 3 ]; then

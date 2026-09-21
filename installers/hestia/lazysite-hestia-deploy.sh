@@ -37,7 +37,11 @@ U="$1"; DOMAIN="$2"
 STAGE="${3:-$(cd "$(dirname "$0")/../.." && pwd)}"
 [ -n "$U" ] && [ -n "$DOMAIN" ] || { echo "usage: $0 USER DOMAIN [STAGE_DIR]" >&2; exit 2; }
 [ "$(id -u)" = 0 ] || { echo "$0: must run as root (it sets ownership/perms)" >&2; exit 1; }
-[ -f "$STAGE/install.sh" ] || { echo "$0: no install.sh under STAGE '$STAGE'" >&2; exit 2; }
+# SM892 D4: install.sh is now a signpost that refuses everything, so this
+# script drives install.pl - the implementation - directly, with an explicit
+# --mode. Going through the wrapper would hit the refusal; going through it
+# *without* a mode is what the ruling forbids.
+[ -f "$STAGE/install.pl" ] || { echo "$0: no install.pl under STAGE '$STAGE'" >&2; exit 2; }
 
 HESTIA=/usr/local/hestia
 DOM="/home/$U/web/$DOMAIN"
@@ -53,7 +57,7 @@ LZ="$(lazysite_dir "$DOC")"
 # corrective permission pass) left skipped sites half-configured and 500ing.
 # Read-only (lazysite.conf + manifest); run as root so it can always read them.
 set +e
-bash "$STAGE/install.sh" --channel-check --docroot "$DOC"
+perl "$STAGE/install.pl" --channel-check --docroot "$DOC"
 CC=$?
 set -e
 if [ "$CC" = 3 ]; then
@@ -98,7 +102,7 @@ fi
 
 echo "==> install.pl --mode $MODE (as $U)"
 set +e
-sudo -u "$U" bash "$STAGE/install.sh" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI"
+sudo -u "$U" perl "$STAGE/install.pl" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI"
 IRC=$?
 set -e
 # Exit 3 = the install was skipped by the site's update-channel policy (this site
@@ -118,7 +122,7 @@ fi
 # stamped version: catches a partial/stale deploy (the "version reports X but the
 # running code is Y" gap) instead of letting it pass silently.
 echo "==> verifying installed code matches the release manifest"
-if ! sudo -u "$U" bash "$STAGE/install.sh" --verify --docroot "$DOC" --cgibin "$CGI"; then
+if ! sudo -u "$U" perl "$STAGE/install.pl" --verify --docroot "$DOC" --cgibin "$CGI"; then
   echo "ERROR: post-deploy verification FAILED - installed code does not match the" >&2
   echo "       release, so the reported version would not reflect the running code." >&2
   echo "       Check permissions / a stale cgi-bin copy, then re-run the deploy." >&2

@@ -43,6 +43,8 @@ elsif ( $verb eq 'help' || $verb =~ /^-{0,2}help$|^-h$/ ) { usage(0) }
 elsif ( $verb eq 'provision' )                            { exit cmd_provision() }
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
 elsif ( $verb eq 'reinstall' )                            { exit cmd_reinstall() }
+elsif ( $verb eq 'backups' )                              { exit cmd_backups() }
+elsif ( $verb eq 'channel' || $verb eq 'policy' )         { exit cmd_site_setting($verb) }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' ) {
     my $targets = extract_site_targets( \@ARGV );
@@ -108,25 +110,47 @@ checkout/tarball root when run from a source tree.
 
 Verbs:
   provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified]
-            [--policy auto|manual]
+            [--policy auto|manual] [--dry-run]
         Install a site that does not exist yet, from the host payload.
         Runs as the SITE USER, never root (ownership correct by
         construction), and records the site in the registry at
         /etc/lazysite/sites.d/. REFUSES a site that is already
         installed, and names the verb you wanted.
         (You install the PACKAGE; you provision a SITE.)
-  upgrade --docroot D [--cgibin C] [--force]
+  upgrade --docroot D [--cgibin C] [--force] [--dry-run]
         Move an installed site to the payload's version, as the site
         user. --cgibin defaults to the site's registry entry. REFUSES a
         docroot with nothing installed, and refuses when the site is
         already at this version - that is `reinstall`.
-  reinstall --docroot D [--cgibin C]
+        --dry-run reports the plan and changes nothing - run it before
+        committing an upgrade. Single-site only; it does not combine
+        with --all.
+  reinstall --docroot D [--cgibin C] [--dry-run]
         Re-lay this version's files over a site that already has it,
         leaving content, accounts and config alone. For a site whose
         engine files were edited or lost. REFUSES when the versions
         differ - changing version is an upgrade.
         (Not `repair`, which touches no files and fixes ownership,
         modes and missing directories instead.)
+  backups --docroot D [--restore [--backup PATH]]
+          [--restore-full FILE [--domain NAME]]
+        List the backups taken before each upgrade and reinstall, or
+        put one back. --restore alone takes the most recent;
+        --backup PATH takes that one. Restoring runs as the SITE
+        USER, never root. It leaves runtime state (accounts, cache,
+        logs) alone and invalidates the rendered HTML afterwards.
+        --restore-full takes a manager "full" backup instead, and
+        --domain rewrites the site's domain as it lands - the
+        temporary-domain to final-domain migration path. That tarball
+        carries the auth secrets, which is why it is a command here
+        and not a button in the manager.
+  channel edge|beta|stable|certified --docroot D | --domain NAME | --all
+        Set which builds a site accepts. The ladder is
+        edge < beta < stable < certified: a site takes builds at its
+        own maturity or above. To READ what a site is on, `sites`.
+  policy auto|manual --docroot D | --domain NAME | --all
+        Whether `upgrade --all` may touch this site. 'manual' is the
+        default and means only a deliberate per-site upgrade does.
   upgrade --all [--force | --force-security]
         Upgrade every registered site. As root, drops to each site's
         owner via sudo -u; as a normal user, refuses unless every
@@ -333,6 +357,12 @@ sub _install_argv {
     my @cmd = ( $^X, payload_root() . '/install.pl',
         '--docroot', $docroot, '--cgibin', $cgibin, '--mode', $o{mode} );
     push @cmd, '--force' if $o{force};
+    # SM892 D5: starter/docs/install.md has documented `--dry-run` as the thing
+    # to run before committing an upgrade since the installer was the operator's
+    # command. The verb had no way to ask for it, so repointing that document at
+    # the verb would have meant either dropping the advice or naming install.pl
+    # in it - and naming the implementation is the second spelling coming back.
+    push @cmd, '--dry-run' if $o{dry_run};
     return @cmd;
 }
 
@@ -621,13 +651,17 @@ sub site_version {
 # ---------- verbs ----------
 
 sub cmd_provision {
-    my %o = ( docroot => '', cgibin => '', domain => '', channel => '', policy => '' );
+    my %o = (
+        docroot => '', cgibin => '', domain  => '',
+        channel => '', policy => '', dry_run => 0,
+    );
     Getopt::Long::GetOptions(
         'docroot=s' => \$o{docroot},
         'cgibin=s'  => \$o{cgibin},
         'domain=s'  => \$o{domain},
         'channel=s' => \$o{channel},
         'policy=s'  => \$o{policy},
+        'dry-run'   => \$o{dry_run},
     ) or usage(2);
     refuse_root('provision');
     usage_error('provision needs --docroot and --cgibin')
@@ -638,9 +672,20 @@ sub cmd_provision {
         if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
 
     my $root = payload_root();
-    my @cmd  = _install_argv( $o{docroot}, $o{cgibin}, mode => 'provision' );
+    my @cmd  = _install_argv( $o{docroot}, $o{cgibin},
+        mode => 'provision', dry_run => $o{dry_run} );
     push @cmd, '--domain', $o{domain} if length $o{domain};
     run_or_fail(@cmd);
+
+    # A dry run stops at the plan. The three passes below all WRITE - two conf
+    # keys and a registry file - and a preview that leaves a registry entry
+    # behind for a site that was never installed is the shape SM892 is about:
+    # the operator finding out afterwards what the command decided to do.
+    if ( $o{dry_run} ) {
+        print "lazysite: --dry-run, so nothing was written"
+            . " (no channel, no policy, no registry entry).\n";
+        return 0;
+    }
 
     # install.pl --channel / --policy are standalone maintenance ops (set
     # the conf key, no install), so they run as second passes.
@@ -665,14 +710,24 @@ sub cmd_provision {
 }
 
 sub cmd_upgrade {
-    my %o = ( docroot => '', cgibin => '', all => 0, force => 0, force_security => 0 );
+    my %o = (
+        docroot => '', cgibin         => '', all     => 0,
+        force   => 0,  force_security => 0,  dry_run => 0,
+    );
     Getopt::Long::GetOptions(
         'docroot=s'      => \$o{docroot},
         'cgibin=s'       => \$o{cgibin},
         'all'            => \$o{all},
         'force'          => \$o{force},
         'force-security' => \$o{force_security},
+        'dry-run'        => \$o{dry_run},
     ) or usage(2);
+    # --dry-run is a single-site preview. Across a fleet it would report 26
+    # plans and change nothing, which reads as a completed upgrade run to
+    # anybody skimming - and 'preview looks like apply' is the failure this
+    # whole filing is about.
+    usage_error('--dry-run is a single-site preview; it does not combine with --all')
+        if $o{dry_run} && $o{all};
     # --force-security is only as strong as the release's own declaration: it
     # is honoured (as a full channel+policy override, i.e. --force) ONLY when
     # the payload manifest carries "security_critical": true. Verified up
@@ -704,8 +759,14 @@ sub cmd_upgrade {
     my $docroot = _resolve_docroot( \%o );
     my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
 
-    run_or_fail( _install_argv( $docroot, $cgibin, mode => 'upgrade', force => $o{force} ) );
-    _say_what_needs_restarting($docroot);
+    run_or_fail( _install_argv( $docroot, $cgibin,
+            mode => 'upgrade', force => $o{force}, dry_run => $o{dry_run} ) );
+
+    # Nothing was replaced, so nothing is holding the previous engine. Saying
+    # "restart these" after a preview would teach the operator that the line
+    # means nothing, which is how the runbook's own restart line came to be
+    # ignored for four releases.
+    _say_what_needs_restarting($docroot) unless $o{dry_run};
     return 0;
 }
 
@@ -725,10 +786,11 @@ sub cmd_upgrade {
 # one puts the shipped files back. A site whose engine was edited wants this;
 # a site whose permissions drifted wants repair.
 sub cmd_reinstall {
-    my %o = ( docroot => '', cgibin => '' );
+    my %o = ( docroot => '', cgibin => '', dry_run => 0 );
     Getopt::Long::GetOptions(
         'docroot=s' => \$o{docroot},
         'cgibin=s'  => \$o{cgibin},
+        'dry-run'   => \$o{dry_run},
     ) or usage(2);
 
     refuse_root('reinstall');
@@ -736,11 +798,110 @@ sub cmd_reinstall {
     my $docroot = _resolve_docroot( \%o );
     my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
 
-    run_or_fail( _install_argv( $docroot, $cgibin, mode => 'reinstall' ) );
+    run_or_fail( _install_argv( $docroot, $cgibin,
+            mode => 'reinstall', dry_run => $o{dry_run} ) );
 
     # The same reason upgrade says it: a worker holding engine code in memory
-    # goes on serving the code this just replaced.
-    _say_what_needs_restarting($docroot);
+    # goes on serving the code this just replaced. And the same reason upgrade
+    # stays quiet on a preview: nothing was replaced.
+    _say_what_needs_restarting($docroot) unless $o{dry_run};
+    return 0;
+}
+
+# SM892 D5: the recovery side of the same operation, given a verb for the same
+# reason the other three got one.
+#
+# `install.sh --restore` and `install.sh --list-backups` were documented in
+# starter/docs/install.md, and install.sh is now a signpost that refuses
+# everything - so those two blocks had to point somewhere. The choice was
+# between naming install.pl in an operator document, which D3 says stop doing,
+# and giving the operation a verb. A doc that reaches for the implementation
+# because the CLI has no word for the job is how the second spelling comes
+# back.
+#
+# The backups themselves are not new and are not written here: install.pl takes
+# one before every upgrade and reinstall, keeps `backup_retention` of them
+# (default 3), and this reads and restores what it wrote.
+sub cmd_backups {
+    my %o = ( docroot => '', restore => 0, backup => '', restore_full => '', domain => '' );
+    Getopt::Long::GetOptions(
+        'docroot=s'      => \$o{docroot},
+        'restore'        => \$o{restore},
+        'backup=s'       => \$o{backup},
+        'restore-full=s' => \$o{restore_full},
+        'domain=s'       => \$o{domain},
+    ) or usage(2);
+
+    usage_error('backups needs --docroot') unless length $o{docroot};
+    usage_error('--backup names the tarball to restore, so it needs --restore')
+        if length $o{backup} && !$o{restore};
+    usage_error('--restore-full takes the tarball itself; do not also pass --restore')
+        if length $o{restore_full} && $o{restore};
+    usage_error( '--domain rewrites the site domain of a --restore-full, '
+            . 'so it needs one' )
+        if length $o{domain} && !length $o{restore_full};
+
+    # Listing is read-only and safe as anyone who can read the tree. Restoring
+    # WRITES into the site, and doing that as root leaves root-owned files the
+    # site user cannot then overwrite - the failure `provision` refuses root to
+    # avoid. So the refusal is on the writing half only.
+    refuse_root('backups --restore') if $o{restore} || length $o{restore_full};
+
+    my $docroot = _resolve_docroot( \%o );
+    my @cmd     = ( $^X, payload_root() . '/install.pl', '--docroot', $docroot );
+    if ( length $o{restore_full} ) {
+        push @cmd, '--restore-full', $o{restore_full};
+        push @cmd, '--domain',       $o{domain} if length $o{domain};
+    }
+    else {
+        push @cmd, $o{restore} ? '--restore' : '--list-backups';
+        push @cmd, '--backup', $o{backup} if length $o{backup};
+    }
+    run_or_fail(@cmd);
+    return 0;
+}
+
+# SM892 D5: the update channel and the update policy, which four documents told
+# the operator to set by running install.pl.
+#
+# That is not a second spelling of install or upgrade, so the ruling's U3 does
+# not reach it - but D3 does: install.pl is the implementation the CLI drives,
+# and an operator-facing document that reaches past the CLI to the
+# implementation is how the CLI comes to be the second-best way to do things.
+#
+# --all is the substantive gain over what those documents said. install.pl's own
+# comment offered a shell loop over docroots, because "lazysite has no central
+# site registry - the host knows the sites". It has had one since SM139, and
+# `upgrade --all`, `check --all` and `repair --all` all read it. A channel
+# decision is exactly the kind that arrives for a whole fleet at once.
+sub cmd_site_setting {
+    my ($verb) = @_;
+    my %ok = (
+        channel => [ 'edge beta stable certified', qr/\A(?:edge|beta|stable|certified)\z/ ],
+        policy => [ 'auto manual', qr/\A(?:auto|manual)\z/ ],
+    );
+    my ( $words, $pattern ) = @{ $ok{$verb} };
+
+    # BEFORE GetOptions, which is where --all and --domain are consumed - the
+    # same order the pass-through verbs use.
+    my $targets = extract_site_targets( \@ARGV );
+    my %o       = ( docroot => '' );
+    Getopt::Long::GetOptions( 'docroot=s' => \$o{docroot} ) or usage(2);
+
+    my $value = shift @ARGV;
+    usage_error( "$verb needs the value to set (" . join( '|', split ' ', $words )
+            . "). To READ what a site is on, use `lazysite sites`." )
+        unless defined $value && length $value;
+    fail("$verb must be one of: $words") unless $value =~ $pattern;
+    usage_error("$verb takes one value, not: $value @ARGV") if @ARGV;
+
+    return run_tool_per_site( 'install.pl', $targets, [ "--$verb", $value ] )
+        if $targets;
+
+    usage_error("$verb needs --docroot, --domain NAME or --all")
+        unless length $o{docroot};
+    run_or_fail( $^X, payload_root() . '/install.pl',
+        '--docroot', _resolve_docroot( \%o ), "--$verb", $value );
     return 0;
 }
 

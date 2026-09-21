@@ -83,14 +83,27 @@ arbitrary tree is left untouched (force seeding off anywhere with `--no-seed`).
 
 ## Installation
 
-    sudo bash install.sh --docroot /path/to/public_html \
-                         --cgibin /path/to/cgi-bin \
-                         --domain example.com
+You install lazysite on a host; you *provision* a site. Three site verbs, and
+you say which one you mean - none of them guesses from the state of the disk:
 
-The installer is upgrade-aware: re-run against the same `--docroot`
-to apply a new release. Seed files you've edited are preserved;
-backups accumulate at `{docroot}/lazysite/backups/`. Use
-`--dry-run` to preview an upgrade, `--restore` to roll back.
+    lazysite provision --docroot /path/to/public_html \
+                       --cgibin /path/to/cgi-bin \
+                       --domain example.com
+    lazysite upgrade   --docroot /path/to/public_html
+    lazysite reinstall --docroot /path/to/public_html
+
+`provision` refuses a docroot that already has a site; `upgrade` refuses one
+that has none, and refuses a site already at this version - that is
+`reinstall`, which re-lays this version's files and leaves content, accounts
+and config alone. All three run as the site's user and refuse root.
+
+From an unpacked tarball, before any package is installed, the same verbs work
+out of the tree: `perl tools/lazysite-cli.pl provision ...`. (`install.sh`
+installs nothing; it prints the three verbs and exits.)
+
+Seed files you've edited are preserved; code is always refreshed. `--dry-run`
+previews without writing anything, `lazysite backups --docroot D` lists the
+backups at `{docroot}/lazysite/backups/` and `--restore` puts one back.
 
 HestiaCP users: see `installers/hestia/`. Docker: see `installers/docker/`.
 

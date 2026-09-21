@@ -73,7 +73,9 @@ Per-domain onboarding (3 steps)
    writes into the site tree, ownership correct by construction. It
    registers the site in /etc/lazysite/sites.d/ for fleet tooling
    (`lazysite sites`, `lazysite upgrade --all`). `--channel` /
-   `--policy` pass through to provisioning.
+   `--policy` pass through to provisioning; afterwards they are
+   `lazysite channel <value>` and `lazysite policy <value>`, which take
+   `--docroot`, `--domain <site>` or `--all`.
 
    With --fcgi it also writes /etc/lazysite/pools/<domain>.conf and
    runs `systemctl enable --now lazysite@<domain>`: a persistent

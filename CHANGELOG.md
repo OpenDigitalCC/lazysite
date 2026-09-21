@@ -44,6 +44,43 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM892 (PENDING) **installing a site, upgrading it and re-laying its files are
+  three commands, and the operator says which.** The installer used to read
+  `.install-state.json` and decide for itself. On 2026-09-15 an operator walked
+  the published install page, ran the command it gave on a **live** site, and
+  was told *"Next steps: 1. Create the first account. A fresh install has NO
+  accounts"* — one command wearing two hats, speaking from the wrong one,
+  because nothing had ever asked what they meant. Now: `lazysite provision`,
+  `lazysite upgrade`, `lazysite reinstall`. Each checks the declaration against
+  the site and refuses the other two **by name, with the version it found**;
+  `install.pl` requires `--mode` and chooses nothing. `reinstall` is a verb of
+  its own — re-lay this version's files, leave content, accounts and config
+  alone — and is not `repair`, which touches no files at all.
+
+  **One way, on both distributions.** The same verb works from an unpacked
+  tarball with no package installed (`perl tools/lazysite-cli.pl provision …`),
+  because the payload is resolved relative to the command. A tarball is how the
+  code reaches a host, not a second way to install a site. `install.sh` prints
+  the three verbs and exits 2; the two Hestia scripts that called it now drive
+  `install.pl` directly with an explicit mode.
+
+  **Nineteen readers repointed**, because the same task was named four ways
+  depending on which file you opened and each file was internally consistent:
+  README, the published install page, UPGRADE (which now states the one way
+  once, at the top, for every release below it), OPERATOR, FEATURES,
+  development, the configuration and reference pages, the manager guide, two
+  deb READMEs. `t/lint/149` holds every tracked file to it — excepting only
+  where the project records history — and sabotage confirms all eight of its
+  branches bite.
+
+  **Five operations gained verbs rather than a pointer back to the
+  implementation**: `lazysite backups` (list, `--restore`, `--restore-full`
+  with `--domain`), `--dry-run` on all three site verbs, and `lazysite channel`
+  / `lazysite policy`, which take `--docroot`, `--domain NAME` or `--all`
+  where the installer had offered a shell loop over docroots. `--dry-run` is a
+  true preview: `provision` stops before the registry write too, and no verb
+  asks for a restart it did not make necessary. Docs: `t/tools/86`.
+
 - (PENDING) **the practice briefing dates its sources by when the text
   changed, not when the file was touched.** `t/lint/89` regenerates the served
   briefing and compares it with the committed copy, and it was failing **on

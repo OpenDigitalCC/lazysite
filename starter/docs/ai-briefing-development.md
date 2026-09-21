@@ -26,7 +26,7 @@ lazysite/
   lazysite-manager-api.pl      # manager JSON API
   plugins/payment-demo.pl     # x402 payment demo helper
   plugins/log.pl              # shared log helper (optional)
-  install.sh                   # system installer (HestiaCP + Apache)
+  install.sh                   # signpost to the `lazysite` verbs; installs nothing
   tools/
     lazysite-server.pl         # dev server
     lazysite-users.pl          # user management CLI

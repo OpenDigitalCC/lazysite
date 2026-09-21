@@ -85,7 +85,7 @@ Directory scan
 `update_policy`
 : `auto` or `manual` (default). Whether the fleet-wide
   `lazysite upgrade --all` run on deb-managed hosts upgrades this site;
-  `manual` sites are skipped. Set with `install.pl --policy`.
+  `manual` sites are skipped. Set with `lazysite policy auto|manual`.
 
 `log_level`
 : One of `ERROR`, `WARN`, `INFO`, `DEBUG`. Default: `INFO`.

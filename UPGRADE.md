@@ -1,5 +1,50 @@
 # Upgrade notes
 
+## How to upgrade — the one way, for every release below
+
+This does not change per release, so it is stated once, here. Install the newer
+lazysite on the host, then move each site to it:
+
+```bash
+lazysite upgrade --docroot /path/to/public_html          # one site
+sudo lazysite upgrade --all                              # every registered site
+```
+
+`--dry-run` on the single-site form reports the plan and writes nothing.
+From an unpacked tarball, before any package is installed, the same verb works
+out of the tree: `perl tools/lazysite-cli.pl upgrade --docroot ...`.
+
+**You say which operation you mean.** Nothing infers it from the state of the
+disk, and each verb refuses rather than quietly doing one of the others:
+
+| Verb | For | Refuses |
+| --- | --- | --- |
+| `provision` | a site that does not exist yet | a docroot that already has one |
+| `upgrade` | moving an installed site to this version | nothing installed, or already at this version |
+| `reinstall` | re-laying THIS version's files over a site that has them, leaving content, accounts and config alone | a version mismatch — that is an upgrade |
+
+Not `reinstall` but `repair` when the files are right and the ownership, modes
+or missing directories are not: `repair` touches no files.
+
+Backups are written before every upgrade and reinstall:
+
+```bash
+lazysite backups --docroot /path/to/public_html            # list
+lazysite backups --docroot /path/to/public_html --restore  # most recent back
+```
+
+`install.sh` installs nothing. It is kept as a signpost to the verbs above,
+because the documentation named it for years and deleting it would strand
+anyone still typing it.
+
+**After an upgrade, restart anything holding engine code.** A plain CGI site
+reads the engine fresh per request and needs nothing. A site on the persistent
+runtime or the FastCGI pool has the previous engine in memory; the single-site
+verbs name the units, and `upgrade --all` (root) restarts them itself.
+
+Sections below are per-release notes, newest first. Where an older section says
+`install.sh`, read it as a record of what that release did.
+
 ## Upgrading to 0.13.13 from 0.13.12
 
 **This release breaks how form delivery is written, and converts it for you.**
@@ -511,8 +556,10 @@ they need Apache's `mod_headers`. See
 ## 0.2.x to 0.3.0
 
 The installer is now upgrade-aware. This is the first version
-with safe in-place upgrades; you can re-run `install.sh` to
-pick up future releases without losing site content.
+with safe in-place upgrades: a later release can be applied to a
+site without losing its content. (0.3.0 reached that by re-running
+`install.sh`; today it is `lazysite upgrade` - see *How to upgrade*
+at the top.)
 
 ### What this enables
 
@@ -527,8 +574,8 @@ pick up future releases without losing site content.
   `{docroot}/lazysite/backups/`, retained per
   `backup_retention` in `lazysite.conf` (default 3; 0 = keep
   all).
-- `install.sh --dry-run` shows the full upgrade plan without
-  modifying anything.
+- `--dry-run` shows the full upgrade plan without modifying
+  anything.
 
 ### What does NOT get migrated
 
@@ -543,22 +590,17 @@ on an existing deployment.
 
 ### If upgrade goes wrong
 
-Every upgrade creates a backup first. To restore:
+Every upgrade creates a backup first. To list them:
 
 ```bash
-bash install.sh --docroot /path/to/public_html --restore
+lazysite backups --docroot /path/to/public_html
 ```
 
-To list available backups:
+To restore the most recent, or a specific one:
 
 ```bash
-bash install.sh --docroot /path/to/public_html --list-backups
-```
-
-To restore a specific backup:
-
-```bash
-bash install.sh --docroot /path/to/public_html --restore --backup PATH
+lazysite backups --docroot /path/to/public_html --restore
+lazysite backups --docroot /path/to/public_html --restore --backup PATH
 ```
 
 Restore does not touch runtime state (auth users, cache,
@@ -672,8 +714,10 @@ installer lands (D021c).
    `/cgi-bin/lazysite-*.pl` paths.
 2. Take a backup of your site. (The upgrade-safe installer arrives
    in 0.3.0; for now, backup is manual.)
-3. Extract `lazysite-0.2.0.tar.gz` and run `install.sh` with the
-   same `--docroot` and `--cgibin` you used for 0.1.0.
+3. Extract `lazysite-0.2.0.tar.gz` and apply it to the same
+   `--docroot` and `--cgibin` you used for 0.1.0. (0.2.0 was
+   installed by re-running `install.sh`; today that is
+   `lazysite upgrade` - see *How to upgrade* at the top.)
 4. The installer places new plugins under
    `{docroot}/../plugins/`. Old plugin files left over from 0.1.0
    in `/cgi-bin/` or `{docroot}/../` can be removed manually once

@@ -284,27 +284,45 @@ either matching an existing rule or adding a rule/override.
 
 ## Installer (install.pl)
 
-`install.pl` at repo root is the real installer; `install.sh`
-is a thin `exec perl install.pl "$@"` wrapper that preserves
-the historic invocation. The Perl script reads
-`release-manifest.json` at the tarball root and tracks
-installed state at `{docroot}/lazysite/.install-state.json`.
+`install.pl` at repo root is the real installer, and it is
+not the operator's command: `tools/lazysite-cli.pl` drives it
+through the `provision`, `upgrade` and `reinstall` verbs
+(SM892 D3). `install.sh` is a signpost to those verbs and
+installs nothing - the Hestia scripts, which need the
+implementation rather than the verb, call `install.pl`
+directly with an explicit `--mode`.
 
-### Three modes
+The Perl script reads `release-manifest.json` at the tarball
+root and tracks installed state at
+`{docroot}/lazysite/.install-state.json`.
 
-The mode is decided by whether `.install-state.json` exists
-at the destination:
+### Three modes, DECLARED not inferred
 
-- **fresh**: no state file. Walk the manifest, install
-  everything, write state. No backup (nothing to back up).
-- **upgrade**: state file present, manifest version differs.
+The mode comes from `--mode provision|upgrade|reinstall`,
+which is required. It used to be read off the disk - no state
+file meant fresh, a version difference meant upgrade, the
+same version meant reinstall - and `declared_mode()` now
+checks the declaration against that same state and refuses a
+mismatch instead of silently doing the other thing. SM892:
+an operator ran the documented command on a live site and was
+told "Next steps: 1. Create the first account", because the
+installer had decided it was doing a reinstall and nothing
+had asked what they meant.
+
+- **provision** (`fresh` internally): expects no state file.
+  Walk the manifest, install everything, write state. No
+  backup (nothing to back up). REFUSED if a site is already
+  installed there.
+- **upgrade**: expects a state file at a different version.
   Compare manifest against state per-file: overwrite code
   always, preserve operator-edited seed, remove unedited
   orphans, leave edited orphans with a warning. Back up
-  everything tracked in state before any changes.
-- **reinstall**: state present, same version. Same logic as
-  upgrade; used to recover from corruption or re-apply after
-  manual edits.
+  everything tracked in state before any changes. REFUSED
+  with nothing installed; already current is a no-op.
+- **reinstall**: expects a state file at the SAME version.
+  Same logic as upgrade; re-lays this version's files over a
+  site whose engine was edited or lost. REFUSED when the
+  versions differ.
 
 ## The tidy gate is changed-code-only, deliberately
 
@@ -358,8 +376,9 @@ next upgrade.
 ### Restore
 
 `install.pl --restore` takes the system back to a backed-up
-state. Without `--backup PATH`, it picks the most recent
-backup. Restore:
+state - reached by an operator as
+`lazysite backups --docroot D --restore`. Without
+`--backup PATH`, it picks the most recent backup. Restore:
 
 - Extracts the backup to a temp dir.
 - Reads the backup's `.install-state.json`.

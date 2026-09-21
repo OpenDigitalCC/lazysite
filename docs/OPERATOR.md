@@ -73,14 +73,16 @@ the fleet, check what each site actually accepts rather than what the
 default used to be.
 :::
 
-Set or move it without hand-editing the conf, and loop over docroots for
-a whole fleet:
+Set or move it without hand-editing the conf - one site, one named site, or
+the whole fleet:
 
 ```bash
-install.pl --channel stable --docroot <docroot>   # customer rollout
-install.pl --channel beta   --docroot <docroot>   # bedded-in candidate
-install.pl --channel edge   --docroot <docroot>   # every build
+lazysite channel stable --docroot <docroot>    # customer rollout
+lazysite channel beta   --domain <site>       # bedded-in candidate
+sudo lazysite channel edge --all              # every build, every site
 ```
+
+`lazysite sites` reports what each site is on.
 
 Force one specific out-of-channel upgrade through the policy with `--force`
 (audited as `upgrade-forced`).
@@ -102,7 +104,8 @@ Two per-site keys in `lazysite.conf` gate `upgrade --all`:
 - `update_policy: auto|manual` (default `manual`) - whether the fleet run
   (typically cron-driven) touches the site at all. `manual` sites are skipped
   and logged; upgrade them individually when you choose. Set it with
-  `install.pl --policy auto --docroot <docroot>` (audited as `policy-set`).
+  `lazysite policy auto --docroot <docroot>` - or `--domain <site>` / `--all`
+  (audited as `policy-set`).
 - `update_channel` (above) - an `auto` site still takes only a payload its
   channel accepts; the skip is the installer's usual clean exit-3, audited.
 
@@ -358,8 +361,9 @@ different question, and not a substitute for this one.
 ## Backups
 
 Back up the whole `<docroot>` tree; `lazysite/` carries all state (users,
-content provenance, ACLs, config). `install.pl` also writes a timestamped
-backup before each upgrade.
+content provenance, ACLs, config). lazysite also writes a timestamped backup
+before each upgrade and reinstall; `lazysite backups --docroot <docroot>` lists
+them and `--restore` puts one back.
 
 The manager **Backups** page offers two typed kinds:
 
@@ -370,7 +374,8 @@ The manager **Backups** page offers two typed kinds:
   manager and restored by a system user from the shell:
 
   ```bash
-  install.pl --restore-full <file>.tar.gz --docroot <docroot> [--domain <new-domain>]
+  lazysite backups --docroot <docroot> \
+      --restore-full <file>.tar.gz [--domain <new-domain>]
   ```
 
   `--domain` rewrites the site's domain on restore - the path for **migrating a

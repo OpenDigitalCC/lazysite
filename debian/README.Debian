@@ -26,8 +26,11 @@ the start - no chown-after repair pass:
         --cgibin  /home/siteuser/web/example.com/cgi-bin \
         --domain  example.com
 
-`lazysite provision` and `lazysite upgrade` refuse to run as root by
-design. The single exception is the fleet verb:
+`lazysite provision`, `lazysite upgrade` and `lazysite reinstall` refuse
+to run as root by design. WHICH OF THE THREE IT IS, IS YOURS TO SAY -
+none of them reads the state of the disk and decides for itself, and each
+refuses and names the right verb rather than doing another one quietly
+(SM892). The single exception to the root refusal is the fleet verb:
 
     sudo lazysite upgrade --all
 

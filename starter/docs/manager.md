@@ -229,7 +229,8 @@ kill them. Revocations are recorded in the audit trail.
 `/manager/backups`. Typed snapshot sections - **Content backups** (create,
 download, in-app restore with an automatic pre-restore safety snapshot) and
 **Full-system backups** (download only; restored by a system user with
-`install.pl --restore-full`, since they carry the auth secrets). Backups
+`lazysite backups --docroot D --restore-full FILE`, since they carry the auth
+secrets). Backups
 are the disaster-recovery mechanism, including config and secrets;
 day-to-day content versioning lives in the **Content history** extension
 (Extension Manager / Extension Config). Theme and layout snapshots are managed
