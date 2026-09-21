@@ -99,21 +99,33 @@ subtest 'every named commit is reachable from main' => sub {
     # A SHA-carrying entry claims the work has landed. `(PENDING)` is the
     # spelling for work still on a branch, and this check is what makes the
     # distinction mean something.
+    # SM896: `main` MAY NOT EXIST HERE. release.sh runs this suite inside a
+    # staging clone, and a local clone carries only the launching worktree's
+    # current branch as a local ref - everything else is origin/*. The third
+    # 0.14.3 cut was launched from a worktree on a fix branch, the clone had no
+    # local `main`, `merge-base --is-ancestor X main` failed for EVERY ref, and
+    # a tree that had passed this gate three times that day was reported as
+    # citing commits "not on main". Giving the clone a local main made it
+    # pass. So the branch is resolved once: local main where there is one,
+    # origin/main where there is not - and the diagnostic names which.
+    my $main = system("git -C \Q$root\E rev-parse --verify -q main >/dev/null 2>&1") == 0
+        ? 'main'
+        : 'origin/main';
     my @unlanded = grep {
-        system( "git -C \Q$root\E merge-base --is-ancestor \Q$_\E main"
+        system( "git -C \Q$root\E merge-base --is-ancestor \Q$_\E \Q$main\E"
                 . " 2>/dev/null" ) != 0
     } grep {
         system("git -C \Q$root\E cat-file -e \Q$_\E 2>/dev/null") == 0
     } @refs;
 
     is_deeply( \@unlanded, [],
-        'no changelog entry cites a commit that is not on main' )
+        "no changelog entry cites a commit that is not on $main" )
         or diag( join "\n  ",
         '',
         @unlanded,
         '',
         'These exist and are on SOME branch, which is why the checks above '
-            . 'passed. They are not on main. Almost certainly stamped before '
+            . "passed. They are not on $main. Almost certainly stamped before "
             . 'vcs-review landed the branch - landing rebases, so the ref '
             . 'changes. Use (PENDING) until it lands, then stamp.' );
 };

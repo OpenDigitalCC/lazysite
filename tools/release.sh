@@ -30,6 +30,12 @@
 #   --notes FILE    release-notes file. Default: use the target
 #                   commit's own commit message.
 #   --commit REF    SHA or ref to release. Default: origin/main HEAD.
+#                   PREFER THE SHA. The ref is resolved INSIDE the staging
+#                   clone, and a local clone carries only the launching
+#                   worktree's current branch as a local ref - launched from
+#                   a worktree on a feature branch, `--commit main` was
+#                   "unknown revision" and the cut died before its gate
+#                   (0.14.3, third attempt). A SHA resolves anywhere.
 #   --beta          mark the release 'beta' on the channel ladder
 #                   (edge < beta < stable < certified): a bedded-in
 #                   candidate for sites that want tested builds.
