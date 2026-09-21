@@ -86,9 +86,19 @@ for tgt in "$DOC" "$LZ" "$CGI" "$DOM/lib" "$DOM/plugins" "$DOM/tools"; do
   [ -e "$tgt" ] && chown -R "$U":www-data "$tgt" 2>/dev/null || true
 done
 
-echo "==> install.pl (as $U)"
+# SM892: DECLARE WHICH OF THE TWO THIS IS. install.pl no longer infers it, and
+# this script already knows the answer - the state file it read above is the
+# same fact the installer used to read for itself. So the decision is made once,
+# here, by the script that has the context, and passed on.
+if [ -f "$STATE_FILE" ]; then
+  MODE=upgrade
+else
+  MODE=provision
+fi
+
+echo "==> install.pl --mode $MODE (as $U)"
 set +e
-sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
+sudo -u "$U" bash "$STAGE/install.sh" --mode "$MODE" --docroot "$DOC" --cgibin "$CGI"
 IRC=$?
 set -e
 # Exit 3 = the install was skipped by the site's update-channel policy (this site

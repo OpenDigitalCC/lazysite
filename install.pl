@@ -79,14 +79,35 @@ sub usage {
     print <<'USAGE';
 Usage: install.pl --docroot PATH --cgibin PATH [options]
 
-Install or upgrade lazysite in-place. On first run, creates a
-fresh installation from the shipped manifest. On subsequent
-runs, upgrades while preserving operator-edited content (pages,
-custom docs) and overwriting project-owned code.
+Install, upgrade or reinstall lazysite in-place, from the shipped
+manifest. WHICH OF THE THREE IS YOURS TO SAY (--mode): this script
+no longer decides from the state of the disk, because one command
+that picks for itself tells the operator afterwards which one
+happened. An operator-edited page is preserved on every mode;
+project-owned code is overwritten.
 
-Required (for install/upgrade):
+Most operators do not run this directly - the `lazysite` command
+does, and it is the one way documented:
+  lazysite provision --docroot DIR --cgibin DIR
+  lazysite upgrade   --docroot DIR
+  lazysite reinstall --docroot DIR
+
+Required (for install/upgrade/reinstall):
   --docroot PATH      Path to web document root
   --cgibin  PATH      Path to cgi-bin directory
+  --mode    provision|upgrade|reinstall
+                      What you are doing, and it is checked against
+                      the site rather than assumed:
+                        provision - a site that does not exist yet;
+                                    refused if one is already there
+                        upgrade   - move an installed site to this
+                                    version; refused if nothing is
+                                    installed. Already current is a
+                                    no-op, not a failure.
+                        reinstall - re-lay THIS version's files over a
+                                    site that already has it, keeping
+                                    content; refused if the versions
+                                    differ
 
 Optional:
   --domain  NAME      Domain name for lazysite.conf site_url
@@ -173,6 +194,7 @@ Getopt::Long::GetOptions(
     'policy=s'       => \$opt{policy},
     'restore-full=s' => \$opt{restore_full},
     'force'          => \$opt{force},
+    'mode=s'         => \$opt{mode},
 ) or do {
     print {*STDERR} "install.pl: unknown option (run --help for the option list)\n";
     exit 2;
@@ -592,15 +614,27 @@ sub cmd_install {
     my $state_path = state_path( $o->{docroot} );
     my $state      = load_state($state_path);
 
-    my $mode;
-    if ( !defined $state ) {
-        $mode = 'fresh';
+    # SM892 U2: THE OPERATOR SAYS WHICH, AND THIS CHECKS THEM.
+    #
+    # This block used to CHOOSE the mode from the state on disk: no state meant
+    # fresh, same version meant reinstall, anything else meant upgrade. So one
+    # command did three jobs and the operator found out afterwards which one
+    # had happened - the V3 walk ran the documented command on a running site
+    # and was told "A fresh install has NO accounts".
+    #
+    # Ruled 2026-09-15: "One place for install, and another for upgrade,
+    # because they should be purposefully chosen." The classifier is still
+    # here, and it is still the same three conditions - what changed is that it
+    # now answers "is that what this is?" instead of "what shall I call this?",
+    # and a mismatch is a refusal that names the right command.
+    my ( $mode, $refusal, $noop ) = declared_mode( $o, $state, $manifest );
+    if ( defined $refusal ) {
+        print {*STDERR} $refusal;
+        return 2;
     }
-    elsif ( $state->{version} eq $manifest->{version} ) {
-        $mode = 'reinstall';
-    }
-    else {
-        $mode = 'upgrade';
+    if ( defined $noop ) {
+        info($noop);
+        return 0;
     }
 
     info("Mode: $mode");
@@ -2025,6 +2059,115 @@ sub apply_retention {
         unlink "$backups[$i].sha256" if -f "$backups[$i].sha256";
         info( "  retired:   " . basename( $backups[$i] ) );
     }
+}
+
+# =========================================================
+# ---------- the declared mode (SM892) ----------
+# =========================================================
+
+# What the operator SAID they were doing, checked against what is on disk.
+#
+# Returns one of three things, and the third is why this is not a boolean:
+#
+#   ( $mode, undef, undef )     the declaration holds; get on with it
+#   ( undef, $refusal, undef )  the declaration is WRONG about this site - the
+#                               message names the verb they wanted, exit 2
+#   ( undef, undef, $noop )     the declaration is right and there is nothing
+#                               to do - say so and exit 0
+#
+# The no-op case is `upgrade` on a site already at the payload's version. It is
+# not an operator error and must not be reported as one: see the comment where
+# it is returned.
+#
+# THE THREE MODES ARE UNCHANGED and so are the conditions that tell them apart.
+# What changed is who decides: `--mode` is now required, and this compares it
+# with the state rather than deriving it. The same three facts, asked the other
+# way round.
+#
+# EVERY REFUSAL NAMES THE COMMAND THEY WANTED AND THE STATE IT FOUND. An
+# operator who chose wrongly has exactly one question - "then what should I
+# have run?" - and "already installed" without the version is a fact they have
+# to go and look up before they can act on it.
+#
+# The verbs, not the flags, are what the messages name: `--mode` is how the
+# CLI talks to this script, and `lazysite upgrade` is what a person types.
+sub declared_mode {
+    my ( $o, $state, $manifest ) = @_;
+
+    my $want = $o->{mode};
+    my $have = defined $state ? ( $state->{version} // '?' ) : undef;
+    my $to   = $manifest->{version} // '?';
+
+    unless ( defined $want && length $want ) {
+        # NOT a default. A default here is the guessing this removed, and the
+        # caller is always either the lazysite CLI or a script this repo ships,
+        # so an absent mode is a caller that was not updated.
+        return ( undef, "install.pl: --mode is required and must be one of "
+                . "provision, upgrade, reinstall.\n"
+                . "  install.pl no longer decides which of those you meant "
+                . "(SM892). Run one of:\n"
+                . "    lazysite provision --docroot DIR --cgibin DIR   # a site that does not exist yet\n"
+                . "    lazysite upgrade   --docroot DIR                # move an installed site forward\n"
+                . "    lazysite reinstall --docroot DIR                # re-lay this version, keeping content\n" );
+    }
+
+    unless ( $want =~ /\A(?:provision|upgrade|reinstall)\z/ ) {
+        return ( undef, "install.pl: --mode '$want' is not one of provision, "
+                . "upgrade, reinstall.\n" );
+    }
+
+    if ( $want eq 'provision' ) {
+        return ( 'fresh', undef ) unless defined $state;
+        return ( undef, "lazysite: this site is ALREADY INSTALLED, at $have.\n"
+                . "  provision is for a site that does not exist yet, so nothing was changed.\n"
+                . "  To move it to $to:        lazysite upgrade --docroot $o->{docroot}\n"
+                . "  To re-lay $have as it ships:  lazysite reinstall --docroot $o->{docroot}\n" );
+    }
+
+    if ( $want eq 'upgrade' ) {
+        unless ( defined $state ) {
+            return ( undef, "lazysite: NOTHING IS INSTALLED at $o->{docroot}.\n"
+                    . "  upgrade moves an installed site forward, so nothing was changed.\n"
+                    . "  To install it:  lazysite provision --docroot $o->{docroot} --cgibin DIR\n" );
+        }
+        if ( $have eq $to ) {
+            # ALREADY CURRENT IS A NO-OP, NOT A REFUSAL, and the distinction is
+            # load-bearing rather than pedantic.
+            #
+            # A refusal is for a declaration that is WRONG about the site. This
+            # one is not: the site is installed, the operator asked to move it
+            # forward, and there is simply nothing newer. `apt upgrade` with
+            # nothing to upgrade exits 0, and so does this.
+            #
+            # It also has to. `lazysite upgrade --all` crosses a fleet where
+            # some sites are already current - on the 0.14.2 rollout, most of
+            # them by the end - and every one of those used to resolve to the
+            # inferred `reinstall` and exit 0. Refusing here would turn a
+            # 29-site rollout's ordinary no-ops into 29 reported failures.
+            #
+            # The release manager's point stands and is answered by SAYING so:
+            # "upgrade of the same version is confusing" - so it names the verb
+            # that does re-lay the files, for an operator who meant that.
+            return ( undef, undef,
+                "lazysite: this site is already at $to - nothing to upgrade.\n"
+                    . "  To re-lay $to as it ships, keeping content:  "
+                    . "lazysite reinstall --docroot $o->{docroot}\n" );
+        }
+        return ( 'upgrade', undef );
+    }
+
+    # reinstall
+    unless ( defined $state ) {
+        return ( undef, "lazysite: NOTHING IS INSTALLED at $o->{docroot}.\n"
+                . "  reinstall re-lays the version a site already has, so nothing was changed.\n"
+                . "  To install it:  lazysite provision --docroot $o->{docroot} --cgibin DIR\n" );
+    }
+    if ( $have ne $to ) {
+        return ( undef, "lazysite: this site is at $have and the payload is $to.\n"
+                . "  reinstall re-lays the SAME version; changing version is an upgrade.\n"
+                . "  To move it to $to:  lazysite upgrade --docroot $o->{docroot}\n" );
+    }
+    return ( 'reinstall', undef );
 }
 
 # =========================================================

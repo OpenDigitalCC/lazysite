@@ -45,7 +45,7 @@ my $docroot = "$base/site";
 my $cgibin  = "$base/cgi-bin";
 make_path( $docroot, $cgibin );
 
-my $out = `$^X \Q$INSTALL\E --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
+my $out = `$^X \Q$INSTALL\E --mode provision --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
 is( $? >> 8, 0, 'install exited 0' ) or BAIL_OUT($out);
 
 subtest 'the install records the resolved directory modes' => sub {

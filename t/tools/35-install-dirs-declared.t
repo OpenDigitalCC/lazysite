@@ -193,7 +193,7 @@ subtest 'a site whose parent directory does not exist yet installs' => sub {
     my $docroot = "$base/nx/site/public_html";
     my $cgibin  = "$base/nx/cgi-bin";
 
-    my $out = `$^X \Q$INSTALL\E --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
+    my $out = `$^X \Q$INSTALL\E --mode provision --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
     is( $? >> 8, 0, 'install exited 0' ) or diag $out;
     ok( -d $docroot,        'the docroot was created' );
     ok( -d "$base/nx/site", 'and so was its parent, from its own declaration' );
@@ -207,7 +207,7 @@ subtest 'a fresh install creates the declared directories at the declared mode' 
     my $cgibin  = "$base/cgi-bin";
     make_path( $docroot, $cgibin );
 
-    my $out = `$^X \Q$INSTALL\E --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
+    my $out = `$^X \Q$INSTALL\E --mode provision --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
     is( $? >> 8, 0, 'install exited 0' ) or diag $out;
 
     my %want;

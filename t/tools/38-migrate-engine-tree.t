@@ -141,7 +141,7 @@ subtest 'installing over a migrated site does not recreate the tree' => sub {
     make_path( $d, $cgi );
 
     my $first = system( $^X, "$root/install.pl", '--docroot', $d,
-        '--cgibin', $cgi );
+        '--cgibin', $cgi, '--mode', 'provision' );
     is( $first, 0, 'a fresh install succeeds' );
     ok( -d "$d/lazysite", 'and puts the engine tree inside the docroot' );
 
@@ -149,7 +149,7 @@ subtest 'installing over a migrated site does not recreate the tree' => sub {
     is( $mv->{rc}, 0, 'the site migrates' ) or diag( $mv->{out} );
 
     my $second = system( $^X, "$root/install.pl", '--docroot', $d,
-        '--cgibin', $cgi );
+        '--cgibin', $cgi, '--mode', 'reinstall' );
     is( $second, 0, 'installing again over the migrated site succeeds' );
 
     ok( !-e "$d/lazysite",
@@ -170,7 +170,8 @@ subtest 'the health check still verifies a migrated site' => sub {
     my $d    = "$base/public_html";
     my $cgi  = "$base/cgi-bin";
     make_path( $d, $cgi );
-    system( $^X, "$root/install.pl", '--docroot', $d, '--cgibin', $cgi );
+    system( $^X, "$root/install.pl", '--docroot', $d, '--cgibin', $cgi,
+        '--mode', 'provision' );
     run_cli( 'migrate-engine-tree', '--docroot', $d, '--apply' );
 
     my $gname = getgrgid( ( stat $d )[5] ) // ( stat $d )[5];

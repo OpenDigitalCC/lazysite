@@ -42,6 +42,7 @@ if    ( $verb eq '' )                                     { usage(2) }
 elsif ( $verb eq 'help' || $verb =~ /^-{0,2}help$|^-h$/ ) { usage(0) }
 elsif ( $verb eq 'provision' )                            { exit cmd_provision() }
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
+elsif ( $verb eq 'reinstall' )                            { exit cmd_reinstall() }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' ) {
     my $targets = extract_site_targets( \@ARGV );
@@ -108,12 +109,24 @@ checkout/tarball root when run from a source tree.
 Verbs:
   provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified]
             [--policy auto|manual]
-        Fresh-install a site from the host payload. Runs as the SITE
-        USER, never root (ownership correct by construction), and
-        records the site in the registry at /etc/lazysite/sites.d/.
+        Install a site that does not exist yet, from the host payload.
+        Runs as the SITE USER, never root (ownership correct by
+        construction), and records the site in the registry at
+        /etc/lazysite/sites.d/. REFUSES a site that is already
+        installed, and names the verb you wanted.
+        (You install the PACKAGE; you provision a SITE.)
   upgrade --docroot D [--cgibin C] [--force]
-        Upgrade one site from the host payload, as the site user.
-        --cgibin defaults to the site's registry entry.
+        Move an installed site to the payload's version, as the site
+        user. --cgibin defaults to the site's registry entry. REFUSES a
+        docroot with nothing installed, and refuses when the site is
+        already at this version - that is `reinstall`.
+  reinstall --docroot D [--cgibin C]
+        Re-lay this version's files over a site that already has it,
+        leaving content, accounts and config alone. For a site whose
+        engine files were edited or lost. REFUSES when the versions
+        differ - changing version is an upgrade.
+        (Not `repair`, which touches no files and fixes ownership,
+        modes and missing directories instead.)
   upgrade --all [--force | --force-security]
         Upgrade every registered site. As root, drops to each site's
         owner via sudo -u; as a normal user, refuses unless every
@@ -307,10 +320,18 @@ sub _lib_arg {
 # The installer invocation. Four callers assembled the same interpreter, the
 # same payload path and the same pair of path options; --force is the only
 # flag any of them added.
+#
+# SM892: AND THE MODE, WHICH IS NOW REQUIRED. install.pl no longer decides
+# whether it is installing, upgrading or reinstalling - the verb the operator
+# typed does, and this is where the verb becomes the declaration. A caller that
+# forgets it gets a refusal from install.pl naming the three verbs, rather than
+# an install it did not ask for.
 sub _install_argv {
     my ( $docroot, $cgibin, %o ) = @_;
+    fail('_install_argv: mode is required (provision|upgrade|reinstall)')
+        unless defined $o{mode} && length $o{mode};
     my @cmd = ( $^X, payload_root() . '/install.pl',
-        '--docroot', $docroot, '--cgibin', $cgibin );
+        '--docroot', $docroot, '--cgibin', $cgibin, '--mode', $o{mode} );
     push @cmd, '--force' if $o{force};
     return @cmd;
 }
@@ -617,7 +638,7 @@ sub cmd_provision {
         if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
 
     my $root = payload_root();
-    my @cmd  = _install_argv( $o{docroot}, $o{cgibin} );
+    my @cmd  = _install_argv( $o{docroot}, $o{cgibin}, mode => 'provision' );
     push @cmd, '--domain', $o{domain} if length $o{domain};
     run_or_fail(@cmd);
 
@@ -680,8 +701,60 @@ sub cmd_upgrade {
 
     refuse_root('upgrade');
     usage_error('upgrade needs --docroot (or --all)') unless length $o{docroot};
-    my $docroot = abs_path( $o{docroot} ) // $o{docroot};
-    my $cgibin  = $o{cgibin};
+    my $docroot = _resolve_docroot( \%o );
+    my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
+
+    run_or_fail( _install_argv( $docroot, $cgibin, mode => 'upgrade', force => $o{force} ) );
+    _say_what_needs_restarting($docroot);
+    return 0;
+}
+
+# SM892 Q4, as ruled: "reinstall (that doesn't affect content) makes sense -
+# upgrade of the same version is confusing. reinstall is distinctly different,
+# could be a verb to fix up a problem without version change."
+#
+# It re-lays the PAYLOAD - engine code, manager, templates - at the version the
+# site already has, and leaves content, accounts and config alone. That
+# behaviour is not new: it is what the installer already did when somebody
+# re-ran it at the same version, which was the only way to reach it. What is
+# new is that an operator can ASK, and that the request is checked - a site on
+# a different version is refused and told to upgrade.
+#
+# IT IS NOT `repair`. Repair touches no files: it runs the health checks and
+# applies their safe fixes to ownership, modes and missing directories. This
+# one puts the shipped files back. A site whose engine was edited wants this;
+# a site whose permissions drifted wants repair.
+sub cmd_reinstall {
+    my %o = ( docroot => '', cgibin => '' );
+    Getopt::Long::GetOptions(
+        'docroot=s' => \$o{docroot},
+        'cgibin=s'  => \$o{cgibin},
+    ) or usage(2);
+
+    refuse_root('reinstall');
+    usage_error('reinstall needs --docroot') unless length $o{docroot};
+    my $docroot = _resolve_docroot( \%o );
+    my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
+
+    run_or_fail( _install_argv( $docroot, $cgibin, mode => 'reinstall' ) );
+
+    # The same reason upgrade says it: a worker holding engine code in memory
+    # goes on serving the code this just replaced.
+    _say_what_needs_restarting($docroot);
+    return 0;
+}
+
+sub _resolve_docroot {
+    my ($o) = @_;
+    return abs_path( $o->{docroot} ) // $o->{docroot};
+}
+
+# The cgi-bin from the registry when the caller did not give one. Extracted
+# because upgrade and reinstall both need it and a second copy of a lookup is
+# how two verbs come to disagree about where a site is.
+sub _cgibin_for {
+    my ( $docroot, $given ) = @_;
+    my $cgibin = $given;
     if ( !length $cgibin ) {
         for my $s ( @{ read_registry() } ) {
             my $sd = abs_path( $s->{docroot} ) // $s->{docroot};
@@ -694,32 +767,34 @@ sub cmd_upgrade {
             . registry_dir()
             . ') - pass --cgibin' )
         unless length $cgibin;
+    return $cgibin;
+}
 
-    run_or_fail( _install_argv( $docroot, $cgibin, force => $o{force} ) );
-
-    # N142A: THIS PATH CANNOT RESTART, AND SAYS SO RATHER THAN LEAVING IT
-    # UNSAID. A single-site upgrade refuses root (above), and restarting a
-    # systemd unit needs it - so the one thing this cannot do is the thing that
-    # decides whether the upgrade takes effect for a pooled or long-running
-    # site. Silence here is what left two sites serving a previous engine after
-    # an upgrade that reported success.
-    #
-    # Printed only when there is something to restart: a site with no units is
-    # told nothing, because a reminder that never applies is one people learn
-    # to skip.
-    if ( -d '/run/systemd/system' && _have('systemctl') ) {
-        my @live = grep {
-            system( 'systemctl', 'is-active', '--quiet', $_ ) == 0
-        } map { "$_\@" . _domain_for_docroot($docroot) . '.service' }
-            qw(lazysited lazysite);
-        if ( @live && _domain_for_docroot($docroot) ) {
-            print "lazysite: this site keeps engine code between requests. "
-                . "Until these restart it goes on\n"
-                . "  serving the PREVIOUS engine. As root:\n";
-            print "    systemctl restart $_\n" for @live;
-        }
-    }
-    return 0;
+# N142A: THIS PATH CANNOT RESTART, AND SAYS SO RATHER THAN LEAVING IT UNSAID.
+# A single-site upgrade refuses root, and restarting a systemd unit needs it -
+# so the one thing this cannot do is the thing that decides whether the work
+# takes effect for a pooled or long-running site. Silence here is what left two
+# sites serving a previous engine after an upgrade that reported success.
+#
+# Printed only when there is something to restart: a site with no units is told
+# nothing, because a reminder that never applies is one people learn to skip.
+#
+# SM892: SHARED WITH `reinstall`, which replaces the same files for the same
+# reason. A worker holding engine code in memory does not care which verb put
+# the new code on disk.
+sub _say_what_needs_restarting {
+    my ($docroot) = @_;
+    return unless -d '/run/systemd/system' && _have('systemctl');
+    my $domain = _domain_for_docroot($docroot);
+    return unless length $domain;
+    my @live = grep { system( 'systemctl', 'is-active', '--quiet', $_ ) == 0 }
+        map { "$_\@$domain.service" } qw(lazysited lazysite);
+    return unless @live;
+    print "lazysite: this site keeps engine code between requests. "
+        . "Until these restart it goes on\n"
+        . "  serving the PREVIOUS engine. As root:\n";
+    print "    systemctl restart $_\n" for @live;
+    return;
 }
 
 # The registry entry name is the domain, which is what the units are
@@ -829,7 +904,7 @@ sub cmd_upgrade_all {
             push @skipped, $s->{name};
             next;
         }
-        my @cmd = _install_argv( $s->{docroot}, $s->{cgibin}, force => $o->{force} );
+        my @cmd = _install_argv( $s->{docroot}, $s->{cgibin}, mode => 'upgrade', force => $o->{force} );
         # The only place root is allowed: drop to the site's owner per site.
         @cmd = _as_owner( $owner, @cmd ) if $is_root && $owner ne $me;
         print "== $s->{name}: $s->{docroot} (as $owner)\n";
@@ -1332,7 +1407,7 @@ sub cmd_demo {
         fail("cannot create the demo site directories under $dir")
             unless -d $docroot && -d $cgibin;
         print "lazysite: fresh-installing a demo site at $dir\n";
-        run_or_fail( _install_argv( $docroot, $cgibin ) );
+        run_or_fail( _install_argv( $docroot, $cgibin, mode => 'provision' ) );
     }
 
     my @serve = ( $^X, "$root/tools/lazysite-server.pl",

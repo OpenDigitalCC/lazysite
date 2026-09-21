@@ -100,7 +100,23 @@ like( $code, qr/systemctl restart \$_/,
 # A site with no units must be told nothing: a reminder that never applies is
 # one people learn to skip, which is how the runbook's own restart line came to
 # be ignored for four releases.
-like( $code, qr/\@live && _domain_for_docroot/,
-    'and says nothing when there is no unit to restart' );
+# SM892 moved this into `_say_what_needs_restarting`, shared with the new
+# `reinstall` verb - which replaces the same files, so a worker holding the old
+# code in memory has the same problem whichever verb put the new code there.
+#
+# The assertion moved with it, and stopped pinning ONE expression. It used to
+# match `@live && _domain_for_docroot`, which was how the guard happened to be
+# spelled when both conditions sat in a single `if`; the extraction made them
+# two early returns and the property did not change at all. What is asserted
+# now is the property: both conditions are guards, and neither prints.
+my ($restart_sub) = $code =~ /(sub _say_what_needs_restarting\b.*?\n\})/s;
+ok( $restart_sub, 'the restart notice lives in one place' );
+like( $restart_sub, qr/return unless length \$domain/,
+    'an unregistered docroot is told nothing - there is no unit to name' );
+like( $restart_sub, qr/return unless \@live/,
+    'and a site with no RUNNING unit is told nothing either' )
+    or diag( 'A reminder that never applies is one people learn to skip, '
+        . "which is how the runbook's own restart line came to be ignored "
+        . 'for four releases.' );
 
 done_testing();

@@ -79,9 +79,61 @@ sub run_install {
     # so a `require Lazysite::` in install.pl fails HERE and not on a host.
     local $ENV{PERL5LIB};
     delete $ENV{PERL5LIB};
+    push @args, _mode_for(@args);
     my $cmd  = join ' ', map { quotemeta } $^X, $INSTALL, @args;
     my $out  = `$cmd 2>&1`;
     return ( $? >> 8, $out );
+}
+
+# SM892: THE DECLARATION THIS FILE'S 71 CALL SITES DO NOT MAKE.
+#
+# install.pl used to pick fresh / reinstall / upgrade from the state on disk,
+# and every subtest below was written against that: the first install in a
+# subtest is a provision, a second one at the same version is a reinstall, and
+# one after a backdated state file is an upgrade. The mode is now declared by
+# the caller, so these calls would all be refused for not declaring one.
+#
+# This derives what each call MEANT, from the same two facts install.pl used to
+# read - so every subtest keeps the meaning it was written with, and the churn
+# is one helper rather than seventy-one edits.
+#
+# IT IS NOT AN EXAMPLE TO FOLLOW, and it is deliberately here rather than in
+# the product: inferring the mode is the thing SM892 removed. What guards
+# against install.pl inferring again is t/tools/85, which asserts that
+# provision refuses an installed site and upgrade refuses an empty one. A call
+# that passes its own --mode is left alone, which is how a test states an
+# intent that this cannot derive.
+sub _mode_for {
+    my @args = @_;
+    return () if grep { $_ eq '--mode' } @args;
+
+    # Only an install run needs one; --restore, --list-backups, --channel-check
+    # and friends return before the mode is consulted.
+    my %standalone = map { $_ => 1 }
+        qw(--restore --list-backups --channel-check --restore-full --channel --policy);
+    return () if grep { $standalone{$_} } @args;
+
+    my ($docroot);
+    for my $i ( 0 .. $#args - 1 ) {
+        $docroot = $args[ $i + 1 ] if $args[$i] eq '--docroot';
+    }
+    return () unless defined $docroot;
+
+    my $state = "$docroot/lazysite/.install-state.json";
+    return ( '--mode', 'provision' ) unless -f $state;
+
+    open my $fh, '<', $state or return ( '--mode', 'provision' );
+    my $json = do { local $/; <$fh> };
+    close $fh;
+    my ($have) = $json =~ /"version"\s*:\s*"([^"]+)"/;
+
+    open my $mf, '<', "$ROOT/release-manifest.json" or return ( '--mode', 'reinstall' );
+    my $mjson = do { local $/; <$mf> };
+    close $mf;
+    my ($to) = $mjson =~ /"version"\s*:\s*"([^"]+)"/;
+
+    return ( '--mode',
+        ( defined $have && defined $to && $have eq $to ) ? 'reinstall' : 'upgrade' );
 }
 
 sub sha_file {
