@@ -44,26 +44,6 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-## 0.14.3 - STABLE: installing a site is a verb the operator chooses, and the backlog behind the 0.14.x thread (2026-09-21)
-
-0.14.1 and 0.14.2 were both corrections to one thing - a site serving code or
-renders it no longer ran. Closing that thread produced the ruling this release
-is built on: the V3 walk ran the *documented* tarball command on a live site
-and was told to create its first account, because one installer wore two hats
-and guessed which. Install, upgrade and reinstall are now three verbs, the
-operator says which, and every reader - nineteen of them - points at the one
-way. Behind that, the field backlog SM888 digested: includes that refresh and
-reach their own section, feeds with dates a reader can parse, a refused DAV
-write that answers 403 whatever its size, a form that says *too quick* and is
-counted for it, stats tiles that say what they count, and the instance endpoint
-naming its runtime. Plus the claude.ai skill, and a tarball that no longer
-carries the previous release inside it.
-
-The cut itself took four attempts in a day, and the reason is recorded in
-[[SM895]] and [[SM896]] rather than here: nothing in this tree - Devel::Cover
-leaks one hidden lock file per structure file per process, and the gate's
-report step could not tell the reader that. Gate: 932 files, 14,709 tests,
-every measured CGI above its coverage floor.
 - SM896 (PENDING) **the coverage gate no longer exhausts the filesystem's
   inodes, and says what it cost.** Both attempts to cut 0.14.3 ran the
   instrumented suite to a clean PASS — 932 files, 14,704 tests, two hours — and
@@ -93,6 +73,26 @@ every measured CGI above its coverage floor.
   database` — exactly as designed. The failed-stage removal default is kept as
   SM328 decided it; the filing records why.
 
+## 0.14.3 - STABLE: installing a site is a verb the operator chooses, and the backlog behind the 0.14.x thread (2026-09-21)
+
+0.14.1 and 0.14.2 were both corrections to one thing - a site serving code or
+renders it no longer ran. Closing that thread produced the ruling this release
+is built on: the V3 walk ran the *documented* tarball command on a live site
+and was told to create its first account, because one installer wore two hats
+and guessed which. Install, upgrade and reinstall are now three verbs, the
+operator says which, and every reader - nineteen of them - points at the one
+way. Behind that, the field backlog SM888 digested: includes that refresh and
+reach their own section, feeds with dates a reader can parse, a refused DAV
+write that answers 403 whatever its size, a form that says *too quick* and is
+counted for it, stats tiles that say what they count, and the instance endpoint
+naming its runtime. Plus the claude.ai skill, and a tarball that no longer
+carries the previous release inside it.
+
+The cut itself took four attempts in a day, and the reason is recorded in
+[[SM895]] and [[SM896]] rather than here: nothing in this tree - Devel::Cover
+leaks one hidden lock file per structure file per process, and the gate's
+report step could not tell the reader that. Gate: 932 files, 14,709 tests,
+every measured CGI above its coverage floor.
 - SM892 (f758c3c4) **installing a site, upgrading it and re-laying its files are
   three commands, and the operator says which.** The installer used to read
   `.install-state.json` and decide for itself. On 2026-09-15 an operator walked
