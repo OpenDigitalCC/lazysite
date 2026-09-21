@@ -4,11 +4,11 @@ title: "SM895: the coverage gate reported a suite that had passed as one that di
 subtitle: "The first 0.14.3 cut ran the instrumented suite to a clean PASS - 932 files, 14,704 tests, 7,410 seconds - and then the report step printed nothing. coverage.sh read grep's exit as its own, release.sh read that as the suite not finishing, and removed the database the report had been built from. Two hours of measurement, no verdict, no cause."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-21
 raised-by: engine agent
 area: release
-status-note: "FILED from the first 0.14.3 cut, 2026-09-21 - the cut that produced it was relaunched with --keep-stage and is running as this is written; whether the report step fails again is what settles the cause, and this filing does not guess at it. WHAT IS ESTABLISHED, from the logs and the code: the instrumented suite PASSED (coverage-suite.txt: 'All tests successful. Files=932, Tests=14704, 7410 wallclock secs'); coverage.sh then ran `cover -silent -report text \"$DB\" 2>/dev/null | grep -vE '^Run:'` under `set -e` with no pipefail, so the pipeline's status is grep's, and grep -v of EMPTY input exits 1; the script died there, before the floor comparison; release.sh printed 'The instrumented run did not finish' - which is false, it finished and passed - and then rm -rf'd the staging clone, cover_db inside it. `cover` produced no output over twelve minutes and its stderr went to /dev/null. So the one process that failed is the one process whose words nobody kept. NOT CLAIMED: why cover printed nothing. Memory is the obvious candidate (the host was under enough pressure at that moment for the session harness to kill an unrelated 15-second poll loop) and there is no kernel OOM line readable for the window, so it stays a candidate. Three separable faults: G1 the report step hides its own stderr; G2 the verdict names the wrong stage; G3 a failed gate deletes the database that would let anyone find out why. --keep-stage exists and is opt-in, which is the wrong default for a FAILURE."
+status-note: "THE TRIGGER IS KNOWN NOW, and it was not memory: INODES. SM896 has the measurement - 4,131,376 zero-byte lock files under cover_db/structure, one per structure file per process, that Devel::Cover 1.44 never removes, on a filesystem with 4,751,360 inodes in total. Both 0.14.3 attempts reached the report step with the filesystem full; cover(1) could not create its own lock and temp files and printed nothing. Everything this filing established about the SCRIPTS stands and is BUILT on claude/n145e: G1 cover's stderr is kept beside the suite log and cover runs once (it ran twice); G2 an empty report or a non-zero cover is THE REPORT STEP FAILED, exit 4, and release.sh names the stage instead of inferring the wrong one from a string's absence - the first run of the new path caught a real failure ('Can't open database', a symlink my own REPORT_ONLY mode had deleted) exactly as designed, stderr and all. G3 is deliberately NOT changed: release.sh removes a failed stage because of SM328 - four failed cuts in a day exhausted a tmpfs - and with cover's words kept outside the stage the common failure no longer needs the DB; --keep-stage plus LAZYSITE_COVER_REPORT_ONLY=1 is the pair for when it does. Partial rather than shipped because the reconciliation for G3 (prune older stages at start, keep the last failed one) is recorded and not built, and because the fix has not yet gated a real cut."
 ---
 
 # What happened, in order
@@ -88,6 +88,17 @@ that gets re-run blind — which is what happened.
   with the mechanism established and the trigger not.
 - **Any coverage shortfall.** No number was produced. The floors were never
   compared.
+
+# The trigger, found the same evening — and it was not memory
+
+The second attempt failed identically, kept its stage, and the operator
+reported the filesystem at 0 free inodes with 4.13 million files under
+`cover_db/structure`. They are hidden lock files Devel::Cover never removes,
+one per structure file per process; the measurement, the probe and the
+strategy are [[SM896]]. The memory candidate above is withdrawn: `cover`
+printed nothing because it could not create a file. G1 and G2 are built
+alongside SM896's fix; G3 is deliberately left as SM328 decided it, for the
+reason recorded there.
 
 # Related
 

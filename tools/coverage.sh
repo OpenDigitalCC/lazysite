@@ -56,7 +56,13 @@ fi
 # `|| true` because `set -e` is on: without it a failed rm exits here with a
 # bare "cannot remove" and no explanation at all, which is precisely how this
 # presented - a wall of rm noise, no coverage output, and nothing saying why.
-rm -rf "$DB" 2>/dev/null || true
+# SM896: NOT in REPORT_ONLY mode, which exists to report on a DB that already
+# exists. The first run of that mode deleted the symlink it had been handed
+# and then reported "Can't open database" - which the new report step caught,
+# stderr and all, so the failure path got its verification unasked.
+if [ "${LAZYSITE_COVER_REPORT_ONLY:-}" != "1" ]; then
+    rm -rf "$DB" 2>/dev/null || true
+fi
 
 # A LIVE WRITER survives the rm, and that is the failure mode worth naming: a
 # `prove` orphaned from a previous run keeps executing tests and re-creating
@@ -66,7 +72,7 @@ rm -rf "$DB" 2>/dev/null || true
 #
 # Found the hard way: killing a coverage run's shell left its `prove` child
 # reparented to init, still writing, for half an hour.
-if [ -e "$DB" ]; then
+if [ -e "$DB" ] && [ "${LAZYSITE_COVER_REPORT_ONLY:-}" != "1" ]; then
     echo "coverage: $DB survived removal - something is still writing to it." >&2
     echo "  Look for an orphaned test run:  ps -eo pid,ppid,cmd | awk '\$2==1'" >&2
     echo "  Kill it by PID, confirm the file count stops changing, then re-run." >&2
@@ -173,8 +179,46 @@ echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumen
 # response" for a fault that exists only under measurement.
 #
 # A measuring instrument that changes the thing it measures is not measuring it.
-PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore,/t/,+ignore,Devel" \
-    prove -l -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
+# SM896: REAP THE LOCK FILES DEVEL::COVER LEAKS, WHILE THE SUITE RUNS.
+#
+# Devel::Cover 1.44 writes each structure file through a per-process temp
+# (structure/.<digest>.<pid>), takes structure/.<digest>.<pid>.lock on it
+# (DB/IO/Base.pm _lock), renames the temp into place - and never unlinks the
+# lock. Only DB::clean removes them, and nothing calls it until `cover
+# -delete`. One lock per structure file per PROCESS, and this suite is 7,198
+# processes x ~574 files: 4,131,376 zero-byte dotfiles on the 0.14.3 cut, on a
+# filesystem with 4,751,360 inodes in total. Both attempts at that cut ran the
+# suite to a clean PASS and then died at the report step with 0 inodes free -
+# reported as "the instrumented run did not finish" (SM895), because cover(1)'s
+# stderr was discarded. `ls` does not show dotfiles, which is how four million
+# files hid in plain sight; a one-test probe showed 69 locks for 8 processes,
+# 141 for 16, structure files constant at 9.
+#
+# A lock guards a temp file whose name carries the writer's pid; no other
+# process ever contends for it, and a structure write takes milliseconds. So a
+# lock older than a minute belongs to a write that has finished, and deleting
+# it changes nothing that is measured. The reaper runs beside the suite and
+# bounds the DB to live processes x files - thousands, not millions. The
+# measured footprint is printed after the run so release.sh's preflight can be
+# checked against a number rather than a memory.
+_reap_locks() {
+    find "$DB/structure" -name '.*.lock' -type f -mmin +1 -delete 2>/dev/null || true
+}
+if [ "${LAZYSITE_COVER_REPORT_ONLY:-}" = "1" ]; then
+    # Re-report an existing DB - a kept release stage, say - without the
+    # two-hour suite. The pass record further down is NOT written from this
+    # path: a report over a DB somebody chose is not a gate run, and must not
+    # licence skipping one.
+    echo "coverage: REPORT ONLY - reusing $DB, no suite run" >&2
+    SUITE_RC=0
+else
+    ( while :; do sleep 30; _reap_locks; done ) &
+    REAPER_PID=$!
+    PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,^/tmp/,+ignore,/t/,+ignore,Devel" \
+        prove -l -j"$JOBS" -r t/ > "$SUITE_LOG" 2>&1 && SUITE_RC=0 || SUITE_RC=$?
+    kill "$REAPER_PID" 2>/dev/null || true
+    wait "$REAPER_PID" 2>/dev/null || true
+fi
 
 # `&& ... || ...` RATHER THAN A BARE `$?`, because this file runs under
 # `set -e`: a failing prove followed by `SUITE_RC=$?` on the next line would
@@ -256,8 +300,38 @@ if [ "$SUITE_RC" -ne 0 ]; then
     echo "coverage: full output in $SUITE_LOG" >&2
 fi
 
-# Report (drop the per-run noise).
-cover -silent -report text "$DB" 2>/dev/null | grep -vE '^Run:[[:space:]]'
+# SM896: every lock is stale now - nothing is writing - so remove them all
+# before cover(1) reads the DB. This is what DB::clean does, at the moment it
+# should have happened. Then say what the DB cost, in inodes, as measured, so
+# release.sh's preflight can be checked against a number.
+find "$DB" -name '*.lock' -type f -delete 2>/dev/null || true
+# -L: REPORT_ONLY is handed a symlink, and `du -s` on a symlink counts the link.
+echo "coverage: DB footprint $(du -sL --inodes "$DB" 2>/dev/null | cut -f1) inode(s), $(ls "$DB/runs" 2>/dev/null | wc -l) run(s)" >&2
+
+# THE REPORT STEP KEEPS ITS OWN STDERR AND ITS OWN EXIT STATUS (SM895).
+#
+# This was `cover ... 2>/dev/null | grep -vE '^Run:'` under set -e with no
+# pipefail: the pipeline's status was grep's, grep -v of an EMPTY input exits
+# 1, and the script ended here - after a suite that had passed - with cover's
+# reason discarded and release.sh announcing that the suite had not finished.
+# Twice on one release. cover is run ONCE (it was run twice, ~12 minutes each
+# on this suite) into a variable; its stderr goes beside the suite log, which
+# release.sh already keeps outside the stage for exactly this reason.
+COVER_ERR="${SUITE_LOG%-suite.*}-cover-stderr.txt"
+report=$(cover -silent -report text "$DB" 2>"$COVER_ERR") || {
+    rc=$?
+    echo "coverage: THE REPORT STEP FAILED (cover exit $rc) after a suite that passed." >&2
+    echo "coverage: cover's stderr, kept at $COVER_ERR:" >&2
+    tail -20 "$COVER_ERR" >&2
+    exit 4
+}
+if [ -z "$report" ]; then
+    echo "coverage: THE REPORT STEP FAILED - cover exited 0 and printed NOTHING." >&2
+    echo "coverage: cover's stderr, kept at $COVER_ERR:" >&2
+    tail -20 "$COVER_ERR" >&2
+    exit 4
+fi
+printf '%s\n' "$report" | grep -vE '^Run:[[:space:]]' || true
 
 if [ "$1" = "--check" ]; then
     # REFUSE TO GIVE A COVERAGE VERDICT ABOUT A SUITE THAT DID NOT PASS.
@@ -283,7 +357,8 @@ if [ "$1" = "--check" ]; then
     # against the floors. (install.pl/plugins are split across tempdir copies -
     # a known limitation, excluded from the gate; see dist/config/coverage-floor.
     # lazysite-auth.pl's tests run it from the repo path, so it is gated.)
-    report=$(cover -silent -report text "$DB" 2>/dev/null)
+    # $report is the one run above - it was run a second time here, another
+    # ~12 minutes on this suite, and a second chance to die silently.
     fail=0
     for f in lazysite-dav.pl lazysite-processor.pl lazysite-manager-api.pl \
              lazysite-auth.pl lazysite-mcp.pl lazysite-oauth.pl \
@@ -325,8 +400,10 @@ if [ "$1" = "--check" ]; then
     fi
     echo "coverage: all measured production CGIs at or above ${floor}% statements / ${branch_floor}% branches (target 75%)"
     # Record the pass against the digest of what produced it. Written only on a
-    # PASS - a failed run must never license a skip.
-    if [ -n "${COVER_DIGEST:-}" ]; then
+    # PASS - a failed run must never license a skip. And never from REPORT_ONLY
+    # (SM896): that path reports on a DB somebody pointed it at, which is not a
+    # gate run of this tree, so it cannot be allowed to excuse one.
+    if [ -n "${COVER_DIGEST:-}" ] && [ "${LAZYSITE_COVER_REPORT_ONLY:-}" != "1" ]; then
         printf '{\n  "inputs_digest": "%s",\n  "result": "pass",\n  "floor": "%s",\n  "branch_floor": "%s",\n  "host": "%s",\n  "captured": "%s"\n}\n' \
             "$COVER_DIGEST" "$floor" "$branch_floor" "$(hostname)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > "$COVER_RECORD"

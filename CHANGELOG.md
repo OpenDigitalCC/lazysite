@@ -64,6 +64,34 @@ The cut itself took four attempts in a day, and the reason is recorded in
 leaks one hidden lock file per structure file per process, and the gate's
 report step could not tell the reader that. Gate: 932 files, 14,709 tests,
 every measured CGI above its coverage floor.
+- SM896 (PENDING) **the coverage gate no longer exhausts the filesystem's
+  inodes, and says what it cost.** Both attempts to cut 0.14.3 ran the
+  instrumented suite to a clean PASS — 932 files, 14,704 tests, two hours — and
+  then `cover` printed nothing. Not memory: **4,131,376 hidden lock files**
+  under `cover_db/structure`, one per structure file per process, which
+  Devel::Cover 1.44 creates on every write (`DB/IO/Base.pm _lock`) and never
+  removes, on a filesystem with 4,751,360 inodes in total. The 1,031 real
+  structure files hid behind them; `ls` does not show dotfiles. coverage.sh
+  now reaps locks older than a minute every 30 s beside the suite — a lock
+  guards a per-pid temp file nobody else can touch, so nothing measured
+  changes — removes the rest before `cover` reads the DB, and prints the DB's
+  footprint in inodes. release.sh's preflight refuses below 200k against a
+  measured ~40k, in place of 1.2M against an assumed 1.1M that passed twice on
+  a host that could not hold the run. `LAZYSITE_COVER_REPORT_ONLY=1` reports
+  on an existing DB without the suite and never writes the pass record.
+  Reproduced by the reaper alone: deleting the locks took `/srv` from 0 to
+  4.13M free inodes with nothing running. Docs: SM895.
+- SM895 (PENDING) **the coverage report step keeps its own stderr and names
+  its own failure.** It was `cover … 2>/dev/null | grep -v` under `set -e`
+  with no `pipefail`: `grep -v` of empty input exits 1, the script died after a
+  suite that had passed, and release.sh announced "the instrumented run did not
+  finish" — inferred from a string's absence, and false. `cover`'s stderr now
+  lands beside the suite log outside the stage; `cover` runs once instead of
+  twice (~12 min each); an empty report or a non-zero `cover` is *THE REPORT
+  STEP FAILED*, exit 4, and release.sh says the suite passed and the report did
+  not. The first run of the new path caught a real failure — `Can't open
+  database` — exactly as designed. The failed-stage removal default is kept as
+  SM328 decided it; the filing records why.
 
 - SM892 (f758c3c4) **installing a site, upgrading it and re-laying its files are
   three commands, and the operator says which.** The installer used to read

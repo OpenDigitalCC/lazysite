@@ -420,12 +420,21 @@ case "${_free_inodes:-}" in
         ;;
 esac
 
+# SM896: THE NUMBER IS MEASURED, NOT REMEMBERED. This said "roughly 1.1M" and
+# refused below 1.2M. The 0.14.3 cut needed 4.15M - Devel::Cover leaks one
+# lock file per structure file per process, 4,131,376 of them - on a
+# filesystem with 4.75M in total; it passed this check twice and wedged the
+# host twice. coverage.sh now reaps those locks as it runs and prints the DB's
+# real footprint ("coverage: DB footprint N inode(s)") - ~25k on this suite:
+# 7,198 run dirs x 3 files, ~1,000 structure files, a few thousand live locks -
+# plus ~11k for the clone. 200k is that with room. Before trusting this number
+# again, read the footprint line from the last gate's coverage log.
 if [ -n "$_free_inodes" ] && [ "$_free_inodes" -gt 0 ] \
-   && [ "$_free_inodes" -lt 1200000 ]; then
+   && [ "$_free_inodes" -lt 200000 ]; then
     echo "release.sh: $STAGE_BASE has only $_free_inodes free inodes." >&2
-    echo "  A gate run needs roughly 1.1M: Devel::Cover writes a directory per" >&2
-    echo "  instrumented subprocess and this suite spawns them constantly." >&2
-    echo "  Point somewhere with more: --stage-dir /srv/tmp, or LAZYSITE_STAGE_DIR." >&2
+    echo "  A gate run needs ~40k as measured (cover_db ~25k with its locks" >&2
+    echo "  reaped, the clone ~11k); 200k is the floor with room. Point" >&2
+    echo "  somewhere with more: --stage-dir DIR, or LAZYSITE_STAGE_DIR." >&2
     exit 5
 fi
 case "${_free_kb:-}" in ''|*[!0-9]*) _free_kb="" ;; esac
@@ -670,6 +679,15 @@ if [ "$COV_STATUS" -ne 0 ]; then
     if grep -q 'COVERAGE BELOW FLOOR' "$COV_LOG"; then
         echo "release.sh: coverage below the declared floor; not releasing." >&2
         grep -E 'BELOW' "$COV_LOG" >&2
+    elif grep -q 'THE REPORT STEP FAILED' "$COV_LOG"; then
+        # SM895: the suite PASSED and cover(1) could not report on it. Twice
+        # on 0.14.3 this was announced as "the instrumented run did not
+        # finish", inferred from the absence of a string - and the cause was
+        # in the stderr coverage.sh had thrown away. It is kept now, beside
+        # the suite log, and the message names the stage that failed.
+        echo "release.sh: the instrumented suite PASSED; the coverage REPORT failed." >&2
+        echo "release.sh: not a shortfall, not a suite failure - cover's own words:" >&2
+        grep -A20 'THE REPORT STEP FAILED' "$COV_LOG" >&2
     else
         echo "release.sh: coverage gate FAILED (exit $COV_STATUS) WITHOUT reaching" >&2
         echo "release.sh: the floor comparison - so this is NOT a coverage" >&2
