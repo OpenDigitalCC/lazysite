@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM892 (PENDING) **installing a site, upgrading it and re-laying its files are
+- SM892 (f758c3c4) **installing a site, upgrading it and re-laying its files are
   three commands, and the operator says which.** The installer used to read
   `.install-state.json` and decide for itself. On 2026-09-15 an operator walked
   the published install page, ran the command it gave on a **live** site, and
@@ -81,7 +81,7 @@ Naming the commit: AFTER it lands, never before
   true preview: `provision` stops before the registry write too, and no verb
   asks for a restart it did not make necessary. Docs: `t/tools/86`.
 
-- (PENDING) **the practice briefing dates its sources by when the text
+- (ba2be907) **the practice briefing dates its sources by when the text
   changed, not when the file was touched.** `t/lint/89` regenerates the served
   briefing and compares it with the committed copy, and it was failing **on
   main** with the source's sha256 identical in both: the record said
@@ -97,7 +97,7 @@ Naming the commit: AFTER it lands, never before
   committer date, then the file touched, which is the state a checkout leaves
   and the one no source-reading test could tell apart.
 
-- SM889 (PENDING) **the quiet rollout reports each finding once, and stops
+- SM889 (1a68407a) **the quiet rollout reports each finding once, and stops
   mistaking prose for a finding.** The 0.14.2 fleet update printed ~200 lines
   to say "29 updated, 0 failed", and the two largest sources were the same
   cause: the filter matched the bare word `missing`. That caught 71 per-file
@@ -112,7 +112,7 @@ Naming the commit: AFTER it lands, never before
   rather than 21 copies of the same 45 words. `--verbose` and the
   print-everything-on-failure rule are unchanged. `t/tools/80`.
 
-- SM888 A7 (PENDING) **a form refused for its timing tells the visitor why.**
+- SM888 A7 (1a68407a) **a form refused for its timing tells the visitor why.**
   `reject('Submission too fast')` dies plain where `reject_user` dies `USER:…`,
   and only `USER:` messages reach the submitter — so SM252's time token was
   refusing correctly and its reason was discarded one word from being shown.
@@ -131,7 +131,7 @@ Naming the commit: AFTER it lands, never before
   at the catch, so rewording a message cannot break it again. The matcher is
   gone. `t/unit/forms/16` drives all five controls and reads the bucket off
   disk — and its roll-call fails on a sixth control added without a code.
-- X1 (PENDING) **the app practice gains "Name the app, and give its parts one
+- X1 (6a0da45e) **the app practice gains "Name the app, and give its parts one
   home".** Reported from building a real app whose parts ended up in three
   places: nothing failed, and afterwards nobody could say what the app *was* —
   which pages were its, which table, which form — because the name, the
@@ -142,7 +142,7 @@ Naming the commit: AFTER it lands, never before
   `docs/practice/app-practice.md`, the importer's source — an edit to the
   generated briefing is overwritten at the next cut.
 
-- SM888 S3 (PENDING) **every headline figure on the Stats page says what it is
+- SM888 S3 (8e3b66fe) **every headline figure on the Stats page says what it is
   a count of.** N141B-F built `tile(label, value, note)` for exactly this and
   applied it to one tile; four were bare — Page views, Images and files, Data
   served, and the Devices block, where "mobile: 412" invited the reader to
@@ -154,7 +154,7 @@ Naming the commit: AFTER it lands, never before
   sysops have been reading, which is a decision and not a label fix.
   `t/lint/148` asserts the rule, so the next tile cannot arrive bare.
 
-- SM888 A2 (PENDING) **editing an included partial refreshes the pages that
+- SM888 A2 (9e8c7dad) **editing an included partial refreshes the pages that
   include it.** A shared header, footer or notice edited once updated nothing
   until every page including it was saved — and the person who maintains the
   partial is often not the one who holds `manage_content` on those pages, so
@@ -165,7 +165,7 @@ Naming the commit: AFTER it lands, never before
   the cache-hit path consulted the record only when the front matter declared
   a `tt_page_var:` block, which an include never does. `t/integration/103`.
 
-- SM888 A3 (PENDING) **a page in a protected section can include its own
+- SM888 A3 (9e8c7dad) **a page in a protected section can include its own
   partials.** Gating moves content into a sibling store, so a protected page's
   own partial is not under the content root — it was refused as a path
   traversal and logged as one. The include guard now uses
@@ -174,7 +174,7 @@ Naming the commit: AFTER it lands, never before
   domain still cannot reach another's protected content. The test asserts the
   refusal of `lazysite/` FIRST.
 
-- SM888 A6 (PENDING) **a refused WebDAV write answers 403 whatever the body's
+- SM888 A6 (c6059831) **a refused WebDAV write answers 403 whatever the body's
   size.** The same refused PUT answered 403 under about 100 KB and 502 above
   it, on byte-identical re-PUTs. A refusal decided from the PATH never touched
   the body, so the client was left writing to a process that had exited — and
@@ -183,7 +183,7 @@ Naming the commit: AFTER it lands, never before
   through. Reproduced first: a 512 KB refused PUT let the client write exactly
   one pipe buffer and then broke the pipe. `t/unit/dav/30`.
 
-- SM888 A1 (PENDING) **the feeds emit dates a reader can parse.** RSS
+- SM888 A1 (c6059831) **the feeds emit dates a reader can parse.** RSS
   `<pubDate>` gets RFC 822 and Atom `<updated>` gets RFC 3339; a front-matter
   `date: 2026-08-14` went into both raw, and neither accepts it — so items were
   shown undated, or dated "now" and re-sorted on every fetch. **This changes
@@ -196,7 +196,7 @@ Naming the commit: AFTER it lands, never before
   raw value stays available to custom templates as `date_raw`.
   `t/integration/102`.
 
-- SM887 F1 (PENDING) **a claude.ai skill that checks a page by running it.**
+- SM887 F1 (46a854ed) **a claude.ai skill that checks a page by running it.**
   `skills/claude-ai/lazysite/` — `SKILL.md`, `setup.sh`, `serve.sh`,
   `fetch.pl`, and two reference files — plus `lazysite-skill-<version>.zip`,
   built by `tools/release.sh` **with that release's `lazysite-common.deb`
@@ -209,7 +209,7 @@ Naming the commit: AFTER it lands, never before
   carries a core-Perl `fetch.pl` instead), and the dev server **refused to
   start over `LWP::UserAgent`**, which nothing loads — see below.
 
-- SM887 F1 (PENDING) **the dev server demands only what it uses.** Its
+- SM887 F1 (46a854ed) **the dev server demands only what it uses.** Its
   preflight required `LWP::UserAgent`; `lazysite-common` lists libwww-perl
   under *Recommends*, so an install carrying everything the engine *depends*
   on would not start the dev server, and the error told the operator to install
@@ -218,7 +218,7 @@ Naming the commit: AFTER it lands, never before
   asserts the rule rather than the one module: a preflight that demands more
   than the code uses turns an optional feature into an install blocker.
 
-- SM887 F2 (PENDING) **page validation is an engine capability, and a broken
+- SM887 F2 (26ab0cfb) **page validation is an engine capability, and a broken
   page exits non-zero.** `Lazysite::Validate` holds the checks — moved out of
   `lazysite-mcp.pl`, where they were reachable only by an authenticated partner
   posting to a live site over HTTP, so nothing else in the tree could ask: not
@@ -236,7 +236,7 @@ Naming the commit: AFTER it lands, never before
   DRIVE the validator instead of grepping the script for them, which was only
   ever a workaround for its being unreachable.
 
-- SM659 R2 (PENDING) **the every-file check reads POD as POD.** `t/lint/144`
+- SM659 R2 (a55ade8c) **the every-file check reads POD as POD.** `t/lint/144`
   guards the users tool's own manual, and a sabotage confirms it catches a
   retired verb put back under "Bootstrap". `t/lint/138`, which reads every
   shipped file, passed on the same sabotage: its rule wants the tool's name
@@ -248,7 +248,7 @@ Naming the commit: AFTER it lands, never before
   change: the manual was corrected at N141B-G, and every occurrence left in the
   tree is record rather than instruction.
 
-- SM890 (PENDING) **the public instance endpoint names the runtime.**
+- SM890 (21d24c85) **the public instance endpoint names the runtime.**
   `/.well-known/lazysite-instance.json` gains `"runtime"`, `cgi` or `pool`,
   beside the version it already reports. Twice running, the decisive question
   about a site reading a stale engine was "is this a pooled worker still holding
@@ -262,7 +262,7 @@ Naming the commit: AFTER it lands, never before
   `docs/OPERATOR.md`. `t/integration/101` drives both modes and asserts they
   differ.
 
-- SM893 P4 (PENDING) **`apt purge` removes the per-site runtime configs; `apt
+- SM893 P4 (5a31bcf5) **`apt purge` removes the per-site runtime configs; `apt
   remove` keeps them.** dpkg never removed them because the package never
   shipped them — `lazysite-hestia-domain` writes one per provisioned site after
   install — and the unit templates gate on their existence, so purging and
@@ -272,7 +272,7 @@ Naming the commit: AFTER it lands, never before
   An operator's own files in those directories are untouched, and the directory
   goes only if nothing else is using it. `t/tools/81`.
 
-- SM888 F4 (PENDING) **a handler action's audit entry names the handler.**
+- SM888 F4 (6f2da8b7) **a handler action's audit entry names the handler.**
   `handler-save` and `form-targets-save` recorded the dispatcher's `/` - the
   fourth family to hit the same cause after data (SM503) and connectors plus
   group changes (N141B-C), and the only one still open, because it was reported
@@ -281,7 +281,7 @@ Naming the commit: AFTER it lands, never before
   exists for. The two actions spell their subject differently and that was
   measured rather than read: handler actions carry `id`, `form-targets-save`
   refuses "form is required" when sent one. `t/integration/100`.
-- SM891 (PENDING) **two directives in the shipped runtime unit that systemd was
+- SM891 (89825e0a) **two directives in the shipped runtime unit that systemd was
   ignoring.** `StartLimitIntervalSec` and `StartLimitBurst` sat in `[Service]`;
   they moved to `[Unit]` in systemd 230, and in `[Service]` they are parsed,
   rejected and skipped. The comment above them explains why a runtime that
@@ -292,7 +292,7 @@ Naming the commit: AFTER it lands, never before
   `systemd-analyze verify`, which **exits 0** with both present - it reports on
   stderr and succeeds - so `t/lint/147` asserts the OUTPUT is empty over every
   shipped unit rather than asserting the command succeeded.
-- SM893 (PENDING) **every site is armed for the persistent runtime, and
+- SM893 (901e95b3) **every site is armed for the persistent runtime, and
   `lazysite check` reports it.** Ruled by the release manager: install and
   upgrade own the unit lifecycle, the runtime exists only so an extension can
   be enabled, and a plain site may never enable it. `lazysite-hestia-domain
@@ -309,7 +309,7 @@ Naming the commit: AFTER it lands, never before
   is-enabled` answers `not-found` for the first and sending an operator to
   enable a unit that does not exist reads as their mistake. `t/tools/79`.
 
-- SM884 (PENDING) **the release tarball no longer carries the previous
+- SM884 (a66a06ff) **the release tarball no longer carries the previous
   release.** `git archive` ships every tracked path unless it is marked
   export-ignore, and `download/` holds a complete release - so each tarball
   contained the one before it, which contained ITS predecessor. Measured with
@@ -323,14 +323,6 @@ Naming the commit: AFTER it lands, never before
   `t/lint/146` pins the pair, and asks git for the attribute rather than
   reading the file's text.
 
-- SM885 (PENDING) a failed backup can no longer leave a tarball the listing
-  calls a snapshot. `tar czf` forks gzip; the engine waited for tar, so a tar
-  that failed early was reaped while the orphaned compressor was still alive,
-  and it recreated the claimed name after the refusal had removed it - a
-  20-byte empty gzip stream offered for restore. tar now writes into a staging
-  directory and the finished archive is renamed into place, so the doomed
-  pipeline never holds a path that the listing reads. `t/unit/manager/192`.
-- SM886 (PENDING) **a cached render no longer outlives the engine that produced
 ## 0.14.2 - STABLE: the two remaining ways a site could serve a build it no longer ran (2026-09-15)
 
 0.14.1 restarted the workers - on a path the estate does not take - and left

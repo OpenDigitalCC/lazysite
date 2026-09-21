@@ -4,11 +4,11 @@ title: "SM892: the restart is in a path the documentation does not name, and the
 subtitle: "V3 could not be walked, and finding out why produced two facts that undercut N142A's reasoning: the published tarball upgrade is install.sh, which names no unit and prints no restart line - and on the operator's host 28 of 29 runtime units are dead and no pool unit exists at all. Needs a ruling before anything is built."
 brand: plain
 standard-margins: true
-status: partial
+status: shipped
 raised: 2026-09-15
 raised-by: sites agent
 area: installers
-status-note: "THE RULING IS BUILT; WHAT REMAINS IS A READING ONLY THE OPERATOR CAN TAKE. U1/U2/U3 and D1-D5 are shipped: three site verbs chosen by the operator and never inferred - `provision`, `upgrade`, `reinstall` - in the `lazysite` CLI, which is the one way on both distributions (payload_root resolves an unpacked tarball, so the same verb works with no package installed). install.pl takes --mode and refuses to choose one; install.sh prints the verbs and exits 2, and the two Hestia scripts that used to call it now drive install.pl directly with an explicit mode. Nineteen readers repointed across README, the published install page, UPGRADE, OPERATOR, FEATURES, development, the configuration and reference pages, the manager guide and two deb READMEs; `t/lint/149` holds every tracked file to it and `t/tools/86` holds the verbs to what the documents now promise. Three operations that D4 stranded gained verbs rather than a pointer back to the implementation: `backups` (list, --restore, --restore-full), and `--dry-run` on all three site verbs. Two more that four documents set by running install.pl gained verbs too - `channel` and `policy` - and both take --domain/--all, where install.pl offered a shell loop because it believed there was no registry. WHAT IS STILL OPEN, and it is the part this filing never claimed: what made seven sites come current at 0.14.2 is NOT ESTABLISHED. N142A had nothing to act on (one of 29 runtime units active, no pool unit at all), SM886 is the candidate, and the two systemctl readings named below are the operator’ to run. THE THIRD INSTANCE OF ONE PATTERN, for the record: N141-05 put the pool restart in the Hestia deploy script, which INSTALL-RUNBOOK marks superseded; N142A moved it to `lazysite upgrade`; and the published install page named neither - it documented `sudo bash install.sh --docroot ... --cgibin ...` and contained the string 'lazysite upgrade' zero times and 'systemctl' zero times. The restart stays in upgrade and reinstall, and the page now sends the reader there."
+status-note: "SHIPPED, AND THE OPEN QUESTION IS ANSWERED BY THE OPERATOR'S READINGS, 2026-09-21. The ruling (U1/U2/U3, D1-D5) is built: `provision`, `upgrade`, `reinstall` in the `lazysite` CLI, one way on both distributions, install.pl takes --mode and refuses to choose, install.sh is a signpost, nineteen readers repointed and held by t/lint/149, plus `backups`, `channel`, `policy` and --dry-run so no document reaches past the CLI. THE SEVEN SITES: the persistent-worker explanation is ELIMINATED by measurement. `lazysited@<site>.service` is fired by a `.timer` (29 timers active/waiting), runs for ONE SECOND and exits cleanly - dhcf.eu: ActiveEnter 12:06:07, InactiveEnter 12:06:08, Result=success, NRestarts=0 - so 'dead' means idle between ticks, every tick loads the engine fresh, and it is not in the request path. No `lazysite@` pool unit exists on the host, so every site serves by CGI, which reads the engine per request. Nothing on that host could hold old engine code across an upgrade, which is why N142A had nothing to restart AND why restarting would have changed nothing. The only mechanism left in the tree is a cached render outliving its engine - SM886, shipped in 0.14.2 - and its prediction (all stragglers current in one monitor tick) is what was observed. Recorded as established by elimination with the prediction matched, not as a directly observed cause. SM891 is consistent: no crash loop (Result=success, NRestarts=0). ONE NOTE FOR LATER, no code change pre-cut: the restart notice in `upgrade`/`reinstall` guards on `is-active lazysited@`, which a timer-fired job is for one second per tick, so on this estate it will almost never print for that unit - correctly, since there is nothing to restart. The pool unit is the one that matters and none run. The wording 'this site keeps engine code between requests' is true of the pool only."
 ---
 
 # Why V3 could not be walked
@@ -101,6 +101,51 @@ systemctl list-units --all --no-pager 'lazysite*'
 The first says whether those units ran recently and why they stopped. The second
 says whether a socket or timer starts them on demand — in which case "dead" is
 *idle*, not *never ran*, and the whole reading changes.
+
+## The readings, taken 2026-09-21 — and it is the second case
+
+```text
+$ systemctl show -p ActiveEnterTimestamp,InactiveEnterTimestamp,Result,NRestarts \
+      lazysited@dhcf.eu.service
+Result=success
+NRestarts=0
+ActiveEnterTimestamp=Mon 2026-09-21 12:06:07 BST
+InactiveEnterTimestamp=Mon 2026-09-21 12:06:08 BST
+
+$ systemctl list-units --all --no-pager 'lazysite*'
+  lazysited@<29 domains>.service   loaded inactive dead      (edge.explore: active running)
+  lazysited@<29 domains>.timer     loaded active   waiting   (edge.explore: active running)
+  58 loaded units listed.
+```
+
+| What the reading says | What it settles |
+| --- | --- |
+| Every `.service` has a `.timer`, and every timer is active | `lazysited@` is **timer-fired**. "dead" is idle between ticks. |
+| dhcf.eu ran from 12:06:07 to 12:06:08, `Result=success`, `NRestarts=0` | One tick, one second, clean exit — **today**. It has been running all along. |
+| Each tick is a fresh process | It **cannot hold old engine code** across an upgrade for longer than one tick, and it is not in the request path in any case. |
+| No `lazysite@` pool unit exists under the glob | Every site serves by **CGI**, which reads the engine per request. |
+| `Result=success`, `NRestarts=0` | No crash loop — [[SM891]]'s never-in-force rate limit was not masking one. |
+
+**So nothing on that host could hold old engine code across an upgrade.**
+That is why N142A had nothing to restart, *and* why restarting would have
+changed nothing for the seven. The persistent-worker explanation is eliminated
+by measurement, not by reasoning.
+
+What is left in the tree is one mechanism: a cached render outliving the engine
+that produced it — [[SM886]], shipped in 0.14.2 (`40fdfa5f`). Its prediction is
+that every straggler comes current in one monitor tick, and that is what the
+0.14.2 walk observed (six to zero in one tick). Recorded as **established by
+elimination, with the prediction matched** — not as a cause observed directly,
+because the stale renders themselves were never captured.
+
+**One note for later, and no code changes before the cut.** The restart notice
+in `upgrade` and `reinstall` guards on `is-active lazysited@<site>`, which a
+timer-fired job is for one second per tick — so on this estate it will almost
+never print for that unit. That is correct: there is nothing to restart. The
+pool unit is the one that holds code between requests, and none runs. The
+sentence *"this site keeps engine code between requests"* is true of the pool
+only, and `t/tools/78` already records that the check cannot prove a restart
+on a real host.
 
 **[[SM891]] is relevant and is not an answer.** The start-rate limit in that unit
 was in the wrong section and has never been in force, so a failing runtime was
