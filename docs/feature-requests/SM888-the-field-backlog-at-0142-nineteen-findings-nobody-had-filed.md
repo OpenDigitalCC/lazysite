@@ -14,15 +14,19 @@ status-note: "FILED 2026-09-15 at the release manager's direction - 'make sure a
 current tree after two of them were found already fixed by accident. Eleven of
 nineteen had shipped in 0.14.1, from walks that ran on 0.13.15 and 0.13.16.
 
+**Re-verified 2026-09-21**, each row against a landed commit and its test, not
+against the work plan: six more rows shipped in the 0.14.3 cycle (F4, S3, A1,
+A2, A3, A6, and A7 in two halves). Four remain open, all deliberately.
+
 | Row | Status | Closed by |
 | --- | --- | --- |
 | F1 connector audit target | **FIXED** | N141B-C, 0.14.1 |
 | F2 `user-group-nest` audit | **FIXED** | N141B-C, 0.14.1 |
 | F3 `user-group-settings-set` audit | **FIXED** | N141B-C, 0.14.1 |
-| F4 `handler-save` audit | **FIXED** | 2026-09-15, `t/integration/100` |
+| F4 `handler-save` audit | **FIXED** | 6f2da8b7, `t/integration/100` |
 | S1 scanner class omitted from the bar | **FIXED** | N141B-F, 0.14.1 |
 | S2 "Unique visitors" card | **FIXED** | N141B-F — **relabelled rather than recomputed**, deliberately. The value was a ruling, not an oversight. |
-| S3 four unnamed denominators | **PARTIAL** | N141B-F built the `tile(label, value, note)` mechanism *for this row* and applied it to one tile. **Page views and Devices still carry no note.** |
+| S3 four unnamed denominators | **FIXED** | N141B-F built the `tile(label, value, note)` mechanism and applied it to one tile; 8e3b66fe applied it to the rest — and found four bare tiles, not two, one of which (*Data served*) counts every caller rather than humans. Stated, not recomputed. `t/lint/148` holds the rule. |
 | S4 "0 log lines scanned." | **FIXED** | N141B-F — deleted rather than implemented; the engine never sent the field |
 | G1 `granted_by` names the wrong group | **FIXED** | N141B-D, 0.14.1 |
 | G2 phantom member after delete | **FIXED** | N141B-E, 0.14.1 |
@@ -30,12 +34,12 @@ nineteen had shipped in 0.14.1, from walks that ran on 0.13.15 and 0.13.16.
 | C2 `@import` invisible to a source scan | **OPEN** | — |
 | P1 `list` needs a leading slash | **FIXED** | N141B-B, 0.14.1 |
 | P2 assets count includes renders | **OPEN** (cosmetic) | — |
-| A1 feeds emit the raw date | **OPEN**, re-measured on 0.14.2 | — |
-| A2 includes are not render dependencies | **OPEN** | — |
-| A3 protected page cannot include its partials | **OPEN** | — |
+| A1 feeds emit the raw date | **FIXED** | c6059831 — RSS gets RFC 822, Atom RFC 3339, formatted in the ENGINE because the registry templates install as `seed` and an upgrade never replaces them. `t/integration/102` |
+| A2 includes are not render dependencies | **FIXED** | 9e8c7dad — three faults stacked, not one: the include was never recorded, the record's reset lived AFTER the include had resolved, and the cache-hit path consulted the record only when the front matter declared one. `t/integration/103` |
+| A3 protected page cannot include its partials | **FIXED** | 9e8c7dad — the guard tested the docroot, and the private store is a SIBLING of it; `_path_under_content` already accepted both. The LEAK assertion comes first in the test. `t/integration/103` |
 | A4 `page-pdf` on a gated page | **FIXED** | N141B-A, 0.14.1 |
 | A5 single-box checklist + refusal copy | **OPEN**, both halves | — |
-| A6 DAV PUT 403/502 | **OPEN**, cause now located | — |
+| A6 DAV PUT 403/502 | **FIXED** | c6059831 — one missing drain, in `send_response` where every answer leaves; a 512 KB refused PUT let the client write exactly one pipe buffer (65,536 bytes), which is the field's "~100 KB". `t/unit/dav/30` |
 | A7 form posted within a second | **FIXED in two halves** — the visitor is told why (K3), and the block is counted again (the K3 fix had broken the count; see below) | K3, then n145a |
 | W1 Services holder tense | **FIXED** | N141-01, 0.14.1 |
 | W2 Site settings blank without the capability | **FIXED / not a defect** | SM775 in 0.13.9 added the empty state; the padlock half was ruled out — you cannot padlock the page somebody *lands* on |
