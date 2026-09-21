@@ -11,12 +11,13 @@ standard-margins: true
 **stable** one. Edge and beta builds are deliberately absent: they exist to be
 tested by people who know they are testing, and a download link is not that.
 
-    lazysite-0.14.2.tar.gz              the whole engine, for any host
-    lazysite-0.14.2.tar.gz.sha256       its checksum
-    lazysite-common_0.14.2-1_all.deb    the engine (required)
-    lazysite-nginx_0.14.2-1_all.deb     nginx glue
-    lazysite-apache_0.14.2-1_all.deb    Apache glue
-    lazysite-hestia_0.14.2-1_all.deb    Hestia glue
+    lazysite-0.14.3.tar.gz              the whole engine, for any host
+    lazysite-0.14.3.tar.gz.sha256       its checksum
+    lazysite-common_0.14.3-1_all.deb    the engine (required)
+    lazysite-nginx_0.14.3-1_all.deb     nginx glue
+    lazysite-apache_0.14.3-1_all.deb    Apache glue
+    lazysite-hestia_0.14.3-1_all.deb    Hestia glue
+    lazysite-skill-0.14.3.zip           the claude.ai skill (SM887) - carries lazysite-common
 
 # Which one do I want
 
@@ -24,12 +25,12 @@ tested by people who know they are testing, and a download link is not that.
 server. The glue packages carry the vhost templates and nothing else, which is
 why they are small and why installing two of them is not useful.
 
-    sudo dpkg -i lazysite-common_0.14.2-1_all.deb lazysite-nginx_0.14.2-1_all.deb
+    sudo dpkg -i lazysite-common_0.14.3-1_all.deb lazysite-nginx_0.14.3-1_all.deb
 
 **Anywhere else, or to install without root:** the tarball. Verify it first -
 the checksum beside it is the one the release gate recorded:
 
-    sha256sum -c lazysite-0.14.2.tar.gz.sha256
+    sha256sum -c lazysite-0.14.3.tar.gz.sha256
 
 # Why the repository and not a release asset
 
