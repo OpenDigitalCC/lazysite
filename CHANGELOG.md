@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- (PENDING) **the practice briefing dates its sources by when the text
+  changed, not when the file was touched.** `t/lint/89` regenerates the served
+  briefing and compares it with the committed copy, and it was failing **on
+  main** with the source's sha256 identical in both: the record said
+  `modified=2026-09-09` and a fresh import said `2026-09-15`, over
+  byte-for-byte the same text. The importer took the filesystem mtime, and an
+  mtime moves for a checkout, a copy or a branch switch — so a generated
+  artefact went stale against a source nobody had edited. The date now comes
+  from the last commit that touched the file, with the mtime kept as the
+  fallback because a tarball install has no repository. **No regeneration is
+  needed**: the lint feeds the served copy's own engine-version and import date
+  back into the importer, so those never drift, and the mtime was the only
+  difference. `t/tools/84` drives it against a real repository — an old
+  committer date, then the file touched, which is the state a checkout leaves
+  and the one no source-reading test could tell apart.
+
 - SM889 (PENDING) **the quiet rollout reports each finding once, and stops
   mistaking prose for a finding.** The 0.14.2 fleet update printed ~200 lines
   to say "29 updated, 0 failed", and the two largest sources were the same

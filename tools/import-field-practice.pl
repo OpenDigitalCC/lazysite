@@ -193,9 +193,37 @@ sub slurp {
     return $text;
 }
 
+# WHEN THE PRACTICE LAST CHANGED, which is not when the file was last touched.
+#
+# This was the filesystem mtime, and an mtime moves for reasons that have
+# nothing to do with the text: a checkout, a copy, a branch switch. So the
+# generated briefing went stale against its own source with the source's
+# sha256 IDENTICAL - the record said "modified=2026-09-09" where a fresh import
+# said 2026-09-15 over byte-identical content - and t/lint/89 failed on main
+# for a change nobody had made.
+#
+# The last COMMIT that touched the file is the honest answer, and it is stable
+# across every checkout. The mtime remains the fallback: a tarball install has
+# no git, and a date that is approximately right beats 'unknown'.
+#
+# %as, THE AUTHOR DATE, not %cs. A committer date is rewritten by every rebase,
+# so a branch that edits a source and regenerates the briefing goes stale
+# against its own artefact the moment it is rebased - which is the same class
+# of fault as the mtime, arriving by a different route. The author date is when
+# the text was written, and it survives a rebase and a cherry-pick.
 sub file_date {
     my ($path) = @_;
     my @st = stat $path or return 'unknown';
+
+    my $dir = $path;
+    $dir =~ s{/[^/]*\z}{};
+    if ( open my $git,
+        '-|', 'git', '-C', $dir, 'log', '-1', '--format=%as', '--', $path )
+    {
+        my $d = <$git>;
+        close $git;
+        if ( defined $d && $d =~ /\A(\d{4}-\d{2}-\d{2})/ ) { return $1 }
+    }
     return strftime( '%Y-%m-%d', localtime( $st[9] ) );
 }
 
