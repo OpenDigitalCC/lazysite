@@ -320,7 +320,12 @@ Verification of things that are wrong-but-recoverable, or read-only.
 
 Cosmetic or convenience. Do them when passing.
 
-9. Counts on the protected-sections rows are right (pages vs assets, recursive).
+9. **Retired 2026-09-22.** The counts this check named sat on the
+   "Protected sections" card, and SM635 retired the card (see B5's note): a
+   protected row in Files now shows a padlock and a modified age and no count
+   of any kind, which the 0.14.4 between-releases walk measured and reported
+   as an absence. Nothing draws those counts today, so there is nothing to
+   check. If the counts come back, they come back with a check of their own.
 10. An operator with `manage_config` but not `manage_users` sees **no** Services
     counts - absent, not zero.
 11. The connect code counts down, says plainly when it has expired, and strikes
