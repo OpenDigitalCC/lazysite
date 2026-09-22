@@ -408,7 +408,7 @@ sub _install_argv {
     fail('_install_argv: mode is required (provision|upgrade|reinstall)')
         unless defined $o{mode} && length $o{mode};
     my @cmd = ( $^X, payload_root() . '/install.pl',
-        '--docroot', $docroot, '--cgibin', $cgibin, '--mode', $o{mode},
+        '--docroot',    $docroot, '--cgibin', $cgibin, '--mode', $o{mode},
         '--invoked-as', invoked_as() );
     push @cmd, '--force' if $o{force};
     # SM892 D5: starter/docs/install.md has documented `--dry-run` as the thing
