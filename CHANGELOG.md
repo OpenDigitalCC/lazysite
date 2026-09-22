@@ -44,6 +44,26 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.14.4 - STABLE: an include stays inside its section, and a cut can complete on this host (2026-09-22)
+
+A security patch on the stable line, one day after 0.14.3. The 0.14.3 field
+walk found (W5b, [[SM898]]) that `::: include` would print a draft section's
+partial or a read-restricted section's partial - each 404 when fetched
+directly - in full into a public page, whoever was asking. SM888 A3 had let
+an include reach the private store and asked nothing about who was reading.
+Governed content is now includable only from a page under the same governing
+ACL entry, identity-free, so a cached public page can never carry one reader's
+view to another.
+
+The other three entries are why 0.14.3 took four attempts in a day and this
+took one: Devel::Cover leaks a hidden lock file per structure file per
+process - 4.13 million on one run, on a filesystem with 4.75 million inodes -
+and the gate's report step could not say so ([[SM895]], [[SM896]]); the
+rollout report counted phases as sites ([[SM897]]). This is the first cut
+through the fixed gate: `coverage: DB footprint 15671 inode(s), 7309 run(s)`,
+in one attempt. Gate: 933 files, 14,733 tests, every measured CGI above its
+coverage floor.
+
 - SM898 (2e9828a8) **an include no longer lifts governed content into a public
   page.** Found by the 0.14.3 field walk (W5b), measured as an anonymous
   visitor: a draft section's partial and a read-restricted section's partial,
