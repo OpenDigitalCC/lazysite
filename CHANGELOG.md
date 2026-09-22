@@ -76,6 +76,19 @@ Naming the commit: AFTER it lands, never before
   gate after the suite, names any tracked file left changed and the test
   whose backup outlived it — the SIGKILL case no handler can cover.
 
+- SM895 (PENDING) **a failed cut keeps its stage, and the next cut removes
+  it.** G1 and G2 shipped in 0.14.4; this is G3, the one deliberately left
+  and now reconciled with SM328 rather than overruling it. The first 0.14.3
+  attempt ran the instrumented suite for two hours and then deleted the
+  database the report step had failed on, so the second attempt was launched
+  blind. Now a gate failure keeps the stage and the abort line says so and
+  says when it goes; success removes it; `--keep-stage` keeps a successful
+  one too (the success path used to remove regardless, so the flag never did
+  what its name said); and every run starts by removing the stages of dead
+  runs under the stage base — a live run's is never touched, and the logs
+  kept beside a stage survive it. `t/tools/87` drives the three functions in
+  a scratch base; `t/tools/61` expects "retained" on every abort.
+
 ## 0.14.4 - STABLE: an include stays inside its section, and a cut can complete on this host (2026-09-22)
 
 A security patch on the stable line, one day after 0.14.3. The 0.14.3 field

@@ -63,9 +63,10 @@
 #   - Tag vVERSION does not already exist on origin.
 #   - dist/config/sbom-deps.json exists in the target commit.
 #
-# On abort: the staging dir is REMOVED by the EXIT trap (SM328) and the
-# abort message says so. Pass --keep-stage to retain it for inspection;
-# the printed path is then real (SM560). Clean up a kept stage with
+# On abort: the staging dir is KEPT (SM895 G3) and the abort message names
+# it; the NEXT run removes it at start, once its process is gone. On
+# success it is removed unless --keep-stage was given. A kept stage can also
+# be removed by hand:
 #   rm -rf $STAGE_BASE/lazysite-release-$$  (PID is in the printed path).
 set -e
 
@@ -347,22 +348,60 @@ fi
 # filling - left the whole clone behind. Four cuts in a day was enough to exhaust
 # a tmpfs, and nothing reclaimed them.
 #
-# --keep-stage opts out, because a gate failure is exactly when someone wants to
-# look inside.
+# SM895 G3: A FAILED RUN KEEPS ITS STAGE. The first 0.14.3 cut ran the
+# instrumented suite for two hours, the report step printed nothing, and the
+# trap removed the database it had failed to report on - so the second attempt
+# was launched blind and failed the same way. A gate failure is exactly when
+# somebody wants to look inside, and "re-run with --keep-stage" is advice for a
+# run that has already thrown the evidence away.
+#
+# The reconciliation with SM328 is prune_dead_stages, below: a run tidies its
+# predecessors at START, when it can tell which of them are dead, so at most
+# one failed stage sits on the filesystem at a time and a live run is never
+# touched. Success still removes (--keep-stage keeps even then).
 STAGE="$STAGE_BASE/lazysite-release-$$"
-cleanup_stage() { [ "$KEEP_STAGE" = 1 ] || rm -rf "$STAGE"; }
-trap cleanup_stage EXIT
+cleanup_stage() {
+    local rc="${1:-0}"
+    [ "$KEEP_STAGE" = 1 ] && return 0
+    [ "$rc" -ne 0 ] && return 0
+    rm -rf "$STAGE"
+}
+trap 'cleanup_stage $?' EXIT
 
 # SM560: every abort names what became of the stage - and it must be TRUE.
 # Eleven abort paths printed "staging dir retained" while the trap above
 # removed it, so the first diagnostic step after any gate failure was a dead
-# end. The trap stays (SM328); the sentence now matches it.
+# end. Since SM895 G3 an abort keeps the stage, so the sentence is one sentence
+# - and it says when the directory goes, because the answer used to be "now".
 stage_disposition() {
-    if [ "$KEEP_STAGE" = 1 ]; then
-        echo "release.sh: staging dir retained: $STAGE" >&2
-    else
-        echo "release.sh: staging dir removed (re-run with --keep-stage to inspect): $STAGE" >&2
-    fi
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    echo "release.sh:   (a failed stage is kept for inspection and removed at the start" >&2
+    echo "release.sh:   of the next run; --keep-stage keeps a successful one too)" >&2
+}
+
+# SM895 G3: the other half of keeping a failed stage - the next run removes it.
+#
+# Every lazysite-release-PID directory under STAGE_BASE whose PID is not alive
+# is a previous run's leftover: a failure kept for inspection (the point of
+# keeping it was to read it before the next cut, not to collect it), or a run
+# that died without reaching its trap. A directory whose PID is alive is a
+# concurrent cut and is left alone; so is this run's own. The logs a run keeps
+# BESIDE its stage (PID-coverage-*.txt) are files, not directories, and stay:
+# they are the evidence that outlives the clone by design (SM736b, SM895 G1).
+prune_dead_stages() {
+    local d pid
+    for d in "$STAGE_BASE"/lazysite-release-*; do
+        [ -d "$d" ] || continue
+        pid="${d##*-}"
+        case "$pid" in ''|*[!0-9]*) continue ;; esac
+        [ "$pid" = "$$" ] && continue
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "release.sh: stage $d belongs to a live process ($pid); left alone." >&2
+            continue
+        fi
+        echo "release.sh: removing the stage a previous run left behind: $d" >&2
+        rm -rf "$d"
+    done
 }
 
 # Every gate failure said the same three things in the same order: what failed,
@@ -411,6 +450,11 @@ case "$STAGE_BASE" in
         echo "==> stage dir resolved to $STAGE_BASE (it was relative; the gate cd's into it)"
         ;;
 esac
+
+# SM895 G3: before measuring the room, make it - the previous run's kept
+# stage is the largest thing that could be sitting there.
+prune_dead_stages
+
 # `df -i --output=...` is REFUSED by coreutils - the options are mutually
 # exclusive - and the first version of this check used it, so the variable was
 # empty and the check silently did nothing. A guard that skips when it cannot
@@ -1045,7 +1089,9 @@ printf '| %s | %s | `%s` | %s | %s | %s |\n' \
 
 # --- cleanup ---
 
-rm -rf "$STAGE"
+# SM895 G3: --keep-stage means "even on success"; a failed stage is kept by the
+# trap regardless, and the next run removes it (prune_dead_stages).
+[ "$KEEP_STAGE" = 1 ] || rm -rf "$STAGE"
 
 echo ""
 echo "==> Released $TAG"

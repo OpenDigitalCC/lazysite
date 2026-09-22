@@ -163,10 +163,14 @@ tools/release.sh 0.2.20 --commit HEAD~3 --notes NOTES.md
    `--notes` file if given, else the commit's own message.
 9. Pushes the tag.
 10. Copies tarball + sha256 to `/srv/projects/lazysite/dist/`.
-11. Removes the staging dir.
+11. Removes the staging dir (`--keep-stage` keeps it).
 
-On any abort, the staging dir is retained and its path
-printed so the operator can inspect what failed.
+On any abort, the staging dir is retained and its path printed so the
+operator can inspect what failed - and the NEXT run removes it at start,
+once the process that made it is gone (SM895 G3). So at most one failed
+stage sits under the staging directory at a time, a live run's stage is
+never touched, and the logs kept beside a stage
+(`lazysite-release-PID-coverage-*.txt`) survive its removal.
 
 ### No version-bump commit
 

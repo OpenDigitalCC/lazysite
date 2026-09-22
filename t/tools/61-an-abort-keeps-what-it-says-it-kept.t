@@ -6,11 +6,16 @@
 # was given. The engineer's first diagnostic step - look inside the path they
 # were just told about - was a dead end every time.
 #
-# SM328's trap is the older lesson (retained clones exhausted a tmpfs) and it
-# stays. What changes is the sentence: it must be TRUE. This lifts the helper
-# and the trap from release.sh, aborts with and without --keep-stage, and
-# asserts exactly one thing each time - the printed path exists, or the line
-# says it was removed and how to keep it next time.
+# SM328's trap is the older lesson (retained clones exhausted a tmpfs). What
+# changes is the sentence: it must be TRUE. This lifts the helper and the trap
+# from release.sh, aborts with and without --keep-stage, and asserts exactly
+# one thing each time - the printed path exists, or the line says it was
+# removed and how to keep it next time.
+#
+# SM895 G3 (2026-09-22): an abort now KEEPS the stage either way, and the next
+# run removes it - so both abort cases below expect "retained" and a directory
+# that exists. The success path, where SM328's removal still applies, is
+# t/tools/87's.
 use strict;
 use warnings;
 use Test::More;
@@ -30,7 +35,7 @@ my ($helper) = $src =~ /^(stage_disposition\(\) \{\n.*?\n\})\n/ms;
 ok( defined $helper, 'release.sh defines stage_disposition()' )
     or BAIL_OUT('no helper to lift - the eleven literals are still inline');
 
-my ($trap) = $src =~ /^(cleanup_stage\(\) \{[^\n]*\})\n/m;
+my ($trap) = $src =~ /^(cleanup_stage\(\) \{\n.*?\n\})\n/ms;
 ok( defined $trap, 'and the SM328 cleanup trap is still there' );
 
 # SM516 TO-28 folded the identical abort blocks onto abort_build(), which is
@@ -46,8 +51,7 @@ cmp_ok( scalar @calls, '>=', 11, 'every abort path reports through the helper' )
 
 my @bare = $src =~ /^(\s+echo "release\.sh: staging dir retained: \$STAGE" >&2)$/mg;
 is( scalar @bare, 1,
-    'the "retained" sentence is printed in exactly one place - inside the helper, '
-        . 'where it is conditional on --keep-stage' )
+    'the "retained" sentence is printed in exactly one place - inside the helper' )
     or diag("bare literals outside the helper: @bare");
 
 # --- the behaviour: the sentence is true, both ways ----------------------
@@ -61,7 +65,7 @@ sub abort_with {
 STAGE="$stage"
 KEEP_STAGE=$keep
 $trap
-trap cleanup_stage EXIT
+trap 'cleanup_stage \$?' EXIT
 $helper
 stage_disposition
 exit 1
@@ -78,18 +82,10 @@ for my $keep ( 0, 1 ) {
     ok( length $line, "$label: the abort says what became of the stage" )
         or next;
     my ($printed) = $line =~ /: (\S+)$/;
-    ok( ( -d $printed ) || $line =~ /removed \(re-run with --keep-stage/,
-        "$label: the printed path exists, or the line says it was removed and "
-            . 'how to keep it' )
+    ok( -d $printed, "$label: the printed path exists" )
         or diag( "line: $line\nexists: " . ( -d $printed ? 'yes' : 'no' ) );
-    if ($keep) {
-        like( $line, qr/retained/, "$label: a kept stage is reported as retained" );
-        ok( -d $stage, "$label: and it really is there" );
-    }
-    else {
-        like( $line, qr/removed/, "$label: a removed stage is reported as removed" );
-        ok( !-d $stage, "$label: and it really is gone (SM328 still holds)" );
-    }
+    like( $line, qr/retained/, "$label: an aborted run's stage is reported as retained" );
+    ok( -d $stage, "$label: and it really is there (SM895 G3)" );
 }
 
 # --- the prose agrees ------------------------------------------------------
