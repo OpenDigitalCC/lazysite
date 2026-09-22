@@ -72,6 +72,20 @@ Naming the commit: AFTER it lands, never before
   not. The first run of the new path caught a real failure — `Can't open
   database` — exactly as designed. The failed-stage removal default is kept as
   SM328 decided it; the filing records why.
+- SM897 (PENDING) **the grouped rollout report counts sites, names sites, and
+  keeps each site list under its finding.** SM889's first run against a real
+  fleet — the 0.14.3 rollout, 29 updated, 0 failed — printed `[123]` for a
+  warning that occurs at most once per site, site lists reading `probe X,
+  repair X, repair X`, and every `sites:` line in a block after every `[N]`
+  line. The count was lines not sites (check, repair-before, repair-after and
+  probe each contributed one per site); the phase-qualified `run_quiet` label
+  was used as the site name; and the old awk printed two lines per record
+  which the pipeline then sorted apart. The grouping is a function now: the
+  site is the label's last word, one line per (message, site), records
+  printed in input order with nothing sorting the output. And the
+  `--reapply-acls` loop — the one per-site phase still printing raw, and most
+  of that transcript — goes through `run_quiet` like the rest. `t/tools/80`
+  runs the function as the script does, one case per defect, four sabotages.
 
 ## 0.14.3 - STABLE: installing a site is a verb the operator chooses, and the backlog behind the 0.14.x thread (2026-09-21)
 
@@ -93,21 +107,6 @@ The cut itself took four attempts in a day, and the reason is recorded in
 leaks one hidden lock file per structure file per process, and the gate's
 report step could not tell the reader that. Gate: 932 files, 14,709 tests,
 every measured CGI above its coverage floor.
-- SM897 (PENDING) **the grouped rollout report counts sites, names sites, and
-  keeps each site list under its finding.** SM889's first run against a real
-  fleet — the 0.14.3 rollout, 29 updated, 0 failed — printed `[123]` for a
-  warning that occurs at most once per site, site lists reading `probe X,
-  repair X, repair X`, and every `sites:` line in a block after every `[N]`
-  line. The count was lines not sites (check, repair-before, repair-after and
-  probe each contributed one per site); the phase-qualified `run_quiet` label
-  was used as the site name; and the old awk printed two lines per record
-  which the pipeline then sorted apart. The grouping is a function now: the
-  site is the label's last word, one line per (message, site), records
-  printed in input order with nothing sorting the output. And the
-  `--reapply-acls` loop — the one per-site phase still printing raw, and most
-  of that transcript — goes through `run_quiet` like the rest. `t/tools/80`
-  runs the function as the script does, one case per defect, four sabotages.
-
 - SM892 (f758c3c4) **installing a site, upgrading it and re-laying its files are
   three commands, and the operator says which.** The installer used to read
   `.install-state.json` and decide for itself. On 2026-09-15 an operator walked
