@@ -86,18 +86,36 @@ subtest 'real findings still match' => sub {
 #
 # Extracted and run as the script runs it, so the assertion is about the awk
 # that ships rather than a re-implementation of it.
-my ($awk) = $src =~ /sort "\$FINDINGS_FILE" \| awk -F'\\t' '(.+?)'\s*\|\s*sort/s;
-ok( $awk, 'the grouping block was found' ) or do { done_testing(); exit };
+# SM889 residue: the grouping is a FUNCTION now, and the whole function body is
+# what runs here - `bash -c` on the text between its braces, fed the same
+# label<TAB>message lines the script feeds it. The first version of this test
+# extracted the awk alone, and the three defects the 0.14.3 rollout showed were
+# all OUTSIDE the awk: the trailing `| sort` that tore every "sites:" line away
+# from its finding, and the absence of any step stripping the phase from the
+# label or collapsing a site seen in four phases into one.
+my ($body) = $src =~ /^group_findings\(\) \{\n(.+?)\n\}\n/ms;
+ok( $body, 'the group_findings function was found' ) or do { done_testing(); exit };
+
+# Run AS A FUNCTION, because it is one: the body's first line is `local TAB`,
+# and `local` outside a function is a bash error - the first draft passed the
+# bare body to `bash -c` and every case saw empty output. Wrapping it in a
+# function of the same shape is also what "run it as the script runs it" means.
+sub grouped {
+    my (@lines) = @_;
+    open my $w, '>', "$dir/findings" or die $!;
+    print {$w} "$_\n" for @lines;
+    close $w;
+    open my $s, '>', "$dir/group.sh" or die $!;
+    print {$s} "group_findings() {\n$body\n}\ngroup_findings\n";
+    close $s;
+    my $out = `bash \Q$dir/group.sh\E < \Q$dir/findings\E 2>&1`;
+    return $out // '';
+}
 
 subtest 'one condition on twenty-one sites is one line, not twenty-one' => sub {
     my $warn = '[ warn ] a file the engine refuses is still being served';
-    open my $w, '>', "$dir/findings" or die $!;
-    print {$w} "probe site$_\t$warn\n" for 1 .. 21;
-    print {$w} "probe other\t[ warn ] something else entirely\n";
-    close $w;
-
-    my $out = `sort \Q$dir/findings\E | awk -F'\\t' \Q$awk\E | sort`;
-    $out //= '';
+    my $out  = grouped( ( map {"probe site$_\t$warn"} 1 .. 21 ),
+        "probe other\t[ warn ] something else entirely" );
 
     my @lines = grep { /^\s*\[\d+\]/ } split /\n/, $out;
     is( scalar @lines, 2, 'two distinct messages, not twenty-two lines' )
@@ -105,6 +123,66 @@ subtest 'one condition on twenty-one sites is one line, not twenty-one' => sub {
     like( $out, qr/\[21\]/, 'the repeated one is counted' );
     like( $out, qr/sites: .*site1.*site21|sites: .*site21/s,
         'and the sites it affects are named, so the count is checkable' );
+};
+
+# --- the three defects the first real fleet run showed -----------------------
+
+subtest 'a site seen in four phases is ONE site' => sub {
+    # The 0.14.3 rollout printed [123] for a warning that can occur once per
+    # site on 29 sites: check, repair-before, repair-after and probe each
+    # contributed a labelled copy. The number on the report is the number of
+    # sites, because that is what an operator does something about.
+    my $warn = '[ warn ] this site has an account called "manager"';
+    my $out  = grouped(
+        "example.test\t$warn",
+        "repair example.test\t$warn",
+        "repair example.test\t$warn",
+        "probe example.test\t$warn",
+        "other.test\t$warn",
+    );
+    like( $out, qr/^\s*\[2\] /m, 'two sites, counted as 2' )
+        or diag("got:\n$out");
+    unlike( $out, qr/\[[3-9]\]|\[\d\d+\]/, 'not four, not five' );
+};
+
+subtest 'the phase is not part of the site name' => sub {
+    # "probe cloudient.net, repair cloudient.net, repair cloudient.net" is a
+    # label leaking through, three times. The site is the last word.
+    my $warn = '[ warn ] static requests are answered WITHOUT the engine';
+    my $out  = grouped( "probe a.test\t$warn", "repair b.test\t$warn", "c.test\t$warn" );
+    like( $out, qr/sites: a\.test, b\.test, c\.test/,
+        'sites are named bare, in order, once each' )
+        or diag("got:\n$out");
+    unlike( $out, qr/sites: .*(probe|repair) /, 'no phase word in a site list' );
+};
+
+subtest 'each sites: line sits under its own finding' => sub {
+    # Every "sites:" line used to print in a block after every "[N]" line - the
+    # old pipeline sorted the output, and the two halves of each record sorted
+    # apart. A list nobody can pair with its message is not a list.
+    my $out = grouped(
+        "b.test\t[ warn ] zebra condition",
+        "a.test\t[ warn ] apple condition",
+        "c.test\t[ warn ] apple condition",
+    );
+    my @l = split /\n/, $out;
+    is( scalar @l, 4, 'two records, two lines each' ) or diag("got:\n$out");
+    like( $l[0], qr/^\s*\[2\] \[ warn \] apple condition/, 'record 1: the finding' );
+    like( $l[1], qr/^\s*sites: a\.test, c\.test$/,          'record 1: ITS sites, next line' );
+    like( $l[2], qr/^\s*\[1\] \[ warn \] zebra condition/, 'record 2: the finding' );
+    like( $l[3], qr/^\s*sites: b\.test$/,                   'record 2: its site' );
+};
+
+# --- and the last raw loop goes through run_quiet ----------------------------
+subtest 'the ACL re-apply loop reports through run_quiet' => sub {
+    # The one per-site phase still printing raw on the 0.14.3 rollout, and
+    # most of its transcript. A source check, like the run_quiet assertions
+    # above: the loop needs a Hestia host to run.
+    like( $src, qr/run_quiet "\$d" sudo -u "\$u" perl "\$ACLTOOL" reapply/,
+        'the reapply call is wrapped' )
+        or diag( '21 x "No protected sections", every per-site summary, the '
+            . '[INFO] log lines and the @group advisory six times over came '
+            . 'from this loop.' );
 };
 
 done_testing();

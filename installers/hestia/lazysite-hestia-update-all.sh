@@ -311,13 +311,52 @@ report_findings() {
     [ -n "$FINDINGS_FILE" ] && [ -s "$FINDINGS_FILE" ] || return 0
     echo
     echo '==> findings (one line per distinct message, with the sites it affects)'
-    # Group by the message, collect the labels. Sorted so a run is comparable
-    # with the one before it.
-    sort "$FINDINGS_FILE" | awk -F'\t' '
-        { msg[$2] = msg[$2] (msg[$2] ? ", " : "") $1; n[$2]++ }
-        END {
-            for (m in n) printf "  [%d] %s\n      sites: %s\n", n[m], m, msg[m]
-        }' | sort
+    group_findings < "$FINDINGS_FILE"
+}
+
+# group_findings - stdin is label<TAB>message lines; stdout is one record per
+# distinct message: "[N] message" then "sites: a, b, c", N being the number of
+# DISTINCT SITES. A function of its own so t/tools/80 can run exactly what
+# ships rather than a copy of it.
+#
+# SM889's residue, seen on the 0.14.3 rollout - the first run of the grouped
+# report against a real fleet - and every one of the three is a defect in the
+# grouping rather than in the volume:
+#
+#   [123] for a warning that occurs at most once per site, on 29 sites.
+#   The label carries the PHASE - "repair D", "probe D" - and repair checks a
+#   site before and after, so one condition on one site arrived as four
+#   labelled lines and was counted four times. The site is the LAST WORD of the
+#   label, and a site is counted once per message whatever the phase.
+#
+#   sites: ... probe cloudient.net, repair cloudient.net, repair cloudient.net
+#   The same leak, printed. The phase is stripped before grouping.
+#
+#   Every "sites:" line printed in a block AFTER every "[N]" line. The old awk
+#   printed two lines per record and the pipeline then sorted ALL of them, so
+#   the message lines and the site lines were sorted apart and no list could
+#   be paired with its finding - which is the one thing the list is for. Records
+#   are ordered on input (by message, then site) and printed in that order, and
+#   nothing sorts the output.
+group_findings() {
+    local TAB
+    TAB=$(printf '\t')
+    # "phase site<TAB>msg" -> "site<TAB>msg"; a bare "site<TAB>msg" is untouched.
+    # Then one line per (message, site): sort -u on those two keys IS the dedupe.
+    sed "s/^[^${TAB}]* \([^${TAB} ]*\)${TAB}/\1${TAB}/" \
+        | sort -t "$TAB" -u -k2,2 -k1,1 \
+        | awk -F'\t' '
+            {
+                if (!($2 in cnt)) order[++k] = $2
+                cnt[$2]++
+                sites[$2] = sites[$2] (sites[$2] ? ", " : "") $1
+            }
+            END {
+                for (i = 1; i <= k; i++) {
+                    m = order[i]
+                    printf "  [%d] %s\n      sites: %s\n", cnt[m], m, sites[m]
+                }
+            }'
 }
 
 # run_quiet LABEL COMMAND...
@@ -664,7 +703,16 @@ if [ "${DO_REAPPLY:-0}" = 1 ]; then
             # The lister's docroot for this site, carried from discovery.
             dr="${DOCS[$i]}"
             [ -d "$dr" ] || { echo "    no docroot at $dr; skipping $d" >&2; continue; }
-            if sudo -u "$u" perl "$ACLTOOL" reapply \
+            # SM889 residue: THROUGH run_quiet, like every other per-site phase.
+            # This was the one loop left printing raw, and on the 0.14.3 rollout
+            # it was most of the transcript: 21 "No protected sections", every
+            # site's "0 re-applied, 1 already in place" summary and its "Verify
+            # from OUTSIDE" line, the [INFO] acl-set log lines, and the ~90-word
+            # @group advisory six times over - none of it a finding of THIS
+            # rollout. Quiet: a genuine refusal still matches NOISE_RE and is
+            # collected; a failure still prints its whole output; the one
+            # aggregate line below still says how many were re-applied.
+            if run_quiet "$d" sudo -u "$u" perl "$ACLTOOL" reapply \
                  --docroot "$dr" --actor local --apply; then
                 REAPPLIED=$(( REAPPLIED + 1 ))
             else
