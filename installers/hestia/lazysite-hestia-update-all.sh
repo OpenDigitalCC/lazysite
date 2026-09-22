@@ -304,16 +304,6 @@ FINDINGS_FILE=$(mktemp -t lzs-findings.XXXXXX) || FINDINGS_FILE=''
 cleanup_findings() { [ -n "$FINDINGS_FILE" ] && rm -f "$FINDINGS_FILE"; }
 trap cleanup_findings EXIT
 
-# report_findings - print every collected finding once, with the sites it
-# affects. Silent when there is nothing, because a heading over an empty list
-# is the kind of line this change exists to remove.
-report_findings() {
-    [ -n "$FINDINGS_FILE" ] && [ -s "$FINDINGS_FILE" ] || return 0
-    echo
-    echo '==> findings (one line per distinct message, with the sites it affects)'
-    group_findings < "$FINDINGS_FILE"
-}
-
 # group_findings - stdin is label<TAB>message lines; stdout is one record per
 # distinct message: "[N] message" then "sites: a, b, c", N being the number of
 # DISTINCT SITES. A function of its own so t/tools/80 can run exactly what
@@ -357,6 +347,16 @@ group_findings() {
                     printf "  [%d] %s\n      sites: %s\n", cnt[m], m, sites[m]
                 }
             }'
+}
+
+# report_findings - print every collected finding once, with the sites it
+# affects. Silent when there is nothing, because a heading over an empty list
+# is the kind of line this change exists to remove.
+report_findings() {
+    [ -n "$FINDINGS_FILE" ] && [ -s "$FINDINGS_FILE" ] || return 0
+    echo
+    echo '==> findings (one line per distinct message, with the sites it affects)'
+    group_findings < "$FINDINGS_FILE"
 }
 
 # run_quiet LABEL COMMAND...
