@@ -102,6 +102,7 @@ Generated references. Do not edit by hand - each names its generator.
 | [`capability-map.md`](capability-map.md) - lazysite - capability map | What a connected partner may do, and how |
 | [`control-api-actions.md`](control-api-actions.md) - lazysite - control API actions | Every action the control API dispatches, what it requires, and what it takes |
 | [`coverage-series.md`](coverage-series.md) - Coverage series | One row per release cut. Started 2026-08-12 because a drift rate cannot be measured backwards. |
+| [`devel-cover-lock-leak-upstream-report.md`](devel-cover-lock-leak-upstream-report.md) - Devel::Cover: one .lock file per structure write, never removed - 4.1 million on one run | A report for the Devel::Cover issue tracker, ready to paste. Written by the lazysite engine agent from the measurements in SM896; the release manager ... |
 | [`host-dependencies.md`](host-dependencies.md) - lazysite - host dependencies | The OS packages a host needs, beyond core Perl |
 | [`manager-colour-contrast.md`](manager-colour-contrast.md) - Manager colour contrast standard | WCAG targets for the manager token system, light and dark |
 | [`quickstarts.md`](quickstarts.md) - lazysite - agent quickstarts | The sanctioned path for common jobs |
@@ -223,4 +224,4 @@ SHIPPED. Installed into every site and served at /docs/. Written for the site ow
 
 ---
 
-*108 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*109 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

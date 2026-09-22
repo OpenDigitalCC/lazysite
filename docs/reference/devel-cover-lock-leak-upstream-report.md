@@ -48,7 +48,7 @@ is why the four million were not seen until `df -i` reported 0 free and
 
 # Where it is
 
-`lib/Devel/Cover/DB/IO/Base.pm`:
+`Devel::Cover::DB::IO::Base`, in the distribution's `DB/IO/Base.pm`:
 
 ```perl
 sub _lock {
@@ -61,7 +61,7 @@ sub _lock {
 ```
 
 Called from `_read` (`LOCK_SH`) and `_write` (`LOCK_EX`). Nothing unlinks
-`$lock`. `lib/Devel/Cover/DB/Structure.pm` writes each structure file via a
+`$lock`. `Devel::Cover::DB::Structure` writes each structure file via a
 per-process temp name and renames it into place, so `_write`'s `$file` - and
 therefore the lock name - is the temp name, unique per (digest, pid).
 
