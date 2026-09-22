@@ -165,4 +165,102 @@ subtest 'reinstall REFUSES when the version differs - that is upgrade' => sub {
     like( $out, qr/0\.0\.1/,     'stating the version it found' );
 };
 
+# SM899. The 0.14.3 W1 transcript, run by the operator from an unpacked
+# tarball: every refusal above was correct and every one of them told them to
+# type `lazysite upgrade ...` - a command that answers "command not found" on
+# that host - and then ended with "command failed (exit 2): /usr/bin/perl
+# .../install.pl --docroot ... --mode provision". Their first question was
+# where `lazysite` existed; their reading of the last line was that they had
+# run something wrong.
+subtest 'a refusal spells the command the way this one was reached' => sub {
+    # This test reaches the CLI as `perl /abs/path/tools/lazysite-cli.pl`,
+    # which is the tarball shape. The hint has to be typeable on this host.
+    my ( $d, $cgi ) = site();
+    my ( $rc0, undef ) = cli( 'provision', '--docroot', $d, '--cgibin', $cgi );
+    is( $rc0, 0, 'the site is installed first' );
+
+    my ( $rc, $out ) = cli( 'provision', '--docroot', $d, '--cgibin', $cgi );
+    isnt( $rc, 0, 'a second provision is refused' );
+    like( $out, qr/perl \Q$cli\E upgrade --docroot/,
+        'the hint is `perl <this cli> upgrade ...`' )
+        or diag("operator asked: where does the command `lazysite` exist?\n$out");
+    unlike( $out, qr/\blazysite upgrade\b/,
+        'and not `lazysite upgrade`, which this host does not have' );
+};
+
+subtest 'reached as `lazysite`, the hint says `lazysite`' => sub {
+    # The deb shape: /usr/bin/lazysite. Any link by that name is the same
+    # case - what matters is what the operator typed, which is $0's basename.
+    my ( $d, $cgi ) = site();
+    my $bin = site_tempdir();
+    symlink( $cli, "$bin/lazysite" ) or plan skip_all => "cannot symlink: $!";
+
+    my $out0 = run_cmd( $^X, "$bin/lazysite", 'provision', '--docroot', $d, '--cgibin', $cgi );
+    is( $? >> 8, 0, 'the site is installed through the link' ) or diag($out0);
+    my $out = run_cmd( $^X, "$bin/lazysite", 'provision', '--docroot', $d, '--cgibin', $cgi );
+    isnt( $? >> 8, 0, 'a second provision is refused' );
+    like( $out, qr/^\s+To move it to \S+:\s+lazysite upgrade --docroot/m,
+        'the hint is `lazysite upgrade ...`' )
+        or diag($out);
+};
+
+subtest 'a refusal by design ends with the refusal, and keeps its exit code' => sub {
+    my ( $d, $cgi ) = site();
+    my ( $rc0, undef ) = cli( 'provision', '--docroot', $d, '--cgibin', $cgi );
+    is( $rc0, 0, 'the site is installed first' );
+
+    my ( $rc, $out ) = cli( 'provision', '--docroot', $d, '--cgibin', $cgi );
+    is( $rc, 2, "the installer's refusal code (2) is what the operator gets" )
+        or diag("exit $rc:\n$out");
+    unlike( $out, qr/command failed/,
+        'nothing says a command failed - a refusal is not a failed command' )
+        or diag($out);
+    unlike( $out, qr/install\.pl/,
+        'and nothing points at install.pl, which the operator never typed' )
+        or diag($out);
+    like( $out, qr/ALREADY INSTALLED/, 'the refusal itself is still there' );
+};
+
+subtest 'a crash is still reported as one' => sub {
+    # The discriminator: run_installer forwards ONLY the two by-design codes.
+    # An installer that dies still gets run_or_fail's line, so a real failure
+    # is not mistaken for a quiet refusal.
+    #
+    # A `die` exits with $! when it is set - so the first draft's uncreatable
+    # docroot under /proc died with ENOENT, which is 2, and read as a refusal.
+    # A parent the caller may not write into dies with EACCES (13) instead.
+    plan skip_all => 'root ignores directory modes' if $> == 0;
+    my ( undef, $cgi ) = site();
+    my $parent = site_tempdir();
+    chmod 0555, $parent or die $!;
+    my ( $rc, $out ) = cli( 'provision', '--docroot', "$parent/site", '--cgibin', $cgi );
+    chmod 0755, $parent;
+    isnt( $rc, 0, 'it fails' );
+    isnt( $rc, 2, 'and not with the refusal code' ) or diag($out);
+    like( $out, qr/command failed \(exit \d+\)/,
+        'run_or_fail reports it as a failed command, naming the exit' )
+        or diag($out);
+};
+
+subtest '--installdir stands for both paths' => sub {
+    # The operator's ask: "it would be easier to just specify installdir which
+    # can then assume the docroot and cgi paths." On HestiaCP the pair is
+    # always DIR/public_html and DIR/cgi-bin.
+    my $dir = site_tempdir();
+    make_path("$dir/public_html");    # provision needs the docroot's parent to exist
+    my ( $rc, $out ) = cli( 'provision', '--installdir', $dir );
+    is( $rc, 0, 'provision --installdir DIR exits 0' ) or diag($out);
+    ok( -f "$dir/public_html/lazysite/.install-state.json",
+        'the site landed at DIR/public_html' );
+    ok( -d "$dir/cgi-bin", 'and the cgi-bin at DIR/cgi-bin' );
+
+    my ( $rc2, $out2 ) = cli( 'reinstall', '--installdir', $dir );
+    is( $rc2, 0, 'reinstall --installdir DIR finds the same site' ) or diag($out2);
+
+    # Two statements of one path is how a wrong one goes unnoticed.
+    my ( $rc3, $out3 ) = cli( 'upgrade', '--installdir', $dir, '--docroot', "$dir/public_html" );
+    is( $rc3, 2, '--installdir with --docroot is a usage error' ) or diag($out3);
+    unlike( $out3, qr/command failed|install\.pl/, 'refused by the CLI, before any site was touched' );
+};
+
 done_testing();

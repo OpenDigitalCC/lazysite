@@ -72,6 +72,7 @@ my %opt = (
     backup       => '',
     list_backups => 0,
     dry_run      => 0,
+    invoked_as   => '',
 );
 
 sub usage {
@@ -134,6 +135,11 @@ Optional:
   --restore-full FILE Restore a full-system backup (manager "full" backup) into
                       --docroot, optionally rewriting the site domain with
                       --domain NAME. The temp -> final domain migration path.
+  --invoked-as CMD    How the operator reached the lazysite CLI - `lazysite`
+                      when it is on PATH, `perl /path/tools/lazysite-cli.pl`
+                      from an unpacked tarball. The CLI sets this; a refusal
+                      spells the command it recommends with it, so the hint
+                      is one the host can run. Default: lazysite.
   --help              Show this help
 
 Maintenance modes:
@@ -195,6 +201,7 @@ Getopt::Long::GetOptions(
     'restore-full=s' => \$opt{restore_full},
     'force'          => \$opt{force},
     'mode=s'         => \$opt{mode},
+    'invoked-as=s'   => \$opt{invoked_as},
 ) or do {
     print {*STDERR} "install.pl: unknown option (run --help for the option list)\n";
     exit 2;
@@ -2098,6 +2105,11 @@ sub declared_mode {
     my $have = defined $state ? ( $state->{version} // '?' ) : undef;
     my $to   = $manifest->{version} // '?';
 
+    # SM899: the CLI says how it was reached. On a tarball host there is no
+    # `lazysite` on PATH, and a hint that names one sends the operator to
+    # "command not found".
+    my $cli = length( $o->{invoked_as} // '' ) ? $o->{invoked_as} : 'lazysite';
+
     unless ( defined $want && length $want ) {
         # NOT a default. A default here is the guessing this removed, and the
         # caller is always either the lazysite CLI or a script this repo ships,
@@ -2106,9 +2118,9 @@ sub declared_mode {
                 . "provision, upgrade, reinstall.\n"
                 . "  install.pl no longer decides which of those you meant "
                 . "(SM892). Run one of:\n"
-                . "    lazysite provision --docroot DIR --cgibin DIR   # a site that does not exist yet\n"
+                . "    $cli provision --docroot DIR --cgibin DIR   # a site that does not exist yet\n"
                 . "    lazysite upgrade   --docroot DIR                # move an installed site forward\n"
-                . "    lazysite reinstall --docroot DIR                # re-lay this version, keeping content\n" );
+                . "    $cli reinstall --docroot DIR                # re-lay this version, keeping content\n" );
     }
 
     unless ( $want =~ /\A(?:provision|upgrade|reinstall)\z/ ) {
@@ -2120,15 +2132,15 @@ sub declared_mode {
         return ( 'fresh', undef ) unless defined $state;
         return ( undef, "lazysite: this site is ALREADY INSTALLED, at $have.\n"
                 . "  provision is for a site that does not exist yet, so nothing was changed.\n"
-                . "  To move it to $to:        lazysite upgrade --docroot $o->{docroot}\n"
-                . "  To re-lay $have as it ships:  lazysite reinstall --docroot $o->{docroot}\n" );
+                . "  To move it to $to:        $cli upgrade --docroot $o->{docroot}\n"
+                . "  To re-lay $have as it ships:  $cli reinstall --docroot $o->{docroot}\n" );
     }
 
     if ( $want eq 'upgrade' ) {
         unless ( defined $state ) {
             return ( undef, "lazysite: NOTHING IS INSTALLED at $o->{docroot}.\n"
                     . "  upgrade moves an installed site forward, so nothing was changed.\n"
-                    . "  To install it:  lazysite provision --docroot $o->{docroot} --cgibin DIR\n" );
+                    . "  To install it:  $cli provision --docroot $o->{docroot} --cgibin DIR\n" );
         }
         if ( $have eq $to ) {
             # ALREADY CURRENT IS A NO-OP, NOT A REFUSAL, and the distinction is
@@ -2151,7 +2163,7 @@ sub declared_mode {
             return ( undef, undef,
                 "lazysite: this site is already at $to - nothing to upgrade.\n"
                     . "  To re-lay $to as it ships, keeping content:  "
-                    . "lazysite reinstall --docroot $o->{docroot}\n" );
+                    . "$cli reinstall --docroot $o->{docroot}\n" );
         }
         return ( 'upgrade', undef );
     }
@@ -2160,12 +2172,12 @@ sub declared_mode {
     unless ( defined $state ) {
         return ( undef, "lazysite: NOTHING IS INSTALLED at $o->{docroot}.\n"
                 . "  reinstall re-lays the version a site already has, so nothing was changed.\n"
-                . "  To install it:  lazysite provision --docroot $o->{docroot} --cgibin DIR\n" );
+                . "  To install it:  $cli provision --docroot $o->{docroot} --cgibin DIR\n" );
     }
     if ( $have ne $to ) {
         return ( undef, "lazysite: this site is at $have and the payload is $to.\n"
                 . "  reinstall re-lays the SAME version; changing version is an upgrade.\n"
-                . "  To move it to $to:  lazysite upgrade --docroot $o->{docroot}\n" );
+                . "  To move it to $to:  $cli upgrade --docroot $o->{docroot}\n" );
     }
     return ( 'reinstall', undef );
 }

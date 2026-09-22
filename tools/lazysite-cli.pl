@@ -117,11 +117,17 @@ Verbs:
         /etc/lazysite/sites.d/. REFUSES a site that is already
         installed, and names the verb you wanted.
         (You install the PACKAGE; you provision a SITE.)
+        --installdir DIR stands for --docroot DIR/public_html
+        --cgibin DIR/cgi-bin (the HestiaCP layout) on this verb and
+        the two below; it does not combine with either.
   upgrade --docroot D [--cgibin C] [--force] [--dry-run]
         Move an installed site to the payload's version, as the site
-        user. --cgibin defaults to the site's registry entry. REFUSES a
-        docroot with nothing installed, and refuses when the site is
-        already at this version - that is `reinstall`.
+        user. --cgibin defaults to the site's registry entry; a site
+        with no entry (provisioned before the registry existed, or on
+        a host where /etc/lazysite/sites.d was not writable) needs
+        --cgibin as well, and the verb says so. REFUSES a docroot with
+        nothing installed, and refuses when the site is already at
+        this version - that is `reinstall`.
         --dry-run reports the plan and changes nothing - run it before
         committing an upgrade. Single-site only; it does not combine
         with --all.
@@ -268,6 +274,22 @@ sub payload_root {
             . "$bin - expected /usr/share/lazysite or a source checkout" );
 }
 
+# SM899 R1: HOW THE OPERATOR REACHED THIS, so a hint can be typed back.
+#
+# Every refusal names the command to run instead, and every one of them said
+# `lazysite ...`. On a tarball host there is no `lazysite` on PATH - the
+# operator got here as `perl /tmp/lazysite-0.14.3/tools/lazysite-cli.pl`, and
+# the first thing they asked after reading the hint was where that command
+# existed. install.sh already spells its signpost the way it was reached; this
+# is the same rule for the verbs. Typed as `lazysite` (the deb's /usr/bin
+# entry, or any link by that name) it is `lazysite`; reached by path it is
+# `perl` and the absolute path, which works from any directory.
+sub invoked_as {
+    return 'lazysite' if basename($0) eq 'lazysite';
+    my $me = abs_path($0) // $0;
+    return "perl $me";
+}
+
 # The payload's release manifest, decoded; undef for a bare checkout (no
 # manifest built). Shared by version, --force-security and the sites verb.
 sub payload_manifest {
@@ -299,7 +321,7 @@ sub refuse_root {
             . "lazysite never writes into a site tree as root: root-owned files in a\n"
             . "site tree are exactly the breakage this CLI exists to prevent (SM139).\n"
             . "Run it as the site user instead:\n"
-            . "  sudo -u SITEUSER lazysite $what ...\n"
+            . '  sudo -u SITEUSER ' . invoked_as() . " $what ...\n"
             . "(The verbs that may run as root are the ones that drop to each\n"
             . "site's owner first: 'upgrade --all', 'migrate-engine-tree --all'\n"
             . "and 'probe'.)" );
@@ -309,6 +331,37 @@ sub run_or_fail {
     my (@cmd) = @_;
     my $rc = system(@cmd);
     return if $rc == 0;
+    my $why = $rc == -1 ? "cannot run: $!" : 'exit ' . ( $rc >> 8 );
+    fail( "command failed ($why): " . join( ' ', @cmd ) );
+}
+
+# SM899 R2: THE INSTALLER'S REFUSAL IS THE WHOLE ANSWER.
+#
+# install.pl exits 2 for a declaration that is wrong about the site ("ALREADY
+# INSTALLED, at 0.14.3 - to move it forward: ... upgrade ...") and 3 for a
+# clean channel skip, and in both cases it has already said everything on
+# stderr. run_or_fail then added "command failed (exit 2): /usr/bin/perl
+# .../install.pl --docroot ... --mode provision" - which told the operator they
+# had run something wrong, and pointed them at a file they never typed. The
+# 0.14.3 W1 transcript ends on exactly that line.
+#
+# So the three verbs that declare a mode go through this instead: exit 0
+# returns; 2 and 3 are forwarded as they are, with nothing appended, because a
+# refusal by design is not a failed command; anything else IS one, and gets
+# run_or_fail's line, which is right for a crash.
+#
+# One edge, known and accepted: a perl `die` exits with $! when it is set, so
+# an installer that died on ENOENT also exits 2. Its own words ("Cannot create
+# directory ...: No such file or directory") are already on stderr; what is
+# lost is only the line that repeated the argv.
+sub run_installer {
+    my (@cmd) = @_;
+    my $rc = system(@cmd);
+    return if $rc == 0;
+    if ( $rc != -1 ) {
+        my $code = $rc >> 8;
+        exit $code if $code == 2 || $code == 3;
+    }
     my $why = $rc == -1 ? "cannot run: $!" : 'exit ' . ( $rc >> 8 );
     fail( "command failed ($why): " . join( ' ', @cmd ) );
 }
@@ -355,7 +408,8 @@ sub _install_argv {
     fail('_install_argv: mode is required (provision|upgrade|reinstall)')
         unless defined $o{mode} && length $o{mode};
     my @cmd = ( $^X, payload_root() . '/install.pl',
-        '--docroot', $docroot, '--cgibin', $cgibin, '--mode', $o{mode} );
+        '--docroot', $docroot, '--cgibin', $cgibin, '--mode', $o{mode},
+        '--invoked-as', invoked_as() );
     push @cmd, '--force' if $o{force};
     # SM892 D5: starter/docs/install.md has documented `--dry-run` as the thing
     # to run before committing an upgrade since the installer was the operator's
@@ -652,19 +706,21 @@ sub site_version {
 
 sub cmd_provision {
     my %o = (
-        docroot => '', cgibin => '', domain  => '',
+        docroot => '', cgibin => '', domain  => '', installdir => '',
         channel => '', policy => '', dry_run => 0,
     );
     Getopt::Long::GetOptions(
-        'docroot=s' => \$o{docroot},
-        'cgibin=s'  => \$o{cgibin},
-        'domain=s'  => \$o{domain},
-        'channel=s' => \$o{channel},
-        'policy=s'  => \$o{policy},
-        'dry-run'   => \$o{dry_run},
+        'docroot=s'    => \$o{docroot},
+        'cgibin=s'     => \$o{cgibin},
+        'installdir=s' => \$o{installdir},
+        'domain=s'     => \$o{domain},
+        'channel=s'    => \$o{channel},
+        'policy=s'     => \$o{policy},
+        'dry-run'      => \$o{dry_run},
     ) or usage(2);
     refuse_root('provision');
-    usage_error('provision needs --docroot and --cgibin')
+    _paths_from_installdir( \%o, 'provision' );
+    usage_error('provision needs --docroot and --cgibin (or --installdir)')
         unless length $o{docroot} && length $o{cgibin};
     fail("--channel must be 'edge', 'beta', 'stable' or 'certified'")
         if length $o{channel} && $o{channel} !~ /^(?:edge|beta|stable|certified)$/;
@@ -675,7 +731,7 @@ sub cmd_provision {
     my @cmd  = _install_argv( $o{docroot}, $o{cgibin},
         mode => 'provision', dry_run => $o{dry_run} );
     push @cmd, '--domain', $o{domain} if length $o{domain};
-    run_or_fail(@cmd);
+    run_installer(@cmd);
 
     # A dry run stops at the plan. The three passes below all WRITE - two conf
     # keys and a registry file - and a preview that leaves a registry entry
@@ -711,12 +767,13 @@ sub cmd_provision {
 
 sub cmd_upgrade {
     my %o = (
-        docroot => '', cgibin         => '', all     => 0,
+        docroot => '', cgibin         => '', all     => 0, installdir => '',
         force   => 0,  force_security => 0,  dry_run => 0,
     );
     Getopt::Long::GetOptions(
         'docroot=s'      => \$o{docroot},
         'cgibin=s'       => \$o{cgibin},
+        'installdir=s'   => \$o{installdir},
         'all'            => \$o{all},
         'force'          => \$o{force},
         'force-security' => \$o{force_security},
@@ -755,11 +812,12 @@ sub cmd_upgrade {
     return cmd_upgrade_all( \%o ) if $o{all};
 
     refuse_root('upgrade');
-    usage_error('upgrade needs --docroot (or --all)') unless length $o{docroot};
+    _paths_from_installdir( \%o, 'upgrade' );
+    usage_error('upgrade needs --docroot (or --installdir, or --all)') unless length $o{docroot};
     my $docroot = _resolve_docroot( \%o );
     my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
 
-    run_or_fail( _install_argv( $docroot, $cgibin,
+    run_installer( _install_argv( $docroot, $cgibin,
             mode => 'upgrade', force => $o{force}, dry_run => $o{dry_run} ) );
 
     # Nothing was replaced, so nothing is holding the previous engine. Saying
@@ -786,19 +844,21 @@ sub cmd_upgrade {
 # one puts the shipped files back. A site whose engine was edited wants this;
 # a site whose permissions drifted wants repair.
 sub cmd_reinstall {
-    my %o = ( docroot => '', cgibin => '', dry_run => 0 );
+    my %o = ( docroot => '', cgibin => '', installdir => '', dry_run => 0 );
     Getopt::Long::GetOptions(
-        'docroot=s' => \$o{docroot},
-        'cgibin=s'  => \$o{cgibin},
-        'dry-run'   => \$o{dry_run},
+        'docroot=s'    => \$o{docroot},
+        'cgibin=s'     => \$o{cgibin},
+        'installdir=s' => \$o{installdir},
+        'dry-run'      => \$o{dry_run},
     ) or usage(2);
 
     refuse_root('reinstall');
-    usage_error('reinstall needs --docroot') unless length $o{docroot};
+    _paths_from_installdir( \%o, 'reinstall' );
+    usage_error('reinstall needs --docroot (or --installdir)') unless length $o{docroot};
     my $docroot = _resolve_docroot( \%o );
     my $cgibin  = _cgibin_for( $docroot, $o{cgibin} );
 
-    run_or_fail( _install_argv( $docroot, $cgibin,
+    run_installer( _install_argv( $docroot, $cgibin,
             mode => 'reinstall', dry_run => $o{dry_run} ) );
 
     # The same reason upgrade says it: a worker holding engine code in memory
@@ -910,6 +970,28 @@ sub _resolve_docroot {
     return abs_path( $o->{docroot} ) // $o->{docroot};
 }
 
+# SM899: ONE PATH FOR THE PAIR. On a HestiaCP host a site is always
+# DIR/public_html and DIR/cgi-bin under /home/<user>/web/<domain>, and the
+# operator running the 0.14.3 walk typed both, twice, and asked for the one
+# that implies them: "it would be easier to just specify installdir which can
+# then assume the docroot and cgi paths." Mis-pairing a docroot with another
+# site's cgi-bin is the mistake this removes.
+#
+# It is a spelling of --docroot and --cgibin, not a third thing, so giving it
+# alongside either is refused: two statements of one path is how a wrong one
+# goes unnoticed.
+sub _paths_from_installdir {
+    my ( $o, $verb ) = @_;
+    return unless length( $o->{installdir} // '' );
+    usage_error("$verb: --installdir names both paths; do not also pass --docroot or --cgibin")
+        if length( $o->{docroot} // '' ) || length( $o->{cgibin} // '' );
+    my $dir = abs_path( $o->{installdir} ) // $o->{installdir};
+    $dir =~ s{/+\z}{};
+    $o->{docroot} = "$dir/public_html";
+    $o->{cgibin}  = "$dir/cgi-bin";
+    return;
+}
+
 # The cgi-bin from the registry when the caller did not give one. Extracted
 # because upgrade and reinstall both need it and a second copy of a lookup is
 # how two verbs come to disagree about where a site is.
@@ -926,7 +1008,7 @@ sub _cgibin_for {
     }
     fail( "cannot determine the cgi-bin for $docroot (no registry entry in "
             . registry_dir()
-            . ') - pass --cgibin' )
+            . ') - pass --cgibin, or --installdir DIR where the site is DIR/public_html and DIR/cgi-bin' )
         unless length $cgibin;
     return $cgibin;
 }
@@ -1568,7 +1650,7 @@ sub cmd_demo {
         fail("cannot create the demo site directories under $dir")
             unless -d $docroot && -d $cgibin;
         print "lazysite: fresh-installing a demo site at $dir\n";
-        run_or_fail( _install_argv( $docroot, $cgibin, mode => 'provision' ) );
+        run_installer( _install_argv( $docroot, $cgibin, mode => 'provision' ) );
     }
 
     my @serve = ( $^X, "$root/tools/lazysite-server.pl",
@@ -1614,8 +1696,11 @@ lazysite - host-side management CLI for lazysite sites
 
   lazysite provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable|certified]
                      [--policy auto|manual]
+  lazysite provision --installdir DIR [...]
   lazysite upgrade --docroot D [--cgibin C] [--force]
+  lazysite upgrade --installdir DIR [--force]
   lazysite upgrade --all [--force | --force-security]
+  lazysite reinstall --docroot D [--cgibin C] | --installdir DIR
   lazysite sites
   lazysite check [args...]
   lazysite users [args...]
@@ -1660,12 +1745,27 @@ fleet-wide C<upgrade --all> runs; C<manual>, the default, leaves upgrades
 to the sysop). On success the site is recorded in the registry (see
 L</REGISTRY>).
 
+C<--installdir DIR> stands for C<--docroot DIR/public_html --cgibin
+DIR/cgi-bin> - the HestiaCP layout, where the pair is always derived from
+one directory - on this verb, C<upgrade> and C<reinstall>. It does not
+combine with either option it stands for.
+
 =item B<upgrade> --docroot D [--cgibin C] [--force]
 
 Upgrade one site from the host payload, as the site user (refuses root).
-When C<--cgibin> is omitted it is taken from the site's registry entry.
+When C<--cgibin> is omitted it is taken from the site's registry entry; a
+site with no entry - provisioned before the registry existed, or on a host
+where F</etc/lazysite/sites.d> was not writable - needs C<--cgibin> (or
+C<--installdir>), and the verb says so rather than guessing.
 C<--force> overrides the site's update-channel policy (recorded in the
 site's audit log by C<install.pl>).
+
+A refusal from the installer - a declaration that is wrong about the site,
+or a clean update-channel skip - is passed through as it stands, with its
+own exit status (2 and 3 respectively) and nothing appended: the refusal
+names what to run instead, spelt the way this command was reached
+(C<lazysite ...> from the package, C<perl .../tools/lazysite-cli.pl ...>
+from an unpacked tarball).
 
 =item B<upgrade> --all [--force | --force-security]
 

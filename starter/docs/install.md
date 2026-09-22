@@ -102,7 +102,28 @@ perl tools/lazysite-cli.pl provision \
 ```
 
 The verbs and their options are identical. A tarball is how the code reaches
-the host; it is not a different way to install a site.
+the host; it is not a different way to install a site. A refusal from any
+verb spells the command it recommends the way you reached it — `perl
+tools/lazysite-cli.pl …` here, `lazysite …` once the package is installed.
+
+`upgrade` and `reinstall` take the cgi-bin from the site's registry entry
+(`/etc/lazysite/sites.d/`, written by `provision`). A site with no entry —
+one provisioned before the registry existed, or on a host where that
+directory was not writable — needs `--cgibin` as well, and the verb says so
+rather than guessing:
+
+```bash
+perl tools/lazysite-cli.pl upgrade \
+    --docroot /path/to/public_html --cgibin /path/to/cgi-bin
+```
+
+On a HestiaCP host the pair is always `DIR/public_html` and `DIR/cgi-bin`
+under `/home/<user>/web/<domain>`, so all three verbs also take
+`--installdir DIR` in place of both:
+
+```bash
+perl tools/lazysite-cli.pl upgrade --installdir /home/<user>/web/<domain>
+```
 
 `install.sh` in the tarball root installs nothing. It is kept only to point
 anyone who still types it at the three verbs above.

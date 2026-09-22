@@ -12,7 +12,11 @@ sudo lazysite upgrade --all                              # every registered site
 
 `--dry-run` on the single-site form reports the plan and writes nothing.
 From an unpacked tarball, before any package is installed, the same verb works
-out of the tree: `perl tools/lazysite-cli.pl upgrade --docroot ...`.
+out of the tree: `perl tools/lazysite-cli.pl upgrade --docroot ...`. The
+cgi-bin comes from the site's registry entry; a site with none (provisioned
+before the registry existed, or on a host where `/etc/lazysite/sites.d` was
+not writable) needs `--cgibin` too, and the verb says so. On a HestiaCP host
+`--installdir /home/<user>/web/<domain>` stands for both paths.
 
 **You say which operation you mean.** Nothing infers it from the state of the
 disk, and each verb refuses rather than quietly doing one of the others:

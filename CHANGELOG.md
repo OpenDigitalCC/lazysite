@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM899 (PENDING) **a refusal names a command the host has, and is not
+  reported as a failed command.** The 0.14.3 field walk, run by the operator
+  from an unpacked tarball: every SM892 refusal was correct and every one
+  told them to type `lazysite upgrade …` — "command not found" on that host,
+  where the verb was reached as `perl /tmp/lazysite-0.14.3/tools/lazysite-cli.pl`
+  — and then ended `command failed (exit 2): /usr/bin/perl …/install.pl
+  --docroot … --mode provision`, which reads as "you ran something wrong" and
+  points at a file nobody typed. The CLI now tells the installer how it was
+  reached (`--invoked-as`; `lazysite` when typed as that, `perl <absolute
+  path>` otherwise) and every hint is spelt with it; a refusal (exit 2) or a
+  channel skip (exit 3) is passed through as it stands, with its own exit
+  code and nothing appended, while a crash still reads `command failed`.
+  `starter/docs/install.md` and `UPGRADE.md` say when `--cgibin` is needed
+  (a site with no registry entry) rather than leaving the verb to say it.
+  And the operator's ask: `--installdir DIR` on `provision`, `upgrade` and
+  `reinstall` stands for `--docroot DIR/public_html --cgibin DIR/cgi-bin`,
+  the HestiaCP layout, and is refused alongside either option it stands for.
+  `t/tools/85` covers each.
+
 ## 0.14.4 - STABLE: an include stays inside its section, and a cut can complete on this host (2026-09-22)
 
 A security patch on the stable line, one day after 0.14.3. The 0.14.3 field
