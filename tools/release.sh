@@ -431,16 +431,24 @@ esac
 # lock file per structure file per process, 4,131,376 of them - on a
 # filesystem with 4.75M in total; it passed this check twice and wedged the
 # host twice. coverage.sh now reaps those locks as it runs and prints the DB's
-# real footprint ("coverage: DB footprint N inode(s)") - ~25k on this suite:
-# 7,198 run dirs x 3 files, ~1,000 structure files, a few thousand live locks -
-# plus ~11k for the clone. 200k is that with room. Before trusting this number
-# again, read the footprint line from the last gate's coverage log.
+# real footprint ("coverage: DB footprint N inode(s)").
+#
+# MEASURED ON THE FIRST CUT THROUGH THE FIXED GATE (0.14.4): the footprint
+# AFTER the final clean was 15,671 inodes for 7,309 runs - but the PEAK during
+# the run is what the filesystem has to hold, and mid-run there were 133,149
+# live locks: the population younger than the reaper's one-minute threshold,
+# ~100 processes a minute x ~574 files each. With the clone (~11k) the peak is
+# ~170k. The first version of this floor said 200k against an estimate of
+# "a few thousand live locks" - inside the truth, but by a margin that would
+# not survive a slower host. 500k is the peak with room. Before trusting this
+# number again, read the footprint line from the last gate's coverage log,
+# and remember it is the post-clean figure, not the peak.
 if [ -n "$_free_inodes" ] && [ "$_free_inodes" -gt 0 ] \
-   && [ "$_free_inodes" -lt 200000 ]; then
+   && [ "$_free_inodes" -lt 500000 ]; then
     echo "release.sh: $STAGE_BASE has only $_free_inodes free inodes." >&2
-    echo "  A gate run needs ~40k as measured (cover_db ~25k with its locks" >&2
-    echo "  reaped, the clone ~11k); 200k is the floor with room. Point" >&2
-    echo "  somewhere with more: --stage-dir DIR, or LAZYSITE_STAGE_DIR." >&2
+    echo "  A gate run PEAKS at ~170k as measured (0.14.4: ~133k live locks" >&2
+    echo "  under the reaper's threshold, plus the clone); 500k is that with" >&2
+    echo "  room. Point somewhere with more: --stage-dir DIR, or LAZYSITE_STAGE_DIR." >&2
     exit 5
 fi
 case "${_free_kb:-}" in ''|*[!0-9]*) _free_kb="" ;; esac
