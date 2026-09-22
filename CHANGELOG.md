@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM898 (PENDING) **an include no longer lifts governed content into a public
+- SM898 (2e9828a8) **an include no longer lifts governed content into a public
   page.** Found by the 0.14.3 field walk (W5b), measured as an anonymous
   visitor: a draft section's partial and a read-restricted section's partial,
   each 404 when fetched directly, each printed in full into a public page
@@ -59,7 +59,7 @@ Naming the commit: AFTER it lands, never before
   page cannot carry one reader's view to another. Three sabotages fail the
   test. **Security: a re-walk of W5b after the next cut closes it.**
 
-- SM896 (PENDING) **the coverage gate no longer exhausts the filesystem's
+- SM896 (cf221f85) **the coverage gate no longer exhausts the filesystem's
   inodes, and says what it cost.** Both attempts to cut 0.14.3 ran the
   instrumented suite to a clean PASS — 932 files, 14,704 tests, two hours — and
   then `cover` printed nothing. Not memory: **4,131,376 hidden lock files**
@@ -76,7 +76,7 @@ Naming the commit: AFTER it lands, never before
   on an existing DB without the suite and never writes the pass record.
   Reproduced by the reaper alone: deleting the locks took `/srv` from 0 to
   4.13M free inodes with nothing running. Docs: SM895.
-- SM895 (PENDING) **the coverage report step keeps its own stderr and names
+- SM895 (cf221f85) **the coverage report step keeps its own stderr and names
   its own failure.** It was `cover … 2>/dev/null | grep -v` under `set -e`
   with no `pipefail`: `grep -v` of empty input exits 1, the script died after a
   suite that had passed, and release.sh announced "the instrumented run did not
@@ -87,7 +87,7 @@ Naming the commit: AFTER it lands, never before
   not. The first run of the new path caught a real failure — `Can't open
   database` — exactly as designed. The failed-stage removal default is kept as
   SM328 decided it; the filing records why.
-- SM897 (PENDING) **the grouped rollout report counts sites, names sites, and
+- SM897 (3db09a35) **the grouped rollout report counts sites, names sites, and
   keeps each site list under its finding.** SM889's first run against a real
   fleet — the 0.14.3 rollout, 29 updated, 0 failed — printed `[123]` for a
   warning that occurs at most once per site, site lists reading `probe X,
