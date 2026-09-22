@@ -63,6 +63,19 @@ Naming the commit: AFTER it lands, never before
   the HestiaCP layout, and is refused alongside either option it stands for.
   `t/tools/85` covers each.
 
+- SM894 (PENDING) **a test that edits a tracked file puts it back, and a run
+  that could not is noticed by name.** Three tests write `VERSION`, the
+  sign-off switch, the reliability record and the practice briefing for real
+  — the tool under test reads them — and each restored them its own way: two
+  in `END` blocks, which a signal skips, one inline, which a `die` skips. A
+  run killed mid-test left `VERSION` at `99.0.0`, which failed the version
+  lint on every later run on a tree nobody had edited. `preserve_tracked` in
+  the test helper is now the one owner: backup under the repo's own `tmp/`
+  (never `/tmp`), a marker naming the test, restore on scope exit, on exit
+  and on INT/TERM/HUP; and `tools/tracked-tree-check.pl`, run by the handoff
+  gate after the suite, names any tracked file left changed and the test
+  whose backup outlived it — the SIGKILL case no handler can cover.
+
 ## 0.14.4 - STABLE: an include stays inside its section, and a cut can complete on this host (2026-09-22)
 
 A security patch on the stable line, one day after 0.14.3. The 0.14.3 field

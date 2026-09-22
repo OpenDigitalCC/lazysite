@@ -28,11 +28,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Copy qw(copy);
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(repo_root preserve_tracked);
 
-my $root = "$FindBin::Bin/../../..";
+my $root = repo_root();
 my $tool = "$root/tools/import-field-practice.pl";
 my $out  = "$root/starter/docs/ai-briefing-practice.md";
 plan skip_all => "no $tool" unless -f $tool;
@@ -40,9 +40,11 @@ plan skip_all => "no $out"  unless -f $out;
 
 # The generator writes in place, so preserve and restore. A test that left the
 # repo's briefing stamped 9.9.9 would fail the next release rather than this one.
-my $dir  = tempdir( CLEANUP => 1 );
-my $save = "$dir/original";
-copy( $out, $save ) or die "preserve: $!";
+# SM894: the restore used to be one inline copy() near the end, so an ordinary
+# die between here and there left the briefing edited; the guard covers a die,
+# the exit, and a signal.
+my $kept = preserve_tracked($out);
+my $orig = $kept->original($out);
 
 sub regen {
     my ($v) = @_;
@@ -55,7 +57,7 @@ sub regen {
 
 my ( $a, $b );
 my $ok = eval { $a = regen('1.2.3'); $b = regen('9.8.7'); 1 };
-copy( $save, $out )                            or die "restore: $!";
+$kept->restore;
 ok( $ok, 'the generator ran at two versions' ) or do { done_testing(); exit };
 
 # --- 1. a version bump rewrites three lines, not twelve ---------------------
@@ -105,8 +107,6 @@ for my $pair ( [ '1.2.3', $a ], [ '9.8.7', $b ] ) {
     open my $fh, '<', $out or die $!;
     local $/;
     my $now = <$fh>;
-    open my $sfh, '<', $save or die $!;
-    my $orig = <$sfh>;
     is( $now, $orig, 'the checked-in briefing is byte-identical after the test' );
 }
 

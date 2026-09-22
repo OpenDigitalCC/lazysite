@@ -2,11 +2,12 @@ package TestHelper;
 # Shared setup + subprocess helpers for the lazysite test suite.
 use strict;
 use warnings;
-use File::Temp  qw(tempdir);
-use Fcntl       qw(:flock O_WRONLY O_CREAT);
-use File::Path  qw(make_path);
-use File::Copy  ();
-use Digest::SHA qw(sha256_hex);
+use File::Temp   qw(tempdir);
+use Fcntl        qw(:flock O_WRONLY O_CREAT);
+use File::Path   qw(make_path);
+use File::Copy   ();
+use Digest::SHA  qw(sha256_hex);
+use Scalar::Util qw(weaken);
 use FindBin;
 use Exporter 'import';
 
@@ -22,6 +23,7 @@ our @EXPORT_OK = qw(
     env_passthrough
     repo_manifest_guard repo_root_lock
     run_cmd
+    preserve_tracked
 );
 
 # Run a command and capture its output. LIST FORM - no shell, ever.
@@ -789,5 +791,115 @@ sub setup_multi_domain_site {
     $dom{alpha_near} = { host => undef, root => 'sites/alpha-near' };
     return { docroot => $d, domains => \%dom, conf => $conf };
 }
+
+# SM894: ONE OWNER FOR "THIS TEST EDITS A TRACKED FILE".
+#
+# Three tests write files that are tracked in git - VERSION, SIGNOFF.md,
+# RELIABILITY.md, the practice briefing - because the tool under test really
+# reads them and mocking the switch would test the mock. Each carried its own
+# copy of the backup-and-restore lifecycle: two in END blocks, one inline, all
+# three keeping the backup in /tmp. An END block covers a die and does not cover
+# a signal; the inline one covered neither; and a run that was killed mid-test
+# left VERSION at 99.0.0, which then failed t/lint/63 on every later run -
+# including the one somebody started to find out what was wrong.
+#
+# So: preserve_tracked(@paths) copies each file under the repo's own tmp/
+# (never /tmp, which every job on the host shares), writes a MARKER beside the
+# backup naming the test that took it, and returns a guard. The file is put
+# back when the guard goes out of scope (DESTROY - a die, an early return), at
+# exit (END - covers everything DESTROY missed), and on INT, TERM and HUP (a
+# handler that restores and then re-raises, so the exit status still says what
+# happened). SIGKILL cannot be caught; for that case the backup and its marker
+# OUTLIVE the test, and tools/tracked-tree-check.pl - run by handoff.sh after
+# the suite - names the file and the test that left it.
+#
+# A forked child never restores its parent's files: the guard remembers the
+# pid that took the backup, and run_cmd's exec-failure `exit 127` would
+# otherwise run END in the child.
+our @PRESERVED;
+my $SIGNALS_INSTALLED = 0;
+
+sub preserve_dir {
+    return $ENV{LAZYSITE_PRESERVE_DIR} if length( $ENV{LAZYSITE_PRESERVE_DIR} // '' );
+    return repo_root() . '/tmp/preserve';
+}
+
+sub preserve_tracked {
+    my (@paths) = @_;
+    my $dir = preserve_dir();
+    make_path($dir) unless -d $dir;
+    my @entries;
+    for my $p (@paths) {
+        die "preserve_tracked: $p is not a file\n" unless -f $p;
+        ( my $base = $p ) =~ s{.*/}{};
+        my $bak = "$dir/$base.$$." . scalar(@PRESERVED) . '.' . scalar(@entries);
+        File::Copy::copy( $p, $bak ) or die "preserve_tracked: cannot copy $p: $!\n";
+        open my $m, '>', "$bak.owner" or die "preserve_tracked: $bak.owner: $!\n";
+        print {$m} "$0\n$p\n";
+        close $m;
+        push @entries, { path => $p, bak => $bak };
+    }
+    my $g = bless { entries => \@entries, pid => $$, done => 0 }, 'TestHelper::Preserved';
+    # WEAK, or the list itself keeps the guard alive and DESTROY never runs at
+    # the brace - the first draft did exactly that, and its own test caught it:
+    # "restores when it goes out of scope" read MUTATED. The list exists for
+    # END and the signal handler, which must reach a guard the test still
+    # holds; a guard the test has let go has already restored itself.
+    push @PRESERVED, $g;
+    weaken $PRESERVED[-1];
+    _install_restore_signals();
+    return $g;
+}
+
+sub _restore_all { $_->restore for grep { defined } @PRESERVED; return }
+
+sub _install_restore_signals {
+    return if $SIGNALS_INSTALLED++;
+    for my $sig (qw(INT TERM HUP)) {
+        my $prev = $SIG{$sig};
+        $SIG{$sig} = sub {
+            _restore_all();
+            $SIG{$sig} = ( ref $prev eq 'CODE' ) ? $prev : 'DEFAULT';
+            kill $sig, $$;
+        };
+    }
+    return;
+}
+
+END { _restore_all() }
+
+package TestHelper::Preserved;
+
+# The content as it was when the backup was taken - for a test that edits a
+# copy of the original rather than the file as it now stands.
+sub original {
+    my ( $self, $path ) = @_;
+    for my $e ( @{ $self->{entries} } ) {
+        next unless !defined $path || $e->{path} eq $path;
+        open my $fh, '<', $e->{bak} or return undef;
+        local $/;
+        my $t = <$fh>;
+        close $fh;
+        return $t;
+    }
+    return undef;
+}
+
+sub restore {
+    my ($self) = @_;
+    return if $self->{done};
+    return if $self->{pid} != $$;    # a forked child leaves its parent's files alone
+    for my $e ( @{ $self->{entries} } ) {
+        next unless -f $e->{bak};
+        File::Copy::copy( $e->{bak}, $e->{path} );
+        unlink $e->{bak}, "$e->{bak}.owner";
+    }
+    $self->{done} = 1;
+    return;
+}
+
+sub DESTROY { $_[0]->restore }
+
+package TestHelper;
 
 1;

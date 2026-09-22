@@ -62,6 +62,15 @@ else
   grep -E "^Files=" tmp/handoff-suite.log
 fi
 
+# 4b. SM894: the suite put back every tracked file it edited. Three tests
+#     edit VERSION, the sign-off switch, the reliability record and the
+#     practice briefing for real, and a run that is killed mid-test leaves
+#     them edited - which then fails a version lint on the NEXT run, on a
+#     tree nobody touched. Asked here, where the answer can name the test.
+if ! perl tools/tracked-tree-check.pl .; then
+  fail "a test left a tracked file edited (named above)"
+fi
+
 # 5. For a branch bound for a cut: the bench gate too.
 if [ "${1:-}" = "--release" ]; then
   say "==> bench --check"

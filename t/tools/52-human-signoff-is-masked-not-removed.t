@@ -19,10 +19,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Copy qw(copy move);
+use File::Copy qw(move);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root preserve_tracked);
 
 my $root = repo_root();
 my $tool = "$root/tools/lazysite-compliance.pl";
@@ -35,19 +35,12 @@ plan skip_all => 'no SIGNOFF.md' unless -f $switch;
 # fixture forces that rather than depending on whatever today's VERSION says -
 # a test that only works while the tree happens to be stale would pass by
 # accident and stop testing the moment somebody walked the registers.
+#
+# SM894: both files are TRACKED, and the tool really reads them, so they are
+# edited for real and put back by the one owner of that lifecycle - which
+# also covers a signal, where the END block this used to carry did not.
 my $vf   = "$root/VERSION";
-my $vbak = "/tmp/lazysite-signoff-version-$$";
-my $sbak = "/tmp/lazysite-signoff-switch-$$";
-copy( $vf,     $vbak ) or die $!;
-copy( $switch, $sbak ) or die $!;
-
-sub restore {
-    copy( $vbak, $vf )     if -f $vbak;
-    copy( $sbak, $switch ) if -f $sbak;
-    unlink $vbak, $sbak;
-    return;
-}
-END { restore() }
+my $kept = preserve_tracked( $vf, $switch );
 
 sub write_file {
     my ( $path, $body ) = @_;
@@ -59,7 +52,7 @@ sub write_file {
 
 sub set_switch {
     my ($value) = @_;
-    my $text = do { open my $fh, '<', $sbak or die $!; local $/; <$fh> };
+    my $text = $kept->original($switch);
     $text =~ s/^signoff_required:.*$/signoff_required: $value/m;
     write_file( $switch, $text );
     return;
@@ -126,5 +119,5 @@ subtest 'the same findings appear either way' => sub {
             . 'decision the release manager can make honestly.' );
 };
 
-restore();
+$kept->restore;
 done_testing();

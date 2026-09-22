@@ -16,7 +16,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root preserve_tracked);
 
 my $root = repo_root();
 my $tool = "$root/tools/lazysite-compliance.pl";
@@ -24,24 +24,10 @@ plan skip_all => "no $tool" unless -f $tool;
 my $switch = "$root/docs/compliance/SIGNOFF.md";
 plan skip_all => 'no SIGNOFF.md' unless -f $switch;
 
-# Same backup/restore idiom as t/tools/52, and for the same reason: the switch
-# is a real file the tool really reads, so the test sets it rather than mocking.
-my $sbak = "/tmp/lazysite-cert-switch-$$";
-my $orig = do { open my $fh, '<', $switch or die $!; local $/; <$fh> };
-open my $b, '>', $sbak or die $!; print {$b} $orig; close $b;
-END {
-    if ( defined $sbak && -f $sbak ) {
-        open my $r, '<', $sbak or die $!;
-        local $/;
-        my $t = <$r>;
-        close $r;
-        open my $w, '>', $switch or die $!;
-        print {$w} $t;
-        close $w;
-        unlink $sbak;
-    }
-}
-
+# The switch is a real file the tool really reads, so the test sets it rather
+# than mocking - and SM894 gave that lifecycle one owner, preserve_tracked,
+# which also puts the file back on a signal.
+#
 # SM603: THE REHEARSAL RECORD IS A FIXTURE NOW, not ambient state.
 #
 # The certified subtest needs a STALE rehearsal to prove the finding is a hard
@@ -49,11 +35,10 @@ END {
 # moment a rehearsal was recorded, as the 0.11.0 stable prep did, the test that
 # checks staleness is caught failed because nothing was stale. A test that
 # needs the project to be broken cannot be run on a healthy project.
-#
-# Same pattern set_switch already uses: mutate, measure, restore. The END block
-# below restores both, so a die mid-test cannot leave the record edited.
-my $reliab = "$root/docs/RELIABILITY.md";
-my $reliab_orig = do { open my $fh, '<', $reliab or die $!; local $/; <$fh> };
+my $reliab      = "$root/docs/RELIABILITY.md";
+my $kept        = preserve_tracked( $switch, $reliab );
+my $orig        = $kept->original($switch);
+my $reliab_orig = $kept->original($reliab);
 
 sub age_rehearsals {
     ( my $t = $reliab_orig ) =~ s/^(\s*)20\d\d-\d\d-\d\d(\s*\|)/${1}2001-01-01${2}/mg;
@@ -69,8 +54,6 @@ sub restore_rehearsals {
     close $fh;
     return;
 }
-
-END { restore_rehearsals() if defined $reliab_orig }
 
 sub set_switch {
     my ($value) = @_;
