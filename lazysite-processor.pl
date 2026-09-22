@@ -1034,6 +1034,50 @@ sub _acl_governed {
     return ref( _acl_entry_for( $map, $rel ) ) eq 'HASH' ? 1 : 0;
 }
 
+# SM898: WHICH entry governs a path - its key - or undef when none does.
+#
+# `::: include` needs to know not whether the partial is governed but whether
+# the including page is governed BY THE SAME RULE, and _acl_entry_for returns
+# the entry without its key. The key is recovered by identity against the map
+# rather than by repeating the longest-match logic here: two copies of "which
+# rule wins" is how the two halves of a rule come to disagree (SM268 H10 was
+# one such copy). Same store, same per-request parse, same failed-load answer
+# as _acl_governed: a store that will not load governs everything, and here
+# that means every path reports the same sentinel key and no include of
+# governed content is refused for being outside its section - the failed load
+# has already refused every page, which is the louder answer.
+sub _acl_governing_key {
+    my ($abs) = @_;
+    my $f = "$LAZYSITE_DIR/auth/acls.json";
+    return undef unless -f $f;
+    my $real = realpath($abs);
+    return undef unless defined $real;
+    my $rel = _content_rel($real);
+    return undef unless defined $rel;
+
+    my $map;
+    if ( defined $ACL_MAP_CACHE ) {
+        return '*' unless ref $ACL_MAP_CACHE eq 'HASH';
+        $map = $ACL_MAP_CACHE;
+    }
+    else {
+        open my $fh, '<:raw', $f or return '*';
+        $map = eval {
+            local $/;
+            JSON::PP::decode_json(<$fh>);
+        } || {};
+        close $fh;
+        return undef unless ref $map eq 'HASH';
+        $ACL_MAP_CACHE = $map;
+    }
+    my $entry = _acl_entry_for( $map, $rel );
+    return undef unless ref $entry eq 'HASH';
+    for my $k ( keys %$map ) {
+        return $k if ref $map->{$k} eq 'HASH' && $map->{$k} == $entry;
+    }
+    return undef;
+}
+
 # SM223: gate a SOURCE-LESS static file (no .md/.url behind it) on the ACL.
 #
 # Returns true when it has already written a response and the caller must stop.
@@ -4932,6 +4976,39 @@ sub _resolve_include {
         if ( !-f $real ) {
             log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include file not found", source => $source );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
+        }
+
+        # SM898: GOVERNED CONTENT IS INCLUDABLE ONLY FROM ITS OWN SECTION.
+        #
+        # A3 (above) let an include reach the private store, and nothing then
+        # asked whether the REQUESTER may read what it reached. The field
+        # measured the result on 0.14.3 as an anonymous visitor: a draft
+        # section's partial and a read-restricted section's partial, each 404
+        # when fetched directly, each printed in full into a public page that
+        # carried one `::: include` line. The section's 404 exists so that
+        # nothing confirms the content is there; one line of Markdown undid it,
+        # and the one who can write that line on a multi-author site is exactly
+        # the sub-user whose grant stops at their own folder.
+        #
+        # The rule is about SECTIONS, not identities: the including page must
+        # sit under the same governing entry as the partial. A page inside the
+        # section is gated by that entry already, so it may include the
+        # section's own partials (A3's case, kept - t/integration/103). A page
+        # anywhere else may not, whoever is asking. Identity-free on purpose:
+        # the refusal renders the same for every reader, so a cached public
+        # page cannot carry one reader's view to another, and an ungoverned
+        # page's render never comes to depend on who asked. A TIGHTER rule
+        # inside a section is a different entry and therefore a different
+        # audience, and is refused for the same reason.
+        my $gov = _acl_governing_key($real);
+        if ( defined $gov ) {
+            my $page_gov = _acl_governing_key($md_path);
+            if ( !defined $page_gov || $page_gov ne $gov ) {
+                log_event( "WARN", $ENV{REDIRECT_URL} // "-",
+                    "include refused: governed content outside its section",
+                    source => $source, rule => $gov );
+                return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
+            }
         }
 
         $content = eval { read_file($real) };

@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM898 (PENDING) **an include no longer lifts governed content into a public
+  page.** Found by the 0.14.3 field walk (W5b), measured as an anonymous
+  visitor: a draft section's partial and a read-restricted section's partial,
+  each 404 when fetched directly, each printed in full into a public page
+  carrying one `::: include` line. Introduced by SM888 A3, which let an include
+  reach the private store and asked nothing about who was reading — the only
+  thing it kept refusing, and the only thing its test asserted, was the
+  `lazysite/` tree. Reproduced in `t/integration/104` before fixing. The rule:
+  governed content is includable only from a page under the **same governing
+  ACL entry** — a section page may include its own partials (A3's case, kept),
+  a page anywhere else may not, whoever is asking; a tighter nested rule is a
+  different entry and refused too. Identity-free on purpose, so a cached public
+  page cannot carry one reader's view to another. Three sabotages fail the
+  test. **Security: a re-walk of W5b after the next cut closes it.**
+
 - SM896 (PENDING) **the coverage gate no longer exhausts the filesystem's
   inodes, and says what it cost.** Both attempts to cut 0.14.3 ran the
   instrumented suite to a clean PASS — 932 files, 14,704 tests, two hours — and
