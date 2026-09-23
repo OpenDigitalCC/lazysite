@@ -48,6 +48,11 @@ close $pg;
 
 my $users = "$root/tools/lazysite-users.pl";
 qx($^X \Q$users\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
+# SM901: @team has to be a group the store knows - a read list naming nobody
+# who exists is refused, and that is the point of this file's other probe.
+open my $gf, '>>', "$docroot/lazysite/auth/groups" or die $!;
+print {$gf} "team: sjm\n";
+close $gf;
 
 sub cgi_env {
     return ( env_passthrough(),

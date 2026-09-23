@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM901 (PENDING) **a read or write list is checked against the store: a
+  name nobody has is reported, and a list that names nobody is refused.**
+  From the 0.14.4 W5b re-walk: `{"read":["agent-ai","edge-testing"]}` — two
+  group names without the `@` — was accepted with `ok:true` and no remark,
+  and a member of the group got Forbidden; the stored rule read to nobody but
+  the owner. `acl-set` now resolves every name (a bare name against the
+  accounts, `@name` against the groups). A name the store does not know is
+  **stored as written** — a login that will exist tomorrow is a legitimate
+  thing to write today — and reported in `unknown` on the result and in the
+  warnings the CLI prints. A non-empty list that resolves to **no** known
+  principal is refused (`unknown-principals`, naming the names and how a
+  group is spelt), because a rule that reads to nobody can only be a
+  mistake. A site with no accounts and no groups checks nothing, so a rule
+  can still be written before the first account. The manager's picker was
+  never affected (SM305); the control API, MCP `set_permissions` and
+  `lazysite acl set` are. `t/unit/manager/194` covers each branch.
+
 - SM900 (PENDING) **a template parse error is reported at the file line, on
   every surface.** Found by the 0.14.4 W11 walk: `validate` said line 7 for
   an unclosed `[% IF %]` on file line 11, while the unclosed fence on the same

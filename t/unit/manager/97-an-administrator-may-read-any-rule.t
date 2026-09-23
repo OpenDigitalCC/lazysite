@@ -36,6 +36,12 @@ close $gf;
 open my $gs, '>', "$docroot/lazysite/auth/groups-settings.json" or die $!;
 print {$gs} '{"admins":{"manage_users":true}}';
 close $gs;
+# SM901: the principals a rule names have to EXIST once the store has anything
+# in it - a read list that resolves to nobody is refused. The rig used to name
+# alice and auditor without ever creating them.
+open my $uf, '>', "$docroot/lazysite/auth/users" or die $!;
+print {$uf} "alice:x\nauditor:x\nroot-user:x\n";
+close $uf;
 
 $Lazysite::Manager::Files::DOCROOT = $docroot;
 $Lazysite::Auth::Acl::DOCROOT      = $docroot;

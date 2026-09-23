@@ -31,6 +31,12 @@ close $pf;
 # stub only answers verify-credential for the Bearer). Bootstrap through
 # the real writer, as the tools tests do.
 qx($^X \Q$root/tools/lazysite-users.pl\E --docroot \Q$docroot\E setup-sysop --user sjm pw123456789 2>/dev/null);
+# SM901: the token principal the rules below name has to EXIST in the store -
+# a read list that resolves to nobody is refused. On a real site a token
+# holder always has a users line; the stub above only answers for the Bearer.
+open my $uf, '>>', "$docroot/lazysite/auth/users" or die $!;
+print {$uf} "tester:x\n";
+close $uf;
 
 sub stub_with {
     my (%caps) = @_;

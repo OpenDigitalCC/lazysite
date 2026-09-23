@@ -1962,6 +1962,64 @@ sub action_acl_set {
     my $rl  = _to_list($read);  $rec{read}  = $rl if defined $rl;
     my $wl  = _to_list($write); $rec{write} = $wl if defined $wl;
 
+    # SM901: EVERY NAME IN A LIST IS CHECKED AGAINST THE STORE.
+    #
+    # Measured on edge, 0.14.4: {"read":["agent-ai","edge-testing"]} - two
+    # GROUP names written without the @ - was accepted with ok:true and no
+    # remark, and a signed-in member of edge-testing got Forbidden. _to_list
+    # drops only empty strings; _acl_allows reads a bare name as a LOGIN and
+    # @name as a group; nothing here had ever asked whether either existed.
+    # The rule stored was "owner, and nobody", and every signal said success.
+    #
+    # THE RULING (2026-09-23): a login that will exist tomorrow is a legitimate
+    # thing to write today - provisioning sets rules before it creates
+    # accounts - so an unknown name is REPORTED (`unknown`, and a warning the
+    # CLI prints), not refused. A list that resolves to NO known principal at
+    # all reads to nobody and can only be a mistake, so that is refused,
+    # naming the names. An EMPTY list is not "nobody": it is no restriction
+    # (_acl_allows), and clearing a list must stay an ordinary write.
+    #
+    # The manager UI cannot reach this - SM305 gave it a picker that emits the
+    # right spelling. The typed surfaces (control API, MCP set_permissions,
+    # `lazysite acl set`) all funnel through here.
+    my @unknown;
+    {
+        local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::_settings_dir();
+        my $accounts = Lazysite::Auth::Settings::account_names();
+        my $groups   = Lazysite::Auth::Settings::group_names();
+
+        # A site with NO accounts and NO groups - an unsecured dev site, a
+        # site being provisioned before its first account - has nothing to
+        # check a name against, and refusing every rule there would make a
+        # rule impossible to write before an account exists. Nothing known
+        # means nothing checked, and nothing reported: "unknown" is a
+        # statement about a store, and there is no store to make it about.
+        last unless %$accounts || %$groups;
+
+        my $known = sub {
+            my ($p) = @_;
+            return $p =~ /\A\@(.+)\z/ ? $groups->{$1} : $accounts->{$p};
+        };
+        for my $pair ( [ read => $rl ], [ write => $wl ] ) {
+            my ( $which, $list ) = @$pair;
+            next unless ref $list eq 'ARRAY' && @$list;
+            my @miss = grep { !$known->($_) } @$list;
+            if ( @miss == @$list ) {
+                return { ok => 0,
+                    kind    => 'unknown-principals',
+                    unknown => \@miss,
+                    error   => "The $which list names nobody who exists: "
+                        . join( ', ', @miss )
+                        . '. A bare name is an account login and @name is a group '
+                        . '(the store knows neither of these), so this rule would be '
+                        . "readable by nobody but the owner. Nothing was changed." };
+            }
+            push @unknown, @miss;
+        }
+    }
+    my %seen_unknown;
+    @unknown = grep { !$seen_unknown{$_}++ } @unknown;
+
     # SM278: `draft` is a FIRST-CLASS field here, not a passenger. SM181 shipped
     # the engine half (a draft prefix 404s to the public and is absent from
     # every listing) but this writer built its record from owner/read/write
@@ -2080,6 +2138,18 @@ sub action_acl_set {
             . 'intended.';
     }
 
+    # SM901: the names the store does not know, said where the CLI prints
+    # warnings and a reader of the JSON looks first. `unknown` on the result
+    # carries them as a list for a caller that wants to act on them.
+    if (@unknown) {
+        push @warnings,
+            'this rule names ' . join( ', ', @unknown )
+            . ', which the store does not know - no account with that login, '
+            . 'no group with that name. Stored as written, so it takes effect '
+            . 'the day the name exists; until then it matches nobody. A group '
+            . 'is spelt @name.';
+    }
+
     my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
     if (@grp) {
         push @warnings,
@@ -2185,6 +2255,7 @@ sub action_acl_set {
     }
 
     return { ok => 1, path => $rel, acl => \%rec,
+        ( @unknown ? ( unknown => \@unknown ) : () ),    # SM901
         content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
         content_move_failed => ( $CONTENT_MOVE_FAILED ? 1 : 0 ),
         ( $CONTENT_MOVED ? ( content_moved_note => $moved_note ) : () ),

@@ -260,6 +260,16 @@ sub _groups_membership {
     return %g;
 }
 
+# SM901: ONE ANSWER TO "is this name a group", beside account_names for the
+# same reason - a read list naming `@editors` matches nobody when no group is
+# called editors, and the writer that accepts the list is the place to ask.
+# Names only, from the groups file the membership walk reads.
+sub group_names {
+    return {} unless defined $AUTH_DIR;
+    my %g = _groups_membership();
+    return { map { $_ => 1 } keys %g };
+}
+
 # Per-group capabilities + manager flag (read-only here; the users tool owns
 # seeding + writes). { group => { manager=>1, <cap>=>1, ... } }.
 # ADR 0001: JSON files are read as RAW OCTETS and decoded with decode_json

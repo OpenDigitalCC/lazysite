@@ -51,7 +51,8 @@ my $root = repo_root();
 my %DELIBERATE_400 = map { $_ => 1 } qw(
     invalid invalid-path invalid-form-rule validation constraint incomplete
     extra type value name missing-parameter missing_deps missing_module
-    misrouted-argument unnamed unbound domain descriptor data manager service
+    misrouted-argument unknown-principals
+    unnamed unbound domain descriptor data manager service
     plugin refused retired csrf anonymous integrity cert-mismatch
     bad-encoding binary template-parse template-parse-refused not-a-cache
     nav-not-here inherits-nav raw-content-refused brief-sidecar-refused
