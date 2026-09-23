@@ -1,14 +1,14 @@
 ---
 id: SM902
-title: "SM902: the manager guide describes controls the pages do not have, on five of its first pages"
-subtitle: "The sites agent's X6 walk of `starter/docs/manager.md` against a live 0.14.4 manager, chunks 1-5 (Accessing, Site settings, Files and the editor, Nav, Appearance). Seven sentences describe something the page does not do. One names a control that has not existed since SM749 - a per-theme Rename - while the control API still carries `theme-rename`."
+title: "SM902: the manager guide describes controls the pages do not have - twelve sentences across its thirteen pages"
+subtitle: "The sites agent's X6 walk of `starter/docs/manager.md` against a live 0.14.4 manager, every page plus the Admin bar, Installation and Security sections. Twelve sentences describe something the page does not do. One names a control that has not existed since SM749 - a per-theme Rename - while the control API still carries `theme-rename`."
 brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-09-23
 raised-by: sites agent, from the X6 walk on edge 0.14.4
 area: documentation
-status-note: "SHIPPED - the seven sentences now say what the pages do, each checked against the page source before it was rewritten. (1) Site settings: the active layout and theme are NOT shown there - the sentence promised them read-only with a link; the page carries none. (2) Site settings also carries backups to keep, the asset cache lifetime, the five service switches with their holder lines, pairing-key exchange and token rotation, the manager style and the update channel - the guide named none. (3) Content history: `enable` and `disable` are hidden actions (plugin-config.md says why); the tick on Extension Manager is the control, so the guide no longer promises Enable / Pause buttons. (4) The editor's preview refreshes on Save and on Reload preview (edit.md:136, 877), not as you type. (5) The front-matter form shows the page's own keys; `date` only when the page has one. (6) Nav: labels and URLs are edited in a dialog, and a blank URL makes a heading - there is no inline edit and no toggle. (7) Appearance: the switcher is the Installed layouts & themes card; `layouts_ref` is a lazysite.conf key with no control on the page; and the per-theme controls are Preview, Activate, Delete and COPY - Rename went with SM749, which made the served theme read-only. ONE QUESTION for the release manager, in the decision register: `theme-rename` is still a control-API action with no page behind it since SM749. Retire it, or keep it as a typed-surface convenience? Not decided here."
+status-note: "SHIPPED - the seven sentences now say what the pages do, each checked against the page source before it was rewritten. (1) Site settings: the active layout and theme are NOT shown there - the sentence promised them read-only with a link; the page carries none. (2) Site settings also carries backups to keep, the asset cache lifetime, the five service switches with their holder lines, pairing-key exchange and token rotation, the manager style and the update channel - the guide named none. (3) Content history: `enable` and `disable` are hidden actions (plugin-config.md says why); the tick on Extension Manager is the control, so the guide no longer promises Enable / Pause buttons. (4) The editor's preview refreshes on Save and on Reload preview (edit.md:136, 877), not as you type. (5) The front-matter form shows the page's own keys; `date` only when the page has one. (6) Nav: labels and URLs are edited in a dialog, and a blank URL makes a heading - there is no inline edit and no toggle. (7) Appearance: the switcher is the Installed layouts & themes card; `layouts_ref` is a lazysite.conf key with no control on the page; and the per-theme controls are Preview, Activate, Delete and COPY - Rename went with SM749, which made the served theme read-only. ONE QUESTION for the release manager, in the decision register: `theme-rename` is still a control-API action with no page behind it since SM749. Retire it, or keep it as a typed-surface convenience? Not decided here. CHUNKS 6-13, the same morning: three more sentences - the Users list has no identity banner and no Configure button (one line per account, Edit, the identity in the sheet's head), Add group takes a name alone and a group deletes only once empty, and the full-system restore line carries --domain as the page prints it. Twelve lines in all; the walk is closed and recorded in the manual-check register."
 ---
 
 # What was measured
@@ -26,6 +26,9 @@ PASS. These did not:
 | Editor | front matter form: title, subtitle, date | title, subtitle, and the page's own keys; `date` only where the page has one |
 | Nav | edit labels and URLs inline; toggle between links and headings | a dialog per row; a blank URL makes a heading |
 | Appearance | "Active layout & theme" card; `layouts_ref` beside `layouts_repo`; per-theme rename | the card is "Installed layouts & themes"; `layouts_ref` is a conf key with no control; per theme Preview / Activate / Delete / Copy - no Rename since SM749 |
+| Users | an identity banner on selecting a row; a Configure <name> button; a coloured sheet head | one line per account with a kind tag, `(+N)`, flags and **Edit**; the identity is the sheet's own subtitle; the head is plain |
+| Groups | creating a group needs a first member | Add group takes a name alone; deletion is offered only once the group is empty |
+| Backups | `--restore-full FILE` | the page prints `--restore-full FILE --domain NEW-DOMAIN` |
 
 # The one that is not a sentence
 
@@ -40,8 +43,9 @@ manager's - a question in the decision register, not a change here.
 
 - Any control missing that the design intends. Rename was retired on
   purpose; the guide had not caught up.
-- Anything about chunks 6 onwards (Users, Groups, Sessions, Backups, Cache,
-  Audit, Stats, Admin bar, Installation, Security) - the walk continues.
+- The Security section: the agent's probe was refused by its own policy gate
+  and it did not go round it. The suite carries that ground
+  (`t/unit/manager/61-security-review-regressions.t`).
 
 # Related
 

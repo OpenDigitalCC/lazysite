@@ -202,22 +202,24 @@ and the MCP connector (`layout-install` / `layout-delete` / `layouts-manifest`;
   onboarding
 
 **Selecting an account is separate from configuring it.** The account list is a
-tree browser: opening a row *selects* the account - you see an identity banner
-(its name, whether it is a human or AI account, and whether it is top-level or a
-**sub-user of** another account) and, below, its sub-users. Sub-user rows are
-tinted so they read as nested at a glance. Editing is a deliberate second step:
-press **Configure &lt;name&gt;** to open that account's settings in a full-width
-**editor sheet** with a coloured header naming the account. The sheet is the
-same size and position however deep the account sits in the tree, so nesting
-never shrinks it and it is never ambiguous whose settings are on screen. Close
-it with Esc, the × button, or a click outside.
+tree: one line per account - its name, a *human* or *AI* tag, a `(+N)` count
+of sub-users, *disabled* / *expired* where they apply, and an **Edit** button.
+Clicking the name expands or collapses its sub-users, nested beneath it; the
+parent is read from the nesting, so it is not repeated on the row. Editing is a
+deliberate second step: press **Edit** to open that account's settings in a
+full-width **editor sheet** whose head names the account and states what it is
+(*human · top-level account · 2 sub-users*). The sheet is the same size and
+position however deep the account sits in the tree, so nesting never shrinks it
+and it is never ambiguous whose settings are on screen. Close it with Esc, the
+× button, or a click outside.
 
 ### Groups
 
 `/manager/groups` (under **Access** in the menu). View, create, and delete
-groups, and tick membership per group. A group is defined by its membership, so
-creating one needs a first member. (Per-user assignment is also available on the
-Users page.)
+groups, and tick membership per group. **Add group** takes a name alone; a
+group can be deleted only once it is empty (the row says *Remove members to
+delete* until then). (Per-user assignment is also available on the Users
+page.)
 
 ### Sessions
 
@@ -242,8 +244,8 @@ kill them. Revocations are recorded in the audit trail.
 `/manager/backups`. Typed snapshot sections - **Content backups** (create,
 download, in-app restore with an automatic pre-restore safety snapshot) and
 **Full-system backups** (download only; restored by a system user with
-`lazysite backups --docroot D --restore-full FILE`, since they carry the auth
-secrets). Backups
+`lazysite backups --docroot D --restore-full FILE --domain NEW-DOMAIN` - the
+line the page prints - since they carry the auth secrets). Backups
 are the disaster-recovery mechanism, including config and secrets;
 day-to-day content versioning lives in the **Content history** extension
 (Extension Manager / Extension Config). Theme and layout snapshots are managed
