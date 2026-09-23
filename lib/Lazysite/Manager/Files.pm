@@ -1984,7 +1984,7 @@ sub action_acl_set {
     # `lazysite acl set`) all funnel through here.
     my @unknown;
     {
-        local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::_settings_dir();
+        local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
         my $accounts = Lazysite::Auth::Settings::account_names();
         my $groups   = Lazysite::Auth::Settings::group_names();
 

@@ -86,6 +86,11 @@ sub _acls_path { _lz() . "/auth/acls.json" }
 # belongs to the caller's scope, so this supplies the value, not the binding.
 sub _settings_dir { return _lz() . "/auth" }
 
+# SM901: the auth store's directory, for a caller in another module that has
+# to localise Auth::Settings::AUTH_DIR the way the resolvers here do
+# (Manager::Files checks a rule's names against the accounts and groups).
+sub settings_dir { return _settings_dir() }
+
 # A caller's own copy of the map. load_acls has ALWAYS handed back a fresh
 # structure - it decoded the file on every call - and several callers rely on
 # that: acl_drop_tree and acl_move_tree here, and the manager's acl actions,

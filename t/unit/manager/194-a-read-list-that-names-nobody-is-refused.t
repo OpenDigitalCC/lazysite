@@ -17,18 +17,17 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use Cwd        ();
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper                qw(add_account grant_caps);
+use TestHelper                qw(add_account grant_caps site_tempdir);
 use Lazysite::Manager::Files  qw(action_acl_get action_acl_set);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl       ();
 
-my $d = Cwd::realpath( tempdir( CLEANUP => 1 ) );
+my $d = Cwd::realpath( site_tempdir() );
 make_path( "$d/lazysite/auth", "$d/intranet" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\n";
@@ -114,7 +113,7 @@ subtest 'a site with NO accounts and NO groups checks nothing - there is nothing
     # An unsecured dev site, or a site being provisioned before its first
     # account: refusing every rule there would make a rule impossible to write
     # before an account exists. Nothing known means nothing checked.
-    my $e = Cwd::realpath( tempdir( CLEANUP => 1 ) );
+    my $e = Cwd::realpath( site_tempdir() );
     make_path( "$e/lazysite/auth", "$e/intranet" );
     open my $ec, '>', "$e/lazysite/lazysite.conf" or die $!;
     print {$ec} "site_name: E\n";
