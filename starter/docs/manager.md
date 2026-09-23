@@ -56,9 +56,13 @@ identity and review the extension registry.
 
 - **Site settings** - `site_name`, `site_url`, navigation file path,
   `search_default`, manager state, and manager path (manager *access* is
-  granted on the Groups page, via the `ui` capability). The active
-  layout and theme are shown read-only here with a link to **Appearance**, where
-  they are changed. Saves to `lazysite/lazysite.conf`.
+  granted on the Groups page, via the `ui` capability). Also here: backups to
+  keep (per kind), the asset cache lifetime, the five service switches
+  (Manager UI, MCP, OAuth, Control API, WebDAV) each with its "held by N
+  groups / M accounts" line, pairing-key exchange and token rotation, the
+  manager style, and the update channel. The active layout and theme are
+  **not** shown on this page - they live on **Appearance**, reached from the
+  sidebar. Saves to `lazysite/lazysite.conf`.
 - **Extension Manager** (`/manager/plugins`) - lists all discovered extensions
   (every `plugins/*.pl` that answers `--describe`); tick to enable, untick
   to disable.
@@ -85,9 +89,11 @@ identity and review the extension registry.
 
 The editor at `/manager/edit` shows:
 
-- Front matter form (title, subtitle, date) plus raw YAML toggle
+- Front matter form (title, subtitle, and whatever other keys the page
+  carries) plus the raw YAML behind a collapsible **Metadata** panel
 - Monospace editor for the page body
-- Live preview pane
+- Preview pane, refreshed on **Save** and by **Reload preview** - it shows
+  the page as last saved, not as you type
 - Save button (writes file and invalidates cache)
 - **History** (when the Content history extension is enabled): opens this
   file's History panel in Files - the same View, Diff and Restore as above
@@ -103,9 +109,11 @@ it.
 `/manager/nav`. Visual editor for `lazysite/nav.conf`:
 
 - Drag and drop to reorder items
-- Indent and outdent to change nesting
-- Edit labels and URLs inline
-- Toggle between link items and group headings
+- Indent and outdent to change nesting (the arrows are disabled where the
+  move is not legal)
+- Edit an item's label and URL in a small dialog (the pencil on its row)
+- A blank URL makes an item a group heading; give it a URL to make it a
+  link again
 
 Saves back to `lazysite/nav.conf` as YAML. Changes apply only on Save:
 an "Unsaved changes" note appears next to the Save button as soon as you
@@ -136,8 +144,9 @@ every save (manager, WebDAV, or AI connector) becomes a recorded version,
 browsable per file on the Files page (History / Diff / Restore). Unticking
 the extension pauses recording and keeps every recorded version. On Extension
 Config, **Status** reports whether it is recording, how many versions are
-recorded, and whether the host has the `git` package it needs (with
-**Enable** / **Pause recording** there for recovery). The history covers the content plus `lazysite.conf` / `nav.conf`
+recorded, and whether the host has the `git` package it needs, and **History
+overview** summarises what is recorded; the tick on Extension Manager is the
+one control that starts or pauses recording. The history covers the content plus `lazysite.conf` / `nav.conf`
 and never includes secrets or personal data (accounts, form submissions,
 logs), so it is safe to sync to a private remote; full-system backups (see
 Backups) remain the disaster-recovery mechanism for exactly what the
@@ -155,16 +164,20 @@ first.
 `/manager/appearance` (formerly "Themes"; `/manager/themes` redirects here).
 Manage layouts and themes and switch the active pair.
 
-- **Active layout & theme** - the switcher (moved here from Config); activating
-  clears the HTML cache.
-- **Layouts repo** - the `layouts_repo` setting (and `layouts_ref` for the
-  branch the catalogue is read from).
-- **Browse the repo** - the repo's `manifest.json` catalogue: install a single
-  layout and its theme(s) on demand, with version info.
-- **Installed layouts & themes** - activate a layout; **delete a layout** (which
-  removes its themes too, behind a confirm, and only when it is not active);
-  per-theme activate / preview / rename / delete. Preview now works across
-  layouts. A collapsed **Backups** panel collects the theme/layout snapshots
+- **Layouts repo** - the `layouts_repo` setting, one field. The branch the
+  catalogue is read from is the `layouts_ref` key in `lazysite.conf`
+  (default `main`); it has no control on the page.
+- **Browse the repo** - the repo's `manifest.json` catalogue (click
+  **Refresh** to load it): install a single layout and its theme(s) on
+  demand, with version info.
+- **Installed layouts & themes** - the switcher: activating a layout or a
+  theme sets the site default for every visitor and clears the page cache.
+  **Delete a layout** (which removes its themes too, behind a confirm, and
+  only when it is not active or in use by a domain); per theme, **Preview**
+  on any non-active theme, and **Activate** / **Delete** for a non-active
+  theme under the active layout. The served theme is read-only (SM749):
+  **Copy** it, edit the copy, activate the copy - there is no rename.
+  Preview works across layouts. A collapsed **Backups** panel collects the theme/layout snapshots
   taken automatically when a layout or theme is switched or deleted - safe to
   remove, individually or all at once (the active layout is never touched).
   A full-system backup (Backups page) also carries the current themes and

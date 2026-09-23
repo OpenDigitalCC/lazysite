@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM902 (PENDING) **the manager guide says what its first five pages do.**
+  The X6 walk against a live 0.14.4 manager found seven sentences in
+  `starter/docs/manager.md` describing controls the pages do not have: a
+  layout/theme line on Site settings that is not there (and eight controls
+  that are, unnamed), Enable/Pause buttons for content history (the tick on
+  Extension Manager is the control), a preview that is on save rather than
+  live, inline nav editing and a heading toggle (a dialog, and a blank URL),
+  and on Appearance a card name, a `layouts_ref` control that does not exist,
+  and a per-theme Rename that went with SM749 (Copy is the way). Docs only;
+  `theme-rename`'s future as an API action is a register question.
+
 - SM901 (PENDING) **a read or write list is checked against the store: a
   name nobody has is reported, and a list that names nobody is refused.**
   From the 0.14.4 W5b re-walk: `{"read":["agent-ai","edge-testing"]}` — two
