@@ -66,4 +66,6 @@ Two checks cannot answer without one, and they say so rather than passing:
 
 `severity` and `file` are on each message, so messages from several pages can
 be gathered into one list without losing which was which. `line` is present
-where the check knows one.
+where the check knows one, and **every `line` counts from the top of the
+file** - `template-parse` included, front matter and code blocks and all - so
+the number is the one your editor shows.

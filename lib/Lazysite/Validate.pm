@@ -449,7 +449,9 @@ sub validate_content {
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_fences( \@warnings, $fm, $body );
-    push @issues, Lazysite::Manager::Common::page_parse_issues($body);
+    # SM900: with the front-matter offset, as _check_fences has always done, so
+    # the two checks on one page count from the same place - the top of the file.
+    push @issues, Lazysite::Manager::Common::page_parse_issues( $body, _fm_line_offset($fm) );
     _check_db_bindings( \@issues, \@warnings, $fm, $docroot );
     _check_form_rules( \@issues, $content );
     _check_html_in_page( \@warnings, $body, $h );

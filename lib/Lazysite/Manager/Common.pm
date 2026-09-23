@@ -1110,9 +1110,19 @@ sub raw_html_page_refusal {
 # than inventing a second one - which is SM430's argument generally, one answer
 # per operation wherever it is invoked.
 sub page_parse_issues {
-    my ($body) = @_;
+    my ( $body, $offset ) = @_;
     my $issues = [];
     return () unless defined $body && $body =~ /\[%/;
+
+    # SM900: THE LINE IS A FILE LINE. The parser sees a text that exists only
+    # here - the body with the front matter gone and every code-block line
+    # dropped - and its "line N" counted THAT. The W11 walk reported an
+    # unclosed [% IF %] on file line 11 as line 7, while the fence check on the
+    # same page said 8 for a fence on line 8, because that check adds the
+    # front-matter offset back (SM488). Two checks, two origins. So @orig
+    # remembers, for each kept line, the BODY line it came from, and $offset -
+    # the lines the caller removed above the body - completes the sum.
+    $offset //= 0;
 
     # Strip what the processor protects, plus anything ambiguous.
     #
@@ -1133,9 +1143,11 @@ sub page_parse_issues {
     # A directive's continuation never follows a blank line, so requiring one
     # separates the two cases without the stripper needing to know any
     # template syntax.
-    my ( @keep, $in_fence, $in_indent_code );
+    my ( @keep, @orig, $in_fence, $in_indent_code );
     my $prev_blank = 1;    # the top of the body is a place a block may begin
+    my $body_line  = 0;
     for my $line ( split /\n/, $body ) {
+        $body_line++;
         if ( $line =~ /^[ \t]{0,3}(?:```|~~~)/ ) {
             $in_fence   = !$in_fence;
             $prev_blank = 0;
@@ -1155,6 +1167,7 @@ sub page_parse_issues {
         $in_indent_code = 0 unless $blank;
         $prev_blank     = $blank;
         push @keep, $line;
+        push @orig, $body_line;
     }
     my $text = join "\n", @keep;
     $text =~ s/`[^`\n]*`//g;                     # inline code
@@ -1172,6 +1185,12 @@ sub page_parse_issues {
     return () unless $err =~ /parse error/;
 
     my $line = ( $err =~ /line (\d+)/ ) ? $1 + 0 : undef;
+    if ( defined $line ) {
+        # The parser's line, mapped back to the file. A number outside the
+        # kept text would be a wrong answer dressed as a line; leave it out.
+        my $at = ( $line >= 1 && $line <= @orig ) ? $orig[ $line - 1 ] : undef;
+        $line = defined $at ? $at + $offset : undef;
+    }
     ( my $detail = $err ) =~ s/\s+/ /g;
     $detail =~ s/^file error - //;
     push @$issues, {
@@ -1196,8 +1215,12 @@ sub page_parse_refusal {
     return unless defined $path    && $path    =~ /\.md$/i;
     return unless defined $content && $content =~ /\[%/;
     my $body = $content;
-    $body =~ s/\A---\n.*?\n---\n//s;
-    my @issues = page_parse_issues($body);
+    # SM900: the lines stripped here are lines the reported number must count.
+    my $offset = 0;
+    if ( $body =~ s/\A(---\n.*?\n---\n)//s ) {
+        $offset = () = $1 =~ /\n/g;
+    }
+    my @issues = page_parse_issues( $body, $offset );
     return unless @issues;
     my ($said) = $issues[0]{message} =~ /Parser said: (.*)\z/s;
     return _refusal(

@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM900 (PENDING) **a template parse error is reported at the file line, on
+  every surface.** Found by the 0.14.4 W11 walk: `validate` said line 7 for
+  an unclosed `[% IF %]` on file line 11, while the unclosed fence on the same
+  page was reported at 8, correctly. The fence check adds the front-matter
+  offset back; the template check handed the parser a body with the front
+  matter *and* every code-block line removed and reported the parser's line
+  as it stood — and the write-path refusal a manager save or an MCP
+  `write_file` gets carried the same number. The parser's line is now mapped
+  back through the kept lines and the offset, so it is the line the editor
+  shows; `t/unit/manager/193` holds a page with both a front matter and a
+  code block above the fault, on both surfaces.
+
 - SM899 (PENDING) **a refusal names a command the host has, and is not
   reported as a failed command.** The 0.14.3 field walk, run by the operator
   from an unpacked tarball: every SM892 refusal was correct and every one
