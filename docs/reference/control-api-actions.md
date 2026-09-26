@@ -191,7 +191,6 @@ tone: medium
 `theme-copy` | manage_themes | path (query), new_name (body), layout (body)
 `theme-delete` | manage_themes | path (query)
 `theme-list` | manage_themes / manage_layouts |  
-`theme-rename` | cookie only | path (query), new_name (body)
 `theme-upload` | cookie only | filename (query)
 `themes-for-layout` | manage_themes / manage_layouts | layout (query)
 `themes-list-all` | manage_themes / manage_layouts |  

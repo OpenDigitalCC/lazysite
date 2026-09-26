@@ -31,7 +31,7 @@ our @EXPORT_OK = qw(
     action_theme_tokens action_create_theme theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list
-    action_layout_activate action_theme_delete action_theme_rename action_theme_copy
+    action_layout_activate action_theme_delete action_theme_copy
     active_layout_and_theme
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
@@ -292,15 +292,6 @@ sub _forget_theme_creator {
 # Carry provenance across a rename, or the theme stops being deletable by the
 # account that made it - which would turn this fix into the litter problem
 # SM262 set out to solve.
-sub _rename_theme_creator {
-    my ( $layout, $from, $to ) = @_;
-    my $map = _read_created_registry();
-    return unless exists $map->{"$layout/$from"};
-    $map->{"$layout/$to"} = delete $map->{"$layout/$from"};
-    _write_created_registry($map);
-    return;
-}
-
 # SM204: the config (GROUP->KEY->value) map of a theme.json, keeping only
 # scalar leaf values (mirrors generate_theme_css: nested objects under a group
 # key are a shape error and skipped).
@@ -1608,57 +1599,6 @@ sub action_theme_delete {
     }
 
     return { ok => 1, deleted => $theme_name };
-}
-
-sub action_theme_rename {
-    my ( $old_name, $new_name ) = @_;
-
-    # SM861: both names validated, neither edited. The "Invalid name" refusal
-    # that stood here answered for an empty name AFTER stripping - so a name
-    # that was entirely invalid characters reported as absent rather than as
-    # wrong, and one that was partly invalid was quietly accepted as something
-    # else. _bad_theme_name answers for both, naming the parameter.
-    if ( my $bad = _bad_theme_name( 'name',     $old_name ) ) { return $bad }
-    if ( my $bad = _bad_theme_name( 'new_name', $new_name ) ) { return $bad }
-
-    # SM532: the two guards delete applies, applied here too. A rename of the
-    # active theme, or of one a configured domain resolves to, used to answer
-    # ok:1 and leave lazysite.conf (or the domain's override) naming a
-    # directory that no longer existed - every page then rendered through the
-    # layout with no theme mirror, and nothing in the reply said so. Refuse,
-    # worded as delete refuses, rather than repoint: the operator activates
-    # another theme first, exactly as they must before a delete, and rename
-    # gains no conf-write path of its own.
-    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
-    return { ok => 0, error => "Cannot rename the active theme" }
-        if $old_name eq $active_theme;
-    return { ok => 0, error => "No active layout set" }
-        unless length $active_layout;
-
-    my @in_use = _domains_using( theme => $old_name, layout => $active_layout );
-    if (@in_use) {
-        return { ok => 0,
-            error => "Theme '$old_name' is in use by "
-                . join( ', ', @in_use )
-                . ". Repoint or remove those domains first." };
-    }
-
-    my $themes_dir = _lz() . "/layouts/$active_layout/themes";
-    return { ok => 0, error => "Theme not found" } unless -d "$themes_dir/$old_name";
-    return { ok => 0, error => "Name already in use" } if -d "$themes_dir/$new_name";
-
-    unless ( rename "$themes_dir/$old_name", "$themes_dir/$new_name" ) {
-        log_event( 'ERROR', 'theme-rename', 'rename failed',
-            from => $old_name, to => $new_name, error => "$!" );
-        return { ok => 0, error => "Rename failed" };
-    }
-    _rename_theme_creator( $active_layout, $old_name, $new_name );
-
-    my $old_assets = "$DOCROOT/lazysite-assets/$active_layout/$old_name";
-    my $new_assets = "$DOCROOT/lazysite-assets/$active_layout/$new_name";
-    rename $old_assets, $new_assets if -d $old_assets;
-
-    return { ok => 1, old => $old_name, new => $new_name };
 }
 
 # SM749: copy a theme, so "copy, edit, activate" is one verb on every surface.

@@ -44,6 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM903 (PENDING) **`theme-rename` is retired.** SM749 made the served theme
+  read-only and put **Copy** on Appearance in Rename's place; the control-API
+  action outlived the button, reachable only by a caller who read the
+  actions list, and could rename a non-active theme in place. Ruled and
+  removed: a client that called `theme-rename` gets the unknown-action
+  refusal. The one way to change a theme is copy, edit, activate
+  (`theme-copy` stays). **Breaking for API clients that called it; none in
+  the tree, the manager or the skill did.**
+
 - SM902 (PENDING) **the manager guide says what its pages do.** The X6 walk
   of every page against a live 0.14.4 manager found twelve sentences in
   `starter/docs/manager.md` describing controls the pages do not have: a

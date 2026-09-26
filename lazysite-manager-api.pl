@@ -51,7 +51,7 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_git_show action_git_restore action_git_init
     action_regenerate_registries);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
-    action_layout_activate action_theme_delete action_theme_rename action_theme_copy action_theme_upload
+    action_layout_activate action_theme_delete action_theme_copy action_theme_upload
     action_cache_list action_cache_invalidate _read_active_layout_and_theme
     action_artifact_manifest action_artifact_validate);
 use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
@@ -209,7 +209,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     rotate-auth-secret save session-revoke sessions-list site-backup-apply
     site-backup-create site-backup-delete site-backup-download
     site-backup-inspect site-backup-upload site-export-primary
-    theme-activate theme-copy theme-delete theme-list theme-rename themes-for-layout
+    theme-activate theme-copy theme-delete theme-list themes-for-layout
     themes-list-all theme-upload unlock user-revoke users version whoami
     start-page start-page-set
     connector-list connector-save connector-secret-set connector-delete connector-call connector-calls
@@ -608,7 +608,7 @@ my %MUTATING = map { $_ => 1 } qw(
     git-init cache-invalidate acl-set acl-remove config-set bad-url-block bad-url-unblock
     brief-append briefs-migrate brief-delete
     rotate-auth-secret backup-create backup-delete backup-restore theme-activate
-    theme-delete theme-rename theme-copy theme-upload layout-activate layout-delete
+    theme-delete theme-copy theme-upload layout-activate layout-delete
     start-page-set
     layout-install layouts-install layouts-repo-set artifact-backups-delete
     preview-grant preview-clear nav-save handler-save handler-delete
@@ -823,10 +823,9 @@ if ( !$token_auth ) {
         # cookie-only - SM591 changes WHICH grant reaches it, not whether a
         # token can.
         'backup-delete'    => 'purge',
-        'backup-download'  => 'manage_config', 'backup-list'  => 'manage_config',
-        'theme-activate'   => 'manage_themes', 'theme-delete' => 'manage_themes',
-        'theme-rename'     => 'manage_themes', 'theme-upload' => 'manage_themes',
-        'theme-copy'       => 'manage_themes',
+        'backup-download'  => 'manage_config',  'backup-list'     => 'manage_config',
+        'theme-activate'   => 'manage_themes',  'theme-delete'    => 'manage_themes',
+        'theme-upload'     => 'manage_themes',  'theme-copy'      => 'manage_themes',
         'layout-activate'  => 'manage_layouts', 'layout-delete'   => 'manage_layouts',
         'layout-install'   => 'manage_layouts', 'layouts-install' => 'manage_layouts',
         'layouts-repo-set' => 'manage_layouts',
@@ -2189,10 +2188,6 @@ elsif ( $action eq 'theme-delete' ) {
 }
 elsif ( $action eq 'layout-delete' )           { $result = action_layout_delete($path) }
 elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }
-elsif ( $action eq 'theme-rename' ) {
-    my $req = _json_body();
-    $result = action_theme_rename( $path, $req->{new_name} );
-}
 elsif ( $action eq 'theme-copy' ) {
     my $req = _json_body();
     $result = action_theme_copy( $path, $req->{new_name}, { layout => $req->{layout} } );

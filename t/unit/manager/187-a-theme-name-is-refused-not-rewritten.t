@@ -92,13 +92,6 @@ subtest 'the source name is not edited either' => sub {
     ok( !-d "$themes/safe-name", 'and no copy was made' );
 };
 
-subtest 'rename refuses and preserves case in the same way' => sub {
-    my $bad = Lazysite::Manager::Themes::action_theme_rename( 'Lumen', 'no good' );
-    ok( !$bad->{ok}, 'a malformed new name is refused' );
-    is( $bad->{kind}, 'validation', 'as a validation refusal' );
-    ok( -d "$themes/Lumen", 'and the theme is untouched' );
-};
-
 subtest 'delete names the theme the caller named' => sub {
     my $r = Lazysite::Manager::Themes::action_theme_delete('Lumen!');
     ok( !$r->{ok}, 'a malformed name is refused' );
