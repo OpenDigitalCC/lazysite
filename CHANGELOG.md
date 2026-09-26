@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM904 (PENDING) **a form value with a non-ASCII character is stored as
+- SM904 (6d9f595c) **a form value with a non-ASCII character is stored as
   typed.** Found on a live expo form: a name ending *Hervé* was stored as
   *HervÃ©* — UTF-8's two bytes read as two Latin-1 characters and encoded
   again — and reproduced on edge by a percent-encoded XHR and by the
@@ -55,7 +55,7 @@ Naming the commit: AFTER it lands, never before
   UTF-8 left as it was. `t/unit/forms/17` posts to the CGI both ways. Rows
   already stored mangled are not repaired by this.
 
-- SM903 (PENDING) **`theme-rename` is retired.** SM749 made the served theme
+- SM903 (18652829) **`theme-rename` is retired.** SM749 made the served theme
   read-only and put **Copy** on Appearance in Rename's place; the control-API
   action outlived the button, reachable only by a caller who read the
   actions list, and could rename a non-active theme in place. Ruled and
