@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.14.2"
+subtitle: "Everything lazysite has and does, and why - as of v0.14.5"
 brand: plain
 ---
 
@@ -885,7 +885,9 @@ returned on read), and invoked via action buttons.
 **Handlers** (`handlers.conf`, SM842) are named functions a form or the schedule
 calls - `smtp` (envelope here, connection in `smtp.conf`, delivered by
 `plugins/form-smtp.pl`), `file`, `table` (a row in a declared data table, with an
-optional submissions copy) or `connector` (the only way out over HTTP) - and a
+optional submissions copy) or `connector` (the only *handler* that sends over
+HTTP; the engine's other outbound reads - `url:` bindings, remote `.url` pages,
+oEmbed - go through `Lazysite::Fetch`'s guarded GET) - and a
 form is wired to one or more by its `<form>.conf`, which names handlers and
 nothing else. **The destination decides who may configure one**: a table handler
 needs `manage_data`, a connector handler `manage_connectors`, email and file
@@ -939,9 +941,11 @@ an alert.
 quiet. Set `notify: off` in a form's own `.conf` to silence that form alone, or
 `emit.submission: off` in `notify.conf` to silence the type site-wide. Both
 default to on. This exists because volume is real - a three-day programme of 46
-form steps across 15 participants is 690 notices where five were wanted - and
-because the alternative (accumulate and send a digest) needs pending state and a
-timer, which lazysite deliberately does not have.
+form steps across 15 participants is 690 notices where five were wanted. The
+alternative (accumulate and send a digest) needs pending state and a timer;
+since 0.13.x the daemon, its timer and the schedule exist, so a digest is
+possible and is simply not built - per-caller emission is the answer that
+needed no new state.
 
 The registered types are `submission`, `feedback`, `reset-request`,
 `credential-expiring`, `backup-outcome`, `audit-finding` and `service-degraded`.
