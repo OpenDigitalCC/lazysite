@@ -571,7 +571,7 @@ sub parse_post {
                 };
             }
             else {
-                _field_add( \%form, $name, field_value( $name, $body ) );
+                _field_add( \%form, _text($name), _text( field_value( $name, $body ) ) );
             }
         }
     }
@@ -584,7 +584,7 @@ sub parse_post {
             $v //= '';
             $v =~ s/\+/ /g;
             $v =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-            _field_add( \%form, $k, field_value( $k, $v ) );
+            _field_add( \%form, _text($k), _text( field_value( $k, $v ) ) );
         }
     }
     # SM523: the engine's status meta is ENGINE-OWNED. Every key that reaches a
@@ -601,6 +601,27 @@ sub parse_post {
     $form{_files} = \@files if @files;
     _fold_quantities( \%form );
     return %form;
+}
+
+# SM904: A FIELD IS DECODED ONCE, HERE, AND NOWHERE ELSE.
+#
+# %XX becomes chr(hex) above and a multipart text part is taken raw, so every
+# field left this sub as BYTES - "Hervé" as six code points, C3 and A9 among
+# them. Every consumer then treated a byte as a character and encoded it
+# again: the >>:utf8 submissions store, insert_row, the JSON payload to the
+# SMTP script, the :utf8 STDOUT the thank-you renders through. A live lead
+# was stored as "HervÃ©" on 2026-09-24; the API path (a JSON body, decoded
+# by decode_json) was never affected, which is how the fault was placed here.
+#
+# After field_value, so MAX_FIELD_BYTES keeps counting bytes. A body that is
+# not valid UTF-8 is left as it was - utf8::decode leaves the string alone
+# and that reads it as Latin-1, which is the one reading of a Latin-1 body
+# that loses nothing. File parts are not text and stay raw.
+sub _text {
+    my ($s) = @_;
+    return $s unless defined $s;
+    utf8::decode($s);
+    return $s;
 }
 
 # SM401: a REPEATED key accumulates rather than overwriting.

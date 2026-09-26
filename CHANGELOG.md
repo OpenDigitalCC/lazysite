@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM904 (PENDING) **a form value with a non-ASCII character is stored as
+  typed.** Found on a live expo form: a name ending *Hervé* was stored as
+  *HervÃ©* — UTF-8's two bytes read as two Latin-1 characters and encoded
+  again — and reproduced on edge by a percent-encoded XHR and by the
+  browser's own submit alike. `parse_post` handed every field on as bytes,
+  and every destination (the table, the submissions file, the mail payload,
+  the thank-you page) encoded them a second time. One decode at the parse,
+  in both the urlencoded and the multipart branch, with a body that is not
+  UTF-8 left as it was. `t/unit/forms/17` posts to the CGI both ways. Rows
+  already stored mangled are not repaired by this.
+
 - SM903 (PENDING) **`theme-rename` is retired.** SM749 made the served theme
   read-only and put **Copy** on Appearance in Rename's place; the control-API
   action outlived the button, reachable only by a caller who read the
