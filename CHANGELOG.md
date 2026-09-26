@@ -53,7 +53,7 @@ Naming the commit: AFTER it lands, never before
   (`theme-copy` stays). **Breaking for API clients that called it; none in
   the tree, the manager or the skill did.**
 
-- SM902 (PENDING) **the manager guide says what its pages do.** The X6 walk
+- SM902 (f93cf14c) **the manager guide says what its pages do.** The X6 walk
   of every page against a live 0.14.4 manager found twelve sentences in
   `starter/docs/manager.md` describing controls the pages do not have: a
   layout/theme line on Site settings that is not there (and eight controls
@@ -67,7 +67,7 @@ Naming the commit: AFTER it lands, never before
   without the `--domain` the page prints. Docs only; `theme-rename`'s future
   as an API action is a register question.
 
-- SM901 (PENDING) **a read or write list is checked against the store: a
+- SM901 (d1d68672) **a read or write list is checked against the store: a
   name nobody has is reported, and a list that names nobody is refused.**
   From the 0.14.4 W5b re-walk: `{"read":["agent-ai","edge-testing"]}` — two
   group names without the `@` — was accepted with `ok:true` and no remark,
@@ -84,7 +84,7 @@ Naming the commit: AFTER it lands, never before
   never affected (SM305); the control API, MCP `set_permissions` and
   `lazysite acl set` are. `t/unit/manager/194` covers each branch.
 
-- SM900 (PENDING) **a template parse error is reported at the file line, on
+- SM900 (2a8f4fa1) **a template parse error is reported at the file line, on
   every surface.** Found by the 0.14.4 W11 walk: `validate` said line 7 for
   an unclosed `[% IF %]` on file line 11, while the unclosed fence on the same
   page was reported at 8, correctly. The fence check adds the front-matter
@@ -96,7 +96,7 @@ Naming the commit: AFTER it lands, never before
   shows; `t/unit/manager/193` holds a page with both a front matter and a
   code block above the fault, on both surfaces.
 
-- SM899 (PENDING) **a refusal names a command the host has, and is not
+- SM899 (c94e847a) **a refusal names a command the host has, and is not
   reported as a failed command.** The 0.14.3 field walk, run by the operator
   from an unpacked tarball: every SM892 refusal was correct and every one
   told them to type `lazysite upgrade …` — "command not found" on that host,
@@ -115,7 +115,7 @@ Naming the commit: AFTER it lands, never before
   the HestiaCP layout, and is refused alongside either option it stands for.
   `t/tools/85` covers each.
 
-- SM894 (PENDING) **a test that edits a tracked file puts it back, and a run
+- SM894 (39d463ee) **a test that edits a tracked file puts it back, and a run
   that could not is noticed by name.** Three tests write `VERSION`, the
   sign-off switch, the reliability record and the practice briefing for real
   — the tool under test reads them — and each restored them its own way: two
@@ -128,7 +128,7 @@ Naming the commit: AFTER it lands, never before
   gate after the suite, names any tracked file left changed and the test
   whose backup outlived it — the SIGKILL case no handler can cover.
 
-- SM895 (PENDING) **a failed cut keeps its stage, and the next cut removes
+- SM895 (e22e00dc) **a failed cut keeps its stage, and the next cut removes
   it.** G1 and G2 shipped in 0.14.4; this is G3, the one deliberately left
   and now reconciled with SM328 rather than overruling it. The first 0.14.3
   attempt ran the instrumented suite for two hours and then deleted the
