@@ -42,6 +42,38 @@ speculative, because the release manager asked for the full table.
 **Blocked on** names the thing precisely. "A ruling" means the release manager;
 where a question is already on `docs/decision-register.md` the row is named.
 
+# What building it found, 27 September
+
+The release manager selected groups A, B and C. Building them corrected this
+plan, so the corrections are here rather than only in commit messages. **Four of
+the fourteen rows turned out not to be work at all**, and the pattern is the one
+this plan already records one section down: a filing describes the position on
+the day it was written.
+
+| Row | Was planned as | What building it established |
+| --- | --- | --- |
+| A1 [[SM662]] | S, generate the actions table from `%need_caps` | **Not buildable as scoped.** The table carries `params` as well as `caps`, and there is no table to generate those from - the control API dispatches through a 176-branch `if/elsif` chain, and `t/lint/58` reconstructs the parameters by scanning each branch. Both that lint and the module say in as many words that replacing the chain is the real fix and its own work |
+| A3 [[SM654]] | M, generate the unlocks maps, add missing rows | **Nothing left to add.** `t/lint/90` and `t/lint/105` both pass in both directions, so the maps are accurate and no rows are missing. Generating needs `%need_caps` and the MCP tool table moved out of two CGI scripts into modules, which is the same refactor A1 needs |
+| A4 [[SM594]] | L, generate the channel matrix | Inherits A1's blocker, for the same reason |
+| C2 [[SM864]] | S, flag an account named for a role | **Already shipped.** `lazysite-check` has carried `report_shared_manager_account` since N141D and `t/tools/77` asserts every part of it. Found by building it from the filing's note and discovering the duplicate |
+
+**So group A is one small item and one refactor, not four items.** The refactor
+is worth filing on its own terms: *move the control-API gate table and the MCP
+tool table out of the CGI scripts into modules, then generate the actions table,
+both unlocks maps and the channel matrix from them.* That closes A1, A3 and A4
+together, and it is L at least, security-critical, and not something to start
+inside a mixed batch.
+
+One further row was left deliberately: C3 [[SM829]]'s generated-file commit
+guard. Its own note says it is "still waiting for the slip it guards against to
+recur", and no recurrence has been observed. Overriding a recorded decision to
+wait was not mine to do silently.
+
+**Built and gated:** A2 ([[SM873]]), C1 ([[SM871]]), and C6 ([[SM888]] A5, a
+required checklist of one box). Still open in group C: C4 ([[SM456]]), C5
+([[SM888]] C1 and C2, the no-CDN gate) and C7 ([[SM888]] P2). Group B is not
+started.
+
 # Group A - declared, not assembled
 
 Four filings, one mechanism. The engine keeps a derived thing beside the code it
