@@ -44,7 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM881 (PENDING) **a pull no longer publishes a file that belongs in a
+- SM888 A5 (849539a6) **a required checklist of one box has to be ticked.** The
+  renderer left `required` off checkbox groups entirely, which is right for a
+  multi-select — the browser reads it as "this box", so marking them all would
+  demand every option — and wrong for a group of one, where "this box" and "one
+  of the group" are the same box. A field the author had marked required
+  submitted empty, and the single-box case is most often a consent tick, so the
+  case where it matters most was the one least enforced. `t/unit/forms/19`
+  covers all four directions, and its multi-box subtest holds the reason rather
+  than the result.
+
+- SM881 (e3e57b99) **a pull no longer publishes a file that belongs in a
   protected folder, and the engine now answers "is this path gated?" for any
   extension that asks.** `git merge` writes the worktree and the worktree is the
   docroot, so a remote commit adding a file under a gated folder put that file
@@ -66,7 +76,7 @@ Naming the commit: AFTER it lands, never before
   broken every link to it. Three sabotages, one of which bit nothing and proved
   the unknown guard is load-bearing by itself.
 
-- SM871 (PENDING) **a quoted form rule may contain a quote, written `\"`.** The
+- SM871 (572b2e6e) **a quoted form rule may contain a quote, written `\"`.** The
   tokeniser matched `name:"([^"]*)"`, which cannot hold a quote at all, so
   `value:"the \"Old Barn\" room"` truncated at the first inner quote — and the
   remainder went back through the same loop as further rules. That second half
@@ -83,7 +93,7 @@ Naming the commit: AFTER it lands, never before
   than the fault. `starter/docs/forms.md` documents the escape;
   `t/unit/forms/18` was proved against the old regex.
 
-- SM873 (PENDING) **a refusal names a fault at this end with a 500, and a kind
+- SM873 (bb282a55) **a refusal names a fault at this end with a 500, and a kind
   is never assembled at run time.** `Data::Tables` built
   `kind => 'store_' . $why->{reason}`, so one line emitted a family of kinds —
   one per reason the store diagnosis can return — and every member missed

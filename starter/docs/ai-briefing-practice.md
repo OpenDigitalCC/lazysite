@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.14.5
-     imported: 2026-09-26
+     engine-version: 0.15.0
+     imported: 2026-09-27
      agent: the lazysite site agent (Claude Code)
      source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=e6493f4a4d56310b3d14877b33be7596972507edaf28e3a53cd9503b3241de98 modified=2026-09-09
      source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=79a3068e9597c73f7cea535d660862446335da198793f1e7623eefca17632e9f modified=2026-09-15
-     body-sha256: 6a4aa5fe2cdf0f3f9bfa4c929acfc913bc95332b3327a65aedf2fa0956e09213
+     body-sha256: d6107ca8ea8a3c464949324bab8ccccdc5bf1403c5acd545fb7b0ddf6a434481
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.14.5**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.15.0**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1627,7 +1627,7 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-09-26** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-09-27** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
