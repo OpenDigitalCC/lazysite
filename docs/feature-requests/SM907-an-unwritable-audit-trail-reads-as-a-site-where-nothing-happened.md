@@ -5,7 +5,7 @@ subtitle: "On the same new 0.14.4 install, lazysite/logs/audit.log was mode 0664
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "RAISED 2026-09-27 from the field, cause CONFIRMED on the host by `lazysite check`, and repaired there by `--fix`. The operator asked whether an agent's deployment leaving no trail was a permissions problem. It was, and the decisive evidence was a row of the operator's own: viewing the audit page requires a manager login, a successful login is audited, and there was no login row. The trail was split by WRITER IDENTITY, not by action or surface - every row present came from a root or site-user process, every row absent would have been written by the web server. Nothing to do with the agent's capabilities: every state-changing MCP tool and control-API action audits after the capability gate, and a refusal audits too, so a denied agent leaves rows saying so. Four fixes proposed, none built yet."
+status-note: "RAISED 2026-09-27 from the field, cause CONFIRMED on the host by `lazysite check`, and repaired there by `--fix`. The operator asked whether an agent's deployment leaving no trail was a permissions problem. It was, and the decisive evidence was a row of the operator's own: viewing the audit page requires a manager login, a successful login is audited, and there was no login row. The trail was split by WRITER IDENTITY, not by action or surface - every row present came from a root or site-user process, every row absent would have been written by the web server. Nothing to do with the agent's capabilities: every state-changing MCP tool and control-API action audits after the capability gate, and a refusal audits too, so a denied agent leaves rows saying so. Five rows proposed. AT1 and AT3 were then asked for and are WITHDRAWN 2026-09-27, both premises measured false: the check already compares a declared directory's group (496-508, and t/tools/04-check.t passes --group for that reason), and a fresh install leaves audit.log correct because it inherits the group from its setgid directory - the installer's pass only chmods, so covering it would change nothing. The auth stores, created later still by setup-sysop, arrive 0660 under umask 022 and 027 alike. So the engine builds a correct tree and the check detects the broken one; AT2 is the only row left that is a defect, and what changed that file's group on the host is not something this agent can name from here."
 raised: 2026-09-27
 raised-by: release manager (the oca-odoo.com 0.14.4 install)
 area: diagnostics, audit
@@ -75,36 +75,71 @@ because a withdrawn finding that is not written down gets re-found.
 
 # Why the check did not catch it before the trail lost anything
 
-It was never asked to run. But it also could not have been failed by the state
-that caused this, short of the one file that happened to expose it.
+It was never asked to run. That is the whole of it, and the first version of this
+filing said more than that and was wrong.
 
-The directory tests at `tools/lazysite-check.pl:340-361` verify MODE only: the
-group-write bit and setgid. They never compare the directory's group to the
-expected CGI group. So `lazysite/logs` reported ok at 2775 while its group was
-`ispadmin`, and every file created in it inherited `ispadmin` through the setgid
-bit that the check had just confirmed was set.
+# What building AT1 and AT3 found, 27 September
 
-The failure message in that same loop says `no setgid (new files miss the
-group)`. The mechanism is understood. The group being inherited is not checked.
+Both were claimed here as defects. Both premises measure FALSE. Recorded at
+length because a disproved row that is quietly dropped gets re-filed by the next
+reader of the first draft.
 
-# Why the audit log was the only file that showed it
+**AT1 is wrong: the check DOES compare a declared directory's group.** This
+filing claimed the directory tests verify mode only. They are two loops, not one.
+The mode tests are at `tools/lazysite-check.pl:340-361`, and section 3 at
+`496-508` walks the SAME `%want_dir` set comparing each directory's group to the
+expected CGI group, failing with the recursive chown. `t/tools/04-check.t:59`
+passes `--group` for exactly that reason, in those words: "otherwise the group
+check would (correctly) flag them".
 
-Because it is the only declared runtime file created AFTER the installer's
-permission pass.
+Measured, not read. One scratch docroot, `lazysite/logs` at 2775, the check run
+twice over it changing only the EXPECTED group:
 
-That pass is at `install.pl:1651`. It walks `runtime_files` from
-`classification.json` and skips anything that does not exist yet
-(`next unless -f $p`). The installer writes its own first audit line later, at
-`install.pl:825`. So on every fresh install the audit log is created after the
-pass that would have covered it.
+```
+logs/ group = claude; measuring with expected group = users
+expected=claude   group findings: NONE
+expected=users    group findings:
+  [ FAIL ] lazysite/auth group is claude, expected users ...
+  [ FAIL ] lazysite/cache group is claude, expected users ...
+  [ FAIL ] lazysite/logs group is claude, expected users ...
+```
 
-And the pass only ever chmods - `chmod( $m | 0020, $p )` - never chowns. Even
-had the file existed, a pass that adds a group-write bit already present would
-have changed nothing. The ownership of that file rests entirely on the group its
-directory carries at the moment it is created.
+The claim came from reading one loop and not the one twenty lines below it - the
+same mistake as the tarball claim above, made twice in one diagnosis.
 
-Every other declared file was written by the installer, covered by the pass, and
-passed the check.
+It also follows that `lazysite/logs` DID carry the CGI group on the host, because
+that pre-fix run reported no group failure. So the directory was right and the
+file in it was wrong, which means nothing inherited the wrong group: something
+set it, after the file was created.
+
+**AT3 is true as an ordering fact and buys nothing.** The pass at
+`install.pl:1651` does skip files that do not exist (`next unless -f $p`), and the
+installer does write its first audit line later at `install.pl:825`, so the audit
+log is genuinely the one declared runtime file the pass never covers. But the pass
+only chmods - `chmod( $m | 0020, $p )` - so covering it could not have changed
+anything, and a real fresh install leaves the file correct anyway. Measured, with
+the docroot given a group that is NOT the installing user's primary group, so an
+inherited group and a creator's group are distinguishable:
+
+```
+primary group=claude  docroot group=users
+lazysite/lazysite.conf              0664   users   inherited the docroot group
+lazysite/logs                       2775   users   inherited the docroot group
+lazysite/logs/audit.log             0664   users   inherited the docroot group
+```
+
+**The nearest alternative is false too.** That measurement showed the auth stores
+absent after a provision: `users`, `groups`, `groups-settings.json` and
+`user-settings.json` are created later by `setup-sysop` from a shell, so the pass
+cannot cover them either and their modes come from the operator's umask. Under
+umask 022 and again under 027, every one of them arrives 0660 and group-writable.
+The writers are already umask-proof, as `Lazysite::Audit` is for the log.
+
+So the engine produces a correct tree on a fresh install, and the check detects
+the broken state in one pass. Neither AT1 nor AT3 is a defect, and neither is
+built. What changed that file's group on the host was something after the
+install, and this agent cannot name it from here - it is not the installer, and
+it is not a umask.
 
 # What the page should have said
 
@@ -123,14 +158,16 @@ site cannot tell you".
 
 | Ref | Complexity | What |
 |-----|-----------|------|
-| AT1 | S | The declared-directory tests compare the GROUP to the expected CGI group, not only the mode, and fail with the chown remedy. This alone catches the host at install, before the trail loses anything. |
+| AT1 | - | WITHDRAWN 2026-09-27, premise measured false. The check already compares a declared directory's group, at `tools/lazysite-check.pl:496-508`, and fails with the recursive chown. Nothing to build. |
 | AT2 | S | The audit page reports that the trail cannot be written, as a refusal state with the file, the fault class and the repair - not a shorter list. Covers the absent file too: missing and unreadable are different answers. |
-| AT3 | S | The installer covers the audit log: create it before the declared-file pass, and let that pass correct ownership as well as the mode, so the one file that arrives late is not the one file the model never reaches. |
+| AT3 | - | WITHDRAWN 2026-09-27, premise measured false in effect. The ordering is real - the audit log is created after the pass - but the pass only chmods and a fresh install leaves the file correct, group inherited from its setgid directory. Covering it changes nothing. Nothing to build. |
 | AT4 | XS | The check's CGI-writable message names the right consequence per file. For the audit log it says "the manager cannot save it"; it is appended by every surface, and entries are lost without trace. |
 | AT5 | XS | `starter/lazysite/forms/smtp.conf.example` ships world-readable, so an operator copying it into place produces a world-readable credentials file - which is the second failure this host reported. The manager's own save chmods 0660, because the extension declares a `password` field; the example should start where the save would leave it. |
 
-AT1 and AT3 are the pair that matter. AT1 is the detection the operator would
-have had, AT3 is the install that would not have needed it.
+AT2 is the only row left that is a defect. The detection already exists and the
+install is already correct, so the single thing this incident proves the engine
+lacks is a site that SAYS its trail cannot be written, rather than showing a short
+list and looking well.
 
 # What this cost
 
