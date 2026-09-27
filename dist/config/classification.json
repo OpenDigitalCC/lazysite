@@ -443,7 +443,12 @@
     {
       "path": "{LAZYSITE}/auth/groups",
       "ensure": "group-write",
-      "why": "as auth/users - group membership and capability grants"
+      "why": "as auth/users - group MEMBERSHIP. The capability grants are in groups-settings.json beside it, which this line used to claim and which is the confusion SM906 was about"
+    },
+    {
+      "path": "{LAZYSITE}/auth/groups-settings.json",
+      "ensure": "group-write",
+      "why": "SM906: the capability grants themselves, plus each group's label and whether it may be assigned. The manager writes it (group-settings-set) and every capability decision READS it, so a file the CGI cannot open resolves every account to zero capabilities - which the engine then reported as facts about the account: an empty capability grid, labels falling back to technical names, backend groups offered as assignable, and account-create refusing about a capability the account held. It was the one auth store missing from both this model and the check"
     },
     {
       "path": "{LAZYSITE}/auth/acls.json",
