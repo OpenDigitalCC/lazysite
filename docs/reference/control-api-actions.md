@@ -133,7 +133,7 @@ tone: medium
 `keys-list` | cookie only |  
 `lang-status` | manage_content | group (query)
 `layout-activate` | manage_layouts | path (query), layout (query)
-`layout-delete` | manage_layouts | path (query)
+`layout-delete` | manage_layouts | layout (query), path (query)
 `layout-install` | manage_layouts |  
 `layouts-available` | manage_themes / manage_layouts |  
 `layouts-install` | cookie only |  

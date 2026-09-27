@@ -225,7 +225,10 @@ our %ACTION = (
     'keys-list'  => { caps => undef, params => [] },
     'lang-status' => { caps => ['manage_content'], params => [ { name => 'group', in => 'query' } ] },
     'layout-activate' => { caps => ['manage_layouts'], params => [ { name => 'path', in => 'query' }, { name => 'layout', in => 'query' } ] },
-    'layout-delete' => { caps => ['manage_layouts'], params => [ { name => 'path', in => 'query' } ] },
+    # SM911 LD2: `layout` is the spelling its siblings take and the one a partner
+    # tries; `path` is what the dispatcher had always passed, and stays.
+    'layout-delete' => { caps => ['manage_layouts'],
+        params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
     'layout-install'    => { caps => ['manage_layouts'], params => [] },
     'layouts-available' => { caps => [ 'manage_themes', 'manage_layouts' ], params => [] },
     'layouts-install'  => { caps => undef,                                 params => [] },
