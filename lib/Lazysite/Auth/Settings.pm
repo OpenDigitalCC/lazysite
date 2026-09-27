@@ -369,6 +369,21 @@ sub groups_grant_cap {
 sub group_is_assignable {
     my ( $group, $gs ) = @_;
     $gs ||= read_group_settings();
+
+    # A THIRD STATE, and the rest of the SM906 field report. The two fallbacks
+    # below both mean "the store does not say", and until now an UNREADABLE store
+    # took the first of them: no record, so assignable. That is how the reported
+    # host came to offer `cap-content` and `ch-ui` in the Add User dropdown - the
+    # backend groups the flag exists to keep out of it - while the store that
+    # says they are not assignable sat there unreadable. Unknown is not yes, and
+    # the safe direction here is the strict one: a group nobody can read the
+    # record of is not a role to hand to a person.
+    #
+    # Guarded on an EMPTY answer as well as the flag, because a caller may pass a
+    # $gs it read earlier or built itself, and a set flag from some other read
+    # must not make that caller's groups all unassignable.
+    return 0 if !( ref $gs eq 'HASH' && %{$gs} ) && group_settings_unreadable();
+
     my $cfg = $gs->{$group};
     return 1 unless ref $cfg eq 'HASH' && %{$cfg};
     return 1

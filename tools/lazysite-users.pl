@@ -478,7 +478,11 @@ if ($API_MODE) {
             $result = { ok => 1, groups => \%groups };
         }
         elsif ( $action eq 'group-settings-get' ) {
-            $result = { ok => 1, groups => _group_settings_view() };
+            # SM906 remainder: the view is built first, because the flag it sets
+            # is only true of the read that just happened.
+            my $view = _group_settings_view();
+            $result = { ok => 1, groups => $view,
+                store_unreadable => _group_store_unreadable_json() };
         }
         elsif ( $action eq 'users-page' ) {
             # ONE call for the Users page: every account (+ effective settings)
@@ -516,6 +520,11 @@ if ($API_MODE) {
                 ],
                 groups => _group_settings_view(),
             };
+            # SM906 remainder: AFTER the view, for the reason above - and on this
+            # call it is what stops the Users page rendering every group under its
+            # technical name, and every backend group as assignable, as if the
+            # store had said so.
+            $result->{store_unreadable} = _group_store_unreadable_json();
         }
         elsif ( $action eq 'permissions-grid' ) {
             $result = cmd_permissions_grid( $req->{username} );
@@ -4361,6 +4370,16 @@ sub cmd_audit_registry {
 
 # Unified Groups view for the manager UI: every group (from group-settings OR the
 # membership file), with its capabilities, manager flag, label, and members.
+# SM906 remainder: did the group store fail to OPEN on the read just made? Its
+# own sentence, not a boolean the caller has to interpret: an empty group view is
+# a site with no groups, and a site whose groups cannot be read is a site whose
+# labels and assignability the page must not state as facts.
+sub _group_store_unreadable_json {
+    return Lazysite::Auth::Settings::group_settings_unreadable()
+        ? JSON::PP::true()
+        : JSON::PP::false();
+}
+
 sub _group_settings_view {
     my $gs      = _migrate_group_assignable();    # SM576 part 3: one-shot backfill
     my %members = read_groups();
@@ -4407,6 +4426,13 @@ sub _group_settings_view {
         }
         $view{$g} = {
             pending     => \@pending,
+            # SM906 remainder: the group's own name is the only thing left to
+            # show when the store holds no label, and on an UNREADABLE store that
+            # is every group at once - which is what the field report saw as
+            # "groups show technical names in the add user dropdown". The name
+            # still shows, because there is nothing better, and
+            # `store_unreadable` on the response says why so the page can state
+            # it instead of presenting `cap-content` as somebody's chosen label.
             label       => ( defined $cfg->{label}       ? $cfg->{label}       : $g ),
             description => ( defined $cfg->{description} ? $cfg->{description} : '' ),
             manager     => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),

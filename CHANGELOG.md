@@ -44,6 +44,51 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM906 remainder (PENDING) **the other two symptoms of the field report, which
+  the first pass left alive.** With the group store unreadable, two more answers
+  were computed without asking whether it could be read. `group_is_assignable`
+  had two documented fallbacks that both mean "the store does not say", and an
+  unreadable store took the first of them - no record, so assignable - which is
+  how the reported host offered `cap-content` and `ch-ui` in the Add User picker,
+  the backend groups the flag exists to keep OUT of it, while the store saying
+  they are not roles sat there unreadable. Unknown is not yes: nothing is offered
+  as a role while nothing can be read, guarded on an empty answer as well as the
+  flag so a caller passing its own view is unaffected. And the group name is all
+  the label there is when the store holds none, so the users tool now says
+  `store_unreadable` on both the calls that carry the view - including
+  `users-page`, the ONE call that page makes - and the page states it rather than
+  presenting `cap-content` as somebody's chosen label. Reproduced first, with the
+  store readable and then at mode 000: every group flipped to assignable and every
+  label fell back at once. `t/tools/88` gains both, sabotaged both ways.
+
+- SM908 (PENDING) **a suite failure that could not be diagnosed, and the two
+  causes it did not have.** One test in 14,833 failed a gate run reporting
+  `apache would not start with its guard block: ` with nothing after the colon, so
+  the twelve-minute gate was paid twice and the cause went with the overwritten
+  log. Two hypotheses were offered and both measure FALSE: the port helper's
+  window between closing its probe socket and the server's bind produced no
+  collision in forty rounds of four simultaneous askers, and the loop's reuse of
+  one port across eight apache restarts released the port within 0.1s four times
+  out of four. What IS demonstrated is the silence - the test ran apache through a
+  bare `system()` and reported the ErrorLog, and apache refusing a configuration
+  says so on STDERR and never opens that log. `ApacheHarness::start_apache_conf`
+  captures what apache said, for a test that needs its own configuration; the
+  test prints it, takes a port per iteration, and says in a comment that this is
+  not a fix for a named cause. Proved by sabotage: a deliberately broken conf now
+  reports `module unixd_module is built-in and can't be loaded` where it reported
+  an empty string.
+
+- SM909 (PENDING) **the authoring briefing stated the render order backwards**,
+  in the sentence that opens the section teaching it, against six statements
+  elsewhere saying the opposite. Reported by the sites agent on weight of
+  evidence, with the reporter saying plainly they had not read the processor;
+  verified here in the code, which converts the body to HTML at
+  `lazysite-processor.pl:3729` and hands that to the renderer where TT runs. So
+  the six were right. It reads "the page body is converted to HTML first; TT runs
+  second, over the rendered HTML" now, which is the corpus's own formulation, and
+  the image, fence and link rules downstream of it stop reading as three
+  unrelated exceptions to a rule stated backwards.
+
 - SM907 AT2 (PENDING) **an audit trail that cannot be written no longer reads as
   a site where nothing happened.** From the field: an agent deployed a site and
   the trail showed nothing of it. The six events it did show had all been written

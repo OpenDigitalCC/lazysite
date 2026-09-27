@@ -284,8 +284,8 @@ chrome in `.md`/`.html` partials.)
 
 ## Template Toolkit in page content
 
-TT variables are expanded in the page content before Markdown
-conversion. Site variables come from `lazysite.conf`, page variables
+The page body is converted to HTML first; TT runs second, over the
+rendered HTML. Site variables come from `lazysite.conf`, page variables
 from `tt_page_var`. Automatic variables (`page_title`, `page_subtitle`,
 `content`) are set by the processor.
 

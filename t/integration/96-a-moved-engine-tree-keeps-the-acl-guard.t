@@ -24,7 +24,8 @@ use File::Basename qw(dirname);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper   qw(repo_root site_tempdir);
-use NginxHarness qw(nginx_bin render write_conf free_port http_get start_nginx stop_nginx);
+use NginxHarness  qw(nginx_bin render write_conf free_port http_get start_nginx stop_nginx);
+use ApacheHarness qw(start_apache_conf stop_apache_conf);
 
 my $root = repo_root();
 
@@ -53,8 +54,15 @@ subtest 'Apache' => sub {
         installers/hestia/lazysite-fcgi.tpl  installers/hestia/lazysite-fcgi.stpl
         installers/apache/vhost-cgi.conf.example installers/apache/vhost-fcgi.conf.example
     );
-    my $PORT = free_port();
+    # SM908: A PORT PER ITERATION. One port was taken here and then started and
+    # stopped on eight times, so every iteration depended on the previous
+    # apache's listening socket being gone - which the wait below does not
+    # establish, because it waits for the PID FILE. Measured on an idle host the
+    # port came back within 0.1s four times out of four, so this is not the cause
+    # of the 27 September failure and no claim is made that it was; it is one
+    # fewer thing the next iteration depends on, at the cost of one syscall.
     for my $rel (@files) {
+        my $PORT = free_port();
         my ($block) = slurp("$root/$rel")
             =~ m{^([ \t]*RewriteCond %\{DOCUMENT_ROOT\}/lazysite/auth/acls\.json.*?^[ \t]*RewriteRule \^/\$ /cgi-bin/lazysite-auth\.pl \[PT,L\][ \t]*$)}ms;
         ok( $block, "$rel: the ACL guard block was found" ) or next;
@@ -90,9 +98,20 @@ ScriptAlias /cgi-bin/ "$d/cgi-bin/"
 RewriteEngine On
 $block
 CONF
-        my $apache = sub { return system( $APACHE, '-f', "$d/httpd.conf", '-k', $_[0] ) == 0 };
-        unless ( $apache->('start') ) {
-            fail( "$rel: apache would not start with its guard block: " . eval { slurp("$d/logs/error.log") } );
+        # SM908: apache's OWN words on a failure to start. This ran a bare
+        # system() and reported the ErrorLog, and apache writes neither when it
+        # refuses a configuration - it says so on STDERR and never opens the log.
+        # So the 27 September gate run reported "apache would not start with its
+        # guard block: " and nothing after the colon, and the cause of the only
+        # failure in 14,833 tests could not be determined from the artefact. The
+        # shared helper captures it; the ErrorLog is still shown when there is one,
+        # because a start that fails AFTER opening the log puts its reason there.
+        my ( $rc, $said ) = start_apache_conf("$d/httpd.conf");
+        if ( $rc != 0 ) {
+            my $log = -f "$d/logs/error.log" ? slurp("$d/logs/error.log") : '(no error log written)';
+            fail("$rel: apache would not start with its guard block");
+            diag("apache said: $said");
+            diag("error log: $log");
             next;
         }
         my $get = sub { return scalar qx{curl -s --max-time 10 http://127.0.0.1:$PORT/private/brief.pdf 2>&1} };
@@ -113,7 +132,7 @@ CONF
         my $in = $get->();
         like( $in, qr/ROUTED-TO-ENGINE/, "$rel: and a tree inside the docroot still does" ) or diag $in, eval { slurp("$d/logs/error.log") };
 
-        $apache->('stop');
+        stop_apache_conf("$d/httpd.conf");
         for ( 1 .. 50 ) { last unless -f "$d/httpd.pid"; sleep 0.1 }
     }
 };

@@ -15,7 +15,8 @@ use warnings;
 use File::Path qw(make_path);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(apache_bin apache_module_dir make_certs start_apache stop_apache);
+our @EXPORT_OK = qw(apache_bin apache_module_dir make_certs start_apache stop_apache
+    start_apache_conf stop_apache_conf);
 
 sub apache_bin {
     for my $p (qw(/usr/sbin/apache2 /usr/sbin/httpd /usr/local/sbin/apache2)) {
@@ -92,6 +93,33 @@ VH
     my $out = `\Q$bin\E -f \Q$prefix/httpd.conf\E -k start 2>&1`;
     my $rc  = $? >> 8;
     return ( $rc, $out );
+}
+
+# SM908: START APACHE FROM A CONF THE CALLER WROTE, AND HAND BACK WHAT IT SAID.
+#
+# start_apache above builds its own TLS/vhost conf, which a test proving a
+# rewrite guard cannot use - so t/integration/96 ran apache through a bare
+# system() with no capture, and reported the ErrorLog on failure. When apache
+# refuses a configuration it says so on STDERR and never opens the ErrorLog, so
+# that failure reported an empty string: the 27 September gate run said only
+# "apache would not start with its guard block: " and the cause went with it.
+#
+# Measured while fixing it, by getting a conf deliberately wrong: apache's own
+# message ("module unixd_module is built-in and can't be loaded") is on STDERR
+# and `(no error log written)` is what the file offers.
+sub start_apache_conf {
+    my ($conf_path) = @_;
+    my $bin = apache_bin() or die 'no apache binary';
+    my $out = `\Q$bin\E -f \Q$conf_path\E -k start 2>&1`;
+    return ( $? >> 8, $out );
+}
+
+sub stop_apache_conf {
+    my ($conf_path) = @_;
+    my $bin = apache_bin() or return;
+    return unless -f $conf_path;
+    system("\Q$bin\E -f \Q$conf_path\E -k stop >/dev/null 2>&1");
+    return;
 }
 
 sub stop_apache {

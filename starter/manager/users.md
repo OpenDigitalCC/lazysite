@@ -169,6 +169,16 @@ function loadUsers() {
   ).then(function() {
   apiCall({ action: 'users-page' }).then(function(d) {
     if (!d.ok) { showStatus(d.error || 'Failed to load users.', true); return; }
+    // SM906 remainder: the group store could not be READ, which is not the same
+    // as a site with no group settings - and the page cannot tell the difference
+    // from the view alone. Untreated, this is what the field reported: every
+    // group listed under its technical name, and the backend groups offered in
+    // the picker, both looking like decisions somebody had made.
+    if (d.store_unreadable) {
+      showStatus('Group names and roles cannot be read: lazysite/auth/groups-settings.json '
+        + 'is not readable by the web server, so the names below are the internal ones and '
+        + 'no group can be offered as a role. Run `lazysite check --fix` on the host.', true);
+    }
     if (d.partner || d.me) ME = d.partner || d.me;
     // Groups: {group: members}, plus the add-user picker's purpose labels.
     var g = {};
