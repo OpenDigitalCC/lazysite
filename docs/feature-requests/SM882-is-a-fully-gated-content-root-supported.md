@@ -39,6 +39,78 @@ The same evidence reads as correct behaviour or as an exposure depending on
 which answer is intended. That is the definition of a question that has to be
 decided before it can be built.
 
+# MEASURED 2026-09-27, and S9's premise does not hold
+
+This filing said twice that nobody had stood a fully gated content root up and
+watched the mirror run, and that confirming the reading was the first task. It has
+now been done, and **the reading measures false**: there is nothing public inside
+such a root to move out.
+
+Probe `tmp/probe-sm882.pl` on the 0.15.0 tree - a docroot with content root
+`shop`, one entry `{"shop":{"read":["@staff"]}}`, and a theme asset mirrored where
+`Themes.pm` puts one today:
+
+    the gated root's own page                governed=YES
+    a theme asset inside the gated root      governed=YES
+    page  (shop/index.md)                    anonymous read=refused
+    asset (shop/lazysite-assets/.../main.css) anonymous read=refused
+    /assets/lazysite-chrome.css              engine_asset_carve_out=YES
+    /shop/lazysite-assets/.../main.css       engine_asset_carve_out=no
+
+Three facts behind it, each read from the serving code and then measured rather
+than either alone:
+
+1. **SM223 applies the ACL gate to a static.** `_acl_refused` is called on the
+   static serve path (`lazysite-processor.pl:3447`).
+2. **The mirror gets no carve-out from it.** `_is_engine_asset` is an EXACT list
+   of three URIs - the two chrome assets and the data helper - and
+   `/lazysite-assets/` is not among them. That list is deliberate and commented
+   as deliberate, so the absence is a decision rather than an omission.
+3. **The rule reaches the asset.** A rule on the content root's own key governs
+   every path beneath it, by the ancestor-prefix step `_acl_entry_for` has carried
+   since SM287. The asset path is beneath it.
+
+So a gated content root's assets are governed by the same rule as its pages and
+refused by the same ladder. **The mirror was never the exposure this filing
+assumed, and the relocation the ruling asked for would buy no protection.** It was
+built and then reverted on this measurement rather than shipped.
+
+## What this leaves, and what it does not
+
+**The ruling's first half stands untouched and needed no work:** a fully gated
+content root IS a supported configuration, and it keeps its styling - which the
+measurement also confirms, because the assets are served to a visitor who can see
+the pages, over the same authenticated path.
+
+**The invariant is now vacuous inside the engine's own contract.** Nothing under a
+gated root is served without the gate, so `a gated content root contains nothing
+public` is true by construction and a check asserting it would always pass. This
+filing anticipated exactly that: *"if the mirror turns out not to do this, the
+ruling costs nothing and the invariant is still worth checking for."* It is worth
+saying plainly that on the engine's own serving path there is nothing left for
+such a check to catch.
+
+**The residual risk is a FRONT END that serves statics directly**, bypassing the
+engine and its gate. That is not this filing - it is [[SM283]], which routed
+statics through the engine and is pinned by `t/lint/31`, and whose proxy template
+was still recorded as not installed on edge. A gated root on a host without that
+template is exposed, and the exposure is the front end rather than the mirror.
+
+## Back to the release manager
+
+The ruling was made on a reading, as it said. The reading is now measured and
+does not hold, so:
+
+- S9 is **not a defect**. Nothing needs to move.
+- The mirror's contract needs **no exception**, so the destination question that
+  was "the first design question of the work" does not arise.
+- `Acl::root_gating` was built anyway, under [[SM881]], and is exported - so if a
+  check for this invariant is ever wanted for the front-end case, the answer it
+  needs already exists.
+
+What remains is a decision rather than work: whether to keep this filing open
+against the front-end case, which [[SM283]] already owns, or to close it here.
+
 # The ruling
 
 **2026-09-14, the release manager: both halves.** A fully gated content root is
