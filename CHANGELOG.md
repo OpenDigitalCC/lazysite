@@ -44,6 +44,32 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM662 (PENDING) **the table that decides is the table that is published.** The
+  control API's capability gate was declared twice: `%need_caps` inside a sub in
+  `lazysite-manager-api.pl`, which decides, and `Lazysite::ControlApi::Actions`,
+  which publishes and was documented as an extraction of it. Two copies of one
+  fact is the shape that made SM687 need nine registration points to add one
+  action, and that made every one of the last five omissions surface as a failing
+  gate rather than as something a reader could see. The gate now lives in the
+  module as `%GATE`, moved verbatim with all 87 of its comment lines and 22
+  trailing notes, because the reasoning per entry is the most valuable thing in
+  it; the register's capabilities are **derived** from it at load, and the CGI
+  builds its predicates by asking for it. **Proved to change nothing:** the two
+  tables were captured before the move and agreed exactly - 102 actions reachable
+  with a token, 54 cookie-only, no disagreement - and all 156 resolve identically
+  afterwards, which is what SM662 asked for in its own words about a
+  security-critical table. A gate entry for an action nothing publishes now dies
+  at load instead of being dropped quietly, because over-claiming is
+  self-correcting and silence is not. `t/lint/98` changed from comparing the two
+  copies to holding the property that replaced them: one table, the CGI declaring
+  none of its own, and the resolved gate matching what it was before. Two more
+  checks stopped scraping the module's source and read the loaded table instead,
+  which is what the move makes possible - and `TestHelper::gate_caps` now DIES on
+  an empty table rather than returning nothing, because six lint suites read the
+  gate through it and an empty answer makes every one of them pass on nothing.
+  Still open, and still its own work: the 150-branch dispatch chain, which is why
+  `params` is the one thing here that remains a hand-kept copy.
+
 - SM888 C1 + C2 (PENDING) **the no-CDN rule has a gate at last, and it looks
   where the breach hides.** Five live sites fetched fonts from a third-party
   origin on every page view and survived repeated engine upgrades unreported, and

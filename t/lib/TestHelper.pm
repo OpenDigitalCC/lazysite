@@ -310,18 +310,29 @@ sub _gc_set_caps {
 #
 # Returns: ( action => { cap => 1, ... } ), an EMPTY hash meaning the action
 # needs no capability.
+# SM662 / A1: THE GATE IS A MODULE NOW, so this reads the module.
+#
+# It used to string-eval the %need_caps literal out of the CGI's source, and
+# `or return ()` on no match - which was survivable while the table lived there
+# and is a trap now that it can move: six lint suites read the gate through this
+# helper, and an empty answer makes every one of them pass on nothing. So a
+# missing or empty table DIES here. A vacuous gate check is worse than no gate
+# check, because it reports success.
+#
+# The independence the old comment claimed - "rebuilt here rather than imported,
+# so a fault in the script's own rebuild cannot cancel itself out" - is kept by
+# t/lint/98, which asserts the CGI declares no gate of its own and consumes this
+# one. That is the property; reading the same declaration twice was never it.
 sub gate_caps {
-    my ($src)   = @_;
-    my ($block) = $src =~ /\n( *my \%need_caps = \(.*?\n *\);)/s
-        or return ();
-    my %decl;
-    ( my $code = $block ) =~ s/^ *my \%need_caps = \(/\%decl = (/;
-    ## no critic (BuiltinFunctions::ProhibitStringyEval)
-    eval "package TestHelperGate; no warnings; $code; 1" or return ();
-    ## use critic
+    my ($src) = @_;    # kept for signature compatibility; the module is the source
+    require Lazysite::ControlApi::Actions;
+    my $decl = Lazysite::ControlApi::Actions::need_caps();
+    die "TestHelper::gate_caps: the gate table is empty or unreachable - every "
+        . "check that reads it would pass on nothing\n"
+        unless ref $decl eq 'HASH' && %{$decl};
     my %out;
-    for my $act ( keys %decl ) {
-        my $d = $decl{$act};
+    for my $act ( keys %{$decl} ) {
+        my $d = $decl->{$act};
         $out{$act} = ( !ref $d && $d eq 'ALWAYS' )
             ? {}
             : { map { $_ => 1 } @{ $d || [] } };

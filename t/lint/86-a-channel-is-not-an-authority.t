@@ -30,10 +30,17 @@ is_deeply( \@channel_gated, [], 'no token gate is satisfied by a channel capabil
     or diag( "channel-gated: @channel_gated - a grant that may use a door "
         . 'must not thereby be allowed to do everything behind it (SM570)' );
 
+# SM662 / A1: READ AS DATA, not scraped from the source.
+#
+# This parsed `'action' => { caps => [...] }` out of the module's text, which
+# worked while the register declared its capabilities and finds nothing now that
+# they are DERIVED from the gate. Reading the loaded table is what the move makes
+# possible, and it cannot be defeated by a change of formatting.
+require Lazysite::ControlApi::Actions;
 my %reg;
-while ( $reg =~ /'([a-z0-9_-]+)'\s*=>\s*\{\s*caps\s*=>\s*(\[[^\]]*\]|undef)/g ) {
-    my ( $a, $caps ) = ( $1, $2 );
-    $reg{$a} = $caps eq 'undef' ? undef : { map { $_ => 1 } $caps =~ /'(\w+)'/g };
+for my $a ( keys %Lazysite::ControlApi::Actions::ACTION ) {
+    my $caps = $Lazysite::ControlApi::Actions::ACTION{$a}{caps};
+    $reg{$a} = defined $caps ? { map { $_ => 1 } @{$caps} } : undef;
 }
 cmp_ok( scalar keys %reg, '>=', 60, 'the registry was parsed' );
 

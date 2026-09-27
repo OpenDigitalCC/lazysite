@@ -1,79 +1,104 @@
 #!/usr/bin/perl
 # SM662: the control-API register and the gate say the same thing.
 #
-# `ControlApi::Actions.pm` carries `caps => [...]` per action, and the gate that
-# actually DECIDES carries the same fact in %need_caps. Two copies of one fact,
-# and until 0.11.9 they could not even be compared: the gate held predicates -
-# sub { $_[0]->{manage_data} } - and nothing can extract the capability from one
-# without executing it. So the register was kept in step by hand, by reviewers,
-# and SM687 needed nine registration points for one action with five of them
-# found by a failing gate rather than by reading the code.
+# HOW THIS TEST CHANGED, and why the file keeps its name. It used to compare two
+# copies of one fact: `caps => [...]` per action in ControlApi::Actions.pm, and
+# %need_caps inside a sub in lazysite-manager-api.pl, which is what DECIDED. Until
+# 0.11.9 they could not even be compared, because the gate held predicates and
+# nothing can extract a capability from one without executing it. So the register
+# was kept in step by reviewers, and SM687 needed nine registration points for one
+# action with five found by a failing gate rather than by reading the code.
 #
-# Now the gate DECLARES its capabilities, the two are the same shape, and this
-# test is the thing that was impossible before. It does not make the register
-# derived - that is the remaining half of SM662 - but it makes a drift between
-# them fail immediately, which is the property that mattered.
+# A1 removed the second copy. The gate moved into the module as %GATE, verbatim
+# with its comments, and the register's caps are DERIVED from it at load. There is
+# nothing left to compare - so this test now holds the property that replaced the
+# comparison: THERE IS ONE TABLE, the CGI consumes it rather than declaring its
+# own, and what it decides is what it decided before the move.
+#
+# That last part matters most. This is a security-critical table, and SM662's own
+# words are that it "is not one to do without a test that proves the resolved gate
+# is identical before and after for every action". The counts and sets below were
+# captured from the CGI before the table moved.
 use strict;
 use warnings;
 use Test::More;
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(repo_root gate_caps);
+use Lazysite::ControlApi::Actions ();
 
-my $root = "$FindBin::Bin/../..";
-my $api  = "$root/lazysite-manager-api.pl";
-my $reg  = "$root/lib/Lazysite/ControlApi/Actions.pm";
-ok( -f $api, 'the API is present' ) or BAIL_OUT("no $api");
-ok( -f $reg, 'the control-API register is present' ) or BAIL_OUT("no $reg");
+my $root = repo_root();
 
-# The declaration, compiled and run - the same way tools/gate-fingerprint.pl
-# does it, and for the same reason: this must read what SHIPS, not a
-# reimplementation of it that could agree with a broken table.
-my $src = do { open my $fh, '<', $api or die $!; local $/; <$fh> };
-my ($block) = $src =~ /\n( *my \%need_caps = \(.*?\n *\);)/s
-    or BAIL_OUT( 'could not extract %need_caps. If the gate table was renamed '
-        . 'or reshaped, point this test at it - do not let it pass by finding '
-        . 'nothing to check.' );
-my %need_caps;
-( my $code = $block ) =~ s/^ *my \%need_caps = \(/\%need_caps = (/;
-## no critic (BuiltinFunctions::ProhibitStringyEval)
-eval "package SM662Lint; no warnings; $code; 1"
-    or BAIL_OUT("compiling %need_caps: $@");
-## use critic
-cmp_ok( scalar keys %need_caps, '>', 50, 'the gate table was read' );
+my $cgi = do {
+    open my $fh, '<', "$root/lazysite-manager-api.pl" or die $!;
+    local $/;
+    <$fh>;
+};
 
-my %reg_caps;
-{
-    my $rsrc = do { open my $fh, '<', $reg or die $!; local $/; <$fh> };
-    $rsrc =~ s{^\s*#.*$}{}mg;    # comments name capabilities in prose
-    while ( $rsrc =~ /'([a-z0-9_-]+)'\s*=>\s*\{\s*caps\s*=>\s*\[([^\]]*)\]/g ) {
-        my ( $action, $list ) = ( $1, $2 );
-        my @c = $list =~ /'([a-z0-9_]+)'/g;
-        $reg_caps{$action} = [ sort @c ];
-    }
-}
-cmp_ok( scalar keys %reg_caps, '>', 50, 'the register was read' );
+subtest 'the gate is declared once, and not in the CGI' => sub {
+    unlike( $cgi, qr/my \%need_caps = \(\s*\n\s*'/,
+        'the CGI declares no gate table of its own' )
+        or diag( 'A second declaration is the whole defect: the published '
+            . 'reference, both unlocks maps and the channel matrix were copies '
+            . 'of a table nothing else could reach.' );
+    like( $cgi, qr/Lazysite::ControlApi::Actions::need_caps\(\)/,
+        'and it builds its gate from the one that is published' );
+    ok( %Lazysite::ControlApi::Actions::GATE,
+        'the module declares the gate' );
+};
 
-# Only actions the register claims. An action gated but not exposed over the
-# control API is legitimate; one EXPOSED with the wrong capability list is not.
-my @drift;
-for my $action ( sort keys %reg_caps ) {
-    my $declared = $need_caps{$action};
-    unless ( defined $declared ) {
-        push @drift, "$action: in the register, absent from the gate";
-        next;
-    }
-    my @gate = ( !ref $declared && $declared eq 'ALWAYS' )
-        ? ()
-        : sort @{$declared};
-    my $g = join( ',', @gate );
-    my $r = join( ',', @{ $reg_caps{$action} } );
-    push @drift, "$action: gate=[$g] register=[$r]" if $g ne $r;
-}
+subtest 'the register no longer carries a second copy' => sub {
+    my $mod = do {
+        open my $fh, '<', "$root/lib/Lazysite/ControlApi/Actions.pm" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my ($action_block) = $mod =~ /our \%ACTION = \(\n(.*?)\n\);\n/s;
+    ok( $action_block, 'the register was found' ) or return;
+    # Comments inside the register EXPLAIN the three states and name the key while
+    # declaring nothing - the SM781 note about `caps => []` meaning no capability
+    # rather than cookie-only is one of the more useful lines in the file.
+    my $code = join "\n", grep { !/^\s*#/ } split /\n/, $action_block;
+    unlike( $code, qr/caps\s*=>/,
+        'no entry declares its own capabilities' )
+        or diag('Derived at load from %GATE - a literal here is the old drift.');
+};
 
-is( "@drift", '', 'every exposed action lists the capabilities its gate needs' )
-    or diag( "The register and the gate disagree:\n  "
-        . join( "\n  ", @drift )
-        . "\n\nThe GATE is what decides. A register that names a different\n"
-        . "capability tells an integrator to ask for the wrong grant, and the\n"
-        . "generated reference repeats it." );
+subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
+    # Captured from the CGI's own table before it moved: 102 actions reachable
+    # with a token, 54 cookie-only, and these exact sets.
+    my %caps = gate_caps($cgi);
+    is( scalar keys %caps, 102, '102 actions are reachable with a token' )
+        or diag( 'The count moved. Either an action gained or lost a gate, or '
+            . 'the move dropped one - and this table decides who may do what.' );
+
+    my @cookie_only = grep { !defined $Lazysite::ControlApi::Actions::ACTION{$_}{caps} }
+        keys %Lazysite::ControlApi::Actions::ACTION;
+    is( scalar @cookie_only, 54, '54 are cookie-only' );
+
+    # Three spot checks, one per capability state, so a wholesale re-derivation
+    # cannot pass by producing a table of the right size.
+    is_deeply( [ sort keys %{ $caps{'data-row-save'} } ],
+        [qw(manage_data write_data)], 'an any-of gate keeps both capabilities' );
+    is_deeply( [ keys %{ $caps{whoami} } ], [],
+        'an ALWAYS gate needs none' );
+    ok( !exists $caps{'backup-create'},
+        'and a cookie-only action is absent from the gate entirely' )
+        or diag( 'Absence IS the cookie-only state: %need is default-deny, so an '
+            . 'action that appears here becomes token-reachable.' );
+};
+
+subtest 'a gate entry nothing publishes is refused at load' => sub {
+    # The asymmetry that let five omissions reach the field: over-claiming is
+    # self-correcting, silence is not. The module dies rather than dropping one.
+    my $mod = do {
+        open my $fh, '<', "$root/lib/Lazysite/ControlApi/Actions.pm" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $mod, qr/does not publish - one of the two is wrong/,
+        'the module refuses a gate entry with no published action' );
+};
 
 done_testing();
