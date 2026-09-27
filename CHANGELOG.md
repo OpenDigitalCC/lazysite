@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM906 (PENDING) **an unreadable auth store no longer reads as an account that
+  holds nothing.** Reported from a new install: the capability grid empty, group
+  names showing as `cap-analytics` and `ch-ui`, and `account-create` refusing
+  with *"Creator 'sjm' lacks create_sub_users permission"* about an account whose
+  own permissions dump listed that capability. **One cause.** The CGI user could
+  not read `lazysite/auth/groups-settings.json`, the file recording what each
+  group grants, so `caps_for` resolved to zero for everybody — and the engine
+  reported that as facts about the account. Reproduced both ways: the store
+  provably correct and the CLI working, then the same site with that one file
+  unreadable, which reproduces the operator's sentence verbatim. Three fixes:
+  `lazysite check` now lists that file in its CGI-readable and CGI-writable
+  sets, beside the `user-settings.json` that has been there since SM141 — it
+  checked `users`, `groups` and `acls.json` in the same directory for this exact
+  fault and omitted the one that decides capabilities; the refusal now names the
+  file, the fault class and the repair instead of blaming the account, while an
+  ordinary refusal is unchanged and asserted to be; and the manager group carries
+  the label **Site operator** rather than its own name, healed on upgrade as well
+  as on creation, which was the only half of the report that was ever about
+  naming. The operator's host was repaired by the permission alone, which
+  confirms the cause. `t/tools/88` covers all three.
+
 - SM888 A5 (849539a6) **a required checklist of one box has to be ticked.** The
   renderer left `required` off checkbox groups entirely, which is right for a
   multi-select — the browser reads it as "this box", so marking them all would

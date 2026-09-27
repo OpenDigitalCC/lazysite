@@ -123,15 +123,15 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Paths ();    # SM293: where this site keeps its engine tree
+use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
-use Lazysite::Audit qw(audit_log);
+use Lazysite::Audit        qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
     caps_for write_group_settings resolve_user_scopes resolve_home_domain
-    resolve_token_ttl @CAP_KEYS);
+    resolve_token_ttl @CAP_KEYS group_settings_unreadable);
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -1257,6 +1257,17 @@ sub _ensure_manager_group_caps {
             $cfg->{$c} = 1;
             $changed++;
         }
+        # SM906: HEAL A LABEL THAT ONLY REPEATS THE NAME, on the same reasoning
+        # the capability top-up uses. A label equal to the group's own name is
+        # indistinguishable from never having been given one - it is what this
+        # sub used to write - so filling it takes nothing away from an operator
+        # who chose a label, and fixes the existing installs on upgrade rather
+        # than only the next one.
+        if ( !length( $cfg->{label} // '' ) || $cfg->{label} eq $group ) {
+            $cfg->{label} = 'Site operator';
+            $changed++;
+        }
+
         my %have = map  { $_ => 1 } @{ $cfg->{grantable} || [] };
         my @want = grep { !$have{$_} } @CAP_KEYS;
         if (@want) {
@@ -1320,8 +1331,22 @@ sub _ensure_manager_group_caps {
     $gs->{$group} = {
         # SM608: this one ships too - it is created by setup-manager, not by an
         # operator, and it is the group whose deletion would break the most.
-        seeded      => 1,
-        label       => $group,
+        seeded => 1,
+
+        # SM906: A DESCRIPTIVE LABEL, NOT THE GROUP'S OWN NAME.
+        #
+        # This was `label => $group`, so the manager group displayed as `sysops`
+        # while every group seeded beside it carried a real one - "Website
+        # editor", "Capability: content". The picker and the membership list show
+        # the LABEL, and both fall back to the name when the label merely repeats
+        # it, so the one group the site owner belongs to was the one shown as a
+        # technical string. Reported from a new install, alongside the unreadable
+        # store that made every OTHER group look the same way; this half survives
+        # that fix and is the only half that was ever about naming.
+        #
+        # Not derived from $group, deliberately: the label says what the group IS
+        # and a manager group is the site operator whatever it has been called.
+        label       => 'Site operator',
         description => 'The site owner. Holds every capability except the remote '
             . 'api/mcp channels (manager groups are interactive-only), and may '
             . 'CONFER any capability - including the ones it does not hold - so '
@@ -1808,6 +1833,23 @@ sub cmd_token {
 #   - granting the new account create_sub_users requires the creator to
 #     also hold delegate_sub_user_creation (the right to pass on the right).
 # created_by and managed_by are set to the creator; created_at to now.
+# SM906: a capability that resolved to nothing because the store could not be
+# read is not a capability the account lacks. Called before each "lacks X"
+# refusal; silent unless the store is the reason, so the ordinary refusal still
+# reads exactly as it did.
+sub _die_store_unreadable {
+    my ($who) = @_;
+    return unless group_settings_unreadable();
+    die "Cannot tell what '$who' may do: the group settings store exists and "
+        . "could not be read.\n"
+        . "This is a file permission fault on the server, not a decision about "
+        . "'$who' - their grants may be entirely correct.\n"
+        . "lazysite/auth/groups-settings.json has to be readable by the account "
+        . "that serves the site, the same as lazysite/auth/groups beside it.\n"
+        . "`lazysite check` reports its owner and mode, and `lazysite check "
+        . "--fix` repairs it.\n";
+}
+
 sub cmd_account_create {
     my ( $user, $pass, %opt ) = @_;
     my $creator = $opt{created_by};
@@ -1831,9 +1873,22 @@ sub cmd_account_create {
     # SM095 (c0): the creator's capabilities come from the ONE resolver (group +,
     # transitionally, per-user), not a direct settings read.
     my $cs = caps_for($creator);
+
+    # SM906: SAY WHICH OF THE TWO IT IS.
+    #
+    # caps_for resolves to nothing both when an account genuinely holds nothing
+    # and when the store that records what groups grant could not be opened. The
+    # refusals below are statements about the ACCOUNT, and on a new install whose
+    # CGI user could not read groups-settings.json they were sent about an
+    # account that held the capability - sending the operator to look at grants
+    # that were already correct. The engine knew: cannot_read had logged the real
+    # cause. Nothing carried it to the person reading the refusal.
+    _die_store_unreadable($creator) unless $cs->{create_sub_users};
+
     die "Creator '$creator' lacks create_sub_users permission\n"
         unless $cs->{create_sub_users};
     if ( $opt{create_subs} ) {
+        _die_store_unreadable($creator) unless $cs->{delegate_sub_user_creation};
         die "Creator '$creator' lacks delegate_sub_user_creation permission\n"
             unless $cs->{delegate_sub_user_creation};
     }
@@ -3809,11 +3864,11 @@ sub _default_group_nesting {
         'cap-design'  => [qw(design-team agent-ai mcp-ai site-admins)],
         'cap-data'    => [qw(app-developers)],
         'cap-site'    => [qw(site-admins)],
-        'cap-services'  => [qw(site-admins)],
-        'cap-people'    => [qw(user-managers)],
-        'cap-analytics' => [qw(analysts agent-ai mcp-ai)],
-        'cap-audit'     => [qw(analysts)],
-        'cap-tidy'      => [qw(site-admins)],
+        'cap-services'     => [qw(site-admins)],
+        'cap-people'       => [qw(user-managers)],
+        'cap-analytics'    => [qw(analysts agent-ai mcp-ai)],
+        'cap-audit'        => [qw(analysts)],
+        'cap-tidy'         => [qw(site-admins)],
         'cap-audit-switch' => [],    # N13-04: nobody, until an administrator decides
         'ch-ui' => [qw(content-editors design-team site-admins user-managers analysts)],
         'ch-files'  => [qw(content-editors design-team site-admins)],

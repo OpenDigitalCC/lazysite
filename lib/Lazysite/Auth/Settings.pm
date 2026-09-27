@@ -17,7 +17,8 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     groups_grant_cap site_grants_manager
     effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
-    read_group_settings write_group_settings group_is_assignable @CAP_KEYS);
+    read_group_settings write_group_settings group_is_assignable @CAP_KEYS
+    group_settings_unreadable);
 
 our $AUTH_DIR; # auth/ in the engine tree (Lazysite::Paths::lazysite_dir), set by the script
 
@@ -276,10 +277,36 @@ sub group_names {
 # (which expects UTF-8 bytes). Reading through a :utf8 layer first hands
 # decode_json a character string, which dies on any non-ASCII content (e.g. a
 # group description) and silently wiped the whole read to {}.
+# SM906: THE FOURTH STATE TRAVELS WITH THE ANSWER, for this store too.
+#
+# read_group_settings answers {} for an absent store AND for one that exists and
+# cannot be opened. Both are "no groups grant anything", so every capability
+# resolves to zero - and a caller then reports that as "this account holds no
+# capabilities", which is a statement about the account rather than about the
+# file. On a new install where the CGI user could not read this one file, that
+# presented as four faults at once: an all-dots capability grid, group labels
+# falling back to their technical names, the backend cap-/ch- groups offered as
+# though assignable, and `account-create` refusing with "Creator 'x' lacks
+# create_sub_users permission" about an account that held it. One unreadable
+# file, four wrong sentences, and the only true one was in the log.
+#
+# An ABSENT store stays an answer - a site with no group settings grants nothing
+# and that is a fact about the site. Only a store that exists and will not open
+# sets this. Same distinction as SM770's, and the same one SM800 carried into the
+# users payload as `store_readable`.
+our $GROUP_SETTINGS_UNREADABLE = 0;
+
+sub group_settings_unreadable { return $GROUP_SETTINGS_UNREADABLE }
+
 sub read_group_settings {
     my $f = _group_settings_file();
+    $GROUP_SETTINGS_UNREADABLE = 0;
     # SM770: the open decides.
-    open my $fh, '<:raw', $f or return ( cannot_read( 'groups-settings.json', $f ) // {} );
+    open my $fh, '<:raw', $f or do {
+        # Read errno BEFORE cannot_read, which reads $! itself.
+        $GROUP_SETTINGS_UNREADABLE = $!{ENOENT} ? 0 : 1;
+        return ( cannot_read( 'groups-settings.json', $f ) // {} );
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $d = eval { JSON::PP::decode_json( $raw // '{}' ) };

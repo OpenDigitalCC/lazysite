@@ -559,9 +559,24 @@ sub run_checks {
     #  cookie/secret verification by the www-data CGI dies before headers)
     # SM141: sessions.jsonl + revoked.json carry visitor IP/UA + revocation
     # state - 0660, CGI-readable, never world-accessible, like the secrets.
+    # SM906: groups-settings.json JOINS THE LIST, and its absence cost a day.
+    #
+    # It carries every group's CAPABILITIES. Unreadable to the CGI, caps_for
+    # resolves to nothing - and nothing is indistinguishable from "this account
+    # holds no capabilities". On a new install that presented as four separate
+    # faults at once: the capability grid all dots, the group labels falling back
+    # to their technical names, the backend cap-/ch- groups offered as though
+    # assignable, and `account-create` refusing with "Creator 'x' lacks
+    # create_sub_users permission" about an account that held it.
+    #
+    # The sibling file with the same shape and the same consequence -
+    # user-settings.json - has been on this list since SM141. This one was simply
+    # never added, so the check an operator runs to find exactly this fault was
+    # silent about the one store that decides what anybody may do.
     for my $rel ( qw(
         lazysite/auth/.secret lazysite/forms/.secret lazysite/manager/.csrf-secret
         lazysite/auth/oauth.json lazysite/auth/user-settings.json
+        lazysite/auth/groups-settings.json
         lazysite/auth/sessions.jsonl lazysite/auth/revoked.json
         lazysite/notify-xmpp.conf lazysite/forms/smtp.conf
         ) ) {
@@ -595,6 +610,7 @@ sub run_checks {
     for my $rel ( qw(
         lazysite/nav.conf lazysite/lazysite.conf
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
+        lazysite/auth/groups-settings.json
         lazysite/logs/audit.log
         ) ) {
         my $path = model_path($rel);
