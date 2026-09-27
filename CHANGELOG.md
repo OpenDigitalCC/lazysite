@@ -44,6 +44,30 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM907 AT2 (PENDING) **an audit trail that cannot be written no longer reads as
+  a site where nothing happened.** From the field: an agent deployed a site and
+  the trail showed nothing of it. The six events it did show had all been written
+  by a root shell, and `lazysite/logs/audit.log` was group-owned so that the web
+  server could read it and not append to it - so the page rendered a short,
+  healthy-looking list while every event since the install was lost. The
+  operator's own login was missing from it, which is what identified the cause.
+  A short page had **six** possible meanings and one rendering: recording;
+  readable but not appendable; existing and unopenable; switched off; never
+  written with no way to start; and never written on a new site, which is the
+  only one of the six where an empty list is the truth. The audit action now
+  answers which, in a sentence composed once on the server so the manager and the
+  control API say the same thing, and the page shows it above the table - and
+  before the empty-list shortcut, the case that matters most. A trail that exists
+  and will not open is now a refusal (`store-uninspectable`, a 500, SM873's kind)
+  rather than `ok` with nothing in it. `lazysite/logs` is **a store** in
+  `Lazysite::Stores` now, which puts lint 121 in front of it; the entry it
+  replaces argued that an unreadable append-only log may show an empty page
+  because "the writer says so in its own log", and the writer does, through
+  standard error, which for a CGI is the web server's error log. Following that
+  lint found two more silences in the same file and fixed them. `t/unit/manager/196`
+  covers all six states, and what it asserts is that they differ. The visitor log
+  in that directory has the same property and is not covered yet: AT6 on SM907.
+
 - SM906 (16fd58e7) **an unreadable auth store no longer reads as an account that
   holds nothing.** Reported from a new install: the capability grid empty, group
   names showing as `cap-analytics` and `ch-ui`, and `account-create` refusing

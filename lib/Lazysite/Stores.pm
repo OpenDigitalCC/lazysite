@@ -109,10 +109,26 @@ my @STORES = (
         why   => 'a cache: an entry that will not open is an entry that is not there, '
             . 'because the answer is rebuilt from what it caches',
     },
+    # SM907: A STORE NOW, and the entry it replaces was the argument the field
+    # disproved. It read: "append-only records. A reader that cannot open one
+    # shows an empty page, and the writer says so in its own log." Both halves
+    # were true and the conclusion was wrong. The writer does say so - through
+    # log_event, which prints to standard error, which for a CGI is the web
+    # server's error log, which is not a place an operator looks. And the empty
+    # page is the whole problem: a site whose trail held six events it could
+    # read and could not append to rendered a short, healthy-looking list, and
+    # the operator had to ASK why an agent's work left no trace.
+    #
+    # The trail is the one record a sysop is meant to be able to trust, so
+    # "would not open" and "says nothing" are further apart here than anywhere
+    # else under lazysite/.
+    #
+    # The visitor log in this directory has the same property and is NOT covered
+    # yet: plugins/stats.pl holds six read-opens that return empty, and bringing
+    # them in is its own change rather than a line here. AT6 on SM907.
     { dir => 'logs',
-        store => 0,
-        why => 'append-only records. A reader that cannot open one shows an empty page, '
-            . 'and the writer says so in its own log',
+        store   => 1,
+        modules => ['lazysite-manager-api.pl'],
     },
     { dir => 'backups',
         store => 0,

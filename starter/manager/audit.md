@@ -194,11 +194,28 @@ function loadAudit() {
           + '<a href="#" onclick="document.getElementById(\'audit-target-f\').value=\'\';auditPage=1;loadAudit();return false;">(show all)</a>'
         : '');
     }
-    if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
+    // SM907: WHY THIS LIST IS WHAT IT IS. A short page had one rendering and six
+    // possible meanings, and the field case was the worst of them: a trail the
+    // web server could read and could not append to, so the page showed what a
+    // root shell had written and looked perfectly well. The server composes the
+    // sentence (it is the same one the control API returns); the page only has
+    // to show it, above the table, and before the empty-list shortcut below -
+    // which is the case that matters most, a site recording nothing at all.
+    var band = '';
+    if (d.trail && d.trail.why) {
+      band = '<div class="mg-warn"><strong>' + aesc(d.trail.why) + '</strong>'
+           + (d.trail.file ? ' <code>' + aesc(d.trail.file) + '</code>' : '')
+           + (d.trail.repair ? ' To repair: ' + aesc(d.trail.repair) + '.' : '')
+           + '</div>';
+    }
+    if (!d.entries.length) {
+      el.innerHTML = band + '<p>No audit entries yet.</p>';
+      return;
+    }
     // Wrapped, like every other data table in the manager: seven columns do
     // not fit a phone, and the choice is scrolling inside the table's own box
     // or dragging the whole page sideways. Found at 420px, five pixels over.
-    var h = '<div class="mg-table-wrap"><table class="audit-table"><thead><tr>' +
+    var h = band + '<div class="mg-table-wrap"><table class="audit-table"><thead><tr>' +
       '<th>When</th><th>User</th><th>Source</th><th>Action</th><th>Target</th><th>From</th><th>Status</th>' +
       '</tr></thead><tbody>';
     d.entries.forEach(function (e, i) {

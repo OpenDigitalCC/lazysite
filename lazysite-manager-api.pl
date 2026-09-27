@@ -3463,7 +3463,7 @@ sub _package_name_refusal {
 sub action_site_backup_inspect {
     my ( $name, $host ) = @_;
     my $pkg = _site_package_path($name) or return _package_name_refusal($name);
-    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg; # not a store: a backup archive
 
     # SM578: inspect had no scope test at all, so the manifest of a package the
     # caller may not download read back in full - source host, content root,
@@ -3507,7 +3507,7 @@ sub action_site_backup_inspect {
 sub action_site_backup_delete {
     my ($name) = @_;
     my $pkg = _site_package_path($name) or return _package_name_refusal($name);
-    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg; # not a store: a backup archive
 
     my $refusal = _package_scope_refusal($pkg);
     return $refusal if $refusal;
@@ -3531,7 +3531,7 @@ sub action_site_backup_delete {
 sub action_site_backup_download {
     my ($name) = @_;
     my $pkg = _site_package_path($name) or return _package_name_refusal($name);
-    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg; # not a store: a backup archive
 
     my $refusal = _package_scope_refusal($pkg);
     return $refusal if $refusal;
@@ -3549,7 +3549,7 @@ sub action_site_backup_download {
     print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
     print "Cache-Control: no-store, private\r\n";
     print "\r\n";
-    open my $fh, '<', $pkg or return { ok => 0, error => 'Cannot read the package' };
+    open my $fh, '<', $pkg or return { ok => 0, error => 'Cannot read the package' }; # not a store: a backup archive
     binmode $fh;
     my $buf;
     while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }
@@ -3614,7 +3614,7 @@ sub action_page_pdf {
     return { ok => 0, error => "PDF render failed: $@" } if $@;
     return { ok => 0, error => 'The PDF plugin returned nothing' }
         unless ref $out eq 'HASH';
-    return $out unless $out->{ok} && $out->{pdf} && -f $out->{pdf};
+    return $out unless $out->{ok} && $out->{pdf} && -f $out->{pdf}; # not a store: rendered output
 
     my $size = ( stat $out->{pdf} )[7] // 0;
     ( my $safe = $rel ) =~ s{.*/}{};
@@ -3701,7 +3701,7 @@ sub action_site_backup_apply {
     $host = '' if $host eq '(default)';
 
     my $pkg = _site_package_path($name) or return _package_name_refusal($name);
-    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg; # not a store: a backup archive
 
     # Resolve the TARGET content root.
     my $croot;
@@ -4748,12 +4748,18 @@ sub _audit_parse_line {
 # the most recent CAP entries (chronological order). Rotation/truncation-aware.
 sub _audit_cached_entries {
     my $file = "$LAZYSITE_DIR/logs/audit.log";
-    return [] unless -f $file;
     my $CAP        = 5000;
     my $cache_dir  = "$LAZYSITE_DIR/cache";
     my $cache_file = "$cache_dir/audit-cache.json";
-    my @st         = stat($file);
-    my ( $inode, $size ) = ( $st[1], $st[7] );
+    # SM907: the stat serves the CACHE KEY - file identity, and how much is new
+    # since last time - and never the absence decision. `return [] unless -f`
+    # stood here, which is the guard lint 121 forbids on a store read now that
+    # the trail is one: a stat this process may not make fails exactly like an
+    # open it may not make, and the trail then reads as a site where nothing
+    # happened. An empty stat leaves size 0, so the read below is skipped and
+    # _audit_trail_state is what says why.
+    my @st = stat($file);
+    my ( $inode, $size ) = @st ? ( $st[1], $st[7] ) : ( -1, 0 );
 
     my $cache;
     if ( open my $cf, '<', $cache_file ) {
@@ -4767,7 +4773,12 @@ sub _audit_cached_entries {
     $cache->{entries} ||= [];
 
     my $offset = $cache->{offset} // 0;
-    if ( $size > $offset && open my $fh, '<', $file ) {
+    if ( $size > $offset ) {
+        open my $fh, '<', $file or do {
+            # It stat'd and will not open: a permissions fault, never absence.
+            Lazysite::Util::cannot_read( 'audit.log', $file );
+            return $cache->{entries};
+        };
         seek $fh, $offset, 0;
         my $pos = $offset;
         while ( my $line = <$fh> ) {
@@ -4790,6 +4801,56 @@ sub _audit_cached_entries {
     return $cache->{entries};
 }
 
+# THE TRAIL'S OWN STATE (SM907, AT2).
+#
+# A short audit page has six possible meanings and used to have one rendering.
+# The field case: a trail the CGI could READ and could not APPEND to, so the page
+# showed the six events a root shell had written, looked healthy, and said
+# nothing about every web-server event since. The operator had to ask why an
+# agent's deployment left no trace.
+#
+# ANSWERED BY THE IDENTITY THAT WRITES IT. This runs as the CGI, so `-w` is the
+# real question ("can I append?") rather than arithmetic about somebody else's
+# uid. `lazysite check` asks the same question for an operator running as root,
+# where -w answers yes for everybody, and does the arithmetic there instead.
+#
+#   appendable    - recording
+#   unwritable    - exists, readable, and every new event is LOST
+#   unreadable    - exists and will not open: nothing here can be trusted
+#   off           - audit_trail: off. Collection stopped, what was collected stays
+#   cannot-start  - no trail, and the logs directory refuses one
+#   never-written - no trail, and one could be written. A new site, and the only
+#                   one of the six where an empty page is the truth
+#
+# `why` and `repair` are composed here rather than in the page, so the control
+# API and the manager say the same sentence about the same state.
+sub _audit_trail_state {
+    my $dir  = "$LAZYSITE_DIR/logs";
+    my $file = "$dir/audit.log";
+    return { state => 'off', file => $file,
+        why => 'Recording is switched off, so this is not the whole story - it is '
+            . 'what was collected before the trail was switched off.' }
+        if Lazysite::Audit::audit_trail_state() eq 'off';
+
+    if ( open my $fh, '<:raw', $file ) {
+        close $fh;
+        return { state => 'appendable', file => $file } if -w $file;
+        return { state => 'unwritable', file => $file,
+            why => 'The audit trail cannot be written, so events are being lost as '
+                . 'they happen. What is listed was written by a process that could.',
+            repair => 'run `lazysite check --fix` on the host' };
+    }
+    unless ( $!{ENOENT} ) {
+        Lazysite::Util::cannot_read( 'audit.log', $file );
+        return { state => 'unreadable', file => $file };
+    }
+    return { state => 'never-written', file => $file } if -w $dir;
+    return { state => 'cannot-start', file => $file,
+        why => 'No audit trail has been written and none can be: the logs '
+            . 'directory refuses it, so nothing this site does is being recorded.',
+        repair => 'run `lazysite check --fix` on the host' };
+}
+
 sub action_recent_changes {
     my ($window) = @_;
     $window = ( defined $window && $window =~ /\A\d+\z/ ) ? $window : 86_400;    # 24h
@@ -4809,7 +4870,19 @@ sub action_recent_changes {
 }
 
 sub action_audit {
-    my (%opt)  = @_;
+    my (%opt) = @_;
+
+    # SM907: a trail that exists and will not open is this host unable to read
+    # its own record, which is SM873's kind and a 500 - never an empty list. The
+    # entries behind an unopenable file are not "none", they are unknown, and
+    # answering ok with nothing in it is the lie this filing is about.
+    my $trail = _audit_trail_state();
+    return { ok => 0, kind => 'store-uninspectable', reason => 'open',
+        error => "The audit trail exists and cannot be read ($trail->{file}), so "
+            . 'what this site recorded cannot be shown. Run `lazysite check --fix` '
+            . 'on the host to repair it.' }
+        if $trail->{state} eq 'unreadable';
+
     my $cached = _audit_cached_entries();
     my $want   = $opt{user};
     my $want_t = $opt{target};              # SM077: filter to one file's history
@@ -4882,6 +4955,7 @@ sub action_audit {
     # claim the store cannot support.
     return { ok => 1, entries => \@slice,
         total    => $total, page => $page, per_page => $per, pages => $pages,
+        trail    => $trail,                    # SM907: why this list is what it is
         scoped   => ( $scope ? JSON::PP::true() : JSON::PP::false() ),    # SM173
         users    => [ sort keys %fusers ],     # SM119: filter dropdown options
         accounts => \@real,                    # SM641: of those, the linkable ones
@@ -4951,8 +5025,14 @@ sub _service_state {
 
 sub action_version {
     my $path = "$LAZYSITE_DIR/.install-state.json";
-    return { ok => 1, version => undef } unless -f $path;
-    open my $fh, '<', $path or return { ok => 1, version => undef };
+    # SM907: the guard that stood here made an unreadable install state
+    # indistinguishable from a site installed before the state file existed, and
+    # both answered `version: null`. The answer shape is unchanged - a client
+    # cannot act on it either way - but the host now says which it was.
+    open my $fh, '<', $path or do {
+        Lazysite::Util::cannot_read( '.install-state.json', $path ) unless $!{ENOENT};
+        return { ok => 1, version => undef };
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $d = eval { decode_json($raw) } || {};
