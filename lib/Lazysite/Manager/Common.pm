@@ -688,7 +688,13 @@ our %REFUSAL_STATUS = (
     'too-large' => '413 Payload Too Large',
     'rate'      => '429 Too Many Requests',
     'partial'   => '207 Multi-Status',
-    ( map { $_ => '500 Internal Server Error' } qw(render-failed snapshot-failed no-cgi-headers empty-render) ),
+    # SM873: `store-uninspectable` joins them. The data store failing to open
+    # or answer is this host unable to read its own state, not a malformed
+    # request - and it used to answer 400, because the kind was assembled from
+    # a runtime reason and could never match a key here. The refusal carries
+    # `reason` for which fault it was; see Data::Tables.
+    ( map { $_ => '500 Internal Server Error' }
+            qw(render-failed snapshot-failed no-cgi-headers empty-render store-uninspectable) ),
 );
 
 sub refusal_status {

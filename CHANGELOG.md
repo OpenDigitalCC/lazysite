@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM873 (PENDING) **a refusal names a fault at this end with a 500, and a kind
+  is never assembled at run time.** `Data::Tables` built
+  `kind => 'store_' . $why->{reason}`, so one line emitted a family of kinds —
+  one per reason the store diagnosis can return — and every member missed
+  `%REFUSAL_STATUS` and answered **400 Bad Request**. A caller was told its
+  request was malformed when what had failed was this host reading its own data
+  store, and a client retrying a 400 sends the same request again. All five
+  reasons are the same class, so the family bought nothing: the kind is now the
+  single literal `store-uninspectable`, mapped to 500, with the specific fault
+  carried in `reason` beside it for a caller that wants to branch. The 404 this
+  filing wondered about does not arise — an absent store is answered as
+  `pending_schema`, an ordinary state, before the diagnosis is reached.
+  `t/lint/139`'s exemption for the `store_` stem is gone rather than replaced,
+  and `t/lint/150` refuses the four assembly shapes for good while still
+  allowing a pass-through parameter and the unrelated `kind` a backup, a layout
+  and a snapshot each carry. Both gates were proved by restoring the old line.
+
 - SM904 (6d9f595c) **a form value with a non-ASCII character is stored as
   typed.** Found on a live expo form: a name ending *Hervé* was stored as
   *HervÃ©* — UTF-8's two bytes read as two Latin-1 characters and encoded

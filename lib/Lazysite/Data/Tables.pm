@@ -268,11 +268,37 @@ sub _read_rows_loaded {
     my $observed = eval { observed_schema( $dbh, $name ) };
     if ( !$observed ) {
         my $why = store_diagnosis($docroot);
+
+        # SM873: ONE LITERAL KIND, WITH THE REASON BESIDE IT.
+        #
+        # This built `'store_' . $why->{reason}`, so one line emitted a FAMILY
+        # of kinds - one per reason store_diagnosis can return. A kind is the
+        # key %REFUSAL_STATUS is looked up by, so every member of that family
+        # missed the map and answered 400 Bad Request: a caller was told its
+        # request was malformed when what had failed was this host reading its
+        # own store. A client retrying a 400 sends the same request again.
+        # Nothing static could enumerate the family either, which is why
+        # t/lint/139 had to exempt the stem `store_` rather than cover it.
+        #
+        # THE FAMILY BOUGHT NOTHING, because every member is the same class.
+        # store_diagnosis reports missing_module, no_store, unreadable,
+        # directory_not_writable and unknown, and each is this host failing to
+        # read its own state - a 500. The filing wondered whether an absent
+        # store should be a 404 instead; it does not arise. An absent store is
+        # answered as `pending_schema` above, an ordinary state rather than a
+        # refusal, so it never reaches here at all.
+        #
+        # So the kind is one literal the map can carry, and `reason` rides
+        # beside it for a caller that wants to tell "install the driver" from
+        # "make the directory writable". `reason` is NOT a kind: no status is
+        # looked up by it, which is precisely why it may be built at run time
+        # where a kind may not.
         return _err(
             "table '$name': the data store could not be inspected. "
                 . $why->{detail},
             table  => $name,
-            kind   => 'store_' . $why->{reason},
+            kind   => 'store-uninspectable',
+            reason => $why->{reason},
             detail => $why->{detail},
         );
     }

@@ -22,7 +22,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper                qw(repo_root);
 use Lazysite::Manager::Common ();
 
 my $root = repo_root();
@@ -76,12 +76,13 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
 # surface can produce at all: the MCP entry point resolves the page and returns
 # its own refusal before the validator is called.
 
-# `store_` is a PREFIX, not a kind: lib/Lazysite/Data/Tables.pm:275 builds
-# `'store_' . $why->{reason}` at run time, so the family can never be mapped by
-# name and this test can only see the literal stem. Filed rather than fixed
-# here - the store-inspection failures it covers are arguably 500s, which is a
-# decision, not a rename.
-my %PREFIX_ONLY = ( 'store_' => 1 );
+# SM873 CLOSED THE ONE EXEMPTION THIS TEST CARRIED, so there is no longer a
+# prefix list here. `store_` used to be one: Data::Tables built
+# `'store_' . $why->{reason}` at run time, so the family could never be mapped
+# by name and this test could only see the literal stem. It is now the single
+# literal `store-uninspectable`, mapped to 500, with the reason carried in its
+# own field - so the family is checked like every other kind rather than
+# excused. t/lint/150 is what stops the next one being written.
 
 # --- every kind the tree emits ------------------------------------------------
 my @files;
@@ -89,7 +90,7 @@ my @files;
     open my $ls, '-|', 'git', '-C', $root, 'ls-files' or die "git ls-files: $!";
     while ( my $l = <$ls> ) {
         chomp $l;
-        next if $l =~ m{^(?:t/|tmp/)};
+        next if $l     =~ m{^(?:t/|tmp/)};
         next unless $l =~ /\.(?:pl|pm)$/;
         push @files, $l;
     }
@@ -119,18 +120,17 @@ cmp_ok( scalar keys %seen, '>=', 60, 'refusal kinds were found to check' )
 my %STATUS = %Lazysite::Manager::Common::REFUSAL_STATUS;
 
 for my $kind ( sort keys %seen ) {
-    next if $PREFIX_ONLY{$kind};
     my $mapped     = exists $STATUS{$kind};
     my $deliberate = $DELIBERATE_400{$kind};
 
     ok( $mapped || $deliberate, "'$kind' has a decided status" )
         or diag(
-                  "'$kind' is emitted at "
-                . join( ', ', @{ $seen{$kind} }[ 0 .. 2 > $#{ $seen{$kind} } ? $#{ $seen{$kind} } : 2 ] )
-                . "\n  and reaches no entry in %REFUSAL_STATUS, so it answers 400 "
-                . "Bad Request.\n  If that is right, add it to \%DELIBERATE_400 "
-                . "here. If it is not - a\n  not-found, a conflict, a server "
-                . "fault - map it in Lazysite::Manager::Common." );
+        "'$kind' is emitted at "
+            . join( ', ', @{ $seen{$kind} }[ 0 .. 2 > $#{ $seen{$kind} } ? $#{ $seen{$kind} } : 2 ] )
+            . "\n  and reaches no entry in %REFUSAL_STATUS, so it answers 400 "
+            . "Bad Request.\n  If that is right, add it to \%DELIBERATE_400 "
+            . "here. If it is not - a\n  not-found, a conflict, a server "
+            . "fault - map it in Lazysite::Manager::Common." );
 
     # Both is a contradiction: the map says one thing and the list another.
     ok( !( $mapped && $deliberate ),

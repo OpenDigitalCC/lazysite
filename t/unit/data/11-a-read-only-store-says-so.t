@@ -30,8 +30,9 @@ BEGIN {
 }
 plan skip_all => 'running as root - directory modes do not bind' if $> == 0;
 
-use Lazysite::Data::Tables qw(apply_schema insert_row read_rows);
-use Lazysite::Data::Connect qw(store_diagnosis);
+use Lazysite::Data::Tables    qw(apply_schema insert_row read_rows);
+use Lazysite::Data::Connect   qw(store_diagnosis);
+use Lazysite::Manager::Common ();    # SM873: for refusal_status
 
 sub site {
     my $d = tempdir( CLEANUP => 1 );
@@ -64,7 +65,7 @@ subtest 'a read-only store directory is REPORTED, not read as empty' => sub {
     apply_schema( $d, 'p' );
     insert_row( $d, 'p', { code => 'C1' } );
 
-    my $dir = "$d/lazysite/db";
+    my $dir  = "$d/lazysite/db";
     my $mode = ( stat $dir )[2] & 07777;
     chmod 0500, $dir or plan skip_all => 'cannot chmod';
 
@@ -77,8 +78,23 @@ subtest 'a read-only store directory is REPORTED, not read as empty' => sub {
         or diag( 'It used to return ok with an empty list and '
             . 'pending_schema, so an operator was told their table was '
             . 'empty when the store was unreadable.' );
-    is( $r->{kind}, 'store_directory_not_writable',
-        'with a kind a surface can branch on' );
+    # SM873: ONE LITERAL KIND, AND THE STATUS IT REACHES.
+    #
+    # This asserted `store_directory_not_writable`, which was built at run time
+    # from the reason - so it matched no key in %REFUSAL_STATUS and the refusal
+    # answered 400 Bad Request. A caller was told its request was malformed
+    # when this host could not read its own store. The kind is now one literal
+    # the map carries, and the reason rides in its own field, so nothing is
+    # lost and a status can be decided.
+    is( $r->{kind}, 'store-uninspectable',
+        'with a literal kind a surface can branch on' );
+    is( $r->{reason}, 'directory_not_writable',
+        'and the specific fault in its own field, which is not a kind' );
+    is( Lazysite::Manager::Common::refusal_status( $r->{kind} ),
+        '500 Internal Server Error',
+        'and it answers 500, because the fault is at this end' )
+        or diag( 'This is the whole point of SM873: an assembled kind reached '
+            . 'no entry in %REFUSAL_STATUS and defaulted to 400.' );
     like( $r->{error}, qr/not writable/, 'and a message naming the cause' );
 
     chmod $mode, $dir;
