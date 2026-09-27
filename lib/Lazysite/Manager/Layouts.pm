@@ -544,7 +544,12 @@ sub action_layout_delete {
     my ($layout_name) = @_;
     $layout_name //= '';
     $layout_name =~ s/[^a-zA-Z0-9_-]//g;
-    return { ok => 0, error => 'Layout name required' } unless length $layout_name;
+    # SM911 LD2: the message names the parameter it wants. It asked for a "Layout
+    # name" and named no spelling of it, so a partner trying eight of them read
+    # the same sentence eight times and concluded the action was unreachable.
+    return { ok => 0, kind => 'invalid-path',
+        error => 'Layout name required (layout=<name>)' }
+        unless length $layout_name;
 
     # Deleting a layout removes its themes/ too, so guard hard: never the
     # active layout (the UI also gates this and confirms before calling).

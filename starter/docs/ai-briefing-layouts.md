@@ -170,8 +170,14 @@ D013 additions:
 - `theme_assets` - URL prefix `/lazysite-assets/LAYOUT/THEME`
   (nested for local themes), or `/lazysite-assets/CACHE_KEY` for
   remote layouts (flat), or unset when no theme
-- `theme_css` - pre-rendered `<style>:root { ... }` block of CSS
-  custom properties. Empty string when no theme.
+- `theme_css` - a **ready-made element**, emitted for you: normally a
+  `<link rel="stylesheet" ...>` to the theme's generated
+  `theme-tokens.css`, carrying its own fingerprint so the tokens
+  invalidate independently of `main.css`. On a site whose theme mirror
+  predates that file it falls back to an inline
+  `<style>:root { ... }</style>` block of the same custom properties.
+  Empty string when no theme. **Do not wrap it** in a `<style>` tag of
+  your own - print it as it is, in `<head>`.
 - `theme_version` - the cache key for the files under `theme_assets`:
   a fingerprint of the theme's mirrored files, so
   `[% theme_assets %]/main.css?v=[% theme_version %]` is a new URL when

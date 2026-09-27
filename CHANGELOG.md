@@ -44,6 +44,64 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM910 (PENDING) **the partner brief and the site's published copy answer
+  different questions, and now say so.** A brief told its agent to confirm the
+  brief's claims against `/.well-known/ai-partner`. That document is
+  partner-agnostic, so its capability list is about the SITE, and on the reported
+  host the two differed in both directions, five of nine. The partner then
+  exchanged its key and settled it: `whoami` returned exactly the nine the brief
+  named, with `manage_config` **false** - which the endpoint advertised and the
+  account did not hold. So the brief was right and the check it asked for was the
+  one check that could not say so. The brief now says the published copy confirms
+  the site, the endpoints and the deny list, and that **only `whoami` confirms a
+  grant**; the document carries a note saying the same about its own list. Three
+  published statements also disagreed about one WebDAV write: the brief's body
+  said a PUT to `lazysite/nav.conf` is accepted with `manage_nav`, its Notes said
+  the same PUT is refused, and the site document said it needs `manage_config`.
+  The endpoint enforces `manage_nav`, so the body was right; both others are
+  corrected, and `t/tools/89` reads the capability out of the WebDAV endpoint and
+  requires the two documents to name it, so the disagreement cannot re-open. The
+  Notes also claimed `lazysite/` is not writable over WebDAV, which would have
+  sent a partner holding `manage_layouts` to ask a sysop for something it can do
+  itself - the endpoint's own refusal says `lazysite/layouts/` is the part that
+  is writable. `endpoints` and `modes` were reported as never filled; measured,
+  they populate whenever the service is enabled, so the real fault was that an
+  empty object could not be told from an unfinished document. The document now
+  publishes `services` as explicit booleans, in the vocabulary `whoami` already
+  uses.
+
+- SM911 (PENDING) **the layout check stops punishing the pattern the
+  documentation teaches.** Activating a layout reported nav 0, meta_title 0 and
+  meta_desc 0 and warned that `nav.conf` would have no effect - for a layout
+  whose served page in that same activation carried five nav items from
+  `nav.conf`, a resolved title and a resolved description. The detector required
+  the variable to OPEN the directive, so it missed `[% FOREACH item IN nav %]`,
+  which is the only way to render a multi-item navigation, and it missed
+  `head_title = page_meta_title || page_title`, which the layouts briefing's own
+  `<head>` contract tells authors to write. It now matches the variable anywhere
+  inside one directive, and still refuses `navbar`, a TT comment and a layout
+  that mentions none of it. Also: `layout-delete` read only the dispatcher's
+  generic `path` parameter, so a partner who tried eight spellings of "layout
+  name" concluded the action was unreachable and deleted the directory over
+  WebDAV instead. It takes `layout=` now, like its siblings, and the refusal
+  names the spelling. And the layouts briefing described the theme tokens as an
+  inline `<style>` block; since SM352 the variable emits a stylesheet link, so an
+  author following the old wording nested a link inside a style element.
+
+- SM907 AT4, AT5, AT6 (PENDING) **the tail of the audit-trail filing, which
+  closes it.** The check now names what each unwritable file costs: the audit
+  log's line says events are being lost as they happen, rather than that the
+  manager cannot save it, which no manager does. The installer gives a forms
+  `.example` 0640, because `smtp.conf.example` shipped 0644 and the copy an
+  operator fills in with an SMTP password was world-readable - the second failure
+  the field check reported. And the visitor-log readers were brought under the
+  same rule as the trail, which narrowed the claim: measured, the MAIN
+  access-log read already refuses and names the fault, so the headline count was
+  never the lie. The secondary readers - a log tail, the rotated logs, the
+  form-event files - each skipped in silence, shortening counts with nothing
+  looking wrong. They report now, and the export names which logs would not open,
+  so a short count is distinguishable from a quiet site.
+
 - SM906 remainder (PENDING) **the other two symptoms of the field report, which
   the first pass left alive.** With the group store unreadable, two more answers
   were computed without asking whether it could be read. `group_is_assignable`

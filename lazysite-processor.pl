@@ -9091,6 +9091,25 @@ sub _ai_partner_doc {
         site      => $base,
         endpoints => \%endpoints,
         modes     => \%modes,
+
+        # SM910 WK2: WHY `endpoints` IS EMPTY, WHICH IT WOULD NOT SAY.
+        #
+        # Reported as "two fields that were never filled", and measured: they
+        # populate whenever the service is on. So the report's premise is not the
+        # defect - the defect is that an empty object cannot be told apart from an
+        # unfinished one. A network surface is off unless the operator enables it,
+        # so an empty `endpoints` is the ordinary state of a site that publishes
+        # over none of them, and a partner reading it had no way to know that.
+        #
+        # Stated as an explicit map, in the vocabulary `whoami` already uses for
+        # the same fact (`services.mcp: false`), so the two answers about one
+        # site read the same way.
+        services => {
+            webdav   => ( $webdav   ? JSON::PP::true() : JSON::PP::false() ),
+            control  => ( $control  ? JSON::PP::true() : JSON::PP::false() ),
+            mcp      => ( $mcp      ? JSON::PP::true() : JSON::PP::false() ),
+            exchange => ( $exchange ? JSON::PP::true() : JSON::PP::false() ),
+        },
         auth      => {
             scheme       => 'basic',
             token_prefix => 'lzs_',
@@ -9101,9 +9120,26 @@ sub _ai_partner_doc {
                 . 'credential per account.',
         },
         capabilities => [qw(webdav manage_themes manage_layouts manage_config analytics)],
+
+        # SM910 WK1: WHAT THAT LIST IS, because a partner was told to confirm its
+        # brief against this document and did. The list is the site's partner
+        # SURFACE - the capabilities a grant here can be given - and it is not
+        # anybody's grant; on the reported host it differed from the partner's
+        # real grant in both directions, five of nine, and the brief was the one
+        # telling the truth. A document that cannot be mistaken for a grant has to
+        # say so in the document, not only in the brief that points at it.
+        capabilities_note =>
+            'The capabilities this site can grant a partner, not the capabilities YOU hold. '
+            . 'Only whoami answers that. Comparing this list with your brief will show '
+            . 'differences in both directions and means nothing.',
         scope        => {
+            # SM910 WK3: the capability was wrong here, and three published
+            # statements disagreed about one PUT. lazysite-dav.pl:1495 gates
+            # lazysite/nav.conf on manage_nav, and a partner holding manage_nav
+            # and NOT manage_config wrote it (204) on the reported host. Named
+            # from the code rather than from memory.
             webdav =>
-                'content, assets, layout/theme files under lazysite/layouts/, and lazysite/nav.conf (the last with manage_config)',
+                'content, assets, layout/theme files under lazysite/layouts/ (with manage_themes or manage_layouts), and lazysite/nav.conf (with manage_nav)',
             control_api =>
                 'config keys, theme/layout activation, HTML-cache clear (manage_config / manage_themes / manage_layouts)',
             analytics =>

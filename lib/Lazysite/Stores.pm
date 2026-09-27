@@ -123,12 +123,24 @@ my @STORES = (
     # "would not open" and "says nothing" are further apart here than anywhere
     # else under lazysite/.
     #
-    # The visitor log in this directory has the same property and is NOT covered
-    # yet: plugins/stats.pl holds six read-opens that return empty, and bringing
-    # them in is its own change rather than a line here. AT6 on SM907.
+    # SM907 AT6: stats.pl is listed because IT READS LOGS, not because the logs it
+    # reads live here - the visitor log is the web server's own access log, found
+    # by auto-detection or LAZYSITE_ACCESS_LOG, and the form-event log sits under
+    # lazysite/stats. The rule belongs to a log reader wherever the log is, and
+    # listing the module is how lint 121 reaches it.
+    #
+    # MEASURED, and the filing's premise was too broad: the MAIN access-log read
+    # already refuses correctly - "An access log exists for this site but is not
+    # readable by the web server user" - so the headline count was never the lie.
+    # The secondary readers were: a log tail, the rotated log files and the
+    # form-event files each skipped in silence, which shortens counts without
+    # saying so. Those report now, and the export names which logs would not open.
+    #
+    # stats.pl loads no Lazysite modules by design - it runs as a subprocess - so
+    # it carries its own reporter in the same shape.
     { dir => 'logs',
         store   => 1,
-        modules => ['lazysite-manager-api.pl'],
+        modules => [ 'lazysite-manager-api.pl', 'plugins/stats.pl' ],
     },
     { dir => 'backups',
         store => 0,

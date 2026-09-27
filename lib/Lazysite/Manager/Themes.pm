@@ -1449,11 +1449,36 @@ sub _validate_layout_dir {
     # resolves page_meta_title and page_meta_desc for the layout to use, and
     # every catalogue layout overwrites them, so those two are reported here
     # too rather than needing a second survey.
+    #
+    # SM911 LD1: THE VARIABLE ANYWHERE IN THE TAG, not only as its first token.
+    #
+    # This required the name to open the directive, so it missed
+    # `[% FOREACH item IN nav %]` - which is the ONLY way to render a multi-item
+    # navigation - and it missed `head_title = page_meta_title || page_title`,
+    # which is the fallback the layouts briefing's own <head> contract tells
+    # authors to write, because page_meta_title alone is empty on a page that
+    # sets no meta front matter. So the check punished exactly the two patterns
+    # the documentation recommends, and on a live site it reported nav 0,
+    # meta_title 0 and meta_desc 0 for a layout whose served page carried five
+    # nav items from nav.conf, a resolved title and a resolved description.
+    #
+    # A false negative here is expensive in a particular way: it tells an author
+    # their nav work is inert at the moment they have just done it correctly, so
+    # they hunt a bug that is not there or add a literal `[% nav %]` beside the
+    # loop to silence it.
+    #
+    # `[^%]*` keeps the match inside one directive, and `\b` keeps `navbar` and
+    # `navigation` out. A TT comment directive is excluded: `[%# nav %]` mentions
+    # the variable and renders nothing.
+    my $tag_has = sub {
+        my ($name) = @_;
+        return $src =~ /\[%(?!\#)[^%]*\b\Q$name\E\b/ ? 1 : 0;
+    };
     my %renders = (
-        nav        => ( $src =~ /\[%[-+]?\s*nav\b/             ? 1 : 0 ),
-        content    => ( $src =~ /\[%[-+]?\s*content\b/         ? 1 : 0 ),
-        meta_title => ( $src =~ /\[%[-+]?\s*page_meta_title\b/ ? 1 : 0 ),
-        meta_desc  => ( $src =~ /\[%[-+]?\s*page_meta_desc\b/  ? 1 : 0 ),
+        nav        => $tag_has->('nav'),
+        content    => $tag_has->('content'),
+        meta_title => $tag_has->('page_meta_title'),
+        meta_desc  => $tag_has->('page_meta_desc'),
     );
 
     my $ok = eval {

@@ -2186,7 +2186,19 @@ elsif ( $action eq 'theme-delete' ) {
     $result = action_theme_delete( $path,
         { restrict_to_creator => $RESTRICT_THEME_DELETE, user => $auth_user } );
 }
-elsif ( $action eq 'layout-delete' )           { $result = action_layout_delete($path) }
+elsif ( $action eq 'layout-delete' ) {
+    # SM911 LD2: `layout=` TOO, because that is what the family takes.
+    #
+    # This read only `path`, which is the dispatcher's generic parameter and the
+    # one spelling nobody would try for a layout name. A partner tried eight -
+    # layout, name, layout_name, id, dir, slug and two body forms - and got
+    # "Layout name required" to every one, while `layouts-available` and
+    # `layout-activate` both take `layout=` and work. From a token client the
+    # action looked unreachable, and the workaround was a WebDAV DELETE.
+    #
+    # `path` still works, so nothing that calls it today changes.
+    $result = action_layout_delete( $params{layout} // $path );
+}
 elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }
 elsif ( $action eq 'theme-copy' ) {
     my $req = _json_body();

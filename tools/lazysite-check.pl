@@ -242,6 +242,32 @@ sub owner_name { ( getpwuid( ( stat $_[0] )[4] ) )[0] // ( stat $_[0] )[4] }
 sub group_name { ( getgrgid( ( stat $_[0] )[5] ) )[0] // ( stat $_[0] )[5] }
 sub mode_of    { ( stat $_[0] )[2] & 07777 }
 
+# SM907 AT4: WHAT GOES WRONG, per file. One sentence covered the whole list -
+# "the manager cannot save it" - and it is wrong about the audit log, which no
+# manager saves: every surface APPENDS to it, and what an operator loses is the
+# record, silently. An operator who reads the true consequence knows whether they
+# have a cosmetic fault or a missing audit trail.
+my %UNWRITABLE_MEANS = (
+    'lazysite/logs/audit.log' =>
+        'every surface appends here, so events are being LOST as they happen '
+        . 'and the Audit page shows a short list that looks healthy',
+    'lazysite/auth/groups-settings.json' =>
+        'the manager cannot save a capability change, and a group whose record '
+        . 'cannot be written cannot be given to a person',
+    'lazysite/auth/users'     => 'no account can be created, changed or removed',
+    'lazysite/auth/groups'    => 'no membership change can be saved',
+    'lazysite/auth/acls.json' =>
+        'no access rule can be saved, so a page cannot be protected or opened',
+    'lazysite/nav.conf'      => 'the navigation cannot be saved',
+    'lazysite/lazysite.conf' => 'no site setting can be saved',
+);
+
+sub _unwritable_consequence {
+    my ($rel) = @_;
+    return $UNWRITABLE_MEANS{$rel} // 'the manager cannot save it';
+}
+
+
 # Effective access for the CGI identity, from ownership + mode arithmetic.
 # $bit is the "other" permission bit: 4 read, 2 write, 1 execute/traverse.
 # Never -r/-w/-x here: run as root those answer for root, which bypasses DAC
@@ -622,8 +648,9 @@ sub run_checks {
             || ( $s[5] == $exp_gid && ( $mode & 0020 ) );    # www-data group, group-write
         unless ($cgi_writable) {
             report( 'FAIL',
-                sprintf( "%s (%04o, %s:%s) is not writable by the CGI (%s) - the manager cannot save it",
-                    $rel, $mode, owner_name($path), group_name($path), $exp_grp ),
+                sprintf( "%s (%04o, %s:%s) is not writable by the CGI (%s) - %s",
+                    $rel, $mode, owner_name($path), group_name($path), $exp_grp,
+                    _unwritable_consequence($rel) ),
                 sprintf( "chown %s:%s '%s' && chmod g+w '%s'", $exp_user, $exp_grp, $path, $path ) );
             push @chmod_fixes, [ 0020, $path, 'add' ];    # add group-write, keep the rest
             $chown_needed = 1;

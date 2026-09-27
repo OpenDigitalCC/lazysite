@@ -1479,6 +1479,20 @@ sub mode_for {
     my ($path) = @_;
     return 0755 if $path =~ /\.(pl|sh)$/;
     return 0640 if $path =~ m{/lazysite/auth/};
+
+    # SM907 AT5: A CREDENTIAL TEMPLATE STARTS WHERE THE SAVE WOULD LEAVE IT.
+    #
+    # smtp.conf.example is the file an operator copies to smtp.conf and then
+    # fills in with an SMTP password. It shipped 0644, so the copy was
+    # world-readable and the credential was readable by every local user on the
+    # host - which is the second failure the 27 September field check reported.
+    # A save through the manager chmods 0660, because the extension declares a
+    # `password` field; the template it was copied from did not start there.
+    #
+    # The example holds no secret itself, so this is not about the shipped file:
+    # it is about what `cp smtp.conf.example smtp.conf` produces.
+    return 0640 if $path =~ m{/lazysite/forms/.*\.example$};
+
     return 0644;
 }
 

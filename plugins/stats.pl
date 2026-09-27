@@ -25,6 +25,35 @@ use warnings;
 use JSON::PP qw(encode_json);
 use POSIX    ();
 
+# SM907 AT6: A LOG THAT WILL NOT OPEN IS NOT A LOG WITH NOTHING IN IT.
+#
+# lazysite/logs became a store when the audit trail moved into it (SM907 AT2),
+# and the visitor log in the same directory has the same property: the read-opens
+# here answered empty or skipped silently on a failure, so an unreadable visitor
+# log reported a site nobody had visited. A sysop reading "0 human visits" had no
+# way to tell that from the truth.
+#
+# This plugin deliberately loads no Lazysite modules - it runs as a subprocess -
+# so it carries the reporter rather than importing cannot_read. The same shape:
+# the file, the error and the unix user. ABSENCE SAYS NOTHING, because a site with
+# no visitors yet has no log.
+our @LOGS_UNREADABLE;
+
+sub _unique {
+    my %seen;
+    return grep { !$seen{$_}++ } @_;
+}
+
+sub _cannot_read {
+    my ( $what, $path ) = @_;
+    return if $!{ENOENT};
+    push @LOGS_UNREADABLE, $what;
+    my $who = ( getpwuid($>) )[0] // $>;
+    warn "stats: cannot read $what - it exists and this process cannot open it"
+        . " (file=$path error=$! unix_user=$who)\n";
+    return;
+}
+
 BEGIN {
     # Locate the Lazysite module tree relative to this script (run-in-place,
     # tar and Hestia installs), falling back to the system @INC (package
@@ -474,7 +503,7 @@ sub _compile_rules {
     $CLASSIFIER_VERSION = 'built-in';
 
     my $f = _classifier_file();
-    return unless -f $f;
+    return unless -f $f; # not a store: an optional classifier ruleset, built-ins otherwise
 
     my $raw = eval {
         open my $fh, '<', $f or die "unreadable\n";
@@ -864,7 +893,8 @@ sub find_error_log {
 # error log doesn't cost a full read. Format-agnostic - no time windowing.
 sub _tail_lines {
     my ( $path, $n ) = @_;
-    open my $fh, '<', $path or return ();
+    open my $fh, '<', $path
+        or do { _cannot_read( 'a log tail', $path ); return () };
     my $size  = -s $fh;
     my $chunk = 65536;
     if ( defined $size && $size > $chunk ) {
@@ -1333,7 +1363,7 @@ sub _known_cache_shape {
 }
 
 sub _load_export_cache {
-    open my $fh, '<', _cache_path() or return undef;
+    open my $fh, '<', _cache_path() or return undef; # not a store: the export cache, rebuilt from the logs
     local $/;
     my $j = <$fh>;
     close $fh;
@@ -1411,7 +1441,7 @@ sub _write_json_atomic {
 
 sub _read_json_file {
     my ($path) = @_;
-    open my $fh, '<', $path or return undef;
+    open my $fh, '<', $path or return undef; # not a store: lazysite/stats rollups, classified apart
     local $/;
     my $j = <$fh>;
     close $fh;
@@ -1673,7 +1703,7 @@ sub _persist_durable {
     }
     for my $mon ( keys %months ) {
         my $path = _monthly_dir() . "/$mon.json";
-        next unless $mon eq $this_mon || !-f $path;
+        next unless $mon eq $this_mon || !-f $path; # not a store: deciding what to WRITE, not reading one
         _write_json_atomic( $path, _month_rollup( $mon, $days, $top_n ) );
     }
 
@@ -2764,7 +2794,9 @@ sub _export_ingest_server_log {
     my $site_host   = _site_domain();
 
     my $offset = $cache->{offset} // 0;
-    if ( $size > $offset && open my $fh, '<', $log ) {
+    if ( $size > $offset ) {
+        open my $fh, '<', $log
+            or return _cannot_read( 'the visitor log', $log );
         seek $fh, $offset, 0;
         my @batch;
         while ( my $line = <$fh> ) {
@@ -2826,7 +2858,8 @@ sub _export_ingest_first_party {
         my $offset = $cache->{files}{$base} // 0;
         $offset = 0 if $offset > $size;                  # rewritten/truncated: reprocess
         next unless $size > $offset;
-        open my $fh, '<', $f or next;
+        open my $fh, '<', $f
+            or do { _cannot_read( 'a visitor log', $f ); next };
         seek $fh, $offset, 0;
         my $pos = $offset;
         $WORK{log_files_read}++;                         # SM342
@@ -2910,7 +2943,8 @@ sub _ingest_form_events {
         my $offset = $cache->{form_files}{$base} // 0;
         $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
         next unless $size > $offset;
-        open my $fh, '<', $f or next;
+        open my $fh, '<', $f
+            or do { _cannot_read( 'a form-event log', $f ); next };
         seek $fh, $offset, 0;
         my $pos = $offset;
         while ( my $line = <$fh> ) {
@@ -3059,6 +3093,13 @@ sub _export_assemble {
     return {
         ok             => JSON::PP::true,
         schema_version => '2',
+
+        # SM907 AT6: WHICH LOGS WOULD NOT OPEN. Absent when every read was clean,
+        # so a caller that finds it knows the counts below are short by an unknown
+        # amount rather than describing a quiet site.
+        ( @LOGS_UNREADABLE
+            ? ( logs_unreadable => [ _unique(@LOGS_UNREADABLE) ] )
+            : () ),
         # SM391: which ruleset classified these. Beside schema_version because
         # it answers the same kind of question about the same numbers.
         classifier_version => $CLASSIFIER_VERSION,
