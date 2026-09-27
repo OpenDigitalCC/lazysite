@@ -44,6 +44,32 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM888 C1 + C2 (PENDING) **the no-CDN rule has a gate at last, and it looks
+  where the breach hides.** Five live sites fetched fonts from a third-party
+  origin on every page view and survived repeated engine upgrades unreported, and
+  the reporter's framing is the finding: months of silence is the defect and the
+  fonts are the symptom. Nothing in the repository checked the rule. `t/lint/151`
+  checks everything lazysite SHIPS - starter themes, layouts, manager pages and
+  styles - for a reference to another origin inside an `@import` or a `url()`, so
+  a fresh site cannot start in breach and an upgrade cannot introduce one. The
+  shape matters: the live breach was line 1 of a theme stylesheet, which a scan of
+  the rendered PAGE certifies as compliant, so the test carries that exact import
+  as a case it must catch, along with a protocol-relative origin, and asserts that
+  a site-relative import and an inline data URI are not flagged. Verified by
+  sabotage: a font import added to a shipped stylesheet fails the gate by file and
+  line. The live half - sweeping what each site actually serves, including themes
+  an operator installed - still needs a rendered page from a real host and is
+  named in the filing.
+
+- SM888 P2 (PENDING) **an asset is something somebody put there.** The Files
+  panel counted everything that was not a `.md` as an asset, including the
+  engine's own rendered `.html`, so a folder holding six uploads reported eight
+  and the number moved when a page was RENDERED rather than when anybody uploaded
+  anything. A rendered page sits beside its source, so an `.html` with a matching
+  `.md` beside it is output and is not counted; an `.html` with no source was
+  authored and still is. Measured on the reported shape: nine before, seven after,
+  the seventh being a hand-written page with no source.
+
 - SM910 (PENDING) **the partner brief and the site's published copy answer
   different questions, and now say so.** A brief told its agent to confirm the
   brief's claims against `/.well-known/ai-partner`. That document is

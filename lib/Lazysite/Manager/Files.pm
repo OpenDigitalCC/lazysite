@@ -2342,7 +2342,27 @@ sub action_protected_sections {
                 { no_chdir => 1,
                     wanted => sub {
                         return unless -f $File::Find::name;
-                        $File::Find::name =~ /\.md\z/ ? $pages++ : $assets++;
+
+                        # SM888 P2: AN ASSET IS SOMETHING SOMEBODY PUT THERE.
+                        #
+                        # Everything that was not a `.md` counted as an asset,
+                        # including the engine's own rendered `.html` - so a
+                        # folder holding six uploaded files reported eight, and
+                        # the number moved when a page was rendered rather than
+                        # when anybody uploaded anything. Two renders per page is
+                        # the shape it took on the reported site: pages 2,
+                        # assets 8, six of them real.
+                        #
+                        # A rendered page sits beside its source, so `x.html`
+                        # next to `x.md` is this engine's output. An `.html` file
+                        # with no `.md` beside it was authored, and still counts.
+                        if ( $File::Find::name =~ /\.md\z/ ) { $pages++; return }
+                        if ( $File::Find::name =~ /^(.*)\.html?\z/
+                            && -f "$1.md" )
+                        {
+                            return;
+                        }
+                        $assets++;
                     },
                 },
                 $dir
