@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM881 (PENDING) **a pull no longer publishes a file that belongs in a
+  protected folder, and the engine now answers "is this path gated?" for any
+  extension that asks.** `git merge` writes the worktree and the worktree is the
+  docroot, so a remote commit adding a file under a gated folder put that file
+  straight into the public tree, with a successful pull as the operator's only
+  signal. **Reproduced against a real remote first** (`t/unit/plugins/05`), as
+  the ruling required. The obvious fix does not work and the filing had already
+  shown why: `resolve_for_write` answers *public* for the pulled file, correctly,
+  because an ancestor existing in the docroot settles it and the merge has just
+  created that ancestor. So the question goes to the ACL store, which a merge
+  does not touch, through a new exported `Acl::gating_for` — a promotion of the
+  precedence ladder `_acl_entry_for` has carried since SM287, not a new
+  subsystem. **Its answer has three states, and that is load-bearing:** an
+  absent or empty store is *open*, only a store that exists and will not parse
+  is *unknown*, and the sync treats *unknown* as stop-and-report — because
+  treating it as gated would relocate every changed file and silently unpublish
+  a site on the next pull, which is worse than the exposure. A second-order
+  effect was found and fixed on the way: the alias reindex asked whether the
+  file was in the docroot, so a relocation would have deindexed the page and
+  broken every link to it. Three sabotages, one of which bit nothing and proved
+  the unknown guard is load-bearing by itself.
+
 - SM871 (PENDING) **a quoted form rule may contain a quote, written `\"`.** The
   tokeniser matched `name:"([^"]*)"`, which cannot hold a quote at all, so
   `value:"the \"Old Barn\" room"` truncated at the first inner quote — and the

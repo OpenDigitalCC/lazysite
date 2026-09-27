@@ -423,7 +423,7 @@ sub _snapshot {
     # the served tree, and this snapshot carries the private store - so every
     # protected section landed in a tarball in the docroot.
     local $Lazysite::Manager::Backups::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
-    local $Lazysite::Manager::Backups::auth_user    = $user;
+    local $Lazysite::Manager::Backups::auth_user = $user;
     my $r = eval { Lazysite::Manager::Backups::action_backup_create('prerestore') };
     return ( ref $r eq 'HASH' && $r->{ok} ) ? $r->{name} : undef;
 }
@@ -437,8 +437,76 @@ sub _snapshot {
 # on their next request. Then reindex the alias map for the changed .md files
 # (their front matter was written outside the save path that normally indexes
 # it).
+# SM881: A PULL PUBLISHED A FILE THAT BELONGS IN A PROTECTED FOLDER.
+#
+# git merge writes the worktree, and the worktree IS the docroot. So a remote
+# commit adding a file under a folder the sysop has gated puts that file straight
+# into the public tree, and the operator's only signal is that the pull succeeded.
+#
+# WHY THE OBVIOUS FIX DOES NOT WORK, demonstrated rather than assumed. Asking
+# `Private::resolve_for_write` after the merge answers PUBLIC for the pulled
+# file - correctly, by its own documented rule that an ancestor existing in the
+# docroot settles it, and git has just created that ancestor. The evidence that
+# resolver reads has been overwritten by the thing being corrected. So the
+# question has to go to the ACL store, which a merge does not touch, and that is
+# `Acl::gating_for` - the engine's one supported answer, ruled on 2026-09-14.
+#
+# THREE STATES, AND THE THIRD ONE STOPS US. A store that will not parse answers
+# 'unknown', and a mover must not guess. Guessing "gated" would relocate every
+# changed file into the private store and silently unpublish the site on the next
+# pull, which is worse than the exposure. Guessing "open" is the exposure. So the
+# pull reports that it could not tell, moves nothing, and names the file to look
+# at. The store is one file, so 'unknown' is uniform across every path - there is
+# no half-done state to leave behind.
+sub _relocate_gated {
+    my ( $docroot, $changed ) = @_;
+    require Lazysite::Auth::Acl;
+    require Lazysite::Private;
+
+    my ( @moved, @failed );
+    for my $rel ( @{$changed} ) {
+        next unless defined $rel && length $rel;
+
+        # The reserved tree is configuration, not content, and is governed by
+        # the deny lists rather than by an ACL entry.
+        next if index( $rel, 'lazysite/' ) == 0;
+        next unless -e "$docroot/$rel";    # a delete needs no relocating
+
+        my $state = Lazysite::Auth::Acl::gating_for( $docroot, $rel );
+        if ( $state eq 'unknown' ) {
+            return { moved => [], failed => [], blocked =>
+                    'the access rules could not be read, so whether the pulled '
+                    . 'files belong in a protected folder could not be decided' };
+        }
+        next unless $state eq 'gated';
+
+        my ( $ok, $err ) = Lazysite::Private::move_in( $docroot, $rel );
+        if   ($ok) { push @moved,  $rel }
+        else       { push @failed, [ $rel, $err // 'unknown reason' ] }
+    }
+    return { moved => \@moved, failed => \@failed, blocked => undef };
+}
+
 sub _after_apply {
     my ( $docroot, $changed ) = @_;
+
+    # SM881: FIRST, before the HTML sweep and before the cache is cleared. A
+    # gated file sitting in the public tree is the defect, so the window in
+    # which it is there is kept as short as the code allows.
+    my $reloc = _relocate_gated( $docroot, $changed );
+    if ( $reloc->{blocked} ) {
+        Lazysite::Util::log_event( 'ERROR', 'pull',
+            'sync pull could not check whether pulled files are gated',
+            reason => $reloc->{blocked} );
+    }
+    elsif ( @{ $reloc->{moved} } || @{ $reloc->{failed} } ) {
+        Lazysite::Util::log_event(
+            ( @{ $reloc->{failed} } ? 'ERROR' : 'INFO' ),
+            'pull', 'sync pull relocated gated files into the private store',
+            moved  => scalar @{ $reloc->{moved} },
+            failed => scalar @{ $reloc->{failed} } );
+    }
+
     require File::Find;
     require Lazysite::Paths;
     my $inside  = Lazysite::Paths::internal_lazysite_dir($docroot) . '/';
@@ -461,16 +529,24 @@ sub _after_apply {
     for my $rel ( @{$changed} ) {
         next unless $rel =~ /\.md\z/;
         next if index( $rel, 'lazysite/' ) == 0;
-        if ( -f "$docroot/$rel" ) {
+
+        # SM881: LOOK IN BOTH PLACES, because the relocation above may have just
+        # moved this page. `-f "$docroot/$rel"` alone would report a page that
+        # went into the private store as DELETED and deindex its aliases - so
+        # protecting a page would silently break every link to it. A gated page
+        # is still a page: it has a URL and is served over the authenticated
+        # path, so it belongs in the alias index exactly as it did before.
+        my ( $abs, undef ) = Lazysite::Private::resolve( $docroot, $rel );
+        if ( defined $abs && -f $abs ) {
             my $content = '';
-            if ( open my $fh, '<', "$docroot/$rel" ) { local $/; $content = <$fh> // ''; close $fh }
+            if ( open my $fh, '<', $abs ) { local $/; $content = <$fh> // ''; close $fh }
             eval { Lazysite::Aliases::index_page( $docroot, $rel, $content ) };
         }
         else {
             eval { Lazysite::Aliases::deindex_page( $docroot, $rel ) };
         }
     }
-    return $cleared;
+    return $reloc;
 }
 
 sub _pages_summary {
@@ -630,10 +706,10 @@ sub do_pull {
                 error => 'Could not apply the changes. Your copy is unchanged; '
                     . "the safety snapshot $snap was kept." };
         }
-        _after_apply( $docroot, \@changed );
+        my $reloc = _after_apply( $docroot, \@changed );
         Lazysite::Util::log_event( 'INFO', 'pull', 'sync pull applied',
             applied => scalar @changed, snapshot => $snap, user => $user );
-        return _applied_result( \@changed, $snap );
+        return _applied_result( \@changed, $snap, $reloc );
     }
 
     # Both sides changed. Without a choice: report only, touch nothing.
@@ -672,22 +748,55 @@ sub do_pull {
                 . "unchanged; the safety snapshot $snap was kept." };
     }
     my @changed = _changed_files( $docroot, $head, 'HEAD' );
-    _after_apply( $docroot, \@changed );
+    my $reloc   = _after_apply( $docroot, \@changed );
     Lazysite::Util::log_event( 'INFO', 'pull', 'sync pull combined',
         choice => $choice, applied => scalar @changed, snapshot => $snap,
         user   => $user );
-    return _applied_result( \@changed, $snap );
+    return _applied_result( \@changed, $snap, $reloc );
 }
 
 sub _applied_result {
-    my ( $changed, $snap ) = @_;
+    my ( $changed, $snap, $reloc ) = @_;
     my $n = scalar @{$changed};
     my $message =
         $n
         ? "$n change" . ( $n == 1 ? '' : 's' ) . ' applied from the remote copy.'
         : 'Combined with the remote copy. No pages changed on your side.';
+
+    # SM881: the operator hears about a relocation, and hears LOUDER about a
+    # check that could not be made. A pull that silently moved somebody's file
+    # somewhere else would be its own defect.
+    my @extra;
+    if ( ref $reloc eq 'HASH' ) {
+        if ( $reloc->{blocked} ) {
+            push @extra,
+                'WARNING: ' . $reloc->{blocked} . '. Nothing was moved, so a '
+                . 'pulled file may now be public inside a protected folder - '
+                . 'check the site\'s access rules and run the pull again.';
+        }
+        my $m = ref $reloc->{moved} eq 'ARRAY' ? scalar @{ $reloc->{moved} } : 0;
+        push @extra,
+            "$m pulled file" . ( $m == 1 ? '' : 's' ) . ' belonged in a '
+            . 'protected folder and ' . ( $m == 1 ? 'was' : 'were' )
+            . ' moved out of public view.'
+            if $m;
+        if ( ref $reloc->{failed} eq 'ARRAY' && @{ $reloc->{failed} } ) {
+            my $f = scalar @{ $reloc->{failed} };
+            push @extra,
+                "WARNING: $f pulled file" . ( $f == 1 ? '' : 's' )
+                . ' belonged in a protected folder and could not be moved, so '
+                . ( $f == 1 ? 'it is' : 'they are' ) . ' still public: '
+                . join( '; ', map { "$_->[0] ($_->[1])" } @{ $reloc->{failed} } );
+        }
+    }
+
     return { ok => 1, applied => $n, pages => _pages_summary($changed),
-        snapshot => $snap, message => $message };
+        snapshot => $snap,
+        message  => join( ' ', $message, @extra ),
+        ( ref $reloc eq 'HASH' && $reloc->{blocked} ? ( gating_unknown => 1 ) : () ),
+        ( ref $reloc eq 'HASH' && ref $reloc->{moved} eq 'ARRAY'
+            ? ( relocated => $reloc->{moved} ) : () ),
+    };
 }
 
 sub _one_line {

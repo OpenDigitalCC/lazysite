@@ -19,7 +19,8 @@ use Lazysite::Paths ();
 use Lazysite::Auth::Settings ();
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
-    _is_operator _acl_denied groups_for_user may_read_any_rule);
+    _is_operator _acl_denied groups_for_user may_read_any_rule
+    gating_for root_gating);
 
 our $DOCROOT;    # set by the script
 
@@ -374,6 +375,97 @@ sub _acl_entry_for {
         return $map->{$rk} if $governs->( $map->{$rk} );
     }
     return;
+}
+
+# SM881: IS THIS PATH GATED? THE ENGINE'S ONE ANSWER, FOR PLUGINS TO ASK.
+#
+# Ruled by the release manager on 2026-09-14: the ACL read lives in the engine as
+# one supported answer that plugins call, not as a private read inside whichever
+# plugin needs it next. The precedence this depends on already existed and was
+# simply not reachable - `_acl_entry_for` has answered "which rule governs this
+# path?" with the full ladder (exact key, then the .md/.url/.html stem, then the
+# longest ancestor prefix, then the site-wide key) since SM287, and was never in
+# @EXPORT_OK. So this promotes an existing private answer rather than designing a
+# new one.
+#
+# THIS IS NOT A SECOND resolve_for_write, and the names will invite that reading.
+# `Private::resolve_for_write` answers "where should I write this?" from DOCROOT
+# EVIDENCE - an ancestor that exists in the docroot settles it public. That is
+# correct for its job and useless after a git merge, because the merge has just
+# created the ancestor it reads. This answers "is this path gated?" from the ACL
+# STORE, which a merge does not touch. Different question, different evidence.
+#
+# THREE STATES, NOT A BOOLEAN, and this is the part that must not be simplified.
+# The processor's `_acl_governed` returns 1 when the store will not load, which is
+# right for a READ: if we cannot tell, refuse to serve. A caller that MOVES files
+# inverts that consequence - an unparseable store would mean "relocate every
+# changed file into the private store", silently unpublishing a site's content on
+# the next pull, which is worse than the exposure being fixed. So "could not tell"
+# is its own answer and a mover must stop on it.
+#
+#   'gated'    a rule governs this path with a non-empty read list
+#   'open'     no rule governs it, or there are no rules at all
+#   'unknown'  the store exists and could not be read or parsed
+#
+# WHY NOT load_acls. It answers {} for BOTH an absent store and an unreadable
+# one - deliberately, because its callers want "no rules" either way. Reusing it
+# here would collapse the very distinction this function exists to draw, so this
+# reads the file itself. That is the only duplication, and it buys the third
+# state.
+#
+# READ GATING ONLY, and deliberately. A `draft` entry carrying no read list
+# answers 'open', because a draft section already 404s to an anonymous visitor -
+# so a file pulled into one is not exposed and does not belong in the private
+# store. One question, one answer; a resolver that folded in draftness would be
+# answering two.
+sub gating_for {
+    my ( $docroot, $rel ) = @_;
+    return 'unknown' unless defined $rel && length $rel;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+
+    my $path = _acls_path();
+    return 'open' unless -e $path;
+
+    open my $fh, '<:raw', $path or return 'unknown';
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return 'unknown' unless defined $raw;
+
+    my $map = eval { JSON::PP::decode_json( length $raw ? $raw : '{}' ) };
+    return 'unknown' unless ref $map eq 'HASH';
+
+    return _acl_entry_for( $map, $rel, 'read' ) ? 'gated' : 'open';
+}
+
+# SM882: is EVERY page under this root gated? The invariant the release manager
+# ruled on the same day - a fully gated content root contains nothing public - is
+# only checkable if something can answer this, and it is the same store read.
+#
+# Answers on the ROOT KEY alone, which is what makes it cheap and honest: a site
+# is fully gated when a site-wide rule gates it, not when somebody has gated every
+# folder one at a time. The second shape is indistinguishable from an incomplete
+# job and would have this report an invariant the operator never declared.
+sub root_gating {
+    my ($docroot) = @_;
+    local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
+
+    my $path = _acls_path();
+    return 'open' unless -e $path;
+
+    open my $fh, '<:raw', $path or return 'unknown';
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return 'unknown' unless defined $raw;
+
+    my $map = eval { JSON::PP::decode_json( length $raw ? $raw : '{}' ) };
+    return 'unknown' unless ref $map eq 'HASH';
+
+    for my $rk ( '/', '', '.' ) {
+        my $e = $map->{$rk};
+        next unless ref $e eq 'HASH';
+        return 'gated' if ref $e->{read} eq 'ARRAY' && @{ $e->{read} };
+    }
+    return 'open';
 }
 
 sub _acl_allows {
