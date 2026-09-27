@@ -418,21 +418,41 @@ sub _acl_entry_for {
 # so a file pulled into one is not exposed and does not belong in the private
 # store. One question, one answer; a resolver that folded in draftness would be
 # answering two.
+# The store read both answers share, with the two failures told apart.
+#
+# NO STAT GUARD IN FRONT OF IT - SM770's rule, and t/lint/121 caught the first
+# version of this for breaking it. The rule is the same one this tri-state exists
+# for, one level up: a stat this process may not make fails exactly as an open it
+# may not make, so `return 'open' unless -e $path` renders a permissions fault as
+# "no rules" before the open can report it. That is the exposure, arrived at by a
+# different route. The open decides, and `$!` says which failure it was.
+sub _acl_map_or_state {
+    my $path = _acls_path();
+    open my $fh, '<:raw', $path or do {
+
+        # ENOENT is an answer: this site has no rules. Anything else is a fault,
+        # and cannot_read logs it - silently passing over ENOENT, which is why
+        # the flag is read before the call rather than after.
+        my $absent = $!{ENOENT} ? 1 : 0;
+        Lazysite::Util::cannot_read( 'acls', $path );
+        return ( undef, $absent ? 'open' : 'unknown' );
+    };
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return ( undef, 'unknown' ) unless defined $raw;
+
+    my $map = eval { JSON::PP::decode_json( length $raw ? $raw : '{}' ) };
+    return ( undef, 'unknown' ) unless ref $map eq 'HASH';
+    return ( $map,  '' );
+}
+
 sub gating_for {
     my ( $docroot, $rel ) = @_;
     return 'unknown' unless defined $rel && length $rel;
     local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
 
-    my $path = _acls_path();
-    return 'open' unless -e $path;
-
-    open my $fh, '<:raw', $path or return 'unknown';
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    return 'unknown' unless defined $raw;
-
-    my $map = eval { JSON::PP::decode_json( length $raw ? $raw : '{}' ) };
-    return 'unknown' unless ref $map eq 'HASH';
+    my ( $map, $state ) = _acl_map_or_state();
+    return $state unless ref $map eq 'HASH';
 
     return _acl_entry_for( $map, $rel, 'read' ) ? 'gated' : 'open';
 }
@@ -449,16 +469,8 @@ sub root_gating {
     my ($docroot) = @_;
     local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
 
-    my $path = _acls_path();
-    return 'open' unless -e $path;
-
-    open my $fh, '<:raw', $path or return 'unknown';
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    return 'unknown' unless defined $raw;
-
-    my $map = eval { JSON::PP::decode_json( length $raw ? $raw : '{}' ) };
-    return 'unknown' unless ref $map eq 'HASH';
+    my ( $map, $state ) = _acl_map_or_state();
+    return $state unless ref $map eq 'HASH';
 
     for my $rk ( '/', '', '.' ) {
         my $e = $map->{$rk};

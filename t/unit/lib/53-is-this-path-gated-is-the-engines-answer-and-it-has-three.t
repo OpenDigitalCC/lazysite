@@ -113,6 +113,29 @@ subtest 'a store that exists and will not parse is UNKNOWN' => sub {
         'and neither is a store whose top level is not an object' );
 };
 
+subtest 'a store that cannot be OPENED is unknown, not open' => sub {
+    # SM770's rule, and t/lint/121 caught the first version of this code for
+    # breaking it: the reader had `return 'open' unless -e $path` in front of the
+    # read. A stat this process may not make fails exactly as an open it may not
+    # make, so that guard rendered a permissions fault as "no rules" - which is
+    # the exposure this whole tri-state exists to avoid, arrived at by a different
+    # route. The open decides now, and errno says which failure it was.
+    plan skip_all => 'running as root - file modes do not bind' if $> == 0;
+
+    my $d  = site('{"private":{"read":["@staff"]}}');
+    my $lz = Lazysite::Paths::lazysite_dir($d);
+    chmod 0000, "$lz/auth/acls.json" or plan skip_all => 'cannot chmod';
+
+    is( Lazysite::Auth::Acl::gating_for( $d, 'private/secret.md' ), 'unknown',
+        'an unreadable store is unknown' )
+        or diag( 'Answered open, a permissions fault on acls.json would publish '
+            . 'every pulled file into a gated folder and report success.' );
+    is( Lazysite::Auth::Acl::root_gating($d), 'unknown',
+        'and the root answer agrees' );
+
+    chmod 0644, "$lz/auth/acls.json";
+};
+
 subtest 'an empty store file is OPEN' => sub {
     # Distinct from unparseable: an empty file is a site with no rules written
     # yet, which is an answer rather than a failure.
