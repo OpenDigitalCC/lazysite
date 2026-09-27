@@ -114,7 +114,10 @@ put it last among a field's rules.
 
 `value:"TEXT"`
 : A default the field opens with. The visitor can change it; it is an
-  ordinary starting value, not a fixed one.
+  ordinary starting value, not a fixed one. To put a double quote **inside**
+  the text, write it as `\"` — so `value:"the \"Old Barn\" room"` opens with
+  *the "Old Barn" room*. A quote left unescaped ends the value early, and the
+  site log says which field and which rule it could not read.
 
 `prefill:PARAM`
 : Fills the field from a **query parameter**, so a code the link already

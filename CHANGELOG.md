@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM871 (PENDING) **a quoted form rule may contain a quote, written `\"`.** The
+  tokeniser matched `name:"([^"]*)"`, which cannot hold a quote at all, so
+  `value:"the \"Old Barn\" room"` truncated at the first inner quote — and the
+  remainder went back through the same loop as further rules. That second half
+  is the one that bit: a leftover chunk still matches the **valued** rules,
+  which are compared by an unanchored regex, so `value:"a \" max:5"` silently
+  capped the field at five characters. **One of the filing's own claims is
+  corrected here:** it could never switch on `required`, because the flags are
+  compared with `eq` and `required"` matches nothing. Only `\"` is unescaped,
+  never every backslash, so a `pattern:` keeps its `\d` — asserted as its own
+  subtest, because getting that wrong would break every pattern in the tree. An
+  unclosed quote now logs a WARN naming the field and the rule and otherwise
+  behaves exactly as before: dropping the rest of the line would let a
+  `required` written after a malformed value become optional, which is worse
+  than the fault. `starter/docs/forms.md` documents the escape;
+  `t/unit/forms/18` was proved against the old regex.
+
 - SM873 (PENDING) **a refusal names a fault at this end with a 500, and a kind
   is never assembled at run time.** `Data::Tables` built
   `kind => 'store_' . $why->{reason}`, so one line emitted a family of kinds —

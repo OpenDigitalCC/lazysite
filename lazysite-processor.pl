@@ -4358,9 +4358,53 @@ sub _render_form {
             if ( $rs =~ s/^((?:select|radio|checklist|checklist-qty):.*)\z//s ) {
                 push @rule_tokens, $1;
             }
-            elsif ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// ) { push @rule_tokens, "$1$2"; }
-            elsif ( $rs =~ s/^(\S+)// )                 { push @rule_tokens, $1; }
-            else                                        { last; }
+            # SM871: THE QUOTED FORM UNDERSTANDS AN ESCAPED QUOTE.
+            #
+            # This was `"([^"]*)"`, which cannot contain a quote at all - so
+            # `value:"before \" x"` stopped at the inner quote, the value became
+            # `before \`, and THE REMAINDER WENT BACK THROUGH THIS LOOP as more
+            # rules. That second part is the one that bites: a leftover chunk
+            # like `max:5"` still matches the valued rules below, because they
+            # are matched with an unanchored regex rather than by equality. So a
+            # stray quote in a default could change a field's max, min, pattern
+            # or placeholder. (It could NOT switch on `required` - measured, and
+            # contrary to this filing's own headline example: the flags are
+            # compared with `eq`, so `required"` matches nothing and is dropped.)
+            #
+            # `(?:[^"\\]|\\.)*` steps over an escaped character, so the value
+            # runs to the real closing quote, and only `\"` is unescaped after -
+            # NOT every backslash. That distinction is load-bearing: `pattern:`
+            # values carry regex escapes, and unescaping all of them would turn
+            # `\d` into `d` and silently break every pattern in the field.
+            #
+            # THE TRADE, stated: a value whose last character is a backslash now
+            # reads as an escaped quote and so as unclosed. That is the correct
+            # reading once `\"` means a quote, and it is warned about below
+            # rather than being silent.
+            elsif ( $rs =~ s/^([A-Za-z]+:)"((?:[^"\\]|\\.)*)"// ) {
+                my ( $key, $val ) = ( $1, $2 );
+                $val =~ s/\\"/"/g;
+                push @rule_tokens, "$key$val";
+            }
+
+            # SM871: A QUOTED RULE THAT NEVER CLOSES IS SAID OUT LOUD.
+            #
+            # The behaviour is deliberately unchanged - the chunk is tokenised on
+            # whitespace exactly as before, so the field's OTHER rules still
+            # apply. Dropping them would be worse than the fault: a `required`
+            # written after a malformed value would silently become optional,
+            # which is a form weakening itself over a typo. So this adds the
+            # diagnosis and nothing else. SM856 set the precedent for saying
+            # what could not be read in this same function.
+            elsif ( $rs =~ /^([A-Za-z]+:)"/ ) {
+                log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                    'form rule has an unclosed quoted value',
+                    field => $name, rule => $1,
+                    hint  => 'close the quote; write \\" for a quote inside it' );
+                $rs =~ s/^(\S+)// and push @rule_tokens, $1;
+            }
+            elsif ( $rs =~ s/^(\S+)// ) { push @rule_tokens, $1; }
+            else                        { last; }
         }
         for my $r (@rule_tokens) {
             if    ( $r eq 'required' ) { $rules{required} = 1; }
