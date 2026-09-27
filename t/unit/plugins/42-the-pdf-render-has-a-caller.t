@@ -33,19 +33,20 @@ subtest 'the action exists and is dispatched' => sub {
 };
 
 subtest 'it is gated, on both sides' => sub {
-    like( $api, qr/'page-pdf'\s*=>\s*\[qw\(manage_content\)\]/,
-        'the TOKEN gate requires manage_content' );
+    # SM662 / A1: the token gate is DATA in a module now, not a literal in the
+    # CGI, and the register's caps are derived from it - so this asks the table
+    # rather than scanning either file for a spelling.
+    require Lazysite::ControlApi::Actions;
+    is_deeply( $Lazysite::ControlApi::Actions::GATE{'page-pdf'},
+        ['manage_content'], 'the TOKEN gate requires manage_content' );
     like( $api, qr/'page-pdf' => 'manage_content'/,
         'and so does the cookie gate' );
 
     # The register the generated reference is built from must agree, or an
-    # integrator is told to ask for the wrong grant.
-    my $act = do {
-        open my $fh, '<', "$root/lib/Lazysite/ControlApi/Actions.pm" or die $!;
-        local $/; <$fh>;
-    };
-    like( $act, qr/'page-pdf'\s*=>\s*\{\s*caps\s*=>\s*\['manage_content'\]/,
-        'the control-API register agrees' );
+    # integrator is told to ask for the wrong grant. Derived, so this now asserts
+    # the derivation ran rather than that somebody copied it correctly.
+    is_deeply( $Lazysite::ControlApi::Actions::ACTION{'page-pdf'}{caps},
+        ['manage_content'], 'the control-API register agrees' );
 };
 
 subtest 'the path never reaches a shell' => sub {
