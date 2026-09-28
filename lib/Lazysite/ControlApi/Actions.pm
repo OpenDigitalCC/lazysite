@@ -185,6 +185,7 @@ our %GATE = (
     'schedule-delete'   => [qw(manage_forms manage_data manage_connectors)],
     'form-targets-read' => [qw(manage_forms manage_data manage_connectors)],
     'form-targets-save' => [qw(manage_forms)],
+    'form-uploads-save' => [qw(manage_forms)],
     'bad-url-blocks'    => [qw(manage_config)],    # SM128: blocked-IP list
     'bad-url-block'     => [qw(manage_config)],    # SM704: block by hand
     'bad-url-unblock'   => [qw(manage_config)],
@@ -401,6 +402,7 @@ our %ACTION = (
     # channel as on every other.
     'form-targets-read' => { params => [ { name => 'form', in => 'query', required => 1 } ] },
     'form-targets-save' => { params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'handlers', in => 'body', note => 'a list of handler ids; `targets` as [{handler: id}] is read the same way' }, { name => 'targets', in => 'body' } ] },
+    'form-uploads-save' => { params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'uploads', in => 'body', note => 'on turns file uploads on for this form; off removes every upload_* key. A JSON boolean, 1/0, or "true"/"on"/"yes"' }, { name => 'max_kb', in => 'body', note => 'per FILE, default 5120' }, { name => 'max_files', in => 'body', note => 'per submission, default 5' }, { name => 'accept', in => 'body', note => 'file EXTENSIONS, comma-separated - `png, jpg, pdf`. Not a media type: the page grammar\'s accept: rule is the media-type one' } ] },
     'git-history' => { params => [ { name => 'path', in => 'query' }, { name => 'limit', in => 'query' } ] },
     # SM664: reachable with either - the overview sits on the Plugin Config
     # page, whose audience holds manage_config, and is a reporting read.

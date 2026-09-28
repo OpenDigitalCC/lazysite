@@ -193,7 +193,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
     form-submission-confirm form-submission-delete form-submissions
-    form-submissions-delete-bulk form-targets-read form-targets-save
+    form-submissions-delete-bulk form-targets-read form-targets-save form-uploads-save
     git-history git-history-summary git-init git-restore git-show
     form-delete
     git-status handler-delete handler-list handler-save key-revoke
@@ -612,7 +612,7 @@ my %MUTATING = map { $_ => 1 } qw(
     start-page-set
     layout-install layouts-install layouts-repo-set artifact-backups-delete
     preview-grant preview-clear nav-save handler-save handler-delete
-    form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
+    form-targets-save form-uploads-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
     lock unlock renew-lock notices-seen regenerate-registries
     domain-add domain-set domain-remove
     session-revoke user-revoke key-revoke
@@ -2324,6 +2324,23 @@ elsif ( $action eq 'form-targets-save' ) {
     my $req = _json_body();
     $result = Lazysite::Handlers::action_form_targets_save( $req->{form} // $params{form},
         $req->{handlers} // $req->{targets} );
+}
+elsif ( $action eq 'form-uploads-save' ) {
+    # SM905 U5: the three upload_* keys the form handler reads had no writer, so
+    # an upload form could not be finished over the API at all.
+    my $req = _json_body();
+    # Each parameter read by name, not through a qw() map: lint 58 extracts this
+    # branch's parameters by scanning it, so a map hides three of them from the
+    # table that publishes the action - and a parameter nobody publishes is one
+    # no caller can find.
+    $result = Lazysite::Handlers::action_form_uploads_save(
+        $req->{form} // $params{form},
+        $req->{uploads},
+        { max_kb => $req->{max_kb},
+            max_files => $req->{max_files},
+            accept    => $req->{accept},
+        },
+    );
 }
 elsif ( $action eq 'file-upload' ) {
     $result = action_file_upload( $path, $body );

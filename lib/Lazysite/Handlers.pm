@@ -950,6 +950,89 @@ sub action_form_targets_save {
     return { ok => 1, form => $form, handlers => \@want, path => "/lazysite/forms/$form.conf" };
 }
 
+# SM905 U5: TURNING UPLOADS ON IS A THING SOMEBODY CAN DO OVER THE API.
+#
+# The form handler reads three keys out of a form's own conf - upload_max_kb,
+# upload_max_files, upload_accept - and refuses every upload until at least one
+# of them exists, so that a form never accepts files by accident. The only writer
+# was form-targets-save, which writes `targets:` and nothing else. So an agent
+# building an upload form over the API could create the handler, bind the form,
+# render the file input, and then watch every submission be refused with "this
+# form does not accept file uploads" and have no action to fix it. Confirmed from
+# outside during the 0.15.0 edge walk, which had to hand-write the conf over
+# WebDAV to finish the job.
+#
+# `uploads` is the switch and it is EXPLICIT, rather than inferred from whether
+# any limit was passed: turning the feature off by omitting a field is how a
+# caller disables something it meant to leave alone.
+sub action_form_uploads_save {
+    my ( $form, $on, $limits ) = @_;
+    return { ok => 0, kind => 'invalid', field => 'form', error => 'form is required' }
+        unless defined $form && length $form;
+    return { ok => 0, kind => 'invalid', field => 'form',
+        error => "invalid form name '$form'"
+            . ( $RESERVED_FORM{$form} ? " - $form.conf is not a form" : '' ) }
+        unless valid_form_name($form);
+
+    # A JSON CLIENT SENDS A JSON BOOLEAN, and the walk found handler-save refusing
+    # exactly that for attach_files - "must be a single value" - while wanting the
+    # string "true". A new action does not get to repeat that: true, 1, "true",
+    # "on" and "yes" all mean on; false, 0, "" and absent all mean off.
+    $on = ( defined $on && "$on" =~ /\A(?:1|true|on|yes)\z/i ) ? 1 : 0;
+
+    $limits = {} unless ref $limits eq 'HASH';
+    my %write;
+    if ($on) {
+        # Defaults are the form handler's own, so a caller that says "uploads on"
+        # and nothing else gets exactly what an unconfigured form got before.
+        my %spec = ( max_kb => 5120, max_files => 5 );
+        for my $k ( sort keys %spec ) {
+            my $v = $limits->{$k};
+            $v = $spec{$k} unless defined $v && length $v;
+            return { ok => 0, kind => 'invalid', field => $k,
+                error => "$k must be a whole number of "
+                    . ( $k eq 'max_kb' ? 'kilobytes' : 'files' ) . ", not '$v'" }
+                unless $v =~ /\A\d+\z/ && $v > 0;
+            $write{"upload_$k"} = 0 + $v;
+        }
+        my $accept = $limits->{accept};
+        if ( defined $accept && length $accept ) {
+            # EXTENSIONS, not media types, and the refusal says so - because the
+            # page grammar's `accept:` IS a media-type pattern one page away, and
+            # `image/*` here matches nothing while looking correct.
+            my @ext = grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $accept;
+            return { ok => 0, kind => 'invalid', field => 'accept',
+                error => 'upload_accept is a list of file EXTENSIONS matched against the '
+                    . "filename - `png, jpg, pdf` - not a media type. '$accept' would "
+                    . 'match nothing. (The page grammar\'s `accept:` rule is the '
+                    . 'media-type one.)' }
+                if grep { m{[/*]} } @ext;
+            return { ok => 0, kind => 'invalid', field => 'accept',
+                error => 'an extension is letters and digits only' }
+                if grep { !/\A[A-Za-z0-9]{1,10}\z/ } @ext;
+            $write{upload_accept} = join ', ', @ext;
+        }
+    }
+
+    my $path = form_file($form);
+    my $text = _slurp( $path, "forms/$form.conf" );
+    return { ok => 0, error => _unreadable("$form.conf") . '; nothing was written' }
+        unless defined $text;
+    my ( $ids, undef, $other ) = parse_form_conf($text);
+
+    # Every upload_* line goes, then the wanted ones are appended. Rewriting in
+    # place would keep a stale key that the reader still honours.
+    my @rest = grep { !/\A\s*upload_(?:max_kb|max_files|accept)\s*:/ } @{ $other || [] };
+    push @rest, map { "$_: $write{$_}" } sort keys %write;
+
+    my ( $ok, $err ) = _write_text( $path, render_form_conf( $ids, \@rest ) );
+    return { ok => 0, error => $err } unless $ok;
+    log_event( 'INFO', 'handlers', ( $on ? 'form uploads enabled' : 'form uploads disabled' ),
+        form => $form, %write );
+    return { ok => 1, form => $form, uploads => ( $on ? 1 : 0 ), limits => \%write,
+        path => "/lazysite/forms/$form.conf" };
+}
+
 # Why a form cannot use this handler, or ''. A connector that refuses public
 # invocation would refuse every submission, so the binding is refused instead,
 # at the moment of the mistake.
@@ -1433,6 +1516,21 @@ sub _submitter_cap {
 # operator's address in a stranger's inbox.
 sub _acknowledge_submitter {
     my ( $h, $fields, $ctx, $script ) = @_;
+
+    # SM913's question, answered here because this is where it lands: a
+    # QUARANTINED submission gets no acknowledgement.
+    #
+    # SM216 holds a suspect submission back from the notification bell on the
+    # grounds that a spam run must not be able to make the site shout. Answering
+    # it is louder than that: it makes the site write to an address the spammer
+    # chose, which is the open-relay shape the caps exist to bound - and on the
+    # form that produced SM913, four of four genuine-looking submissions were
+    # spam. The flag is already on the fields (the form handler sets it before
+    # dispatch, and _visible strips it from anything sent), so nothing new had to
+    # be plumbed to ask.
+    return 'the submission is held in quarantine, so no acknowledgement was sent - '
+        . 'answering a suspect submission writes to an address somebody else chose'
+        if $fields->{_quarantined};
 
     my ( $addr, $why ) = _submitter_address( $h, $fields );
     return $why unless defined $addr;

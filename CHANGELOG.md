@@ -104,6 +104,30 @@ Naming the commit: AFTER it lands, never before
   four sabotages; twice while writing it I picked the wrong node out of the graph
   and got the `WebSite` where I meant the page, which let a sabotage pass until one
   helper made every subtest ask the same way.
+- SM905 U5 + SM913 (PENDING) **an upload form can be finished over the API, and a
+  quarantined submission is never answered.** The form handler refuses every upload
+  until a form's own conf carries one of `upload_max_kb`, `upload_max_files` or
+  `upload_accept` - so a form never accepts files by accident - and the only writer
+  was `form-targets-save`, which writes `targets:` and nothing else. So an agent
+  could create the handler, bind the form, render the file input, and then watch
+  every submission refused with "this form does not accept file uploads" with no
+  action to fix it; the 0.15.0 edge walk confirmed that from outside and
+  hand-wrote the conf over WebDAV to finish the job. `form-uploads-save` writes
+  them now. **A JSON client sends a JSON boolean**, and it is taken as one - the
+  walk lost time to `handler-save` refusing `true` for `attach_files` while wanting
+  the string, and a new action does not get to repeat that. Turning uploads off
+  removes **every** upload key rather than the ones named, because a stale key the
+  reader still honours is uploads still on after being switched off. And `accept`
+  refuses a media type while **naming the difference**: the page grammar's
+  `accept:` rule is the media-type one, `upload_accept` is an extension list, and
+  the two sit one page apart in the same job - which is the confusion the walk
+  reported, answered where somebody meets it. **SM913's open question is answered
+  in the same place:** a **quarantined** submission gets no acknowledgement. The
+  spam controls hold a suspect submission back from the notification bell, and
+  writing to the address it supplied is the louder act - on the form that produced
+  SM913, four of four genuine-looking submissions were spam. The flag was already
+  on the fields, so nothing had to be plumbed to ask. `t/unit/forms/24`, four
+  sabotages.
 
 - SM913 S1 + S3 (PENDING) **the quarantine sees the spam that actually arrives.**
   Four of four genuine-looking submissions on a live contact form were spam, read

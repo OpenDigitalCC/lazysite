@@ -99,6 +99,19 @@ A submission that breaks a limit is rejected before any handler runs, with a
 specific message to the visitor ("File 'x.png' is too large...", "File type not
 allowed...", "Too many files...").
 
+**Over the API**, `form-uploads-save` writes those keys, so an upload form can be
+finished without hand-editing the conf:
+
+    POST action=form-uploads-save
+    { "form": "contact", "uploads": true,
+      "max_kb": 2048, "max_files": 3, "accept": "png, jpg" }
+
+`uploads: false` removes every `upload_*` key, which turns uploads off. Omit the
+limits and you get the defaults above. **`accept` here is a list of file
+EXTENSIONS** matched against the filename - `png, jpg, pdf` - and a media type
+like `image/*` is refused, naming the difference: the `accept:` rule in the page
+grammar is the media-type one, and the two sit one page apart in the same job.
+
 Uploaded files are stored by the **file** (`jsonl`) target, in a per-submission
 subdirectory **next to** the `FORMNAME.jsonl`:
 
@@ -140,6 +153,11 @@ notification still goes** and the reason is recorded against that delivery in th
 audit trail - the submission is not failed for it. Raise the caps if a real burst
 needs more; the default site cap sits above one lead form's busiest hour rather
 than at it.
+
+**A quarantined submission is never acknowledged.** The spam controls hold a
+suspect submission back from your notification bell; writing back to the address
+it supplied would be the louder act, and the address is the one the sender chose.
+The reason appears against that delivery like any other.
 
 ### Example
 
