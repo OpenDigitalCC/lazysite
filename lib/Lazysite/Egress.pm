@@ -79,7 +79,7 @@ sub may_invoke {
     my $mode    = $a{mode} // '';
     my $what    = $a{what} // 'callee';
     my $permits = ref $a{permits} eq 'HASH' ? $a{permits} : {};
-    my $opt_in  = defined $a{opt_in} ? $a{opt_in} : 'public';
+    my $opt_in  = defined $a{opt_in}        ? $a{opt_in}  : 'public';
 
     return ( 0, "mode '$mode' is not one of " . join( ', ', @MODES ) )
         unless is_mode($mode);
@@ -89,11 +89,11 @@ sub may_invoke {
         return ( 0,
             "this $what does not permit $mode invocation"
                 . ( $mode eq $opt_in
-                    ? " - $opt_in is opt-in, set modes.$opt_in on the $what"
-                    : '' )
+                ? " - $opt_in is opt-in, set modes.$opt_in on the $what"
+                : '' )
                 . ( @on
-                    ? ' (it permits: ' . join( ', ', @on ) . ')'
-                    : ' (it permits no mode at all)' ) );
+                ? ' (it permits: ' . join( ', ', @on ) . ')'
+                : ' (it permits no mode at all)' ) );
     }
 
     # An authenticated caller is a known account, which is not the same as an
@@ -101,9 +101,9 @@ sub may_invoke {
     # override capability is the operator's way past that, and it is checked
     # first because holding it makes the group question moot.
     if ( $mode eq 'authenticated' ) {
-        my $caps     = ref $a{caps} eq 'HASH'      ? $a{caps}     : {};
-        my @groups   = ref $a{groups} eq 'ARRAY'   ? @{ $a{groups} }  : ();
-        my @admitted = ref $a{callers} eq 'ARRAY'  ? @{ $a{callers} } : ();
+        my $caps     = ref $a{caps} eq 'HASH'     ? $a{caps}         : {};
+        my @groups   = ref $a{groups} eq 'ARRAY'  ? @{ $a{groups} }  : ();
+        my @admitted = ref $a{callers} eq 'ARRAY' ? @{ $a{callers} } : ();
 
         return ( 1, '' ) if defined $a{override} && $caps->{ $a{override} };
 
@@ -113,8 +113,8 @@ sub may_invoke {
         return ( 0,
             "this account is in none of the groups the $what names as callers"
                 . ( @admitted
-                    ? ' (' . join( ', ', @admitted ) . ')'
-                    : ' - and it names none' ) );
+                ? ' (' . join( ', ', @admitted ) . ')'
+                : ' - and it names none' ) );
     }
 
     return ( 1, '' );
