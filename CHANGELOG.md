@@ -104,6 +104,40 @@ Naming the commit: AFTER it lands, never before
   four sabotages; twice while writing it I picked the wrong node out of the graph
   and got the `WebSite` where I meant the page, which let a sabotage pass until one
   helper made every subtest ask the same way.
+- SM857 (PENDING) **a row can belong to the account that wrote it.** Measured
+  before this was built, on a table with `timestamps` and two accounts holding
+  `write_data`: Bob rewrote Ann's row and then deleted it, and `delete_row`'s
+  signature had nowhere to say who was asking. `write_data` is documented as "the
+  grant for an app's own users", and it was a grant over every row in the table -
+  ten applicants on one applications table could each edit the other nine's.
+  **Why not a select**, which is how every other system does this: no filter in
+  this engine is written by the server. A page binding cannot name the viewer
+  ([[SM856]] keeps it that way deliberately) and the endpoint's filter comes from
+  the caller, so adding "scope by select" would mean introducing a
+  caller-controlled filter and then trying to constrain it. The primitive is the
+  engine refusing a **key** the caller named, tested against `created_by` - the
+  one field in a row a caller cannot forge. `row_policy: true` gives each row an
+  **explicit** disposition (`personal`, `shared`, or absent meaning shared), set
+  by whatever creates the row at the moment of writing, per the ruling of
+  2026-09-12. Nothing is inferred from `created_by`, because an empty one already
+  means "written anonymously by a public form" and a personal row owned by nobody
+  is amendable by an operator alone - the deliberate reading for every row
+  written before [[SM860]], and what makes them safe rather than ambiguous. The
+  anti-capture rule is the asymmetry: **a writer may give their own row away and
+  never take someone else's**, so naming the policy on a row you did not create
+  is refused whatever that row's policy is, and taking a shared row private needs
+  `manage_data`. `row_policy` needs `timestamps: true`, refused by name at load.
+  `update_row` and `delete_row` now **require** `as` and die without it, as
+  `read_rows` has since SM476: there is one caller, so a default would be a third
+  state in a write gate. `t/lint/111` refuses a surface that asks which table a
+  caller may write without also asking whose row - which is [[SM682]] round 2's
+  defect exactly, on the same two surfaces. `lazysite-check` reports, per table,
+  how many rows carry no policy, because confinement protects nothing that
+  already exists and that is invisible. `t/unit/data/62`, four sabotages.
+  **Not in this**: `(mine)` on a page binding, which needs the per-viewer cache
+  treatment, and a form handler declaring the policy it writes rows with - the
+  filing names the second as the piece the expo depends on.
+
 - Pre-stable debt (PENDING) **the columns the data extension owns are named
   once.** `created_at`, `updated_at`, `created_by` and `updated_by` were written
   out **fifteen times** across eight modules - twice as a `%RESERVED` hash, once

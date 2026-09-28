@@ -96,8 +96,10 @@ subtest 'A BLOCKED REBUILD IS REFUSED BEFORE CONFIRMATION IS ASKED' => sub {
 subtest 'fix the data, and the same rebuild goes through' => sub {
     # What the operator does next: fill in the two `when`s and fix `qty`.
     require Lazysite::Data::Tables;
-    Lazysite::Data::Tables::update_row( $docroot, 'probe', 'P2', { when => '2026-02-02', qty => '7' } );
-    Lazysite::Data::Tables::update_row( $docroot, 'probe', 'P3', { when => '2026-03-03', qty => '10' } );
+    Lazysite::Data::Tables::update_row( $docroot, 'probe', 'P2', { when => '2026-02-02', qty => '7' },
+        as => 'operator' );
+    Lazysite::Data::Tables::update_row( $docroot, 'probe', 'P3', { when => '2026-03-03', qty => '10' },
+        as => 'operator' );
 
     my $again = plan_rebuild( $d, Lazysite::Data::Connect::read_handle($docroot) );
     is( scalar @{ $again->{blocked} || [] }, 0, 'nothing blocks now' )

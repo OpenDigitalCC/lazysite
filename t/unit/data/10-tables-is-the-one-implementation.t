@@ -109,18 +109,18 @@ subtest 'the write path, through one implementation' => sub {
     ok( !insert_row( $docroot, 'products', { code => 'A2', price => 'lots' } )->{ok},
         'a bad value is refused here too - the same coercion' );
 
-    ok( update_row( $docroot, 'products', 'A1', { name => 'renamed' } )->{ok},
+    ok( update_row( $docroot, 'products', 'A1', { name => 'renamed' }, as => 'operator' )->{ok},
         'update' );
 
     # 0 rows changed is neither an error nobody sees nor a success.
-    my $miss = update_row( $docroot, 'products', 'NOPE', { name => 'x' } );
+    my $miss = update_row( $docroot, 'products', 'NOPE', { name => 'x' }, as => 'operator' );
     ok( !$miss->{ok}, 'updating a row that is not there is refused' )
         or diag( 'Reporting ok would let a UI say "saved" for a row that does '
             . 'not exist.' );
     is( $miss->{kind}, 'no_such_row', 'with a kind the caller can act on' );
 
-    ok( delete_row( $docroot,  'products', 'A1' )->{ok}, 'delete' );
-    ok( !delete_row( $docroot, 'products', 'A1' )->{ok},
+    ok( delete_row( $docroot, 'products', 'A1', as => 'operator' )->{ok}, 'delete' );
+    ok( !delete_row( $docroot, 'products', 'A1', as => 'operator' )->{ok},
         'and deleting it twice is refused, not silently fine' );
 };
 

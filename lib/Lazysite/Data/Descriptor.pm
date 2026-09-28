@@ -420,8 +420,29 @@ sub load_descriptor {
         rule => 'timestamps' )
         if $ts_why;
 
+    # SM857: does a row carry its own disposition? The flag creates the column;
+    # what the values mean is Data::Owned's to say and the write path's to
+    # enforce.
+    my ( $row_policy, $rp_why ) = _bool( $raw->{row_policy} );
+    return _err( 'descriptor', "table '$name': row_policy $rp_why",
+        rule => 'row_policy' )
+        if $rp_why;
+
+    # A PERSONAL ROW IS UNTESTABLE WITHOUT created_by, so the flag that supplies
+    # it is required rather than assumed. Refused by name at load, which is the
+    # only place an author can be told before a visitor's row depends on it: a
+    # policy column on a table with no stamps would record "personal" against
+    # nobody, and an ownership test with no owner to compare admits everybody.
+    return _err( 'descriptor',
+        "table '$name': row_policy needs timestamps: true - a personal row is "
+            . 'owned by the account in created_by, and without the stamps there is no '
+            . 'created_by to own it',
+        rule => 'row_policy' )
+        if $row_policy && !$timestamps;
+
     my ( $do_field, $do_dir, $order_err )
-        = _check_default_order( $name, $raw, $fields, $key, { timestamps => $timestamps } );
+        = _check_default_order( $name, $raw, $fields, $key,
+        { timestamps => $timestamps, row_policy => $row_policy } );
     return $order_err if $order_err;
 
     my ( $wb, $wb_err ) = _check_writable_by( $name, $raw );
@@ -471,6 +492,7 @@ sub load_descriptor {
             : () ),
         unique     => [ sort grep { $fields->{$_}{unique} } keys %{$fields} ],
         timestamps => $timestamps,
+        row_policy => $row_policy,
         ( length $domain ? ( domain => $domain ) : () ),
     };
 }

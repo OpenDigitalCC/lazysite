@@ -863,15 +863,40 @@ sub action_data_rebuild {
 # One entry point for insert AND update, because the caller knows which it
 # means by whether it has a key - and a surface that has to choose between two
 # action names for "save this row" will eventually choose wrong.
+# SM857: WHO IS ASKING, in the shape Tables spells it.
+#
+# 'operator' for a caller holding manage_data, { user => login } for one whose
+# grant is write_data. The distinction is the same one row_write_refusal already
+# draws, and it is drawn here so the two answers cannot disagree.
+#
+# A CALLER HOLDING NEITHER is 'operator', for row_write_refusal's own reason,
+# written out there: that caller reached the action by some other authorisation -
+# the trusted-header path, where _user_caps returns an empty set because there is
+# no account to read - and confining them would confine a caller this rule was
+# never about. The first version tested !manage_data alone and did exactly that.
+sub row_authority {
+    my ( $caps, $user ) = @_;
+    $caps = {} unless ref $caps eq 'HASH';
+    return 'operator' if $caps->{manage_data} || !$caps->{write_data};
+    return { user => ( defined $user ? $user : '' ) };
+}
+
 sub action_data_row_save {
-    my ( $table, $key, $values ) = @_;
+    my ( $table, $key, $values, %opt ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
     return { ok => 0, error => 'row values required' }
         unless ref $values eq 'HASH';
 
+    # ABSENT `as` IS 'operator', and the reason belongs here rather than in
+    # Tables (which refuses to guess). The manager page reaches this action with
+    # a cookie session already gated by manage_data, and the CLI reaches it as
+    # the sysop; both are genuinely unconfined rather than accidentally so. The
+    # two surfaces that serve a PRINCIPAL - the control API and the data endpoint
+    # - pass row_authority explicitly, and t/lint/111 refuses one that does not.
+    my $as = exists $opt{as} ? $opt{as} : 'operator';
     my $r
         = ( defined $key && length $key )
-        ? update_row( $DOCROOT, $table, $key, $values, actor => $auth_user )
+        ? update_row( $DOCROOT, $table, $key, $values, actor => $auth_user, as => $as )
         : insert_row( $DOCROOT, $table, $values, actor => $auth_user );
     log_event( 'INFO', $table,
         ( defined $key && length $key ) ? 'data row updated' : 'data row inserted' )
@@ -880,11 +905,12 @@ sub action_data_row_save {
 }
 
 sub action_data_row_delete {
-    my ( $table, $key ) = @_;
+    my ( $table, $key, %opt ) = @_;
     if ( my $bad = _table_action($table) ) { return $bad }
     return { ok => 0, error => 'row key required' }
         unless defined $key && length $key;
-    my $r = delete_row( $DOCROOT, $table, $key );
+    my $as = exists $opt{as} ? $opt{as} : 'operator';           # as action_data_row_save
+    my $r  = delete_row( $DOCROOT, $table, $key, as => $as );
     log_event( 'INFO', $table, 'data row deleted' ) if $r->{ok};
     return $r;
 }

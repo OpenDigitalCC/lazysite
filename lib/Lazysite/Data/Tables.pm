@@ -688,11 +688,88 @@ sub insert_row {
     return { ok => 1, table => $name, key => $key };
 }
 
+# SM857: THE ROW THE CALLER DOES NOT OWN.
+#
+# The release manager's question was why "scope it with a select" is not
+# available here, and the answer is that no filter in this engine is written by
+# the server: a page binding cannot name the viewer, and the endpoint's filter
+# comes from the caller. So the confinement is not a narrowing of what the caller
+# asked for - it is the engine refusing a key the caller named.
+#
+# $as is the authority, spelt as read_rows spells it: 'operator' for a surface
+# already gated by manage_data, or { user => login } for an account whose grant
+# is write_data. Required, because there is one caller and a default here would
+# be a third state in a write gate (SM648's shape, on the dangerous side).
+#
+# WHAT IS CONFINED, and what deliberately is not:
+#
+#   * a table that does not declare row_policy is not confined at all. Every row
+#     in it is shared, which is what every table was before this existed, so
+#     existing data keeps working and no migration has to guess.
+#   * an absent or empty policy means SHARED. Never inferred from created_by:
+#     an empty created_by already means "written anonymously by a public form",
+#     and reading shared out of that absence would give one representation three
+#     meanings and let a bug decide an access outcome.
+#   * a personal row belongs to the account in created_by. An EMPTY created_by
+#     is NOT MINE - not unknown - which is the deliberate reading the filing
+#     asks for, and is what makes rows written before SM860 safe rather than
+#     ambiguous.
+#   * NAMING the policy on a row you do not own is refused whatever that row's
+#     current policy is. That is the anti-capture rule: a writer may give their
+#     own row away and may never take someone else's.
+#
+# A row that is not there returns undef - the caller's own "no row with that key"
+# is the honest answer, and an ownership message about a row that does not exist
+# would tell a caller which keys exist.
+sub _row_owner_refusal {
+    my ( $dbh, $d, $key_value, $as, $input ) = @_;
+    return undef if defined $as && !ref $as && $as eq 'operator';
+    my $user = ( ref $as eq 'HASH' && defined $as->{user} ) ? $as->{user} : '';
+
+    my $policy_col = Lazysite::Data::Owned::policy_column();
+    return undef unless $d->{row_policy};
+
+    my ( $sql, $binds ) = select_sql( $d, where => { $d->{key} => $key_value }, limit => 1 );
+    my $row = eval { $dbh->selectrow_hashref( $sql, undef, @{$binds} ) };
+    # THE ROW COULD NOT BE READ is not "the row is yours". A store that will not
+    # answer leaves ownership unknown, and unknown is refused on a write path.
+    return _err(
+        "table '$d->{table}': this row's owner could not be read, so the write was "
+            . 'refused - ' . _clean_db_error( $@ || 'unknown' ),
+        table => $d->{table}, kind => 'forbidden' )
+        if $@;
+    return undef unless $row;
+
+    my $owner  = defined $row->{created_by}          ? $row->{created_by}  : '';
+    my $policy = defined $row->{$policy_col}         ? $row->{$policy_col} : '';
+    my $mine   = ( length $user && $owner eq $user ) ? 1                   : 0;
+
+    return _err(
+        "table '$d->{table}': this row's $policy_col is personal and it belongs to "
+            . ( length $owner ? "'$owner'" : 'no account (it was written anonymously)' )
+            . ' - a personal row is amended by the account that created it, or by an operator',
+        table => $d->{table}, kind => 'forbidden', rule => 'row_owner' )
+        if $policy eq 'personal' && !$mine;
+
+    return _err(
+        "table '$d->{table}': $policy_col is the row's own, and this row is not yours "
+            . '- a writer may make their OWN row personal or shared and may not change '
+            . "anyone else's. Taking a shared row private needs manage_data.",
+        table => $d->{table}, kind => 'forbidden', rule => 'row_policy_capture' )
+        if ref $input eq 'HASH' && exists $input->{$policy_col} && !$mine;
+
+    return undef;
+}
+
 sub update_row {
     my ( $docroot, $name, $key_value, $input, %opt ) = @_;
+    die 'update_row needs to know who is asking: pass as => "operator" for a '
+        . 'manage_data-gated surface, or as => { user } for an account writing its own rows'
+        unless defined $opt{as};
     my ( $bad, $d, $dbh, $values )
         = _write_prep( $docroot, $name, $input, partial => 1, actor => $opt{actor} );
     return $bad if $bad;
+    if ( my $no = _row_owner_refusal( $dbh, $d, $key_value, $opt{as}, $input ) ) { return $no }
     my ( $sql, $binds ) = eval { update_sql( $d, $key_value, $values ) };
     return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };
@@ -708,11 +785,19 @@ sub update_row {
 }
 
 sub delete_row {
-    my ( $docroot, $name, $key_value ) = @_;
+    my ( $docroot, $name, $key_value, %opt ) = @_;
+    # THE SIGNATURE HAD NOWHERE TO SAY WHO, which is half of why the defect was
+    # invisible: update_row at least recorded the actor, and a delete recorded
+    # nothing and asked nothing. Removing a row you may not amend is not a
+    # smaller act than amending it.
+    die 'delete_row needs to know who is asking: pass as => "operator" for a '
+        . 'manage_data-gated surface, or as => { user } for an account deleting its own rows'
+        unless defined $opt{as};
     my $d = load_table( $docroot, $name );
     return $d unless $d->{ok};
     my ( $dbh, $nowrite ) = _writer( $docroot, $name );
     return $nowrite if $nowrite;
+    if ( my $no = _row_owner_refusal( $dbh, $d, $key_value, $opt{as}, undef ) ) { return $no }
     my ( $sql, $binds ) = eval { delete_sql( $d, $key_value ) };
     return _err( "table '$name': " . _clean_db_error($@), table => $name ) if $@;
     my $n = eval { $dbh->do( $sql, undef, @{$binds} ) };

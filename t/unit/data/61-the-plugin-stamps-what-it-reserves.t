@@ -61,7 +61,8 @@ subtest 'an update moves updated_at and leaves created_at' => sub {
     my $r   = insert_row( $docroot, 'notes', { body => 'second' } );
     my $was = row( $r->{key} );
     sleep 1;    # the stamp is to the second
-    ok( update_row( $docroot, 'notes', $r->{key}, { body => 'second, edited' } )->{ok}, 'updated' );
+    ok( update_row( $docroot, 'notes', $r->{key}, { body => 'second, edited' },
+            as => 'operator' )->{ok}, 'updated' );
     my $now = row( $r->{key} );
     is( $now->{created_at}, $was->{created_at}, 'created_at is unchanged by an update' );
     cmp_ok( $now->{updated_at}, 'gt', $was->{updated_at}, 'updated_at moved forward' );
@@ -109,7 +110,8 @@ subtest 'the plugin stamps who wrote the row' => sub {
     my $row = row( $r->{key} );
     is( $row->{created_by}, 'alice', 'created_by is the actor' );
     is( $row->{updated_by}, 'alice', 'and so is updated_by, on insert' );
-    ok( update_row( $docroot, 'notes', $r->{key}, { body => 'edited' }, actor => 'bob' )->{ok}, 'updated as bob' );
+    ok( update_row( $docroot, 'notes', $r->{key}, { body => 'edited' }, actor => 'bob',
+            as => 'operator' )->{ok}, 'updated as bob' );
     $row = row( $r->{key} );
     is( $row->{created_by}, 'alice', 'created_by is unchanged by an update' );
     is( $row->{updated_by}, 'bob',   'updated_by is the editor' );

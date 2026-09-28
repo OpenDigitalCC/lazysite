@@ -41,7 +41,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(coerce_row coerce_field);
 
-use Lazysite::Data::Owned qw(reserved_column);
+use Lazysite::Data::Owned qw(stamped_column);
 
 sub _err {
     my ( $error, %extra ) = @_;
@@ -237,13 +237,50 @@ sub coerce_row {
     # UNKNOWN FIELDS ARE REFUSED, matching Descriptor.pm's stance. Ignoring
     # them would let a typo in a column name look like a successful write and
     # lose the value - the sysop sees "saved" and the data is not there.
+    my $policy_col = Lazysite::Data::Owned::policy_column();
     for my $f ( sort keys %{$input} ) {
         return _err( "'$f' is maintained by the plugin and cannot be written",
             field => $f, rule => 'reserved' )
-            if reserved_column($f);
+            if stamped_column($f);
+
+        # SM857: THE ONE OWNED COLUMN A WRITER MAY SET, and only on a table that
+        # declares it. Named as the flag that would give it to them, because
+        # "not a field of 'applications'" would send an author looking for a
+        # missing field rather than a missing declaration.
+        if ( $f eq $policy_col ) {
+            return _err(
+                "'$f' needs `row_policy: true` on '$d->{table}' - without it a "
+                    . 'row carries no policy and every writer the table admits may amend it',
+                field => $f, rule => 'no_policy_column' )
+                unless $d->{row_policy};
+            next;
+        }
+
         return _err( "'$f' is not a field of '$d->{table}'",
             field => $f, rule => 'unknown' )
             unless exists $fields->{$f};
+    }
+
+    # The value, once the column is known to exist. A misspelt policy must not
+    # become a row nothing recognises: 'private' would be stored, read as
+    # neither personal nor shared, and then treated as absent - which means
+    # SHARED, the opposite of what was asked for.
+    if ( exists $input->{$policy_col} && $d->{row_policy} ) {
+        my $p = $input->{$policy_col};
+        $p = '' unless defined $p;
+        if ( length $p ) {
+            return _err(
+                "'$policy_col' must be one of: " . join( ', ', Lazysite::Data::Owned::POLICIES() )
+                    . " - '$p' is not one of them",
+                field => $policy_col, rule => 'policy' )
+                unless Lazysite::Data::Owned::valid_policy($p);
+            $out{$policy_col} = $p;
+        }
+        else {
+            # Cleared on purpose, which is a row put back to shared. Written as
+            # NULL rather than '' so there is one representation of absent.
+            $out{$policy_col} = undef;
+        }
     }
 
     for my $f ( sort keys %{$fields} ) {

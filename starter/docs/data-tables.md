@@ -573,6 +573,46 @@ A file that could not be written is named on the stored record and in the
 delivery's audit line: the submission still succeeds, and does not read as a
 visitor who attached nothing.
 
+### A row can belong to the account that wrote it
+
+`write_data` is the grant for an app's own users -- a learner writing their own
+submissions, a member updating their own record. It is a grant over a **table**,
+so without the flag below, ten applicants holding it on one applications table
+may each amend and delete the other nine's rows.
+
+**`row_policy: true`** gives every row in the table its own disposition:
+
+| `row_policy` | Who may write the row |
+| --- | --- |
+| `personal` | the account in `created_by`, and an operator |
+| `shared` | anyone the table already admits |
+| empty | the same as `shared` |
+
+The policy is set **by whatever creates the row, at the moment of writing** --
+pass `row_policy` in the row like any other value. Nothing infers it: an empty
+`created_by` already means "written anonymously by a public form", and reading
+*shared* out of that absence would give one representation two meanings.
+
+- **Absent means shared, in both directions.** A row written before the flag
+  carries no policy, and a writer that names none creates a shared row. So
+  existing data keeps working and no migration has to guess -- and
+  `lazysite-check` reports, per table, how many rows carry no policy, because
+  confinement protects nothing that already exists.
+- **A personal row with an empty `created_by` belongs to nobody**, and nobody
+  can amend it but an operator. That is deliberate: it is what a row written by
+  a public form is, and what rows written before 0.14.x are.
+- **A writer may give their own row away and never take someone else's.**
+  Setting `row_policy` on a row you created is part of writing it; setting it on
+  anyone else's is refused whatever that row's current policy, so a shared row
+  cannot be captured. Taking someone else's row private needs `manage_data`.
+- **`row_policy` needs `timestamps: true`**, refused by name when the descriptor
+  loads: a personal row is owned by the account in `created_by`, and an
+  ownership test with no owner to compare admits everybody.
+
+Reads are **not** confined by this -- a page renders the same rows for whoever
+is looking at it, and a per-viewer read is a separate piece of work. To show one
+person their own row today, bind their key as a literal.
+
 ### Who may write
 
 A write through the manager, the API, MCP or the data endpoint needs all

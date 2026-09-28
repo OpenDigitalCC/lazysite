@@ -301,12 +301,16 @@ sub main {
         return reply( 400, { ok => 0, error => 'body must be a JSON object' } )
             unless ref $req eq 'HASH';
 
+        # SM857: WHOSE ROW, from the same caps the table gate above used. This is
+        # the surface an app's own users write through, so it is the one where
+        # "ten applicants may each edit the other nine's rows" was true.
+        my $as = Lazysite::Manager::Data::row_authority( $caps, $user );
         my $r
             = $req->{delete}
             ? Lazysite::Manager::Data::action_data_row_delete( $table,
-            $req->{key} )
+            $req->{key}, as => $as )
             : Lazysite::Manager::Data::action_data_row_save( $table,
-            $req->{key}, $req->{row} );
+            $req->{key}, $req->{row}, as => $as );
         return reply( $r->{ok} ? 200 : 400, $r );
     }
 

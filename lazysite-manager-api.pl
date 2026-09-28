@@ -1874,18 +1874,23 @@ elsif ( $action eq 'data-row-save' ) {
     #
     # One shared decision (Manager::Data::row_write_refusal), asked by both
     # surfaces, rather than a second copy of a rule that must agree.
-    my $refusal = Lazysite::Manager::Data::row_write_refusal(
+    my $save_caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+    my $refusal   = Lazysite::Manager::Data::row_write_refusal(
         $tbl,
-        ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
+        $save_caps,
 
         Lazysite::Manager::Data::groups_for($auth_user),
     );
 
+    # SM857: and WHOSE row. row_write_refusal answers the table question from the
+    # same caps; this answers the row one. A write_data grant that reached a
+    # table it is named in could still amend every other account's rows in it.
     $result
         = $refusal ? $refusal
         : ref $row eq 'HASH'
         ? Lazysite::Manager::Data::action_data_row_save(
-        $tbl, $req->{key} // $params{key}, $row )
+        $tbl, $req->{key} // $params{key}, $row,
+        as => Lazysite::Manager::Data::row_authority( $save_caps, $auth_user ) )
         : { ok => 0, error => 'row must be a JSON object' };
 }
 elsif ( $action eq 'data-row-delete' ) {
@@ -1894,9 +1899,10 @@ elsif ( $action eq 'data-row-delete' ) {
     # SM682 round 2: a delete is a row write. Same rule, same shared decision -
     # gating the save and not the delete would leave write_data able to empty a
     # table it may not add to.
+    my $del_caps    = $token_auth ? \%token_caps : _user_caps($auth_user);
     my $del_refusal = Lazysite::Manager::Data::row_write_refusal(
         ( $req->{table} // $params{table} ),
-        ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
+        $del_caps,
         Lazysite::Manager::Data::groups_for($auth_user),
     );
     $result
@@ -1904,7 +1910,8 @@ elsif ( $action eq 'data-row-delete' ) {
         ? $del_refusal
         : Lazysite::Manager::Data::action_data_row_delete(
         $req->{table} // $params{table},
-        $req->{key}   // $params{key} );
+        $req->{key}   // $params{key},
+        as => Lazysite::Manager::Data::row_authority( $del_caps, $auth_user ) );
 }
 elsif ( $action eq 'lang-status' ) {
     $result = action_lang_status( $params{group} );

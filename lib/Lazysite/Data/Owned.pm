@@ -44,14 +44,36 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(stamp_columns reserved_column owned_columns is_owned);
+our @EXPORT_OK = qw(stamp_columns reserved_column owned_columns is_owned
+    stamped_column policy_column POLICIES valid_policy);
 
 # The order is the order they are CREATED in, and the order they appear in a CSV
 # export: when it was written out by hand, `created_at, updated_at, created_by,
 # updated_by` was what every site said, so it stays the order.
 my @STAMPS = qw(created_at updated_at created_by updated_by);
 
-my %RESERVED = map { $_ => 1 } @STAMPS;
+# SM857: the row's own disposition, created by `row_policy: true`. The engine
+# owns the COLUMN and the writer owns the VALUE, which is the one place the two
+# kinds of owned column differ - see stamped_column below.
+my $POLICY = 'row_policy';
+
+my %RESERVED = map { $_ => 1 } ( @STAMPS, $POLICY );
+my %STAMPED  = map { $_ => 1 } @STAMPS;
+
+# The policies a row may carry. ABSENT is a third state and means shared, in
+# both directions: a row written before this existed carries no value, and a
+# writer that names no policy creates a shared row. Absent is deliberately NOT
+# spelt 'shared' in the store - see the ruling in SM857.
+my @POLICIES = qw(personal shared);
+
+sub policy_column { return $POLICY }
+sub POLICIES      { return @POLICIES }
+
+sub valid_policy {
+    my ($p) = @_;
+    return 0 unless defined $p;
+    return ( grep { $_ eq $p } @POLICIES ) ? 1 : 0;
+}
 
 # The stamp columns, in creation order. A copy, never the list itself - a caller
 # that sorts or splices the return value must not be able to reorder the store.
@@ -60,12 +82,26 @@ sub stamp_columns { return @STAMPS }
 # May a descriptor declare a field with this name? Unconditional, per above.
 sub reserved_column { return ( defined $_[0] && $RESERVED{ $_[0] } ) ? 1 : 0 }
 
+# SM857: RESERVED AND STAMPED ARE NOT THE SAME SET, and the difference is the
+# whole of the policy column's design.
+#
+# A stamped column is one the ENGINE writes and every writer is refused: that is
+# what makes created_by the one field in a row a caller cannot forge, and what
+# makes ownership testable at all.
+#
+# row_policy is owned by the engine and SET BY THE WRITER - "the time to set
+# policy is at write, so whatever is creating the row gets to say the policy"
+# (the ruling). So it is reserved from a DESCRIPTOR (no table may declare a field
+# of that name) and permitted from a CALLER, unlike every other owned column.
+# Refusing it from writers would leave nothing able to set it.
+sub stamped_column { return ( defined $_[0] && $STAMPED{ $_[0] } ) ? 1 : 0 }
+
 # The columns THIS table's flags give it. Empty for a table with no flags set,
 # which is the honest answer rather than a special case.
 sub owned_columns {
     my ($d) = @_;
     return () unless ref $d eq 'HASH';
-    return ( $d->{timestamps} ? @STAMPS : () );
+    return ( $d->{timestamps} ? @STAMPS : (), $d->{row_policy} ? ($POLICY) : () );
 }
 
 # Does this table own this column? The per-table question, and the one every

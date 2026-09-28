@@ -1116,6 +1116,7 @@ sub run_checks {
 
     # --- 8c. who an @group ACL entry now admits (SM288) -------------------------
     report_unscoped_data_tables();
+    report_rows_without_a_policy();
     report_group_acl_reach();
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
@@ -1645,6 +1646,88 @@ sub report_unscoped_data_tables {
         sprintf( '%d data table%s scoped to a domain',
             scalar @scoped, ( @scoped == 1 ? ' is' : 's are' ) )
     ) if @scoped;
+    return;
+}
+
+# SM857 (the filing's fifth open question, answered where a sysop reads it):
+# CONFINEMENT PROTECTS NOTHING THAT ALREADY EXISTS.
+#
+# A row written before `row_policy: true` carries no policy, and no policy means
+# SHARED - which is right for compatibility and is the opposite of what the flag
+# was turned on for. The filing's own words: "correct, and invisible: someone
+# will assume otherwise". So the number is reported, per table.
+#
+# THE DESCRIPTOR IS READ AS TEXT, like every other descriptor check in this tool,
+# because it runs on installs where the data extension's modules are absent. The
+# COUNT needs the store, so DBI is a soft dependency: present, the number is
+# reported; absent or unreadable, THAT is reported, because "0 rows carry no
+# policy" and "I could not look" are different answers and only one of them is
+# reassuring.
+sub report_rows_without_a_policy {
+    my $d   = $opt{docroot};
+    my $dir = Lazysite::Paths::lazysite_dir($d) . "/db/tables";
+    return unless -d $dir;
+    opendir( my $dh, $dir ) or return;
+    my @files = sort grep { /\.ya?ml\z/ } readdir $dh;
+    closedir $dh;
+
+    my @declared;
+    for my $f (@files) {
+        my $txt = '';
+        if ( open my $fh, '<', "$dir/$f" ) { local $/; $txt = <$fh>; close $fh }
+        next unless $txt  =~ /^row_policy:\s*(?:true|yes|on|1)\s*$/mi;
+        ( my $name = $f ) =~ s/\.ya?ml\z//;
+        push @declared, $name;
+    }
+    return unless @declared;
+
+    my $store = Lazysite::Paths::lazysite_dir($d) . '/db/data.sqlite';
+    if ( !-f $store ) {
+        report( 'OK',
+            sprintf( '%d table%s declare%s row_policy and the store holds nothing yet',
+                scalar @declared, ( @declared == 1 ? '' : 's' ), ( @declared == 1 ? 's' : '' ) ) );
+        return;
+    }
+
+    my $dbh = eval {
+        require DBI;
+        DBI->connect( "dbi:SQLite:dbname=$store", '', '',
+            { RaiseError => 1, PrintError => 0, ReadOnly => 1 } );
+    };
+    if ( !$dbh ) {
+        report( 'WARN',
+            sprintf( '%d table%s declare row_policy and the rows could not be counted',
+                scalar @declared, ( @declared == 1 ? '' : 's' ) ),
+            'The store could not be opened to count them (' . ( $@ || 'no DBI' ) . '). '
+                . 'Rows written before the flag carry NO policy, and no policy means shared - '
+                . 'so the number matters. See /docs/data-tables.' );
+        return;
+    }
+
+    my ( @open_rows, @clean );
+    for my $t (@declared) {
+        # The table name comes from a FILENAME the engine already constrains to
+        # [a-z][a-z0-9_]*; re-asserted here because this interpolates it.
+        next unless $t =~ /\A[a-z][a-z0-9_]*\z/;
+        my $n = eval {
+            my $r = $dbh->selectrow_arrayref(
+                "SELECT COUNT(*) FROM \"$t\" WHERE row_policy IS NULL OR row_policy = ''");
+            $r ? $r->[0] : undef;
+        };
+        if ( !defined $n ) { push @open_rows, "$t (could not be counted)"; next }
+        if ($n)            { push @open_rows, "$t: $n";                    next }
+        push @clean, $t;
+    }
+
+    report( 'OK', sprintf( '%d row-policy table%s: every row carries a policy',
+            scalar @clean, ( @clean == 1 ? '' : 's' ) ) )
+        if @clean;
+    report( 'WARN',
+        'rows carrying no policy: ' . join( ', ', @open_rows ),
+        'A row with no policy is SHARED, so confinement does not protect it - every '
+            . 'writer the table admits may amend it. These rows predate the flag. Set '
+            . 'their row_policy with an operator write, or leave them shared knowingly.' )
+        if @open_rows;
     return;
 }
 

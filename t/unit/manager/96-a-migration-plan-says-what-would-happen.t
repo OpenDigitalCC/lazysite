@@ -98,7 +98,8 @@ subtest 'A PLAN SHOWS THE DATA CHECKS BEFORE ANYTHING IS CONFIRMED' => sub {
 };
 
 subtest 'fix the row, and the plan offers the rebuild' => sub {
-    Lazysite::Data::Tables::update_row( $docroot, 'events', 'E2', { when => '2026-02-02' } );
+    Lazysite::Data::Tables::update_row( $docroot, 'events', 'E2', { when => '2026-02-02' },
+        as => 'operator' );
     my $p = Lazysite::Manager::Data::action_data_migrate_plan('events');
     is( scalar @{ $p->{rebuild}{data_blocked} || [] }, 0, 'no data blocks now' )
         or diag( explain $p->{rebuild} );
