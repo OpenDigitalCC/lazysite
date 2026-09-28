@@ -1424,7 +1424,20 @@ sub cmd_probe {
 
     # Absence of evidence is not evidence of exposure, so a site that could not
     # be measured does not fail the command. The exposure case does.
-    exit( @exposed ? 1 : 0 );
+    #
+    # SM912 P2: AND A THIRD ANSWER, because two were not enough for the caller.
+    # The reasoning above is right and was all the exit code carried, so
+    # "nothing exposed" and "nothing measured" left this command identically -
+    # and the fleet script reads the exit code and nothing else, so it counted a
+    # skipped probe in the clean column. The tool said SKIPPED loudly in its own
+    # output the whole time; what it could not do was say so to a program.
+    #
+    # 1 stays exposure ONLY, so no caller that treats non-zero as "exposed"
+    # becomes wrong. 3 is the new one: nothing exposed, and at least one target
+    # could not be measured.
+    exit 1 if @exposed;
+    exit 3 if @unconfirmed;
+    exit 0;
 }
 
 sub _targets_or_fail {

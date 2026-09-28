@@ -2778,6 +2778,7 @@ sub _probe_load_engine {
         require Lazysite::Manager::Files;
         require Lazysite::Manager::Common;
         require Lazysite::Auth::Acl;
+        require Lazysite::Auth::Settings;    # SM912 P1: to name a real principal
         require Lazysite::Paths;
         1;
         };
@@ -2810,14 +2811,43 @@ sub _probe_may_protect {
     return '';
 }
 
+# SM912 P1: THE PROBE NEEDS A READ LIST THE STORE KNOWS.
+#
+# It used to name `__lazysite-acl-probe-nobody__`, a sentinel chosen precisely
+# because nobody has it: the probe then fetches the file anonymously, and any 200
+# is the exposure it exists to find. SM901 (0.15.0) then began refusing a read
+# list where every name is unknown to the store - correctly, for a rule somebody
+# is authoring - and the sentinel is exactly that shape. So from 0.15.0 the probe
+# could not establish its own precondition on any site that has accounts, which
+# is every real site, and the fleet run reported SKIPPED.
+#
+# The probe does not actually need "nobody". It needs "NOT THE ANONYMOUS
+# VISITOR", because the measurement is an anonymous fetch. So it names the first
+# account the store knows, and keeps the sentinel for the one case SM901 exempts:
+# a store that knows nobody at all, where the old behaviour was already correct
+# and the check does nothing. Read access to a throwaway folder for one account,
+# for the seconds before the probe removes it, buys back the whole measurement.
+our $PROBE_NOBODY = '__lazysite-acl-probe-nobody__';
+
+sub _probe_principal {
+    my $known = eval {
+        local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+        Lazysite::Auth::Settings::account_names();
+    };
+    return $PROBE_NOBODY unless ref $known eq 'HASH' && %{$known};
+    my ($first) = sort keys %{$known};
+    return $first;
+}
+
 sub _probe_protect {
     my ( $d, $name ) = @_;
-    my $r = eval {
+    my $who = _probe_principal();
+    my $r   = eval {
         local $Lazysite::Manager::Files::auth_user = 'local';
         local $Lazysite::Auth::Acl::auth_user      = 'local';
         local @Lazysite::Auth::Acl::user_groups    = ();
         Lazysite::Manager::Files::action_acl_set( "/$name/", 'local',
-            ['__lazysite-acl-probe-nobody__'], undef, undef, undef );
+            [$who], undef, undef, undef );
     };
     return ( 0, "the engine refused to protect the probe folder: $@" )
         if !$r || $@;

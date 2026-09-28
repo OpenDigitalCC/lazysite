@@ -44,6 +44,35 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM912 P1 + P2 + P3 (PENDING) **the exposure probe can protect its own fixture
+  again, and a probe that could not run no longer reads as a clean one.** SM901
+  began refusing a read list where every name is unknown to the store - right,
+  for a rule somebody is authoring - and the SM283 probe's read list is a
+  sentinel chosen precisely because nobody has it, which is how it proves a
+  protected file is withheld. So from 0.15.0 the probe could not establish its own
+  precondition on any site that has accounts, and the fleet run reported SKIPPED
+  while the summary counted it in the **clean** column. **P1:** the probe does not
+  need "nobody", it needs "not the anonymous visitor" - the measurement is an
+  anonymous fetch - so it names the first account the store knows and keeps the
+  sentinel only where the store knows none. **P2:** the verb exits **3** for
+  "nothing exposed and nothing measured"; 1 stays exposure only, so no caller
+  reading non-zero as exposure becomes wrong, and the fleet summary grew a third
+  column that says "could not run" in words. The tool had been saying SKIPPED in
+  its own output all along - what it could not do was say it to a program.
+  **P3:** a re-apply whose list is identical to the stored one reports `unknown`
+  and proceeds, because re-sending what is already on disk is not an authorship
+  and refusing it cannot prevent a mistake already made - while it did stop
+  `--reapply-acls`, the repair for content sitting unprotected, at the first rule
+  naming an account that had since gone. A **new** list of unknowns is still
+  refused, and the test says so. **Two of this work's own assumptions were
+  measured false**: the first version of the gate passed vacuously (it asserted
+  the absence of one skip reason, which any other skip satisfies - the sentinel
+  sabotage proved it), and a site with **no accounts** cannot be probed at all and
+  never could, because protecting a folder for nobody moves no content and SM377's
+  assertion catches that. So the sentinel fallback preserves old behaviour rather
+  than restoring a working probe there, and "could not run" is the honest answer -
+  which is what P2 makes visible.
+
 - SM913 S1 + S3 (PENDING) **the quarantine sees the spam that actually arrives.**
   Four of four genuine-looking submissions on a live contact form were spam, read
   one by one, each from a different source range - so nothing about addresses

@@ -2000,10 +2000,39 @@ sub action_acl_set {
             my ($p) = @_;
             return $p =~ /\A\@(.+)\z/ ? $groups->{$1} : $accounts->{$p};
         };
+        # SM912 P3: A RE-APPLY OF WHAT IS ALREADY STORED IS NOT AN AUTHORSHIP.
+        #
+        # SM901's ruling was about writing a rule: "a login that will exist
+        # tomorrow is a legitimate thing to write today; a list that reads to
+        # nobody can only be a mistake". Re-sending the list that is already on
+        # disk is neither - the mistake, if it was one, was made and stored
+        # already, and refusing it cannot prevent anything.
+        #
+        # What refusing DID cost was measured on the 2026-09-28 fleet run:
+        # `--reapply-acls`, the command that re-establishes protection when
+        # content has drifted back into the document root, stopped at the first
+        # rule naming an account that had since been removed - and that command
+        # is the repair for exactly the state where content is sitting unprotected.
+        # The names are still REPORTED as unknown; they just no longer refuse.
+        my $same = sub {
+            my ( $field, $list ) = @_;
+            return 0 unless $existing && ref $existing->{$field} eq 'ARRAY';
+            my @was = @{ $existing->{$field} };
+            return 0 unless @was == @{$list};
+            my @a = sort @was;
+            my @b = sort @{$list};
+            return 0 if grep { $a[$_] ne $b[$_] } 0 .. $#a;
+            return 1;
+        };
+
         for my $pair ( [ read => $rl ], [ write => $wl ] ) {
             my ( $which, $list ) = @$pair;
             next unless ref $list eq 'ARRAY' && @$list;
             my @miss = grep { !$known->($_) } @$list;
+            if ( @miss == @$list && $same->( $which, $list ) ) {
+                push @unknown, @miss;
+                next;
+            }
             if ( @miss == @$list ) {
                 return { ok => 0,
                     kind    => 'unknown-principals',

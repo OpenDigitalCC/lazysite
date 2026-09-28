@@ -765,7 +765,13 @@ if [ -f "$LZS" ]; then
     done
 
     if [ "${DO_ACL_PROBE:-1}" = 1 ]; then
-        _probe_ok=0; _probe_bad=0
+        # SM912 P2: THREE COLUMNS, because the probe has three answers. This
+        # counted `0` as clean and everything else as exposed, so a site whose
+        # probe could not RUN - which SM901 made the normal case for a release -
+        # landed in the clean column and the summary certified a measurement that
+        # never happened. Exit 3 is the probe saying so; it is not an exposure
+        # and it is not a pass.
+        _probe_ok=0; _probe_bad=0; _probe_none=0
         for i in "${!DOMAINS[@]}"; do
             set +e
             run_quiet "probe ${DOMAINS[$i]}" perl "$LZS" probe --domain "${DOMAINS[$i]}"
@@ -773,6 +779,7 @@ if [ -f "$LZS" ]; then
             set -e
             case "$_rc" in
                 0) _probe_ok=$(( _probe_ok + 1 )) ;;
+                3) _probe_none=$(( _probe_none + 1 )) ;;
                 *) _probe_bad=$(( _probe_bad + 1 )); ACL_PROBE_RC=1 ;;
             esac
         done
@@ -821,7 +828,8 @@ printf '  %d updated, %d failed, %d skipped, %d out of scope, %d excluded\n' \
 [ -n "${_rep_clean:-}" ] && \
     printf '  repair: %d clean, %d need a human\n' "${_rep_clean:-0}" "${_rep_human:-0}"
 [ -n "${_probe_ok:-}" ] && \
-    printf '  probe:  %d clean, %d exposed\n' "${_probe_ok:-0}" "${_probe_bad:-0}"
+    printf '  probe:  %d clean, %d exposed, %d could not run\n' \
+        "${_probe_ok:-0}" "${_probe_bad:-0}" "${_probe_none:-0}"
 [ -f "$LZS" ] && \
     printf '  check:  %d clean, %d with warnings or failures (lazysite check --domain D shows each)\n' \
         "$_chk_clean" "$_chk_warn"
