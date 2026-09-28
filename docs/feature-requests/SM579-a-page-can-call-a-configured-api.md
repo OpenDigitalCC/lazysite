@@ -35,7 +35,35 @@ Still open, and deliberately not folded in here:
 - **Spend caps** as distinct from rate caps, for the model-call case named
   below.
 - A **visitor-facing outcome** for a public call: the SM415 banner shape, and
-  the honest "check back" answer while there is no callback.
+  the honest "check back" answer while there is no callback. **NEEDS A RULING -
+  read before building it (2026-09-28).** Two things were measured that this row
+  assumed away:
+
+  1. **The SM415 banner has only two states, and the second is styled as a
+     failure.** `outcome=ok` renders a hard-coded "Thank you - your message has
+     been sent." in `form-status-ok`; *anything else* renders in
+     `form-status-error` with `role="alert"`. So a connector call that
+     succeeded cannot say anything other than that one sentence without being
+     shown to the visitor as an error. Today every successful submission says it
+     - including one that sent a photograph to be read and stored a row, where
+     nothing was sent to a person at all.
+  2. **The query string is attacker-writable by construction** (the renderer's
+     own comment says so), so author copy cannot travel in it. A crafted link
+     could put any text on the page in the SUCCESS style, which is a materially
+     better phishing aid than the error banner already is. Carrying a short
+     token and looking the text up is the safe shape - and the processor does
+     **not** read `lazysite/forms/<name>.conf` or `handlers.conf` today, and the
+     render path is deliberately module-free (ADR 0001), so where the text lives
+     is the decision.
+
+  **The decision is which of these:** (a) a second engine-authored success state
+  (`ok-pending` or similar) with wording the release manager chooses - no author
+  copy, no new render-path input, and the wording has to be true for every
+  connector, so it cannot promise that a page will show the answer; or (b)
+  per-handler author copy, which needs a carrier the query string cannot forge
+  and therefore a new render-path read. Nothing was built, because picking
+  visitor-facing copy for live forms is not a dev call and (b) changes what the
+  render path loads.
 
 # What exists, and what a connector adds
 
