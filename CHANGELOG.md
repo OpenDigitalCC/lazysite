@@ -67,11 +67,18 @@ Naming the commit: AFTER it lands, never before
   refused, and the test says so. **Two of this work's own assumptions were
   measured false**: the first version of the gate passed vacuously (it asserted
   the absence of one skip reason, which any other skip satisfies - the sentinel
-  sabotage proved it), and a site with **no accounts** cannot be probed at all and
-  never could, because protecting a folder for nobody moves no content and SM377's
-  assertion catches that. So the sentinel fallback preserves old behaviour rather
-  than restoring a working probe there, and "could not run" is the honest answer -
-  which is what P2 makes visible.
+  sabotage proved it), and a claim that a site with **no accounts** cannot be probed
+  at all - written up from a synthetic fixture that would not move content, and
+  disproved by `t/integration/43`, which protects successfully against two real
+  front ends with no accounts at all. A test that agrees with one docroot and not
+  another is testing the docroot, so that path is left to the integration test and
+  asserted nowhere else. **The costliest mistake was neither of those:**
+  `our $PROBE_NOBODY = '...'` sat BELOW the main flow in a script that runs its main
+  flow at the top, so the assignment had not happened when the probe ran and the
+  read list became the **empty string** - ten assertions failed for a name that was
+  never wrong, only unset. It is a sub now, which has no order to get wrong. A
+  `Name used only once` warning from the same edit printed INTO the probe's own
+  output, where the integration test reads it as the probe's answer.
 
 - SM913 S1 + S3 (PENDING) **the quarantine sees the spam that actually arrives.**
   Four of four genuine-looking submissions on a live contact form were spam, read

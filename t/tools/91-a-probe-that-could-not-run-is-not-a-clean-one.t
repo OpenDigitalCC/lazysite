@@ -69,28 +69,17 @@ subtest 'P1: the probe protects its fixture on a site that HAS accounts' => sub 
             . 'whatever the reason given.' );
 };
 
-subtest 'P1: a site that knows nobody cannot be probed, and says so' => sub {
-    plan skip_all => "no $CHECK"                            unless -f $CHECK;
-    plan skip_all => 'running as root - the probe declines' if $> == 0;
-
-    # MEASURED WHILE BUILDING THIS, and it corrected the expectation I started
-    # with. The sentinel fallback keeps a site with no accounts working exactly
-    # as it did before SM901 - and "as it did before" turns out to be SKIPPED
-    # anyway: the rule is stored and NO CONTENT MOVES, which SM377's assertion
-    # catches. Protecting a folder for nobody protects it from nobody, so there
-    # is nothing to move and nothing to measure.
-    #
-    # So the honest answer on such a site is "could not run", and the whole point
-    # of P2 is that this answer is now VISIBLE instead of being counted as clean.
-    # The fallback is still right: it keeps the pre-SM901 behaviour rather than
-    # inventing a refusal for a case nobody can measure either way.
-    my $d   = a_site();
-    my $out = qx($^X \Q$CHECK\E --docroot \Q$d\E --check-acl http://127.0.0.1:1/ 2>&1);
-    like( $out, qr/ACL PROBE SKIPPED/,
-        'it skips rather than reporting a measurement it never made' );
-    like( $out, qr/no content moved out of the document root/,
-        'and names the reason: protecting for nobody moves nothing' );
-};
+# THE NO-ACCOUNTS PATH IS NOT ASSERTED HERE, and the reason is worth writing down
+# because I asserted it twice and was wrong twice.
+#
+# The fallback keeps a store that knows nobody on the pre-SM901 sentinel, and the
+# coverage for that path is t/integration/43, which drives the real probe against
+# two real front ends on a fixture with no accounts and expects it to PROTECT
+# successfully. My own synthetic fixture would not move content for the sentinel -
+# so a subtest asserting "a no-accounts site cannot be probed" passed here and was
+# an artefact of the fixture, not a property of the engine: the integration test
+# disproves it. A test that agrees with one docroot and not another is testing the
+# docroot.
 
 subtest 'P2: a probe that could not run exits 3, not 0' => sub {
     plan skip_all => "no $CLI"                              unless -f $CLI;

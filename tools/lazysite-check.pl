@@ -2827,16 +2827,36 @@ sub _probe_may_protect {
 # a store that knows nobody at all, where the old behaviour was already correct
 # and the check does nothing. Read access to a throwaway folder for one account,
 # for the seconds before the probe removes it, buys back the whole measurement.
-our $PROBE_NOBODY = '__lazysite-acl-probe-nobody__';
+# A SUB, NOT A FILE-SCOPE ASSIGNMENT, and the suite spent an hour teaching me
+# why: this script runs its main flow at the TOP and defines its subs below, so
+# `our $PROBE_NOBODY = '...'` down here is an assignment that has not happened
+# yet when run_acl_probe executes. The read list became the empty string, the
+# rule stored and moved nothing, and ten assertions failed for a name that was
+# never wrong - only unset. A sub has no order to get wrong.
+sub _probe_nobody { return '__lazysite-acl-probe-nobody__' }
 
 sub _probe_principal {
     my $known = eval {
+        # `no warnings 'once'` for the same reason _probe_load_engine carries it:
+        # this file mentions the engine's package global exactly once, which perl
+        # cannot tell from a typo - and it PRINTS the guess, into the probe's own
+        # output, where the integration test reads it as the probe's answer. One
+        # warning failed ten assertions that had nothing wrong with them.
+        no warnings 'once';    ## no critic (ProhibitNoWarnings)
         local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
         Lazysite::Auth::Settings::account_names();
     };
-    return $PROBE_NOBODY unless ref $known eq 'HASH' && %{$known};
-    my ($first) = sort keys %{$known};
-    return $first;
+    # A NON-EMPTY HASH IS NOT THE SAME AS A STORE THAT NAMES SOMEBODY, and the
+    # suite caught this within the hour: a fixture whose users file is absent or
+    # blank yields one key - the EMPTY STRING - so the first version of this
+    # picked '' as the read list. The rule then stored and moved nothing, which is
+    # neither the old behaviour nor the new one, and ten assertions in
+    # t/integration/43 failed for it. Only a name that could be a login counts.
+    my @named = grep { defined && /\A[^\s:]+\z/ } keys %{ ref $known eq 'HASH' ? $known : {} };
+    my $who = @named ? ( sort @named )[0] : _probe_nobody();
+    print {*STDERR} "acl-probe: read list names '$who'\n"
+        if $ENV{LAZYSITE_ACL_PROBE_DEBUG};
+    return $who;
 }
 
 sub _probe_protect {
