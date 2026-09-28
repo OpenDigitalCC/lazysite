@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM905 U1 + U3 (PENDING) **an uploaded file can reach a service, and a form can
+- SM905 U1 + U3 (d6829a04) **an uploaded file can reach a service, and a form can
   ask for the camera.** A visitor's photograph could be stored and could not be
   processed. The connector handler passed the visible text fields and never read
   `$ctx->{files}`, though `$ctx` was used on the line above for origin, actor and
@@ -70,7 +70,7 @@ Naming the commit: AFTER it lands, never before
   by-reference payload would need the destination to reach back into this host and
   the connector's whole design is that traffic goes outward only.
 
-- SM662 (PENDING) **the table that decides is the table that is published.** The
+- SM662 (f00e48bf) **the table that decides is the table that is published.** The
   control API's capability gate was declared twice: `%need_caps` inside a sub in
   `lazysite-manager-api.pl`, which decides, and `Lazysite::ControlApi::Actions`,
   which publishes and was documented as an extraction of it. Two copies of one
@@ -93,10 +93,13 @@ Naming the commit: AFTER it lands, never before
   which is what the move makes possible - and `TestHelper::gate_caps` now DIES on
   an empty table rather than returning nothing, because six lint suites read the
   gate through it and an empty answer makes every one of them pass on nothing.
-  Still open, and still its own work: the 150-branch dispatch chain, which is why
-  `params` is the one thing here that remains a hand-kept copy.
+  One test read the gate out of the script's text and was repointed at the table
+  in a follow-up (84a0513d), which is worth knowing because it was the fourth to
+  do so and the suite is what found it. Still open, and still its own work: the
+  150-branch dispatch chain, which is why `params` is the one thing here that
+  remains a hand-kept copy.
 
-- SM888 C1 + C2 (PENDING) **the no-CDN rule has a gate at last, and it looks
+- SM888 C1 + C2 (9e898351) **the no-CDN rule has a gate at last, and it looks
   where the breach hides.** Five live sites fetched fonts from a third-party
   origin on every page view and survived repeated engine upgrades unreported, and
   the reporter's framing is the finding: months of silence is the defect and the
@@ -113,7 +116,7 @@ Naming the commit: AFTER it lands, never before
   an operator installed - still needs a rendered page from a real host and is
   named in the filing.
 
-- SM888 P2 (PENDING) **an asset is something somebody put there.** The Files
+- SM888 P2 (9e898351) **an asset is something somebody put there.** The Files
   panel counted everything that was not a `.md` as an asset, including the
   engine's own rendered `.html`, so a folder holding six uploads reported eight
   and the number moved when a page was RENDERED rather than when anybody uploaded
@@ -122,7 +125,7 @@ Naming the commit: AFTER it lands, never before
   authored and still is. Measured on the reported shape: nine before, seven after,
   the seventh being a hand-written page with no source.
 
-- SM910 (PENDING) **the partner brief and the site's published copy answer
+- SM910 (c21298c8) **the partner brief and the site's published copy answer
   different questions, and now say so.** A brief told its agent to confirm the
   brief's claims against `/.well-known/ai-partner`. That document is
   partner-agnostic, so its capability list is about the SITE, and on the reported
@@ -148,7 +151,7 @@ Naming the commit: AFTER it lands, never before
   publishes `services` as explicit booleans, in the vocabulary `whoami` already
   uses.
 
-- SM911 (PENDING) **the layout check stops punishing the pattern the
+- SM911 (c21298c8) **the layout check stops punishing the pattern the
   documentation teaches.** Activating a layout reported nav 0, meta_title 0 and
   meta_desc 0 and warned that `nav.conf` would have no effect - for a layout
   whose served page in that same activation carried five nav items from
@@ -162,11 +165,13 @@ Naming the commit: AFTER it lands, never before
   generic `path` parameter, so a partner who tried eight spellings of "layout
   name" concluded the action was unreachable and deleted the directory over
   WebDAV instead. It takes `layout=` now, like its siblings, and the refusal
-  names the spelling. And the layouts briefing described the theme tokens as an
+  names the spelling - with the declared action table naming the parameter too
+  (36d1873b), which is what publishes it, and which the suite caught as missing.
+  And the layouts briefing described the theme tokens as an
   inline `<style>` block; since SM352 the variable emits a stylesheet link, so an
   author following the old wording nested a link inside a style element.
 
-- SM907 AT4, AT5, AT6 (PENDING) **the tail of the audit-trail filing, which
+- SM907 AT4, AT5, AT6 (c21298c8) **the tail of the audit-trail filing, which
   closes it.** The check now names what each unwritable file costs: the audit
   log's line says events are being lost as they happen, rather than that the
   manager cannot save it, which no manager does. The installer gives a forms
@@ -180,7 +185,7 @@ Naming the commit: AFTER it lands, never before
   looking wrong. They report now, and the export names which logs would not open,
   so a short count is distinguishable from a quiet site.
 
-- SM906 remainder (PENDING) **the other two symptoms of the field report, which
+- SM906 remainder (8e0bcfb0) **the other two symptoms of the field report, which
   the first pass left alive.** With the group store unreadable, two more answers
   were computed without asking whether it could be read. `group_is_assignable`
   had two documented fallbacks that both mean "the store does not say", and an
@@ -197,7 +202,7 @@ Naming the commit: AFTER it lands, never before
   store readable and then at mode 000: every group flipped to assignable and every
   label fell back at once. `t/tools/88` gains both, sabotaged both ways.
 
-- SM908 (PENDING) **a suite failure that could not be diagnosed, and the two
+- SM908 (8e0bcfb0) **a suite failure that could not be diagnosed, and the two
   causes it did not have.** One test in 14,833 failed a gate run reporting
   `apache would not start with its guard block: ` with nothing after the colon, so
   the twelve-minute gate was paid twice and the cause went with the overwritten
@@ -214,7 +219,7 @@ Naming the commit: AFTER it lands, never before
   reports `module unixd_module is built-in and can't be loaded` where it reported
   an empty string.
 
-- SM909 (PENDING) **the authoring briefing stated the render order backwards**,
+- SM909 (8e0bcfb0) **the authoring briefing stated the render order backwards**,
   in the sentence that opens the section teaching it, against six statements
   elsewhere saying the opposite. Reported by the sites agent on weight of
   evidence, with the reporter saying plainly they had not read the processor;
@@ -225,7 +230,7 @@ Naming the commit: AFTER it lands, never before
   the image, fence and link rules downstream of it stop reading as three
   unrelated exceptions to a rule stated backwards.
 
-- SM907 AT2 (PENDING) **an audit trail that cannot be written no longer reads as
+- SM907 AT2 (a6d62db0) **an audit trail that cannot be written no longer reads as
   a site where nothing happened.** From the field: an agent deployed a site and
   the trail showed nothing of it. The six events it did show had all been written
   by a root shell, and `lazysite/logs/audit.log` was group-owned so that the web
