@@ -28,13 +28,13 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
-use lib "$FindBin::Bin/../../../lib";
+use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
+use TestHelper                 qw(site_tempdir);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias);
 
-my $d = tempdir( CLEANUP => 1 );
+my $d = site_tempdir();
 make_path("$d/lazysite");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Agency\nsite_url: https://agency.example\ntheme: base\n";
