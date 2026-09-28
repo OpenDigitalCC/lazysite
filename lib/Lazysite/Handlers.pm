@@ -125,6 +125,34 @@ our %TYPES      = (
             { key => 'connector', label => 'Connector', type => 'connector', required => 1,
                 note => 'A form can use it only if the connector permits public '
                     . 'invocation; the schedule only if it permits scheduled invocation.' },
+
+            # SM905 U1: THE DIFFERENCE BETWEEN A PHOTOGRAPH BEING STORED AND
+            # BEING PROCESSED.
+            #
+            # A connector is already the governed way out - an operator-vetted
+            # destination, a credential in the reserved tree, declared modes, a
+            # rate cap, one audit record per call. Every control that ought to
+            # apply to sending a customer's photograph to a service already
+            # applies. The only thing missing was that the payload could not
+            # contain the photograph: the handler passed the visible text fields
+            # and never read the files, though `$ctx` was on the line above.
+            #
+            # Same name, same shape and the same default as the email handler's,
+            # which is the working template a few lines up this file.
+            { key => 'attach_files', label => 'Send uploaded files', type => 'boolean',
+                default => 'false',
+                note    => 'Uploaded files are added to the payload as `files` - name, '
+                    . 'type, size and base64 data - the same shape the email '
+                    . 'handler sends. The destination decides what to do with '
+                    . 'them; the answer comes back on the connector\'s own JSON '
+                    . 'contract.' },
+            { key => 'attach_max_kb', label => 'Attachment ceiling (KB)', type => 'number',
+                default => '1024',
+                note    => 'Total across all files. A request over the ceiling is '
+                    . 'REFUSED and says so, rather than being sent short - a '
+                    . 'truncated payload is worse than a refusal, because the '
+                    . 'destination cannot tell. A phone photograph is 3 to 8 MB, '
+                    . 'so raise this deliberately rather than by default.' },
         ],
         note => 'Everything that leaves the site over HTTP goes through a connector. A '
             . 'connector with only a URL is the simple case.',
@@ -1254,7 +1282,37 @@ sub _to_connector {
     require Lazysite::Manager::Connectors;
     no warnings 'once';
     local $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
-    my $r = Lazysite::Manager::Connectors::call( $h->{connector} // '', { _visible($fields) },
+    # SM905 U1: the files, when the handler asks for them.
+    #
+    # Same shape as the email handler's payload - filename, type, size, base64
+    # data - so a destination written for one reads the other. Bounded, and a
+    # request over the ceiling is REFUSED: sending it short would leave the
+    # service unable to tell it had been given part of a photograph.
+    my %payload = ( _visible($fields) );
+    if ( _bool( $h->{attach_files} // 'false' ) eq 'true'
+        && ref $ctx->{files} eq 'ARRAY'
+        && @{ $ctx->{files} } )
+    {
+        my $ceiling = $h->{attach_max_kb};
+        $ceiling = 1024 unless defined $ceiling && $ceiling =~ /\A\d+\z/;
+        my $total = 0;
+        $total += length( $_->{data} // '' ) for @{ $ctx->{files} };
+        my $kb = int( $total / 1024 + 0.5 );
+        return { ok => 0,
+            why => "the uploaded files are ${kb}KB, over this handler's "
+                . "${ceiling}KB ceiling - raise attach_max_kb on the handler, or "
+                . 'ask for a smaller file. Nothing was sent' }
+            if $total > $ceiling * 1024;
+
+        require MIME::Base64;
+        $payload{files} = [ map {
+                { filename => $_->{filename}, type => $_->{type},
+                    size => length( $_->{data}                      // '' ),
+                    data => MIME::Base64::encode_base64( $_->{data} // '' ) }
+        } @{ $ctx->{files} } ];
+    }
+
+    my $r = Lazysite::Manager::Connectors::call( $h->{connector} // '', \%payload,
         mode    => ( ( $ctx->{origin} // '' ) eq 'timer' ? 'scheduled' : 'public' ),
         actor   => $ctx->{actor} // '',
         trigger => $ctx->{source} );

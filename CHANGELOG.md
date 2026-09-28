@@ -44,6 +44,32 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM905 U1 + U3 (PENDING) **an uploaded file can reach a service, and a form can
+  ask for the camera.** A visitor's photograph could be stored and could not be
+  processed. The connector handler passed the visible text fields and never read
+  `$ctx->{files}`, though `$ctx` was used on the line above for origin, actor and
+  trigger - so the one governed way out of the site, with its vetted destination,
+  its credential in the reserved tree, its declared modes, its rate cap and its
+  audit record per call, could deliver anything except the photograph. The email
+  handler had been attaching files for releases, a few lines up the same file, so
+  this follows that template exactly: same key, same payload shape of filename,
+  type, size and base64 data, same default of false. **The ceiling refuses rather
+  than truncating.** `attach_max_kb` defaults to 1024, which is deliberately below
+  a phone photograph, and a request over it is refused with the size, the ceiling
+  and the setting that raises it - sending part of a photograph is worse than
+  sending none, because the destination cannot tell. A malformed ceiling falls
+  back to the default rather than to no limit, which a sabotage caught: asserting
+  only that the refusal happened passed with the validation removed, because a
+  non-numeric ceiling reads as zero and refuses everything. **U3:** the form
+  grammar rendered `accept`, `multiple` and `required` on a file input and had no
+  way to ask for the camera, so an author wanting a photograph had to hand-write
+  the input, which the forms contract does not allow for content. `capture` is
+  rendered now, bare or as `capture:user` / `capture:environment`; any other value
+  is dropped rather than emitted as an attribute no browser honours. Inline was
+  chosen over a signed URL on the filing's own recommendation, because a
+  by-reference payload would need the destination to reach back into this host and
+  the connector's whole design is that traffic goes outward only.
+
 - SM662 (PENDING) **the table that decides is the table that is published.** The
   control API's capability gate was declared twice: `%need_caps` inside a sub in
   `lazysite-manager-api.pl`, which decides, and `Lazysite::ControlApi::Actions`,

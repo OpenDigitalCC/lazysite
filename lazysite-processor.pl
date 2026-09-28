@@ -4415,6 +4415,19 @@ sub _render_form {
             elsif ( $r eq 'file' )         { $rules{file}     = 1; }
             elsif ( $r eq 'multiple' )     { $rules{multiple} = 1; }
             elsif ( $r =~ /^accept:(.+)/ ) { $rules{accept}   = $1; }
+
+            # SM905 U3: `capture` on a file input, which is how a phone offers
+            # the camera directly instead of the file picker. The grammar rendered
+            # accept, multiple and required and had no way to ask for this, so an
+            # author wanting a photograph had to hand-write the input - which the
+            # forms contract does not allow for content.
+            #
+            # `capture` alone lets the browser choose; `capture:user` asks for the
+            # front camera and `capture:environment` for the rear one. Those are
+            # the only two the HTML specification defines, so anything else is
+            # dropped rather than passed through to an attribute nobody honours.
+            elsif ( $r eq 'capture' )                       { $rules{capture} = '' }
+            elsif ( $r =~ /^capture:(user|environment)\z/ ) { $rules{capture} = $1 }
             elsif ( $r =~ /^select:(.+)/ ) { $rules{select}   = _form_options($1); }
             elsif ( $r =~ /^radio:(.+)/ )  { $rules{radio}    = _form_options($1); }
             elsif ( $r =~ /^checklist-qty:(.+)/ ) {
@@ -4507,8 +4520,16 @@ sub _render_form {
                 $acc = qq( accept="$a");
             }
             my $mult = $rules{multiple} ? ' multiple' : '';
+            # SM905 U3: bare `capture` is a valid boolean attribute; with a value
+            # it names which camera.
+            my $cap = '';
+            if ( defined $rules{capture} ) {
+                $cap = length $rules{capture}
+                    ? ' capture="' . _esc_attr( $rules{capture} ) . '"'
+                    : ' capture';
+            }
             $field_html = qq(    <input type="file" name="$name" id="$name")
-                . $acc . $mult . qq($req_attr>\n);
+                . $acc . $mult . $cap . qq($req_attr>\n);
         }
         elsif ( $rules{textarea} ) {
             # A textarea carries its value as CONTENT, not an attribute - and it
