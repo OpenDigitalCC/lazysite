@@ -1533,6 +1533,30 @@ my %TOOLS = (
             return Lazysite::Handlers::action_form_targets_save( $a->{form}, $ids );
         },
     },
+    # SM905 U5: the twin exists because the caller this row was written for IS an
+    # agent. The 0.15.0 edge walk built an upload form over the API, found every
+    # submission refused with "this form does not accept file uploads", and had to
+    # hand-write the conf over WebDAV. Recording the control-API action as
+    # API-only would have reproduced that wall one surface over.
+    set_form_uploads => {
+        description => 'Turn file uploads ON for a form, or off. A :::form with a `file` field RENDERS a picker and every submission is REFUSED - "this form does not accept file uploads" - until the form declares its limits, so that a form never starts accepting files by accident. Call this after bind_form. accept is a list of file EXTENSIONS matched against the filename ("png, jpg, pdf") - NOT a media type: `image/*` is refused, because the `accept:` rule in the page grammar is the media-type one and these two sit one page apart. Uploads are only STORED by a `file` handler; without one they are validated and dropped. uploads: false removes every limit, which turns uploads off. Writes lazysite/forms/<form>.conf and keeps its bindings.',
+        cap         => 'manage_forms',
+        inputSchema => { type => 'object',
+            properties => {
+                form     => { type => 'string', description => 'the form name (its front-matter form key)' },
+                uploads  => { type => 'boolean', description => 'true turns uploads on, false removes every limit' },
+                max_kb   => { type => 'integer', description => 'largest size of EACH file, KiB (default 5120)' },
+                max_files => { type => 'integer', description => 'files per submission (default 5)' },
+                accept   => { type => 'string',
+                    description => 'allowed file EXTENSIONS, comma-separated ("png, jpg, pdf"). Omit for any type' },
+            },
+            required => [ 'form', 'uploads' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ($a) = @_;
+            return Lazysite::Handlers::action_form_uploads_save( $a->{form}, $a->{uploads},
+                { max_kb => $a->{max_kb}, max_files => $a->{max_files}, accept => $a->{accept} } );
+        },
+    },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
         cap => 'manage_content',

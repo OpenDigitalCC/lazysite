@@ -203,7 +203,8 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         acl-remove acl-set artifact-backups-delete backup-create backup-delete
         backup-download backup-restore bad-url-block bad-url-unblock config-set copy delete
         domain-add domain-remove domain-set
-        file-download file-upload file-zip-download form-targets-save git-init
+        file-download file-upload file-zip-download form-targets-save
+        form-uploads-save git-init
         git-restore handler-delete handler-save layout-activate layout-delete
         layout-install layouts-install layouts-repo-set
         migrate-to-local mkdir move nav-save notices-seen page-pdf

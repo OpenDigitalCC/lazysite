@@ -189,6 +189,10 @@ my %EXEMPT = (
         'writes under lazysite/forms/ - excluded from the versioned set',
     'Handlers::action_handler_delete'     => 'as action_handler_save',
     'Handlers::action_form_targets_save'  => 'as action_handler_save',
+    # SM905 U5: writes the upload_* keys into the form's own conf under
+    # lazysite/forms/, the same store action_form_targets_save writes targets:
+    # into. Turning uploads off removes every upload_* line from that conf.
+    'Handlers::action_form_uploads_save'  => 'as action_handler_save',
     'Handlers::action_schedule_save'      => 'as action_handler_save',
     'Handlers::action_schedule_delete'    => 'as action_handler_save',
     # SM632: removes a form REGISTRATION, which lives under lazysite/forms/ and

@@ -120,6 +120,7 @@ tone: medium
 `form-submissions-delete-bulk` | cookie only | file (query_or_body), ids (body)
 `form-targets-read` | manage_forms / manage_data / manage_connectors | form (query)
 `form-targets-save` | manage_forms | form (query_or_body), handlers (body), targets (body)
+`form-uploads-save` | manage_forms | form (query_or_body), uploads (body), max_kb (body), max_files (body), accept (body)
 `git-history` | manage_content | path (query), limit (query)
 `git-history-summary` | manage_content / manage_config |  
 `git-init` | manage_config |  

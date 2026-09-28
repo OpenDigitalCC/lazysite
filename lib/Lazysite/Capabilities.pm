@@ -172,10 +172,11 @@ my %ACTION_INFO = (
             # SM842: the handler actions are gated ANY-OF the three destination
             # capabilities (then the handler's type decides), so all three
             # name them - SM457's rule for cross-gated actions.
-            api => [ qw(form-delete form-targets-read form-targets-save
+            api => [ qw(form-delete form-targets-read form-targets-save form-uploads-save
                     handler-list handler-save handler-delete
                     schedule-list schedule-save schedule-delete) ],
-            mcp => [ qw(bind_form delete_form list_handlers save_handler delete_handler
+            mcp => [ qw(bind_form delete_form set_form_uploads
+                    list_handlers save_handler delete_handler
                     list_schedule save_schedule delete_schedule) ],
             webdav => ['lazysite/forms/<name>.conf (its targets name existing handlers; not smtp.conf, handlers.conf or schedule.conf)'],
         },

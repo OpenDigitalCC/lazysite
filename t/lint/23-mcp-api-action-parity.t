@@ -141,6 +141,9 @@ my %PAIR = (
     # reversed SM799's cookie-only rule, and bind_form stopped being MCP-only
     # now that form-targets-save takes handler ids and nothing else.
     'form-targets-save' => 'bind_form',
+    # SM905 U5: on both surfaces at once, because the caller it was built for is
+    # an agent - the edge walk hit the wall it removes while working over the API.
+    'form-uploads-save' => 'set_form_uploads',
     'handler-list'      => 'list_handlers',
     'handler-save'      => 'save_handler',
     'handler-delete'    => 'delete_handler',
