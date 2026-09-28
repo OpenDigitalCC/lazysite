@@ -236,11 +236,17 @@ the ruling lands in this status-note.
 Things found against the code and the neighbouring trees while answering the
 egress question, recorded so they are not rediscovered at build.
 
-**OOM's transport is not yet the hardened one.** `Odoo::Transport::JSONRPC`
-builds `HTTP::Tiny->new(timeout => 120, verify_SSL => 1)` with the library's
-default redirect following and no response cap. OOM accepts an injected transport
-object (anything with a `call` method), so the extension can hand it one that
-applies OB6 without changing OOM - or OOM gains the two options. Either way,
+**OOM's transport IS the hardened one now - this note was true when written and
+is not any more.** Re-measured 2026-09-28 against `oom`:
+`Odoo::Transport::http_client` builds `HTTP::Tiny->new` with `max_redirect => 0`,
+`verify_SSL => 1`, a named agent string and an optional `max_size` from
+`max_response_bytes`; `refuse_by_policy` throws kind `refused` on any 3xx or an
+oversized answer, by name rather than as a retryable transport failure, and
+`JSONRPC` uses both. So most of OB6's discipline already lives inside OOM and
+**the extension does not need to inject a transport to get it** - which removes a
+piece of work this note had put on the build. What OB6 still has to own is the
+part that is about the URL rather than the connection, and that is X4-a's
+question. The other half of the original note stands unchanged:
 **OA2's session strategy is not what OOM speaks**: OOM authenticates with
 `common.authenticate(db, login, key)` and sends the key in every `execute_kw`
 body on `/jsonrpc`. OA3's apikey strategy fits OOM; OA2 needs Odoo's

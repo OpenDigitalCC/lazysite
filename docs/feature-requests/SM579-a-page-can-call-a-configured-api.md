@@ -27,11 +27,11 @@ decisions inside it are worth finding again:
 
 Still open, and deliberately not folded in here:
 
-- **[[SM790]]** - the wire. The call path still uses a bare user agent with no
-  `max_redirect`, no `max_size` and no `is_safe_url`, which the 0.13.8 security
-  review found and filed on its own. That is the *outbound policy* half this
-  filing says it owns, and it should be built as SM790 rather than smuggled
-  into a phase.
+- ~~**[[SM790]]** - the wire.~~ **DONE, and this list said otherwise until
+  2026-09-28.** SM790 shipped (`ccd2535d`): the call path no longer trusts what
+  the remote sends back. The reasoning for keeping it out of a phase was right and
+  it was built where it belonged; what was wrong is that this list went on naming
+  it as open, which is how a filing reads as more blocked than it is.
 - **Spend caps** as distinct from rate caps, for the model-call case named
   below.
 - A **visitor-facing outcome** for a public call: the SM415 banner shape, and
