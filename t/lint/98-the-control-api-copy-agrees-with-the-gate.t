@@ -68,8 +68,16 @@ subtest 'the register no longer carries a second copy' => sub {
 subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     # Captured from the CGI's own table before it moved: 102 actions reachable
     # with a token, 54 cookie-only, and these exact sets.
+    #
+    # The number is a LEDGER, not a constant: every change to it is an action
+    # gaining or losing a gate, which is a decision, and the line below is where
+    # it gets written down. Raise it only with the action named and the reason
+    # given - a bump to make the suite green is the drift this test exists to
+    # catch.
+    #   103, SM905 U5 (0.15.1): form-uploads-save, gated manage_forms, the same
+    #        capability its only writer form-targets-save already needed.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 102, '102 actions are reachable with a token' )
+    is( scalar keys %caps, 103, '103 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

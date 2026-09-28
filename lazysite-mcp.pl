@@ -1543,11 +1543,11 @@ my %TOOLS = (
         cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {
-                form     => { type => 'string', description => 'the form name (its front-matter form key)' },
-                uploads  => { type => 'boolean', description => 'true turns uploads on, false removes every limit' },
-                max_kb   => { type => 'integer', description => 'largest size of EACH file, KiB (default 5120)' },
+                form => { type => 'string', description => 'the form name (its front-matter form key)' },
+                uploads => { type => 'boolean', description => 'true turns uploads on, false removes every limit' },
+                max_kb => { type => 'integer', description => 'largest size of EACH file, KiB (default 5120)' },
                 max_files => { type => 'integer', description => 'files per submission (default 5)' },
-                accept   => { type => 'string',
+                accept => { type => 'string',
                     description => 'allowed file EXTENSIONS, comma-separated ("png, jpg, pdf"). Omit for any type' },
             },
             required => [ 'form', 'uploads' ], additionalProperties => JSON::PP::false },
@@ -3169,13 +3169,17 @@ my %ANNOTATE = (
     delete_handler  => [ 0, 1, 0 ],    # refused while in use, so nothing live changes
     save_schedule   => [ 0, 0, 1 ],    # what the timer calls
     delete_schedule => [ 0, 1, 1 ],
-    form_list          => [ 1, 0, 0 ],
-    bind_form          => [ 0, 0, 1 ],
-    write_file         => [ 0, 0, 1 ],
-    replace_text       => [ 0, 0, 1 ],
-    copy_file          => [ 0, 0, 1 ],
-    create_page        => [ 0, 0, 1 ],
-    read_nav           => [ 1, 0, 0 ],
+    form_list       => [ 1, 0, 0 ],
+    bind_form       => [ 0, 0, 1 ],
+    # SM905 U5: a save, and not destructive - `uploads: false` removes the
+    # upload_* keys, but another call puts them back, and the rule above is
+    # explicit that a flag is a property of the action, never of an argument.
+    set_form_uploads => [ 0, 0, 1 ],
+    write_file       => [ 0, 0, 1 ],
+    replace_text     => [ 0, 0, 1 ],
+    copy_file        => [ 0, 0, 1 ],
+    create_page      => [ 0, 0, 1 ],
+    read_nav         => [ 1, 0, 0 ],
     set_nav            => [ 0, 0, 1 ],
     submit_feedback => [ 0, 0, 0 ], # writes a report, but changes nothing on the live site
     delete_page     => [ 0, 1, 1 ],
