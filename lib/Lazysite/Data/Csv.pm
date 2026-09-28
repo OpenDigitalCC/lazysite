@@ -32,6 +32,7 @@ package Lazysite::Data::Csv;
 use strict;
 use warnings;
 use Exporter 'import';
+use Lazysite::Data::Owned qw(owned_columns);
 
 our @EXPORT_OK = qw(to_csv csv_columns from_csv);
 
@@ -53,7 +54,7 @@ sub csv_columns {
     elsif ( defined $key ) {
         unshift @cols, $key;    # the automatic id is a real column in the store
     }
-    if ( $d->{timestamps} ) { push @cols, 'created_at', 'updated_at', 'created_by', 'updated_by' }
+    push @cols, owned_columns($d);
     return @cols;
 }
 

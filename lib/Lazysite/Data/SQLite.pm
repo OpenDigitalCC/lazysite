@@ -45,6 +45,7 @@ package Lazysite::Data::SQLite;
 use strict;
 use warnings;
 use Lazysite::Paths ();
+use Lazysite::Data::Owned qw(owned_columns is_owned reserved_column);
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for add_reserved_column_sql
@@ -177,11 +178,16 @@ sub create_table_sql {
     # on the id COLUMN, not as a table constraint, so appending after it is
     # harmless - which is exactly why the reporting site had one working table
     # and one that refused, and why this survived since the option shipped.
-    if ( $d->{timestamps} ) {
-        # Maintained by the plugin, which is why a descriptor declaring them
-        # is refused at load.
-        push @cols, '  created_at TEXT', '  updated_at TEXT', '  created_by TEXT', '  updated_by TEXT';
-    }
+    # Maintained by the plugin, which is why a descriptor declaring one of them
+    # is refused at load. TEXT for all of them, which is what
+    # add_reserved_column_sql adds when a flag is turned on later - the two have
+    # to agree or a table made before the flag differs from one made after it.
+    # BARE, not through _ident, which is what this said before the names moved
+    # into Data::Owned. _ident exists for identifiers that came from a
+    # descriptor; these come from a fixed internal list, and quoting them would
+    # change the DDL of every table for no gain - a refactor that alters
+    # generated SQL is not a refactor. t/unit/data/02 pins the text.
+    push @cols, map { "  $_ TEXT" } owned_columns($d);
 
     if ( !$d->{auto_key} ) {
         push @cols, '  PRIMARY KEY (' . _ident( $d->{key} ) . ')';
@@ -472,7 +478,7 @@ sub select_sql {
         die "select_sql: cannot order by '$ob' - not a field of '$d->{table}'"
             unless exists $fields->{$ob}
             || $ob eq $d->{key}
-            || ( $d->{timestamps} && $ob =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/ );
+            || is_owned( $d, $ob );
         my $dir = ( $opt{order} // 'asc' ) =~ /\Adesc\z/i ? 'DESC' : 'ASC';
         $sql .= ' ORDER BY ' . _ident($ob) . " $dir";
     }
@@ -568,16 +574,18 @@ sub add_column_sql {
         . _ident($field) . ' ' . column_type($spec);
 }
 
-# SM780: a column the plugin OWNS (created_at, updated_at, created_by,
-# updated_by) added to a table that predates it - the flag turned on after
-# the table was made, or a table made before the author columns existed.
-# TEXT, as create_table_sql makes them; no field spec, because no field
-# declares them.
+# SM780: a column the plugin OWNS added to a table that predates it - the flag
+# turned on after the table was made, or a table made before the author columns
+# existed. TEXT, as create_table_sql makes them; no field spec, because no field
+# declares them. Which names those are is Data::Owned's to say.
+#
+# THE UNCONDITIONAL QUESTION, deliberately: this adds the column a flag has just
+# turned on, so the descriptor in hand may not own it YET on the observed store.
 sub add_reserved_column_sql {
     my ( $d, $col ) = @_;
     _loaded( $d, 'add_reserved_column_sql' );
     die "add_reserved_column_sql: '$col' is not a reserved column"
-        unless $col =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/;
+        unless reserved_column($col);
     return 'ALTER TABLE ' . _ident( $d->{table} ) . ' ADD COLUMN ' . _ident($col) . ' TEXT';
 }
 

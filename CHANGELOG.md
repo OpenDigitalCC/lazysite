@@ -104,6 +104,27 @@ Naming the commit: AFTER it lands, never before
   four sabotages; twice while writing it I picked the wrong node out of the graph
   and got the `WebSite` where I meant the page, which let a sabotage pass until one
   helper made every subtest ask the same way.
+- Pre-stable debt (PENDING) **the columns the data extension owns are named
+  once.** `created_at`, `updated_at`, `created_by` and `updated_by` were written
+  out **fifteen times** across eight modules - twice as a `%RESERVED` hash, once
+  as a list to create, once as column definitions, once as CSV headers, once
+  inside a sysop-facing message, and nine times as the alternation
+  `/\A(?:created_at|updated_at|created_by|updated_by)\z/`. Nothing had gone
+  wrong; what makes it worth fixing now is that [[SM857]]'s ruling adds a policy
+  column the engine owns the same way, and a set spelt in fifteen places grows by
+  being spelt in fifteen more. A column added to fourteen of them would be
+  created by the migration and refused from writers, and then reported by the
+  fifteenth - the drift check - as an undeclared extra to remove.
+  `Lazysite::Data::Owned` holds the list and answers **two different questions**
+  that were previously tangled: `reserved_column` is unconditional (no descriptor
+  may declare one, whether or not that table sets `timestamps`, because the flag
+  can be turned on afterwards) and `is_owned`/`owned_columns` are per-table (the
+  columns actually present). `t/lint/110` refuses a second spelling anywhere in
+  the engine, and found the fifteenth - a message that would have recommended
+  `timestamps: true` while naming four of five columns. No behaviour changes: the
+  generated DDL is byte-for-byte what it was, deliberately, including the
+  unquoted column names.
+
 - SM905 U4 (PENDING) **the row an operator works from reaches the photograph.** A
   table handler with `keep_copy` stored a visitor's uploads under the submissions
   tree and named them in the submissions record; the row in the table had

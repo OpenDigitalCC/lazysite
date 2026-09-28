@@ -30,6 +30,7 @@ use Lazysite::Data::Tables
 use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect    ();
 use Lazysite::Data::Access     ();
+use Lazysite::Data::Owned      ();
 use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
     _acl_allows _is_operator);
 use Lazysite::Paths ();
@@ -614,9 +615,13 @@ sub _provenance_notes {
     # SM780: and the who - a text field named *_by is the same decoration.
     my @at = sort grep { /_(?:at|by)\z/ && ( $d->{fields}{$_}{type} // '' ) =~ /\A(?:text|datetime)\z/ } keys %{ $d->{fields} || {} };
     return [] unless @at;
+    # The columns are NAMED FROM THE LIST, not typed out: a message that names
+    # four of five after the set grows is a message that is wrong about the
+    # feature it is recommending.
     return [ sprintf(
-            "%s %s written by the caller and can be any value: nothing stamps %s. For a time and an author the plugin stamps and no writer can forge, set timestamps: true (created_at, updated_at, created_by, updated_by).",
-            join( ', ', map { "'$_'" } @at ), ( @at > 1 ? 'are' : 'is' ), ( @at > 1 ? 'them' : 'it' ) ) ];
+            "%s %s written by the caller and can be any value: nothing stamps %s. For a time and an author the plugin stamps and no writer can forge, set timestamps: true (%s).",
+            join( ', ', map { "'$_'" } @at ), ( @at > 1 ? 'are' : 'is' ), ( @at > 1 ? 'them' : 'it' ),
+            join( ', ', Lazysite::Data::Owned::stamp_columns() ) ) ];
 }
 
 # DM-5: the descriptor's SOURCE, for an editor. data-table returns the parsed

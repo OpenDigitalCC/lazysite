@@ -34,6 +34,7 @@ use Lazysite::Data::Connect
     qw(read_handle write_handle store_path store_diagnosis);
 use Lazysite::Data::Schema qw(plan_migration plan_rebuild);
 use Lazysite::Data::Value  qw(coerce_row);
+use Lazysite::Data::Owned  ();
 use Lazysite::Data::SQLite
     qw(select_sql count_sql insert_sql update_sql delete_sql observed_schema last_insert_key
     key_list_sql history_table_sql history_insert_sql history_rows_sql drop_table_sql);
@@ -892,7 +893,7 @@ sub import_rows {
     # edited export will too, and it is how an update knows which row it is.
     my %known = map { $_ => 1 } keys %{ $d->{fields} };
     $known{ $d->{key} } = 1;
-    $known{$_} = 1 for ( $d->{timestamps} ? qw(created_at updated_at created_by updated_by) : () );
+    $known{$_} = 1 for Lazysite::Data::Owned::owned_columns($d);
     my %seen;
     for my $col ( @{$header} ) {
         return _err( "table '$name': the CSV has a column '$col' that the "
@@ -930,9 +931,11 @@ sub import_rows {
             next unless defined $v && length $v;    # empty cell: not sent
             $in{ $header->[$i] } = $v;
         }
-        # Timestamps are the plugin's; an export carries them, an import must
-        # not try to write them back.
-        delete @in{qw(created_at updated_at created_by updated_by)};
+        # The STAMPS are the plugin's; an export carries them, an import must
+        # not try to write them back. Unconditional, and the stamp set rather
+        # than the whole owned set: a column the engine creates but a WRITER is
+        # allowed to set is not one an import should have stripped.
+        delete @in{ Lazysite::Data::Owned::stamp_columns() };
 
         my $kv        = defined $key_col ? $r->[$key_col] : undef;
         my $is_update = defined $kv && length $kv && $exists{$kv};

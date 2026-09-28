@@ -41,7 +41,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(coerce_row coerce_field);
 
-my %RESERVED = map { $_ => 1 } qw(created_at updated_at created_by updated_by);
+use Lazysite::Data::Owned qw(reserved_column);
 
 sub _err {
     my ( $error, %extra ) = @_;
@@ -240,7 +240,7 @@ sub coerce_row {
     for my $f ( sort keys %{$input} ) {
         return _err( "'$f' is maintained by the plugin and cannot be written",
             field => $f, rule => 'reserved' )
-            if $RESERVED{$f};
+            if reserved_column($f);
         return _err( "'$f' is not a field of '$d->{table}'",
             field => $f, rule => 'unknown' )
             unless exists $fields->{$f};

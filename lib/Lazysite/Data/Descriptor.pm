@@ -32,6 +32,7 @@ package Lazysite::Data::Descriptor;
 use strict;
 use warnings;
 use Exporter qw(import);
+use Lazysite::Data::Owned qw(reserved_column is_owned);
 
 our @EXPORT_OK = qw(load_descriptor TYPES);
 
@@ -58,8 +59,10 @@ sub TYPES {
 my $IDENT = qr/\A[a-z][a-z0-9_]*\z/;
 
 # Reserved because the plugin owns them: `timestamps: true` creates them, and
-# a descriptor declaring its own would collide with the ones we maintain.
-my %RESERVED = map { $_ => 1 } qw(created_at updated_at created_by updated_by);
+# a descriptor declaring its own would collide with the ones we maintain. The
+# names live in Data::Owned, which is also where the per-table question ("does
+# this table have them?") is answered - a different question from this one, and
+# the header there says why they must not be confused.
 
 
 sub _err {
@@ -303,8 +306,12 @@ sub _check_indexes {
 # `-field` is descending, the same spelling the query grammar uses.
 #
 # Returns ( $field, $dir, undef ) - $field undef when none was declared.
+# $flags is the part of the descriptor being built that decides which columns the
+# plugin owns - a hash shaped like a loaded descriptor so is_owned can read it.
+# It used to be the `timestamps` boolean alone, which meant this sub had to know
+# that the owned set IS the stamp set. That was true and is not a rule.
 sub _check_default_order {
-    my ( $name, $raw, $fields, $key, $timestamps ) = @_;
+    my ( $name, $raw, $fields, $key, $flags ) = @_;
     my $dord = $raw->{default_order};
     my ( $do_field, $do_dir ) = ( undef, 'asc' );
     return ( $do_field, $do_dir, undef ) unless defined $dord && length $dord;
@@ -321,7 +328,7 @@ sub _check_default_order {
             field => $do_field, rule => 'order' ) )
         unless $fields->{$do_field}
         || $do_field eq $key
-        || ( $timestamps && $do_field =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/ );
+        || is_owned( $flags, $do_field );
     return ( $do_field, $do_dir, undef );
 }
 
@@ -383,7 +390,7 @@ sub load_descriptor {
             "table '$name': '$f' is maintained by the plugin "
                 . '(set timestamps: true to have it)',
             field => $f, rule => 'reserved' )
-            if $RESERVED{$f};
+            if reserved_column($f);
 
         if ( my $why = _check_field( $f, $fields->{$f} ) ) {
             return _err( 'descriptor', "table '$name': $why",
@@ -414,7 +421,7 @@ sub load_descriptor {
         if $ts_why;
 
     my ( $do_field, $do_dir, $order_err )
-        = _check_default_order( $name, $raw, $fields, $key, $timestamps );
+        = _check_default_order( $name, $raw, $fields, $key, { timestamps => $timestamps } );
     return $order_err if $order_err;
 
     my ( $wb, $wb_err ) = _check_writable_by( $name, $raw );

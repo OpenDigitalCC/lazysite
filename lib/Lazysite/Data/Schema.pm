@@ -54,6 +54,7 @@ use Lazysite::Data::SQLite
     null_count_sql column_values_sql
     observed_schema table_has_rows);
 use Lazysite::Data::Value qw(coerce_field);
+use Lazysite::Data::Owned qw(stamp_columns owned_columns is_owned);
 
 our @EXPORT_OK = qw(plan_migration plan_rebuild);
 
@@ -180,7 +181,7 @@ sub plan_migration {
     # the store could not keep. Nullable TEXT, no backfill: a stamp for a row
     # that predates the stamping is a guess, and the empty cell is the truth.
     if ( $d->{timestamps} ) {
-        for my $c (qw(created_at updated_at created_by updated_by)) {
+        for my $c ( stamp_columns() ) {
             next if $observed->{columns}{$c};
             push @additive,
                 { sql => add_reserved_column_sql( $d, $c ), binds => [],
@@ -194,7 +195,7 @@ sub plan_migration {
     for my $c ( sort keys %{ $observed->{columns} } ) {
         next if exists $fields->{$c};
         next if $c eq $d->{key};
-        next if $d->{timestamps} && $c =~ /\A(?:created_at|updated_at|created_by|updated_by)\z/;
+        next if is_owned( $d, $c );
         next if $d->{auto_key} && $c eq 'id';
         push @blocked,
             { field => $c, kind => 'extra',
@@ -285,14 +286,14 @@ sub plan_rebuild {
 
     # The columns the new table will have, and which of them exist now.
     my @want = sort keys %{ $d->{fields} };
-    push @want, 'created_at', 'updated_at', 'created_by', 'updated_by' if $d->{timestamps};
+    push @want, owned_columns($d);
     my @carry = grep { $observed->{columns}{$_} } @want;
 
     my @lost = sort grep {
         !$d->{fields}{$_}
             && $_ ne $d->{key}
             && !( $d->{auto_key} && $_ eq 'id' )
-            && !( $d->{timestamps} && /\A(?:created_at|updated_at|created_by|updated_by)\z/ )
+            && !is_owned( $d, $_ )
     } keys %{ $observed->{columns} };
 
     # The new table is built under a temporary name, so a failure part-way
