@@ -44,6 +44,31 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM579 + SM747 X4 (PENDING) **who may make this site send something outward is
+  one policy, and it is no longer the connector's private business.** The three
+  invocation modes were ruled in September and described from the start as the
+  outbound policy for the whole programme, then written inside
+  `Lazysite::Manager::Connectors`, where the first caller lived. So anything else
+  wanting to send outward had two choices: reach into a manager module for a
+  package variable, or keep its own copy of a security decision - which is the
+  shape SM662 had just spent a release removing from the control API's capability
+  gate. X4, ruled 2026-09-28, is what forced it out: the Odoo extension's
+  per-user proxy leg must sit "as mode 2 **inside** SM579's policy, not beside
+  it", and there was no inside to sit in. `Lazysite::Egress` now owns the
+  vocabulary, the decision and the refusal wording; the connector keeps what is
+  genuinely its own - which modes it permits, which groups it names, and that
+  `manage_connectors` is **its** override rather than a master key over every
+  future callee. **Proved to change nothing:** the old body was reproduced
+  verbatim and both were run over 960 combinations of mode, permission,
+  named groups, held groups and override, comparing the verdict AND the refusal
+  text, with zero disagreements. Two latent faults went with the move: the
+  message listing the legal modes had them hardcoded, so a fourth mode would
+  have shipped invisible, and it now derives them; and the refusal noun is the
+  caller's to supply, so a proxy refusing a call does not call itself a
+  connector. `t/unit/lib/54` holds all of it, four sabotages between them -
+  including one that checks the connector POINTS at the mode list rather than
+  holding a copy that happens to be equal today.
+
 ## 0.15.0 - EDGE: an unreadable store stops speaking for the site, and one table decides (2026-09-28)
 
 - SM905 U1 + U3 (d6829a04) **an uploaded file can reach a service, and a form can

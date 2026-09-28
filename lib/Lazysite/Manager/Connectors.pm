@@ -57,11 +57,12 @@ package Lazysite::Manager::Connectors;
 use strict;
 use warnings;
 use JSON::PP        ();
-use File::Path      qw(make_path);
-use Time::HiRes     ();
-use Lazysite::Util  qw(log_event secure_write_perms cannot_read);
-use Lazysite::Paths ();
-use Lazysite::Fetch ();    # SM790: the SSRF guard, shared with the other egress path
+use File::Path       qw(make_path);
+use Time::HiRes      ();
+use Lazysite::Util   qw(log_event secure_write_perms cannot_read);
+use Lazysite::Paths  ();
+use Lazysite::Fetch  ();    # SM790: the SSRF guard, shared with the other egress path
+use Lazysite::Egress ();    # X4: who may invoke - the policy, shared with the Odoo proxy
 
 # HOW MUCH OF A REMOTE'S ANSWER THIS INSTANCE WILL HOLD. One number, and since
 # SM790 it is both the user agent's max_size - so an oversized body is never
@@ -69,8 +70,12 @@ use Lazysite::Fetch ();    # SM790: the SSRF guard, shared with the other egress
 # here, above call(), because the agent is built there.
 our $ANSWER_CAP = 64 * 1024;
 
-our $DOCROOT         = '';
-our $MODES           = [qw(scheduled authenticated public)];
+our $DOCROOT = '';
+
+# The three modes are Lazysite::Egress's vocabulary since X4, not this module's.
+# Kept as a reference to the one list rather than a copy of it: a reader here
+# still finds the modes, and there is nothing to drift.
+our $MODES           = \@Lazysite::Egress::MODES;
 our $KEEP_CALLS_DAYS = 30;
 
 sub _dir          { return Lazysite::Paths::lazysite_dir($DOCROOT) . '/connectors' }
@@ -364,35 +369,28 @@ sub action_connector_delete {
 # handler says public, the scheduler says scheduled. The connector's modes
 # say what it permits. A caller in authenticated mode must also be in one of
 # the connector's `callers` groups or hold manage_connectors.
+#
+# X4 (2026-09-28) MOVED THE POLICY OUT and left this as the connector's way in.
+# The decision, the vocabulary and the refusal wording are Lazysite::Egress's
+# now, because the Odoo proxy leg has to sit inside the same policy rather than
+# beside it, and a second copy of a security rule is what SM662 spent a release
+# removing from the control API. What stays here is the part that is genuinely
+# the connector's: which modes THIS connector permits, which groups it names,
+# and that `manage_connectors` is its override.
+#
+# SM807's rule - NAME THE MODE THAT WOULD WORK, not only the one that did not -
+# travelled with the policy and is tested there.
 sub may_call {
     my ( $c, %ctx ) = @_;
-    my $mode = $ctx{mode} // '';
-    return ( 0, "mode '$mode' is not one of scheduled, authenticated, public" )
-        unless grep { $_ eq $mode } @$MODES;
-    # SM807: NAME THE MODE THAT WOULD WORK, not only the one that did not.
-    # This said what failed and left the caller to guess what would succeed -
-    # and for a connector whose whole point is that it runs on a timer, the
-    # word `scheduled` is the one that closes the question. The redirect
-    # refusal (SM790) sets the standard: give the reader the next step in the
-    # same sentence.
-    return ( 0,
-        "this connector does not permit $mode invocation"
-            . ( $mode eq 'public' ? ' - public is opt-in, set modes.public on the connector' : '' )
-            . do {
-            my @on = grep { $c->{modes}{$_} } @$MODES;
-            @on ? ' (it permits: ' . join( ', ', @on ) . ')' : ' (it permits no mode at all)';
-            } )
-        unless $c->{modes}{$mode};
-    if ( $mode eq 'authenticated' ) {
-        my $caps   = $ctx{caps} // {};
-        my @groups = ref $ctx{groups} eq 'ARRAY' ? @{ $ctx{groups} } : ();
-        return ( 1, '' ) if $caps->{manage_connectors};
-        my %in = map { $_ => 1 } @groups;
-        return ( 1, '' ) if grep { $in{$_} } @{ $c->{callers} || [] };
-        return ( 0, 'this account is in none of the groups the connector names as callers'
-                . ( @{ $c->{callers} || [] } ? ' (' . join( ', ', @{ $c->{callers} } ) . ')' : ' - and it names none' ) );
-    }
-    return ( 1, '' );
+    return Lazysite::Egress::may_invoke(
+        mode     => $ctx{mode},
+        what     => 'connector',
+        permits  => $c->{modes},
+        callers  => $c->{callers} || [],
+        groups   => $ctx{groups},
+        caps     => $ctx{caps} // {},
+        override => 'manage_connectors',
+    );
 }
 
 # HOW OFTEN: the connector's own cap, counted from the call record. Applies
