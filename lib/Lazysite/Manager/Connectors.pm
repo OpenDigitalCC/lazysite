@@ -33,7 +33,9 @@ package Lazysite::Manager::Connectors;
 #                    practice docs say so.
 #
 # The five decisions (2026-09-07): the answer lands in a data-table row;
-# form fields and table rows may be sent, never files; configuring a
+# form fields and table rows may be sent, and files only as the declared
+# `files` attachment list a handler opts into (the 2026-09-28 ruling on T7,
+# amending the 2026-09-07 "never files"); configuring a
 # connector needs manage_connectors (authority over where data goes);
 # every call is one audit row naming connector, trigger, mode and data
 # class - never the payload; a call that never answers is `unanswered`,
@@ -584,8 +586,10 @@ sub row_payload {
 
 # --- the call ----------------------------------------------------------------
 
-# Sends `payload` (a hash of form fields or a table row - never a file)
-# through connector `id`. Returns a hash the caller can show: ok, state,
+# Sends `payload` - a hash of form fields or a table row, whose values are text,
+# with the single exception of `files`: a list of { filename, type, size, data }
+# attachments a handler declared (T7's ruling) - through connector `id`.
+# Returns a hash the caller can show: ok, state,
 # http status, the answer (decoded JSON or text, capped), and the call id.
 # Every outcome is one line in the call record and one audit event; the
 # payload and the answer body are in neither.
@@ -642,9 +646,68 @@ sub call {
     }
 
     return _refused( $id, \%ctx, 'payload not a hash', 'a payload must be a hash of fields' ) unless ref $payload eq 'HASH';
-    for my $v ( values %$payload ) {
-        return _refused( $id, \%ctx, 'payload not flat', 'a payload carries text values only - never a file or a structure' ) if ref $v;
+
+    # SM905 U1 / T7 (ruled 2026-09-28): `files` IS THE ONE KEY THAT MAY HOLD A
+    # STRUCTURE, and everything else still may not.
+    #
+    # The flat rule was ruled with the rest of the connector model on
+    # 2026-09-07 - "form fields and table rows may be sent, never files" - and
+    # 0.15.0 shipped a handler that builds a files array anyway, so an uploaded
+    # photograph reached this line and stopped. Both halves were correct on
+    # their own terms and had never been run against each other on a host; the
+    # walk of TEST-PLAN-0150 found it with a control - same form, same handler,
+    # one field's difference.
+    #
+    # The release manager's ruling is the exception rather than a flattening:
+    # the rule exists to stop an ACCIDENTAL structure reaching a destination
+    # that expects text, and a declared, capped, opt-in array of files is not
+    # accidental. The connector is also the only outbound path that already
+    # carries the four controls SM579 demanded - a vetted destination, a
+    # credential, a rate cap and a record per call.
+    #
+    # WHAT THE EXCEPTION IS NOT: a licence for arbitrary structure. A files
+    # entry must be exactly the shape the email handler has always sent -
+    # filename, type, size, data - with plain scalars in all four, and any other
+    # reference anywhere in the payload is refused in the same words as before.
+    my $files = $payload->{files};
+    for my $k ( keys %{$payload} ) {
+        next if $k eq 'files';
+        return _refused( $id, \%ctx, 'payload not flat', 'a payload carries text values only - never a file or a structure' )
+            if ref $payload->{$k};
     }
+    my $file_bytes = 0;
+    if ( defined $files ) {
+        return _refused( $id, \%ctx, 'files not a list',
+            'files must be a list of attachments, each with filename, type, size and data' )
+            unless ref $files eq 'ARRAY';
+        for my $f ( @{$files} ) {
+            return _refused( $id, \%ctx, 'file not an attachment',
+                'each file must be filename, type, size and data, and nothing else' )
+                unless ref $f eq 'HASH'
+                && 4 == grep { defined $f->{$_} && !ref $f->{$_} } qw(filename type size data);
+            $file_bytes += length $f->{data};
+        }
+
+        # A GET carries its payload in the URL, and a base64 photograph in a
+        # query string is both a credential-bearing request no server will
+        # accept and a secret in every access log between here and there.
+        return _refused( $id, \%ctx, 'files need a POST',
+            'this connector uses GET, and files travel in a body - set the connector to POST' )
+            if ( $c->{method} // '' ) eq 'GET' && @{$files};
+
+        # `format: slack` renders the payload as lines of text. There is no
+        # honest rendering of a photograph there, and stringifying the
+        # attachment would send the word ARRAY.
+        return _refused( $id, \%ctx, 'files need the json format',
+            'a slack-format connector sends text lines, which cannot carry a file - use format: json' )
+            if ( $c->{format} // 'json' ) eq 'slack' && @{$files};
+    }
+
+    # From here the payload is OURS, not the caller's: an empty files list is
+    # dropped rather than sent as `"files":[]`, and nothing above this line has
+    # had its hash altered underneath it.
+    $payload = { %{$payload} };
+    delete $payload->{files} unless ref $files eq 'ARRAY' && @{$files};
 
     # A call never leaves without a credential this process cannot see.
     my $sec = _secrets();
@@ -740,10 +803,19 @@ sub call {
         :   'failed';
     my $answer = _answer_of($res);
 
+    # SM905 U1 / T7: the record never carries the payload, and it must still say
+    # that a FILE left the site. A count and a byte total are the two facts an
+    # operator reading the log needs and the two that disclose nothing about the
+    # content; without them a photograph leaving looks exactly like a form field
+    # leaving. Absent when no file was sent, so an old line and a new one are not
+    # made to look different for nothing.
     my $rec = {
         call_id => $call_id, connector => $id, mode => $ctx{mode}, actor => ( $ctx{actor} // '' ),
         trigger => ( $ctx{trigger} // '' ), data_class => $c->{data_class}, at => time,
         state   => $state, http => $res->code, ms => $ms,
+        ( $file_bytes
+            ? ( files => scalar @{$files}, file_bytes => $file_bytes )
+            : () ),
     };
     _record_call($rec);
     log_event( ( $state eq 'answered' ? 'INFO' : 'WARN' ), 'connectors', "connector call $state",

@@ -44,6 +44,37 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM905 U1 + SM579 (PENDING) **the uploaded photograph reaches the service now,
+  and the test that said it already did has been fixed too.** 0.15.0 claimed a
+  connector could carry an uploaded file and it could not: the handler built
+  `$payload{files}` as an array reference and `Connectors::call` refused any
+  payload value that was a reference - *"a payload carries text values only -
+  never a file or a structure"* - so the photograph reached the connector layer
+  and stopped. The edge walk of TEST-PLAN-0150 found it with a control: same
+  form, same handler, same connector, one field's difference, no file answered
+  and with a file refused. **Both halves were correct on their own terms and had
+  never been run against each other**, which is the class of gap that plan exists
+  to find. **The gate was worse than absent - it was misleading.**
+  `t/unit/forms/20` replaced `Connectors::call` with a stub accepting any
+  payload, so it certified for a whole release a shape the real code rejects: a
+  mock more permissive than the thing it stands for tests the mock. The real
+  coderef is kept before the replacement now, and the last subtest hands it
+  exactly what the handler built - verified by restoring the old rule and
+  watching that subtest fail. **The ruling (release manager, 2026-09-28) is an
+  exception, not a flattening:** `files` is the one key that may hold a structure
+  - a list of filename, type, size and data, the shape the email handler has
+  always sent - because the flat rule exists to stop an ACCIDENTAL structure
+  reaching a destination expecting text, and a declared, capped, opt-in
+  attachment list is not accidental. Every other reference is refused in the
+  words it always used. Three refusals arrive with it: a malformed attachment; a
+  **GET** connector, because a base64 photograph in a query string is a secret in
+  every access log between here and the destination; and a **slack-format**
+  connector, whose payload is lines of text and which would otherwise send the
+  word ARRAY. The call record gains `files` and `file_bytes`, so an operator can
+  see that a photograph left rather than a form field, and still holds no part of
+  the payload. This amends one of SM579's five decisions of 2026-09-07 and the
+  module header says so where a reader will find it.
+
 - SM877 (PENDING) **a form can answer the person who filled it in, and the cap is
   the feature.** The email handler's `to` is fixed at configuration time, so a
   site could notify its owner and could not acknowledge the visitor - every

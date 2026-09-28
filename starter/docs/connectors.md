@@ -88,7 +88,18 @@ a call through that connector is refused rather than sent without it, and
 no secret is written over a store that could not be read. Only `https://`
 destinations are accepted (plain `http://` to `127.0.0.1` or `localhost`,
 for a stand-in). The payload is a flat set of text fields - form fields or a
-table row - never a file.
+table row.
+
+**Files are the one exception, and a handler has to ask.** An email or connector
+handler with **Attach uploaded files** on adds a `files` list to the payload -
+each entry filename, type, size and base64 data - bounded by the handler's
+`attach_max_kb` ceiling, which refuses rather than truncating. Nothing else in a
+payload may be a structure: any other nested value is refused in the same words
+it always was. A connector that carries files must be **POST** and **format:
+json** - a base64 photograph in a GET query string would sit in every access log
+between here and the destination, and a Slack-format connector sends lines of
+text, which cannot hold a file. The call record says how many files went and how
+many bytes; it does not hold them, or any other part of the payload.
 
 ## Calling one
 

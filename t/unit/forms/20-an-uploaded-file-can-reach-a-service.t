@@ -28,9 +28,19 @@ $Lazysite::Handlers::DOCROOT = $docroot;
 
 # The connector is the thing under the handler, and this test is about what the
 # handler HANDS it. So the call is captured rather than performed.
+#
+# T7, 2026-09-28: THAT SENTENCE WAS TRUE AND THE STUB BELOW WAS THE GAP. It
+# accepts any payload at all, and the real `call` refuses a payload containing a
+# reference - so this file certified, for a whole release, a `files` array that
+# the layer beneath it rejected on the first live submission. A mock more
+# permissive than the thing it stands for does not test an interface; it tests
+# the mock. The real coderef is kept before the replacement and the last subtest
+# hands it exactly what the handler built.
+my $REAL_CALL;
 my @sent;
 {
     require Lazysite::Manager::Connectors;
+    $REAL_CALL = \&Lazysite::Manager::Connectors::call;
     no warnings 'redefine', 'once';
     *Lazysite::Manager::Connectors::call = sub {
         my ( $id, $payload, %opt ) = @_;
@@ -122,6 +132,88 @@ subtest 'asked for, with no files, changes nothing' => sub {
     ok( $r->{ok}, 'the call is made' );
     ok( !exists $sent[0]{payload}{files},
         'and no empty files array is invented' );
+};
+
+# --- T7: the two halves, run against each other -------------------------------
+#
+# Everything above asks what the handler BUILDS. This asks whether the connector
+# ACCEPTS it, which is the question that went unasked for a release. Nothing here
+# needs a server: a refusal happens before the wire, so an unroutable address is
+# enough to tell "refused for its shape" from "got as far as trying".
+subtest 'the payload the handler builds is one the real connector accepts' => sub {
+    plan skip_all => 'LWP not available' unless eval { require LWP::UserAgent; 1 };
+
+    require File::Path;
+    File::Path::make_path("$docroot/lazysite/connectors");
+    my %store = (
+        crm => { id => 'crm', name => 'CRM', url => 'http://127.0.0.1:1/in',
+            method => 'POST', format => 'json', modes => { public => 1 },
+            callers => [], data_class => 'submission' },
+        getter => { id => 'getter', name => 'Getter', url => 'http://127.0.0.1:1/in',
+            method => 'GET', format => 'json', modes => { public => 1 },
+            callers => [], data_class => 'submission' },
+        slacker => { id => 'slacker', name => 'Slacker', url => 'http://127.0.0.1:1/in',
+            method => 'POST', format => 'slack', modes => { public => 1 },
+            callers => [], data_class => 'submission' },
+    );
+    open my $fh, '>', "$docroot/lazysite/connectors/connectors.json" or die $!;
+    print {$fh} JSON::PP->new->encode( \%store );
+    close $fh;
+    local $Lazysite::Manager::Connectors::DOCROOT = $docroot;
+
+    # The payload the handler built for a photograph, taken from the capture
+    # above rather than hand-written, so this cannot drift from what ships.
+    deliver( { attach_files => 'true' }, a_photo() );
+    my $built = $sent[0]{payload};
+    ok( ref $built->{files} eq 'ARRAY', 'the handler built a files array' ) or return;
+
+    my $r = $REAL_CALL->( 'crm', $built, mode => 'public', trigger => 'contact' );
+    unlike( $r->{error} // '', qr/payload|flat|structure|file/i,
+        'the real connector does not refuse it for its shape' )
+        or diag( 'This is T7 exactly: the handler builds what the connector '
+            . 'rejects, and a permissive stub hid it for a release.' );
+    isnt( $r->{state}, 'refused', 'so the call got as far as the wire' );
+
+    # The record must say a file left. The payload is never in it; a count and a
+    # byte total are.
+    my $calls = Lazysite::Manager::Connectors::action_connector_calls();
+    my ($row) = grep { ( $_->{connector} // '' ) eq 'crm' } @{ $calls->{calls} || [] };
+    ok( $row, 'the call is recorded' ) or return;
+    is( $row->{files}, 1, 'and the record says one file went' );
+    ok( ( $row->{file_bytes} // 0 ) > 2000, 'with its byte total' );
+    ok( !exists $row->{payload}, 'and never the payload itself' );
+
+    # The exception is for `files` and nothing else.
+    my $bad = { name => 'Ada', extra => { nested => 1 } };
+    my $r2 = $REAL_CALL->( 'crm', $bad, mode => 'public', trigger => 'contact' );
+    is( $r2->{state}, 'refused', 'another structure is still refused' );
+    like( $r2->{error}, qr/text values only/, 'in the words it always used' );
+
+    for my $shape (
+        [ 'not a list',        'a string' ],
+        [ 'not attachments',   ['a string'] ],
+        [ 'missing a key',     [ { filename => 'p.jpg', data => 'x' } ] ],
+        [ 'a nested value',    [ { filename => 'p.jpg', type => 'image/jpeg',
+                    size => 1, data => { oops => 1 } } ] ],
+        )
+    {
+        my ( $label, $files ) = @$shape;
+        my $res = $REAL_CALL->( 'crm', { name => 'Ada', files => $files },
+            mode => 'public', trigger => 'contact' );
+        is( $res->{state}, 'refused', "files that are $label: refused" );
+        like( $res->{error}, qr/filename, type, size and data|list of attachments/,
+            "and the refusal says what an attachment is ($label)" );
+    }
+
+    my $get = $REAL_CALL->( 'getter', $built, mode => 'public', trigger => 'contact' );
+    is( $get->{state}, 'refused', 'a GET connector refuses files' );
+    like( $get->{error}, qr/files travel in a body/,
+        'because a base64 photograph in a query string is a secret in every log' );
+
+    my $slack = $REAL_CALL->( 'slacker', $built, mode => 'public', trigger => 'contact' );
+    is( $slack->{state}, 'refused', 'a slack-format connector refuses files' );
+    like( $slack->{error}, qr/cannot carry a file/,
+        'rather than sending the word ARRAY' );
 };
 
 done_testing();
