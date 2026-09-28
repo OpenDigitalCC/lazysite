@@ -44,6 +44,8 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.15.0 - EDGE: an unreadable store stops speaking for the site, and one table decides (2026-09-28)
+
 - SM905 U1 + U3 (d6829a04) **an uploaded file can reach a service, and a form can
   ask for the camera.** A visitor's photograph could be stored and could not be
   processed. The connector handler passed the visible text fields and never read
