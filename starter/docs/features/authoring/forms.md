@@ -121,6 +121,26 @@ to the notification email and listed (name + size) below the message. Leave it o
 to keep emails small and just store the files; mind your mail server's attachment
 size limits when enabling it.
 
+**Acknowledging the submitter.** By default an email handler writes to the one
+address you configured. Set **Also acknowledge the submitter**
+(`mail_the_submitter_field`) to the name of a form field holding an email address,
+and the site sends a **second, separate** message to whatever that field contains -
+a receipt, a booking confirmation, a copy of what somebody signed. Separate, not a
+second `To:`, so your own address never lands in a stranger's inbox.
+
+The address comes from the submission, which means a stranger chooses it, so two
+caps come with it and both count per hour:
+
+    mail_the_submitter_field: email
+    submitter_per_destination_hour: 3     # to any one address
+    submitter_per_site_hour: 60           # from this site, across every form
+
+If a cap is reached, or the field is missing, empty or not an address, **your own
+notification still goes** and the reason is recorded against that delivery in the
+audit trail - the submission is not failed for it. Raise the caps if a real burst
+needs more; the default site cap sits above one lead form's busiest hour rather
+than at it.
+
 ### Example
 
     ---

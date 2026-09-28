@@ -17,15 +17,25 @@ package Lazysite::Egress;
 # security decision is the shape SM662 had just finished removing from the
 # control API's capability gate.
 #
-# WHAT BELONGS HERE: the question "may this caller cause this callee to be
-# invoked", and the vocabulary that question is asked in. Nothing else. In
-# particular NOT:
+# WHAT BELONGS HERE: the two questions that are the same wherever something
+# leaves this site - "may this caller cause this callee to be invoked", and
+# "has this already happened too often" - and the vocabulary they are asked in.
+#
+# AN EARLIER VERSION OF THIS HEADER PUT CAPS OUTSIDE, and that was too broad a
+# line. It said a cap "is counted from a call RECORD, so it belongs with
+# whatever holds the records". The counting does. The DECISION does not: every
+# caller needs the same answer to "which axis was breached, by how much, and
+# what does the operator change", and SM579 says in its own words that SM747's
+# per-identity cap "should be this one rather than a second implementation". So
+# the split is: the caller counts, because only it knows its own records; this
+# module decides and words the refusal.
+#
+# Still NOT here:
 #
 #   * the transport - what a user agent may follow, verify or read. That is
 #     Lazysite::Fetch's SSRF guard for content-chosen destinations and the
 #     connector's own agent for operator-chosen ones (SM790).
-#   * rate or spend caps. A cap is counted from a call RECORD, so it belongs
-#     with whatever holds the records; SM579 still owns both as open rows.
+#   * the records themselves. Nothing here opens a file.
 #   * credentials. Where a secret lives and how it reaches the wire is the
 #     callee's business and differs per caller kind by design - a connector
 #     holds one operator secret, the Odoo proxy holds none and replays the
@@ -117,6 +127,60 @@ sub may_invoke {
                 : ' - and it names none' ) );
     }
 
+    return ( 1, '' );
+}
+
+# within_caps( %args ) -> ( $ok, $why )
+#
+#   what   the noun for messages, as above
+#   axes   an ordered list of { name, limit, used, window, setting }, MOST
+#          SPECIFIC FIRST. The first breach is the one reported, because
+#          "this recipient has had three already" tells an operator more than
+#          "the site has sent sixty", and a refusal that reports the widest
+#          axis sends them looking in the wrong place.
+#
+# THE COUNTING IS THE CALLER'S. Only it knows where its records are. What it
+# passes here is the answer, and `used` has THREE states rather than two:
+#
+#   a number  - counted
+#   undef     - COULD NOT COUNT, which is not zero
+#
+# An axis whose count could not be taken REFUSES. This is the release's own
+# lesson applied to a cap: a counter that will not open must not read as "this
+# has never happened", because that is the one reading that disables the control
+# exactly when something is wrong. A cap honoured only while its record is
+# readable is not a cap.
+#
+# A `limit` of undef means the caller declares NO cap on that axis, which is a
+# different statement from a cap of zero: zero refuses everything, undef does
+# not look. It is skipped, and the caller's own defaults decide whether that can
+# happen - for a path that mails an address a stranger supplied, it must not.
+sub within_caps {
+    my (%a)  = @_;
+    my $what = $a{what} // 'callee';
+    my @axes = ref $a{axes} eq 'ARRAY' ? @{ $a{axes} } : ();
+
+    for my $ax (@axes) {
+        next unless ref $ax eq 'HASH';
+        my $name    = $ax->{name}    // 'unnamed';
+        my $window  = $ax->{window}  // 'hour';
+        my $setting = $ax->{setting} // '';
+
+        if ( !defined $ax->{used} ) {
+            return ( 0,
+                "this $what cannot tell how much of its $name cap is already "
+                    . "used - the record would not open, so the cap cannot be "
+                    . "honoured and nothing was sent (see the event log)" );
+        }
+        next unless defined $ax->{limit};
+
+        if ( $ax->{used} >= $ax->{limit} ) {
+            return ( 0,
+                "this $what has reached its $name cap: $ax->{used} already in "
+                    . "this $window and the cap is $ax->{limit}"
+                    . ( length $setting ? " - raise $setting to allow more" : '' ) );
+        }
+    }
     return ( 1, '' );
 }
 

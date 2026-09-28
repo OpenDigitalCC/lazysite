@@ -44,6 +44,34 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM877 (PENDING) **a form can answer the person who filled it in, and the cap is
+  the feature.** The email handler's `to` is fixed at configuration time, so a
+  site could notify its owner and could not acknowledge the visitor - every
+  receipt, booking confirmation and copy-of-what-you-signed needs the other
+  direction. Set `mail_the_submitter_field` to a form field holding an address and
+  the site sends a **second, separate** message to whatever it contains; leave it
+  blank and nothing changes. **The requester's proposed mitigation did not hold,
+  and the filing had already measured why:** the form rate limiter is keyed per
+  source IP, so it bounds how often one sender submits and says nothing about how
+  many destinations the site will write to - and the party being harmed is the
+  recipient, who that limit does not protect. So the axes are **per recipient**
+  (3/hour) and **per site** (60/hour). The site default sits deliberately above a
+  real burst rather than at it: one lead form took 18 in an hour at an expo, so a
+  cap of 20 would have refused a good day. **Four refusals that are all the same
+  rule.** An absent field, an empty one and a malformed address each refuse
+  instead of guessing; and a counter that cannot be READ refuses too, because a
+  cap honoured only while its record is readable is not a cap - the same reading
+  this release is named for. **The operator's copy always goes**, the submission is
+  never failed for a capped courtesy, and the reason is not silent: it travels into
+  the delivery's audit record, whose state stays `ok` because the delivery did
+  happen, in the detail field that was empty until now. The record holds a hash of
+  the recipient and never the address, so the counter cannot become a mailing list.
+  Not a separate handler type - the filing's worry that `to_field:` hides what it
+  switches on is answered by the key's name, because SM842 spent a release removing
+  types that duplicated a delivery path. `t/unit/forms/22`, five sabotages; one of
+  them escaped first time round and was a duplicate hash key that changed nothing,
+  which is worth knowing: a sabotage has to be checked for having had an effect.
+
 - SM579 + SM747 X4 (PENDING) **who may make this site send something outward is
   one policy, and it is no longer the connector's private business.** The three
   invocation modes were ruled in September and described from the start as the

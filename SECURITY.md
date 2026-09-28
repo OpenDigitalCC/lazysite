@@ -68,6 +68,20 @@ Key operational points (full detail in `docs/architecture/security.md`):
   (`public: 1`, off by default); bound the fields such a form sends (fixed
   choices, not free text). Every call is audited by connector, trigger, mode
   and data class - never the payload - and rate-capped per connector.
+- **A form that acknowledges the submitter mails an address a stranger chose
+  (SM877).** An email handler writes only to the address you configured until
+  you set `mail_the_submitter_field`; from then on the site also sends a
+  separate message to whatever that form field holds. That is deliberate and it
+  is an open-relay surface, so it is capped on the two axes that matter - per
+  recipient and per site, both per hour, `submitter_per_destination_hour` (3)
+  and `submitter_per_site_hour` (60). **The form's own rate limit does not
+  protect this**: it is keyed per source IP, so it bounds how often one sender
+  submits and says nothing about how many destinations the site will write to,
+  and the party being harmed is the recipient. A cap that cannot be counted -
+  because the record will not open - refuses the acknowledgement rather than
+  treating an unreadable counter as an empty one. Your own notification always
+  goes, and anything refused is recorded against that delivery in the audit
+  trail.
 - **Grant manager access through groups.** Manager access is
   carried by groups only: the `ui` capability admits a group's
   members to the manager UI, and `manage_users` carries the

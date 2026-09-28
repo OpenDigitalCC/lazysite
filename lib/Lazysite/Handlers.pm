@@ -85,6 +85,34 @@ our %TYPES      = (
                 default => 'false',
                 note => 'Files uploaded with a form are attached and listed (name and size) '
                     . 'below the message. Mind the mail server\'s attachment limits.' },
+            # SM877: THE KEY IS NAMED FOR WHAT IT TURNS ON, not for the
+            # mechanism. The filing's own shape was `to_field`, and its own
+            # objection to it was that "an operator reading to_field: on a
+            # familiar handler may not register what they have switched on".
+            # The alternative considered was a separate handler type; that was
+            # refused because SM842 spent a release REMOVING types that
+            # duplicated a delivery path, and this duplicates the whole of one.
+            # So: the same type, and a key that says the site will write to a
+            # stranger.
+            { key => 'mail_the_submitter_field', label => 'Also acknowledge the submitter',
+                type => 'text',
+                note => 'The name of a form field holding an email address. Set it and the '
+                    . 'site sends a SECOND, separate message to whatever address that '
+                    . 'field contains - an acknowledgement, receipt or confirmation. '
+                    . 'Leave it blank and nothing changes. The address comes from the '
+                    . 'submission, so the two caps below are what stand between this and '
+                    . 'an open relay.' },
+            { key => 'submitter_per_destination_hour',
+                label   => 'Cap: messages to one address per hour', type => 'text',
+                default => '3',
+                note    => 'Counted per recipient. An acknowledgement flow needs one; an '
+                    . 'attacker aiming at one inbox needs many.' },
+            { key => 'submitter_per_site_hour',
+                label => 'Cap: acknowledgements from this site per hour', type => 'text',
+                default => '60',
+                note => 'Counted across every form. The default is deliberately above a '
+                    . 'real burst - one lead form took 18 in an hour at an expo - so it '
+                    . 'bounds abuse without refusing a good day.' },
         ],
         note => 'How mail leaves the site - sendmail or an SMTP server - is the Form SMTP '
             . 'extension\'s configuration, shared by every email handler.',
@@ -197,6 +225,26 @@ sub forms_dir     { my $lz = _lz();       return defined $lz ? "$lz/forms"      
 sub handlers_file { my $d  = forms_dir(); return defined $d ? "$d/handlers.conf" : undef }
 sub schedule_file { my $d  = forms_dir(); return defined $d ? "$d/schedule.conf" : undef }
 sub form_file     { my $d  = forms_dir(); return defined $d ? "$d/$_[0].conf"    : undef }
+
+# SM877: THE COUNTER FOR MAIL THIS SITE SENDS TO ADDRESSES IT WAS GIVEN.
+#
+# It holds a timestamp and a HASH of the recipient, never the address. Two
+# reasons, and the second is the one that matters: a counter needs to know
+# "this one again", not who; and a file of every address a site has ever
+# acknowledged is a mailing list, which is not what anybody agreed to when they
+# filled in a form. The hash is enough to count and useless to mail.
+#
+# It lives under lazysite/forms/, which Lazysite::Stores already classifies as a
+# store with this module as its reader - so no new catalogue entry, and the
+# four-state rule already applies here.
+#
+# It sits BELOW the aligned block above rather than inside it: a multi-line sub
+# dropped in the middle of those one-liners breaks the column perltidy aligns
+# them on, and four untouched lines would have re-flowed to pay for one new one.
+sub submitter_mail_file {
+    my $d = forms_dir();
+    return defined $d ? "$d/submitter-mail.jsonl" : undef;
+}
 
 # Where a file handler's store is. A path under lazysite/ is in the ENGINE tree,
 # which is not always inside the docroot (SM293 moves it beside it); an absolute
@@ -1076,9 +1124,15 @@ sub deliver {
     }
     $r->{handler} = $id;
     _audit_delivery( $id, $r, \%ctx );
-    log_event( ( $r->{ok} ? 'INFO' : 'WARN' ), 'handlers',
+    log_event(
+        ( $r->{ok} && !length( $r->{note} // '' ) ? 'INFO' : 'WARN' ),
+        'handlers',
         ( $r->{ok} ? 'delivered' : 'not delivered' ),
-        handler => $id, source => $ctx{source}, ( $r->{ok} ? () : ( why => $r->{why} // '' ) ) );
+        handler => $id,
+        source  => $ctx{source},
+        ( $r->{ok}
+            ? ( length( $r->{note} // '' ) ? ( note => $r->{note} ) : () )
+            : ( why => $r->{why} // '' ) ) );
     return $r;
 }
 
@@ -1099,9 +1153,15 @@ sub _audit_delivery {
         require Lazysite::Audit;
         no warnings 'once';
         local $Lazysite::Audit::LAZYSITE_DIR = _lz();
+        # SM877: a delivery that SUCCEEDED may still have something to say - an
+        # acknowledgement the cap refused, say. The state stays `ok`, because
+        # the delivery did happen and a reader counting failures must not be
+        # told otherwise; the detail field, empty until now for a success,
+        # carries the note. A partial that appears nowhere is the silence this
+        # release spent its time removing.
         Lazysite::Audit::audit_log( $ctx->{actor} // '', 'deliver', "$ctx->{source} -> $id",
             $ctx->{ip} // '', ( $r->{ok} ? 'ok' : 'failed' ), $ctx->{origin},
-            ( $r->{ok} ? '' : $r->{why} // '' ) );
+            ( $r->{ok} ? $r->{note} // '' : $r->{why} // '' ) );
         1;
     };
     return;
@@ -1249,18 +1309,170 @@ sub _to_smtp {
                     data => MIME::Base64::encode_base64( $_->{data} // '' ) }
         } @{ $ctx->{files} } ];
     }
+    my $r = _run_smtp_script( $script, \%payload );
+    return { ok => 0, why => 'the mail was not sent: ' . ( $r->{error} // 'no answer' ) }
+        unless $r->{ok};
+
+    # SM877: THE OPERATOR'S COPY HAS ALREADY GONE, and the acknowledgement is a
+    # second delivery that may fail on its own. It does not fail the submission:
+    # the site got what it was told about, and a visitor whose form worked
+    # should not be shown a failure because a cap stopped a courtesy message.
+    # But it must not be silent either, so the reason travels on `note`, which
+    # reaches the delivery's audit record and the event log.
+    my $note = _acknowledge_submitter( $h, $fields, $ctx, $script );
+    return length $note ? { ok => 1, note => $note } : { ok => 1 };
+}
+
+sub _run_smtp_script {
+    my ( $script, $payload ) = @_;
     require IPC::Open2;
     local $ENV{DOCUMENT_ROOT} = $DOCROOT;
     my ( $out, $in );
     my $pid = eval { IPC::Open2::open2( $out, $in, $^X, $script, '--pipe' ) }
-        or return { ok => 0, why => "cannot run the Form SMTP script: $@" };
-    print {$in} JSON::PP::encode_json( \%payload );
+        or return { ok => 0, error => "cannot run the Form SMTP script: $@" };
+    print {$in} JSON::PP::encode_json($payload);
     close $in;
     my $res = do { local $/; <$out> };
     close $out;
     waitpid $pid, 0;
-    my $r = eval { JSON::PP::decode_json( $res // '' ) } // {};
-    return $r->{ok} ? { ok => 1 } : { ok => 0, why => 'the mail was not sent: ' . ( $r->{error} // 'no answer' ) };
+    return eval { JSON::PP::decode_json( $res // '' ) } // {};
+}
+
+# --- SM877: acknowledging the person who filled the form in -------------------
+
+# The address the site will write to, or a refusal that names what is wrong.
+# REFUSE RATHER THAN GUESS: an absent field and an empty one are both refusals,
+# because a blank is the value a mistake produces and "send it nowhere" is not a
+# thing anybody configured. The pattern is the one the schema's own `email` type
+# uses (see _check_field), so the two agree about what an address is.
+sub _submitter_address {
+    my ( $h, $fields ) = @_;
+    my $key = $h->{mail_the_submitter_field};
+    return ( undef, '' ) unless defined $key && length $key;
+
+    my $v = $fields->{$key};
+    return ( undef, "the form has no field '$key', so there is no address to "
+            . 'acknowledge - nothing was sent to the submitter' )
+        unless exists $fields->{$key};
+    return ( undef, "the form's '$key' field is empty, so there is no address to "
+            . 'acknowledge - nothing was sent to the submitter' )
+        unless defined $v && length $v;
+    return ( undef, "the form's '$key' field is not an email address, so nothing "
+            . 'was sent to the submitter' )
+        unless $v =~ /\A[^\s@]+@[^\s@]+\z/;
+    return ( $v, '' );
+}
+
+sub _submitter_key {
+    my ($addr) = @_;
+    require Digest::SHA;
+    return substr Digest::SHA::sha256_hex( lc $addr ), 0, 24;
+}
+
+# ( $per_destination, $per_site ) within the last hour, or ( undef, undef ) when
+# the record exists and will not open. UNDEF IS NOT ZERO and the cap policy
+# refuses on it: a counter nobody can read must not read as "this has never
+# happened", which is the one reading that switches the control off exactly when
+# something is wrong. An ABSENT record is a genuine zero - nothing has been sent
+# yet - and says so.
+sub _submitter_counts {
+    my ($key) = @_;
+    my $path = submitter_mail_file();
+    return ( undef, undef ) unless defined $path;
+
+    open my $fh, '<:utf8', $path or do {
+        return ( 0, 0 ) if $!{ENOENT};
+        cannot_read( 'the submitter-mail record', $path );
+        return ( undef, undef );
+    };
+    my $since = time - 3600;
+    my ( $dest, $site ) = ( 0, 0 );
+    while ( my $line = <$fh> ) {
+        my $r = eval { JSON::PP::decode_json($line) } or next;
+        next unless ref $r eq 'HASH' && ( $r->{t} // 0 ) >= $since;
+        $site++;
+        $dest++ if ( $r->{d} // '' ) eq $key;
+    }
+    close $fh;
+    return ( $dest, $site );
+}
+
+sub _record_submitter_send {
+    my ($key) = @_;
+    my $path = submitter_mail_file();
+    return unless defined $path;
+    my $dir = dirname($path);
+    eval { make_path($dir) unless -d $dir; 1 } or return;
+    open my $fh, '>>:utf8', $path or do {
+        log_event( 'WARN', 'handlers',
+            'cannot record an acknowledgement, so its cap cannot count it',
+            file => $path, error => "$!" );
+        return;
+    };
+    flock $fh, LOCK_EX;
+    print {$fh} JSON::PP::encode_json( { t => time, d => $key } ), "\n";
+    close $fh;
+    return;
+}
+
+# A cap read from configuration. A missing value takes the schema's default; a
+# value that is not a whole number falls back to it as well rather than to NO
+# cap, which is the trap SM905's ceiling walked into - a non-numeric limit
+# numifies to zero, and zero here would refuse every acknowledgement while
+# looking like a configuration that permits them.
+sub _submitter_cap {
+    my ( $h, $key, $default ) = @_;
+    my $v = $h->{$key};
+    return $default unless defined $v && $v =~ /\A\d+\z/;
+    return 0 + $v;
+}
+
+# Sends the second, separate message. Returns '' when it went, or the reason it
+# did not. A SEPARATE DELIVERY RATHER THAN A SECOND `To:` - the requester's own
+# point, and for their reason: one message addressed to both would put the
+# operator's address in a stranger's inbox.
+sub _acknowledge_submitter {
+    my ( $h, $fields, $ctx, $script ) = @_;
+
+    my ( $addr, $why ) = _submitter_address( $h, $fields );
+    return $why unless defined $addr;
+
+    my $key = _submitter_key($addr);
+    my ( $dest, $site ) = _submitter_counts($key);
+
+    require Lazysite::Egress;
+    my ( $ok, $refusal ) = Lazysite::Egress::within_caps(
+        what => 'form',
+        axes => [
+            { name => 'per-recipient',
+                limit   => _submitter_cap( $h, 'submitter_per_destination_hour', 3 ),
+                used    => $dest,
+                window  => 'hour',
+                setting => 'submitter_per_destination_hour',
+            },
+            { name => 'per-site',
+                limit   => _submitter_cap( $h, 'submitter_per_site_hour', 60 ),
+                used    => $site,
+                window  => 'hour',
+                setting => 'submitter_per_site_hour',
+            },
+        ],
+    );
+    return $refusal unless $ok;
+
+    # The acknowledgement carries the submission's visible fields, like the
+    # operator's copy, and NEVER the uploaded files: the submitter sent those,
+    # and mailing them back is volume without information.
+    my %payload = (
+        config => { %$h, to => $addr },
+        form   => { _visible($fields) },
+    );
+    my $r = _run_smtp_script( $script, \%payload );
+    return 'the acknowledgement was not sent: ' . ( $r->{error} // 'no answer' )
+        unless $r->{ok};
+
+    _record_submitter_send($key);
+    return '';
 }
 
 sub _find_script {
