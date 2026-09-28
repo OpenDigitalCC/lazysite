@@ -120,12 +120,24 @@ subtest 'a probe that confirmed nothing does not fail the deploy' => sub {
     # The exposure branch sets the failure exit; the not-confirmed branch must
     # not. Scoped to each block rather than matched across the whole file, which
     # is what made the first version of this assertion pass incorrectly.
-    like( $sh_src, qr/exit\( \@exposed \? 1 : 0 \)/,
+    #
+    # SM912 P2 SPLIT THE OTHER HALF IN TWO and this assertion moved with it. It
+    # used to read `exit( @exposed ? 1 : 0 )`, which was right about failure and
+    # silent about everything else - so "nothing exposed" and "nothing measured"
+    # left the command identically, and the fleet script, which reads the exit
+    # code and nothing else, counted a skipped probe as clean. This file's own
+    # next subtest shows the summary was printing three numbers in WORDS the
+    # whole time; only the status collapsed them.
+    like( $sh_src, qr/exit 1 if \@exposed;/,
         'only an exposure sets the failure exit' )
         or diag( 'A site that could not be measured must not fail the command: '
             . 'absence of evidence is not evidence of exposure, and failing on '
             . 'it trains an operator to ignore the status the real exposure '
             . 'uses.' );
+    like( $sh_src, qr/exit 3 if \@unconfirmed;/,
+        'and a probe that measured nothing says so in its own code' )
+        or diag( 'Three answers, three statuses. 1 stays exposure only so that '
+            . 'no caller reading non-zero as exposure becomes wrong.' );
 };
 
 subtest 'the three counts are reported separately' => sub {
