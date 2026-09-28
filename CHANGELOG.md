@@ -79,6 +79,31 @@ Naming the commit: AFTER it lands, never before
   never wrong, only unset. It is a sub now, which has no order to get wrong. A
   `Name used only once` warning from the same edit printed INTO the probe's own
   output, where the integration test reads it as the probe's answer.
+- SM824 (PENDING) **every page says what it is, in schema.org JSON-LD, and no
+  author had to type anything.** The load-bearing constraint was no new authoring
+  burden, so every value comes from front matter and site config that already
+  exist: the title, the site name, the site URL, and a description that is
+  `meta_desc` or the subtitle. **Nothing is asserted that the site does not have**
+  - author and dates are commonly absent, and a block claiming an author a page
+  never carried publishes a false statement about that page. **`Article` is never
+  inferred**: a page with a date *and* an author is still a `WebPage`, because
+  guessing the type from a date is inference published as fact; `schema_type:` in
+  front matter is the only way to get another type, it lands as a **second** type
+  rather than replacing `WebPage`, and anything that is not one bounded word is
+  ignored rather than emitted. Injected beside SM112's generator meta and SM151's
+  canonical link, on both the real-layout and the no-layout paths, so a site
+  running its own layout is not a site without structured data - and a layout that
+  emits its own block keeps it. **The escaping boundary had two halves and both
+  bite:** `</script>` inside a JSON string ends the block in a browser however
+  well-formed the JSON is, so every `</` is written `<\/`; and these values arrive
+  HTML-escaped for the `<title>` tag, which would put `&amp;` inside a JSON string
+  where an ampersand means nothing, so they are decoded by the exact inverse
+  first. `_canonical_path` was factored out of the canonical-link injector rather
+  than copied - two answers to "which URL is this page" is how a canonical link
+  and a JSON-LD `url` come to disagree about the same page. `t/unit/render/71`,
+  four sabotages; twice while writing it I picked the wrong node out of the graph
+  and got the `WebSite` where I meant the page, which let a sabotage pass until one
+  helper made every subtest ask the same way.
 
 - SM913 S1 + S3 (PENDING) **the quarantine sees the spam that actually arrives.**
   Four of four genuine-looking submissions on a live contact form were spam, read

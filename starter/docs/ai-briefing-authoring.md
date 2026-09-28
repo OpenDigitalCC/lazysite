@@ -67,6 +67,17 @@ header, and footer.
 : The `<title>` tag, when it should differ from the on-page title. Optional;
   falls back to `title`.
 
+`schema_type`
+: A schema.org type for this page, on top of `WebPage`. Optional, and **you
+  almost never need it**: every page already emits schema.org JSON-LD in its
+  `<head>` - site, page, title, description - built from what the page and the
+  site config already carry, with no key from you at all. Set this only when the
+  page really is a richer thing: `schema_type: Article` on a post,
+  `schema_type: Event` on an event. One word, letters and digits; anything else
+  is ignored rather than published. Nothing is ever inferred - a page with a date
+  and an author is still a `WebPage` unless it says otherwise, because guessing
+  would publish a claim about your page that you did not make.
+
 `ttl`
 : Cache TTL in seconds. The page regenerates after this interval rather
   than on `.md` file edit. Example: `ttl: 300`.

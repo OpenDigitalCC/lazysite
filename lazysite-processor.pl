@@ -7455,8 +7455,11 @@ sub render_content {
         # already named as frozen front-matter in ADR 0008 and neither existed.
         page_meta_desc =>
             _esc_html( $meta->{meta_desc} // $meta->{subtitle} ),
-        page_meta_title   => _esc_html( $meta->{meta_title} // $meta->{title} ),
-        page_author       => _esc_html( $meta->{author} ),
+        page_meta_title => _esc_html( $meta->{meta_title} // $meta->{title} ),
+        page_author     => _esc_html( $meta->{author} ),
+        # SM824: the schema.org type a page DECLARES, and nothing inferred. Empty
+        # for the ordinary page, which is the whole point - see _inject_jsonld.
+        page_schema_type  => _esc_html( $meta->{schema_type} ),
         page_modified     => $meta->{page_modified}     || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
         # SM796: escaped, like every other client-influenced value entering
@@ -8068,6 +8071,9 @@ sub render_template {
         # site would silently lose its generator meta and its canonical link.
         $output = _inject_meta( $output, $vars );
         $output = _inject_canonical( $output, $vars );
+        # SM824: and the JSON-LD, for the same reason - a fallback site is still
+        # a site a search engine reads.
+        $output = _inject_jsonld( $output, $vars );
 
         # DP-3b, for the reason stated immediately above and worth stating
         # once more because it caught me: a no-layout site would otherwise
@@ -8191,6 +8197,11 @@ sub render_template {
     # per-host page cache. Skipped when a layout already emitted a canonical or
     # site_url is unset.
     $output = _inject_canonical( $output, $vars );
+
+    # SM824: schema.org JSON-LD, from metadata the page already has, and injected
+    # here for the same reason the two above are - so a site running its own
+    # layout is not a site without structured data.
+    $output = _inject_jsonld( $output, $vars );
 
     # SM099: client-side sign-in/out so a shared cached page never shows the wrong
     # auth control. Toggles [data-ls-auth-in]/[data-ls-auth-out] from the lzs_session
@@ -8424,6 +8435,19 @@ sub _inject_meta {
 # is the request's own clean URL (extension stripped, /index collapsed to /).
 # No-ops when: the head is absent, site_url is unset, or the layout already
 # emitted a canonical (the engine defers to an explicit one).
+# The page's own address, as this request would have it. Factored out when SM824
+# needed the same answer: two copies of "which URL is this page" is how a
+# canonical link and a JSON-LD `url` come to disagree about the same page.
+sub _canonical_path {
+    my $path = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '/';
+    $path =~ s/[?#].*$//;                # drop query / fragment
+    $path = "/$path" unless $path =~ m{^/};
+    $path =~ s{\.(?:html|md|url)$}{};    # clean serving extension
+    $path =~ s{/index$}{/};              # /foo/index -> /foo/
+    $path = '/' if $path eq q{} || $path eq '/index';
+    return $path;
+}
+
 sub _inject_canonical {
     my ( $html, $vars ) = @_;
     return $html unless $html =~ /<head[^>]*>/i;
@@ -8433,12 +8457,7 @@ sub _inject_canonical {
     return $html unless defined $base && length $base;
     $base =~ s{/+$}{};
 
-    my $path = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '/';
-    $path =~ s/[?#].*$//;                # drop query / fragment
-    $path = "/$path" unless $path =~ m{^/};
-    $path =~ s{\.(?:html|md|url)$}{};    # clean serving extension
-    $path =~ s{/index$}{/};              # /foo/index -> /foo/
-    $path = '/' if $path eq q{} || $path eq '/index';
+    my $path = _canonical_path();
 
     my $href = $base . $path;
     $href =~ s/&/&amp;/g;
@@ -8447,6 +8466,94 @@ sub _inject_canonical {
     $href =~ s/"/&quot;/g;
 
     my $tag = qq{\n    <link rel="canonical" href="$href">};
+    $html =~ s/(<head[^>]*>)/$1$tag/i;
+    return $html;
+}
+
+# SM824: schema.org JSON-LD, from metadata the page already has.
+#
+# THE LOAD-BEARING CONSTRAINT IS NO NEW AUTHORING BURDEN. If an author has to add
+# anything for the ordinary page, this was built wrong - so every value here comes
+# from front matter and site config that already exist, and a page that declares
+# nothing still gets a correct block.
+#
+# THE FOUR THINGS THE FILING SAID TO AUDIT FIRST, ANSWERED:
+#
+#   * WHAT METADATA RELIABLY EXISTS. A title always (a page without one does not
+#     render), the site name and site_url from config, and a description that is
+#     meta_desc or the subtitle. Author and dates are COMMONLY ABSENT, so nothing
+#     here asserts them: a block claiming an author the site does not have
+#     publishes a false statement about the page, which is worse than no block.
+#   * WHERE TO EMIT IT WITHOUT EVERY LAYOUT OPTING IN. Here, beside SM112's
+#     generator meta and SM151's canonical link, which are injected on both the
+#     real-layout and the no-layout paths for exactly this reason. A site running
+#     its own layout gets it by construction, and a layout that emits its own
+#     ld+json keeps it - this defers rather than duplicating.
+#   * WHETHER `Article` IS EVER RIGHT BY DEFAULT. No. Most lazysite pages are not
+#     articles, and guessing the type from the presence of a date would be
+#     inference published as fact. `WebPage` is the default and the only way to
+#     get anything else is to say so: `schema_type: Article` in front matter,
+#     which lands as a SECOND type on the page node rather than replacing it.
+#   * THE ESCAPING BOUNDARY, which has two halves and both bite. JSON encoding is
+#     the first. The second is that `</script>` inside a JSON string ends the
+#     block in the browser however well-formed the JSON is, so every `</` is
+#     written `<\/` - legal JSON, inert HTML. And the values arrive HTML-ESCAPED
+#     (page_meta_title is `_esc_html`'d for the <title> tag), which would put
+#     `&amp;` inside a JSON string where the ampersand means nothing - so they are
+#     decoded back first, by the exact inverse.
+sub _unesc_html {
+    my ($s) = @_;
+    return '' unless defined $s;
+    $s =~ s/&#39;/'/g;
+    $s =~ s/&quot;/"/g;
+    $s =~ s/&gt;/>/g;
+    $s =~ s/&lt;/</g;
+    $s =~ s/&amp;/&/g;    # last, or an escaped entity decodes twice
+    return $s;
+}
+
+sub _inject_jsonld {
+    my ( $html, $vars ) = @_;
+    return $html unless $html =~ /<head[^>]*>/i;
+    return $html if $html     =~ m{application/ld\+json}i;
+
+    my $base = $vars->{site_url};
+    return $html unless defined $base && length $base;
+    $base =~ s{/+$}{};
+
+    my $title = _unesc_html( $vars->{page_meta_title} );
+    return $html unless length $title;
+
+    my $url  = $base . _canonical_path();
+    my $desc = _unesc_html( $vars->{page_meta_desc} );
+    my $site = _unesc_html( $vars->{site_name} );
+
+    my @types    = ('WebPage');
+    my $declared = _unesc_html( $vars->{page_schema_type} );
+    push @types, $declared if $declared =~ /\A[A-Za-z][A-Za-z0-9]{1,40}\z/;
+
+    my %page = (
+        '@type' => ( @types > 1 ? \@types : $types[0] ),
+        '@id'   => $url,
+        url     => $url,
+        name    => $title,
+        ( length $desc ? ( description => $desc ) : () ),
+        ( length $site ? ( isPartOf => { '@type' => 'WebSite', '@id' => "$base/" } ) : () ),
+    );
+    my @graph = ( \%page );
+    unshift @graph,
+        { '@type' => 'WebSite', '@id' => "$base/", url => "$base/", name => $site }
+        if length $site;
+
+    my $json = eval {
+        require JSON::PP;
+        JSON::PP->new->canonical->encode(
+            { '@context' => 'https://schema.org', '@graph' => \@graph } );
+    };
+    return $html unless defined $json && length $json;
+    $json =~ s{</}{<\\/}g;
+
+    my $tag = qq{\n    <script type="application/ld+json">$json</script>};
     $html =~ s/(<head[^>]*>)/$1$tag/i;
     return $html;
 }
