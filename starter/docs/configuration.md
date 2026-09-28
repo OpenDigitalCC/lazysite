@@ -193,6 +193,20 @@ Rules:
   API (add, configure, remove, and per-domain access). The language keys
   (`lang`, `lang_group`) are set in the conf or via the `domain-set`
   control-API action.
+- **Two hosts serving one set of files is an alias**, and
+  `domain-alias-add` says so in one call: give it `host` and `alias_of`,
+  and the new host is registered with the **same `content_root` as the
+  host it names** - read from that host, not typed again. Adding the
+  second domain by hand and copying the path also works and is where the
+  mistake is: a typo in the shared path is accepted, and the new host
+  then serves its own empty folder under a name that says it is the same
+  site. The action takes no `content_root` of its own and refuses one.
+  Presentation overrides still apply per host, so an alias may look
+  different while serving the same content, and `domains-list` marks each
+  row `alias_of` the first host carrying its content root - derived from
+  the roots themselves, never stored, so it cannot disagree with what
+  decides what is served. A host with no `content_root` reads as an alias
+  of `(default)`.
 
 The web server must route the alias hosts to the same docroot (an
 Apache/nginx server alias). Registering the domain in lazysite is only the

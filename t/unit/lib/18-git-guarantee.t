@@ -122,6 +122,12 @@ my %HOOKED = map { $_ => 1 } qw(
 
 my %EXEMPT = (
     # --- Domains (SM255: newly scanned) ---
+    # SM217: commits through its pass to domain_add, which IS hooked - the same
+    # shape as Files::action_git_restore's exemption. The body writes no conf of
+    # its own; it reads the canonical domain's content root and hands it on.
+    'Domains::domain_add_alias' =>
+        'commits via its pass through domain_add (asserted behaviourally in '
+        . 't/unit/manager/191-a-host-can-be-an-alias-of-another.t)',
     'Domains::domain_check'   => 'read-only - probes DNS/TLS and reports; writes nothing',
     'Domains::domain_preview' => 'read-only - renders a host as a visitor would see it',
     'Domains::domain_usage' => 'read-only - inverts the conf into a layout/theme usage map',

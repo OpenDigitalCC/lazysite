@@ -202,7 +202,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     my %audited = map { $_ => 1 } qw(
         acl-remove acl-set artifact-backups-delete backup-create backup-delete
         backup-download backup-restore bad-url-block bad-url-unblock config-set copy delete
-        domain-add domain-remove domain-set
+        domain-add domain-alias-add domain-remove domain-set
         file-download file-upload file-zip-download form-targets-save
         form-uploads-save git-init
         git-restore handler-delete handler-save layout-activate layout-delete

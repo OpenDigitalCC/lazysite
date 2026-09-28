@@ -74,10 +74,13 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     # it gets written down. Raise it only with the action named and the reason
     # given - a bump to make the suite green is the drift this test exists to
     # catch.
+    #   104, SM217 (0.15.1): domain-alias-add, gated manage_domains, the same
+    #        capability domain-add needs - it IS a domain-add that reads the
+    #        shared content root instead of being told it.
     #   103, SM905 U5 (0.15.1): form-uploads-save, gated manage_forms, the same
     #        capability its only writer form-targets-save already needed.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 103, '103 actions are reachable with a token' )
+    is( scalar keys %caps, 104, '104 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

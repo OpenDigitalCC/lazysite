@@ -104,6 +104,33 @@ Naming the commit: AFTER it lands, never before
   four sabotages; twice while writing it I picked the wrong node out of the graph
   and got the `WebSite` where I meant the page, which let a sabotage pass until one
   helper made every subtest ask the same way.
+- SM217 (PENDING) **a host can be an alias of another, and the list says so.**
+  The engine has always served several hosts from one content root - a host with
+  no `content_root` of its own mirrors the primary, and two hosts may point at the
+  same folder - but there was no way to SAY that. An operator added a second
+  domain and typed the shared path themselves, and the Domains list then showed
+  the two as unrelated peers: the relationship was real and invisible. **And the
+  hand-copying does not fail when it goes wrong**, which is why this is an action
+  rather than a note - measured first: a one-character typo in the shared path is
+  accepted, the new host is provisioned and seeded with its own empty folder, and
+  it serves a different site under a name that says it is the same one.
+  `domain-alias-add` takes `host` and `alias_of` and **reads** the canonical
+  domain's content root; it takes no `content_root` and refuses one, because a
+  caller that could supply it could supply the wrong one. An empty canonical root
+  is a valid answer rather than a missing one (both hosts then serve the default
+  site, which IS the relationship). `domains-list` marks each row `alias_of` the
+  first host carrying its content root - **derived, never stored**, so it cannot
+  disagree with what actually decides what is served, and a rootless host reads as
+  an alias of `(default)` rather than of whichever alias was registered first.
+  Presentation overrides still pass through, so an alias may look different while
+  sharing content; `seed` does not, because the content is there by definition and
+  seeding would write a page into the canonical domain's own folder. Serving is
+  untouched: this is a convenience over a mechanism that already worked.
+  `t/unit/manager/191`, three sabotages - one of which found that a supplied
+  `content_root` was being silently dropped rather than refused, which honours
+  the rule by accident. **Not in this**: the Domains page affordance, which is the
+  other half of the filing.
+
 - SM857 (PENDING) **a row can belong to the account that wrote it.** Measured
   before this was built, on a table with `timestamps` and two accounts holding
   `write_data`: Bob rewrote Ann's row and then deleted it, and `delete_row`'s

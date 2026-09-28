@@ -22,7 +22,7 @@ use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
 use Lazysite::Paths   ();
 use Lazysite::Private ();    # N141D: purge reaches the private store too
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root instance_public_ips host_for_path content_root_for_path domains_for_scopes valid_presentation_name presentation_value);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -305,6 +305,32 @@ sub domains_list {
             $row{ $k . '_inherited' } = defined $ov->{$h}{$k} ? 0 : 1;
         }
         push @domains, \%row;
+    }
+
+    # SM217: THE RELATIONSHIP IS ALREADY REAL AND WAS INVISIBLE. Two hosts
+    # serving one content root is what the engine has always supported - a host
+    # with no content_root of its own mirrors the primary, and two hosts may be
+    # pointed at the same folder - but the list showed them as unrelated peers,
+    # so the one thing an operator needed to see (these are the same site) was
+    # the one thing they had to work out by comparing paths.
+    #
+    # DERIVED, NEVER STORED. There is no `alias_of` key in lazysite.conf and
+    # there must not be: a stored relationship can disagree with the
+    # content_root that actually decides what is served, and then the list is
+    # confidently wrong. The canonical row is the FIRST one carrying that root,
+    # in list order - which puts the primary first, so every rootless host reads
+    # as an alias of (default) rather than of whichever alias was registered
+    # first.
+    my %first_for_root;
+    for my $d (@domains) {
+        my $root = $d->{content_root} // '';
+        if ( exists $first_for_root{$root} ) {
+            $d->{alias_of} = $first_for_root{$root};
+        }
+        else {
+            $first_for_root{$root} = $d->{host};
+            $d->{alias_of} = '';
+        }
     }
     return { ok => 1, domains => \@domains, keys => \@DOMAIN_KEYS };
 }
@@ -978,6 +1004,70 @@ sub domain_add {
     log_event( 'INFO', 'domain-add', 'domain configured',
         host => $host, content_root => $rel, user => $auth_user );
     return { ok => 1, host => $host, content_root => $rel };
+}
+
+# SM217: register a host as an ALIAS of one that already exists.
+#
+# A CONVENIENCE OVER THE EXISTING MECHANISM, and deliberately nothing more: it
+# resolves the canonical domain's content root and registers the new host with
+# the same one, through domain_add. The serving path is untouched, because there
+# is nothing for it to learn - two hosts sharing a content root is what it
+# already does.
+#
+# WHAT THIS REMOVES is the hand-copying. An operator had to add a second domain
+# and type the shared path themselves, and a typo there does not fail: it
+# silently forks the content into a folder nobody is looking at, and the alias
+# serves a site that is not the one it is an alias of.
+#
+# THE ROOT IS READ, NOT ASKED FOR. A caller that supplied the path would be able
+# to supply the wrong one, which is the mistake this exists to remove.
+#
+# AN EMPTY CANONICAL ROOT IS A VALID ANSWER, not a missing one: a host with no
+# content_root of its own serves the default site, so an alias of it also has
+# none and they mirror the primary together.
+#
+# PRESENTATION OVERRIDES PASS THROUGH. The filing's own words: per-host theme,
+# layout, nav and lang still apply, so an alias may look different while serving
+# the same content. `seed` does not pass through and is forced off - the content
+# is already there by definition, and seeding would write a page into the
+# canonical domain's own tree.
+sub domain_add_alias {
+    my ( $host, $of, %opts ) = @_;
+    $host = lc( $host // '' );
+    $of   = lc( $of   // '' );
+
+    return { ok => 0, kind => 'invalid', error => 'the domain to alias is required' }
+        unless length $of;
+    return { ok => 0, kind => 'invalid',
+        error => "a host cannot be an alias of itself ($host)" }
+        if length $host && $host eq $of;
+
+    # A CONTENT ROOT FROM THE CALLER IS REFUSED, not silently overridden. The
+    # first version of this took %opts and then wrote content_root after it, so a
+    # supplied root was quietly dropped - which honours the rule by accident and
+    # is its own small lie: a caller who passed one would believe it had been
+    # used. A sabotage that reordered those two found exactly that, because
+    # nothing was asserting it.
+    return { ok => 0, kind => 'invalid',
+        error => 'content_root is not an argument here - an alias serves the '
+            . "content root '$of' already has, which is the point of the action. "
+            . 'Use domain-add to register a host with a root of its own.' }
+        if defined $opts{content_root} && length $opts{content_root};
+
+    # NOT known_domain_host: that admits the primary's site_url host, which is
+    # not a registered row and has no content root of its own to share. The
+    # canonical domain has to be one this file can resolve a root for.
+    my $root = domain_content_root($of);
+    return { ok => 0, kind => 'not-found',
+        error => "no domain '$of' is configured, so there is nothing to be an alias of" }
+        unless defined $root;
+
+    my $r = domain_add( $host, %opts, content_root => $root, seed => 0 );
+    return $r unless $r->{ok};
+    log_event( 'INFO', 'domain-alias-add', 'domain configured as an alias',
+        host => $host, alias_of => $of, content_root => $root, user => $auth_user );
+    $r->{alias_of} = $of;
+    return $r;
 }
 
 # --- public: set -----------------------------------------------------------

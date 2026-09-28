@@ -215,7 +215,7 @@ my %ACTION_INFO = (
         title   => 'Manage the domains this instance serves, and portable site packages.',
         grants => 'Add and remove the domains this instance serves, and export or apply a whole site as a package.',
         unlocks => {
-            api => [ qw(domains-list domain-add domain-set domain-remove
+            api => [ qw(domains-list domain-add domain-alias-add domain-set domain-remove
                     domain-preview domain-check remap-list remap-save
                     site-backup-create site-backup-download site-backup-upload
                     site-backup-apply site-backup-delete site-backup-inspect) ],

@@ -63,7 +63,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root);
 use Lazysite::Manager::Data        ();
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
@@ -190,7 +190,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     data-table-acl-get data-table-acl-set data-table-acl-remove
     data-safety-exports data-safety-export-delete data-safety-export-read data-safety-export-restore
     delete describe-capabilities
-    domain-add domain-check domain-preview domain-remove domain-set preview-public
+    domain-add domain-alias-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
     form-submission-confirm form-submission-delete form-submissions
     form-submissions-delete-bulk form-targets-read form-targets-save form-uploads-save
@@ -614,7 +614,7 @@ my %MUTATING = map { $_ => 1 } qw(
     preview-grant preview-clear nav-save handler-save handler-delete
     form-targets-save form-uploads-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action page-pdf
     lock unlock renew-lock notices-seen regenerate-registries
-    domain-add domain-set domain-remove
+    domain-add domain-alias-add domain-set domain-remove
     session-revoke user-revoke key-revoke
     site-backup-create site-backup-upload site-backup-apply site-backup-delete
     site-export-primary
@@ -798,6 +798,7 @@ if ( !$token_auth ) {
         'config-set'     => 'manage_config', 'config-read' => 'manage_config',
         'bad-url-blocks' => 'manage_config',
         'domains-list'   => 'manage_domains', 'domain-add'    => 'manage_domains',
+        'domain-alias-add' => 'manage_domains',
         'domain-set'     => 'manage_domains', 'domain-remove' => 'manage_domains',
         'remap-list'     => 'manage_domains', 'remap-save'    => 'manage_domains', # SM802
         'audit-trail-set' => 'audit_switch',  # N13-04: AND manage_config, in the dispatch
@@ -1488,6 +1489,24 @@ elsif ( $action eq 'domain-add' ) {
         lang           => $req->{lang},
         lang_group     => $req->{lang_group},
         seed           => ( $req->{seed} ? 1 : 0 ),
+    );
+}
+elsif ( $action eq 'domain-alias-add' ) {
+    my $req = _json_body();
+    # Each parameter read BY NAME: lint 58 extracts what an action publishes by
+    # scanning this branch, so a map over a qw() list would hide them from the
+    # table a caller finds the action in.
+    $result = domain_add_alias(
+        $req->{host},
+        $req->{alias_of},
+        site_url       => $req->{site_url},
+        site_name      => $req->{site_name},
+        theme          => $req->{theme},
+        layout         => $req->{layout},
+        nav_file       => $req->{nav_file},
+        search_default => $req->{search_default},
+        lang           => $req->{lang},
+        lang_group     => $req->{lang_group},
     );
 }
 elsif ( $action eq 'domain-set' ) {

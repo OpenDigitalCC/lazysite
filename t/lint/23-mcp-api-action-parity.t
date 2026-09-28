@@ -318,6 +318,8 @@ my %API_ONLY = (
     'aliases-list' => 'undecided',
     'lang-status'  => 'undecided',
     'domain-add' => 'deliberate (SM238) - creating a domain has DNS and certificate consequences beyond this instance',
+    'domain-alias-add' =>
+        'deliberate (SM217) - it IS a domain-add, held with add/remove for SM238's reason',
     'domain-remove'     => 'deliberate (SM238) - destructive and instance-level',
     'domain-check'      => 'deliberate (SM238) - an outbound probe; held with add/remove',
     'theme-list'        => 'superseded by themes-list-all, which is paired',

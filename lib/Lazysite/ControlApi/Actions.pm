@@ -129,6 +129,9 @@ our %GATE = (
     'data-row-delete' => [qw(manage_data write_data)],
     'domains-list'    => [qw(manage_domains)],                 # read-only domains view
     'domain-add'      => [qw(manage_domains)],
+    # SM217: the same authority as domain-add, because it IS a domain-add -
+    # one that reads the shared content root rather than being told it.
+    'domain-alias-add' => [qw(manage_domains)],
     'domain-set'      => [qw(manage_domains)],
     'remap-list'      => [qw(manage_domains)],                 # SM802
     'remap-save'      => [qw(manage_domains)],
@@ -363,6 +366,11 @@ our %ACTION = (
     # capability beyond being signed in, because it answers only for the logins
     # it is given: it is not a listing of accounts and must never become one.
     'display-names' => { params => [ { name => 'logins', in => 'query_or_body', required => 1, note => 'an array of logins in the body, or a comma-separated list in the query' } ] },
+    # SM217: no content_root parameter, deliberately - the whole point is that the
+    # shared root is READ from the canonical domain. A caller that could supply
+    # it could supply the wrong one, which is the hand-copying mistake this
+    # action exists to remove.
+    'domain-alias-add' => { params => [ { name => 'host', in => 'body' }, { name => 'alias_of', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' } ] },
     'domain-add' => { params => [ { name => 'host', in => 'body' }, { name => 'content_root', in => 'body' }, { name => 'site_url', in => 'body' }, { name => 'site_name', in => 'body' }, { name => 'theme', in => 'body' }, { name => 'layout', in => 'body' }, { name => 'nav_file', in => 'body' }, { name => 'search_default', in => 'body' }, { name => 'lang', in => 'body' }, { name => 'lang_group', in => 'body' }, { name => 'seed', in => 'body' } ] },
     'domain-check'   => { params => [ { name => 'host', in => 'query' } ] },
     'domain-preview' => { params => [ { name => 'host', in => 'query' } ] },
