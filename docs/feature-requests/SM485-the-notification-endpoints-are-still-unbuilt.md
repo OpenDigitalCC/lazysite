@@ -32,6 +32,36 @@ the some that shipped was a paragraph of reasoning, not an endpoint.
 Splitting it costs one number. It buys a filing that can be closed when the
 endpoints exist, and a decision that is recorded as done because it is.
 
+# WHAT THE SMTP ENDPOINT IS HAS NOT BEEN DECIDED (2026-09-28)
+
+Taken off the overnight list and stopped here. The table above sizes the SMTP
+endpoint at **S**, and the size is the only thing about it that is settled -
+the filing records the ADDRESSING decision and nothing about delivery. Four
+questions, and each changes what gets built:
+
+1. **Which notices leave by email?** All of them, the ones a sysop opts into,
+   or a declared subset? Every notice by default is a mail for every form
+   submission on a busy site.
+2. **Who is the recipient when `to` is absent?** A broadcast notice has no
+   address. The bell can show it to everyone who logs in; an email cannot be
+   sent to everyone without a list, and a list of every account's address is a
+   different thing from a notification feature.
+3. **Which transport?** The Form SMTP extension owns `lazysite/forms/smtp.conf`
+   and is an extension a site may not have enabled. A notice endpoint that
+   depends on it inherits that, and one that does not means a second mail
+   configuration - which is the shape SM842 spent a release removing.
+4. **What bounds it?** [[SM877]] built per-recipient and per-site hourly caps
+   for the form handler's acknowledgements, for the reason that a site writing
+   to addresses it did not choose is an open relay in miniature. A notice
+   endpoint sends to accounts rather than to strangers, so the reasoning is
+   weaker - but "unbounded" should be a decision rather than the default.
+
+Nothing was built. My recommendation, for what it is worth: opt-in per
+account (the person decides whether their notices reach them by mail), the
+Form SMTP extension as the transport with a refusal that names it when it is
+off, and a broadcast notice delivered to nobody by mail - it is a bell item.
+That is a recommendation and not a design.
+
 # The decision, so this stands alone
 
 A notice may carry an optional `to` naming an account or a group. A notice

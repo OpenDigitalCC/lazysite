@@ -47,6 +47,32 @@ supply their own? The second is cheaper for the project and better for
 sites with house style - and it is the model already used for layouts and
 themes.
 
+## The decision this waits on, named (2026-09-28)
+
+Taken off the overnight list and stopped here. Of the three things "What it
+needs" lists, two are work and one is a ruling - **who supplies
+translations** - and it has to come first, because it decides where the
+strings live and therefore what the extraction produces.
+
+The filing's own recommendation is the second option (overridable per site,
+the model layouts and themes already use) and it is the right one, but it is
+not only cheaper - it changes the shape:
+
+- **Bundled** means one file per language in the engine tree, upgraded with
+  the engine, and a site that wants different wording cannot have it.
+- **Per-site overridable** means a lookup with the fallback chain the filing
+  states (requested language, site language, English) reaching a site file
+  first - and an upgrade must not overwrite a site's own wording, which is
+  the rule `lazysite/templates/system/` already has to keep for the system
+  pages themselves.
+
+There is a second question the filing does not raise, and it matters for the
+same reason: **`lazysite/templates/system/` is protected, so a site's own
+translation file cannot be written by a general channel.** It needs the door
+the descriptors got (an action that validates and stores) or it needs to live
+somewhere else. That is a design consequence of the ruling, not a separate
+piece of work.
+
 ## Not in scope
 
 The manager UI. It is operator-facing rather than visitor-facing, its
