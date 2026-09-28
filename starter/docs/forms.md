@@ -268,7 +268,12 @@ handler was made. A refusal names the capability that would work.
   Submissions page, exports and bulk delete keep working; a submission the
   table's types refuse leaves no row, the visitor is told it failed, and the
   stored copy is marked `_row_refused`. `keep_copy: false` stores the row
-  only. See [Data tables](/docs/data-tables).
+  only. `files_column:` names a column of the same table to receive the
+  submission's uploaded files, as site-relative paths, comma separated - so
+  the row somebody works from reaches the photograph instead of only the
+  submissions store. It needs the copy, which is what stores the files, and
+  the column is checked against the table when the handler is saved.
+  See [Data tables](/docs/data-tables).
 
 There are no `webhook`, `api` or `db` handlers any more: a webhook is a
 connector, and `db` is `table` with `keep_copy: false`. The upgrade to

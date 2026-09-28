@@ -561,6 +561,18 @@ surfaces, page bindings only what the descriptor declares readable, and
 `public` defaults to closed -- a form never publishes its submissions by
 landing them in a table. The JSONL copy stays under `read_submissions`.
 
+`files_column:` names a column of the table to receive the submission's
+**uploaded files**, as site-relative paths, comma separated -- one path per
+file, in the order the browser sent them. Without it the files are reachable
+only from the submissions record, so a lead worked from the table has no
+photograph. A submission with no attachment leaves the column empty rather
+than writing an empty string. It needs `keep_copy` on, because the copy is
+what stores the files, and the column name is checked against the table's own
+descriptor when the handler is saved rather than at a visitor's submission.
+A file that could not be written is named on the stored record and in the
+delivery's audit line: the submission still succeeds, and does not read as a
+visitor who attached nothing.
+
 ### Who may write
 
 A write through the manager, the API, MCP or the data endpoint needs all

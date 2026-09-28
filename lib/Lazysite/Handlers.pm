@@ -141,6 +141,17 @@ our %TYPES      = (
                 note => 'Also keep each submission in lazysite/forms/submissions, so the '
                     . 'Submissions page, exports and bulk delete work. A row the table '
                     . 'refuses is kept there and marked as refused.' },
+            # SM905 U4: the uploads were reachable only from the submissions
+            # record, so an operator working the table had a lead with no
+            # photograph. The key names a COLUMN rather than switching a
+            # behaviour on, because the row has to have somewhere to put it and
+            # only the table's own descriptor says where.
+            { key => 'files_column', label => 'Column for the uploaded files', type => 'text',
+                note => 'The name of a column in the table above. Each submission\'s uploaded '
+                    . 'files are written into it as site-relative paths, comma separated, so '
+                    . 'the row an operator works from reaches the photograph. A submission '
+                    . 'with no files leaves the column empty. Needs the submissions copy, '
+                    . 'which is what stores the files.' },
         ],
         note => 'Needs the Data tables extension to be enabled. Values are checked against '
             . 'the table\'s declared types: a submission that does not fit is refused, and '
@@ -766,6 +777,16 @@ sub _destination_problem {
             require Lazysite::Data::Tables;
             Lazysite::Data::Tables::load_table( $DOCROOT, $h->{table} );
         };
+        # SM905 U4: a files column that names nothing would be found by the
+        # first visitor who attached a photograph, whose row the store would
+        # then refuse - so it is checked here, with the mapping, for SM807's
+        # reason. The declared column is checked even when `fields` is clean,
+        # because the two are written independently.
+        my $col = $h->{files_column} // '';
+        return 'files_column: the files are stored with the submissions copy, so '
+            . '`keep_copy: false` leaves the column pointing at files this site never '
+            . 'keeps. Turn the copy on, or clear files_column.'
+            if length $col && _bool( $h->{keep_copy} // 'true' ) eq 'false';
         if ( ref $d eq 'HASH' && $d->{ok} && ref $d->{fields} eq 'HASH' ) {
             my ($m) = parse_fields( $h->{fields} );
             my $key = $d->{key} // 'id';
@@ -776,6 +797,16 @@ sub _destination_problem {
                 . ' - its columns are: '
                 . join( ', ', sort( keys %{ $d->{fields} } ) )
                 if @bad;
+            # The key is checked BEFORE existence, for Data::Value's reason: an
+            # auto key is not listed in `fields`, so the existence check would
+            # say "no column id" about the one column that certainly exists, and
+            # send a sysop looking for a spelling mistake.
+            return "files_column: '$col' is the key of '$h->{table}' - name a column the row "
+                . 'can carry'
+                if length $col && $col eq $key;
+            return "files_column: '$h->{table}' has no column $col - its columns are: "
+                . join( ', ', sort( keys %{ $d->{fields} } ) )
+                if length $col && !exists $d->{fields}{$col};
         }
     }
     if ( $h->{type} eq 'connector' ) {
@@ -1277,11 +1308,16 @@ sub _to_file {
         $rec{_spam_reason} = $ctx->{spam_reason} // '';
     }
     $rec{_row_refused} = JSON::PP::true if $extra && $extra->{row_refused};
-    if ( ref $ctx->{files} eq 'ARRAY' && @{ $ctx->{files} } ) {
-        my $sid = strftime( '%Y%m%dT%H%M%S', localtime ) . '-' . sprintf( '%04x', int rand 65536 );
-        my ( $saved, $rel ) = _save_uploads( $ctx->{files}, $dir, $name, $sid );
-        if (@$saved) { $rec{_files} = $saved; $rec{_files_dir} = $rel }
-    }
+    # SM905 U4: a table handler pointing its row at the files has to save them
+    # BEFORE the row is written, so it hands the result in rather than having
+    # them saved twice under two stamps.
+    my $up = $extra && $extra->{uploads};
+    $up = _stage_uploads( $ctx->{files}, $dir, $name )
+        if !$up && ref $ctx->{files} eq 'ARRAY' && @{ $ctx->{files} };
+    if ( $up && @{ $up->{saved} } ) { $rec{_files} = $up->{saved}; $rec{_files_dir} = $up->{rel} }
+    # A file that could not be written is named, not dropped. A record listing
+    # two of the three files a visitor sent reads as a visitor who sent two.
+    $rec{_files_failed} = $up->{failed} if $up && @{ $up->{failed} };
     my $path = "$dir/$name.jsonl";
     open my $fh, '>>:utf8', $path or return { ok => 0, why => "cannot open the store: $!" };
     flock $fh, LOCK_EX;
@@ -1290,7 +1326,19 @@ sub _to_file {
     # SM020: a failed print surfaces at close. Without the check a disk-full
     # submission was acknowledged while the record never landed.
     return { ok => 0, why => "the store write did not complete: $!" } unless close($fh) && $wrote;
-    return { ok => 1 };
+    return { ok => 1, ( $up && @{ $up->{failed} } ? ( note => _files_note($up) ) : () ) };
+}
+
+# SM905 U4: the delivery SUCCEEDED and something is still missing, which is the
+# `note` state SM877 added - the record landed, and a file the visitor attached
+# did not. A WARN and an audit detail, not a failure: reporting the submission as
+# failed would lose the fields that did arrive.
+sub _files_note {
+    my ($up) = @_;
+    return 'uploaded files that could not be written: ' . join( ', ', @{ $up->{failed} } )
+        . ' (' . scalar( @{ $up->{saved} } ) . ' of '
+        . ( scalar( @{ $up->{saved} } ) + scalar( @{ $up->{failed} } ) ) . ' stored)'
+        . ( length( $up->{nodir} // '' ) ? " - the directory for them: $up->{nodir}" : '' );
 }
 
 sub _safe_filename {
@@ -1302,22 +1350,50 @@ sub _safe_filename {
     return substr( $n, 0, 100 );
 }
 
+# One submission's uploads, written once. The stamp is minted HERE and the
+# result carried, so the two records that describe the same files - the
+# submissions copy and, since SM905 U4, the table row - cannot end up naming two
+# different directories.
+sub _stage_uploads {
+    my ( $files, $dir, $name ) = @_;
+    return undef unless ref $files eq 'ARRAY' && @{$files};
+    my $sid = strftime( '%Y%m%dT%H%M%S', localtime ) . '-' . sprintf( '%04x', int rand 65536 );
+    my ( $saved, $rel, $failed, $nodir ) = _save_uploads( $files, $dir, $name, $sid );
+    return { saved => $saved, rel => $rel, failed => $failed, nodir => $nodir };
+}
+
 sub _save_uploads {
     my ( $files, $dir, $name, $sid ) = @_;
     my $rel  = "$name.files/$sid";
     my $fdir = "$dir/$rel";
-    make_path($fdir) unless -d $fdir;
-    my ( @saved, $i );
+    # make_path DIES, and the middle of a visitor's submission is not the place:
+    # an uploads directory that could not be created took the whole POST down
+    # with it, losing the fields as well as the files. It is a reason the files
+    # are missing, reported with them.
+    my $nodir = '';
+    if ( !eval { make_path($fdir) unless -d $fdir; 1 } ) {
+        $nodir = $@ || 'unknown';
+        $nodir =~ s/\s+at\s+\S+\s+line\s+\d+\.?\s*\z//;
+        chomp $nodir;
+    }
+    my ( @saved, @failed, $i );
     for my $f (@$files) {
         $i++;
         my $safe = _safe_filename( $f->{filename} // '' );
-        $safe = "$i-$safe" if -e "$fdir/$safe";
-        open my $w, '>:raw', "$fdir/$safe" or next;
+        $safe = "$i-$safe" if !length $nodir && -e "$fdir/$safe";
+        # A file that cannot be written USED TO BE SKIPPED IN SILENCE, which made
+        # a partial save indistinguishable from a visitor who attached fewer
+        # files. It is named instead, on the record and in the delivery note.
+        my $w;
+        if ( length $nodir || !open $w, '>:raw', "$fdir/$safe" ) {
+            push @failed, $safe;
+            next;
+        }
         print {$w} $f->{data} // '';
         close $w;
         push @saved, $safe;
     }
-    return ( \@saved, $rel );
+    return ( \@saved, $rel, \@failed, $nodir );
 }
 
 # DP-4 and SM569 in one type. THIS IS THE ANONYMOUS WRITE PATH TO A TABLE, and
@@ -1327,19 +1403,39 @@ sub _save_uploads {
 # store anything the API could not.
 sub _to_table {
     my ( $h, $fields, $ctx ) = @_;
-    my $stored = _table_row( $h, $fields, $ctx );
-    return $stored unless _bool( $h->{keep_copy} // 'true' ) eq 'true';
-    my $filed = _to_file( { path => 'lazysite/forms/submissions' }, $fields, $ctx,
-        { row_refused => !$stored->{ok} } );
+    my $keep = _bool( $h->{keep_copy} // 'true' ) eq 'true';
+    my $copy = 'lazysite/forms/submissions';
+
+    # SM905 U4: THE UPLOADS ARE SAVED FIRST when the row is to point at them,
+    # and the same result is then handed to the copy. The order used to be row
+    # then copy, and the copy is what saves the files - so the row was written
+    # before the paths it needed existed. The two writes are mutually dependent
+    # (the copy carries whether the row was refused, the row carries where the
+    # files went), which is why the staging is separated from both.
+    my $up;
+    if ( length( $h->{files_column} // '' ) && $keep ) {
+        my $dir = store_path($copy);
+        if ( eval { make_path($dir) unless -d $dir; 1 } ) {
+            $up = _stage_uploads( $ctx->{files}, $dir, _store_name($ctx) );
+        }
+    }
+    my $stored = _table_row( $h, $fields, $ctx, ( $up ? { %{$up}, path => $copy } : undef ) );
+    return $stored unless $keep;
+    my $filed = _to_file( { path => $copy }, $fields, $ctx,
+        { row_refused => !$stored->{ok}, ( $up ? ( uploads => $up ) : () ) } );
     return { ok => 0, why => ( $stored->{why} // '' ) . '; the submissions copy was not kept either' }
         if !$stored->{ok} && !$filed->{ok};
     return { ok => 1, why => 'the row was stored; the submissions copy was not: ' . ( $filed->{why} // '' ) }
         if $stored->{ok} && !$filed->{ok};
+    # The copy is what wrote the files, so it is the half that knows one of them
+    # did not land. Passing its note on is what puts the failure in the audit
+    # line for a TABLE handler as well as a file one.
+    $stored->{note} = $filed->{note} if length( $filed->{note} // '' );
     return $stored;
 }
 
 sub _table_row {
-    my ( $h, $fields, $ctx ) = @_;
+    my ( $h, $fields, $ctx, $up ) = @_;
     my $table = $h->{table} // '';
     return { ok => 0, why => "no usable table name ('$table')" } unless $table =~ /\A[a-z][a-z0-9_]*\z/;
     my ( $map, $why ) = parse_fields( $h->{fields} );
@@ -1364,7 +1460,19 @@ sub _table_row {
         next                                     if $from =~ /\A_/;
         $row{ $map->{$from} } = $fields->{$from} if exists $fields->{$from};
     }
+    # The guard reads the MAPPED fields only, and deliberately runs before the
+    # files column is added: a form whose mapping matches nothing is a
+    # misconfiguration, and a row carrying only a file path would hide it.
     return { ok => 0, why => "no mapped field was given, so nothing was stored in '$table'" } unless %row;
+    # SM905 U4: site-relative paths, comma separated, in the order the browser
+    # sent them. A path an operator can paste into the Files page, one per file
+    # rather than the directory, because a row that names a folder still needs
+    # the submissions record read to find out what is in it. A submission with no
+    # files leaves the column ALONE rather than writing an empty string - a
+    # column that was never given a value is not the same as one holding nothing.
+    my $col = $h->{files_column} // '';
+    $row{$col} = join ', ', map { "$up->{path}/$up->{rel}/$_" } @{ $up->{saved} }
+        if length $col && $up && @{ $up->{saved} };
     my $r = eval {
         Lazysite::Data::Tables::insert_row( $DOCROOT, $table, \%row,
             ( length( $ctx->{actor} // '' ) ? ( actor => $ctx->{actor} ) : () ) );

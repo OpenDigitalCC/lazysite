@@ -104,6 +104,32 @@ Naming the commit: AFTER it lands, never before
   four sabotages; twice while writing it I picked the wrong node out of the graph
   and got the `WebSite` where I meant the page, which let a sabotage pass until one
   helper made every subtest ask the same way.
+- SM905 U4 (PENDING) **the row an operator works from reaches the photograph.** A
+  table handler with `keep_copy` stored a visitor's uploads under the submissions
+  tree and named them in the submissions record; the row in the table had
+  nothing, measured as `files=NULL` beside a photograph on disk two directories
+  away. That is the expo case the filing came from: a business card photographed
+  at a stand, and a lead worked the next morning from a table that did not know
+  the picture existed. `files_column:` on the handler names a column of the same
+  table to receive them, as site-relative paths, comma separated, one per file -
+  a path somebody can paste into the Files page rather than a folder to go
+  looking in. The filing called this "a small design question about descriptors
+  rather than a small change", and the design is that the column is **declared
+  and checked against the table's own descriptor at save**, with `keep_copy`, for
+  SM807's reason: finding out at a visitor's submission is the worst of the two
+  places. The key is reported as the key rather than as a column that does not
+  exist, which is the mistake `Data::Value` documents about its own message. A
+  submission with no attachment leaves the column **alone** - not an empty
+  string, because a column nothing was written to is what "attached nothing" is.
+  Two smaller things fell out of writing it: the uploads are now saved **once**,
+  before the row, so the copy and the row cannot name two differently stamped
+  directories; and a file that could not be written is **named** on the record
+  and in the delivery's audit line instead of being dropped in silence, so two
+  files arriving and none landing no longer reads as a visitor who attached
+  nothing - and an uploads directory that cannot be created no longer takes the
+  whole submission down with it, losing the fields as well as the files.
+  `t/unit/forms/25`, four sabotages.
+
 - SM905 U5 + SM913 (PENDING) **an upload form can be finished over the API, and a
   quarantined submission is never answered.** The form handler refuses every upload
   until a form's own conf carries one of `upload_max_kb`, `upload_max_files` or
