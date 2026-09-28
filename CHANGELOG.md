@@ -44,6 +44,37 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM913 S1 + S3 (PENDING) **the quarantine sees the spam that actually arrives.**
+  Four of four genuine-looking submissions on a live contact form were spam, read
+  one by one, each from a different source range - so nothing about addresses
+  would have caught any of them. SM216's content quarantine was built for exactly
+  this and did not fire, and the reason was one line: `m{https?://}gi` wanted a
+  **scheme**, and all three sales pitches wrote their opt-out host as
+  `brnd .li/delist`, with a space inserted to defeat link filters. **Widening the
+  count was necessary and not sufficient**, which only showed up once the real
+  message was used as the fixture: both of its links are the SAME host, and the
+  counter deduplicates by host deliberately - a person naming one site three ways
+  is not three links - so the pitch scored one link against a threshold of two
+  and would still have got through. So **the disguise is its own reason**: a host
+  with a space before its top-level domain and a path after it quarantines on one
+  occurrence. The path is what makes that safe - without it `the shop .Then I
+  left`, which sloppy typing does produce, would match, and there is a test that
+  says so. S1 also counts a `www.` host and a host with a path, and normalises
+  `www.` out of the dedup key, which the sabotage pass exposed as a real defect:
+  without it, one site named twice - once with the prefix, once without - reached
+  the threshold on its own. **S3** catches the fourth: every field reducing to the
+  same text, or one run of five or more digits in every field, on a form with
+  three or more filled in - which is a bot checking whether the form delivers, not
+  a message anybody wrote. `t/unit/forms/23` drives the real CGI with real
+  multipart posts, and **half of it is honest submissions** on purpose - an
+  enquiry naming its own `logo.png`, one quoting a single page of ours, a
+  developer writing about `Node.js` and version `1.2.3`, a reference number in two
+  fields of three - because a quarantine only costs nothing while it is wrong
+  rarely. Six sabotages, each caught by the subtest whose property it breaks. The
+  stored reason keeps the word "urls" though the counting widened: it is read back
+  by the Submissions page, and a rename would leave the store holding two
+  spellings of one fact.
+
 - SM905 U1 + SM579 (PENDING) **the uploaded photograph reaches the service now,
   and the test that said it already did has been fixed too.** 0.15.0 claimed a
   connector could carry an uploaded file and it could not: the handler built

@@ -378,7 +378,10 @@ sub load_form_conf {
 # notification bell, shown under the Submissions Quarantine filter) rather than
 # reject it. A false positive costs nothing (the message still arrives, just
 # unannounced), which is what makes cheap content heuristics safe on by default.
-# Signals: >= spam_url_threshold URLs in the visible text, and any operator keyword.
+# Signals: >= spam_url_threshold LINKS in the visible text (see _count_links -
+# SM913 S1 widened this from "written with a scheme" to "written by somebody"),
+# any operator keyword, and a submission whose fields are one value said three
+# times (_one_value_everywhere, SM913 S3).
 # Returns (0|1, reason). Content-based and server-side - no tracker, no CAPTCHA.
 sub _spam_assessment {
     my ( $form, $conf ) = @_;
@@ -394,7 +397,10 @@ sub _spam_assessment {
 
     my @reasons;
     my $threshold = ( $conf->{spam_url_threshold} // 2 ) + 0;
-    my $urls      = () = $text =~ m{https?://}gi;
+    my $urls      = _count_links($text);
+    # The WORD stays "urls" though the counting widened: it is stored in every
+    # quarantined record and read back by the Submissions page, and a rename
+    # would leave the store holding two spellings of one fact for no gain.
     push @reasons, "$urls urls" if $threshold > 0 && $urls >= $threshold;
 
     if ( defined $conf->{spam_keywords} && length $conf->{spam_keywords} ) {
@@ -404,7 +410,118 @@ sub _spam_assessment {
         }
     }
 
+    if ( my $host = _disguised_link($text) ) { push @reasons, "a link written as '$host'" }
+    if ( my $why = _one_value_everywhere($form) ) { push @reasons, $why }
+
     return @reasons ? ( 1, join( ' + ', @reasons ) ) : ( 0, '' );
+}
+
+# SM913 S1: COUNT THE LINKS SOMEBODY WROTE, not the ones written with a scheme.
+#
+# The count used to be `() = $text =~ m{https?://}gi`, and the spam that arrived
+# on a live form for two months wrote its opt-out host as `brnd .li/delist` - a
+# link-shortener with a SPACE inserted, which is the shape used to defeat link
+# filters and which that pattern cannot see at all. It was the one marker present
+# in all three sales pitches.
+#
+# THREE SHAPES, AND DELIBERATELY NOT A FOURTH. A scheme; a `www.` host; a host
+# with a path. A BARE `example.com` in prose is NOT counted, and that omission is
+# the whole reason this is safe to turn on for everybody:
+#
+#   * `photo.png`, `report.pdf`, `Node.js` - a filename is a host-shaped thing
+#     with no path and no www, and counting it would flag somebody describing
+#     their own attachment.
+#   * `ada@example.net` - an address is a host-shaped thing too. Addresses are
+#     removed before anything is counted. Measured, that strip is narrower than
+#     it first looks: a BARE host is not counted anyway, so an ordinary address
+#     was never going to score. What it actually protects against is an address
+#     followed by a path - `sales@host.tld/x`, and the free-mail senders in the
+#     reported spam - so it is defence in depth rather than the load-bearing
+#     guard. Saying so because the first version of this comment claimed more.
+#
+# Each match counts once however it is written, so a pitch quoting one host three
+# ways is one link, not three.
+sub _count_links {
+    my ($text) = @_;
+    return 0 unless defined $text && length $text;
+
+    # Addresses first: the local part would otherwise leave a bare host behind.
+    ( my $t = $text ) =~ s/\S+@\S+//g;
+
+    # `www.` is stripped from the KEY, or one site named twice - once with the
+    # prefix and once without, which is how people actually write - counts as two
+    # links and reaches a threshold of two on its own.
+    my %seen;
+    my $note = sub { ( my $h = lc $_[0] ) =~ s/\Awww\.//; $seen{$h}++ if length $h };
+
+    while ( $t =~ m{https?://([^\s/]+)}gi )                       { $note->($1) }
+    while ( $t =~ m{\b((?:www\.)[a-z0-9-]+(?:\.[a-z0-9-]+)+)}gi ) { $note->($1) }
+    while ( $t =~ m{\b([a-z0-9-]+(?:\.[a-z0-9-]+)+)/\S}gi )       { $note->($1) }
+
+    # And the shape the field actually found - see _disguised_link.
+    if ( my $host = _disguised_link($t) ) { $note->($host) }
+
+    return scalar keys %seen;
+}
+
+# SM913 S1, the part that is a signal on its own rather than a countable link.
+#
+# `brnd .li/delist` - a host with a SPACE before its top-level domain and a path
+# after it. The reported spam wrote its shortener that way twice in one message,
+# which is the marker present in all three sales pitches, and the reason is that
+# it defeats a link filter while still being readable to a person who retypes it.
+#
+# COUNTING IT WAS NOT ENOUGH, and the real message is why: both of its links were
+# the SAME host, and this counter deduplicates by host on purpose - so a pitch
+# quoting one shortener twice scored one link against a threshold of two and
+# sailed through. Deduplicating is right (a person naming one site three ways is
+# not three links) and so the disguise has to be its own reason.
+#
+# THE PATH IS WHAT MAKES IT SAFE. Without it, `... at the shop .Then I left` -
+# a space before a full stop, which sloppy typing does produce - would match.
+# With it, the string has to look like somebody typing a link they did not want
+# read as one, and nothing honest has that shape.
+sub _disguised_link {
+    my ($text) = @_;
+    return '' unless defined $text && length $text;
+    return lc "$1.$2" if $text =~ m{\b([a-z0-9-]{2,})\s+\.([a-z]{2,6})/\S}i;
+    return '';
+}
+
+# SM913 S3: A SUBMISSION WHOSE FIELDS ARE ONE THING SAID THREE TIMES is not a
+# message anybody wrote.
+#
+# The gibberish submission on that form carried name, subject and message as
+# upper-case letter runs, each containing THE SAME 7-DIGIT NUMBER. No URL rule
+# will ever see that, and no dictionary or list has to be maintained to catch it.
+#
+# Two shapes, both needing at least three filled fields so that a two-field form
+# (a name and a message that repeats it) cannot trip:
+#
+#   * every field reduces to the same text;
+#   * one run of five or more digits appears in every field. A reference number
+#     legitimately appears in two fields now and then; in all of them, with
+#     nothing else shared, it is a bot checking whether the form delivers.
+sub _one_value_everywhere {
+    my ($form) = @_;
+    my @vals = map { $form->{$_} }
+        grep { !/^_/ && defined $form->{$_} && !ref $form->{$_} && length $form->{$_} }
+        sort keys %$form;
+    return '' unless @vals >= 3;
+
+    my %norm;
+    for my $v (@vals) {
+        ( my $n = lc $v ) =~ s/[^a-z0-9]+//g;
+        $norm{$n}++ if length $n;
+    }
+    return 'every field holds the same value' if 1 == keys %norm;
+
+    my @runs = ( $vals[0] =~ /(\d{5,})/g );
+    for my $run (@runs) {
+        return "the number $run is in every field"
+            if @vals == grep { index( $_, $run ) >= 0 } @vals;
+    }
+    return '';
 }
 
 # SM115: one line per submission in the audit trail - the submitter is the

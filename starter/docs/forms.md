@@ -333,6 +333,25 @@ stored notice is still there. The bell is authoritative; chat is a convenience.
 Quarantined submissions do not notify. A submission held back by the spam
 controls is recorded but does not raise a notice, so a spam run cannot flood you.
 
+**What the spam controls look at.** Quarantine is **on unless you turn it off**
+(`quarantine: off` in the form's conf) and is content-based - no puzzle for the
+visitor, no tracker, nothing sent anywhere. It holds a submission back when:
+
+- it carries **`spam_url_threshold` links or more** (two by default). A link is
+  counted whether or not it was written with `https://`: a `www.` host and a
+  host with a path count too, one host counts once however many ways it is
+  written, and an email address is not a link.
+- it contains a **link written to dodge a filter** - `example .com/offer`, with a
+  space inside the host. One is enough; nobody types that by accident.
+- **every field holds the same value**, or one run of five or more digits appears
+  in every field, on a form with three or more filled in. That is a bot checking
+  whether the form delivers, not a message.
+- it matches one of your own `spam_keywords` (a comma-separated list, empty by
+  default).
+
+The reason is stored with the submission and shown on the quarantine filter, so
+you can see which control held it and tune the threshold rather than guess.
+
 ### Configuring chat delivery
 
 Chat delivery needs the `notify-xmpp` extension enabled (the Extension Manager
