@@ -5,7 +5,7 @@ subtitle: "One filing for the whole Odoo extension: per-user authentication carr
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "CONSOLIDATED 2026-09-26 at the release manager's direction: this filing is the authority for the Odoo extension. It absorbs the 2026-09-03 odoo-bridge draft (named queries, OOM as a package), the 2026-09-26 briefing (authentication, identity context, proxy transport - Parts 1 to 7, required outcomes 1 to 13, scope control), the same-day follow-up correcting the egress assumption, and the engine's egress audit. OPEN before building: decision X4 on docs/decision-register.md (which egress policy the per-user proxy sits under - recommendation recorded below), its two sub-questions, and the object-mapper specification, which is not yet in the tree. Queued for a future release."
+status-note: "CONSOLIDATED 2026-09-26 at the release manager's direction: this filing is the authority for the Odoo extension. It absorbs the 2026-09-03 odoo-bridge draft (named queries, OOM as a package), the 2026-09-26 briefing (authentication, identity context, proxy transport - Parts 1 to 7, required outcomes 1 to 13, scope control), the same-day follow-up correcting the egress assumption, and the engine's egress audit. X4 RULED 2026-09-28, as recommended, all three questions together: the proxy does its own HTTP as mode 2 INSIDE SM579's policy rather than beside it (X4); no plain `http://` to an RFC1918 Odoo, `https://` to a private hostname being enough (X4-a); and general mode does supersede the original 'no raw passthrough, ever' when the credential on the wire is the user's own, the rule standing for a service account (X4-b). The register row is deleted, which is what the register asks for. The ruling has a consequence that is a PREREQUISITE rather than part of this filing: SM579's three invocation modes are connector-private today (`$MODES` and `may_call` in Lazysite::Manager::Connectors), so the policy has to become shared before a proxy can declare itself mode 2 inside it. STILL OPEN before building: the object-mapper specification, which is not in the tree at all, and OOM being installed on a host this engine can reach (OB7; tracked as OP-25). One piece of work came OFF the build on 2026-09-28: OOM's transport is already hardened, so no injected transport is needed."
 ---
 
 # Provenance, and what this filing now is
@@ -88,7 +88,7 @@ scheduled and closed by reference.
 | OB3 | **General mode**: no model or method allowlist; bounded by the user's own Odoo permissions exactly as Odoo's web client is. An allowlist here would mean enumerating Odoo badly and forever. **Applies only to a call made with the user's own credential** - see *Reconciling*. |
 | OB4 | Caller gating is lazysite's: the proxy is reached by a lazysite session on an app page (mode 2 of [[SM579]]), and the call carries the Odoo credential from the cookie. No scheduled and no public mode for the per-user proxy. |
 | OB5 | A per-call timeout (`odoo_timeout`); a rate cap per identity; Odoo faults mapped to lazysite's `{ ok: 0, error, kind }` shape with **distinct kinds** for session-expired, invalid-credential, odoo-access-refused and transport-failure. The fault's own text is logged, never returned verbatim (three leaks in three passes taught this - [[SM713]], [[SM738]], [[SM739]]; `t/lint/112` checks the source). |
-| OB6 | Transport discipline, the connector's reused as behaviour: no redirect following - a 3xx is a named refusal, because the credential would travel with it; a response size cap sized for Odoo reads and configurable; TLS peer verification on; `https://` to any host and `http://` only to loopback (sub-question X4-a asks whether plain `http://` to an RFC1918 Odoo is an operator's choice to make). |
+| OB6 | Transport discipline, the connector's reused as behaviour: no redirect following - a 3xx is a named refusal, because the credential would travel with it; a response size cap sized for Odoo reads and configurable; TLS peer verification on; `https://` to any host and `http://` only to loopback. **X4-a settled this 2026-09-28: no plain `http://` to an RFC1918 Odoo** - `https://` to a private hostname, which the connector rule already permits, is what "internal network" means here. |
 | OB7 | OOM is delivered as a versioned package (`libodoo-oom-perl`); the extension declares a minimum version in `owns.deps` and never carries a copy of the code. Settled by the release manager 2026-09-03. |
 | OB8 | One audit record per proxied call on the lazysite side: actor (lazysite account if any), Odoo login, model, method, mode, outcome state (answered / unanswered / refused / odoo-fault), never the payload and never the credential. Written the way connectors write theirs. |
 | OB9 | Recorded in SECURITY.md as a new outbound interface (threat delta, controls, residual risk, verdict), as SM136 was for XMPP; named in FEATURES.md as the third egress kind after the guarded GET and the connector: *a per-user proxy to an operator-configured upstream*. |
@@ -209,7 +209,21 @@ path, sharing only the name and the `may_call` gate. SM579's own boundary -
 "every generalisation of it should be refused by default" - argues against it,
 and the follow-up already said it "deserves its own SM".
 
-## The recommendation, open as X4
+## The ruling (X4, ruled 2026-09-28)
+
+**RULED AS RECOMMENDED by the release manager, 2026-09-28**, all three questions
+together. The recommendation is left standing below as the reasoning the ruling
+absorbed rather than being replaced by a sentence saying "approved" - a ruling
+that discards its own argument cannot be re-examined when something changes.
+What was decided:
+
+| | Ruled |
+| --- | --- |
+| **X4** | Candidate 1: the proxy does its own HTTP, **stated as mode 2 inside [[SM579]]'s policy, not beside it**. Which means SM579's invocation-mode policy has to become the shared thing it is not yet - today the three modes are connector-private (`$MODES` and `may_call` in `Lazysite::Manager::Connectors`). That generalisation is the first piece of work, and it is a prerequisite of this filing rather than part of it. |
+| **X4-a** | **No plain `http://` to an RFC1918 Odoo.** `https://` to a private hostname - which the connector rule already permits - is enough, and is the natural reading of the briefing's "internal network". `http://` stays loopback-only, as OB6 says. |
+| **X4-b** | **Yes**: the briefing's general mode supersedes this filing's original "no raw passthrough, ever", reconciled by naming the credential holder. The user's own credential means Odoo's own ACLs bound the call. A service account - Part 6, MCP - keeps the original rule. |
+
+The reasoning, as recommended and now ruled:
 
 **Candidate 1, stated as mode 2 INSIDE SM579's policy, not beside it.** The
 proxy does its own HTTP and inherits SM579's enforceable controls by
@@ -228,8 +242,9 @@ Two sub-questions ride with the decision:
   raw passthrough, ever"? Recommended yes, reconciled as above by naming the
   credential holder.
 
-The row is on `docs/decision-register.md`; when ruled, the row is deleted and
-the ruling lands in this status-note.
+The row was on `docs/decision-register.md` and is **deleted**, which is what that
+register asks for: it carries what is open, not a history. The ruling is in this
+filing's status-note and in the table at the top of this section.
 
 # Engine notes from the audit (P4)
 
@@ -330,8 +345,10 @@ today (constant host, slug validated); noted, not this filing's to fix.
   systems.
 - Change lazysite core, except where the outbound HTTP leg genuinely requires it
   - report before doing so. (The audit's answer: the leg needs no core change
-  if X4 is ruled as recommended; OB9's register entries and OI5's cache rule
-  touch core surfaces that already exist for this purpose.)
+  now that X4 is ruled as recommended; OB9's register entries and OI5's cache
+  rule touch core surfaces that already exist for this purpose. The one change
+  outside this extension is SM579's policy becoming shared, which the ruling
+  requires and which belongs to SM579.)
 
 # Verification pointers (P2)
 
@@ -372,7 +389,14 @@ seams left for it:
 
 # Sequencing
 
-Queued for a future release at the release manager's direction, 2026-09-26. Not
-buildable until: X4 and its sub-questions are ruled; the mapper specification is
-filed and merged here; OOM is available as a package on a target host (OB7). The
-first scoped app is the stock-corrections portal's live facts (P1).
+Scheduled 2026-09-28 at the release manager's direction, after the egress policy
+it sits inside. Three gates stood in front of it and one is now down:
+
+| Gate | State |
+| --- | --- |
+| X4 and its sub-questions ruled | **DONE 2026-09-28**, as recommended |
+| SM579's invocation-mode policy becomes shared, so the proxy can be mode 2 *inside* it | the consequence of the ruling, and the piece being built first |
+| The mapper specification filed and merged here | **NOT IN THE TREE.** The largest remaining unknown, and design work rather than typing |
+| OOM installed on a host this engine can reach (OB7) | built as a package, installed nowhere reachable; OP-25 |
+
+The first scoped app is the stock-corrections portal's live facts (P1).
