@@ -163,4 +163,50 @@ subtest 'P3: re-applying a stored rule is not refused for a stale name' => sub {
     is( $fresh->{kind}, 'unknown-principals', 'with its own kind' );
 };
 
+subtest 'P4: a rule checked against nothing says so' => sub {
+    require Lazysite::Manager::Files;
+    require Lazysite::Manager::Common;
+    require Lazysite::Auth::Acl;
+
+    # THE DISCRIMINATING MEASURE IS ONE ACCOUNT, which is what SM912 was
+    # reproduced with in the first place: the same call, the same code, differing
+    # only in whether the store knows anybody.
+    my %seen;
+    for my $has ( 0, 1 ) {
+        my $d = a_site( $has ? ( with_account => 1 ) : () );
+        no warnings 'once';
+        $Lazysite::Manager::Files::DOCROOT  = $d;
+        $Lazysite::Manager::Common::DOCROOT = $d;
+        $Lazysite::Auth::Acl::DOCROOT       = $d;
+        $Lazysite::Auth::Acl::token_auth    = 0;
+        local $Lazysite::Manager::Files::auth_user = 'alice';
+        local $Lazysite::Auth::Acl::auth_user      = 'alice';
+
+        # The same list either way, and one the store WOULD know when it knows
+        # anybody - so the only thing that can differ is whether it was checked.
+        $seen{$has} = Lazysite::Manager::Files::action_acl_set( '/zz-content/',
+            'alice', ['alice'], undef, undef, undef );
+    }
+
+    ok( $seen{0}{ok}, 'a rule is still accepted on a site with no accounts' )
+        or diag( 'SM901 exempts that case on purpose - a site being provisioned '
+            . 'has to be able to write a rule before it has anybody.' );
+    is( $seen{0}{principals_unchecked}, 1,
+        'and the result SAYS the names were checked against nothing' )
+        or diag( 'Without this, "no unknown names" and "no check ran" are the '
+            . 'same answer - which is how every probe fixture in t/ came to '
+            . 'exercise the ACL write with SM901 switched off, invisibly.' );
+    like( join( ' ', @{ $seen{0}{warnings} || [] } ),
+        qr/no accounts and no groups, so the names in this rule were not checked/,
+        'and a reader of the warnings is told, not only a reader of the JSON' );
+
+    # THE OTHER HALF, which is what makes the flag mean anything: a store that
+    # knows the name does NOT carry it.
+    ok( $seen{1}{ok}, 'the same rule on a site WITH an account is accepted too' );
+    ok( !exists $seen{1}{principals_unchecked},
+        'and carries no unchecked flag - the check ran and the name was known' )
+        or diag( 'A flag present in both states distinguishes nothing.' );
+    ok( !$seen{1}{unknown}, 'and reports no unknown name, because there is none' );
+};
+
 done_testing();

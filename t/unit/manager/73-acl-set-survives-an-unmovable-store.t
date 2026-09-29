@@ -97,6 +97,12 @@ subtest 'the call survives' => sub {
     is( ( $r || {} )->{kind}, 'partial', 'it names the state' );
     like( ( $r || {} )->{error} // '', qr/IN FORCE/,
         'and still says the rule IS in force - which is SM296\'s point, kept' );
+    # THE OTHER HALF OF THE PAIR the control subtest at the end needs. It asserts
+    # that a clean apply does NOT report a failed move; asserting only that would
+    # pass vacuously if the field stopped being set at all, so the failure case
+    # asserts the field IS set here.
+    is( ( $r || {} )->{content_move_failed}, 1,
+        'and the failed move is a FIELD, not only prose in a warning' );
 };
 
 subtest 'and says what did not happen' => sub {
@@ -146,9 +152,21 @@ subtest 'the control: with a usable store it still moves' => sub {
     # can write it, and acl-set now says so. That warning is correct here and
     # is a different subject from whether the move succeeded, which is what
     # this subtest is about.
-    my @store = grep { /store|move|private/i } @{ $good->{warnings} || [] };
-    ok( !@store, 'with no store warning, because nothing failed' )
-        or diag( join ' | ', @store );
+    #
+    # SM912 P4: AND IT ASKS THE FIELD RATHER THAN THE PROSE. The grep was
+    # /store|move|private/i over the warning text, which matched the word
+    # "stored" in a warning about something else entirely - P4's "this site has
+    # no accounts ... It is stored as written" - and failed a subtest about
+    # whether the private-store MOVE succeeded. SM901's own warning says "Stored
+    # as written" too, so the collision was already latent; it only fired once a
+    # second warning could appear on a fixture with no accounts.
+    #
+    # `content_move_failed` is the answer this subtest actually wants, it is set
+    # where the failure is detected, and rewording a message cannot break it -
+    # the same reasoning SM888 A7 applied to refusal codes.
+    ok( !$good->{content_move_failed},
+        'and the result does not report a failed move, because nothing failed' )
+        or diag( join ' | ', @{ $good->{warnings} || [] } );
     ok( !-e "$d/members/secret.md", 'and the content really did move' );
 };
 

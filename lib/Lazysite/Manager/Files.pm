@@ -1983,6 +1983,19 @@ sub action_acl_set {
     # right spelling. The typed surfaces (control API, MCP set_permissions,
     # `lazysite acl set`) all funnel through here.
     my @unknown;
+    # SM912 P4: AND WHETHER THE CHECK RAN AT ALL.
+    #
+    # `@unknown` empty meant two different things - every name was checked and
+    # every name is known, or nothing was checked because the store knows nobody -
+    # and the result said the same thing in both cases. That is the four-state
+    # boolean on an access control: "accepted" was carrying "accepted, verified"
+    # and "accepted, unverified" under one word.
+    #
+    # It is not hypothetical. SM912 P1 found that EVERY probe fixture in t/ is in
+    # the second state, so the suite drove the ACL write only under the condition
+    # that exempts it from SM901's check - a vacuous pass nothing could see,
+    # because the engine had no way to say which of the two it had done.
+    my $unchecked = 0;
     {
         local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
         my $accounts = Lazysite::Auth::Settings::account_names();
@@ -1994,7 +2007,13 @@ sub action_acl_set {
         # rule impossible to write before an account exists. Nothing known
         # means nothing checked, and nothing reported: "unknown" is a
         # statement about a store, and there is no store to make it about.
-        last unless %$accounts || %$groups;
+        #
+        # SM912 P4: nothing REPORTED AS UNKNOWN, but the fact that nothing was
+        # checked is itself worth saying - see $unchecked above.
+        if ( !( %$accounts || %$groups ) ) {
+            $unchecked = 1;
+            last;
+        }
 
         my $known = sub {
             my ($p) = @_;
@@ -2179,6 +2198,18 @@ sub action_acl_set {
             . 'is spelt @name.';
     }
 
+    # SM912 P4: said in the same place, for the same reason. A rule written
+    # against a store that knows nobody is stored as typed and checked against
+    # nothing - correct for a site being provisioned, and worth knowing when it
+    # is a site that was supposed to have accounts.
+    if ($unchecked) {
+        push @warnings,
+            'this site has no accounts and no groups, so the names in this rule '
+            . 'were not checked against anything. It is stored as written. On a '
+            . 'site being provisioned that is expected; on a site that should '
+            . 'already have accounts, the rule may name people who are not there.';
+    }
+
     my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
     if (@grp) {
         push @warnings,
@@ -2285,6 +2316,10 @@ sub action_acl_set {
 
     return { ok => 1, path => $rel, acl => \%rec,
         ( @unknown ? ( unknown => \@unknown ) : () ),    # SM901
+            # SM912 P4: present ONLY when the check did not run, so a caller reading
+            # `unknown` as "the names were verified" can tell the difference. A test
+            # fixture asserting on it is the visibility this row asked for.
+        ( $unchecked ? ( principals_unchecked => 1 ) : () ),
         content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
         content_move_failed => ( $CONTENT_MOVE_FAILED ? 1 : 0 ),
         ( $CONTENT_MOVED ? ( content_moved_note => $moved_note ) : () ),
