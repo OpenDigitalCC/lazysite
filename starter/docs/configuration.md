@@ -193,6 +193,32 @@ Rules:
   API (add, configure, remove, and per-domain access). The language keys
   (`lang`, `lang_group`) are set in the conf or via the `domain-set`
   control-API action.
+
+**Adding one (SM217).** On the Domains page, use **Add domain** and answer the
+content-folder question with **"The same content as &lt;host&gt;"**, under *Share
+an existing site*. That is the whole of it: the new host serves the content the
+named one already serves, and the Domains list then tags the row *alias of
+&lt;host&gt;* so the relationship is visible without opening anything.
+
+Three things follow from what an alias *is*, and the engine enforces each rather
+than trusting the form:
+
+- **No content folder is created, and nothing is copied.** The alias serves the
+  folder that already exists.
+- **No starter page is seeded.** Seeding an alias would write into the canonical
+  domain's own content, so the option is not offered.
+- **You cannot give an alias a content root of its own.** A host with its own
+  folder is an ordinary domain - use **Add domain** with a folder. The
+  `domain-alias-add` action refuses a `content_root` and says so, rather than
+  accepting it and ignoring it.
+
+Only a domain that has a **named** content folder can be shared. A host serving
+the default site has no folder of its own to share; to add a second name for the
+default site, add a domain and leave the folder empty.
+
+DNS and a TLS certificate are still yours to arrange - an alias is a new host,
+and this step does not touch either. The page runs its usual reachability check
+afterwards and reports what it found.
 - **Two hosts serving one set of files is an alias**, and
   `domain-alias-add` says so in one call: give it `host` and `alias_of`,
   and the new host is registered with the **same `content_root` as the

@@ -35,7 +35,13 @@ like( $src, qr/return h \? \(sel\.value \+ '\/' \+ h\) : sel\.value;/,
     or diag( 'Deriving it is the whole request - the convention is already '
         . 'sites/<hostname>, maintained by a person, every time.' );
 
-like( $src, qr/content_root: contentRootValue\(\)/,
+# SM217 widened the shape, not the rule. The submit gained a second action -
+# an alias posts domain-alias-add and deliberately sends NO content_root,
+# because the engine refuses one - so the body is built as an object and the
+# ordinary branch assigns into it. What this assertion is FOR is unchanged and
+# still enforced: the derived value must reach the request, or the picker is
+# decoration. Both spellings are accepted; neither lets the value be dropped.
+like( $src, qr/content_root(?::|\s*=)\s*contentRootValue\(\)/,
     'and the submit sends the derived value' )
     or diag( 'A picker that does not reach the request is decoration.' );
 

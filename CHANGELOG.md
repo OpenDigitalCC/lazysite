@@ -44,6 +44,32 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM217 (PENDING) **the Add form can make a domain a second name for an existing
+  site, which closes the filing.** The engine half shipped `domain-alias-add` and
+  the Domains list marks the result, but nothing on the page could invoke it - the
+  action was reachable only over the API, which is not where an operator adds a
+  domain. **It is an option, not a button.** A separate "Add alias" control would
+  have been a second door to the same room: the Add form already asks where this
+  domain's content lives, and "the same content as `<host>`" is one more answer to
+  that question, so it sits in the picker that asks it, under *Share an existing
+  site*. One form, two actions, chosen by that answer - every other field is the
+  same on both paths, because the appearance and language of a second name are
+  still that name's own. **Three things the form must not offer**, each enforced
+  by the engine and each therefore a refusal rather than a visible bug if the page
+  drifted: an alias sends no `content_root` (the action refuses one outright,
+  rather than dropping it); an alias never offers `seed`, because seeding would
+  write a starter page into the canonical domain's own content, and a checkbox
+  that cannot do what it says is worse than none; and only a domain with a NAMED
+  folder is offerable, since a rootless host serves the default site, which is
+  already the first option in the same select - the same narrowing the row marker
+  got, for the same reason. The preview names the folder being shared and says
+  plainly that no folder is created and nothing is copied, and the success line
+  says which of the two things happened rather than "Configured" for both.
+  `t/lint/158`, five sabotages - **the first found a hole in the test itself**: it
+  asserted `aliasOptionsHtml()`, which the function's own definition satisfies, so
+  deleting the line that puts the options into the select changed nothing the test
+  could see. It now asserts the call site. `t/lint/70` widened one pattern to
+  match the new body shape, with its rule unchanged and still biting.
 - SM914 (PENDING) **a test number is a label, not an identifier - written down,
   and the ambiguous set stops growing.** Measured: 107 numbers name two or more
   test files, one names four, and 1,294 bare-number citations point at those 107.

@@ -455,7 +455,14 @@ function syncSeedVisible() {
   // for the value that will actually be submitted.
   if (document.getElementById('e-' + NEW_HOST + '-cr-parent')) {
     var wrapEl = document.getElementById('seed-wrap');
-    if (wrapEl) wrapEl.style.display = contentRootValue() ? 'block' : 'none';
+    // SM217: NEVER for an alias. domain_add_alias forces seed => 0, because
+    // seeding an alias would write a starter page into the canonical domain's
+    // own content - so offering the checkbox here would be a control that
+    // cannot do what it says. Hidden rather than disabled: there is nothing to
+    // decide.
+    if (wrapEl) {
+      wrapEl.style.display = ( contentRootValue() && !aliasOfValue() ) ? 'block' : 'none';
+    }
     return;
   }
   var croot = document.getElementById('e-' + NEW_HOST + '-content_root');
@@ -496,9 +503,37 @@ function contentRootValue() {
     var b = document.getElementById('e-' + NEW_HOST + '-content_root');
     return b ? b.value.trim() : '';
   }
+  // SM217: an alias submits NO content_root - the action refuses one, because an
+  // alias serves the root the canonical domain already has. The folder is still
+  // returned here so the preview can NAME it: the operator should see which
+  // content they are about to put a second name on.
+  if (aliasOfValue()) return sharedRootOf(aliasOfValue());
   if (sel.value === '') return '';                    // serve the default site
   var h = crHostValue();
   return h ? (sel.value + '/' + h) : sel.value;
+}
+
+// SM217: THE ALIAS IS A FOURTH ANSWER TO THE QUESTION THIS FORM ALREADY ASKS.
+//
+// The engine half shipped the action and the list marks the result; what was
+// missing was any way to invoke it from the page. A separate "Add alias" button
+// would have been a second door to the same room - the form already asks where
+// this domain's content lives, and "the same place as <existing domain>" is one
+// more way to answer it. So it is an option in the picker, not a mode.
+//
+// The selected host, or '' when the choice is an ordinary folder.
+function aliasOfValue() {
+  var sel = crParentSelect();
+  if (!sel || sel.value.indexOf('__alias:') !== 0) return '';
+  return sel.value.slice('__alias:'.length);
+}
+
+// The content root the named domain serves. Read from the list the page already
+// loaded, so there is one answer to "what does that domain serve" and it is the
+// one the list showed.
+function sharedRootOf(host) {
+  var row = DOMAINS_BY_HOST[host];
+  return ( row && row.content_root ) ? row.content_root : '';
 }
 
 function syncContentRoot() {
@@ -508,12 +543,41 @@ function syncContentRoot() {
   if (custom) custom.style.display = (sel.value === '__custom') ? 'block' : 'none';
   if (prev) {
     var v = contentRootValue();
-    prev.textContent = (sel.value === '')
-      ? 'This domain will serve your default site.'
-      : (v ? 'Folder: ' + v + (crHostValue() ? '  (created if it does not exist)' : '')
-           : 'Enter the domain name above and this fills in.');
+    var of = aliasOfValue();
+    // SM217: an alias creates NO folder, so the preview must not say it might.
+    // It names the folder that is being shared and whose it is - the operator is
+    // about to put a second name on content that already has one, and the thing
+    // worth seeing is which content.
+    prev.textContent = of
+      ? 'Serves ' + of + '’s content: ' + ( v || '(its folder)' )
+        + '  — no new folder, and nothing is copied.'
+      : ( (sel.value === '')
+          ? 'This domain will serve your default site.'
+          : (v ? 'Folder: ' + v + (crHostValue() ? '  (created if it does not exist)' : '')
+               : 'Enter the domain name above and this fills in.') );
   }
   if (typeof syncSeedVisible === 'function') syncSeedVisible();
+}
+
+// SM217: the alias choices, from the list this page already loaded.
+//
+// ONLY domains with a NAMED content root. A rootless host serves the default
+// site, and "an alias of that" is not a thing to offer: the way to serve the
+// default site is the first option in this select, which already says so. That
+// is the same narrowing the row marker got, and for the same reason - the
+// (default) case is not shared content, it is the absence of any.
+//
+// The group is empty when there is nothing to share, and an empty optgroup
+// renders as nothing at all, so a single-domain instance sees no change.
+function aliasOptionsHtml() {
+  var rows = ( typeof DOMAINS !== 'undefined' && DOMAINS ) ? DOMAINS : [];
+  var out = '';
+  rows.forEach(function (r) {
+    if (!r || !r.host || !r.content_root) return;
+    out += '<option value="__alias:' + esc(r.host) + '">'
+        +  'The same content as ' + esc(r.host) + '</option>';
+  });
+  return out ? '<optgroup label="Share an existing site">' + out + '</optgroup>' : '';
 }
 
 function loadFolderChoices() {
@@ -531,6 +595,7 @@ function loadFolderChoices() {
              +  esc(n) + '/</option>';
       });
       opts += '<option value="__custom">Somewhere else…</option>';
+      opts += aliasOptionsHtml();
       sel.innerHTML = opts;
       syncContentRoot();
     })
@@ -589,9 +654,17 @@ function createDomain() {
   var apEl = document.getElementById('e-' + NEW_HOST + '-appearance');
   var ap = splitAppearance(apEl ? apEl.value : '');
   var seedEl = document.getElementById('e-' + NEW_HOST + '-seed');
-  post('domain-add', {
+
+  // SM217: the same form, two actions, chosen by the answer to one question.
+  //
+  // An alias is `domain-alias-add` with `alias_of` and NO content_root - the
+  // action refuses a root outright rather than dropping it, so sending one would
+  // be a refusal rather than a courtesy. Every other field is the same on both
+  // paths, which is why this is one form: the appearance and language of a second
+  // name are still that name's own.
+  var aliasOf = aliasOfValue();
+  var body = {
     host: host,
-    content_root: contentRootValue(),  // SM437: derived from the picker + host
     site_url: v('site_url'),
     site_name: v('site_name'),
     theme: ap.theme,
@@ -599,11 +672,24 @@ function createDomain() {
     nav_file: v('nav_file'),
     search_default: v('search_default'),
     lang: v('lang'),
-    lang_group: v('lang_group'),
-    seed: (seedEl && seedEl.checked) ? 1 : 0
-  }).then(function (d) {
+    lang_group: v('lang_group')
+  };
+  if (aliasOf) {
+    body.alias_of = aliasOf;
+  } else {
+    body.content_root = contentRootValue();   // SM437: derived from the picker + host
+    body.seed = (seedEl && seedEl.checked) ? 1 : 0;
+  }
+  post(aliasOf ? 'domain-alias-add' : 'domain-add', body).then(function (d) {
     if (d && d.ok) {
-      showStatus("Configured " + host);
+      // SM217: say which of the two things happened. "Configured" is true of
+      // both and tells an operator nothing about the one that matters - whether
+      // this host has content of its own or is a second name for content that
+      // already existed. The TLS prompt below applies either way: an alias is
+      // still a new host that needs DNS and a certificate.
+      showStatus( aliasOf
+        ? 'Added ' + host + ' as a second name for ' + aliasOf
+        : 'Configured ' + host );
       closeConfig();
       loadDomains();
       // SM446: say that TLS is NOT part of this step, and run the check.
