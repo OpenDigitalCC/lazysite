@@ -44,7 +44,8 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM912 P1 + P2 + P3 (PENDING) **the exposure probe can protect its own fixture
+- SM912 (91c3ed31, 9132a17f, e81117c4) **P1, P2 and P3: the exposure probe can
+  protect its own fixture
   again, and a probe that could not run no longer reads as a clean one.** SM901
   began refusing a read list where every name is unknown to the store - right,
   for a rule somebody is authoring - and the SM283 probe's read list is a
@@ -79,7 +80,14 @@ Naming the commit: AFTER it lands, never before
   never wrong, only unset. It is a sub now, which has no order to get wrong. A
   `Name used only once` warning from the same edit printed INTO the probe's own
   output, where the integration test reads it as the probe's answer.
-- SM824 (PENDING) **every page says what it is, in schema.org JSON-LD, and no
+- Withdrawn before release, and recorded rather than deleted: the schema.org
+  JSON-LD build for SM824 was written and then reverted the same day
+  (`f9fdc02e`, reverted by `15a32dd1`; the filing carries the withdrawal in
+  `b8b672b9`), because that filing's own last section says the extensions
+  batch comes first and this was built ahead of it. **The audit stands and
+  the reasoning below is why it is worth keeping** - it is what the work will
+  look like when it is ruled. What it says: **every page says what it is, in
+  schema.org JSON-LD, and no
   author had to type anything.** The load-bearing constraint was no new authoring
   burden, so every value comes from front matter and site config that already
   exist: the title, the site name, the site URL, and a description that is
@@ -104,7 +112,7 @@ Naming the commit: AFTER it lands, never before
   four sabotages; twice while writing it I picked the wrong node out of the graph
   and got the `WebSite` where I meant the page, which let a sabotage pass until one
   helper made every subtest ask the same way.
-- SM217 (PENDING) **a host can be an alias of another, and the list says so.**
+- SM217 (1e2f2a8b, 3d2c6360) **a host can be an alias of another, and the list says so.**
   The engine has always served several hosts from one content root - a host with
   no `content_root` of its own mirrors the primary, and two hosts may point at the
   same folder - but there was no way to SAY that. An operator added a second
@@ -131,7 +139,7 @@ Naming the commit: AFTER it lands, never before
   the rule by accident. **Not in this**: the Domains page affordance, which is the
   other half of the filing.
 
-- SM857 (PENDING) **a row can belong to the account that wrote it.** Measured
+- SM857 (22a8da4a) **a row can belong to the account that wrote it.** Measured
   before this was built, on a table with `timestamps` and two accounts holding
   `write_data`: Bob rewrote Ann's row and then deleted it, and `delete_row`'s
   signature had nowhere to say who was asking. `write_data` is documented as "the
@@ -165,7 +173,7 @@ Naming the commit: AFTER it lands, never before
   treatment, and a form handler declaring the policy it writes rows with - the
   filing names the second as the piece the expo depends on.
 
-- Pre-stable debt (PENDING) **the columns the data extension owns are named
+- Pre-stable debt (410982fa) **the columns the data extension owns are named
   once.** `created_at`, `updated_at`, `created_by` and `updated_by` were written
   out **fifteen times** across eight modules - twice as a `%RESERVED` hash, once
   as a list to create, once as column definitions, once as CSV headers, once
@@ -186,7 +194,7 @@ Naming the commit: AFTER it lands, never before
   generated DDL is byte-for-byte what it was, deliberately, including the
   unquoted column names.
 
-- SM905 U4 (PENDING) **the row an operator works from reaches the photograph.** A
+- SM905 (d1cb29ac) **U4: the row an operator works from reaches the photograph.** A
   table handler with `keep_copy` stored a visitor's uploads under the submissions
   tree and named them in the submissions record; the row in the table had
   nothing, measured as `files=NULL` beside a photograph on disk two directories
@@ -212,7 +220,8 @@ Naming the commit: AFTER it lands, never before
   whole submission down with it, losing the fields as well as the files.
   `t/unit/forms/25`, four sabotages.
 
-- SM905 U5 + SM913 (PENDING) **an upload form can be finished over the API, and a
+- SM905 + SM913 (baaec983, ba8215d6, 5313e813) **U5, and the question SM913 left
+  open: an upload form can be finished over the API, and a
   quarantined submission is never answered.** The form handler refuses every upload
   until a form's own conf carries one of `upload_max_kb`, `upload_max_files` or
   `upload_accept` - so a form never accepts files by accident - and the only writer
@@ -237,7 +246,7 @@ Naming the commit: AFTER it lands, never before
   on the fields, so nothing had to be plumbed to ask. `t/unit/forms/24`, four
   sabotages.
 
-- SM913 S1 + S3 (PENDING) **the quarantine sees the spam that actually arrives.**
+- SM913 (2a85e85e) **S1 and S3: the quarantine sees the spam that actually arrives.**
   Four of four genuine-looking submissions on a live contact form were spam, read
   one by one, each from a different source range - so nothing about addresses
   would have caught any of them. SM216's content quarantine was built for exactly
@@ -268,7 +277,8 @@ Naming the commit: AFTER it lands, never before
   by the Submissions page, and a rename would leave the store holding two
   spellings of one fact.
 
-- SM905 U1 + SM579 (PENDING) **the uploaded photograph reaches the service now,
+- SM905 + SM579 (aab03248) **U1 works in the field now: the uploaded photograph
+  reaches the service,
   and the test that said it already did has been fixed too.** 0.15.0 claimed a
   connector could carry an uploaded file and it could not: the handler built
   `$payload{files}` as an array reference and `Connectors::call` refused any
@@ -299,7 +309,7 @@ Naming the commit: AFTER it lands, never before
   the payload. This amends one of SM579's five decisions of 2026-09-07 and the
   module header says so where a reader will find it.
 
-- SM877 (PENDING) **a form can answer the person who filled it in, and the cap is
+- SM877 (65f5c830) **a form can answer the person who filled it in, and the cap is
   the feature.** The email handler's `to` is fixed at configuration time, so a
   site could notify its owner and could not acknowledge the visitor - every
   receipt, booking confirmation and copy-of-what-you-signed needs the other
@@ -327,7 +337,8 @@ Naming the commit: AFTER it lands, never before
   them escaped first time round and was a duplicate hash key that changed nothing,
   which is worth knowing: a sabotage has to be checked for having had an effect.
 
-- SM579 + SM747 X4 (PENDING) **who may make this site send something outward is
+- SM579 (3c660780, ef2e669d, ed91dbc2) **SM747's X4 is ruled, and who may make
+  this site send something outward is
   one policy, and it is no longer the connector's private business.** The three
   invocation modes were ruled in September and described from the start as the
   outbound policy for the whole programme, then written inside
