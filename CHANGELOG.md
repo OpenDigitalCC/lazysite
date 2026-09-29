@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM579 (PENDING) **a submission that went to a service says so, instead of
+- SM579 (3d0a5164) **a submission that went to a service says so, instead of
   claiming a message was sent to somebody.** There was one success sentence -
   "Thank you - your message has been sent." - and a form whose only target is a
   connector sends a message to nobody: it hands the submission to a service to be
@@ -79,7 +79,7 @@ Naming the commit: AFTER it lands, never before
   the lint found a defect in the lint: its key pattern silently dropped a token it
   could not parse, which would have let two equally-incomplete maps agree, so it
   now counts what it read against what the file declares.
-- SM857 (PENDING) **a form handler says what its rows are, which is the piece the
+- SM857 (0f3490ea) **a form handler says what its rows are, which is the piece the
   expo depends on.** The ruling that gave a row a policy also said the time to set
   one is at WRITE - "whatever is creating the row gets to say the policy" - and a
   form handler was a writer with nothing to say it with. So on a table declaring
@@ -101,7 +101,7 @@ Naming the commit: AFTER it lands, never before
   table with **no** policy column to see the difference, which is also the case
   the guard actually protects.
 
-- SM825 (PENDING) **the markdown beside the rendered page, which llms.txt has
+- SM825 (4e9dce51) **the markdown beside the rendered page, which llms.txt has
   been linking to since SM299 and getting HTML from.** SM299 spent its effort
   getting the shape of those URLs right - an index page's URL already ends in a
   slash, so appending `.md` gave `<dir>/.md` - and measured before this was
