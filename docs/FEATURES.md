@@ -920,6 +920,7 @@ type and one global:
 route.submission:    bell,xmpp     # which endpoints this type reaches
 emit.submission:     off           # silence a type without touching its caller
 base_url:            https://...   # how a link is made absolute
+mail.per_hour:       60            # ceiling on notice emails from this site
 ```
 
 The **bell is always written and is always the record** - a route that omits it
@@ -936,6 +937,31 @@ link. Override any of them by dropping a file at
 `message`, `type`, `target`, `url`, `site` and `base` in scope. A template that
 fails to render falls back to the plain message: a bad template must not silence
 an alert.
+
+**A notice can name a person, and reach them by mail (SM485).** A notice may
+carry a `to` naming an **account** - never an address - and the third endpoint is
+`email`. Both switches are real and neither implies the other: the site says
+which *types* may leave by mail (`route.submission: bell,email`), and the person
+says whether *they* want mail (`notify_email` on their own account, which they
+may set for themselves). No type is routed to email by default, so an upgrade
+cannot start a site writing to anybody.
+
+The address is the one the account already holds, read at delivery from its own
+record. A notice cannot carry an address, so nothing a caller passes can point
+the site at a stranger - which is why this needs only the per-site hourly bound
+and not the per-recipient cap the form handler's acknowledgements carry: there is
+no address here the site did not already have.
+
+**A broadcast reaches nobody by mail.** A notice with no `to` is a bell item, and
+it stays one. Mailing "everyone" would mean assembling a list of every account's
+address, which is a different feature from a notification one.
+
+The transport is the **Form SMTP extension** - there is one mail configuration on
+a lazysite site and it belongs there. When it cannot send, the reason says which
+of three things is wrong: not installed, switched off, or configured with no
+settings yet. A notice that did not become an email is an ordinary outcome, not a
+failure: the bell already has the record, and losing a notice because a mail
+server was unreachable would be the wrong trade.
 
 **Emission is per caller.** A form that should announce itself does; the rest stay
 quiet. Set `notify: off` in a form's own `.conf` to silence that form alone, or

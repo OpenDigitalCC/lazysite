@@ -401,15 +401,27 @@ if ($API_MODE) {
         );
         my $actor = $req->{actor};
 
-        # SM724: the ONE account setting a user may set for themselves - their
-        # start page. It grants, confines and audits nothing (a preference, as
-        # display_name is), so self-service costs the model nothing; every
-        # other settings-set stays a manage_users act.
-        my $self_start_page = $action eq 'settings-set' && ( $req->{key} // '' ) eq 'start_page'
+        # THE ACCOUNT SETTINGS A USER MAY SET FOR THEMSELVES.
+        #
+        # SM724 established the test with `start_page`, and stated it as the
+        # reason rather than as an exception: a setting that GRANTS, CONFINES or
+        # AUDITS nothing is a preference, as display_name is, so self-service
+        # costs the access model nothing. Every other settings-set stays a
+        # manage_users act.
+        #
+        # SM485 is the second one to pass that test, which is what turned the
+        # single key into a list: `notify_email` decides only whether this
+        # person's notices also reach them by mail, at the address their account
+        # ALREADY holds - they cannot set the address here, so nothing they do
+        # can point the site at an address of their choosing. A third key added
+        # to this list should have to argue the same three things.
+        my %SELF_SERVICE    = map { $_ => 1 } qw(start_page notify_email);
+        my $self_preference = $action eq 'settings-set'
+            && $SELF_SERVICE{ $req->{key} // '' }
             && defined $actor && defined $req->{username} && $actor eq $req->{username};
 
         if ( $ACTOR_FORBIDDEN{$action}
-            && !$self_start_page
+            && !$self_preference
             && defined $actor
             && length $actor
             && $actor ne 'local' )
@@ -1778,9 +1790,29 @@ sub cmd_set {
         }
         else { delete $all->{$user}{email} }
     }
+    elsif ( $key eq 'notify_email' ) {
+        # SM485: does this person want their notices by mail?
+        #
+        # A BOOLEAN, and the address is NOT here - it is `email` above, the one
+        # the account already has. That is the whole of why this is safe to let
+        # somebody set for themselves: the only thing they can change is whether
+        # mail goes to an address the account already holds, so no setting of
+        # theirs can point the site at an address of their choosing.
+        #
+        # Off is the default and empty clears back to it, so a site that enables
+        # the email route does not start writing to people who never asked.
+        my $v = defined $value ? "$value" : '';
+        $v =~ s/^\s+|\s+$//g;
+        if ( !length $v ) { delete $all->{$user}{notify_email} }
+        else {
+            $all->{$user}{notify_email}
+                = parse_onoff($v) ? JSON::PP::true() : JSON::PP::false();
+        }
+    }
     else {
         die "Unknown setting '$key' (expected ui, display_name, comment, "
-            . "start_page, email, expires_at, or token_ttl; dav_scope/home_domain were "
+            . "start_page, notify_email, email, expires_at, or token_ttl; "
+            . "dav_scope/home_domain were "
             . "retired in 0.7.26 - confinement lives on the domain)\n";
     }
 

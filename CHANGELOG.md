@@ -44,6 +44,57 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM485 (PENDING) **a notice can name a person, and reach them by mail if they
+  asked for it.** Measured before building: `notify()` built its record from a
+  fixed key list, so a `to` passed by a caller was **dropped silently** - every
+  notice was a site-wide broadcast, and the bell was the only endpoint reachable
+  without a chat server. A notice now carries an optional `to`, and `email` joins
+  `bell` and `xmpp` as an endpoint on the mechanism that already existed, so there
+  is no second place to say where a notice goes. **`to` names an ACCOUNT, never an
+  address** - the address is read at delivery from the account's own record - so
+  nothing a caller passes can point the site at a stranger, and that is why this
+  needs only the per-site hourly bound and not the per-recipient cap SM877 built
+  for form acknowledgements, whose addresses a visitor types. **Both switches are
+  real and neither implies the other:** the site says which types may leave by
+  mail, the person says whether they want mail. No type is routed to email by
+  default, so an upgrade cannot start a site writing to anybody. **A broadcast
+  reaches nobody by mail** - it is a bell item, and mailing everyone would mean
+  assembling the address list this filing declined to build. The transport is the
+  Form SMTP extension, because there is one mail configuration on a site and
+  SM842 spent a release removing the second; when it cannot send, the reason names
+  which of three things is wrong rather than saying "mail failed". A notice that
+  did not become an email is an ordinary outcome and does not fail the call - the
+  bell already has the record. The opt-in is the **second** setting to pass
+  SM724's test for self-service (grants nothing, confines nothing, audits
+  nothing), which is what turned that hardcoded single-key carve-out into a named
+  list with the test written beside it; a third key has to argue the same three
+  things. It is a **boolean**, and deliberately not an address: the only thing a
+  person can change is whether mail goes where their account already points.
+  `t/unit/lib/55`, ten subtests, five sabotages - one of which earned an extra
+  assertion, because removing the broadcast guard changed no behaviour (the
+  recipient lookup refuses an empty login anyway) but did change the reason a
+  sysop reads, so the test now pins the reason and not just the silence.
+  **AND IT WALKED INTO A LIVE DEFECT**, fixed here because the endpoint cannot be
+  reached without it and filed as SM915 for the rest: SM817 renamed the extension
+  list to `extensions:` and said both spellings open the same one, and
+  `Lazysite::Notify` accepted only the old name - so on a site using the new
+  spelling it reported every extension disabled, which means **XMPP notice
+  delivery has been silently off on those sites since the rename.**
+- SM915 (PENDING) **filed, not built: one registry spelled two ways is read four
+  ways, and the one that WRITES it appends a second list.** Found while SM485
+  looked for a predicate for "is the SMTP extension enabled". Of the four places
+  that read the extension list, one accepts both spellings and three do not - and
+  `Lazysite::Manager::Plugins`' writer, on a site whose header is `extensions:`,
+  preserves that block and then emits a fresh `plugins:` one, so enabling a single
+  extension leaves the site with two lists that disagree. `disable` is quieter and
+  worse: the entry is not in the list it parsed, nothing is removed, and it reports
+  success. Only the Notify reader is fixed, in SM485; the writer needs a ruling
+  first, because a site that has enabled an extension through the manager since
+  the rename already has both headers and the fix has to decide whether to write
+  back under the header the site uses, merge them, or refuse and name the file.
+  The measurement that found it is also a lesson in its own right: the first probe
+  wrote to a `plugins.conf` that does not exist, got `0` from both readers in both
+  spellings, and would have been read as agreement.
 - SM579 (3d0a5164) **a submission that went to a service says so, instead of
   claiming a message was sent to somebody.** There was one success sentence -
   "Thank you - your message has been sent." - and a form whose only target is a

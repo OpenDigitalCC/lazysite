@@ -138,9 +138,13 @@ my @STORES = (
     #
     # stats.pl loads no Lazysite modules by design - it runs as a subprocess - so
     # it carries its own reporter in the same shape.
+    # SM485 adds Notify as a third reader: it counts its own hourly sends out of
+    # logs/notice-mail.jsonl, and an unreadable record there returns undef rather
+    # than 0 - "could not tell" is the state a cap must refuse on, never the one
+    # it treats as room to send.
     { dir => 'logs',
         store   => 1,
-        modules => [ 'lazysite-manager-api.pl', 'plugins/stats.pl' ],
+        modules => [ 'lazysite-manager-api.pl', 'plugins/stats.pl', 'lib/Lazysite/Notify.pm' ],
     },
     { dir => 'backups',
         store => 0,

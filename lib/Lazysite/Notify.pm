@@ -33,13 +33,30 @@ package Lazysite::Notify;
 use strict;
 use warnings;
 use JSON::PP       ();
-use Lazysite::Util qw(log_event);
+use Fcntl           qw(:flock);
+use Lazysite::Util  qw(log_event cannot_read);
 use Lazysite::Paths ();
 use Exporter 'import';
 our @EXPORT_OK = qw(notify notify_types);
 
 # Test hook: overridable sender (t/ swaps this out to capture sends).
 our $XMPP_SENDER = \&_xmpp_send;
+
+# SM485: the same hook for mail. The transport is the Form SMTP extension,
+# reached over its `--pipe` interface, so a test that swapped only the conf would
+# still be talking to a real script; this is the seam t/ replaces instead.
+our $MAIL_SENDER = \&_mail_send;
+
+# SM485: how many notice emails this site may send in an hour.
+#
+# One axis, not two. SM877 built a PER-RECIPIENT cap as well, because a form
+# acknowledgement goes to an address the visitor typed and a site writing to
+# addresses it did not choose is an open relay in miniature. That reasoning does
+# not carry here and the ruling says so: a notice can only ever reach an account
+# that exists, at the address its own record holds, having opted in. The
+# per-site bound stays because "unbounded" should be a decision rather than the
+# default - it is what stops a loop in a caller mailing all night.
+our $DEFAULT_MAIL_PER_HOUR = 60;
 
 # --- the type registry -------------------------------------------------------
 #
@@ -106,8 +123,13 @@ sub _template {
     # Per-site override first: a specific type beats the generic one.
     for my $key ( "$type.$endpoint", "default.$endpoint" ) {
         my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-templates/$key.tt";
-        next unless -f $path;
-        open my $fh, '<:utf8', $path or next;
+
+        # The `-f` that used to stand here is gone: the open below already skips
+        # an absent candidate, so the stat only duplicated the answer - and
+        # t/lint/121 is right that a stat this process may not make fails exactly
+        # like an open it may not make. Behaviour is unchanged; one fewer way to
+        # be told "no" for the wrong reason.
+        open my $fh, '<:utf8', $path or next;    # not a store - a template file
         local $/;
         my $body = <$fh>;
         close $fh;
@@ -160,7 +182,7 @@ sub _render {
 sub _notify_conf {
     my ($docroot) = @_;
     my %c;
-    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/notify.conf" or return \%c;
+    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/notify.conf" or return \%c; # not a store - site config
     while ( my $l = <$fh> ) {
         next if $l =~ /^\s*(?:#|$)/;
         $c{$1} = $2 if $l =~ /^([\w.-]+)\s*:\s*(.*?)\s*$/;
@@ -212,10 +234,37 @@ sub notify {
     log_event( 'WARN', 'notify', 'unregistered notification type', type => $type )
         unless $TYPES{$type} || $type eq 'event';
 
+    # SM485 / SM281 item 2: WHO THE NOTICE IS FOR, optional.
+    #
+    # `to` names an ACCOUNT, never an address - the address is the account's own,
+    # read from its record at delivery. A notice that carried an address would be
+    # a way to make the site write to anywhere, which is the shape SM877 built
+    # caps against; naming an account cannot reach anybody who does not already
+    # have a record here.
+    #
+    # Absent means broadcast, exactly as before, so nothing that emits a notice
+    # today has to change - and a broadcast reaches nobody by mail, because there
+    # is no addressee to look up. That is the ruling, and it is also what falls
+    # out of the code: there is nothing here to send to.
+    my $to = $n->{to};
+    if ( defined $to ) {
+        $to =~ s/[^a-zA-Z0-9_.-]//g;
+        # A `to` that sanitises away is a caller error, and silently promoting it
+        # to a broadcast would show one account's notice to everyone holding the
+        # bell. Refuse the addressing, keep the notice.
+        if ( !length $to ) {
+            log_event( 'WARN', 'notify',
+                'notice addressed to a name with no usable characters - kept as a broadcast',
+                type => $type );
+            $to = undef;
+        }
+    }
+
     my %rec = (
         ts      => time(),
         type    => $type,
         message => $n->{message},
+        ( defined $to          ? ( to     => $to )          : () ),
         ( defined $n->{target} ? ( target => $n->{target} ) : () ),
         ( defined $n->{url}    ? ( url    => $n->{url} )    : () ),
     );
@@ -234,6 +283,7 @@ sub notify {
         type    => $type,
         target  => ( $rec{target} // '' ),
         url     => ( $rec{url}    // '' ),
+        to      => ( $rec{to}     // '' ),
         site    => _site_name($docroot),
         base    => ( $conf->{base_url} // _site_url($docroot) ),
     );
@@ -250,6 +300,211 @@ sub notify {
             };
         }
     }
+
+    # SM485: AND BY MAIL, if the site routes this type there and the person asked
+    # for it. Every refusal below is logged with its own reason - a notice that
+    # did not become an email is an ordinary outcome, not a failure of notify(),
+    # so the return value does not change. The bell already has the record, and
+    # losing a notice because a mail server was unreachable would be the wrong
+    # trade entirely.
+    if ( $route->{email} ) {
+        my $why = _mail_notice( $docroot, $conf, \%rec, \%vars );
+        log_event( 'INFO', 'notify', 'notice not mailed', type => $type, why => $why )
+            if length $why;
+    }
+    return 1;
+}
+
+# Deliver one notice by mail. Returns '' when it was sent, or the reason it was
+# not - so every path out of here says something, and the caller logs it.
+#
+# THE ORDER OF THE REFUSALS IS THE DESIGN. Cheapest and most specific first, so
+# the reason a sysop reads is the one that will help: "nobody is addressed"
+# before "that account has not opted in" before "the extension is off".
+sub _mail_notice {
+    my ( $docroot, $conf, $rec, $vars ) = @_;
+
+    # 1. A BROADCAST REACHES NOBODY BY MAIL. Ruled, and there is nothing to send
+    #    to in any case - a list of every account's address is a different
+    #    feature from a notification one.
+    return 'the notice is a broadcast, which is a bell item'
+        unless length( $rec->{to} // '' );
+
+    # 2. THE PERSON DECIDES. Opt-in, so a site that turns the route on does not
+    #    start mailing people who never asked.
+    my ( $addr, $why ) = _mail_recipient( $docroot, $rec->{to} );
+    return $why unless length $addr;
+
+    # 3. THE TRANSPORT, NAMED WHEN IT IS OFF. There is one mail configuration on
+    #    a lazysite site and it belongs to the Form SMTP extension - SM842 spent
+    #    a release removing the second one, and a notice endpoint that carried
+    #    its own would put it straight back.
+    my $script = _smtp_script();
+    return 'the Form SMTP extension is not installed, so this site cannot send mail'
+        unless defined $script;
+    return 'the Form SMTP extension is switched off (enable it on the Extensions page)'
+        unless _plugin_enabled( $docroot, 'form-smtp.pl' );
+    my $smtp = Lazysite::Paths::lazysite_dir($docroot) . '/forms/smtp.conf';
+    return 'the Form SMTP extension has no settings yet (save the SMTP settings first)'
+        unless -f $smtp;
+
+    # 4. THE BOUND. Counted from this site's own record, and an unreadable record
+    #    REFUSES rather than counting as zero - within_caps treats an undefined
+    #    count as "could not tell", which is the only safe reading for a cap.
+    my $cap = $conf->{'mail.per_hour'};
+    $cap = $DEFAULT_MAIL_PER_HOUR unless defined $cap && $cap =~ /\A\d+\z/;
+    require Lazysite::Egress;
+    my ( $ok, $capwhy ) = Lazysite::Egress::within_caps(
+        what => 'notice',
+        axes => [ {
+                name    => 'this site',
+                limit   => ( $cap ? $cap : undef ),
+                used    => _mail_sent_last_hour($docroot),
+                window  => 'hour',
+                setting => 'mail.per_hour in notify.conf',
+        } ],
+    );
+    return $capwhy unless $ok;
+
+    my ( $body, $from_file ) = _template( $docroot, $rec->{type}, 'email' );
+    my $text    = _render( $body, $from_file, $vars );
+    my $subject = sprintf '%s%s',
+        ( length( $vars->{site} // '' ) ? "[$vars->{site}] "            : '' ),
+        ( $TYPES{ $rec->{type} }        ? $TYPES{ $rec->{type} }{title} : 'Notice' );
+
+    local $@;
+    my $sent = eval { $MAIL_SENDER->( $docroot, $script, $addr, $subject, $text ) };
+    if ( !$sent ) {
+        my $err = $@ || 'the transport reported no reason';
+        $err =~ s/\s+\z//;
+        return "the mail was not accepted: $err";
+    }
+    _record_mail_sent($docroot);
+    return '';
+}
+
+# SM485: where a notice for this account should go, or '' and the reason.
+#
+# BOTH FACTS COME FROM THE ACCOUNT'S OWN RECORD - the opt-in and the address.
+# Nothing a caller passes can redirect a notice, so the worst a wrong `to` can do
+# is mail the wrong PERSON WHO ALREADY HAS AN ACCOUNT HERE, never an arbitrary
+# stranger. That is what makes the single per-site cap sufficient.
+sub _mail_recipient {
+    my ( $docroot, $login ) = @_;
+    my $settings = eval {
+        require Lazysite::Auth::Settings;
+        no warnings 'once';
+        local $Lazysite::Auth::Settings::AUTH_DIR
+            = Lazysite::Paths::lazysite_dir($docroot) . '/auth';
+        # FOUR STATES, not two. An unreadable store is not a store where nobody
+        # opted in: read_settings() returns {} for both, and settings_readable()
+        # is the companion that tells them apart (SM778/SM784). Refusing on
+        # "could not tell" is right for a send - the alternative is mailing
+        # somebody on the strength of a file we failed to open.
+        return undef unless Lazysite::Auth::Settings::settings_readable();
+        Lazysite::Auth::Settings::read_settings();
+    };
+    return ( '', 'the account store could not be read, so no opt-in could be confirmed' )
+        unless ref $settings eq 'HASH';
+
+    my $acct = $settings->{$login};
+    return ( '', "there is no account '$login'" ) unless ref $acct eq 'HASH';
+
+    my $opted = $acct->{notify_email} // '';
+    return ( '', "'$login' has not asked for notices by mail" )
+        unless $opted =~ /\A(?:1|on|true|yes)\z/i;
+
+    my $addr = $acct->{email} // '';
+    $addr =~ s/\A\s+|\s+\z//g;
+    return ( '', "'$login' asked for notices by mail but the account has no address" )
+        unless length $addr;
+    return ( '', "'$login' has an address that is not one ($addr)" )
+        unless $addr =~ /\A[^\s\@,;<>]+\@[^\s\@,;<>]+\.[A-Za-z]{2,}\z/;
+    return ( $addr, '' );
+}
+
+# The site's own notice-mail record. Its OWN file, deliberately not the form
+# handler's submitter-mail.jsonl: sharing that bucket would mean a busy contact
+# form silencing the sysop's notices, which are the thing you least want capped
+# by something unrelated.
+sub _mail_record_file {
+    return Lazysite::Paths::lazysite_dir( $_[0] ) . '/logs/notice-mail.jsonl';
+}
+
+# How many went out in the last hour, or undef when the record exists and will
+# not open - the third state within_caps refuses on. A missing file is a genuine
+# zero: nothing has been sent yet.
+#
+# ABSENCE IS THE OPEN'S ENOENT, NEVER A STAT. This had `return 0 unless -e $f`
+# in front of it and t/lint/121 refused it, rightly: a stat the process may not
+# make fails exactly like an open it may not make, so the guard would have turned
+# "I am not allowed to look" into "nothing has been sent" - and a cap that cannot
+# count must never read as room to send.
+sub _mail_sent_last_hour {
+    my ($docroot) = @_;
+    my $f = _mail_record_file($docroot);
+    open my $fh, '<', $f
+        or return $!{ENOENT} ? 0 : cannot_read( 'the notice-mail record', $f );
+    my $cut = time() - 3600;
+    my $n   = 0;
+    while ( my $l = <$fh> ) {
+        my $r = eval { JSON::PP::decode_json($l) } or next;
+        $n++ if ( $r->{t} // 0 ) >= $cut;
+    }
+    close $fh;
+    return $n;
+}
+
+# One line per send. The ADDRESS IS NOT WRITTEN - only that a send happened -
+# for SM877's reason: a file of addresses is a mailing list, and this one would
+# be a list of the site's own operators.
+sub _record_mail_sent {
+    my ($docroot) = @_;
+    my $f = _mail_record_file($docroot);
+    open my $fh, '>>', $f or return 0;
+    eval {
+        flock $fh, LOCK_EX;
+        print {$fh} JSON::PP::encode_json( { t => time() } ) . "\n";
+        1;
+    };
+    close $fh;
+    return 1;
+}
+
+# Where the Form SMTP extension's script lives. The same four places
+# Lazysite::Handlers::_find_script looks, because there is one answer to "where
+# are the extension scripts" and two copies of it would diverge the first time
+# somebody moved the tree (SM850 is that lesson).
+sub _smtp_script {
+    my @tried = (
+        __FILE__ =~ s{/lib/Lazysite/Notify\.pm\z}{}r . '/plugins/form-smtp.pl',
+        '/usr/share/lazysite/plugins/form-smtp.pl',
+    );
+    for my $p (@tried) { return $p if -f $p }
+    return undef;
+}
+
+# Hand the composed notice to the Form SMTP extension over its --pipe interface.
+# The extension merges its own smtp.conf connection settings into whatever config
+# it is given, so this passes only from/to/subject and never a credential.
+sub _mail_send {
+    my ( $docroot, $script, $addr, $subject, $text ) = @_;
+    require IPC::Open2;
+    local $ENV{DOCUMENT_ROOT} = $docroot;
+    my $payload = JSON::PP::encode_json( {
+            config => { to      => $addr, subject_prefix => "$subject - " },
+            form   => { message => $text },
+    } );
+    my ( $out, $in );
+    my $pid = eval { IPC::Open2::open2( $out, $in, $^X, $script, '--pipe' ) }
+        or die "the extension's script could not be started\n";
+    print {$in} $payload;
+    close $in;
+    my $res = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    my $r = eval { JSON::PP::decode_json( $res // '' ) } || {};
+    die( ( $r->{error} // 'no answer from the extension' ) . "\n" ) unless $r->{ok};
     return 1;
 }
 
@@ -260,7 +515,7 @@ sub _xmpp_conf {
     my ($docroot) = @_;
     return undef unless _plugin_enabled( $docroot, 'notify-xmpp.pl' );
     my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-xmpp.conf";
-    open my $fh, '<', $path or return undef;
+    open my $fh, '<', $path or return undef;    # not a store - the xmpp client config
     my %c;
     while ( my $l = <$fh> ) {
         $c{$1} = $2 if $l =~ /^(\w+)\s*:\s*(.*?)\s*$/;
@@ -282,7 +537,7 @@ sub _xmpp_conf {
 
 sub _conf_value {
     my ( $docroot, $key ) = @_;
-    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return '';
+    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return ''; # not a store - site config
     while ( my $l = <$fh> ) {
         if ( $l =~ /^\Q$key\E\s*:\s*(.+?)\s*$/ ) { close $fh; return $1 }
     }
@@ -295,11 +550,22 @@ sub _site_url  { return _conf_value( $_[0], 'site_url' ) }
 
 sub _plugin_enabled {
     my ( $docroot, $name ) = @_;
-    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0;
+    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0; # not a store - site config
     my ( $in, $found ) = ( 0, 0 );
     while ( my $l = <$fh> ) {
         chomp $l;
-        if    ( $l =~ /^plugins\s*:\s*$/ ) { $in = 1; next }
+        # SM915: BOTH SPELLINGS, because SM817 renamed this list to
+        # `extensions:` and said the two open the same one - "a site cannot end
+        # up with two lists that disagree about what is enabled". This reader
+        # accepted only the old name, so on a site that adopted the new one it
+        # reported every extension disabled, and a notice reached no endpoint but
+        # the bell. That is not a new hole: XMPP delivery has been silently off
+        # on those sites since the rename, which SM485's build walked into while
+        # looking for the SMTP transport. Three more readers are still wrong and
+        # one of them WRITES a second list - measured and filed as SM915, not
+        # fixed here, because the writer needs a ruling about a conf that already
+        # carries both headers.
+        if    ( $l =~ /^(?:extensions|plugins)\s*:\s*$/ ) { $in = 1; next }
         elsif ( $in && $l =~ /^\s+-\s+(.+?)\s*$/ ) {
             ( my $base = $1 ) =~ s{.*/}{};
             $found = 1 if $base eq $name;
