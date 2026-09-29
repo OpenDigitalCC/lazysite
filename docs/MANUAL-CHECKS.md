@@ -177,9 +177,9 @@ hiding for a minute; make one if there is not one, with two or three pages in it
 4. Leave *Who may read it* blank.
 5. Click **Protect this section**, and confirm.
 
-   *Expected:* a message saying the section is hidden. Further down the Files
-   page, the **Protected sections** card now lists your folder with a **draft**
-   badge and a count of what is under it.
+   *Expected:* a message saying the section is hidden. Re-open the folder's own
+   card: under **Protection** it shows a **draft** tag, *readable by* (empty, so
+   "nobody but the owner"), and a count of the pages and assets under it.
 
 6. Open the site in a **private/incognito window** (not signed in) and visit the
    folder's page - `https://<your site>/<folder>/`.
@@ -187,20 +187,38 @@ hiding for a minute; make one if there is not one, with two or three pages in it
    *Expected:* **404**. Not a sign-in prompt - the section's existence is what is
    being withheld.
 
-7. Back in the manager, on the **Protected sections** card, click **Publish** on
-   that row, and confirm.
+7. Back in the manager, on that same folder's card, click **Publish**, and
+   confirm.
 
-   *Expected:* the badge changes from **draft** to **gated**, and the row stays -
-   the read list survives. Reload the private window: the page now loads.
+   *Expected:* the tag changes from **draft** to **gated**, and the protection
+   block stays - the read list survives. Reload the private window: the page now
+   loads (or asks you to sign in, if you left a read list).
 
-**This fails the tier if:** the row does not appear, Publish does not change the
-badge, the page still 404s to the public after publishing, or the row vanishes
-entirely (Publish must not delete the rule - that is the other button).
+**This fails the tier if:** the Protection block does not appear, Publish does not
+change the tag, the page still 404s to the public after publishing, or the
+protection disappears entirely (Publish must not delete the rule - that is the
+other button).
+
+**Rewritten 2026-09-29, and where the buttons went.** Steps 5-7 used to name a
+**Protected sections** card. SM635 retired it (see B5's note) and moved the only
+Publish / Remove-protection controls onto the folder's **own** row - the card
+behind the chevron - rather than deleting them. `files.md` says why in its own
+words: they move *"ONLY onto the row that OWNS the rule, because an inherited one
+cannot be removed from the row it covers, and offering a button that would act
+somewhere else is worse than offering none."*
+
+So on a folder whose protection is **inherited** from a parent or from the
+site-wide rule, there is deliberately no button and the card says where to go
+instead. Do this check on the folder you set the rule on.
+
+These steps are rewritten from the source, not from a walk. **Their first run is
+also their first verification** - if the screen does not match, that is a finding
+about the rewrite, and worth reporting as one rather than working around.
 
 #### A2 - remove protection completely
 
-1. On the same **Protected sections** row (now showing **gated**), click
-   **Remove protection**.
+1. On the same folder's card (Protection now showing **gated**), click **Remove
+   protection**.
 2. Read the confirmation before accepting it.
 
    *Expected:* it says this drops the read list as well, so the section stops
@@ -208,11 +226,23 @@ entirely (Publish must not delete the rule - that is the other button).
 
 3. Accept.
 
-   *Expected:* the row disappears from the card entirely. The folder is ordinary
-   content again.
+   *Expected:* the Protection block goes. The folder is ordinary content again,
+   and its row loses the padlock.
 
 **This fails the tier if:** the confirmation is indistinguishable from Publish's,
-or the row survives, or the content is still gated afterwards.
+or the protection survives, or the content is still gated afterwards.
+
+**Why this was not simply retired.** The 0.15.0 walk found A1's steps 5-7 and all
+of A2 naming furniture that no longer exists, and the obvious economy was to drop
+them - B4 and B5 were updated for SM635 in this same document and A1/A2 were not,
+which reads like a leftover. Checked before deleting anything, and it is not:
+**B4 and B5 cover the DATA PATH** - a draft section 404s and is absent from the
+sitemap, and a scoped manager sees only sections in scope, whose filter is
+suite-covered. **A1 and A2 are the only cover for the two TRANSITIONS**, Publish
+and Remove protection, and this tier exists for exactly that - *"each a control
+that writes or destroys where the data path is tested and the button wiring is
+not"*. Retiring them would have dropped the only check on two buttons that change
+who may read content.
 
 #### A3 - apply a site package, then undo it
 

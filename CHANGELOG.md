@@ -44,7 +44,35 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM217 (PENDING) **the Add form can make a domain a second name for an existing
+- Four rulings recorded (PENDING) **taken 2026-09-29, each written into the thing
+  it decides rather than left in a conversation - and one of them did not survive
+  its own condition.** **T3** (SM906): the control API gets a distinct *cannot
+  tell* state, not an empty capability list, because the caller on that channel is
+  a program and "I hold nothing" and "I could not read the store" must be
+  different values - the four-state rule the engine already applies to its stores.
+  The manager's wording goes in the message too. **SM915**: the extension-list
+  writer writes back under the header the site already uses, and REFUSES when both
+  are present, naming the file. Between those two rules nothing is silently wrong:
+  an ordinary site keeps its spelling, and a damaged conf is handed to an operator
+  rather than repaired behind their back. **SM276**: English only. Owning a
+  translation set means owning its staleness and the question of a language nobody
+  translated, which is the standing obligation this filing deferred for - and the
+  per-site override makes it unnecessary. **TIER A - and this is the one worth
+  reading.** The ruling was to retire A1 steps 5-7 and A2 *if* B4/B5 already
+  covered that ground, since SM635's removal was followed through for them in the
+  same document and A1/A2 look like leftovers. **Checked before deleting anything,
+  and they do not.** B4 and B5 cover the DATA PATH - a draft section 404s and is
+  absent from the sitemap; a scoped manager sees only sections in scope, whose
+  filter is suite-covered. A1 and A2 are the only cover for the two TRANSITIONS,
+  Publish and Remove protection, and Tier A exists for exactly that: *"each a
+  control that writes or destroys where the data path is tested and the button
+  wiring is not"*. Retiring them would have dropped the only check on two buttons
+  that change who may read content. So they are REWRITTEN instead, against the
+  furniture SM635 actually left - the controls moved onto the folder's own row and
+  only onto the row that OWNS the rule, because an inherited rule cannot be
+  removed from the row it covers. The rewrite is from the source rather than from
+  a walk, and says so: its first run is also its first verification.
+- SM217 (ee5f1973) **the Add form can make a domain a second name for an existing
   site, which closes the filing.** The engine half shipped `domain-alias-add` and
   the Domains list marks the result, but nothing on the page could invoke it - the
   action was reachable only over the API, which is not where an operator adds a
@@ -70,7 +98,7 @@ Naming the commit: AFTER it lands, never before
   deleting the line that puts the options into the select changed nothing the test
   could see. It now asserts the call site. `t/lint/70` widened one pattern to
   match the new body shape, with its rule unchanged and still biting.
-- SM914 (PENDING) **a test number is a label, not an identifier - written down,
+- SM914 (b8b6864e) **a test number is a label, not an identifier - written down,
   and the ambiguous set stops growing.** Measured: 107 numbers name two or more
   test files, one names four, and 1,294 bare-number citations point at those 107.
   `t/integration/13` is two different tests and is written that way 61 times.

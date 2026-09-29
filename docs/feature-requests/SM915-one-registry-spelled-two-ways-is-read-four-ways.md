@@ -5,6 +5,7 @@ subtitle: "SM817 renamed the extension list from `plugins:` to `extensions:` and
 brand: plain
 standard-margins: true
 status: candidate
+status-note: "RULED 2026-09-29: WRITE BACK UNDER THE HEADER THE SITE ALREADY USES, AND REFUSE WHEN BOTH ARE PRESENT, naming the file. Two rules, and between them nothing is ever silently wrong: an ordinary site keeps whichever spelling it has, and a conf that already carries both headers is not repaired behind the operator's back but handed to them to fix deliberately. The alternatives were each wrong in their own direction - leaving both alone keeps an already-damaged conf damaged and silent, which is the state that produced the report; merging on write edits a list the operator did not ask to be edited in that call, which is the same shape as the defect; and refusing every write while both exist blocks an ordinary operation on a working site with no way to fix it from the manager. STILL TO BUILD: the three remaining readers (Notify was fixed under SM485 because the email endpoint could not be reached without it), the writer, and a lint that every reader of the list accepts both spellings so a fifth copy cannot drift. AND STILL AN OPERATOR QUESTION rather than a dev one: whether any live site uses the newer spelling or carries both - answerable with lazysite-check rather than from this tree, and it decides how urgent the writer half is."
 raised: 2026-09-29
 raised-by: engine agent, while building SM485's email transport
 area: extensions
