@@ -7,7 +7,7 @@
 | Location | `t/` |
 | Runner | `prove -r t/` |
 | Framework | `Test::More` (core Perl, no extra dependencies) |
-| Total | 2048 tests across 141 files (2026-07-02) |
+| Size | `prove -lr t/` reports it; **15,018 tests across 967 files** on 2026-09-29 |
 
 The suite is pure core-Perl. If `perl` and `prove` are installed,
 the suite runs.
