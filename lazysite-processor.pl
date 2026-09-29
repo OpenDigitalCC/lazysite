@@ -2764,6 +2764,46 @@ sub main {
         }
     }
 
+    # SM825: THE SOURCE ALTERNATE, answered HERE and nowhere else.
+    #
+    # After every gate - the section ACL, the page's `auth:`, and payment - so
+    # the alternate is refused on exactly the terms the rendering is refused on,
+    # with no second copy of the decision to keep in step.
+    #
+    # And BEFORE try_serve_cache, which is load-bearing rather than tidy:
+    # that cache is keyed on $base, and sanitise_uri has already collapsed
+    # `/page` and `/page.md` to the SAME $base. A markdown body written into
+    # that slot would afterwards be served as the page to every visitor until
+    # it expired, and a markdown body read out of it would be served as the
+    # alternate. One slot cannot hold two representations, so the alternate
+    # neither reads nor writes it.
+    if ( @md_stat && _wants_source_alternate($uri) ) {
+        my $src = _source_alternate($md_path);
+        if ( defined $src ) {
+            $ACCESS_REC{s} = 200;
+            binmode( STDOUT, ':utf8' );
+            print "Status: 200 OK\r\n";
+            print "Content-Type: text/markdown; charset=utf-8\r\n";
+            print "$_\r\n" for _security_headers();    # SM381
+
+            # The rendering is the thing to index; the alternate is the same
+            # words for a reader that wants them without markup, so it must not
+            # compete with the page in a search index.
+            print "X-Robots-Tag: noindex\r\n";
+            # Never cached at the edge either, for the same reason the engine
+            # cache is bypassed above: one URL family, two representations.
+            print "Cache-Control: no-store\r\n\r\n";
+            print $src;
+            return;
+        }
+        # Unreadable: fall through and let the render path answer, which will
+        # say what it says about a page it also cannot read. An empty 200 would
+        # be the alternate claiming the page has no prose.
+        log_event( 'WARN', $uri,
+            'source alternate requested but the page could not be read',
+            page => $md_path );
+    }
+
     # Combined protection flag. auth_protected / payment_protected come
     # from front-matter; is_auth_surface() covers login/logout, which
     # ship with `auth: none` but must never be cached because they
@@ -3394,6 +3434,117 @@ BEGIN { %STATIC_DENY = map { $_ => 1 } qw(
         conf ini env pem key
         pl pm cgi fcgi shtml shtm phtml php php3 php4 php5 phps phar htaccess htpasswd
 ) }
+
+# SM825: THE SOURCE ALTERNATE - the markdown beside the rendered page.
+#
+# `llms.txt` has linked to `<page>.md` since SM299, which spent its effort on
+# getting the shape of those URLs right (an index page's URL already ends in a
+# slash, so appending `.md` gave `<dir>/.md`). Measured 2026-09-29: the URLs are
+# right and every one of them answers with the page's HTML, byte-for-byte
+# identical to the rendering. sanitise_uri collapses the extension, so the
+# request goes down the render path and gets what that path produces. The one
+# registry whose entire purpose is to hand a machine the prose without HTML
+# around it was pointing every client at HTML.
+#
+# THE GATE IS THE PAGE'S OWN, BY CONSTRUCTION, because the emitter runs INSIDE
+# the render path, after `auth:` and payment have already had their say. This
+# filing's own audit reasoned about `_serve_content_static`'s per-path ACL - `md`
+# is the first entry on SM797's denylist above - and concluded the serving path
+# "has A gate and it is the WRONG ONE". That was the wrong path: a `.md` request
+# never reaches the static branch, because the extension is gone before the
+# branch is chosen. Measured: `/gated.md` answers 302 to the login from the
+# page's own front matter. So the expensive half of the audit's verdict does not
+# apply, and SM797's denylist is untouched - `md` stays on it, and the alternate
+# is not a static file.
+#
+# THE FRONT MATTER IS BUILT, NOT FILTERED. RULED 2026-09-29: an allowlist of
+# `title`, `subtitle` and `description` - the three keys the rendering already
+# publishes, so the alternate discloses nothing new. Constructing the output from
+# a fixed list is what makes that an allowlist in FACT rather than in intent: the
+# next key somebody adds is withheld with no code change, where a filter that
+# strips known-bad keys would expose it. SM797's own ruling turned on the same
+# distinction. What this withholds today, counted across the shipped pages:
+# `auth` (27 of 64), `auth_groups`, `query_params`, `tt_page_var`,
+# `payment_address`, `form`, `api`.
+#
+# FILLED AT COMPILE TIME, for the reason %STATIC_DENY documents above: the
+# request is dispatched from the middle of this file, long before execution would
+# reach a plain `my @X = ...` down here, so the list would be EMPTY on every
+# request and the emitter would publish no metadata at all - silently, and with
+# every test that calls the sub directly still passing.
+my @SOURCE_ALTERNATE_KEYS;
+BEGIN { @SOURCE_ALTERNATE_KEYS = qw(title subtitle description) }
+
+# Does this request ask for the source rather than the rendering?
+#
+# EXACTLY ONE trailing `.md`. A doubled extension is the probe SM797 closed, not
+# an author's link: `/page.md.md` collapses to the same page, so answering it
+# with source would reopen that door through a new hole. The test is on what the
+# CLIENT ASKED FOR, before sanitise_uri, because after it there is nothing left
+# to ask.
+sub _wants_source_alternate {
+    my ($uri) = @_;
+    return 0 unless defined $uri && $uri =~ /\.md\z/;
+    return 0 if $uri =~ /\.(?:html|md|url)\.md\z/i;
+    return 1;
+}
+
+# The alternate's body: the allowlisted keys, then the prose as authored.
+#
+# Returns undef when the page cannot be read, which the caller treats as "not
+# handled" so the request falls through to the rendering rather than answering
+# with an empty document.
+sub _source_alternate {
+    my ($md_path) = @_;
+    open my $fh, '<:utf8', $md_path or return;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    return unless defined $text;
+
+    my %said;
+    if ( $text =~ s/\A---[ \t]*\n(.*?)\n---[ \t]*\n//s ) {
+        my $yaml = $1;
+        for my $k (@SOURCE_ALTERNATE_KEYS) {
+            next unless $yaml =~ /^\Q$k\E[ \t]*:[ \t]*(\S.*?)[ \t]*$/m;
+            # Captured before any later match clobbers it, and the author's own
+            # quoting undone exactly once - it is re-quoted on the way out below.
+            my $v = $1;
+            $v =~ s/\A(['"])(.*)\1\z/$2/s;
+
+            # One shipped page carries `[% client_ip %]` inside its subtitle.
+            # Same helper the register: list uses, so there is one answer to
+            # "what happens to a directive in a front-matter value".
+            $v = strip_tt_directives($v);
+            $v =~ s/\s+\z//;
+            $said{$k} = $v if length $v;
+        }
+    }
+
+    my $out = '';
+    if (%said) {
+        # The DECLARED order, never the hash's: this is a document somebody may
+        # diff between two requests. Values are emitted double-quoted and
+        # escaped, always - a title containing a colon is ordinary, and an
+        # alternate whose YAML validity depends on the author's punctuation is
+        # not a contract.
+        $out = "---\n";
+        # THIS LOOP IS THE ONE THAT WITHHOLDS, not the collecting loop above.
+        # Sabotage found that out: rewriting the collection as a denylist changed
+        # nothing observable, because emission still walked the allowlist - so a
+        # reader who removes THIS grep on the grounds that collection already
+        # filtered would publish every key in the file, and the collection filter
+        # alone is what looks redundant. Both are kept; this is the load-bearing
+        # one.
+        for my $k ( grep { exists $said{$_} } @SOURCE_ALTERNATE_KEYS ) {
+            my $v = $said{$k};
+            $v =~ s/(["\\])/\\$1/g;
+            $out .= qq($k: "$v"\n);
+        }
+        $out .= "---\n\n";
+    }
+    $text =~ s/\A\s+//;
+    return $out . $text;
+}
 
 sub _serve_content_static {
     my ( $root, $rel, $uri ) = @_;

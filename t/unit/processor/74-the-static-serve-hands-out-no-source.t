@@ -82,9 +82,33 @@ for my $pair ( [ '/draft.md.md', '/draft' ], [ '/upstream.url.url', '/upstream' 
     unlike( $d[2], qr/^---\s*\n\s*title:/m, "$doubled does not return front matter" );
 }
 
-# The single extension renders too, as it always did.
-unlike( ( split_response( fetch('/draft.md') ) )[2], qr/^---\s*\n\s*title:/m,
-    'a single page extension renders rather than returning source' );
+# THE SINGLE EXTENSION: CHANGED DELIBERATELY BY SM825, 2026-09-29.
+#
+# This asserted that `/draft.md` returns no front matter, on the grounds that it
+# renders rather than serving source. SM825 gives a page a SOURCE ALTERNATE at
+# that URL - `llms.txt` has linked to it since SM299 and was getting HTML - so it
+# now answers with markdown, and with an ALLOWLIST of three front-matter keys
+# (title, subtitle, description) built rather than filtered.
+#
+# What SM797 established is untouched, and the two assertions below are the parts
+# of this one that were load-bearing:
+#
+#   - the DOUBLED extension still renders, tested in the loop above. That was the
+#     actual defect: `/draft.md.md` resolved to `draft.md`, still had an
+#     extension, and went down the static branch as raw bytes.
+#   - the alternate publishes no CONFIGURATION. `draft: true` in this fixture's
+#     front matter is decoration, not a gate - `_acl_is_draft` reads an
+#     acls.json entry, so this page was never a draft and its prose was already
+#     public through the rendering. A real draft is refused before the emitter
+#     runs; t/unit/processor/81 proves that with a store entry.
+{
+    my $md = ( split_response( fetch('/draft.md') ) )[2];
+    like( $md, qr/^title:/m, 'a single page extension now serves the source alternate' );
+    unlike( $md, qr/^draft:/m,
+        'and the alternate publishes no configuration key, only the allowlisted three' )
+        or diag( 'SM825 built its front matter from an allowlist precisely so that '
+            . 'no key here leaks; a filter would have let draft: through.' );
+}
 
 # --- THE BELT: the denylist -------------------------------------------------
 for my $case (

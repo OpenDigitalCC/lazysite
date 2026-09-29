@@ -174,6 +174,29 @@ a cookie session, so a token or MCP client cannot reach them at all. Planning
 against the full action list and discovering the subset by being refused is a
 trial-and-error loop that one lookup replaces.
 
+### Reading a page as Markdown
+
+Append `.md` to any page URL and you get the page's **Markdown source** rather
+than its rendered HTML, served as `text/markdown`. This is what the links in
+`llms.txt` point at, so following that registry gives you the prose without
+having to parse a rendering.
+
+The same access rules apply, because it is the same request path: a page behind
+`auth: required` answers a `.md` request the way it answers any other - with a
+redirect to the sign-in, not with its source. There is no separate permission to
+grant or revoke.
+
+**The front matter is not the file's.** Three keys travel - `title`, `subtitle`
+and `description` - and they are the three the rendering already publishes, so
+the Markdown discloses nothing the HTML did not. Everything else is withheld,
+including `auth`, `auth_groups`, `query_params`, `tt_page_var`, `form` and
+`api`: a page's configuration is not its content. Do not read a `.md` response
+to discover how a page is configured - use `read_page`, which answers that
+question and is gated for it.
+
+Only a single `.md` is a source request. `page.md.md` is a probe, not a link,
+and gets the rendering.
+
 ### Refreshing the generated registries
 
 `?action=regenerate-registries` clears `sitemap.xml`, `llms.txt`, `robots.txt`

@@ -2,6 +2,11 @@
 
 > [% site_name %] documentation and site pages.
 
+Each link below is the page's Markdown source rather than its rendered HTML -
+the same words without the markup, and the same access rules (SM825). A page
+that needs a sign-in to read answers these the way it answers any other
+request.
+
 ## Pages
 
 [% FOREACH page IN pages %]

@@ -101,6 +101,47 @@ Naming the commit: AFTER it lands, never before
   table with **no** policy column to see the difference, which is also the case
   the guard actually protects.
 
+- SM825 (PENDING) **the markdown beside the rendered page, which llms.txt has
+  been linking to since SM299 and getting HTML from.** SM299 spent its effort
+  getting the shape of those URLs right - an index page's URL already ends in a
+  slash, so appending `.md` gave `<dir>/.md` - and measured before this was
+  built, the URLs are right and every one of them answers with the page's HTML,
+  byte-for-byte identical to the rendering. The one registry whose whole purpose
+  is to hand a machine the prose without markup around it pointed every client at
+  markup. Appending `.md` to a page URL now serves its Markdown as
+  `text/markdown`. **The audit's recommendation was right and its sizing was
+  pessimistic, for a reason worth recording.** It said: build an emitter on the
+  render path rather than an exception to the denylist, so the gate is the page's
+  own by construction - which is what this is. But it sized the gate as work to
+  be done, because it reasoned about `_serve_content_static`, whose gate is the
+  per-path ACL and never reads the page. A `.md` request never reaches that
+  branch: `sanitise_uri` removes the extension before the branch is chosen, so
+  the request has always gone down the render path and has always been gated by
+  the page's own `auth:`. Measured: a gated page's `.md` answers 302 to the
+  sign-in. There was no gate to build, only an emitter to place after the
+  existing ones, and SM797's denylist is untouched - `md` stays on it, and the
+  alternate is not a static file. **The front matter is BUILT, not filtered** -
+  an allowlist of `title`, `subtitle` and `description`, the three keys the
+  rendering already publishes, so the alternate discloses nothing new.
+  Constructing the output from a fixed list is what makes that an allowlist in
+  fact rather than in intent: a key added next year is withheld with nobody
+  deciding to withhold it, where a filter that strips known-bad keys would expose
+  it. Withheld today: `auth` on 27 of the 64 shipped pages, plus `auth_groups`,
+  `query_params`, `tt_page_var`, `payment_address`, `form` and `api`. A TT
+  directive inside an allowlisted value is stripped through the same helper the
+  `register:` list uses, because one shipped page carries `[% client_ip %]` in its
+  subtitle. **Before the cache, not after,** and that is load-bearing rather than
+  tidy: the render cache is keyed on the collapsed path, so `/page` and `/page.md`
+  share one slot, and a markdown body written there would afterwards be served as
+  the page to everyone until it expired. Exactly one `.md` counts; a doubled
+  extension is the probe SM797 closed and still gets the rendering.
+  `t/unit/processor/81`, nine subtests and five sabotages - one of which found
+  that the allowlist is enforced twice and only the emission loop is
+  load-bearing, now said where a refactorer would read it. This also changes an
+  assertion in SM797's own test, deliberately and with the reason written in
+  beside it: the `draft: true` in that fixture's front matter never gated
+  anything, because a draft is an `acls.json` entry, and a real one is refused
+  before the emitter runs.
 - Audit, nothing built (c974440d) **SM825's markdown alternate is not near-free,
   and the audit was there to find out.** The filing marked it VERIFY-THEN-EXPOSE
   and said the ordering was the whole point. Four questions, each answered from
