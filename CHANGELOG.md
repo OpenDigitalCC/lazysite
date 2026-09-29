@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- Audit, nothing built (PENDING) **SM825's markdown alternate is not near-free,
+  and the audit was there to find out.** The filing marked it VERIFY-THEN-EXPOSE
+  and said the ordering was the whole point. Four questions, each answered from
+  source. **The `.md` is not reachable**, and not by accident: `md` is the first
+  entry on SM797's static-serve denylist, by a **ruling of 2026-09-09**, enforced
+  on the request extension and again on the canonical resolved path. **The static
+  serve does gate** - `_acl_refused`, SM223's work - **but only on the per-path ACL
+  store**; it never reads the page, and a page declares its access in FRONT MATTER
+  with `auth:`. So dropping `md` from the denylist gives the SM460 shape exactly: a
+  page gated as a rendering and world-readable as a source, and `auth:` is on **27
+  of the 64 pages the engine ships**. `draft:` is the same mechanism and the same
+  answer. What a verbatim `.md` would publish first, measured: `auth` on 27 pages,
+  `query_params` on 5, `tt_page_var` on 2, **`payment_address` on 2**, and `form`,
+  `api` and `auth_groups` on one each. **One correction to the filing**: it says
+  front matter carries `read:` lists, and it does not - there is no such page key
+  and no shipped page has one; per-path reader lists live in `acls.json`. Smaller
+  than filed, still an access-control fact on 42% of pages. The recommendation is
+  to build it as an **emitter on the render path** rather than an exception to the
+  denylist, so the gate is the page's own by construction and SM797 needs no
+  reconciling - and to rule which front-matter keys a source alternate may carry,
+  as an allowlist, because a denylist exposes the next key somebody adds.
+
 - SM912 (91c3ed31, 9132a17f, e81117c4) **P1, P2 and P3: the exposure probe can
   protect its own fixture
   again, and a probe that could not run no longer reads as a clean one.** SM901
