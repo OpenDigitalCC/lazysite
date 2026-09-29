@@ -188,6 +188,32 @@ run, and the visitor is thanked when at least one delivered. Every
 handler's outcome is its own line in the audit trail - the form, the
 handler and whether it delivered, never the fields.
 
+### What the visitor is told
+
+Two sentences, both written by the engine:
+
+| What happened | What the visitor sees |
+|---|---|
+| The submission reached a store, a table or a mailbox | Thank you - your message has been sent. |
+| A connector took it onward to a service | Thank you - your submission has been received and sent for processing. |
+
+The second applies when any target on the form is a connector handler,
+because then the submission left the site for a service to act on rather
+than arriving for somebody to read - "your message has been sent" would
+not be true. A form with both kinds of target gets the second sentence:
+both things happened, and the onward one is the one the visitor could not
+otherwise know about. It promises neither a reply nor a page to come back
+to, because only you know whether your site shows the answer anywhere.
+
+**The wording is not configurable, and that is deliberate.** A submission
+without JavaScript is answered by a redirect back to the page, and the
+sentence is chosen from the outcome the redirect carries in the query
+string. A query string is writable by whoever composes the link, so
+anything travelling in it could be put on your page by a crafted URL. What
+travels is a short token naming one of the two sentences above; an
+attacker choosing between them gains nothing, and a token that is not one
+of them is shown as a refusal rather than as text.
+
 The file's other keys (`rate_limit`, `upload_*`, `quarantine` and the rest,
 below) are the form's own and survive every binding. A config written over
 WebDAV is checked the same way the binding actions check it: a target that

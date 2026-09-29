@@ -4695,9 +4695,37 @@ sub _render_form {
         $o =~ s/&/&amp;/g;
         $o =~ s/</&lt;/g;
         $o =~ s/>/&gt;/g;
+        # SM579: A SECOND SUCCESS STATE, AND THE VOCABULARY IS CLOSED.
+        #
+        # There was one success sentence and one style for everything else, so a
+        # connector call that SUCCEEDED could only say "your message has been
+        # sent" - which is untrue when nothing was sent to a person - or be shown
+        # to the visitor in form-status-error with role="alert".
+        #
+        # THE WORDING IS KEYED, NEVER CARRIED. The query string is
+        # attacker-writable by construction (see above), so the sentence comes out
+        # of this closed map and the outcome only SELECTS one. That is why author
+        # copy was refused for this: text travelling in the URL would let a
+        # crafted link put any sentence on the page in the SUCCESS style, which is
+        # a materially better phishing aid than the red banner already is. An
+        # attacker choosing between two engine sentences gains nothing.
+        #
+        # THE HANDLER HOLDS THE SAME SENTENCES, because it answers the JS path
+        # with them in JSON and the render path is module-free (ADR 0001) - the
+        # same shape as _acl_allows_read's twin, and pinned the same way, by a
+        # lint rather than by hoping.
+        my %SAID = (
+            ok => 'Thank you - your message has been sent.',
+            # A connector delivered: something left the site for a service rather
+            # than reaching a person. True whether or not the connector keeps an
+            # answer, and it deliberately promises neither a reply nor a page -
+            # only the author knows whether the site shows the answer anywhere.
+            'ok-processing' =>
+                'Thank you - your submission has been received and sent for processing.',
+        );
         $banner =
-            $o eq 'ok'
-            ? qq(<p class="form-status form-status-ok" role="status">Thank you - your message has been sent.</p>\n)
+            defined $SAID{$o}
+            ? qq(<p class="form-status form-status-ok" role="status">$SAID{$o}</p>\n)
             : qq(<p class="form-status form-status-error" role="alert">$o</p>\n);
     }
     return <<"END_FORM";

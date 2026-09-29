@@ -229,6 +229,39 @@ load_processor($docroot);
     like( $out, qr/form-status-ok/, 'outcome=ok renders the success banner' );
     like( $out, qr/has been sent/,  'with the success line' );
 }
+# SM579: THE SECOND SUCCESS STATE. A connector delivered, so the submission went
+# onward to a service rather than to a person - and before this, the only ways to
+# say that were the wrong sentence in the success style or the right one in
+# form-status-error with role="alert".
+{
+    local $ENV{QUERY_STRING} = 'form=contact&outcome=ok-processing';
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    like( $out, qr/form-status-ok/, 'ok-processing is a SUCCESS, not an error' )
+        or diag( 'Anything that was not exactly `ok` rendered in form-status-error '
+            . 'with role=alert, so a connector call that worked was shown to the '
+            . 'visitor as a failure.' );
+    like( $out, qr/received and sent for processing/, 'with its own sentence' );
+    unlike( $out, qr/message has been sent/,
+        'and NOT the generic one, which is the thing that was untrue' );
+    unlike( $out, qr/role="alert"/, 'no alert role on a success' );
+}
+{
+    # THE WORDING IS KEYED, NEVER CARRIED. The query string is attacker-writable,
+    # so an unknown token must not become a green banner saying whatever it likes.
+    local $ENV{QUERY_STRING} = 'form=contact&outcome=ok-your+account+is+suspended';
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    unlike( $out, qr/form-status-ok/,
+        'a token the map does not hold is not a success' )
+        or diag( 'A crafted link putting arbitrary text on the page in the SUCCESS '
+            . 'style is the reason author copy cannot travel in the URL.' );
+    like( $out, qr/form-status-error/, 'it renders as the refusal it is treated as' );
+}
 {
     local $ENV{QUERY_STRING} = 'form=contact&outcome=Rate+limit+exceeded';
     my $out = main::convert_fenced_form(

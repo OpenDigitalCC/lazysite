@@ -44,6 +44,41 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM579 (PENDING) **a submission that went to a service says so, instead of
+  claiming a message was sent to somebody.** There was one success sentence -
+  "Thank you - your message has been sent." - and a form whose only target is a
+  connector sends a message to nobody: it hands the submission to a service to be
+  processed. The sentence was false on every such form, and the only alternative
+  the code had was `form-status-error` with `role="alert"`, which would have shown
+  a working submission to the visitor as a failure. So a second engine-authored
+  success state, ruled and worded by the release manager: **"Thank you - your
+  submission has been received and sent for processing."** It is true whether or
+  not the connector keeps an answer, and promises neither a reply nor a page,
+  because only the author knows whether the site shows the answer anywhere. The
+  handler picks it when a delivery came back as a connector's - read from the
+  delivery's own answer, not by reading the conf a second time - and a form with
+  both a store and a service gets it, because the onward leg is the part the
+  visitor could not otherwise know about. **Author copy was refused**, and for a
+  measured reason rather than a preference: the no-JavaScript path answers by
+  redirecting to `?form=X&outcome=...`, and a query string is writable by whoever
+  composes the link, so text travelling in it would let a crafted URL put anything
+  on the page in the SUCCESS style - a materially better phishing aid than the
+  error banner already is. What travels is a **token**; each side holds a closed
+  `token => sentence` map and looks the sentence up, and a token neither side
+  holds falls back to `ok` rather than being printed. The two maps are two copies
+  because ADR 0001 keeps the render path module-free and they cannot share code,
+  so `t/lint/156` holds them equal token for token - the shape `_acl_allows_read`
+  and its lint already use for the ACL decision. Nothing else would ever fail if
+  they drifted: a visitor would simply be told one thing with JavaScript and
+  another without, and nobody is looking at both. `t/unit/forms/27` drives the
+  real CGI against a **real** connector on a loopback listener rather than a mock,
+  for the reason the uploads test learnt the hard way - a mock more permissive
+  than the thing it stands for certifies the mock - and the store and connector
+  cases are asserted as a discriminating pair, so a build that said "sent for
+  processing" everywhere fails as loudly as one that never said it. Sabotaging
+  the lint found a defect in the lint: its key pattern silently dropped a token it
+  could not parse, which would have let two equally-incomplete maps agree, so it
+  now counts what it read against what the file declares.
 - SM857 (PENDING) **a form handler says what its rows are, which is the piece the
   expo depends on.** The ruling that gave a row a policy also said the time to set
   one is at WRITE - "whatever is creating the row gets to say the policy" - and a

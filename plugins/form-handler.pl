@@ -67,6 +67,28 @@ our ( $REDIRECT_PAGE, $REDIRECT_FORM ) = ( '', '' );
 # silent empty value. The reasoning for the mechanism is with those subs.
 our $BLOCK_REASON = '';
 
+# SM579: THE SENTENCES A SUCCESSFUL SUBMISSION MAY BE TOLD, keyed by the outcome
+# token that selects one. Declared HERE for the third time for the same
+# file-order reason as the two above - the main flow chooses a sentence long
+# before respond_ok defines how it is delivered, and `our` beside respond_ok is a
+# compile error under strict rather than a silent empty value. (SM912 spent ten
+# failing assertions on exactly that shape, with `our $PROBE_NOBODY` sitting below
+# a main flow that ran at the top.)
+#
+# THE PROCESSOR'S BANNER HOLDS THE SAME TWO SENTENCES. It has to: the JS path
+# takes them from here in JSON, the no-JS path gets a redirect carrying only the
+# TOKEN, and the render path is module-free (ADR 0001) so it cannot read this
+# file. That is the situation _acl_allows_read is in, and it gets the same
+# treatment - carry the copy, and make t/lint/156 responsible for the agreement.
+our %OUTCOME_SAID = (
+    ok => 'Thank you - your message has been sent.',
+    # A connector delivered: the submission left for a service rather than
+    # reaching a person. True whether or not the connector keeps an answer, and it
+    # promises neither a reply nor a page.
+    'ok-processing' =>
+        'Thank you - your submission has been received and sent for processing.',
+);
+
 # Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
 # per-form size limits are even checked. Generous; real limits are per-form.
 my $MAX_POST_BYTES = 64 * 1024 * 1024;
@@ -215,6 +237,7 @@ eval {
     # the same code the schedule calls, one audit line per handler.
     my $handlers  = Lazysite::Handlers::read_handlers();
     my $delivered = 0;
+    my $processed = 0;    # SM579: a connector took it onward, see below
     for my $id ( @{ $conf->{targets} } ) {
         my $r = Lazysite::Handlers::deliver(
             $id, { _visible_fields( \%form ) },
@@ -229,6 +252,11 @@ eval {
             ( defined $handlers ? ( handlers => $handlers ) : () ),
         );
         $delivered++ if $r->{ok};
+        # SM579: DID ANYTHING LEAVE THE SITE FOR A SERVICE? A connector handler
+        # sends the submission onward to be processed rather than to a person, so
+        # "your message has been sent" is the one thing that did not happen. The
+        # type comes from deliver's own answer, not from reading the conf again.
+        $processed++ if $r->{ok} && ( $r->{type} // '' ) eq 'connector';
     }
 
     # If NOTHING actually accepted the submission - every target disabled, unknown,
@@ -253,7 +281,13 @@ eval {
     _notify_submission( $name, $conf->{notify_off} )
         unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
-    respond_ok('Thank you - your message has been sent.');
+        # SM579: WHICH TRUE SENTENCE. A connector delivered means the submission left
+        # for a service, so it was received and sent for processing - which is what
+        # happened, and it promises neither a reply nor a page, because only the author
+        # knows whether the site shows the answer anywhere. Everything else keeps the
+        # sentence it had.
+    my $outcome = $processed ? 'ok-processing' : 'ok';
+    respond_ok( $OUTCOME_SAID{$outcome}, $outcome );
 };
 if ($@) {
     my $err = $@;
@@ -938,9 +972,10 @@ sub _redirect_back {
 }
 
 sub respond_ok {
-    my ($msg) = @_;
+    my ( $msg, $outcome ) = @_;
+    $outcome = 'ok' unless defined $outcome && exists $OUTCOME_SAID{$outcome};
     binmode( STDOUT, ':utf8' );
-    return _redirect_back('ok') unless _wants_json();
+    return _redirect_back($outcome) unless _wants_json();
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json( { ok => 1, message => $msg } );
