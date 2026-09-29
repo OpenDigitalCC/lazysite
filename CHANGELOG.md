@@ -136,8 +136,18 @@ Naming the commit: AFTER it lands, never before
   untouched: this is a convenience over a mechanism that already worked.
   `t/unit/manager/191`, three sabotages - one of which found that a supplied
   `content_root` was being silently dropped rather than refused, which honours
-  the rule by accident. **Not in this**: the Domains page affordance, which is the
-  other half of the filing.
+  the rule by accident. **And the list marks it** (PENDING): a row whose content
+  root is shared reads `alias of <host>`, and **only where that root is a named
+  folder**. The `(default)` case is deliberately left out, because this page had
+  already REMOVED an alias chip and recorded why - it meant "no content folder of
+  its own", the Content folder column already said "default site", and being a
+  chip it looked pressable and did nothing. What no column says is that two
+  domains pointing at the same named folder are one site. `t/lint/155` pins the
+  narrowing and names that earlier decision beside it, because it is one `!==` a
+  tidy would delete. **Not in this**: the "Add alias" control. The action exists
+  and the list marks its result; invoking it from the page belongs in the Add
+  form rather than in another domain's config sheet, and that is a change to that
+  form's shape.
 
 - SM857 (22a8da4a) **a row can belong to the account that wrote it.** Measured
   before this was built, on a table with `timestamps` and two accounts holding

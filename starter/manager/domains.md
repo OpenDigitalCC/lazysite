@@ -1020,6 +1020,19 @@ function loadDomains() {
         // was pressed, and nothing happened, because there was nothing to do.
         var chip = '';
         if (row.lang_group && !row.lang_group_inherited) chip += '<span class="mg-tag" title="part of a language set">set: ' + esc(row.lang_group) + '</span>';
+        // SM217: which OTHER domain this one shares its content with, and ONLY
+        // where that is not already on the row. The removed chip above meant "no
+        // content folder of its own", which the Content folder column says as
+        // "default site" - so `alias_of: (default)` is deliberately NOT shown
+        // here, because that would be the same two-ways-of-saying-it this page
+        // already decided against. What no column says is that two domains
+        // pointing at the SAME named folder are one site: both cells read
+        // `sites/acme` and nothing connects them.
+        if (row.alias_of && row.alias_of !== '(default)') {
+          chip += '<span class="mg-tag" title="serves the same content folder as '
+               + esc(row.alias_of) + ' - the same site under another name">alias of '
+               + esc(row.alias_of) + '</span>';
+        }
         // SM681: open the live domain in a new tab.
         //
         // BUILT FROM THE HOST, never from row.site_url. That field can carry
