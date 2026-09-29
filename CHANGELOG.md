@@ -45,6 +45,25 @@ Naming the commit: AFTER it lands, never before
 ## Unreleased
 
 - Four rulings recorded (63e5348e) **taken 2026-09-29, each written into the thing
+- SM916 (PENDING) **the perf gate's work counter was measuring the clock, and it
+  refused a release for it.** `bench.pl` reports `work_cold_log_bytes` - the bytes
+  the stats ingest reads from a fixture of thirty days of visitor logs - and
+  treats any change as WORK, on the stated grounds that "a count is
+  host-independent, so this is not a slow machine". The fixture's timestamps came
+  from `Time::HiRes`, so they were FLOATS, and JSON renders a float to as many
+  digits as it needs: the fixture's SIZE therefore depended on the wall clock, at
+  exactly 4500 bytes per decimal digit across 4500 lines that all share one
+  timestamp. The 0.15.0 baseline records 519892 and the commit it says it was
+  captured at reproduces 524392, stably, twice - so the recorded number was never
+  a property of that tree, and the gate was refusing roughly nine cuts in ten for
+  a reason belonging to neither the code nor the host. The engine has always
+  written an integer (`_access_record` builds `'{"t":' . time()` and the processor
+  does not import `Time::HiRes`), so the fixture was not merely unstable but
+  UNLIKE the log it stands in for - 5.4% of it was timestamp width rather than
+  traffic. Fixed with `int()`, not with a tolerance, because `work_*` is the half
+  of the gate that is meant to be exact. `t/lint/159` pins both halves of the
+  agreement so neither side can drift alone.
+- Four rulings recorded (PENDING) **taken 2026-09-29, each written into the thing
   it decides rather than left in a conversation - and one of them did not survive
   its own condition.** **T3** (SM906): the control API gets a distinct *cannot
   tell* state, not an empty capability list, because the caller on that channel is

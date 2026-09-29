@@ -103,7 +103,22 @@ make_path("$d/lazysite/logs");
         open my $lf, '>', "$d/lazysite/logs/access-$name.jsonl" or die $!;
         for my $i ( 1 .. 150 ) {
             print {$lf} encode_json( {
-                    t => $when - $i,
+                    # SM916: int(), and the int() is the whole fix. This file
+                    # imports time() from Time::HiRes for the timing helper, so
+                    # $now is a FLOAT and every `t` written here carried a
+                    # fractional part. JSON renders that to as many digits as
+                    # the value happens to need, so each of these 4500 lines was
+                    # 9 bytes of timestamp on a lucky second and up to 15 on an
+                    # ordinary one - and work_cold_log_bytes, which is the SIZE
+                    # of this fixture, moved by 4500 bytes per digit for reasons
+                    # that were entirely the clock's.
+                    #
+                    # The engine writes an integer: lazysite-processor.pl's
+                    # _access_record builds '{"t":' . time() and never imports
+                    # Time::HiRes, so no real access log has ever contained a
+                    # fractional timestamp. The fixture was not merely unstable,
+                    # it was unlike the thing it stands in for.
+                    t => int( $when - $i ),
                     p => ( $i % 5 == 0  ? '/assets/img/a.jpg' : "/page-" . ( $i % 20 ) ),
                     s => ( $i % 17 == 0 ? 404                 : 200 ),
                     b => 100,
