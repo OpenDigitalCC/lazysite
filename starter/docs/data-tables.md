@@ -609,6 +609,18 @@ pass `row_policy` in the row like any other value. Nothing infers it: an empty
   loads: a personal row is owned by the account in `created_by`, and an
   ownership test with no owner to compare admits everybody.
 
+**A form handler says what its rows are.** A `table` handler takes
+`row_policy: personal`, and each row it writes then belongs to the account that
+submitted it -- so one applicant maintains their own application and nobody
+else's. Leave it out and its rows are **shared**, which is how a handler behaved
+before this existed, so nothing changes for a handler that says nothing.
+`personal` needs the table to declare `row_policy: true` (refused when it does
+not) and it needs the **submitter to be signed in**: a public form records no
+account, so its rows would belong to nobody and only an operator could amend
+them. The row is still stored in that case -- losing a submission to a
+misconfiguration the visitor cannot see would be worse -- and the delivery's
+audit line says what happened.
+
 Reads are **not** confined by this -- a page renders the same rows for whoever
 is looking at it, and a per-viewer read is a separate piece of work. To show one
 person their own row today, bind their key as a literal.

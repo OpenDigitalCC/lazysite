@@ -146,6 +146,23 @@ our %TYPES      = (
             # photograph. The key names a COLUMN rather than switching a
             # behaviour on, because the row has to have somewhere to put it and
             # only the table's own descriptor says where.
+            # SM857 (its open question 4, ruled 2026-09-29): THE HANDLER SAYS WHAT
+            # ITS ROWS ARE. The ruling that gave a row a policy also said the time
+            # to set one is at WRITE - "whatever is creating the row gets to say
+            # the policy" - and a form handler is a writer with nothing to say it
+            # with, so every row it wrote came out shared. On a table that declares
+            # row_policy, that is the one outcome the declaration exists to
+            # prevent: the filing's own words are that the safe case took extra
+            # work, and it is the piece the expo depends on.
+            { key => 'row_policy', label => 'Each row belongs to', type => 'text',
+                note => 'Leave blank and each row is SHARED - anyone the table admits may '
+                    . 'amend it, which is how a table without this behaves. Set it to '
+                    . 'personal and each row belongs to the account that submitted it, so '
+                    . 'one applicant maintains their own application and nobody else\'s. '
+                    . 'personal needs the table to declare row_policy: true, and it needs '
+                    . 'the SUBMITTER TO BE SIGNED IN - a public form records no account, so '
+                    . 'its rows would belong to nobody and only an operator could amend '
+                    . 'them. The delivery says so when that happens.' },
             { key => 'files_column', label => 'Column for the uploaded files', type => 'text',
                 note => 'The name of a column in the table above. Each submission\'s uploaded '
                     . 'files are written into it as site-relative paths, comma separated, so '
@@ -756,6 +773,27 @@ sub validate_handler {
     if ( $type eq 'table' ) {
         my ( $m, $why ) = parse_fields( $out{fields} );
         return ( undef, $why, 'fields' ) unless $m;
+        # SM857 q4: THE VOCABULARY IS THE STORE'S, not a second copy of it. A
+        # misspelt policy stored here would reach the row as a value nothing
+        # recognises, and Data::Value refuses it at the visitor's submission -
+        # the wrong place to find out, for SM807's reason.
+        #
+        # REQUIRED LAZILY, like every other reach into the data layer from this
+        # file: Handlers.pm must not load it at compile time, or a site with the
+        # extension switched off pays for it on every form post. And if it cannot
+        # be loaded the check does not refuse - unvalidated is not invalid, which
+        # is the rule _destination_problem states for the same situation.
+        if ( defined $out{row_policy} && length $out{row_policy} ) {
+            my $ok = eval { require Lazysite::Data::Owned; 1 };
+            if ( $ok && !Lazysite::Data::Owned::valid_policy( $out{row_policy} ) ) {
+                return ( undef,
+                    'row_policy must be one of: '
+                        . join( ', ', Lazysite::Data::Owned::POLICIES() )
+                        . " - '$out{row_policy}' is not one of them. Leave it blank for "
+                        . 'shared, which is what a table without policies does.',
+                    'row_policy' );
+            }
+        }
     }
     return ( \%out, '' );
 }
@@ -801,6 +839,14 @@ sub _destination_problem {
             # auto key is not listed in `fields`, so the existence check would
             # say "no column id" about the one column that certainly exists, and
             # send a sysop looking for a spelling mistake.
+            # SM857 q4: a handler declaring `personal` on a table that does not
+            # declare row_policy is a declaration the store cannot honour - the
+            # column is not there, so the write would be refused at a visitor's
+            # submission. Checked here with the mapping, for SM807's reason.
+            return "row_policy: '$h->{table}' does not declare row_policy, so its rows "
+                . 'cannot belong to anybody - add `row_policy: true` to the table first, '
+                . 'or leave this blank and its rows stay shared'
+                if ( $h->{row_policy} // '' ) eq 'personal' && !$d->{row_policy};
             return "files_column: '$col' is the key of '$h->{table}' - name a column the row "
                 . 'can carry'
                 if length $col && $col eq $key;
@@ -1430,7 +1476,12 @@ sub _to_table {
     # The copy is what wrote the files, so it is the half that knows one of them
     # did not land. Passing its note on is what puts the failure in the audit
     # line for a TABLE handler as well as a file one.
-    $stored->{note} = $filed->{note} if length( $filed->{note} // '' );
+    # SM857 q4: JOINED, not overwritten. _table_row can now carry a note of its
+    # own - a personal row that belongs to nobody - and assigning the copy's note
+    # over it would drop whichever arrived first, which is how one true statement
+    # silently replaces another.
+    $stored->{note} = join '; ', grep { length } ( $stored->{note} // '' ), ( $filed->{note} // '' );
+    delete $stored->{note} unless length $stored->{note};
     return $stored;
 }
 
@@ -1473,6 +1524,28 @@ sub _table_row {
     my $col = $h->{files_column} // '';
     $row{$col} = join ', ', map { "$up->{path}/$up->{rel}/$_" } @{ $up->{saved} }
         if length $col && $up && @{ $up->{saved} };
+
+    # SM857 q4: THE POLICY THE HANDLER DECLARES, written with the row. Absent
+    # leaves the column alone, which is the shared default - the same treatment
+    # the files column gets, and for the same reason: a column nothing was
+    # written to is not a column holding nothing.
+    my $policy = $h->{row_policy} // '';
+    $row{ Lazysite::Data::Owned::policy_column() } = $policy if length $policy;
+
+    # AND A PERSONAL ROW NEEDS SOMEBODY TO BELONG TO.
+    #
+    # `personal` plus no actor is a public form: created_by is empty, so the row
+    # belongs to nobody and only an operator can amend it. That is SAFE - it is
+    # more locked down, not less - and it is almost certainly not what was asked
+    # for, which is the combination worth saying out loud. The row is still
+    # written, because refusing it would lose the submission over a
+    # configuration the visitor cannot see.
+    my $orphan
+        = ( $policy eq 'personal' && !length( $ctx->{actor} // '' ) )
+        ? 'this row is marked personal and the submitter was not signed in, so it '
+        . 'belongs to no account and only an operator can amend it - a personal row '
+        . 'needs an authenticated form'
+        : '';
     my $r = eval {
         Lazysite::Data::Tables::insert_row( $DOCROOT, $table, \%row,
             ( length( $ctx->{actor} // '' ) ? ( actor => $ctx->{actor} ) : () ) );
@@ -1480,7 +1553,7 @@ sub _table_row {
     return { ok => 0, why => "the row could not be stored in '$table': " . ( $@ || 'unknown' ) } if $@;
     return { ok => 0, why => "the row could not be stored in '$table': " . ( $r->{error} // 'unknown' ) }
         unless $r && $r->{ok};
-    return { ok => 1, key => $r->{key} };
+    return { ok => 1, key => $r->{key}, ( length $orphan ? ( note => $orphan ) : () ) };
 }
 
 # The email goes out through the Form SMTP extension's script, which owns the

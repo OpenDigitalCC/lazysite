@@ -268,7 +268,12 @@ handler was made. A refusal names the capability that would work.
   Submissions page, exports and bulk delete keep working; a submission the
   table's types refuse leaves no row, the visitor is told it failed, and the
   stored copy is marked `_row_refused`. `keep_copy: false` stores the row
-  only. `files_column:` names a column of the same table to receive the
+  only. `row_policy: personal` makes each row belong to the account that
+  submitted it, so one person maintains their own row and nobody else's - it
+  needs the table to declare `row_policy: true`, and it needs the submitter to
+  be signed in, because a public form records no account and the row would
+  belong to nobody. Leave it out and rows are shared, as before.
+  `files_column:` names a column of the same table to receive the
   submission's uploaded files, as site-relative paths, comma separated - so
   the row somebody works from reaches the photograph instead of only the
   submissions store. It needs the copy, which is what stores the files, and

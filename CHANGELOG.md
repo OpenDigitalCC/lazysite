@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM857 (PENDING) **a form handler says what its rows are, which is the piece the
+  expo depends on.** The ruling that gave a row a policy also said the time to set
+  one is at WRITE - "whatever is creating the row gets to say the policy" - and a
+  form handler was a writer with nothing to say it with. So on a table declaring
+  `row_policy: true`, measured before this was built: `row_policy=NULL` on every
+  row, and Bob amending Ann's application on the table whose declaration exists to
+  stop exactly that. A `table` handler takes **`row_policy: personal`** now and each
+  row belongs to the account that submitted it. Declaring nothing writes SHARED
+  rows, so no existing handler changes behaviour. The value is checked at save
+  against **the store's own vocabulary** rather than a second copy of it, and
+  `personal` on a table with no policy column is refused there too - for SM807's
+  reason, that a visitor's submission is the worst place to find out. **And the
+  combination worth naming out loud:** `personal` with no signed-in submitter is a
+  public form, so `created_by` is empty and the row belongs to **nobody** - safe,
+  being more locked down rather than less, and almost certainly not what was asked
+  for. The row is still stored, because refusing it would lose a submission over a
+  configuration the visitor cannot see, and the delivery's audit line says what
+  happened. `t/unit/forms/26`, three sabotages - one escaped first time because
+  `Data::Value` normalises an empty policy to NULL, so the test had to reach a
+  table with **no** policy column to see the difference, which is also the case
+  the guard actually protects.
+
 - Audit, nothing built (c974440d) **SM825's markdown alternate is not near-free,
   and the audit was there to find out.** The filing marked it VERIFY-THEN-EXPOSE
   and said the ordering was the whole point. Four questions, each answered from
