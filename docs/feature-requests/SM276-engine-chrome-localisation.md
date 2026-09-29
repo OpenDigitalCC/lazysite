@@ -54,7 +54,20 @@ needs" lists, two are work and one is a ruling - **who supplies
 translations** - and it has to come first, because it decides where the
 strings live and therefore what the extraction produces.
 
-The filing's own recommendation is the second option (overridable per site,
+**RULED 2026-09-29: per-site overridable, with the engine shipping the
+defaults** - the second option, and the model layouts and themes already
+use. So the fallback chain is: the site's own file for the requested
+language, then the engine's, then the site language, then English.
+
+**And the consequence named below is now work rather than a question.**
+`lazysite/templates/system/` is protected, so a site's own translation file
+cannot be written by a general channel: it needs the door the table
+descriptors got - an action that validates the file before storing it - or
+it lives somewhere else. That is the first thing to settle when this is
+built, because it decides what the extraction produces.
+
+The reasoning, as it stood before the ruling: the filing's own
+recommendation is the second option (overridable per site,
 the model layouts and themes already use) and it is the right one, but it is
 not only cheaper - it changes the shape:
 

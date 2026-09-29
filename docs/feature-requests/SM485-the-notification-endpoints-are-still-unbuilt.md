@@ -56,7 +56,21 @@ questions, and each changes what gets built:
    endpoint sends to accounts rather than to strangers, so the reasoning is
    weaker - but "unbounded" should be a decision rather than the default.
 
-Nothing was built. My recommendation, for what it is worth: opt-in per
+**RULED 2026-09-29**, and it is the recommendation below: **opt-in per
+account** (the person decides whether their notices reach them by mail),
+**the Form SMTP extension as the transport**, with a refusal that names it
+when it is off, and **a broadcast notice delivered to nobody by mail** - it
+is a bell item, and a list of every account's address is a different feature
+from a notification one. No second mail configuration, which is what SM842
+spent a release removing.
+
+What that leaves to build: the opt-in (an account preference), the send, and
+the refusal when the extension is off. The caps question answers itself
+under this shape - an opted-in account is not a stranger, so SM877's
+open-relay reasoning does not carry, and the per-site hourly bound is the
+one worth keeping.
+
+As recommended before the ruling: opt-in per
 account (the person decides whether their notices reach them by mail), the
 Form SMTP extension as the transport with a refusal that names it when it is
 off, and a broadcast notice delivered to nobody by mail - it is a bell item.

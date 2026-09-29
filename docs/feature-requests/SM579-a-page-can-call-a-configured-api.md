@@ -56,7 +56,21 @@ Still open, and deliberately not folded in here:
      render path is deliberately module-free (ADR 0001), so where the text lives
      is the decision.
 
-  **The decision is which of these:** (a) a second engine-authored success state
+  **RULED 2026-09-29: (a), an engine-authored second success state**, and the
+wording is
+
+> Thank you - your submission has been received and sent for processing.
+
+It is true whether or not the connector keeps an answer, and it promises
+neither a reply nor a page - which the "check back in a few minutes"
+phrasing could not, because only the author knows whether the site shows the
+answer anywhere. Author copy was refused for the reason measured above: the
+query string is attacker-writable, so per-handler text needs a carrier that
+cannot be forged, and that means a new render-path read under ADR 0001.
+
+The options as they were put:
+
+**The decision was between:** (a) a second engine-authored success state
   (`ok-pending` or similar) with wording the release manager chooses - no author
   copy, no new render-path input, and the wording has to be true for every
   connector, so it cannot promise that a page will show the answer; or (b)

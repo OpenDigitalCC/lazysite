@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- Audit, nothing built (PENDING) **SM825's markdown alternate is not near-free,
+- Audit, nothing built (c974440d) **SM825's markdown alternate is not near-free,
   and the audit was there to find out.** The filing marked it VERIFY-THEN-EXPOSE
   and said the ordering was the whole point. Four questions, each answered from
   source. **The `.md` is not reachable**, and not by accident: `md` is the first
@@ -158,7 +158,7 @@ Naming the commit: AFTER it lands, never before
   untouched: this is a convenience over a mechanism that already worked.
   `t/unit/manager/191`, three sabotages - one of which found that a supplied
   `content_root` was being silently dropped rather than refused, which honours
-  the rule by accident. **And the list marks it** (PENDING): a row whose content
+  the rule by accident. **And the list marks it** (7f33cc63): a row whose content
   root is shared reads `alias of <host>`, and **only where that root is a named
   folder**. The `(default)` case is deliberately left out, because this page had
   already REMOVED an alias chip and recorded why - it meant "no content folder of

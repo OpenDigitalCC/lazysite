@@ -120,7 +120,18 @@ The cheap version does not exist. A markdown alternate needs BOTH:
    different emitter. That is where the cost is, and it is the honest place to
    put it: one answer to "may this visitor see this page", not two.
 
-My recommendation is to build it as an **emitter on the render path** rather than
+**RULED 2026-09-29: build it as an emitter on the render path, and the front
+matter a source alternate may carry is an ALLOWLIST of `title`, `subtitle`
+and `description`** - the keys the rendering already publishes, so the
+alternate discloses nothing new. An allowlist rather than a denylist for the
+reason SM797's own ruling gives about the inverse case: the next key somebody
+adds is withheld by default instead of exposed by default.
+
+So the work is the emitter, the llms.txt links, and the allowlist with its
+reason beside it. SM797's denylist is untouched - `md` stays on it, because
+the alternate is not a static file and never reaches that path.
+
+The recommendation as it was put: build it as an **emitter on the render path** rather than
 an exception to the static denylist: the gate is then the page's own, by
 construction, and SM797's ruling stays intact with nothing to reconcile. Sized S
 for the emitter and the llms.txt links, plus whatever the RM decides about which
