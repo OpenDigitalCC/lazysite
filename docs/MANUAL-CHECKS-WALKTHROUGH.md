@@ -40,9 +40,10 @@ If a task tells you to skip in some situation, skipping is fine - just write
 4. Leave *Who may read it* empty.
 5. Click **Protect this section**, and confirm.
 
-   *You should see:* a message saying the section is hidden. Further down the
-   Files page, a card called **Protected sections** now lists your folder with
-   a **draft** label and a count of what is inside it.
+   *You should see:* a message saying the section is hidden. Open your folder's
+   card again (the same **&#9662;** arrow): under **Protection** it now shows a
+   **draft** label, says it is readable by *nobody but the owner*, and counts the
+   pages and assets inside.
 
 6. In your private window, try to visit the folder's page on the site -
    the address is the site name followed by the folder name, for example
@@ -51,20 +52,31 @@ If a task tells you to skip in some situation, skipping is fine - just write
    *You should see:* a **page not found** error. Not a sign-in prompt - the
    page should simply appear not to exist.
 
-7. Back in your manager window, on the **Protected sections** card, click
-   **Publish** on your folder's row, and confirm.
+7. Back in your manager window, on that same folder's card, click **Publish**,
+   and confirm.
 
-   *You should see:* the label change from **draft** to **gated**, and the row
-   stay in the list. Reload the private window: the page now loads normally.
+   *You should see:* the label change from **draft** to **gated**, and the
+   Protection block stay. Reload the private window: the page now loads.
 
-Write down: PASS or FAIL. It is a FAIL if the row never appeared, if Publish
-did not change the label, if the page still shows not-found in the private
-window after publishing, or if the row disappeared from the list when you
-clicked Publish.
+Write down: PASS or FAIL. It is a FAIL if the Protection block never appeared,
+if Publish did not change the label, if the page still shows not-found in the
+private window after publishing, or if the protection disappeared altogether
+when you clicked Publish - Publish is not meant to remove it.
+
+**If you cannot find the buttons:** they are on the card for the folder you set
+the protection on, and only on that one. A folder that is covered because a
+folder *above* it is protected shows a note saying where to go instead, and no
+buttons - that is correct, not a fault.
+
+**Updated 2026-09-29.** These steps used to describe a separate **Protected
+sections** card further down the page. That card was removed and its buttons
+moved onto each folder's own card. The steps above were written from the code
+rather than from someone walking the screen, so **if what you see does not match,
+that is worth reporting** - it is a real finding, not you doing it wrong.
 
 # Task 2 - remove the protection completely
 
-1. On that same **Protected sections** row (now labelled **gated**), click
+1. On that same folder's card (Protection now showing **gated**), click
    **Remove protection**.
 2. Read the confirmation message before accepting it.
 
@@ -75,8 +87,9 @@ clicked Publish.
 
 3. Accept.
 
-   *You should see:* the row disappear from the card entirely. The folder is
-   ordinary, visible content again - check it loads in the private window.
+   *You should see:* the Protection block go, and the padlock disappear from the
+   folder's row. The folder is ordinary, visible content again - check it loads
+   in the private window.
 
 Write down: PASS or FAIL. It is a FAIL if the confirmation was
 indistinguishable from Publish's, if the row stayed after accepting, or if the
