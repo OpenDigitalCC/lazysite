@@ -3,7 +3,7 @@ title: "SM276 - Localise the engine's own chrome"
 subtitle: "SM179 gave content a language. The pages the engine generates itself - login, validation errors, 404 - are still English on every site, whatever language the content is in."
 brand: plain
 status: candidate
-status-note: "SPLIT from SM179 on 2026-08-11. SM179 phases 1-7 delivered multilingual content (language sets, hreflang alternates, per-domain lang, content-root-relative resolution) and went out in 0.7.27. P8 was deferred BY DESIGN at the time, not abandoned - but it sat inside a shipped filing where nobody would find it. Not started."
+status-note: "DOOR SETTLED 2026-09-29, and NOTHING BUILT YET - status stays candidate. The ruling left one thing to the build: lazysite/templates/system/ is protected, so a site's own translation file needs either a validating action or somewhere else to live. MEASURED, three ways, from a running engine. (1) The protected tree really is closed: lazysite-dav.pl refuses with \"only lazysite/layouts/ is writable over WebDAV; the rest of lazysite/ is protected\". (2) Somewhere else already works - _system_page_md resolves a system page content root, then docroot, then engine default, and driven through the real request path with all three present, ALL THREE TIERS FIRE: a content-rooted French host gets its own copy. So a language site already overrides a system page by writing ordinary content, with no action and no door. (3) A .conf in content space is writable but never servable - conf is on SM797's static denylist. CONCLUSION: the site file is <content root>/lazysite-strings.<lang>.conf and the engine default is <lazysite>/templates/system/strings.<lang>.conf - one mechanism, shared with the pages. AND THE SCOPE IS SMALLER THAN FILED in the half that matters: the five system PAGES (login, claim, 402, 403, 404) are ALREADY localisable today by that tier-1 override, so they need documentation and a decision about whether the engine ships translated defaults, not code. The extraction is about the strings compiled into Perl: at least 38, a floor - 15 in plugins/form-handler.pl, 12 in lazysite-processor.pl, 11 in lazysite-auth.pl. THE MEASUREMENT TOOK THREE ATTEMPTS and each wrong one returned a UNIFORM answer, which is indistinguishable from \"no difference\": the fixture ships its own 404.md so tier 2 always won, the rendered 404.html is cached so a rewritten source was not re-read, and an alias content root only applies when the host is in alias_hosts: - which t/unit/processor/41's own header warns about. SEQUENCING, so the first commit does not fight two things at once: two of the 38 shipped today in SM579's closed banner map, which t/lint/156 pins equal to a second copy in the processor because ADR 0001 keeps the render path module-free. Start with lazysite-auth.pl's eleven login and claim messages - the filing names them first and nothing pins them - and fold SM579's pair in once the processor has its own reader. PREVIOUSLY: SPLIT from SM179 on 2026-08-11. SM179 phases 1-7 delivered multilingual content (language sets, hreflang alternates, per-domain lang, content-root-relative resolution) and went out in 0.7.27. P8 was deferred BY DESIGN at the time, not abandoned - but it sat inside a shipped filing where nobody would find it. Not started."
 ---
 
 # SM276 - engine-chrome localisation
@@ -65,6 +65,83 @@ cannot be written by a general channel: it needs the door the table
 descriptors got - an action that validates the file before storing it - or
 it lives somewhere else. That is the first thing to settle when this is
 built, because it decides what the extraction produces.
+
+# THE DOOR, SETTLED 2026-09-29 - it lives somewhere else, and that somewhere already works
+
+Three measurements, each from a running engine rather than from reading.
+
+**1. The protected tree really is closed to a general channel.**
+`lazysite-dav.pl` refuses with, in its own words, *"only `lazysite/layouts/` is
+writable over WebDAV; the rest of `lazysite/` is protected"*. So nothing under
+`lazysite/` outside `layouts/` can hold a site's own file without a new
+validating action - the ruling's first option, and it would cost an action and
+its registration points.
+
+**2. "Somewhere else" is content space, and it is already proven for the pages.**
+`_system_page_md` resolves a system page in three tiers: the domain's content
+root, the primary docroot, then the protected engine default. Driven through the
+real request path with all three present (`tmp/sm276-door.pl`):
+
+| | `example.com` | `fr.example.com` (own content root) |
+| --- | --- | --- |
+| engine default only | tier 3 | tier 3 |
+| plus a docroot copy | tier 2 | tier 2 |
+| plus the French root's own copy | tier 2 | **tier 1** |
+
+All three tiers fire. **A language site already overrides a system page by
+writing ordinary content into its own content root** - no protected tree, no
+action, no new door. It took three attempts to measure: the fixture ships its own
+`404.md` (so tier 2 always won), the rendered `404.html` is cached (so a rewritten
+source was not re-read), and an alias content root only applies when the host is
+declared in `alias_hosts:`. Each wrong version returned a uniform answer, which
+is indistinguishable from "no difference" - `t/unit/processor/41`'s header warns
+about exactly the third one.
+
+**3. A `.conf` in content space is writable but never servable.** `conf` is on
+SM797's static denylist, with `ini env pem key`. So a strings file can sit beside
+the content it belongs to, be written by any channel that writes content, and
+still never be handed to a visitor.
+
+**So: the site's file is `<content root>/lazysite-strings.<lang>.conf`, and the
+engine's default is `<lazysite>/templates/system/strings.<lang>.conf`.** One
+mechanism, shared with the pages, and no second answer to "where does this site's
+wording live".
+
+# AND THE SCOPE IS SMALLER THAN FILED, in the half that matters
+
+The filing lists "every string the engine emits to a visitor: the login page,
+claim, 402/403/404, form validation messages". Measured, those are two different
+problems and only one is unbuilt:
+
+- **The five system PAGES** - `login`, `claim`, `402`, `403`, `404` - are
+  **already localisable today**, by the tier-1 override above. Nothing needs
+  building for them. What they need is *documentation* saying so, and a decision
+  about whether the engine ships translated defaults or only English.
+- **The strings compiled into Perl** are the actual extraction.
+  `tmp/sm276-inventory.pl` counts them on the surfaces a visitor meets:
+
+| File | Visitor-facing prose strings |
+| --- | --- |
+| `plugins/form-handler.pl` | 15 |
+| `lazysite-processor.pl` | 12 |
+| `lazysite-auth.pl` | 11 |
+
+At least **38**, and that is a floor - the pattern is deliberately narrow.
+
+# ONE SEQUENCING NOTE BEFORE THE EXTRACTION STARTS
+
+Two of those 38 shipped on 2026-09-29, in SM579's closed `token => sentence`
+banner map. That map is the right shape for a string set, and `t/lint/156` now
+pins it equal to a second copy in the processor, because ADR 0001 keeps the render
+path module-free. So converting the form handler's sentences first would put the
+extraction straight through that lint.
+
+The cheaper order is to take a surface that is **not** entangled with it -
+`lazysite-auth.pl`'s eleven login and claim messages, which the filing names
+first and which nothing else pins - prove the mechanism end to end there, and
+fold SM579's pair in when the processor's own reader exists. Otherwise the first
+commit has to solve the render path's module-free constraint and the extraction at
+the same time.
 
 The reasoning, as it stood before the ruling: the filing's own
 recommendation is the second option (overridable per site,

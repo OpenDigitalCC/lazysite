@@ -44,6 +44,37 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- Door settled, nothing built (PENDING) **SM276's write door is answered by
+  measurement, and the scope is smaller than filed.** The ruling left one thing to
+  the build: `lazysite/templates/system/` is protected, so a site's own translation
+  file needs either a validating action or somewhere else to live, "and that is the
+  first thing to settle, because it decides what the extraction produces". Three
+  measurements from a running engine. **The protected tree really is closed** -
+  `lazysite-dav.pl` refuses in its own words, "only `lazysite/layouts/` is writable
+  over WebDAV; the rest of `lazysite/` is protected". **Somewhere else already
+  works**: `_system_page_md` resolves a system page through the domain's content
+  root, the docroot, then the engine default, and driven through the real request
+  path with all three present, **all three tiers fire** - a content-rooted French
+  host gets its own copy. So a language site already overrides a system page by
+  writing ordinary content, with no action and no door. **And a `.conf` in content
+  space is writable but never servable**, because `conf` sits on SM797's static
+  denylist. So the site file is `<content root>/lazysite-strings.<lang>.conf` and
+  the engine's default is `<lazysite>/templates/system/strings.<lang>.conf` - one
+  mechanism, shared with the pages, no second answer to where a site's wording
+  lives. **The scope shrinks in the half that matters:** the five system pages are
+  already localisable today by that override, so they want documentation and a
+  decision about translated defaults, not code; the extraction is about the
+  strings compiled into Perl, at least 38 of them and that is a floor - 15 in the
+  form handler, 12 in the processor, 11 in the auth CGI. **The measurement took
+  three attempts and every wrong one returned a UNIFORM answer**, which is
+  indistinguishable from "no difference": the fixture ships its own `404.md` so
+  tier 2 always won, the rendered `404.html` is cached so a rewritten source was
+  not re-read, and an alias content root only applies when the host is named in
+  `alias_hosts:` - which `t/unit/processor/41`'s own header warns about. A
+  sequencing note is recorded too: two of the 38 shipped today in SM579's banner
+  map, which `t/lint/156` pins against a second copy in the processor because ADR
+  0001 keeps the render path module-free, so the extraction should start on the
+  auth CGI's eleven messages rather than fight both at once.
 - SM485 (PENDING) **a notice can name a person, and reach them by mail if they
   asked for it.** Measured before building: `notify()` built its record from a
   fixed key list, so a `to` passed by a caller was **dropped silently** - every
