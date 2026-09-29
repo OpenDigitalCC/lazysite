@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- Four rulings recorded (PENDING) **taken 2026-09-29, each written into the thing
+- Four rulings recorded (63e5348e) **taken 2026-09-29, each written into the thing
   it decides rather than left in a conversation - and one of them did not survive
   its own condition.** **T3** (SM906): the control API gets a distinct *cannot
   tell* state, not an empty capability list, because the caller on that channel is
