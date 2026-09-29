@@ -44,7 +44,29 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- Door settled, nothing built (PENDING) **SM276's write door is answered by
+- SM914 (PENDING) **a test number is a label, not an identifier - written down,
+  and the ambiguous set stops growing.** Measured: 107 numbers name two or more
+  test files, one names four, and 1,294 bare-number citations point at those 107.
+  `t/integration/13` is two different tests and is written that way 61 times.
+  Nothing is broken - the harness globs filenames and both files run - but this
+  project cites evidence by test number constantly, and a citation that reaches
+  two tests has stopped identifying anything. **Ruled: write the convention down
+  and gate new ones, not renumber** - a rename invalidates every citation that
+  names the file in FULL as well as every bare-number one, so the cure is larger
+  than the disease for a property no code depends on. The convention is in
+  `docs/architecture/test-coverage.md`: cite the file, and give a new test a
+  number nothing else in its directory uses (leading zeros are not part of the
+  number - `06-preview.t` and `6-deny.t` collide). **The gate records the SET, not
+  a count**, and that distinction is the whole design: a ceiling of 107 would let
+  one collision be traded for another while the tree is no better. `t/lint/157`
+  holds the 107 as a named baseline in its own `__DATA__`, fails on a collision
+  that is not in it, and **also fails on a baseline entry that has stopped
+  colliding**, so the list cannot drift out of step with the tree it describes.
+  Four sabotages, and the third is the one that earned the design: resolve one
+  collision, add another, total unchanged - both assertions fire. Also confirmed
+  and worth saying because the claim needs its own measurement: none of the four
+  tests added earlier in this release made the set worse.
+- Door settled, nothing built (f30ae01f) **SM276's write door is answered by
   measurement, and the scope is smaller than filed.** The ruling left one thing to
   the build: `lazysite/templates/system/` is protected, so a site's own translation
   file needs either a validating action or somewhere else to live, "and that is the
@@ -75,7 +97,7 @@ Naming the commit: AFTER it lands, never before
   map, which `t/lint/156` pins against a second copy in the processor because ADR
   0001 keeps the render path module-free, so the extraction should start on the
   auth CGI's eleven messages rather than fight both at once.
-- SM485 (PENDING) **a notice can name a person, and reach them by mail if they
+- SM485 (e6fd5b7f) **a notice can name a person, and reach them by mail if they
   asked for it.** Measured before building: `notify()` built its record from a
   fixed key list, so a `to` passed by a caller was **dropped silently** - every
   notice was a site-wide broadcast, and the bell was the only endpoint reachable
@@ -111,7 +133,7 @@ Naming the commit: AFTER it lands, never before
   `Lazysite::Notify` accepted only the old name - so on a site using the new
   spelling it reported every extension disabled, which means **XMPP notice
   delivery has been silently off on those sites since the rename.**
-- SM915 (PENDING) **filed, not built: one registry spelled two ways is read four
+- SM915 (e6fd5b7f) **filed, not built: one registry spelled two ways is read four
   ways, and the one that WRITES it appends a second list.** Found while SM485
   looked for a predicate for "is the SMTP extension enabled". Of the four places
   that read the extension list, one accepts both spellings and three do not - and

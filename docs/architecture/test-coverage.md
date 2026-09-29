@@ -32,6 +32,48 @@ t/
   run-all.t             Aggregate runner (skipped under prove -r)
 ```
 
+### A test NUMBER is a label, not an identifier (SM914)
+
+Test files open with a number, and it is convenient shorthand - but it has never
+identified anything. Measured 2026-09-29: **107 numbers name two or more files**,
+one names four, and **1,294 bare-number citations** in the tree point at those
+107. `t/integration/13` is two different tests and is written that way 61 times.
+
+Nothing is broken by this. The harness globs filenames, so both files run, and
+the number is not an input to anything. What suffers is the **citation** - and
+this project points at evidence by test number constantly: a filing's status-note
+saying which test holds a property, a module comment naming the lint that
+enforces a rule, a commit message saying which subtest caught a sabotage. A
+reader following `t/tools/03` lands on two tests and cannot tell which was meant.
+
+**So, two rules.**
+
+**Cite a test by its FILE, not its number.** Write
+`t/integration/13-write-failure.t`, not `t/integration/13`. Where the full name
+is too long for the sentence, the number plus enough of the name to disambiguate
+is fine - `t/integration/13-write-failure` - but a bare number is not a
+reference, it is a hint.
+
+**Give a new test a number nothing else in its directory uses.** Each directory
+is its own numbering space, and leading zeros are not part of the number:
+`06-preview.t` and `6-deny.t` collide. The highest number in use is
+
+```
+ls t/<dir> | sed 's/-.*//' | sort -n | tail -1
+```
+
+`t/lint/157` holds the existing 107 as a named baseline and fails on a new
+collision - and on a baseline entry that has stopped colliding, so the list
+cannot drift out of step with the tree. It records the *set* rather than a count,
+because a count of 107 would let one collision be traded for another while the
+tree is no better.
+
+**The 107 are not being renumbered**, and that is a decision rather than an
+omission (SM914, ruled 2026-09-29). A rename invalidates every citation that
+names the file in full as well as every bare-number one, so the cure is larger
+than the disease for a property no code depends on. They stop growing; the
+convention above makes new citations unambiguous as they are written.
+
 ## Unit tests - what is covered
 
 - **YAML front matter parsing** across every documented key: `title`,
