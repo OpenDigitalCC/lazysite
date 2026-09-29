@@ -164,7 +164,7 @@ Naming the commit: AFTER it lands, never before
   `manage_data`. `row_policy` needs `timestamps: true`, refused by name at load.
   `update_row` and `delete_row` now **require** `as` and die without it, as
   `read_rows` has since SM476: there is one caller, so a default would be a third
-  state in a write gate. `t/lint/111` refuses a surface that asks which table a
+  state in a write gate. `t/lint/153` refuses a surface that asks which table a
   caller may write without also asking whose row - which is [[SM682]] round 2's
   defect exactly, on the same two surfaces. `lazysite-check` reports, per table,
   how many rows carry no policy, because confinement protects nothing that
@@ -188,7 +188,7 @@ Naming the commit: AFTER it lands, never before
   that were previously tangled: `reserved_column` is unconditional (no descriptor
   may declare one, whether or not that table sets `timestamps`, because the flag
   can be turned on afterwards) and `is_owned`/`owned_columns` are per-table (the
-  columns actually present). `t/lint/110` refuses a second spelling anywhere in
+  columns actually present). `t/lint/152` refuses a second spelling anywhere in
   the engine, and found the fifteenth - a message that would have recommended
   `timestamps: true` while naming four of five columns. No behaviour changes: the
   generated DDL is byte-for-byte what it was, deliberately, including the

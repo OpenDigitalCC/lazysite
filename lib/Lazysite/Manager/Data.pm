@@ -892,7 +892,7 @@ sub action_data_row_save {
     # a cookie session already gated by manage_data, and the CLI reaches it as
     # the sysop; both are genuinely unconfined rather than accidentally so. The
     # two surfaces that serve a PRINCIPAL - the control API and the data endpoint
-    # - pass row_authority explicitly, and t/lint/111 refuses one that does not.
+    # - pass row_authority explicitly, and t/lint/153 refuses one that does not.
     my $as = exists $opt{as} ? $opt{as} : 'operator';
     my $r
         = ( defined $key && length $key )
