@@ -109,11 +109,17 @@ sub _csrf_secret {
     return $auth if length $auth;
     # Dedicated manager secret (only used if the auth secret is missing).
     my $mpath = "$LAZYSITE_DIR/manager/.csrf-secret";
-    if ( -f $mpath && open my $mfh, '<', $mpath ) {
+    # SM917: -f guard gone (subtest 3's rule), and the failure reported. The mint
+    # below is right for a site that has no manager secret yet; it is wrong for
+    # one whose secret exists and cannot be read, because a SECOND secret
+    # invalidates every CSRF token already issued against the first - every open
+    # manager tab starts refusing its own forms, with nothing saying why.
+    if ( open my $mfh, '<', $mpath ) {
         chomp( my $s = <$mfh> );
         close $mfh;
         return $s if length $s;
     }
+    else { cannot_read( 'the manager CSRF secret', $mpath ) }
     # Mint one - fail closed if the CSPRNG is unavailable (M-6).
     make_path( dirname($mpath) ) unless -d dirname($mpath);
     open my $rand, '<:raw', '/dev/urandom'

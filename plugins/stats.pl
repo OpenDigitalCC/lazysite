@@ -806,6 +806,10 @@ sub read_conf {
         while ( my $l = <$fh> ) { $c{$1} = $2 if $l =~ /^(\w+)\s*:\s*(.*?)\s*$/; }
         close $fh;
     }
+    # SM917: an empty %c means every caller takes its own default, which is also
+    # what a site with no stats.conf gets - so a conf that exists and will not
+    # open looked exactly like one that was never written.
+    else { _cannot_read( 'the stats conf', _lz($DOCROOT) . "/stats.conf" ) }
     return \%c;
 }
 
@@ -820,6 +824,11 @@ sub _site_domain {
         }
         close $fh;
     }
+    # SM917: this host decides which log belongs to THIS site in a shared
+    # directory, and which referrers are self-referrers. An empty $host is the
+    # answer for a site that set no site_url, and was also the answer when the
+    # conf would not open - so the split quietly changed meaning.
+    else { _cannot_read( 'the site conf', _lz($DOCROOT) . "/lazysite.conf" ) }
     $host =~ s/:\d+$//;                                # strip a port
     $host =~ s/^www\.//i;                              # www-agnostic
     if ( $host !~ /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/ ) { # not a real host (e.g. ${SERVER_NAME})
@@ -2301,6 +2310,22 @@ sub _trails_flush {
             my $doc = eval { JSON::PP::decode_json( <$rh> // '{}' ) };
             close $rh;
             $existing = $doc->{trails} if ref $doc eq 'HASH' && ref $doc->{trails} eq 'ARRAY';
+        }
+        # SM917, AND THIS ONE LOSES DATA rather than merely reporting nothing.
+        #
+        # The write below is @existing + @rows, atomically replacing the file. So
+        # an existing day that would not open left $existing empty and the write
+        # REPLACED that day's trails with only the rows from this export - the
+        # append two lines above says it is not doing became a truncation.
+        #
+        # SKIP THE DAY rather than write it. The new rows are lost from this
+        # export, which the next one can re-collect; the day's history cannot be
+        # got back once overwritten, so that is the cheaper of the two losses.
+        # Absent is untouched - a day with no file yet is the normal first write,
+        # and cannot_read is silent on ENOENT.
+        elsif ( !$!{ENOENT} ) {
+            _cannot_read( 'a visitor-trail day', $f );
+            next;
         }
         my @all = ( @{ $existing || [] }, @$rows );
         @all = @all[ 0 .. $TRAIL_VISITOR_CAP - 1 ] if @all > $TRAIL_VISITOR_CAP;

@@ -1095,7 +1095,12 @@ sub _pairing_ttl {
     # die - minting a key is not the moment to fail on a config read.
     my $v;
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
-    if ( -f $conf && open my $fh, '<', $conf ) {
+    # SM917: the `-f $conf &&` guard is gone - a stat this process may not make
+    # fails like an open it may not make. The DECISION above stands: answer with
+    # the default rather than die, because minting a key is not the moment to
+    # fail on a config read. What changes is that the fault is now visible, so a
+    # sysop who set a TTL and is getting the default can find out why.
+    if ( open my $fh, '<', $conf ) {
         while ( my $line = <$fh> ) {
             next unless $line =~ /\A\s*pairing_key_ttl\s*:\s*(\S+)/;
             $v = $1;
@@ -1103,6 +1108,7 @@ sub _pairing_ttl {
         }
         close $fh;
     }
+    else { cannot_read( 'the site conf', $conf ) }
     return $PAIRING_TTL_DEFAULT unless defined $v && $v =~ /\A[0-9]+\z/;
     return $PAIRING_TTL_MIN if $v < $PAIRING_TTL_MIN;
     return $PAIRING_TTL_MAX if $v > $PAIRING_TTL_MAX;
@@ -1114,9 +1120,22 @@ sub _pairing_ttl {
 sub _ensure_conf_key {
     my ( $key, $value ) = @_;
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
-    if ( -f $conf && open my $fh, '<', $conf ) {
+    # SM917: this read is what makes the write IDEMPOTENT - it is the check for
+    # "the key is already there, leave the sysop's value alone". An unreadable
+    # conf meant the check silently found nothing and the write went ahead, which
+    # is how a second entry for a key that already had one gets appended. That is
+    # SM915's shape exactly, one file over.
+    #
+    # So REFUSE rather than write blind. Returning 0 is the same answer this sub
+    # gives when the key is already present - nothing was changed - and the log
+    # says which of the two happened. The -f guard is gone for subtest 3's reason.
+    if ( open my $fh, '<', $conf ) {
         while (<$fh>) { if (/^\Q$key\E\s*:/) { close $fh; return 0 } }
         close $fh;
+    }
+    elsif ( !$!{ENOENT} ) {
+        cannot_read( 'the site conf', $conf );
+        return 0;
     }
     my $ok = _conf_write(
         sub {

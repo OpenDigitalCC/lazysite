@@ -74,8 +74,29 @@ subtest 'the catalogue names every lazysite/ directory the engine uses' => sub {
 
 # --- 2. every read-open in a store's modules reports before returning --------
 #
-# Two shapes count as a failure branch: `or return`/`or next` on the line, and
-# `or do {` opening a block. The block is read to its closing brace.
+# THREE shapes count, and the third was added by SM917 because its absence was
+# the whole defect:
+#
+#   open ... or return / or next        the failure branch is on the line
+#   open ... or do { ... }              the block is read to its closing brace
+#   if ( open ... ) { ... }             THE FAILURE BRANCH IS THE MISSING ELSE
+#
+# The third has no `or`, so the matcher skipped it for three releases, and it
+# swallows a failed open exactly as thoroughly as the other two: the body runs
+# when the open worked and NOTHING runs when it did not, which is an empty answer
+# produced in silence. SM918 found one of these in the notice reader while this
+# lint was passing over the same file.
+#
+# For the conditional form the text collected is the `if` block PLUS any
+# immediately-following `else`/`elsif`, because that else is where a report
+# belongs and is where the accepted fix puts it:
+#
+#   if ( open my $fh, '<', $p ) { ... }
+#   else { cannot_read( 'the thing', $p ) }
+#
+# So the cannot_read and `# not a store` checks below need no change - they are
+# applied to the whole construct, and a conditional read with no else has no
+# cannot_read in it and fails.
 sub _read_opens {
     my ($file) = @_;
     open my $fh, '<', $file or die "$file: $!";
@@ -86,21 +107,82 @@ sub _read_opens {
         my $l = $lines[$i];
         next if $l =~ /^\s*#/;
         next unless $l =~ /\bopen\s*\(?\s*my\s+\$\w+\s*,\s*'<[^']*'\s*,/;
-        next unless $l =~ /\bor\b/;
+
         my $text  = $l;
         my $lines = 1;
-        if ( $l =~ /\bor\s+do\s*\{/ ) {    # read the block
-            my $depth = 1;
-            for my $j ( $i + 1 .. $#lines ) {
+
+        if ( $l =~ /\bor\b/ ) {
+            if ( $l =~ /\bor\s+do\s*\{/ ) {    # read the block
+                my $depth = 1;
+                for my $j ( $i + 1 .. $#lines ) {
+                    $text .= $lines[$j];
+                    $lines++;
+                    $depth++ while $lines[$j] =~ /\{/g;
+                    $depth-- while $lines[$j] =~ /\}/g;
+                    last if $depth <= 0;
+                    last if $lines > 12;    # a failure branch is short; longer is a smell
+                }
+            }
+            elsif ( $l !~ /\b(?:return|next)\b/ ) { next }
+        }
+        elsif ( $l =~ /\b(?:if|unless)\s*\(/ ) {
+
+            # SM917: the conditional form. Collect the guarded block, then the
+            # else if one follows it - that is the branch a report lives in.
+            my $depth = 0;
+            $depth++ while $l =~ /\{/g;
+            $depth-- while $l =~ /\}/g;
+            my $j = $i;
+            while ( $depth > 0 && $j < $#lines && $lines < 40 ) {
+                $j++;
                 $text .= $lines[$j];
                 $lines++;
                 $depth++ while $lines[$j] =~ /\{/g;
                 $depth-- while $lines[$j] =~ /\}/g;
-                last if $depth <= 0;
-                last if $lines > 12;    # a failure branch is short; longer is a smell
+            }
+
+            # A one-line `if ( open ... ) { ... }` closes on its own line, so the
+            # loop above may not have run at all. Either way, look at what comes
+            # next for the failure branch - skipping blank lines but NOT code,
+            # because a branch that is not adjacent is not this construct's.
+            #
+            # THREE SHAPES ARE ACCEPTED HERE, and the third is why this block
+            # exists in this form. `else` and `elsif` are obvious. The third is a
+            # following `unless ( $!{ENOENT} ) { ... }`, which is the idiom SM907
+            # established and which lazysite-manager-api.pl's audit-trail reader
+            # already uses correctly:
+            #
+            #   if ( open my $fh, '<:raw', $file ) { ...return states... }
+            #   unless ( $!{ENOENT} ) { cannot_read(...); return ... }
+            #
+            # That distinguishes all four states and is the BEST version of this
+            # code in the tree. A matcher that demanded an `else` would have
+            # reported it as a defect and asked for correct code to be rewritten,
+            # which is how a widened gate loses the argument it should win.
+            # Skip blank lines AND comments. A comment between the closing brace
+            # and the else is how the REASON for the failure branch gets written
+            # down, which is the thing this lint most wants to encourage - so
+            # treating it as "not adjacent" would penalise the explanation.
+            # Comments are skipped; CODE is not, because a branch with a statement
+            # in front of it is not this construct's branch.
+            my $k = $j + 1;
+            $k++ while $k <= $#lines && $lines[$k] =~ /^\s*(?:$|#)/;
+            if ( $k <= $#lines
+                && $lines[$k] =~ /^\s*(?:\}\s*)?(?:els(?:e|if)\b|unless\s*\(|if\s*\(\s*!?\s*\$!)/ )
+            {
+                my $d2 = 0;
+                for my $m ( $k .. $#lines ) {
+                    $text .= $lines[$m];
+                    $lines++;
+                    $d2++ while $lines[$m] =~ /\{/g;
+                    $d2-- while $lines[$m] =~ /\}/g;
+                    last if $d2 <= 0 && $lines[$m] =~ /\}/;
+                    last if $lines > 60;
+                }
             }
         }
-        elsif ( $l !~ /\b(?:return|next)\b/ ) { next }
+        else { next }
+
         push @found, { line => $i + 1, text => $text };
     }
     return @found;

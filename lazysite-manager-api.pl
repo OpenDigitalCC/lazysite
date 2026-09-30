@@ -133,11 +133,24 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 {
     my $trusted = ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
     my $proxy   = 'false';
-    if ( !$trusted && open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
-        while ( my $l = <$fh> ) {
-            if ( $l =~ /^auth_proxy_trusted\s*:\s*(\S+)/ ) { $proxy = lc $1; last }
+
+    # SM917: the open is inside the !$trusted branch rather than joined to it by
+    # &&, so the failure branch below belongs to the OPEN and not to the
+    # short-circuit. Joined, an `else` would also fire when the wrapper had
+    # already vouched for the caller and nothing had been read at all.
+    #
+    # This fails CLOSED either way - $proxy stays 'false' and the check below
+    # refuses - so an unreadable conf costs nobody their session. What it used to
+    # cost was the explanation: a sysop who set auth_proxy_trusted: true and whose
+    # conf lost its permissions saw proxy auth simply not work, with nothing said.
+    if ( !$trusted ) {
+        if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
+            while ( my $l = <$fh> ) {
+                if ( $l =~ /^auth_proxy_trusted\s*:\s*(\S+)/ ) { $proxy = lc $1; last }
+            }
+            close $fh;
         }
-        close $fh;
+        else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
     }
     unless ( $trusted || $proxy eq 'true' ) {
         if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
@@ -2676,6 +2689,9 @@ sub _conf_text {
         $conf = <$fh>;
         close $fh;
     }
+    # SM917: an unreadable conf leaves $conf undef, which every reader below
+    # treats as "no setting" - the same answer as a site that set nothing.
+    else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
     return $conf;
 }
 
@@ -3006,11 +3022,19 @@ sub _acl_audit_detail {
 # a CSPRNG.
 sub _preview_secret {
     my $path = "$LAZYSITE_DIR/auth/.secret";
-    if ( -f $path && open my $fh, '<', $path ) {
+    # SM917: the `-f $path &&` guard is gone, which is subtest 3's rule as much as
+    # subtest 2's - a stat this process may not make fails exactly like an open it
+    # may not make, and renders as absence before the open can report otherwise.
+    # Absence still reaches the mint below, because cannot_read is silent on
+    # ENOENT; what is new is that an existing-but-unreadable secret says so
+    # instead of quietly minting a SECOND one, which would sign previews the
+    # processor's verifier cannot check.
+    if ( open my $fh, '<', $path ) {
         chomp( my $s = <$fh> );
         close $fh;
         return $s if length $s;
     }
+    else { Lazysite::Util::cannot_read( 'the preview secret', $path ) }
     make_path("$LAZYSITE_DIR/auth") unless -d "$LAZYSITE_DIR/auth";
     open my $rand, '<:raw', '/dev/urandom'
         or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
@@ -3979,6 +4003,9 @@ sub action_config_read {
         }
         close $fh;
     }
+    # SM917: %out keeps its declared defaults when the conf will not open, so the
+    # manager would show the DEFAULTS as though they were the site's settings.
+    else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
     return { ok => 1, config => \%out };
 }
 
@@ -4003,6 +4030,9 @@ sub action_domains_list {
         }
         close $fh;
     }
+    # SM917: no alias overrides read means every domain appears to inherit the
+    # base settings, which is what a site with no overrides looks like.
+    else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
 
     my @domains;
     push @domains,
@@ -4608,7 +4638,13 @@ sub _audit_cached_entries {
     my ( $inode, $size ) = @st ? ( $st[1], $st[7] ) : ( -1, 0 );
 
     my $cache;
-    if ( open my $cf, '<', $cache_file ) {
+    # SM917: a DERIVED tail cursor, and the only thing it can do is save work.
+    # The very next condition invalidates on a missing, stale or unparseable cache
+    # and re-reads the trail from offset 0, so absent and unreadable produce the
+    # same correct answer: recompute. There is no fourth state here to report, and
+    # a WARN on every cold read would be noise. The marker sits on the open's own
+    # line because that is where t/lint/121 reads it.
+    if ( open my $cf, '<', $cache_file ) {    # not a store
         local $/; $cache = eval { decode_json(<$cf>) }; close $cf;
     }
     if ( !$cache || ref $cache ne 'HASH'

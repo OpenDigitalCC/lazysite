@@ -44,6 +44,31 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM917 step 2 (PENDING) **the store-reader lint sees the other idiom now, and
+  twelve readers were triaged behind it.** `t/lint/121` gained the third shape:
+  `if ( open ... ) { ... }` with no else, where the failure branch is the MISSING
+  else and nothing runs when the open fails. Two decisions in the matcher are
+  worth knowing. It accepts a following `unless ( $!{ENOENT} )` as the report,
+  because that is the SM907 idiom the audit-trail reader already uses and a
+  matcher demanding an `else` would have called correct code a defect. And it
+  skips comments when looking for that branch, so writing the REASON between the
+  brace and the else is not punished. **The twelve:** the site conf read five ways
+  (an unreadable conf showed defaults as though they were the site's settings, and
+  left `auth_proxy_trusted` reading false - which fails closed, but silently); the
+  preview secret and the manager CSRF secret, where minting a second secret
+  because the first would not open invalidates every token issued against it; the
+  stats conf and the site-domain read, which decide whose log is whose; the
+  pairing-key TTL; and three `-f` stat guards removed, which is subtest 3's rule
+  as much as subtest 2's. **Two were losing data, not just information.** The
+  visitor-trail export reads the day it is appending to, and an unreadable day
+  left that list empty so the atomic write REPLACED the day with only the new rows
+  - it now reports and skips the day, because the new rows can be re-collected and
+  the history cannot. And `_ensure_conf_key`'s read is what makes the write
+  idempotent, so an unreadable conf meant it could not see the key was already
+  there and appended a second one - SM915's shape, one file over; it refuses now.
+  ONE marker, on the audit-trail tail cursor: a derived cache where absent and
+  unreadable both correctly mean recompute. Four sabotages, four caught.
+
 - SM917 step 1 (0fe5b190) **two checks that reported a clean bill for a store they
   could not open.** The first of five commits under SM917's ruling (widen and fix
   all, no baseline, `auth` first). **MCP's `audit_site`** reported ACL keys that
