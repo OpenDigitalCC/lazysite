@@ -44,6 +44,8 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+## 0.15.1 - EDGE: a file that will not open stops reading as one with nothing in it, and a row's controls stay with the row (2026-09-30)
+
 - SM919 (98fccca0) **a row's tick box and its Delete button no longer sit at
   opposite ends of the data.** Reported from the live manager. A submissions table
   has one column per form field, so it scrolls sideways - and the tick box was the
