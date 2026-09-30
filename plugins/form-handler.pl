@@ -638,6 +638,14 @@ sub _notify_submission {
     # plugin ships without `use lib`, so locate the module tree the same way the
     # processor's lazy-require does; on any failure fall through to the plain
     # bell-store append below so a submission notice is never lost.
+    #
+    # SM928 defect 4: `url` POINTS AT THE HANDLERS PAGE, not the Extension Manager.
+    # It was `/manager/plugins`, which is where extensions are enabled and has
+    # nothing to do with a submission; the Submissions buttons are on the Handlers
+    # page. A deep link straight to THIS form's store needs the store PATH, which
+    # only the handler that stored it knows - a form may have several targets, and
+    # a file handler may carry a custom `path` - so it waits for defect 2's
+    # plumbing rather than being guessed here from the conventional directory.
     my $sent = eval {
         unless ( $INC{'Lazysite/Notify.pm'} ) {
             _locate_lib();
@@ -647,7 +655,7 @@ sub _notify_submission {
                 type    => 'submission',
                 message => "New form submission: $f",
                 target  => $f,
-                url     => '/manager/plugins',
+                url     => '/manager/handlers',
         } );
     };
     # SM925 X3: $@ WAS DISCARDED HERE. The `require` is inside the eval, so when
@@ -671,7 +679,7 @@ sub _notify_submission {
             type    => 'submission',
             message => "New form submission: $f",
             target  => $f,
-            url     => '/manager/plugins',
+            url     => '/manager/handlers',         # SM928 defect 4 - see the notify call
     } );
     open my $fh, '>>', "$logdir/notices.jsonl" or return;
     print {$fh} "$line\n";

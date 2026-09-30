@@ -4,10 +4,11 @@ title: "SM926: every notification link is literal template text, because Notify 
 subtitle: "The first XMPP message to arrive on a live site carried the URL `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins`. Three pieces of the engine read `site_url`: the processor interpolates it against a reviewed allowlist, a tool hand-rolls the same interpolation with a comment explaining why it must, and Lazysite::Notify has its own seven-line reader that returns the raw line. The RM has already ruled that `base_url` is not the fix."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-30
 raised-by: site agent, from a live site (0.15.0), after the delivery path was proved end to end
 area: notifications
+status-note: "PARTIAL - the defect is FIXED (PENDING ref); the consolidation of the THIRD reader is deliberately not done. SHIPPED: the allowlist moves to Lazysite::Util, Notify interpolates through it, and t/lint/202 pins the processor's own copy identical variable-for-variable (the render path is module-free per ADR 0001, so it keeps a copy - the arrangement lint 198 makes for _cannot_read). A case neither other reader has: NO REQUEST CONTEXT AT ALL - a cron- or CLI-driven notice has no SERVER_NAME, interpolation would correctly yield `://`, and emitting that is worse than emitting nothing because it looks like a link; so an incomplete expansion yields EMPTY and the template's `[% base %]/path` degrades to an absolute path. Also fixed: _conf_value no longer collapses an absent lazysite.conf and one that will not open into ''. NOT DONE, and this is the interesting half: tools/lazysite-users.pl::_site_base_url still hand-rolls its own two variables. THIS FILING'S OWN OPEN QUESTION WAS ADVANCED AND IS WORSE THAN IT SUPPOSED. Half settled: _claim_url IS reachable from a CGI-invoked `--api` action (account-approve; users_tool_api uses open2 and inherits %ENV), so a claim URL can be built with CGI env present. The other half: the processor's comment excludes HTTP_HOST as 'request-supplied and untrusted' and directs callers to SERVER_NAME - but Apache's UseCanonicalName defaults to OFF, under which SERVER_NAME is TAKEN FROM THE HOST HEADER, and none of the four shipped vhost examples (installers/apache/vhost*.conf.example) sets it On. So on a default install the exclusion buys nothing, and consolidating the third reader would bake that assumption in harder. Needs a ruling - a vhost default, or a policy about which host variable the engine trusts - before _site_base_url moves. Recorded in t/lint/202 beside the assertion so it is read by whoever changes it. Seven sabotages, seven refusals."
 ---
 
 # What arrived
@@ -102,7 +103,38 @@ Two smaller things in the same function while it is open:
 - `base_url` is documented in the header comment and nowhere a configuring
   operator would look.
 
-# A question about the second reader, not a claim
+# Answered 2026-09-30, and the answer is worse than the question
+
+Both halves were established while building the fix, and together they are the
+reason `_site_base_url` was **left alone** rather than consolidated.
+
+**Is `_claim_url` reachable with a CGI environment? YES.** `cmd_account_approve`
+calls it, `account-approve` is an `--api` action, and `users_tool_api` invokes the
+tool with `open2`, which inherits `%ENV`. So a claim URL can be built inside a
+request, with the request's variables present.
+
+**But the variable to worry about is not `HTTP_HOST`.** The fallback chain reaches
+`HTTP_HOST` only when `SERVER_NAME` is falsy, and under CGI Apache always sets
+`SERVER_NAME` - so that branch is close to dead. What matters is what `SERVER_NAME`
+*is*: **Apache's `UseCanonicalName` defaults to `Off`, under which `SERVER_NAME` is
+taken from the Host header**, and none of the four shipped vhost examples
+(`installers/apache/vhost*.conf.example`) sets it `On`.
+
+So the processor's comment - *"HTTP_HOST is intentionally excluded - it is
+request-supplied and untrusted. Use SERVER_NAME for host-based URL
+construction"* - rests on a premise the engine's own vhosts do not establish. On a
+default install, excluding one and permitting the other buys nothing.
+
+**That is a ruling rather than a repair**, which is why nothing was changed: the
+options are to ship `UseCanonicalName On` in the vhost templates (an operator-
+visible change that lands on regeneration), to stop trusting `SERVER_NAME` in the
+allowlist, or to accept it and say so where the comment currently claims safety.
+Consolidating the three readers first would bake the unexamined assumption in
+harder, so `_site_base_url` keeps its own copy until this is decided. The reasoning
+is recorded in `t/lint/202` beside the assertion, so whoever changes the allowlist
+reads it there rather than here.
+
+# The original question, kept for the record
 
 `_site_base_url` falls back
 `$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || $host_fallback`, and it builds

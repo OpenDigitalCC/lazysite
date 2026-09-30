@@ -34,7 +34,7 @@ use strict;
 use warnings;
 use JSON::PP       ();
 use Fcntl           qw(:flock);
-use Lazysite::Util  qw(log_event cannot_read);
+use Lazysite::Util  qw(log_event cannot_read interpolate_env);
 use Lazysite::Paths ();
 use Exporter 'import';
 our @EXPORT_OK = qw(notify notify_types);
@@ -268,6 +268,21 @@ sub notify {
         ( defined $n->{target} ? ( target => $n->{target} ) : () ),
         ( defined $n->{url}    ? ( url    => $n->{url} )    : () ),
     );
+    # SM928 defect 1: THE STORE'S COPY IS FLATTENED, THE TEMPLATE'S IS NOT.
+    #
+    # This strip carried no comment and sat immediately before the notices.jsonl
+    # append, so its evident purpose was to keep the store one record per line.
+    # JSON::PP::encode_json already escapes a newline as \n INSIDE the JSON
+    # string, so a multi-line message could never have broken the JSONL format -
+    # but %vars below was built from this stripped copy, which silently flattened
+    # multi-line bodies for EVERY endpoint and every template, XMPP and email
+    # alike. A site that wrote a careful multi-line submission.xmpp.tt got its own
+    # literal newlines back and lost only the interpolated [% message %], which is
+    # the worst version: it works until the content matters.
+    #
+    # Kept for the store (one record per line stays the store's contract and
+    # nothing reading it expects otherwise) and NOT applied to what the templates
+    # see. $n->{message} is the original.
     $rec{message} =~ s/[\r\n]+/ /g;
 
     my $route = _route( $conf, $type );
@@ -279,7 +294,9 @@ sub notify {
     # SM231: the variables a template may use. `url` is here because delivering
     # it is the whole point - it was stored and dropped before this.
     my %vars = (
-        message => $rec{message},
+        # SM928 defect 1: from the ORIGINAL, not the store's flattened copy. See
+        # the strip above for why the two differ and why only one of them should.
+        message => $n->{message},
         type    => $type,
         target  => ( $rec{target} // '' ),
         url     => ( $rec{url}    // '' ),
@@ -564,7 +581,15 @@ sub _xmpp_conf {
 
 sub _conf_value {
     my ( $docroot, $key ) = @_;
-    open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return ''; # not a store - site config
+    my $path = Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf";
+    # SM926: an absent conf and one that will not open were both ''. The first is
+    # ordinary on a tree being built; the second means every value this
+    # notification needed is missing for a reason somebody can fix.
+    my $fh;
+    if ( !open( $fh, '<:utf8', $path ) ) {    # not a store - site config
+        cannot_read( 'the site config', $path ) unless $!{ENOENT};
+        return '';
+    }
     while ( my $l = <$fh> ) {
         if ( $l =~ /^\Q$key\E\s*:\s*(.+?)\s*$/ ) { close $fh; return $1 }
     }
@@ -573,7 +598,31 @@ sub _conf_value {
 }
 
 sub _site_name { return _conf_value( $_[0], 'site_name' ) }
-sub _site_url  { return _conf_value( $_[0], 'site_url' ) }
+
+# SM926: `site_url` HOLDS A TEMPLATE, NOT A URL - `${REQUEST_SCHEME}://${SERVER_NAME}`
+# is what install.pl and TestHelper write, so one config works on any domain. This
+# returned the raw line, so the first XMPP notification to arrive on a live site
+# carried `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins` as its link. The
+# processor and tools/lazysite-users.pl both expand it; this was the third reader
+# and the only one that did not.
+#
+# AND A NOTIFICATION HAS A CASE NEITHER OF THOSE HAS: no request context at all. A
+# cron- or CLI-driven notice has no SERVER_NAME to borrow, so interpolation
+# correctly yields `://` - and emitting THAT is worse than emitting nothing,
+# because it looks like a link. When the expansion cannot complete, the base is
+# empty and the template's `[% base %]/manager/...` degrades to an absolute PATH,
+# which a reader can still use against whatever host they reached the site on.
+# `base_url` in notify.conf overrides all of it and is the deliberate escape for a
+# site whose notifications must point elsewhere - NOT the fix for this, which was
+# ruled 2026-09-30: site_url is the single source of truth and a second place to
+# write the site's own address goes stale in silence.
+sub _site_url {
+    my ($docroot) = @_;
+    my $raw = _conf_value( $docroot, 'site_url' );
+    return '' unless length( $raw // '' );
+    return '' unless Lazysite::Util::env_interpolation_complete($raw);
+    return interpolate_env($raw);
+}
 
 sub _plugin_enabled {
     my ( $docroot, $name ) = @_;

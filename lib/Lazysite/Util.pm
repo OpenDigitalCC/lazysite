@@ -13,7 +13,7 @@ use Lazysite::Paths ();
 use POSIX           ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist);
 
 our $COMPONENT = 'lazysite';
 
@@ -197,6 +197,71 @@ sub const_eq {
     $r |= ord( substr( $a, $_, 1 ) ) ^ ord( substr( $b, $_, 1 ) )
         for 0 .. length($a) - 1;
     return $r == 0;
+}
+
+# --- ${CGI_VAR} interpolation in a lazysite.conf value (SM926) ----------------
+#
+# `site_url` routinely holds `${REQUEST_SCHEME}://${SERVER_NAME}` - it is what
+# install.pl and TestHelper write, so that one config works on any domain - and
+# that value MEANS NOTHING until somebody expands it.
+#
+# THREE PIECES OF THE ENGINE READ THAT KEY AND ONLY TWO EXPANDED IT. The processor
+# has an allowlist; tools/lazysite-users.pl hand-rolls two of the same variables
+# with a comment explaining why it must; Lazysite::Notify had a seven-line reader
+# that returned the raw line - so the first XMPP notification to arrive on a live
+# site carried the URL `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins`. The
+# third hand-rolled copy is how that happened, and a fourth would be the same
+# mistake with a different symptom, so this is the one home for it.
+#
+# THE PROCESSOR KEEPS ITS OWN COPY, deliberately: the render path is module-free
+# (ADR 0001) and cannot require this. t/lint/202 pins the two allowlists
+# identical, which is the same arrangement lint 198 makes for `_cannot_read`.
+#
+# HTTP_HOST IS EXCLUDED, and the reason it is excluded deserves reading before
+# anyone relies on it - see the note in t/lint/202. It is request-supplied; so,
+# on a default Apache (`UseCanonicalName Off`, which none of the shipped vhost
+# examples override), is SERVER_NAME. Excluding one and permitting the other is
+# not the guarantee the processor's comment believes it is. Recorded in SM926
+# rather than changed here, because the fix is a vhost or a policy decision.
+my %ENV_ALLOWLIST = map { $_ => 1 } qw(
+    SERVER_NAME SERVER_PORT REQUEST_SCHEME HTTPS
+    REQUEST_URI REDIRECT_URL
+    DOCUMENT_ROOT SERVER_ADMIN
+);
+
+# Named, not returned straight from sort: `return sort ...` is undefined in scalar
+# context, and a caller asking "how many variables may be interpolated?" is a
+# reasonable thing to write. Same reasoning as _registration_groups in
+# tools/lazysite-users.pl, and perlcritic refuses it at severity 5.
+sub env_allowlist {
+    my @names = sort keys %ENV_ALLOWLIST;
+    return @names;
+}
+
+# Expand only allowlisted ${VAR}s. An allowlisted variable that is not SET
+# expands to the empty string (the processor's behaviour, kept); one that is not
+# allowlisted is left verbatim, so an unexpected placeholder stays visible rather
+# than silently becoming ''.
+sub interpolate_env {
+    my ($val) = @_;
+    return $val unless defined $val;
+    $val =~ s{\$\{(\w+)\}}{
+        $ENV_ALLOWLIST{$1} ? ( defined $ENV{$1} ? $ENV{$1} : '' ) : "\${$1}"
+    }ge;
+    return $val;
+}
+
+# Did every ${VAR} in this value resolve to something? A cron- or CLI-driven
+# caller has no CGI environment at all, so interpolate_env correctly returns
+# `://` - and a caller building a LINK needs to know that rather than emit it.
+# Notify uses this to fall back to a relative path.
+sub env_interpolation_complete {
+    my ($val) = @_;
+    return 1 unless defined $val && $val =~ /\$\{/;
+    while ( $val =~ /\$\{(\w+)\}/g ) {
+        return 0 unless $ENV_ALLOWLIST{$1} && length( $ENV{$1} // '' );
+    }
+    return 1;
 }
 
 # Minimal JSON string escaper for the structured log format.

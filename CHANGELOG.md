@@ -204,6 +204,59 @@ Naming the commit: AFTER it lands, never before
   a resolver - and if it does not, `Net::DNS` is not core, so X2's own fix needs a
   dependency declaration, which is X1's mechanism. `t/unit/lib/57` and
   `t/unit/manager/…` cover what shipped; seven sabotages, seven refusals.
+- SM926 + SM928 (PENDING) **a notification's link is a link, and its body keeps its
+  newlines.** These land together because the link is built from the variable the
+  other defect flattened.
+
+  SM926: `site_url` holds `${REQUEST_SCHEME}://${SERVER_NAME}` on every site
+  `install.pl` or `TestHelper` creates - one config that works on any domain, and a
+  value that means nothing until somebody expands it. THREE pieces of the engine
+  read that key. The processor expanded it against a reviewed allowlist;
+  `tools/lazysite-users.pl` hand-rolled two of the same variables with a comment
+  explaining why it had to; `Lazysite::Notify` had a seven-line reader that returned
+  the raw line - so the first XMPP notification to reach a live site carried
+  `${REQUEST_SCHEME}://${SERVER_NAME}/manager/plugins` as its link. The allowlist
+  now lives in `Lazysite::Util`, Notify uses it, and `t/lint/202` pins the
+  processor's own copy identical variable-for-variable (the render path is
+  module-free, ADR 0001, so it keeps a copy - the arrangement lint 198 makes for
+  `_cannot_read`).
+
+  A NOTIFICATION HAS A CASE NEITHER OTHER READER HAS: no request context at all. A
+  cron- or CLI-driven notice has no `SERVER_NAME`, so interpolation correctly yields
+  `://` - and emitting that is worse than emitting nothing, because it looks like a
+  link. When the expansion cannot complete the base is empty and the template's
+  `[% base %]/manager/...` degrades to an absolute PATH, which a reader can still
+  use. `base_url` remains the deliberate override and is NOT the fix, ruled
+  2026-09-30: `site_url` is the single source of truth and a second place to write
+  the site's own address goes stale in silence.
+
+  `_conf_value` also stopped collapsing "no lazysite.conf" and "a lazysite.conf that
+  will not open" into `''` - the second now reports through `cannot_read`.
+
+  SM928 defect 1: the newline strip before the `notices.jsonl` append also fed
+  `%vars`, so a multi-line body was flattened for EVERY endpoint and template. The
+  strip was right about the store - `encode_json` escapes a newline as `\n`, so the
+  format was never at risk, but one record per line is the store's contract - and
+  wrong about the templates. `%vars` is built from the original now; the stored copy
+  is still flattened, and `t/unit/lib/58` asserts both.
+
+  SM928 defect 4: `url` pointed at `/manager/plugins`, the Extension Manager, which
+  has nothing to do with a submission. The Submissions buttons are on the Handlers
+  page, so that is where it points. A deep link to THIS form's store needs the store
+  path, which only the handler that stored it knows, so it waits for defect 2.
+
+  AN OPEN QUESTION THIS BUILD ADVANCED AND DID NOT CLOSE. SM926 asked whether
+  `_site_base_url`'s `HTTP_HOST` fallback is reachable, because consolidating the
+  three readers has to pick one answer about which host variable is trusted. Half is
+  settled: `_claim_url` IS reachable from a CGI-invoked `--api` action
+  (`account-approve`, and `users_tool_api` inherits `%ENV`). The other half is worse
+  than the filing supposed - the processor's comment says HTTP_HOST is excluded
+  because it is request-supplied and SERVER_NAME should be used instead, but
+  Apache's `UseCanonicalName` defaults to **Off**, under which SERVER_NAME is taken
+  from the Host header, and NONE of the four shipped vhost examples sets it On. So
+  excluding one while permitting the other buys nothing on a default install. That
+  needs a ruling (a vhost default, or a policy) and `tools/lazysite-users.pl` is
+  deliberately left alone until it has one. Seven sabotages, seven refusals.
 
 ## 0.15.1 - EDGE: a file that will not open stops reading as one with nothing in it, and a row's controls stay with the row (2026-09-30)
 
