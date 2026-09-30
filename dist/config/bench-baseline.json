@@ -1,23 +1,23 @@
 {
    "_doc" : "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. Timings are REPORTED against tolerance, never failed on (SM342); work counters fail. A per-op override may live in tolerances{op}. Re-capturing over a regression requires --accept-regression (SM327).",
-   "captured_at" : "2026-09-29T18:10:57Z",
+   "captured_at" : "2026-09-30T12:38:48Z",
    "host" : "ai-dev",
    "iterations" : 20,
    "loadavg" : [
-      1.22,
-      1.06,
-      1.81
+      0.88,
+      2.2,
+      3.05
    ],
    "ops" : {
-      "render_cache_hit_ms" : 76,
-      "render_miss_ms" : 105.6,
-      "stats_export_ms" : 644.8,
-      "verify_password_ms" : 99,
-      "verify_token_cli_ms" : 72.5,
-      "verify_token_ms" : 0.6,
+      "render_cache_hit_ms" : 88.8,
+      "render_miss_ms" : 111.2,
+      "stats_export_ms" : 665.7,
+      "verify_password_ms" : 97,
+      "verify_token_cli_ms" : 72.2,
+      "verify_token_ms" : 0.7,
       "work_cold_log_bytes" : 497392,
       "work_cold_log_files" : 30,
-      "work_users_tool_statements" : 3354,
+      "work_users_tool_statements" : 3359,
       "work_warm_days_written" : 1,
       "work_warm_log_bytes" : 0,
       "work_warm_log_files" : 0
