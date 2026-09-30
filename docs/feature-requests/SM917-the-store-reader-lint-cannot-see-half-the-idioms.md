@@ -1,7 +1,7 @@
 ---
 id: SM917
 title: "SM917: the store-reader lint cannot see the other way to swallow a failed open, and does not read half the files"
-subtitle: "t/lint/121 refuses a store reader that turns an unopenable file into an empty answer, and it has caught that defect three times (SM760, SM766, SM768). TWO gaps, measured 2026-09-30. Its matcher requires `or` on the open line, so `if ( open ... )` with no else is invisible - 14 such read-opens inside the files it walks. And it walks only the files a store NAMES in its hand-kept `modules` list, so 20 (store, file) pairs are unread in any idiom - including seven files that read `auth`. Closing both brings 96 read-opens into scope needing a decision."
+subtitle: "t/lint/121 refuses a store reader that turns an unopenable file into an empty answer, and it has caught that defect three times (SM760, SM766, SM768). Its matcher required `or` on the open line, so `if ( open ... ) { }` with no else - where the failure branch is the MISSING else - was invisible for three releases: 14 such read-opens, 12 needing work, and two of those were losing data rather than reporting nothing. A second gap, that the lint reads only files a store NAMES in a hand-kept list, turned out to be two readers rather than the twenty first claimed here, and is closed by asking about the PATH instead of the file. Both of this filing's original counts were mine and both were wrong - the first correction made it larger, the second smaller; the record of both is in the body."
 brand: plain
 standard-margins: true
 status: shipped
