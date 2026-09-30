@@ -2643,7 +2643,17 @@ sub _audit_acl_keys {
     # check. Where a content root would make it match, say so - that is the
     # actual repair, and a sysop who has just read "protects nothing" needs
     # to be told what to write instead.
+    # SM917: an unreadable acls.json used to leave @acl_unmatched empty, and an
+    # empty list here renders as "nothing wrong with your access rules". That is
+    # the SM907 shape - a check reporting a clean bill for a store it could not
+    # open - and it is worse in an audit than anywhere else, because the whole
+    # point of the call is to be believed.
+    #
+    # Absent is a real answer and stays quiet: a site with no ACLs has no file,
+    # and it has no unmatched keys either. Unreadable is reported as its own
+    # state, so a reader can tell "checked, fine" from "could not check".
     my @acl_unmatched;
+    my $acl_unreadable = 0;
     if ( open my $afh, '<:raw', "$LAZYSITE_DIR/auth/acls.json" ) {
         my $raw = do { local $/; <$afh> };
         close $afh;
@@ -2675,7 +2685,8 @@ sub _audit_acl_keys {
             }
         }
     }
-    return \@acl_unmatched;
+    elsif ( !$!{ENOENT} ) { $acl_unreadable = "$!" }
+    return ( \@acl_unmatched, $acl_unreadable );
 }
 
 sub _audit_duplicates {
@@ -2696,8 +2707,8 @@ sub _audit_site {
         = _audit_links( $c->{exists}, $c->{info}, $c->{links} );
     my $hidden = _audit_hidden_by_script( $c->{class_used}, $c->{component_used} );
     my ( $stale, $unprotected, $auth_default ) = _audit_static_exposure();
-    my $acl_unmatched = _audit_acl_keys();
-    my $dups          = _audit_duplicates( $c->{para} );
+    my ( $acl_unmatched, $acl_unreadable ) = _audit_acl_keys();
+    my $dups = _audit_duplicates( $c->{para} );
 
     return { ok => 1, pages => scalar @{ $c->{info} },
         broken_links  => $broken,     orphan_pages   => $orphans,
@@ -2719,6 +2730,17 @@ sub _audit_site {
         # SM268 01-M3: ACL keys that match nothing, which is what a URL-shaped
         # key looks like on a content-rooted domain.
         acl_keys_matching_nothing => $acl_unmatched,
+
+        # SM917: and whether that check could be made at all. An empty list above
+        # means "checked, nothing wrong"; it used to ALSO mean "the ACL store
+        # exists and I could not open it", which is a clean bill nobody earned.
+        # Present only when the read actually failed, so a healthy audit is
+        # unchanged and a reader who does not know the key loses nothing.
+        ( $acl_unreadable
+            ? ( acl_keys_unreadable => "lazysite/auth/acls.json exists and could not be "
+                    . "read ($acl_unreadable), so acl_keys_matching_nothing above is EMPTY "
+                    . "because nothing was checked - not because nothing is wrong." )
+            : () ),
     };
 }
 

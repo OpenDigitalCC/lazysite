@@ -44,6 +44,27 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM917 step 1 (PENDING) **two checks that reported a clean bill for a store they
+  could not open.** The first of five commits under SM917's ruling (widen and fix
+  all, no baseline, `auth` first). **MCP's `audit_site`** reported ACL keys that
+  match nothing at the docroot, and an unreadable `auth/acls.json` left that list
+  EMPTY - which renders as "your access rules are fine". It now carries
+  `acl_keys_unreadable` naming the errno and saying in words that the empty list
+  above means nothing was checked, not that nothing is wrong; absent still stays
+  quiet, because a site with no ACLs has no unmatched keys either. **The
+  processor's `_visitor_key`** fell back to a minted salt when `auth/.secret` was
+  empty, which is correct for a secret-less site and was ALSO what happened when
+  the secret existed and could not be read - so an unreadable secret silently
+  re-keyed every visitor token, and the only symptom was returning visitors
+  counting as new ones, which looks like traffic rather than a fault. ADR 0001
+  keeps the render path module-free, so the processor gains its own `_cannot_read`
+  rather than calling Util's, and `t/lint/198` holds the two copies to one
+  decision: ENOENT returns before anything is logged, every return is undef, the
+  path/errno/unix-user are all logged, the errno is captured before `getpwuid` can
+  reset `$!`, and both log the same sentence. Ten sabotages across two scripts,
+  ten caught - and two of them only after a first attempt failed to apply, which
+  is why the scripts say so rather than reporting a pass.
+
 - SM918 (PENDING) **an agent can read the bell, through the same reader the manager
   uses.** The notice store had a control-API read surface and no MCP twin, which
   `t/lint/23` carried as "undecided - an MCP twin wants per-notice addressing

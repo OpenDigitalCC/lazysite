@@ -58,23 +58,27 @@ print encode_json({ ok => 1, settings => { mcp => 1, manage_content => 1 } });
 STUB
 chmod 0755, $stub;
 
-my $body = encode_json( { jsonrpc => '2.0', id => 1, method => 'tools/call',
-        params => { name => 'audit_site', arguments => {} } } );
-my $out = run_script(
-    'lazysite-mcp.pl',
-    stdin => $body,
-    env   => {
-        DOCUMENT_ROOT       => $d,
-        REQUEST_METHOD      => 'POST',
-        CONTENT_LENGTH      => length($body),
-        LAZYSITE_USERS_TOOL => $stub,
-        HTTP_AUTHORIZATION  => 'Bearer partner:lzs_x',
-    },
-);
-my ($jb)  = $out =~ /\r?\n\r?\n(.*)/s;
-my $rsp   = eval { decode_json( $jb // '' ) } || {};
-my $text  = $rsp->{result}{content}[0]{text} // $jb // '';
-my $audit = eval { decode_json($text) } || {};
+sub audit {
+    my $body = encode_json( { jsonrpc => '2.0', id => 1, method => 'tools/call',
+            params => { name => 'audit_site', arguments => {} } } );
+    my $out = run_script(
+        'lazysite-mcp.pl',
+        stdin => $body,
+        env   => {
+            DOCUMENT_ROOT       => $d,
+            REQUEST_METHOD      => 'POST',
+            CONTENT_LENGTH      => length($body),
+            LAZYSITE_USERS_TOOL => $stub,
+            HTTP_AUTHORIZATION  => 'Bearer partner:lzs_x',
+        },
+    );
+    my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
+    my $rsp = eval { decode_json( $jb // '' ) } || {};
+    my $text = $rsp->{result}{content}[0]{text} // $jb // '';
+    return ( eval { decode_json($text) } || {}, $text );
+}
+
+my ( $audit, $text ) = audit();
 
 my %flagged = map { $_->{key} => $_ } @{ $audit->{acl_keys_matching_nothing} || [] };
 
@@ -91,5 +95,30 @@ ok( !exists $flagged{'sites/foo/private'},
 ok( !exists $flagged{'open'},
     'nor a key on the primary site that matches a real folder - a check that '
         . 'flagged every key would pass the first assertion for the wrong reason' );
+
+# SM917: AND WHETHER THE CHECK COULD BE MADE AT ALL.
+#
+# An unreadable acls.json used to leave the list empty, and an empty list here
+# renders as "nothing wrong with your access rules" - a clean bill for a store
+# nobody could open. That is the SM907 shape, and it is worst in an audit,
+# because being believed is the entire purpose of the call.
+ok( !exists $audit->{acl_keys_unreadable},
+    'a healthy audit does NOT carry the unreadable key - so its presence means something' );
+
+SKIP: {
+    skip 'running as root, which can open a 0000 file', 3 if $> == 0;
+
+    chmod 0000, "$d/lazysite/auth/acls.json" or die "chmod: $!";
+    my ( $blind, $btext ) = audit();
+    chmod 0644, "$d/lazysite/auth/acls.json";
+
+    ok( $blind->{acl_keys_unreadable},
+        'an unreadable ACL store is reported as its own state' )
+        or diag $btext;
+    is_deeply( $blind->{acl_keys_matching_nothing} || [], [],
+        'the list is empty, as it was before - which is exactly why the flag is needed' );
+    like( $blind->{acl_keys_unreadable}, qr/not because nothing is wrong/,
+        'and the message names the wrong conclusion it exists to prevent' );
+}
 
 done_testing();

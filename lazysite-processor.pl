@@ -9543,6 +9543,34 @@ sub read_file {
     return $content;
 }
 
+# SM917: the processor's own copy of Lazysite::Util::cannot_read.
+#
+# WHY A COPY. ADR 0001: the render path loads no modules, so every decision the
+# processor shares with the rest of the engine it carries itself, and a lint holds
+# the two in step (t/lint/160). Calling Util here would put a module load on the
+# hot path for one four-line sub, which is the trade ADR 0001 already ruled on.
+#
+# THE CONTRACT, identical to Util's so a reader can move between them: returns
+# undef always, so it can be the whole failure branch of an open. Absent is NOT a
+# fault and is silent - ENOENT returns before anything is logged, because a file
+# a site has never had is a real answer and warning about it teaches an operator
+# to ignore warnings. Anything else is logged with the path, the errno and the
+# unix user, which are the three facts a sysop needs and which SM766's version of
+# this bug threw away.
+#
+# $! IS READ BEFORE getpwuid, which is free to reset it - SM768 logged a blank
+# error field for exactly that reason, and it is the one field the rule exists to
+# carry.
+sub _cannot_read {
+    my ( $what, $path ) = @_;
+    return undef if $!{ENOENT};
+    my $err = "$!";
+    my ($who) = getpwuid($>);
+    log_event( 'WARN', 'store', "cannot read $what - it exists and this process cannot open it",
+        file => $path, error => $err, unix_user => ( $who // $> ) );
+    return undef;
+}
+
 sub log_event {
     my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
@@ -9664,11 +9692,20 @@ sub _visitor_key {
     my $ip = $ENV{REMOTE_ADDR} // '';
     return '' unless length $ip;
     my $secret = '';
+    # SM917: the fallback below is BY DESIGN for a site with no secret, and was
+    # also what happened when the secret existed and could not be read - so an
+    # unreadable secret silently re-keyed every visitor token. Nothing failed and
+    # nothing was logged; the only symptom is that returning visitors start
+    # counting as new ones, which looks like traffic rather than a fault.
+    #
+    # Absent still falls through silently, because that IS the secret-less site
+    # this fallback was written for. Unreadable now says so.
     if ( open my $sf, '<', "$LAZYSITE_DIR/auth/.secret" ) {
         local $/;
         $secret = <$sf> // '';
         close $sf;
     }
+    else { _cannot_read( 'the auth secret', "$LAZYSITE_DIR/auth/.secret" ) }
     $secret = _access_salt() unless length $secret;
     return substr( hmac_sha256_hex( "$ymd|$ip", $secret ), 0, 16 );
 }
