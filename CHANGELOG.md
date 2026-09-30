@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM917 step 3 (PENDING) **a read that names a store obeys the store rule wherever
+- SM917 step 3 (f6bccc25) **a read that names a store obeys the store rule wherever
   it lives - and G2 was two readers, not twenty.** `t/lint/121` gains a check that
   asks about the PATH rather than the file: any read-open whose path names a store
   directory must report, in every file, not only in ones a modules list happens to
@@ -69,7 +69,7 @@ Naming the commit: AFTER it lands, never before
   and deliberately not performed: `forms` and `logs` have no unreported store reads
   to triage, and two commits to match a plan would be theatre.
 
-- SM917 step 2 (PENDING) **the store-reader lint sees the other idiom now, and
+- SM917 step 2 (f551b6ce) **the store-reader lint sees the other idiom now, and
   twelve readers were triaged behind it.** `t/lint/121` gained the third shape:
   `if ( open ... ) { ... }` with no else, where the failure branch is the MISSING
   else and nothing runs when the open fails. Two decisions in the matcher are
