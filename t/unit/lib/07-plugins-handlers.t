@@ -40,7 +40,15 @@ close $c;
 sub slurp_conf { open my $f, '<', "$d/lazysite/lazysite.conf"; local $/; <$f> }
 # --- plugin enable / disable mutate the conf correctly ---
 ok( action_plugin_enable('plugins/log.pl')->{ok}, 'enable a plugin' );
-like( slurp_conf(), qr{plugins:\s*\n\s+- plugins/log\.pl}s, 'plugin added under a plugins: block' );
+# SM915: this fixture's conf carries NO list, so there is no header the site
+# "already uses" and the writer creates one under `extensions:` - the name SM817
+# introduced - rather than reviving `plugins:` on a site that never had it. The
+# assertion used to expect the old spelling, which was correct only while the
+# writer hardcoded it. Both directions are checked so this cannot pass on either
+# spelling indifferently; t/unit/manager/198 holds the rest of the behaviour.
+like( slurp_conf(), qr{extensions:\s*\n\s+- plugins/log\.pl}s,
+    'a new list is created under `extensions:`, the current name' );
+unlike( slurp_conf(), qr{^plugins:}m, 'and not under the retired spelling' );
 ok( action_plugin_enable('plugins/audit.pl')->{ok}, 'enable a second' );
 like( slurp_conf(), qr{audit\.pl}, 'second plugin present' );
 ok( action_plugin_disable('plugins/log.pl')->{ok}, 'disable a plugin' );

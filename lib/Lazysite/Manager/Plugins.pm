@@ -563,8 +563,22 @@ sub _update_plugins_conf {
     my @after;
     my $phase = 'before';
 
+    # SM915: this matched `plugins:` ALONE, and SM817 had renamed the list to
+    # `extensions:` saying both spellings open the same one - "a site cannot end
+    # up with two lists that disagree about what is enabled". On a site that
+    # adopted the new name the header and all its entries fell through to
+    # @before, @plugins came out empty, and the rebuild below emitted a SECOND
+    # list under the old spelling carrying only the script just added. Enabling
+    # one extension gave the conf two lists; disabling one removed nothing from
+    # a list it could not see and reported ok. Reproduced in tmp/sm915-repro.pl
+    # before this fix: enable -> 2 lists, disable -> ok=1 and nothing removed.
+    #
+    # %headers_seen records the SPELLING, not just that a block exists, because
+    # the rebuild has to write back the one the site already uses.
+    my %headers_seen;
     for my $line (@lines) {
-        if ( $line =~ /^plugins\s*:\s*$/ ) {
+        if ( $line =~ /^(extensions|plugins)\s*:\s*$/ ) {
+            $headers_seen{$1} = 1;
             $in_plugins  = 1;
             $found_block = 1;
             $phase       = 'plugins';
@@ -587,6 +601,25 @@ sub _update_plugins_conf {
         elsif ( $phase eq 'after' )  { push @after,  $line }
     }
 
+    # SM915, RULED 2026-09-29: refuse when BOTH spellings are present, naming the
+    # file. A conf in that state is what the defect above produced, and its two
+    # lists disagree - the reader at plugin_enabled() merges them and sees
+    # everything, while the others see one block and read the rest as disabled.
+    # Merging them here would edit a list the operator did not ask to be edited
+    # in this call, which is the same shape as the defect; leaving it alone keeps
+    # a damaged conf damaged and silent, which is the state that was reported. So
+    # it is handed back to be fixed deliberately, and the message says how.
+    if ( keys %headers_seen > 1 ) {
+        return {
+            ok    => 0,
+            error => "$conf_path carries both an `extensions:` and a `plugins:` "
+                . 'list. They are one registry spelled two ways, so two blocks '
+                . 'disagree about what is enabled. Merge them by hand into the '
+                . 'one this site uses - keep `extensions:`, the current name - '
+                . 'and then enable or disable again.',
+        };
+    }
+
     if ( $op eq 'add' ) {
         push @plugins, $script unless grep { $_ eq $script } @plugins;
     }
@@ -600,7 +633,13 @@ sub _update_plugins_conf {
     # keys into one corrupt line.)
     my @out = @before;
     if (@plugins) {
-        push @out, 'plugins:', map { "  - $_" } @plugins;
+        # SM915: write back the header THIS SITE USES, which is the ruling - not
+        # a hardcoded `plugins:`. Exactly one spelling can be in %headers_seen by
+        # here, because two were refused above. A conf with no list at all gets
+        # `extensions:`, the name SM817 introduced, rather than reviving the old
+        # one on a site that never had it.
+        my ($header) = keys %headers_seen;
+        push @out, ( $header // 'extensions' ) . ':', map { "  - $_" } @plugins;
     }
     push @out, @after;
     my $new_conf = join( "\n", @out );

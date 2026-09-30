@@ -211,7 +211,14 @@ SKIP: {
     ok( $en->{hook} && $en->{hook}{ok}, 'the toggle ran the on_enable hook' )
         or diag explain $en;
     like( $en->{hook}{commit}, qr/\A[0-9a-f]{40}\z/, 'hook took the adoption commit' );
-    like( t_slurp("$site/lazysite/lazysite.conf"), qr/^plugins:/m, 'plugin listed in conf' );
+    # SM915: this asserted the HEADER (`^plugins:`), which made a test about
+    # content history depend on the writer's choice of spelling - and the writer
+    # now creates a new list under `extensions:`, the current name. What this test
+    # actually means is that the plugin got listed, so it asserts the ENTRY and is
+    # indifferent to which of the two spellings opens the list. t/unit/manager/198
+    # is where the spelling belongs.
+    like( t_slurp("$site/lazysite/lazysite.conf"),
+        qr{^\s+-\s+plugins/content-history\.pl$}m, 'plugin listed in conf' );
     Lazysite::Git::reset_cache();
     ok( Lazysite::Git::enabled($site), 'recording is ON after the one switch' );
     my $commits = Lazysite::Git::count_commits($site);

@@ -8458,7 +8458,12 @@ sub _enabled_plugins {
     my $in = 0;
     while (<$fh>) {
         chomp;
-        if (/^plugins\s*:\s*$/) { $in = 1; next }
+        # SM915: BOTH SPELLINGS. SM817 renamed this list to `extensions:` and
+        # said the two open the same one; this reader took the old name alone, so
+        # on a site that adopted the new one every entry read as disabled and the
+        # manager nav hid entries for extensions that were in fact enabled. The
+        # sibling reader in this same file (_unit_enabled) already had it right.
+        if (/^(?:extensions|plugins)\s*:\s*$/) { $in = 1; next }
         if ( $in && /^\s+-\s+(.+?)\s*$/ ) {
             my $e = $1;
             $en{$e} = 1;                           # raw entry, e.g. stats.pl

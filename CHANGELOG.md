@@ -97,6 +97,62 @@ Naming the commit: AFTER it lands, never before
   conf that says nothing still forwards a plugin's ERROR, and its old "forwarding
   off" case now spells `off` explicitly instead of relying on absence. Seven
   sabotages, seven refusals.
+- SM915 (PENDING) **enabling one extension no longer writes a second list, and the
+  manager nav stops hiding extensions that are enabled.** SM817 renamed this list
+  from `plugins:` to `extensions:` and said in the comment that has stood ever
+  since that both spellings open the SAME list, so "a site cannot end up with two
+  lists that disagree about what is enabled". Six places in the tree match a list
+  header. Four honoured that. Two did not.
+
+  THE WRITER WAS THE SERIOUS ONE. `_update_plugins_conf` matched `plugins:` alone,
+  so on a site using the newer name the header and every one of its entries fell
+  through to the preserved lines, `@plugins` came out empty, and the rebuild
+  emitted a SECOND list under the old spelling carrying only the script just
+  added. Enabling one extension gave the conf two lists; the reader that merges
+  both then saw everything while the others saw one block and read the rest as
+  disabled. Disable was worse in a quieter way - the entry was not in a list the
+  writer could see, so `grep` removed nothing, the conf was rewritten unchanged,
+  and the result was reported `ok`. Reproduced before the fix in
+  `tmp/sm915-repro.pl`: on an `extensions:` site, enable produced 2 lists and
+  disable answered ok=1 having removed nothing.
+
+  Ruled 2026-09-29: **write back the header the site already uses, and refuse when
+  both are present, naming the file.** The writer now records which spelling it
+  found and rebuilds under that one. A conf carrying both is handed back with the
+  path and what to do about it, and nothing is written - merging would edit a list
+  the operator did not ask to be edited in that call, which is the same shape as
+  the defect, and leaving it silent is the state that was reported. A site with no
+  list at all gets `extensions:`, the current name, rather than reviving the
+  retired spelling on a site that never had it.
+
+  THE READER was `_enabled_plugins` in the processor, which feeds the conditional
+  manager nav - so on an `extensions:` site the nav hid entries for extensions
+  that were in fact enabled. Its sibling in the same file, `_unit_enabled`, had it
+  right all along, which is the clearest statement of what this defect is: not one
+  bug but one judgement written down six times and drifting.
+
+  `t/lint/200` is the gate against a seventh copy: every regex anchored on a list
+  header must name both spellings, with a floor so a census that finds nothing
+  cannot pass. `t/unit/manager/198` holds the writer's behaviour on BOTH spellings,
+  because a `plugins:` site worked all along and a test exercising only the broken
+  one cannot tell a fix from a swap of which spelling is broken. Seven sabotages,
+  seven refusals.
+
+  ONE ASSERTION CHANGED RATHER THAN BEING WORKED AROUND: `t/unit/lib/07` expected a
+  new list under `plugins:`, which was right only while the writer hardcoded it.
+  Its fixture has no list, so it now expects `extensions:` and asserts the old
+  spelling is absent, so it cannot pass on either indifferently.
+
+  WHAT WAS ALREADY KNOWN AND IS NOW MEASURED: the filing's own table listed four
+  sites and its status-note said three readers remained. Both were wrong. The
+  population is six - `install.pl:945` and the processor's `_unit_enabled` were
+  never in the table and were always correct - and what remained was one reader
+  and the writer. The count is in the filing now.
+
+  THE LIVE CONSEQUENCE THIS CLOSES: XMPP notice delivery had been silently off on
+  every site using the newer spelling since SM817. The `Notify` half of that
+  shipped in 0.15.1 under SM485, because the email endpoint could not be reached
+  without it; this is the rest.
 
 ## 0.15.1 - EDGE: a file that will not open stops reading as one with nothing in it, and a row's controls stay with the row (2026-09-30)
 
