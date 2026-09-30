@@ -59,6 +59,18 @@ my %GUARDED = map { $_ => 1 } qw(
 # path - so validate_path has no request to validate. Each carries its reason,
 # because "exempt" without one is indistinguishable from "forgotten".
 my %EXEMPT = (
+    # SM918: the notice seen-marker. It writes ONE engine-named file,
+    # lazysite/logs/notices-seen.json, whose path is built entirely from the
+    # engine tree - no caller-supplied component reaches it, so there is no path
+    # to validate. The caller's only contribution is a principal, used as a HASH
+    # KEY inside the JSON and never as a path segment.
+    #
+    # It appears here now because the reader moved out of lazysite-manager-api.pl
+    # into lib/ so MCP could share it, which brought it into this lint's scope for
+    # the first time - the write is not new, its classification is.
+    action_notices_seen =>
+        'writes only lazysite/logs/notices-seen.json, an engine-named path; the caller '
+        . 'supplies a principal used as a JSON key, never as a path segment',
     action_brief_delete =>
         'SM508: deliberately does NOT validate_path - an orphan\'s content '
         . 'path may no longer validate (its directory can be gone), and '

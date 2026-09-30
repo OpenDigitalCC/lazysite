@@ -50,6 +50,8 @@ use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Plugins     qw(action_form_submissions action_form_list);
+# SM918: the one notice reader, shared with the control API
+use Lazysite::Manager::Notices ();
 use Lazysite::Handlers ();                # SM842: handlers, bindings, the schedule
 use Lazysite::Lang                 qw(set_members);
 use Lazysite::Validate ();                # SM887 F2: the engine owns validation
@@ -393,6 +395,8 @@ sub setup_context {
     $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
     $Lazysite::Manager::Plugins::DOCROOT       = $DOCROOT;
+    # SM918: the shared notice reader
+    $Lazysite::Manager::Notices::DOCROOT       = $DOCROOT;
     $Lazysite::Handlers::DOCROOT               = $DOCROOT;
     $Lazysite::Manager::Data::DOCROOT          = $DOCROOT;
     $Lazysite::Manager::Data::auth_user        = $user;    # SM468: schema-history actor
@@ -1429,6 +1433,26 @@ my %TOOLS = (
             properties => { id => { type => 'string', description => 'the entry id' } },
             required   => ['id'], additionalProperties => JSON::PP::false },
         run => sub { Lazysite::Handlers::action_schedule_delete( $_[0]->{id}, caps => $_[2] ) },
+    },
+    read_notices => {
+        description =>
+            'Read the site\'s NOTICE BELL - the operator notification store (SM113): what the site '
+            . 'has told its sysops, newest first, most recent 100. Each notice has ts, type and a '
+            . 'message, and may carry `to` naming the account it was addressed to (SM485); a notice '
+            . 'with no `to` is a site-wide broadcast. Needs the notifications capability - the same '
+            . 'capability the control API\'s `notices` action needs, so the two doors agree about '
+            . 'who may read the bell (SM239 parity; the capability is the gate, not the channel). '
+            . 'THIS IS A STRAIGHT READ AND NOT A MAILBOX: there is no per-agent read cursor and no '
+            . 'marking seen. `last_seen` is therefore 0 for a partner and `unread` equals the total, '
+            . 'because marking-seen is an operator action with no MCP twin - see t/lint/23 for why. '
+            . 'If `store_unreadable` is true the store exists and could not be opened, so an empty '
+            . 'list is NOT a quiet site; the engine log names the file, the error and the unix user.',
+        cap => 'notifications',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $args, $user, $caps ) = @_;
+            return Lazysite::Manager::Notices::action_notices($user);
+        },
     },
     form_list => {
         description => 'List the site\'s FORMS (not handlers) so you can answer "which forms exist?" and "were any submitted?" without guessing store names. Returns per form: name, handler_types (smtp/file/table/connector), has_store, and row_count (the submission COUNT only, never content). Needs read_submissions - the same capability on every channel (SM652; the control API accepted manage_forms until then, so the two doors disagreed about who may read a submission). Counts-only is deliberate, not a limitation: to read the submitted content call read_form_submissions, which needs the same capability. Pairs with list_handlers (the delivery handlers).',
@@ -3142,6 +3166,7 @@ my %ANNOTATE = (
     site_apply            => [ 0, 1, 1 ],  # overwrites the live content tree
     delete_theme          => [ 0, 1, 1 ],
     read_form_submissions => [ 1, 0, 0 ],
+    read_notices => [ 1, 0, 0 ], # SM918: reads the bell; writes nothing, not even a cursor
     create_form           => [ 0, 0, 1 ],
     analyse_visitors      => [ 1, 0, 0 ],
     regenerate_registries => [ 0, 0, 1 ],

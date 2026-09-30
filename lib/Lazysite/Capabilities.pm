@@ -535,9 +535,18 @@ my %ACTION_INFO = (
         # capability with no remote surface, which is an SM239 parity gap and
         # the reason remote agents had been editing a shared briefing document
         # to talk to each other. `notices` is READ; emission stays SM231's.
+        # SM918: and the MCP twin, so this capability now has a remote surface on
+        # BOTH channels rather than one. The ruling was full parity with the
+        # capability as the gate, not the channel, and it is literally the same
+        # reader behind each door (Lazysite::Manager::Notices).
+        #
+        # `notices-seen` is on neither remote list on purpose: the seen-marker is
+        # a per-principal read cursor for a human's unread badge, and a cursor
+        # per partner is where a bell turns into an inbox.
         unlocks => {
             ui  => ['the notifications bell + unread badge in the manager header'],
             api => ['notices'],
+            mcp => ['read_notices'],
         },
     },
     feedback => {

@@ -17,7 +17,7 @@ tone: medium
 ---
 The addressing decision (`to`, optional, broadcast when absent) | **done**, with the 0.10.14 cut -- see SM281
 The SMTP endpoint | **shipped 2026-09-29** -- a notice names an account and reaches it by mail
-The notice-store read surface | **the control API half SHIPPED** (`notices`, `notices-seen`, gated on `notifications`, in the generated reference). Its MCP twin is a RECORDED DEFERRAL, not a gap -- `t/lint/23` carries it as "undecided - an MCP twin wants per-notice addressing (SM281 item 2) first", and that addressing is what shipped above, so the deferral is now unblocked and needs a parity ruling
+The notice-store read surface | **DONE 2026-09-30, see SM918.** The control-API half shipped first (`notices`, `notices-seen`, gated on `notifications`); the MCP twin `read_notices` shipped under the ruling FULL PARITY, THE CAPABILITY IS THE GATE, and `t/lint/23` now carries the pairing instead of the deferral. One reader serves both doors (`Lazysite::Manager::Notices`), and moving it repaired a four-state fault: an unopenable store had been reading as an empty bell. `notices-seen` stays one-sided on purpose -- a per-partner read cursor is the first half of an inbox, and machine-to-machine is SM646's XMPP connectors
 The `to` field itself | **shipped 2026-09-29** with the endpoint, because a broadcast reaches nobody by mail and so the transport had nothing to send to without it
 Agent messaging | **declined** by SM231, and still declined
 ```

@@ -44,6 +44,37 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM918 (PENDING) **an agent can read the bell, through the same reader the manager
+  uses.** The notice store had a control-API read surface and no MCP twin, which
+  `t/lint/23` carried as "undecided - an MCP twin wants per-notice addressing
+  first". That addressing shipped with SM485, and the ruling was FULL PARITY WITH
+  THE CAPABILITY AS THE GATE: `read_notices` over MCP takes the same
+  `notifications` capability the control API's `notices` takes, so the two doors
+  cannot disagree about who may read the bell. It deliberately does NOT filter by
+  `to` - the control API does not either, and a stricter policy on one channel is
+  two doors disagreeing about one capability, which is the defect SM652 fixed for
+  submissions. ONE READER, not two: `Lazysite::Manager::Notices`, because SM915 is
+  a week old and its lesson was four readers of one registry with one of them
+  right. THE MOVE CARRIED A FOUR-STATE REPAIR - the old reader was `if ( open ...
+  )` with no else, so a store that exists and cannot be opened read as an empty
+  bell; it now reports `store_unreadable` and logs through `cannot_read`, and the
+  seen-marker write refuses rather than rewriting a marker it could not read and
+  discarding every other operator's position. `notices-seen` has no twin on
+  purpose: a per-principal read cursor exists for a human's unread badge, an agent
+  has no badge, and a cursor per partner is the first half of an inbox - notices
+  stay simple, and machine-to-machine is SM646's XMPP connectors.
+- SM917 (PENDING) **filed, not built: the store-reader lint cannot see the other
+  way to swallow a failed open.** `t/lint/121` refuses a reader that turns an
+  unopenable store into an empty answer, and has caught that three times - but its
+  matcher requires `or` on the open line, so `if ( open my $fh, '<', $path ) {
+  ... }` with no else is invisible to it. That is the exact shape SM918 found and
+  repaired in the notice reader while the lint was passing. Measured over the files
+  the lint scans: 120 read-opens it can see, 51 it cannot. Not all 51 are defects -
+  several read files that are not stores at all - but two are audit paths where an
+  empty answer reads as a clean bill. Filed with the measurement and a recommended
+  remedy (widen the matcher behind a shrinking ceiling, the idiom lints 118 and 157
+  already use here) rather than fixed, because it is a triage job across five
+  files and not a line in one.
 - Four rulings recorded (63e5348e) **taken 2026-09-29, each written into the thing
 - SM916 (PENDING) **the perf gate's work counter was measuring the clock, and it
   refused a release for it.** `bench.pl` reports `work_cold_log_bytes` - the bytes

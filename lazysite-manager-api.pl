@@ -42,7 +42,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_form_submissions action_form_submission_delete action_form_list
     action_form_submission_confirm action_form_submissions_delete_bulk
     action_form_delete);
-use Lazysite::Handlers       ();    # SM842: handlers, bindings, the schedule
+use Lazysite::Manager::Notices ();    # SM918: one notice reader, shared with MCP
+use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -76,6 +77,7 @@ $Lazysite::Auth::Acl::DOCROOT            = $DOCROOT;
 $Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Notices::DOCROOT     = $DOCROOT;
 $Lazysite::Handlers::DOCROOT             = $DOCROOT;           # SM842
 $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
@@ -3688,48 +3690,18 @@ sub action_site_backup_apply {
 # SM113: sysop notifications. A small append-only store (logs/notices.jsonl)
 # that producers (the first is form submissions) append to, plus a per-sysop
 # last-seen marker (logs/notices-seen.json) so the manager can show an unread
-# count. Operator-only (not in the token %need set); poll-based for v1.
-sub _notices_path      { return "$LAZYSITE_DIR/logs/notices.jsonl" }
-sub _notices_seen_path { return "$LAZYSITE_DIR/logs/notices-seen.json" }
-
-sub action_notices {
-    my @notices;
-    if ( open my $fh, '<', _notices_path() ) {
-        my @lines = <$fh>;
-        close $fh;
-        @lines = @lines[ -100 .. -1 ] if @lines > 100;    # bound: most recent 100
-        for my $l ( reverse @lines ) {                    # newest first
-            chomp $l;
-            my $n = eval { decode_json($l) };
-            push @notices, $n if ref $n eq 'HASH';
-        }
-    }
-    my $seen = 0;
-    if ( open my $sf, '<', _notices_seen_path() ) {
-        local $/;
-        my $h = eval { decode_json(<$sf>) };
-        close $sf;
-        $seen = $h->{$auth_user} if ref $h eq 'HASH' && $h->{$auth_user};
-    }
-    my $unread = grep { ( $_->{ts} // 0 ) > $seen } @notices;
-    return { ok => 1, notices => \@notices, unread => $unread, last_seen => $seen };
-}
-
-sub action_notices_seen {
-    my %h;
-    if ( open my $sf, '<', _notices_seen_path() ) {
-        local $/;
-        my $x = eval { decode_json(<$sf>) };
-        close $sf;
-        %h = %{$x} if ref $x eq 'HASH';
-    }
-    $h{$auth_user} = time();
-    if ( open my $wf, '>', _notices_seen_path() ) {
-        print {$wf} encode_json( \%h );
-        close $wf;
-    }
-    return { ok => 1, unread => 0 };
-}
+# count. Poll-based for v1.
+#
+# THE READER MOVED to Lazysite::Manager::Notices so that MCP calls the same one
+# rather than a second copy - see that module for why, and for the four-state
+# repair the move carried. `notices` is token-reachable with the `notifications`
+# capability (it always was, in ControlApi::Actions); `notices-seen` is not, and
+# that is the decision recorded in t/lint/23.
+#
+# $auth_user is passed rather than read, because a module that reaches into one
+# CGI's globals only works inside that CGI.
+sub action_notices      { return Lazysite::Manager::Notices::action_notices($auth_user) }
+sub action_notices_seen { return Lazysite::Manager::Notices::action_notices_seen($auth_user) }
 
 # SM180: the per-channel service state for the Groups/Users capability grids.
 # A CHANNEL capability is DORMANT - granted but inert - when its site service is

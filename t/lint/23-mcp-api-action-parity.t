@@ -131,6 +131,12 @@ my %PAIR = (
     'site-backup-apply'     => 'site_apply',
     'form-submissions'      => 'read_form_submissions',
     'form-list'             => 'form_list',
+    # SM918: the notice bell, read by both doors through one reader
+    # (Lazysite::Manager::Notices). Same capability either side - `notifications`
+    # - because the ruling was that the capability is the gate and not the
+    # channel. Its `notices-seen` half is one-sided on purpose; the reason is
+    # recorded above rather than left as "undecided".
+    'notices'               => 'read_notices',
     # SM632: the inverse of bind_form, added to both surfaces at once. bind_form
     # is MCP-only by long standing (the API writes the conf directly), so the
     # DESTROY is the first half of that pair to exist on both - which is the
@@ -298,11 +304,24 @@ my %API_ONLY = (
     # path" - answered in the panel where the draft section is managed. An
     # agent has no equivalent question: it can already fetch the path
     # anonymously itself, which is all this does.
-    # SM281 item 3: the read surface exists now and is API-only for a reason
-    # that is a decision rather than an omission. An MCP twin would be the
-    # agent door SM231 described - polled, not pushed - and it wants item 2's
-    # addressing first, or every agent reads every operator notice.
-    'notices' => 'undecided - an MCP twin wants per-notice addressing (SM281 item 2) first',
+    # SM918: `notices` is PAIRED now - see %PAIR. The deferral that stood here
+    # waited on SM281 item 2's addressing, which shipped with SM485 on
+    # 2026-09-29, and the ruling that followed was full parity with the
+    # capability as the gate. It is the same reader behind both doors.
+    #
+    # `notices-seen` gets NO entry here, and its absence from this map is not an
+    # oversight. %API_ONLY may only name actions in @api_live - the keys of the
+    # declarative gate - and notices-seen is not capability-gated at all: it is
+    # cookie-only, absent from ControlApi::Actions' token map. A reason recorded
+    # here for an action the gate does not carry would fail subtest 4 by its own
+    # rule, that a reason for something removed reads as a live decision.
+    #
+    # The decision itself lives where the omission does, in
+    # Lazysite::ControlApi::Actions beside `notices`: the seen-marker is a
+    # per-principal read cursor whose only consumer is a HUMAN's unread badge, an
+    # agent has no badge, and a cursor per partner is the first half of an inbox.
+    # Machine-to-machine messaging is SM646's XMPP connectors, not a mailbox
+    # grown on the side of this store.
     # DM-2: a browser download, and deliberately not a tool. It streams bytes
     # with Content-Disposition, which is an affordance for a person clicking a
     # button. An agent has read_data_rows for the rows and site_backup for the

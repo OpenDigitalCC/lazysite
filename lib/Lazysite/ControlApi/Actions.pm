@@ -157,6 +157,21 @@ our %GATE = (
     # Read only. Writing is emission, which SM231 built and which routes by
     # type; a remote writer is item 2's addressing question and is not
     # answered by making the store readable.
+    #
+    # SM918: the MCP twin (`read_notices`) now exists and takes this same
+    # capability, so the two doors agree about who may read the bell - the
+    # capability is the gate, not the channel. One reader serves both:
+    # Lazysite::Manager::Notices.
+    #
+    # AND `notices-seen` IS DELIBERATELY ABSENT FROM THIS MAP - it is
+    # cookie-only, and that is the decision rather than an omission. It writes a
+    # per-principal read cursor whose only consumer is a HUMAN's unread badge in
+    # the manager header. An agent has no badge, and a read cursor per partner is
+    # the first half of an inbox, which is not what notifications are for;
+    # notices stay simple. Machine-to-machine messaging is SM646's XMPP
+    # connectors, not a mailbox grown quietly on the side of this store.
+    # t/lint/23 points here rather than recording a reason of its own, because
+    # %API_ONLY may only name actions this gate carries.
     'notices' => [qw(notifications)],
     # SM282: seeing what a VISITOR gets for a path you can already read.
     # It renders anonymously, so it can never show more than the public

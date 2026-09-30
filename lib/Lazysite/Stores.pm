@@ -142,9 +142,15 @@ my @STORES = (
     # logs/notice-mail.jsonl, and an unreadable record there returns undef rather
     # than 0 - "could not tell" is the state a cap must refuse on, never the one
     # it treats as room to send.
+    # SM918 adds Notices as a fourth reader, and it is the one the CGIs now call:
+    # the notice store's reader moved out of lazysite-manager-api.pl so that
+    # lazysite-mcp.pl reads it through the same code rather than a second copy.
+    # The move carried the four-state repair - the old reader made an unopenable
+    # store an empty bell, in the `if ( open ... )` form t/lint/121 cannot see.
     { dir => 'logs',
         store   => 1,
-        modules => [ 'lazysite-manager-api.pl', 'plugins/stats.pl', 'lib/Lazysite/Notify.pm' ],
+        modules => [ 'lazysite-manager-api.pl', 'plugins/stats.pl', 'lib/Lazysite/Notify.pm',
+            'lib/Lazysite/Manager/Notices.pm' ],
     },
     { dir => 'backups',
         store => 0,
