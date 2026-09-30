@@ -976,9 +976,16 @@ the words to use; anything else needs a reason.</p>
 </div>
 <h3 class="mg-sg-fam">mg-submissions <span class="mg-sg-count">2</span></h3>
 <p class="mg-sg-note">Used by <code>plugin-config.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
+<p class="mg-sg-note">SM919: <strong>scroll this table sideways.</strong> The tick box stays pinned at the left and the row&rsquo;s actions at the right, so selecting a row and then deleting it never needs a round trip across the table. One column per form field means a real submissions table is usually wider than its box &mdash; and the two controls used together were at opposite ends of the data. They are pinned rather than moved out of the table so that the button still belongs to the row the browser says it does; an actions strip rendered alongside has to keep its row heights in step, and a drift of one row aims Delete at the wrong submission. This demo has enough columns to overflow on purpose &mdash; the previous one was a single cell, so the state that matters could not be seen.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-submissions-panel"><span class="mg-sg-tag">.mg-submissions-panel</span>
-<table class="mg-submissions-table"><tbody><tr><td><span class="mg-sg-tag">.mg-submissions-table</span></td></tr></tbody></table></div>
+<div class="mg-table-wrap">
+<table class="mg-table mg-submissions-table"><span class="mg-sg-tag">.mg-submissions-table</span>
+<thead><tr><th><input type="checkbox" title="Select all"></th><th>Status</th><th>name</th><th>email</th><th>telephone</th><th>company</th><th>enquiry</th><th>heard_about_us</th><th></th></tr></thead>
+<tbody>
+<tr><td><input type="checkbox" class="mg-sub-cb"></td><td></td><td>Ada Lovelace</td><td>ada@example.org</td><td>01234 567890</td><td>Analytical Engines</td><td>Could you quote for twelve of the larger units, delivered before the end of the quarter?</td><td>a colleague</td><td class="mg-cell-actions"><button type="button" class="mg-btn mg-btn-sm mg-btn-danger">Delete</button></td></tr>
+<tr><td><input type="checkbox" class="mg-sub-cb"></td><td><span class="mg-tag mg-tag-off">quarantined</span></td><td>Grace Hopper</td><td>grace@example.org</td><td>01234 098765</td><td>Compiler Works</td><td>Please send the specification sheet.</td><td>search</td><td class="mg-cell-actions"><button type="button" class="mg-btn mg-btn-sm">Confirm</button><button type="button" class="mg-btn mg-btn-sm mg-btn-danger">Delete</button></td></tr>
+</tbody></table></div></div>
 </div>
 <h3 class="mg-sg-fam">mg-table <span class="mg-sg-count">2</span></h3>
 <p class="mg-sg-note">Wrap a table in <code>.mg-table-wrap</code> so a wide one scrolls inside its own box instead of pushing the row's buttons off the right-hand edge &mdash; which is what a long user-agent did to the Sessions table.</p>

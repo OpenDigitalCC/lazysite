@@ -893,7 +893,19 @@ function openSubsModal() {
   ov.id = 'subs-modal';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
   ov.innerHTML =
-      '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:1000px;max-height:86vh;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">'
+      // SM919: A LARGE WINDOW OF A FIXED SIZE, reported from the live manager.
+      //
+      // It was width:92% capped at max-width:1000px, with max-height:86vh. Two
+      // things followed. The 1000px cap meant a wide screen was not used - the
+      // table scrolled horizontally with the display half empty beside it, so the
+      // scrollbar the operator was fighting was one the cap had created. And
+      // max-height with no height made the box size itself to its contents, so
+      // every form opened at a different size and the scroll region moved.
+      //
+      // 90vw by 90vh, fixed: the same big window every time, and the scrolling
+      // happens inside a region whose size an operator can learn. vw rather than
+      // % because the overlay is the viewport.
+      '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:90vw;height:90vh;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">'
     + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--mg-border,#ddd);">'
     + '<strong id="subs-modal-title" style="flex:1">Submissions</strong>'
     + '<span id="subs-modal-forms"></span>'

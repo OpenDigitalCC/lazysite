@@ -45,6 +45,30 @@ Naming the commit: AFTER it lands, never before
 ## Unreleased
 
 - SM917 step 3 (f6bccc25) **a read that names a store obeys the store rule wherever
+- SM919 (PENDING) **a row's tick box and its Delete button no longer sit at
+  opposite ends of the data.** Reported from the live manager. A submissions table
+  has one column per form field, so it scrolls sideways - and the tick box was the
+  FIRST cell with Delete the LAST, every data column between them, so an operator
+  could reach one or the other and selecting a row then deleting it meant crossing
+  the table and coming back. Both are PINNED now: tick box to the left edge,
+  actions to the right, data scrolling between them. Pinned rather than moved out
+  of the table on purpose - an actions strip rendered alongside has to keep its own
+  row heights in step with cells that wrap, and a drift of one row aims Delete at
+  the wrong submission; pinning leaves the browser's own row association intact.
+  Pure CSS in all three manager themes, added by one script so they cannot drift,
+  and hover is deliberately not restated because the existing rule out-specifies
+  these and still wins. **The window is 90vw by 90vh FIXED**, replacing
+  `width:92%; max-width:1000px; max-height:86vh` - the cap wasted a wide screen and
+  created scrolling that need not have existed, and a max-height with no height
+  sized the box to its contents so every form opened differently and the scroll
+  region moved between visits. **AND THE STYLE GUIDE CAN SHOW IT NOW:** its
+  `mg-submissions-table` demo was a table with ONE CELL, so the class was
+  registered, `t/lint/96` passed, and the only state that matters - wide enough to
+  scroll, with pinned ends - was absent from the page whose whole purpose is to
+  show what a diff cannot. It has eight columns and two rows of test content now,
+  one quarantined.
+
+- SM917 step 3 (PENDING) **a read that names a store obeys the store rule wherever
   it lives - and G2 was two readers, not twenty.** `t/lint/121` gains a check that
   asks about the PATH rather than the file: any read-open whose path names a store
   directory must report, in every file, not only in ones a modules list happens to

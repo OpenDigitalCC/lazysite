@@ -1297,6 +1297,36 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-submissions-table td:first-child,
 .mg-submissions-table th:first-child { width: 1.5rem; }
 .mg-sub-cb { margin: 0; }
+/* SM919, reported from the live manager: THE ROW'S CONTROLS DO NOT SCROLL AWAY
+   FROM EACH OTHER.
+
+   A submissions table has one column per form field, so a form with more than a
+   few fields scrolls horizontally inside .mg-table-wrap. The tick box is the
+   first cell and Delete is the LAST, with every data column between them - so at
+   any scroll position an operator could see one or the other, and ticking a row
+   then deleting it meant scrolling the full width of the table and back.
+
+   Pinned rather than moved out of the table. The cells stay in their row, so the
+   button still belongs to the row the browser says it belongs to - an actions
+   strip rendered beside the table has to keep its own row heights in step with
+   the data's, and a drift of one row aims Delete at the wrong submission.
+
+   The background is opaque because the data scrolls UNDER these cells. Hover is
+   not repeated here: `.mg-table tbody tr:hover td` is more specific than these
+   selectors and still wins, so a pinned cell highlights with its row. */
+.mg-submissions-table th:first-child,
+.mg-submissions-table td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--mg-surface);
+    box-shadow: 1px 0 0 var(--mg-border);
+}
+.mg-submissions-table th:last-child,
+.mg-submissions-table td:last-child {
+    position: sticky; right: 0; z-index: 2;
+    background: var(--mg-surface);
+    box-shadow: -1px 0 0 var(--mg-border);
+}
+
 
 /* ---- Reported from the live manager, 0.11.8 ---- */
 
