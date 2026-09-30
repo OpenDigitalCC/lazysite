@@ -967,10 +967,24 @@ settings yet. A notice that did not become an email is an ordinary outcome, not 
 failure: the bell already has the record, and losing a notice because a mail
 server was unreachable would be the wrong trade.
 
-**Emission is per caller.** A form that should announce itself does; the rest stay
-quiet. Set `notify: off` in a form's own `.conf` to silence that form alone, or
-`emit.submission: off` in `notify.conf` to silence the type site-wide. Both
-default to on. This exists because volume is real - a three-day programme of 46
+**Emission is per caller, and has three settings.** A form that should announce
+itself does; the rest stay quiet. `notify:` in a form's own `.conf` takes:
+
+| Value | The notice says |
+| --- | --- |
+| `on` (the default, and absent) | that a submission arrived, and nothing about it |
+| `full` | **the submitted fields as well** - opt-in, SM928 |
+| `off` | nothing; that form is silent |
+
+`emit.submission: off` in `notify.conf` silences the type site-wide.
+
+**`full` IS OPT-IN AND THAT IS DELIBERATE.** It puts customer-written content into
+whatever destination the site configured - and an XMPP room has other members and
+has history. Making it the default would mean every site that upgrades starts
+broadcasting enquiry text into a room whose setting was made when the notice was
+one line long, without anybody choosing that. A field is truncated with a `[...]`
+marker if it is long, an empty optional field is omitted rather than printed with
+nothing after it, and an uploaded file contributes its NAME and never its bytes. This exists because volume is real - a three-day programme of 46
 form steps across 15 participants is 690 notices where five were wanted. The
 alternative (accumulate and send a digest) needs pending state and a timer;
 since 0.13.x the daemon, its timer and the schedule exist, so a digest is

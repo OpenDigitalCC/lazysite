@@ -44,6 +44,59 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM928 (PENDING) **a submission notice can carry the submission, and only if the
+  form asks.** Defects 2 and 3, which closes the filing.
+
+  Defect 2: the notifier received the form's NAME and nothing else, so the
+  documented override at `lazysite/notify-templates/submission.xmpp.tt` could
+  restyle seven variables that did not include a single submitted field - a real
+  extension point, reached, that could not express the one thing an operator wanted
+  from it. The fields cross the call now as STRUCTURE (`[{ name, label, value,
+  truncated }]`), not as a formatted block, because the formatting belongs in a
+  template and that is the whole reason they have to arrive as values.
+  `Lazysite::Notify` derives `fields_text` from them for the built-in renderer,
+  which has no loop, and a site template gets real Template Toolkit and can
+  `[% FOREACH f IN fields %]`.
+
+  Defect 3: a multi-line default body, now that defect 1 made one possible and
+  defect 2 gave it something to say.
+
+  `notify:` BECOMES THREE STATES - `on` (the default, and absent), `full`, `off` -
+  and `full` is the opt-in the ruling requires. A form that has not asked emits
+  **byte-for-byte** what it emitted before, which the first assertion in
+  `t/unit/lib/59` pins as a negative rather than inferring from the positive
+  passing. An unrecognised value is NAMED in the log rather than silently treated
+  as `on`, because `notify: fll` failing quietly to the old behaviour is how an
+  operator concludes a feature does not work.
+
+  Field handling, per the filing: an empty optional field is omitted rather than
+  printed with nothing after it; a long value is truncated with a `[...]` marker and
+  the link carries the rest; an uploaded file contributes its NAME, never its bytes;
+  labels are not padded into columns, because most chat clients set text
+  proportionally and padding arrives ragged.
+
+  THE LABELS ARE HUMANISED FIELD NAMES AND THAT IS A RECORDED COMPROMISE. The form
+  DEFINITION holds `Your name *` and lives in the page's `:::form` block, which the
+  processor parses and the handler never sees - a form's `.conf` carries targets and
+  upload limits, not fields. So `name` becomes `Name`. Real labels need the handler
+  to read the form definition, which is its own piece of work.
+
+  TWO THINGS FOUND WHILE BUILDING IT. `_template`'s per-site override loop had
+  always looked for `<type>.<endpoint>` before `default.<endpoint>`, but the
+  BUILT-IN fallback only ever read `default.<endpoint>` - so a built-in per-type
+  template could be added and silently never used. Nobody had noticed because every
+  key in that hash was a `default.*` one. And a sabotage pass proved the newline
+  strip is NOT load-bearing for the store's format: `encode_json` escapes a newline
+  as `\n`, so the file stays one record per line with or without it. The strip stays
+  (removing it would change what every site writes, which is a separate decision),
+  the comment claiming it protected the format is corrected, and the test that looks
+  like it gates the strip now says that it does not.
+
+  Six sabotages: four refused, and two that were not were MY sabotage being
+  imprecise - `'' || join(...)` is a no-op, and removing `$type.$endpoint` while
+  leaving `$type.$endpoint.full` removed nothing that was used. Both refused once
+  corrected.
+
 - SM932 (PENDING) **a diagnostic now reaches a second sink, because the first one
   was never verifiable.** `log_event`'s only unconditional sink was
   `print STDERR`, and whether a CGI's STDERR reaches a log anybody can read is

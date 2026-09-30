@@ -112,6 +112,14 @@ my $MAX_POST_BYTES = 64 * 1024 * 1024;
 # ordinary text field, long essay or captured signature reaches it, small
 # enough to stay a sane per-field bound well inside the request cap.
 my $MAX_FIELD_BYTES = 1024 * 1024;
+
+# SM928: the longest a single field may be IN A NOTICE, which is a different
+# question from the longest it may be in a submission ($MAX_FIELD_BYTES, a
+# mebibyte). A textarea holds a great deal and a chat room is a poor place to
+# discover that - so a notice truncates with a marker and the link carries the
+# rest, while the STORED submission keeps every character. Deliberately generous
+# enough that an ordinary paragraph arrives whole.
+my $MAX_NOTICE_FIELD_CHARS = 400;
 # SM523: the underscore keys a CLIENT may send (see parse_post).
 my %PROTOCOL_KEY = map { $_ => 1 } qw(_form _page _hp _ts _tk);
 
@@ -278,7 +286,7 @@ eval {
     _audit_submission( $name, '', $ENV{REMOTE_ADDR} // '' );    # SM402: no verified actor
         # SM216: a quarantined (suspect) submission is stored but does NOT ring the
         # bell - the sysop finds it under the Submissions Quarantine filter.
-    _notify_submission( $name, $conf->{notify_off} )
+    _notify_submission( $name, $conf->{notify_mode}, \%form )
         unless $form{_quarantined};    # SM113 badge
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
         # SM579: WHICH TRUE SENTENCE. A connector delivered means the submission left
@@ -305,18 +313,38 @@ if ($@) {
 
 # --- Config ---
 
-# SM231: is a top-level boolean key explicitly OFF in a form's own config
-# text? Absent, unparseable or anything else => 0 (not off), so the caller's
-# default stands.
-sub _conf_flag_off {
-    my ( $text, $key ) = @_;
-    my $off = 0;
+# SM231, widened by SM928: `notify:` IS THREE STATES, NOT TWO.
+#
+# It was a boolean - off, or on. The ruling of 2026-09-30 adds `full`, which is
+# `on` plus the submitted fields in the notice body, and makes it OPT-IN: a site
+# that upgrades keeps the one-line notice it has, because the alternative is that
+# every upgrading site starts broadcasting customer-written text into whatever
+# chat room it was configured with, on the strength of a setting made when the
+# notice was one line long. Nobody re-consents to a change they did not read about.
+#
+# Absent or unrecognised => 'on', so every existing form behaves exactly as before.
+# An unrecognised value is NAMED rather than silently treated as on, because a
+# value the code ignores is the shape feedback_a_declaration_the_code_ignores
+# refuses - and `notify: fll` failing quietly to the old behaviour is precisely
+# how an operator concludes the feature does not work.
+sub _conf_notify_mode {
+    my ( $text, $form ) = @_;
+    my $mode;
     for my $l ( split /\n/, ( $text // '' ) ) {
-        next unless $l =~ /^\Q$key\E\s*:\s*(.+?)\s*$/;
-        $off = ( $1 =~ /^(?:0|off|false|no)$/i ) ? 1 : 0;
+        next unless $l =~ /^notify\s*:\s*(.+?)\s*$/;
+        my $v = lc $1;
+        if    ( $v =~ /^(?:0|off|false|no)$/ ) { $mode = 'off' }
+        elsif ( $v =~ /^full$/ )               { $mode = 'full' }
+        elsif ( $v =~ /^(?:1|on|true|yes)$/ )  { $mode = 'on' }
+        else {
+            log_event( 'WARN', $form // 'form',
+                'unrecognised notify: value - the notice stays one line',
+                value => $1 );
+            $mode = 'on';
+        }
         last;
     }
-    return $off;
+    return $mode // 'on';
 }
 
 # Optional binary-upload constraints. Present any of these keys to enable file
@@ -399,7 +427,7 @@ sub load_form_conf {
     return {
         targets            => \@targets,
         upload             => $upload,
-        notify_off         => _conf_flag_off( $text, 'notify' ),    # SM231
+        notify_mode        => _conf_notify_mode( $text, $name ),    # SM231/SM928
         quarantine         => ( defined $q  ? $q      : 'on' ),
         spam_keywords      => ( defined $kw ? $kw     : '' ),
         spam_url_threshold => ( defined $ut ? $ut + 0 : 2 ),
@@ -611,8 +639,68 @@ sub _record_form_event {
 
 # SM113: raise a sysop notification for a new submission. Append-only store
 # the manager reads for its unread badge. Best-effort (never blocks delivery).
+# SM928 defect 2: THE SUBMITTED FIELDS, AS VALUES.
+#
+# The notifier used to receive the form's NAME and nothing else, so the documented
+# override at lazysite/notify-templates/submission.xmpp.tt could restyle seven
+# variables that did not include a single submitted field. The extension point was
+# real, reached, and could not express the one thing an operator wanted from it -
+# the data never crossed the call.
+#
+# What crosses now is STRUCTURE, not a formatted block: formatting belongs in a
+# template, which is the whole reason the fields have to arrive as values. Notify
+# derives the default body from this.
+#
+# THE LABELS ARE THE FIELD NAMES, HUMANISED, AND THAT IS A KNOWN COMPROMISE. The
+# form DEFINITION holds `Your name *` and `What do you need it to do? *`; it lives
+# in the page's `:::form` block, which the processor parses and this handler never
+# sees - the form's .conf carries targets and upload limits, not fields. So `name`
+# becomes `Name` and `what_do_you_need` becomes `What do you need`. Real labels
+# need the handler to read the form definition, which is its own piece of work and
+# is recorded in SM928 rather than guessed at here.
+sub _submitted_fields {
+    my ($form) = @_;
+    my @out;
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;    # _form _page _ts _tk _hp and the downstream marks
+        my $v = $form->{$k};
+
+        # A FILE UPLOAD IS A FILENAME, NOT A FILE. `_files` is skipped above with
+        # the other internals; any field whose value is a reference is named and
+        # not serialised, because a chat room is not where bytes go.
+        next if ref $v;
+        $v = '' unless defined $v;
+        $v =~ s/\A\s+//;
+        $v =~ s/\s+\z//;
+        next unless length $v;    # an empty optional field is not "Telephone:"
+
+        # Cap it. A textarea holds a great deal and a chat room is a poor place to
+        # discover that; the link carries the rest.
+        my $capped = 0;
+        if ( length($v) > $MAX_NOTICE_FIELD_CHARS ) {
+            $v      = substr( $v, 0, $MAX_NOTICE_FIELD_CHARS );
+            $capped = 1;
+        }
+
+        ( my $label = $k ) =~ s/[_-]+/ /g;
+        $label = ucfirst $label;
+        push @out, { name => $k, label => $label, value => $v, truncated => $capped };
+    }
+
+    # The names of any uploaded files, as one field. The name, never the bytes.
+    if ( ref $form->{_files} eq 'ARRAY' && @{ $form->{_files} } ) {
+        my @names = grep { length } map { ref $_ eq 'HASH' ? ( $_->{name} // '' ) : "$_" }
+            @{ $form->{_files} };
+        push @out, { name => '_files', label => 'Files', value => join( ', ', @names ),
+            truncated => 0 }
+            if @names;
+    }
+    return \@out;
+}
+
 sub _notify_submission {
-    my ( $form, $notify_off ) = @_;
+    my ( $form, $notify_mode, $fields ) = @_;
+    $notify_mode = 'on' unless defined $notify_mode && length $notify_mode;
     return unless defined $LAZYSITE_DIR;
     my $logdir = "$LAZYSITE_DIR/logs";
     return unless -d $logdir;
@@ -632,7 +720,13 @@ sub _notify_submission {
     # The VALUE is passed in, never re-read here: load_form_conf calls reject()
     # on a missing or empty config, and aborting a request from inside a
     # best-effort notification would be a spectacular way to fail.
-    return if $notify_off;
+    return if $notify_mode eq 'off';
+
+    # SM928: the fields travel ONLY on `notify: full`, which is the opt-in the
+    # ruling requires. On `on` - the default, and every form that has never been
+    # touched - the notice stays exactly the one line it has always been, so an
+    # upgrade emits nothing it did not emit yesterday.
+    my $carry = $notify_mode eq 'full' ? _submitted_fields($fields) : undef;
 
     # SM136: prefer the shared notify path (bell + optional XMPP delivery). This
     # plugin ships without `use lib`, so locate the module tree the same way the
@@ -656,6 +750,7 @@ sub _notify_submission {
                 message => "New form submission: $f",
                 target  => $f,
                 url     => '/manager/handlers',
+                ( $carry && @$carry ? ( fields => $carry ) : () ),
         } );
     };
     # SM925 X3: $@ WAS DISCARDED HERE. The `require` is inside the eval, so when

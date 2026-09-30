@@ -72,6 +72,12 @@ my %TYPES = (
     submission => {
         title         => 'A form was submitted',
         default_route => 'bell,xmpp',
+        # SM928 defect 2: the submitted fields, when the form opts in with
+        # `notify: full`. An ARRAY of { name, label, value, truncated } - values,
+        # not a formatted block, because the formatting belongs in a template and
+        # that is the whole reason they have to arrive here at all. `fields_text`
+        # below is DERIVED from this for the built-in renderer, which has no loop.
+        vars => ['fields'],
     },
     feedback => {
         title         => 'An agent sent feedback',
@@ -112,13 +118,35 @@ sub notify_types { return { map { $_ => { %{ $TYPES{$_} } } } keys %TYPES } }
 #
 # `[% url %]` is the point of the exercise. A site overrides any of these with
 # lazysite/notify-templates/<type>.<endpoint>.tt.
+# SM928 defect 3: A MULTI-LINE BODY, once defect 1 made one possible and defect 2
+# gave it something to say. The one-line form is kept and is still what a notice
+# without fields gets - the comment above was right that a chat client shows one
+# line, for a notice that IS one line.
+#
+# `submission.xmpp` is selected over `default.xmpp` by the existing per-type
+# lookup in _template, so this needs no new mechanism: a form that has not opted in
+# sends no fields, `fields_text` is empty, and the IF collapses to exactly the old
+# single line. The multi-line shape appears only on `notify: full`.
+#
+# LABELS ARE NOT PADDED INTO COLUMNS. Most chat clients set text proportionally, so
+# padded alignment arrives ragged and worse than none.
 my %DEFAULT_TEMPLATE = (
     'default.xmpp' => '[% site %]: [% message %][% IF url %] -> [% base %][% url %][% END %]',
     'default.bell' => '[% message %]',
+    # The `.full` suffix is the whole safety of this. A form that has NOT opted in
+    # sends no fields, so _template never reaches this key and the notice is
+    # byte-for-byte the one-line `default.xmpp` it has always been. Writing the
+    # multi-line shape as `submission.xmpp` instead was tried and was wrong: the
+    # collapsed IF still left a blank line, which is a behaviour change on a form
+    # that never asked for one - and "nothing changes unless you ask" is the
+    # ruling, not a nicety.
+    'submission.xmpp.full' =>
+        "[% site %]: [% message %]\n\n[% fields_text %]"
+        . '[% IF url %]' . "\n\nRead it: " . '[% base %][% url %][% END %]',
 );
 
 sub _template {
-    my ( $docroot, $type, $endpoint ) = @_;
+    my ( $docroot, $type, $endpoint, $has_fields ) = @_;
 
     # Per-site override first: a specific type beats the generic one.
     for my $key ( "$type.$endpoint", "default.$endpoint" ) {
@@ -137,7 +165,24 @@ sub _template {
         chomp $body;
         return ( $body, 1 );    # 1 = came from a file, so render it with TT
     }
-    return ( $DEFAULT_TEMPLATE{"default.$endpoint"} // '[% message %]', 0 );
+    # SM928: THE BUILT-IN FALLBACK NOW TRIES THE PER-TYPE KEY TOO. The per-site
+    # override loop above has always looked for `<type>.<endpoint>` before
+    # `default.<endpoint>`, but this line only ever read `default.<endpoint>` from
+    # %DEFAULT_TEMPLATE - so a built-in per-type template could be added to that
+    # hash and silently never used. Nobody had noticed because until now every key
+    # in it was a `default.*` one. Found by the multi-line submission body being
+    # ignored in favour of the one-liner.
+    # A `.full` built-in is reached ONLY when the caller says fields are present,
+    # so a form that has not opted in cannot be given the longer body. The
+    # per-SITE override loop above is deliberately not suffixed: a site that writes
+    # submission.xmpp.tt means it for both, and giving it two filenames to learn
+    # would be a second mechanism for one decision.
+    my @keys = ( $has_fields ? "$type.$endpoint.full" : () );
+    push @keys, "$type.$endpoint", "default.$endpoint";
+    for my $key (@keys) {
+        return ( $DEFAULT_TEMPLATE{$key}, 0 ) if defined $DEFAULT_TEMPLATE{$key};
+    }
+    return ( '[% message %]', 0 );
 }
 
 # Render a body. The built-ins use only [% var %] and [% IF var %]...[% END %],
@@ -280,9 +325,18 @@ sub notify {
     # literal newlines back and lost only the interpolated [% message %], which is
     # the worst version: it works until the content matters.
     #
-    # Kept for the store (one record per line stays the store's contract and
-    # nothing reading it expects otherwise) and NOT applied to what the templates
-    # see. $n->{message} is the original.
+    # KEPT, AND NOT BECAUSE THE FORMAT NEEDS IT - a sabotage pass proved that.
+    # Commenting this line out changes nothing measurable: encode_json escapes a
+    # newline as \n inside the JSON string, so the store stays one record per line
+    # either way, which is exactly what SM928 said and what an earlier version of
+    # this comment got wrong by implying the strip was load-bearing.
+    #
+    # What it actually does is normalise what the BELL shows. It stays because
+    # removing it would change what is written into notices.jsonl on every site,
+    # and that is a separate decision from fixing the templates - which is the
+    # whole of what this filing was asked for. Recorded so the next reader does
+    # not delete it believing it is protecting the format, or keep it believing it
+    # is.
     $rec{message} =~ s/[\r\n]+/ /g;
 
     my $route = _route( $conf, $type );
@@ -306,10 +360,39 @@ sub notify {
     );
     $vars{base} =~ s{/+$}{} if defined $vars{base};
 
+    # SM928 defect 2: the submitted fields reach the templates.
+    #
+    # TWO SHAPES, and the second exists only because the built-in renderer has no
+    # loop. `fields` is the STRUCTURE - an array of { name, label, value,
+    # truncated } - which a site-supplied template gets real Template Toolkit for
+    # and can [% FOREACH f IN fields %] over. `fields_text` is derived from it
+    # here, so the shipped default (rendered by the few lines of substitution in
+    # _render) has something to interpolate.
+    #
+    # Deriving it HERE rather than in the caller is the point of defect 2: the
+    # caller hands over values and the notifier decides how a notice reads, so a
+    # site that wants a different shape overrides a template instead of patching a
+    # form handler.
+    if ( ref $n->{fields} eq 'ARRAY' && @{ $n->{fields} } ) {
+        $vars{fields}      = $n->{fields};
+        $vars{fields_text} = join "\n", map {
+            my $l = $_->{label} // $_->{name} // '';
+            my $v = $_->{value} // '';
+            "$l: $v" . ( $_->{truncated} ? ' [...]' : '' );
+        } @{ $n->{fields} };
+    }
+    else {
+        # Named even when empty, so a template's [% IF fields_text %] is a test
+        # against a defined value rather than against a missing key.
+        $vars{fields}      = [];
+        $vars{fields_text} = '';
+    }
+
     if ( $route->{xmpp} ) {
         my $xconf = _xmpp_conf($docroot);
         if ($xconf) {
-            my ( $body, $from_file ) = _template( $docroot, $type, 'xmpp' );
+            my ( $body, $from_file )
+                = _template( $docroot, $type, 'xmpp', length $vars{fields_text} );
             my $text = _render( $body, $from_file, \%vars );
             local $@;
             eval { $XMPP_SENDER->( $xconf, $text ); 1 } or do {
