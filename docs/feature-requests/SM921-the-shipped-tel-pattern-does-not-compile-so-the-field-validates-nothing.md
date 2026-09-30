@@ -8,6 +8,7 @@ status: candidate
 raised: 2026-09-30
 raised-by: site agent, from an owner's test on a live form ("just typed S in and allowed")
 area: forms
+status-note: "RULED 2026-09-30, NOT BUILT. Items 1 and 2 are repairs and need no decision; item 3 needed one and got it. RULING on item 3: an uncompilable pattern is REFUSED BY `validate_page` and WARNED BY `lazysite check`, and the RENDER PATH IS UNCHANGED. So an author writing a bad pattern is told while they are writing it, an operator running the check finds the sites already broken, and no live page changes what it does on upgrade. A render-time refusal was declined for that last reason: a site with a bad pattern in a page would start showing an error where a form used to render, which is a worse failure than the silent one for anybody mid-campaign. BUILD NOTE: the enumerable-shapes test (a bare `(`, `)`, `-`, `[`, `]`, `{`, `}` inside a character class) then has two callers, so it must be ONE helper with a lint that both use it - a second copy of this judgement is the ADR 0001 shape and would drift. ITEM 2 also ruled by the same pass: `pattern:` takes the rest of the line, as the list rules do, rather than documenting that it may not contain a space - the first is what an author expects and the second leaves the trap. ITEM 1 is the shipped default escaped to `[0-9\\s\\(\\)\\+\\.\\-]{6,20}` AND the bound widened, because `+33 (0) 1 89 48 00 40` is 21 characters. NAMING IN THE RELEASE NOTES IS PART OF THE WORK, not optional: escaping the default turns a field that accepted anything into one that rejects letters, which is the intent, but on a site whose visitors have been typing free text into it that is a behaviour change on a live form rather than purely a silent repair. GRADE: the escaped pattern is the reporter's browser measurement, not mine - I cannot run the `v`-flag compiler from here, and the build should re-measure it in a browser rather than trust this line."
 ---
 
 # Two independent faults, both silent
@@ -90,8 +91,28 @@ release spent two days on in three other places (SM916, SM917, SM918).
      not carry it.
 
 Item 3 is the one that stops this recurring for the next pattern somebody writes,
-and it is also the one that needs a decision: a render-time refusal changes what a
+and it is also the one that needed a decision: a render-time refusal changes what a
 page does, and a check-time warning does not.
+
+## Ruled 2026-09-30: both places somebody is looking, and not the render path
+
+**`validate_page` refuses an uncompilable pattern; `lazysite check` warns about
+one; the render path is unchanged.** Those are the two moments a person is
+actually looking at this - writing the page, and auditing the site - and between
+them they cover the new bad pattern and the fleet of existing ones.
+
+The render path stays out of it deliberately. A render-time refusal would mean a
+site with a bad pattern in a page starts showing an error where a form used to
+render, on upgrade, with no warning: a worse failure than the silent one for
+anybody mid-campaign, and it would land on exactly the sites this filing is about.
+
+Item 2 was ruled the same way it is written: **`pattern:` takes the rest of the
+line**, as the list rules do. Documenting the space limitation instead is a
+one-line change that leaves the trap in place, and the trap is the defect.
+
+**One thing the build must not do**: write the shape test twice. With two callers
+it is one helper plus a lint that both use it, or it becomes the ADR 0001 problem
+- two copies of one judgement, drifting.
 
 # Not established
 

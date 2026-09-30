@@ -8,6 +8,7 @@ status: candidate
 raised: 2026-09-30
 raised-by: site agent, from an operator's run on opendigital.cc (0.14.4), four runs
 area: plugins
+status-note: "RULED 2026-09-30, NOT BUILT. Five of the six faults are plain repairs needing no decision; fault (4), protected sections, needed one. RULING: the audit KEEPS RESOLVING ANONYMOUSLY, and a target it could not see is reported as ITS OWN STATE, separate from a target that is missing - the four-state rule applied to a link, where `withheld` is not `absent`. Resolving as the operator running the audit was declined as the most work for a benefit that is not yet evidenced, and it would put a principal into a report that gets WRITTEN INTO THE DOCROOT, where a reader who could not see the gated page could read its path out of the report - a disclosure this filing would then have created. Skipping protected sections was declined because gated help would then never be audited at all, so a broken link inside it stays broken indefinitely. WHAT THE RULING DOES NOT GIVE: nobody can confirm from the report that a gated link actually resolves - only that the audit declined to judge it. That is honest and it is less than the operator wants; if it turns out to matter, resolving as the operator is the next step and this ruling does not foreclose it. LANDS WITH IT, same root: the report has nowhere of its own to live. Faults (4) and (6) and the release manager's own observation are all the consequence of the report being written into the docroot AS A PAGE - which is why the audit can scan its own last report, and why the result is displayed by fetching a URL into a static card with no way to re-run it. The report needs its own store and its own modal with a refresh, and that is one piece of work rather than three."
 ---
 
 # The two real ones, and they are ours
@@ -108,12 +109,33 @@ hidden in ten.
 
 # The question inside (4)
 
-Protected sections need a ruling rather than a fix. The audit resolves as an
+Protected sections needed a ruling rather than a fix. The audit resolves as an
 anonymous visitor, which is right for a public site's public links and wrong for a
-manager page linking into gated help. The options are to resolve as the operator
+manager page linking into gated help. The options were to resolve as the operator
 running the audit, to report withheld targets as a separate state from missing
 ones, or to skip protected sections and say so in the report. The first is the most
 useful and the most work; the second is the four-state rule applied to a link.
+
+## Ruled 2026-09-30: withheld is its own state, and the audit stays anonymous
+
+**The audit keeps resolving anonymously, and a target it could not see becomes its
+own state rather than a false positive.** `withheld` is not `absent`, which is the
+rule the engine already applies to its stores.
+
+Resolving as the operator was declined on a reason this filing did not raise and
+should have: **the report is written into the docroot as a page.** An audit running
+with the operator's identity would put the paths of pages a reader cannot see into
+an artefact that reader can fetch. That is a disclosure this filing would have
+created while fixing a false positive, and it is the same root as fault (6).
+
+Skipping protected sections was declined because gated help would then never be
+audited, so a genuinely broken link inside it stays broken indefinitely - on a
+site with a lot of protected material the audit would quietly cover very little.
+
+**What the ruling does not give, said plainly:** nobody can confirm a gated link
+actually resolves. The report says the audit declined to judge it. If that turns
+out to matter, resolving as the operator is the next step and nothing here
+forecloses it - but it needs the disclosure question answered first.
 
 # And the report has nowhere of its own to live
 
@@ -123,6 +145,13 @@ modal, and there is no way to re-run it from where you are reading it. That is t
 same root as fault six - the report is written into the docroot as a page, which is
 both why the audit can scan it and why it is displayed by fetching a URL into a
 card. Worth deciding together rather than separately.
+
+**Confirmed as one piece of work by the 2026-09-30 ruling, and it is now three
+things with one cause.** Fault (6) (the audit scans its own report), the static
+card with no refresh, and the disclosure risk that decided fault (4) all follow
+from the report living in the docroot as a page. It needs its own store and its own
+modal with a Refresh that re-runs the audit. Fixing the six extraction faults
+while leaving the report a page would leave the audit still able to find it.
 
 # Related
 

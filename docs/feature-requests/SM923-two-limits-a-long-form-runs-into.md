@@ -8,6 +8,7 @@ status: candidate
 raised: 2026-09-29
 raised-by: site agent, from a 31-field form on a live site
 area: forms
+status-note: "RULED 2026-09-30, NOT BUILT, AND SPLIT. Limit 2 IS ACCEPTED: the table handler's field map DEFAULTS TO IDENTITY, so it carries only the exceptions - a field name that is already a legal column name needs no entry, which makes a long form's map short and a short form's map EMPTY. The 500-character cap then stops binding anything worth binding and can stay as the conf bound it was presumably there to be. That removes the actual harm the reporter measured: at 31 fields the map allowed roughly sixteen characters per pair, so column names had to be abbreviated until they no longer matched the field names on the form. Limit 1, the SECTION CONSTRUCT, IS NOT BUILT and stays filed: a 31-field form is one form, and none of the three candidate shapes (a `section:` rule in the field list, fieldsets emitted from surrounding Markdown headings, multiple `:::form` blocks posting to one handler) should be chosen on a single report - a grammar rule is documented, tested and supported forever. It waits for a second long form to ask, at which point the two reports together will say which shape is actually wanted. NOT A DEFECT EITHER WAY, which is why neither half is urgent: the grammar does what it documents and the cap is declared. BUILD NOTE for limit 2: 'already a legal column name' is the whole contract and it must be ONE predicate shared with whatever validates a column name today, not a second opinion about what is legal - and a form whose field name is NOT legal must still be refused with the name in the message rather than silently identity-mapped to something the table rejects."
 ---
 
 # Why this is filed at all
@@ -42,15 +43,39 @@ whether the map needs to be required at all: if a field name is already a legal
 column name, the identity mapping is derivable, and the map could carry only the
 exceptions. That would make a long form's map short and a short form's map empty.
 
-# What wants deciding
+# What wanted deciding, and what was decided
 
   - whether a section construct is wanted, and in which of the three shapes;
   - whether the field map should default to identity, so it carries only
     exceptions - and if so, whether the 500-character cap then still binds
     anything worth binding.
 
-Both are shape decisions that precede any build, which is why nothing is proposed
+Both were shape decisions that precede any build, which is why nothing was proposed
 here as ready.
+
+## Ruled 2026-09-30: the field map, and not the sections
+
+**Limit 2 is accepted: the field map defaults to identity.** A field name that is
+already a legal column name needs no entry, so the map carries only exceptions -
+a long form's map becomes short and a short form's map becomes empty. The
+500-character cap then stops binding anything worth binding and can stay as the
+conf bound it presumably was.
+
+That is the half where the harm was actually measured: at 31 fields the budget
+allowed about sixteen characters per pair, so column names were abbreviated until
+they stopped matching the field names on the form, and the person reading the table
+later had to hold the mapping in their head.
+
+**Limit 1 is not built and stays filed.** A grammar rule is documented, tested and
+supported forever, and none of the three shapes should be chosen on one report.
+It waits for a second long form to ask - two reports will say which shape is wanted
+in a way one cannot.
+
+**The build has one trap worth naming.** "Already a legal column name" is the whole
+contract, so it must be the SAME predicate that validates a column name today, not
+a second opinion about what is legal. And a field whose name is not legal must be
+refused with the name in the message - not silently identity-mapped into something
+the table then rejects, which would move a clear error to a later and stranger one.
 
 # Related
 
