@@ -650,6 +650,20 @@ sub _notify_submission {
                 url     => '/manager/plugins',
         } );
     };
+    # SM925 X3: $@ WAS DISCARDED HERE. The `require` is inside the eval, so when
+    # Net::XMPP was not installed this is where "Can't locate Net/XMPP.pm in @INC"
+    # was raised - on every submission - and dropped. The one sentence that would
+    # have ended an operator's afternoon in its first minute was produced and
+    # thrown away, and the fall-through below made the failure look like success.
+    #
+    # Falling through to the bell store is still right - a notice must never be
+    # lost to a broken delivery path - so this reports and continues rather than
+    # aborting. Two states that were one: a delivery that declined (no endpoint
+    # configured, nothing to say) and a delivery that DIED.
+    log_event( 'WARN', 'form-notify',
+        'the shared notify path failed, so this notice reaches the bell only',
+        form => $f, error => "$@" )
+        if !$sent && length( $@ // '' );
     return if $sent;
 
     my $line = encode_json( {

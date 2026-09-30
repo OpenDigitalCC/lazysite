@@ -513,16 +513,43 @@ sub _mail_send {
 # registry the manager's Plugins page toggles).
 sub _xmpp_conf {
     my ($docroot) = @_;
+
+    # SM925 X3: FOUR DISTINCT CAUSES returned undef here, none of them saying
+    # anything - the extension off, no conf file, a conf that will not open, and a
+    # conf missing a required key. An operator spent an afternoon over four
+    # submissions on a site where the answer was one of them, and the code knew
+    # which. Only the first is a deliberate state; the other three are faults and
+    # now say so. The four-state rule SM906, SM907 and SM917 applied to the stores,
+    # arriving on the notification path.
     return undef unless _plugin_enabled( $docroot, 'notify-xmpp.pl' );
+
     my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-xmpp.conf";
-    open my $fh, '<', $path or return undef;    # not a store - the xmpp client config
+    my $fh;
+    if ( !open( $fh, '<', $path ) ) {    # not a store - the xmpp client config
+        if ( $!{ENOENT} ) {
+            log_event( 'WARN', 'notify',
+                'xmpp delivery is enabled and not configured, so nothing is sent',
+                file => $path );
+        }
+        else {
+            cannot_read( 'the xmpp client config', $path );
+        }
+        return undef;
+    }
     my %c;
     while ( my $l = <$fh> ) {
         $c{$1} = $2 if $l =~ /^(\w+)\s*:\s*(.*?)\s*$/;
     }
     close $fh;
-    return undef unless length( $c{jid} // '' ) && length( $c{password} // '' )
-        && length( $c{to} // '' );
+    my @missing = grep { !length( $c{$_} // '' ) } qw(jid password to);
+    if (@missing) {
+        log_event( 'WARN', 'notify',
+            'xmpp delivery is configured without a value it cannot work without, '
+                . 'so nothing is sent',
+            file    => $path,
+            missing => join( ', ', @missing ) );
+        return undef;
+    }
 
     # Default the sender nickname to the site name, sanitised to nick-safe
     # characters - so the ping reads as "My-Site: New form submission ...".

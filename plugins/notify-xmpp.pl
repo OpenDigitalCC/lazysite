@@ -77,6 +77,26 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     note  => 'Defaults to the site name (sanitised).',
                 },
             ],
+
+            # SM925 X1: DECLARE THE MODULE, so the enable path refuses instead of
+            # accepting eight fields including a password and then delivering
+            # nothing. An operator enabled this on a live site, configured it, and
+            # spent an afternoon over four submissions before the cause turned out
+            # to be that Net::XMPP was never installed. `_missing_deps` has read
+            # this field since ADR 0009 and two sibling plugins use it; the fact
+            # was written down nine lines above, in prose, where the machinery
+            # could not see it.
+            #
+            # WHY NO LINT COULD HAVE FOUND THIS. The `require Net::XMPP` is not in
+            # this file - delivery lives in Lazysite::Notify (:585) and this plugin
+            # is a descriptor. So scanning plugin sources for an undeclared module
+            # finds nothing here, which is exactly what tmp/sm925-dep-audit.pl did
+            # on its first run. t/lint/201 gates the derivable half instead: a
+            # plugin whose own text names a module must declare it.
+            owns => {
+                deps         => ['Net::XMPP'],
+                capabilities => [],
+            },
         }
     );
     exit 0;

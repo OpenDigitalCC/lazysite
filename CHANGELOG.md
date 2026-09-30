@@ -153,6 +153,57 @@ Naming the commit: AFTER it lands, never before
   every site using the newer spelling since SM817. The `Notify` half of that
   shipped in 0.15.1 under SM485, because the email endpoint could not be reached
   without it; this is the rest.
+- SM925 (PENDING) **X1 and X3: the notification path refuses to enable without the
+  module it needs, and says why it sent nothing.** An operator enabled
+  `notify-xmpp` on a live site, configured eight fields including a password, and
+  got nothing for four submissions. Three faults composed; two are fixed here and
+  X2 is not (see below).
+
+  X1: the plugin declared no `owns` block at all, so `_missing_deps` - which the
+  enable path has called since ADR 0009, and which two sibling plugins use -
+  returned before checking anything. It now declares `Net::XMPP`. The fact had been
+  written down nine lines above, in prose, where the machinery could not see it.
+
+  X3: `plugins/form-handler.pl` wrapped the notify call in an `eval` and never read
+  `$@`. The `require` is inside that eval, so X1's error - `Can't locate
+  Net/XMPP.pm in @INC` - was raised on every submission and dropped: the one
+  sentence that would have ended the afternoon in its first minute was produced and
+  thrown away, and the fall-through to the bell made the failure look like success.
+  It now reports and still falls through, because a notice must never be lost to a
+  broken delivery path. And `Lazysite::Notify::_xmpp_conf` returned `undef` for FOUR
+  distinct causes in silence - the extension off, no conf, a conf that will not
+  open, a conf missing a required key. Only the first is a deliberate state; the
+  other three now say which, and the missing-key case names the key. That is the
+  four-state rule SM906, SM907 and SM917 applied to the stores, arriving on the
+  notification path.
+
+  TWO DETECTORS WERE BUILT FOR THE AUDIT THE REPORT ASKED FOR AND BOTH WERE WRONG,
+  which is why the gate that shipped is narrow. A sweep of `plugins/` for an
+  undeclared `require` flagged two other plugins and MISSED notify-xmpp entirely -
+  the `require Net::XMPP` is not in the plugin at all, it is in
+  `Lazysite::Notify:585`, and the plugin is a descriptor. A second version flagged
+  any `Foo::Bar` name in prose and failed 12 of 16 plugins on `Cwd::abs_path`,
+  `JSON::PP::true` and `Digest::SHA::sha256_hex` - fully-qualified CALLS - and on a
+  comment this very filing had just added. `t/lint/201` keeps only the signature
+  that is never incidental: a Debian Perl package name (`libnet-xmpp-perl`) appears
+  when somebody is telling an operator what to install, which is exactly when the
+  enable path should have been told too. Two plugins carry one; before this build,
+  one of the two declared nothing.
+
+  The audit's real finding is recorded rather than acted on: 10 of 16 plugins have
+  no `owns` block, and of the modules they reach for, `form-smtp`'s `Net::SMTP` is
+  loaded only when `method=smtp` (declaring it would wrongly refuse a sendmail-only
+  site) and `form-handler`'s `DB_File` is a top-level `use`, so the plugin cannot
+  compile without it and `--describe` fails before any dep check can run. Neither is
+  a missing declaration; the second is a hole in the mechanism and is named in the
+  filing.
+
+  X2 IS NOT BUILT. The port defaulting to 5222 over an SRV record giving 47594 needs
+  one thing established first: whether `Net::XMPP` already resolves SRV when handed
+  a bare domain. If it does, the repair is to stop overriding it rather than to add
+  a resolver - and if it does not, `Net::DNS` is not core, so X2's own fix needs a
+  dependency declaration, which is X1's mechanism. `t/unit/lib/57` and
+  `t/unit/manager/…` cover what shipped; seven sabotages, seven refusals.
 
 ## 0.15.1 - EDGE: a file that will not open stops reading as one with nothing in it, and a row's controls stay with the row (2026-09-30)
 

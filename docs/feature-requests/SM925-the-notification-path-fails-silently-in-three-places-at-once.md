@@ -4,10 +4,11 @@ title: "SM925: the XMPP notification path fails silently in three places at once
 subtitle: "An operator enabled notify-xmpp on a live site, configured eight fields including a password, and got nothing. Four rounds of debugging over an afternoon found three independent faults: the module was never installed and the enable path did not check, the port defaulted to 5222 while the account's SRV record said 47594, and the one error that named the cause was discarded by the caller. Each fault is separately fixable and each was invisible."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-30
 raised-by: site agent, from an operator's live configuration on a customer site (0.15.0), four rounds
 area: plugins
+status-note: "PARTIAL - X1 and X3 SHIPPED (PENDING ref), X2 NOT BUILT. X1: notify-xmpp declares `owns => { deps => ['Net::XMPP'] }`, so the enable path refuses instead of accepting a password and delivering nothing. X3: form-handler reads `$@` from the notify eval and reports it (still falling through to the bell, because a notice must not be lost to a broken delivery path), and Notify::_xmpp_conf now distinguishes its FOUR causes - extension off (silent, a deliberate state), enabled-and-never-configured, a conf that will not open, and a conf missing a required key, which names the key. X2 IS NOT BUILT AND NEEDS ONE MEASUREMENT FIRST: whether Net::XMPP already resolves SRV given a bare domain. If it does, the repair is to STOP OVERRIDING it rather than to add a resolver; if it does not, Net::DNS is not core, so X2's fix needs a dependency declaration of its own and must land with it rather than after it. Net::XMPP IS installed on this dev host, so absence could not be the test condition - t/lint/201 and t/unit/lib/57 use a name that cannot resolve and a conf that cannot open instead. THE AUDIT THE REPORT ASKED FOR WAS DONE AND ITS RESULT IS MOSTLY NEGATIVE, which is the useful part: 10 of 16 plugins have no `owns` block; of what the others reach for, form-smtp's Net::SMTP is required only when method=smtp (declaring it would wrongly refuse a sendmail-only site) and form-handler's DB_File is a top-level `use`, so the plugin cannot compile without it and --describe fails BEFORE any dep check can run - a hole in the mechanism, not a missing declaration, and recorded below rather than fixed here. TWO DETECTORS WERE WRONG BEFORE THE THIRD WAS RIGHT: scanning plugins/ for undeclared requires misses notify-xmpp entirely (the require is in Lazysite::Notify, the plugin is a descriptor), and flagging any Foo::Bar name in prose failed 12 of 16 on fully-qualified CALLS and on a comment this filing had just added. t/lint/201 keeps only the Debian-package signature, which is never incidental. Seven sabotages, seven refusals."
 ---
 
 # The shape of it
@@ -71,6 +72,51 @@ is not core and neither is anything else a plugin reaches for, so the question
 do not have it. That is a lint as much as an audit: a plugin whose source names a
 non-core module in a `require`, a `use`, or a comment, and whose `owns.deps` does
 not name it, is the signature.
+
+## Done 2026-09-30, and the proposed signature above is WRONG
+
+The sweep ran (`tmp/sm925-dep-audit.pl`). The answer is mostly negative, and the
+two failed detectors are worth more than the count.
+
+**10 of 16 plugins have no `owns` block at all**, so they never reach the dep
+check. That is not itself a defect: with no `deps` and no `bins` there is nothing
+to check, so an absent block and an empty one behave identically. What it means is
+that nobody is forced to think about it.
+
+Of the modules the others reach for, neither should be declared:
+
+```datatable
+columns: Plugin | Module | Why declaring it would be WRONG
+widths: 3.0cm | 2.6cm | X
+text: 3
+bold: 1
+tone: medium
+---
+`form-smtp` | `Net::SMTP` | `require`d inside `send_via_smtp`, reached only when `method=smtp`. A hard dep would refuse to enable the plugin on a sendmail-only site, which is most of them
+`form-handler` | `DB_File` | a TOP-LEVEL `use`, so the plugin cannot compile without it - `--describe` fails, `_describe` returns nothing, `_missing_deps` returns before checking, and enable proceeds. A hole in the MECHANISM, not a missing declaration
+```
+
+That second row is a real finding and is not fixed here: **the dep check needs the
+descriptor, and the descriptor cannot be read if the plugin cannot compile.** The
+repair is to move such a `use` to a runtime `require` and then declare it - a
+behaviour change in a core plugin, larger than X1, and not something to do while
+passing.
+
+**The signature proposed above does not work, and both versions were built before
+that was clear.** Scanning plugin sources for an undeclared `require` misses
+notify-xmpp entirely, because the `require Net::XMPP` is in `Lazysite::Notify:585`
+and the plugin is only a descriptor - the audit's first run flagged the two rows
+above and not the one the report was about. Widening it to any `Foo::Bar` name in
+prose failed 12 of 16 plugins on `Cwd::abs_path`, `JSON::PP::true` and
+`Digest::SHA::sha256_hex` - fully-qualified *calls* - and on a comment this filing
+had just added to `form-handler.pl`. A detector that cannot tell "depends on" from
+"mentions" is noise.
+
+`t/lint/201` keeps the one signature that is never incidental: a **Debian Perl
+package name**. `libnet-xmpp-perl` appears when somebody is telling an operator
+what to install, which is precisely the moment the enable path should have been
+told too. Two plugins carry one, and before this build one of the two declared
+nothing.
 
 # X2 - a default that contradicts a discoverable fact
 
