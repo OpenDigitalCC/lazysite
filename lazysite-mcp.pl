@@ -2685,7 +2685,15 @@ sub _audit_acl_keys {
             }
         }
     }
-    elsif ( !$!{ENOENT} ) { $acl_unreadable = "$!" }
+    # SM917 step 3: BOTH audiences. The returned state is for the agent reading
+    # this audit; cannot_read puts the path, errno and unix user in the engine log
+    # for the sysop who has to go and fix the permissions. Step 1 gave the agent
+    # its answer and left the sysop with nothing, which the literal-path check
+    # then reported - correctly.
+    elsif ( !$!{ENOENT} ) {
+        $acl_unreadable = "$!";
+        Lazysite::Util::cannot_read( 'the ACL store', "$LAZYSITE_DIR/auth/acls.json" );
+    }
     return ( \@acl_unmatched, $acl_unreadable );
 }
 

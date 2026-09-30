@@ -44,6 +44,31 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM917 step 3 (PENDING) **a read that names a store obeys the store rule wherever
+  it lives - and G2 was two readers, not twenty.** `t/lint/121` gains a check that
+  asks about the PATH rather than the file: any read-open whose path names a store
+  directory must report, in every file, not only in ones a modules list happens to
+  name. It needed the three spellings of the engine directory normalised first -
+  it is written `"$LAZYSITE_DIR/auth/..."` or `_lz($DOCROOT) . "/logs/..."`, almost
+  never the literal `lazysite/`, and the first version looked for the literal and
+  matched NOTHING. A check that matches nothing passes for ever, which is this
+  filing's own subject, so the count is asserted and not merely used. **THE
+  PER-FILE LIST DOES NOT SCALE, measured and withdrawn the same day:** listing
+  lazysite-processor.pl under `auth` put 61 read-opens under the store rule, of
+  which ONE was an auth read and 23 were markdown, template and theme reads -
+  ~38 `# not a store` markers in the render path to satisfy a rule about the auth
+  store, and a marker that appears everywhere stops being a signal. The two checks
+  now divide the work by what each can observe: the literal check for a read that
+  NAMES a store, the modules list for one that reaches it through a helper, which
+  is the case Connectors.pm proves is still needed. **AND THE SECOND CORRECTION TO
+  MY OWN MEASUREMENT:** "20 (store, file) pairs unread in any idiom" counted files
+  that MENTION a store directory - comments, error strings, paths built for writing
+  - not unreported store reads. The real number is TWO, and both were the audit
+  paths step 1 had already repaired. The first correction made this filing bigger;
+  this one makes it smaller. Steps 4 and 5 of the ruled five are therefore EMPTY
+  and deliberately not performed: `forms` and `logs` have no unreported store reads
+  to triage, and two commits to match a plan would be theatre.
+
 - SM917 step 2 (PENDING) **the store-reader lint sees the other idiom now, and
   twelve readers were triaged behind it.** `t/lint/121` gained the third shape:
   `if ( open ... ) { ... }` with no else, where the failure branch is the MISSING

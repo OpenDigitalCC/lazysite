@@ -188,6 +188,89 @@ sub _read_opens {
     return @found;
 }
 
+# --- 2a. a read-open that NAMES a store, in any file -------------------------
+#
+# SM917 step 3. The modules list below is a per-FILE proxy for a per-PATH rule,
+# and the proxy breaks at CGI size: listing lazysite-processor.pl for `auth` put
+# 61 read-opens under the rule, of which ONE was an auth read and 23 were
+# markdown, template and theme reads. Writing ~38 `# not a store` markers into the
+# render path to satisfy a rule about the auth store makes the marker furniture.
+#
+# So this check asks about the PATH rather than the file. Any read-open whose path
+# literal names `lazysite/<a store dir>` must report or be marked, wherever it
+# lives. That is exactly how the 20 unlisted (store, file) pairs were found, and
+# it catches them without touching a single content read.
+#
+# WHAT THIS CANNOT SEE, and why the modules list below stays: a reader that
+# reaches its store through a helper (`_auth_dir()`, `$AUTH_DIR`, `_dir()`) writes
+# no literal for this to match. Connectors.pm never spells its own path. The two
+# checks divide the work by what each can actually observe, rather than one of
+# them pretending to cover both.
+subtest 'a read-open naming a store reports, whichever file it is in' => sub {
+    my %store_dir = map { $_->{dir} => 1 } grep { $_->{store} } stores();
+
+    my @src;
+    find( { wanted => sub { push @src, $File::Find::name if /\.p[ml]\z/ && -f }, no_chdir => 1 },
+        "$root/lib" );
+    push @src, grep { -f } map { "$root/$_" } qw(
+        lazysite-manager-api.pl lazysite-mcp.pl lazysite-auth.pl
+        lazysite-processor.pl lazysite-dav.pl
+        plugins/stats.pl plugins/form-handler.pl tools/lazysite-users.pl
+    );
+
+    my ( $n, @bad ) = (0);
+    for my $f ( sort @src ) {
+        my $rel = ( $f =~ s{^\Q$root/\E}{}r );
+        for my $o ( _read_opens($f) ) {
+
+            # The FIRST line is the open itself; a store name appearing deeper in
+            # a collected failure branch is prose, not the path.
+            my ($open_line) = split /\n/, $o->{text}, 2;
+
+            # THE ENGINE DIRECTORY IS ALMOST NEVER SPELT `lazysite/`. It is
+            # "$LAZYSITE_DIR/auth/.secret", or _lz($DOCROOT) . "/logs/x", because
+            # SM293 made the tree's location something a site is ASKED for rather
+            # than something computed. The first version of this check looked for
+            # the literal `lazysite/` and matched NOTHING - it reported 0 sites and
+            # would have passed for ever, which is the failure mode this whole
+            # filing is about.
+            #
+            # So normalise the three spellings to one token, then ask the question
+            # once. `$AUTH_DIR` and `_auth_dir()` are deliberately NOT normalised:
+            # they name no directory in the text, and pretending to resolve them
+            # would be guessing. Those are what the modules list below is for.
+            my $norm = $open_line;
+            $norm =~ s/\$LAZYSITE_DIR/lazysite/g;
+            $norm =~ s/_lz\s*\([^)]*\)\s*\.\s*"/"lazysite/g;
+
+            my ($dir) = $norm =~ m{lazysite/([a-z][a-z0-9_-]*)(?=/)};
+            next unless defined $dir && $store_dir{$dir};
+
+            $n++;
+            next if $o->{text} =~ /cannot_read\s*\(/;
+            next if $o->{text} =~ /# not a store/;
+            push @bad, "$rel:$o->{line}: " . ( $o->{text} =~ s/\s+/ /gr );
+        }
+    }
+
+    # THE FLOOR IS SMALL, AND THAT IS THE MEASUREMENT RATHER THAN A CONCESSION.
+    # Exactly two read-opens in the tree name a store directory in their own text:
+    # lazysite-mcp.pl's auth/acls.json and lazysite-processor.pl's auth/.secret.
+    # Everything else reaches its store through a helper and is covered by the
+    # modules list below.
+    #
+    # The floor exists because this check returned 0 on its first run - the
+    # engine directory is spelt "$LAZYSITE_DIR/..." and the matcher was looking
+    # for "lazysite/...". A check that matches nothing passes for ever, which is
+    # the exact failure this filing is about, so the count is asserted and not
+    # merely used.
+    cmp_ok( $n, '>=', 2, "read-opens naming a store found ($n)" );
+    is_deeply( \@bad, [], 'every one reports through cannot_read' )
+        or diag( "A read that NAMES a store obeys the store rule wherever it lives -\n"
+            . "the file does not have to be in a modules list for the path to be one.\n"
+            . join( "\n", @bad ) );
+};
+
 subtest 'every store reader reports through cannot_read before returning' => sub {
     my $n = 0;
     my @bad;

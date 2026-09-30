@@ -4,8 +4,8 @@ title: "SM917: the store-reader lint cannot see the other way to swallow a faile
 subtitle: "t/lint/121 refuses a store reader that turns an unopenable file into an empty answer, and it has caught that defect three times (SM760, SM766, SM768). TWO gaps, measured 2026-09-30. Its matcher requires `or` on the open line, so `if ( open ... )` with no else is invisible - 14 such read-opens inside the files it walks. And it walks only the files a store NAMES in its hand-kept `modules` list, so 20 (store, file) pairs are unread in any idiom - including seven files that read `auth`. Closing both brings 96 read-opens into scope needing a decision."
 brand: plain
 standard-margins: true
-status: candidate
-status-note: "RULED 2026-09-30: WIDEN AND FIX ALL, no baseline and no carried debt - the suite goes red until every site is triaged. TAKEN ON A WRONG NUMBER, and re-scoped the same day: the ruling was given against my figure of 51, which I had measured over subtest 1's file set instead of subtest 2's. The corrected measurement is in this document and it is LARGER - two gaps rather than one, and 96 read-opens rather than 51, of which lazysite-processor.pl is 38 and lazysite-dav.pl 9. The re-scoped decision is back with the release manager because 96 sites across the serving path is a different question from 51. ALREADY RULED SEPARATELY AND NOT WAITING ON THAT: the two audit paths where an unreadable file reads as a clean bill - MCP's audit_site ACL-key report and the processor's auth/.secret - are to be fixed first and independently."
+status: shipped
+status-note: "SHIPPED 2026-09-30 in three commits, and the plan was five. WHAT WAS REAL: G1, the idiom. t/lint/121's matcher required `or` on the open line, so `if ( open ... ) { }` with no else - where the failure branch is the MISSING else - was invisible for three releases. Fourteen such read-opens inside the files it walks; twelve needed work, and TWO WERE LOSING DATA rather than reporting nothing: the visitor-trail export read the day it was appending to and an unreadable day made the atomic write REPLACE that day with only the new rows, and _ensure_conf_key's read IS its idempotency check so an unreadable conf appended a second entry for a key that already had one - SM915's shape one file over. Both refuse now. Also the site conf read five ways, two secrets whose mint-on-empty fallback invalidates every token issued against the first, and three -f stat guards removed. WHAT I MEASURED WRONG, TWICE, IN THIS DOCUMENT. First: the 51/120 figures were taken over subtest 1's file set rather than subtest 2's, and correcting that made the finding bigger - two gaps, 96 read-opens. The ruling had already been given on the wrong number, so it was re-taken. Second, and it goes the other way: 'G2: 20 (store, file) pairs unread in any idiom' counted files that MENTION a store directory anywhere - comments, error strings, paths built for writing - not unreported store reads. The real number is TWO, both of them the audit paths step 1 had already repaired. So G2's exposure was two readers, not twenty. THE STRUCTURAL FIX for G2 is a new subtest: any read-open whose path names a store obeys the rule in EVERY file, not only in listed ones - which needed the three spellings of the engine directory normalised first, because it is written \"$LAZYSITE_DIR/auth/...\" and the first version looked for the literal 'lazysite/' and matched nothing. The modules list stays for helper-based reads, where no literal exists. AND THE PER-FILE LIST DOES NOT SCALE: listing lazysite-processor.pl for `auth` put 61 read-opens under the rule, of which ONE was an auth read and 23 were content - that approach was tried, measured and withdrawn the same day. STEPS 4 AND 5 ARE EMPTY and deliberately not performed: with two store reads in the tree and both fixed, `forms` and `logs` have nothing in them, and two empty commits to match a plan would be theatre."
 raised: 2026-09-30
 raised-by: engine agent, while moving the notice reader into a module for SM918
 area: testing
@@ -62,7 +62,47 @@ matcher looks for.
 Inside the 16 files subtest 2 currently walks: **42 read-opens it can see, 14 it
 cannot.**
 
-## G2 - the modules list, and this is the bigger one
+## SECOND CORRECTION 2026-09-30: G2 was much smaller than I said, and this one shrinks it
+
+The first correction made this filing bigger. This one makes it smaller, and both
+were my errors in the same document, so both stay on the record.
+
+I wrote "20 (store, file) pairs unread in any idiom", which reads as twenty
+unchecked store READS. It is not what the probe counted. It counted files that
+MENTION `lazysite/<store>` anywhere in their source and are absent from that
+store's modules list - and a mention includes a comment, an error string, and a
+path built in order to WRITE. Counted as pairs it was 20; as files it is 11.
+
+The question that matters is narrower: how many unreported store READ-OPENS sit in
+files the modules list does not name? Measured with
+`tmp/what-g2-actually-was.pl`:
+
+```datatable
+columns: What was counted | Count
+widths: 11cm | X
+bold: 1
+tone: medium
+---
+files that mention a store dir and are not listed | 11 (20 as store/file pairs)
+**unreported store READ-OPENS in any unlisted file** | **2**
+```
+
+Both of the two are the ones step 1 had already repaired - lazysite-mcp.pl's
+`auth/acls.json` and lazysite-processor.pl's `auth/.secret`. So G2's real exposure
+was two readers, not twenty, and it is closed.
+
+**G1 was the real finding.** Fourteen conditional read-opens, twelve needing work,
+and two of those were losing data rather than reporting nothing: the visitor-trail
+export turning an append into a truncation, and `_ensure_conf_key` appending a
+second entry for a key it could not see. That half of this filing stands exactly
+as written.
+
+**And the sequencing collapses.** The ruling was five commits, one per store after
+the idiom. With two store reads in total and both already fixed, steps 4 and 5 -
+`forms` and `logs` - have nothing in them. Saying so is better than performing two
+empty commits to match a plan.
+
+## G2 as originally described - the modules list
 
 Subtest 2 reads a file only if a store NAMES it in `modules`, and that list is
 hand-kept in `Lazysite::Stores`. A file that reads a store and is not named there

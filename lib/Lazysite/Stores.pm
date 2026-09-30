@@ -74,6 +74,28 @@ my @STORES = (
             # here: "the modules that read a store" is not the same list as
             # "the modules under lib/". A tool is a reader.
             'tools/lazysite-users.pl',
+
+            # SM917 step 3: SEVEN OTHER FILES READ THIS STORE AND ARE NOT LISTED,
+            # DELIBERATELY - lazysite-manager-api.pl, lazysite-processor.pl,
+            # Capabilities.pm, Daemon/Service/Scheduler.pm, DomainRewrites.pm,
+            # Git.pm and Manager/Common.pm. They are covered by t/lint/121's
+            # literal-path check instead, and listing them here was tried and
+            # withdrawn the same day.
+            #
+            # WHY, measured: this list is a per-FILE proxy for a per-PATH rule.
+            # For a small module that is exact, because nearly every read-open in
+            # it is a store read. Adding lazysite-processor.pl put SIXTY-ONE
+            # read-opens under the rule, of which ONE was an auth read and
+            # twenty-three were markdown, template and theme reads that are no
+            # store's business. Satisfying that needs ~38 `# not a store` markers
+            # in the render path, and a marker that appears everywhere stops being
+            # a signal and becomes furniture.
+            #
+            # So the two checks divide the job by what each can actually see: the
+            # literal check catches a read that NAMES a store, in any file; this
+            # list catches a read that reaches its store through a helper, where
+            # no literal exists to match. Connectors.pm is the case that proves
+            # the list is still needed - it never writes its own path.
         ],
     },
     { dir => 'daemon',
