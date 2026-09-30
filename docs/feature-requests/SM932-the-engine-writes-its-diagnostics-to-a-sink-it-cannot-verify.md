@@ -8,7 +8,86 @@ status: candidate
 raised: 2026-09-30
 raised-by: engine agent, verifying a related observation in the site agent's XMPP thread
 area: observability
+status-note: "RULED 2026-09-30, NOT BUILT. The release manager ruled TURN SYSLOG FORWARDING ON BY DEFAULT and fix _forward_conf's silent failure - the smallest change that gives the engine a second sink, using a mechanism already built, tested and documented rather than adding a store. RECOMMENDED THRESHOLD, measured and offered for acceptance rather than assumed: forward WARN and above by default, leaving INFO and DEBUG to the existing forward_diagnostics key. The census says WARN is where the work lives (cannot_read logs at WARN; 804 WARN and 234 ERROR call sites against 704 INFO) and a WARN-and-above default changes no install's INFO volume. Say the word and it forwards everything. _forward_conf CANNOT take a plain cannot_read branch - log_event calls it and would recurse; the file already solves the analogous case with the $fwd_warned++ once-per-process latch in _forward_warn, and that is the pattern to use. WHAT THIS RULING DOES NOT CLOSE, and it is deliberate: a site operator who is not the host operator still cannot read syslog, so the manager still shows nothing and an agent still cannot read diagnostics. The engine-owned log (option 1) is DEFERRED, not refused. OP-29 is the measurement that says whether it is still needed."
 ---
+
+# The ruling
+
+**RULED 2026-09-30: turn syslog forwarding on by default**, and fix
+`_forward_conf`'s silent failure at the same time.
+
+The reasoning is that this is the smallest change that removes the single point of
+failure. `forward_diagnostics` is already built, already tested and already
+documented; it is off. Flipping it means the engine has **two** sinks rather than
+one unverifiable one, and "nothing reached anybody anywhere" stops being the
+default outcome. No new store, and therefore no permissions, rotation or
+disclosure decisions to take before anything improves.
+
+**What it does not close, and this is deliberate.** A site operator who is not the
+host operator cannot read syslog either. The manager still shows nothing, and an
+agent still cannot read the engine's diagnostics - which was the actual gap in
+[[SM925]]'s afternoon. The engine-owned diagnostic log is **deferred, not
+refused**, and OP-29's measurement is what should decide whether it is still
+needed once there are two sinks.
+
+So this ruling buys the cheap half now and keeps the expensive half as a question
+with evidence attached, rather than spending a release on a store before knowing
+whether syslog was enough.
+
+# The threshold, which is measured rather than assumed
+
+A default change lands on every install, so the risk that decides **how** to build
+this is volume: `log_event`'s default minimum level is `INFO`, so forwarding at the
+default level would copy every INFO line on every install into syslog.
+
+The call-site census:
+
+```datatable
+columns: Level | Call sites, whole tree | In the processor (per-request path)
+widths: 2.4cm | 4.0cm | X
+text: 2*3
+bold: 1
+tone: medium
+---
+WARN | 804 | 43
+INFO | 704 | 7
+ERROR | 234 | 8
+DEBUG | 36 | 2
+```
+
+**Recommended: forward WARN and above by default**, leaving INFO and DEBUG to the
+existing key. Two reasons, and both are in the numbers:
+
+- **WARN is where the work lives.** `cannot_read` logs at WARN (`Util.pm:74`), so
+  every repair in the 0.15.1 sweep that this filing is about is delivered by a
+  WARN-and-above default. Forwarding INFO adds nothing to the problem being fixed.
+- **It changes no install's INFO volume**, which is the only way a default flip can
+  make somebody's day worse. The render path carries 7 INFO sites against 43 WARN,
+  so the hot path is not INFO-chatty either way - but "not chatty" is a weaker
+  claim than "unchanged".
+
+This is offered for acceptance rather than taken: forwarding everything is one word
+different, and if the intent was a full copy of the stream then that is the build.
+
+**What the census does NOT establish**, said plainly because I got this wrong twice
+during [[SM917]]: these are call SITES, not emitted events. A per-request count of
+lines actually written is a different measurement and I have not made it. The
+argument above does not need one - it rests on which levels carry the work, not on
+how many lines there are - but nobody should read 704 as a rate.
+
+# The second half of the ruling
+
+`_forward_conf` (`Util.pm:306`) is the code that decides whether forwarding
+happens, and it reads its own configuration with no else branch. Turning the
+default on makes that read load-bearing rather than incidental: a site whose
+`lazysite.conf` cannot be read would now silently lose a sink it is supposed to
+have by default.
+
+It **cannot** take a plain `cannot_read` branch. `log_event` calls `forward_line`
+which calls `_forward_conf`, so reporting the failure through `log_event` would
+recurse. The file already solves exactly this shape - `_forward_warn` guards with a
+`$fwd_warned++` once-per-process latch, incremented *before* its own nested
+`log_event` for that reason - and that is the pattern this call site needs.
 
 # What was observed, and by whom
 
@@ -118,12 +197,15 @@ That makes it a real instance of SM917's family with a real constraint, rather t
 a site my sweep should have caught and missed: lint 121 passes it because the path
 is site config rather than a store, which is correct as the lint is written.
 
-# What would fix it
+# The two larger directions, one deferred and one still worth doing
 
-Two directions, and the first is the one that matches how the engine already works
-everywhere else.
+Kept as written, because the ruling above takes neither and both remain live. What
+the ruling does is buy a second sink cheaply first, so that these two are decided
+against measurement rather than against a fear.
 
-**1. The engine owns a diagnostic log it can read back.** The audit trail and the
+**1. The engine owns a diagnostic log it can read back. DEFERRED, not refused** -
+this is the one the ruling explicitly holds back, and OP-29's answer is what should
+settle it. The audit trail and the
 visitor log are both files under the site's tree that the engine writes and the
 manager reads. Diagnostics are the one stream that is handed to somebody else and
 never seen again. A file the engine owns would be readable by the manager, which
@@ -135,18 +217,21 @@ The same argument that made [[SM918]] worth building applies: an agent could the
 read the diagnostics too, and the whole XMPP afternoon was an agent unable to see
 what the engine was saying.
 
-**2. `lazysite check` verifies reachability rather than assuming it.** Write a
-known line at a known level, then try to read it back from wherever the engine
-believes it goes. A check that says *"diagnostics are written to STDERR and I
-cannot confirm anything collects it"* is worth more than any number of correctly
-formatted WARNs nobody receives. This is the [[SM285]] self-probe idea applied to
-the log path.
+**2. `lazysite check` verifies reachability rather than assuming it. STILL WORTH
+DOING, and more so after the ruling.** Write a known line at a known level, then try
+to read it back from wherever the engine believes it goes. A check that says
+*"diagnostics are written to STDERR and I cannot confirm anything collects it"* is
+worth more than any number of correctly formatted WARNs nobody receives. This is
+the [[SM285]] self-probe idea applied to the log path.
 
-Neither is a small change and neither should be started on my judgement - (1) adds
-a store, which has a permissions, rotation and disclosure surface, and the whole
-point of this filing is that the reasoning behind "it logs a WARN" was not
-examined. What wants deciding is whether the engine's diagnostics are its own
-responsibility or the host's.
+The ruling makes this **more** valuable rather than less: with two sinks there are
+now two things that can each silently fail, and syslog failing is quieter than
+STDERR failing because `_forward_warn` reports it at most once per process. A check
+that names which sinks carried the test line is the only way an operator learns
+they have none.
+
+It is not part of the ruling and it is small enough to build with the default flip
+rather than after it. Flagged rather than assumed.
 
 # The lesson, which is the reporter's and is worth adopting
 

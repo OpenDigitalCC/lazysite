@@ -8,7 +8,35 @@ status: candidate
 raised: 2026-09-30
 raised-by: site agent, from the site owner's response to a working delivery (0.15.0)
 area: notifications
+status-note: "RULED 2026-09-30, NOT BUILT. The release manager ruled OPT-IN PER FORM: `notify: full` beside the existing `notify: on` and `notify: off`. A site that upgrades keeps the one-line notice and no enquiry text moves anywhere new until somebody asks for it; the site that requested full content sets the key. Two alternatives were declined - full-by-default-with-opt-out (every upgrading site starts broadcasting customer text into a room configured when the notice was one line long, with no re-consent), and defaulting by destination type (full to a direct JID, summary to a MUC), which is derivable from config but still needs the key as an override for a private one-member room, so it buys a rule nobody asked for. THE THREE DEFECTS BELOW ARE REPAIRS AND ARE NOT GATED ON THIS: the newline strip at Notify.pm:271 flattens multi-line bodies for every endpoint and template today, and item 4's wrong link is wrong regardless of how much content the notice carries. Build order: 1 (the strip) then 2 (pass the fields) then 3 (the multi-line default, behind `notify: full`) then 4. Lands with [[SM926]] or the added link arrives unexpanded."
 ---
+
+# The ruling
+
+**RULED 2026-09-30: opt-in per form.** `notify: full` beside the existing
+`notify: on` and `notify: off`. The owner's site sets it and gets what they asked
+for; every other site keeps the one-line notice until somebody chooses otherwise.
+
+The argument that decided it is the one this filing raised rather than the one the
+owner asked about: nobody re-consents to a behaviour change they did not read
+about, and a room configured when the notice was one line long is not consent to
+customer-written content appearing in it. The choice has to be made by a person
+who can see the room.
+
+**Declined: default by destination type** - full content to a direct JID, summary
+to a MUC, on the grounds that the engine already knows which is which. It is a
+real distinction and it still needs `notify: full` as an override for the site
+whose MUC has one member, so it adds a rule to be learnt without removing the key
+that rule was meant to replace.
+
+**Declined: full by default with an opt-out** - simplest to build and the only
+option that changes what an existing site emits without being asked.
+
+**The three defects below are not gated on this ruling.** The newline strip at
+`:271` flattens multi-line bodies for every endpoint and every template today, on
+sites that never touch `notify:` at all, and item 4's link is wrong whatever the
+notice contains. Only item 3 - the multi-line default body - sits behind the new
+key.
 
 # What was asked for, having received one
 
