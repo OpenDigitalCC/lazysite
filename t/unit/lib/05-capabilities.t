@@ -146,9 +146,14 @@ like( $api_src, qr/'describe-capabilities'/, 'describe-capabilities is a control
     ok( $surf->{manage_domains}{mcp},    'manage_domains HAS an mcp surface' );
     ok( $surf->{manage_domains}{api},    'manage_domains HAS an api surface' );
     ok( !$surf->{manage_domains}{webdav}, 'manage_domains has NO webdav surface' );
-    ok( !$surf->{notifications}{mcp},     'notifications has NO mcp surface' );
+    # SM918: notifications gained its MCP surface (read_notices), so it is no
+    # longer the example of a capability with none - `audit` is, and it keeps the
+    # negative case covered rather than leaving only positives here.
+    ok( $surf->{notifications}{mcp},      'notifications HAS an mcp surface (SM918)' );
     ok( !$surf->{notifications}{webdav},  'notifications has NO webdav surface' );
     ok( $surf->{notifications}{ui},       'notifications HAS a ui surface' );
+    ok( !$surf->{audit}{mcp},             'audit has NO mcp surface' );
+    ok( $surf->{audit}{api},              'audit HAS an api surface' );
     ok( !$surf->{feedback}{webdav},       'feedback has NO webdav surface' );
     ok( $surf->{feedback}{mcp},           'feedback HAS an mcp surface' );
     ok( !$surf->{read_submissions}{webdav}, 'read_submissions has NO webdav surface' );

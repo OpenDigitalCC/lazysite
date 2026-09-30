@@ -187,7 +187,11 @@ sub api {
     ok( $g->{surface}{manage_content}{webdav}, 'manage_content HAS a webdav surface' );
     ok( $g->{surface}{manage_domains}{mcp},    'manage_domains HAS an mcp surface' );
     ok( !$g->{surface}{manage_domains}{webdav}, 'manage_domains has NO webdav surface' );
-    ok( !$g->{surface}{notifications}{mcp},     'notifications has NO mcp surface' );
+    # SM918: notifications gained read_notices over MCP, so the grid may now tick
+    # that cell. `audit` takes over as the capability with no mcp surface, so this
+    # still checks a false as well as a true - the point of the assertion.
+    ok( $g->{surface}{notifications}{mcp}, 'notifications HAS an mcp surface (SM918)' );
+    ok( !$g->{surface}{audit}{mcp},        'audit has NO mcp surface' );
 }
 
 # A group carries a free-text description (round-trips via the view).

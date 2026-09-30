@@ -18,7 +18,7 @@ package Lazysite::Manager::Notices;
 # goes, and a remote writer is a different question that SM231 declined.
 use strict;
 use warnings;
-use JSON::PP       qw(encode_json decode_json);
+use JSON::PP qw(encode_json decode_json);
 use Exporter 'import';
 use Lazysite::Util  qw(cannot_read);
 use Lazysite::Paths ();
@@ -82,7 +82,7 @@ sub _read_seen_map {
 sub action_notices {
     my ($principal) = @_;
 
-    my $notices = _read_notices();
+    my $notices  = _read_notices();
     my $seen_map = _read_seen_map();
 
     # Either read may have failed, and they fail independently: the store can be
@@ -105,7 +105,7 @@ sub action_notices {
         if defined $principal && length $principal && $seen_map->{$principal};
 
     $out{last_seen} = $seen;
-    $out{unread} = scalar grep { ( $_->{ts} // 0 ) > $seen } @{ $out{notices} };
+    $out{unread}    = scalar grep { ( $_->{ts} // 0 ) > $seen } @{ $out{notices} };
     return \%out;
 }
 
