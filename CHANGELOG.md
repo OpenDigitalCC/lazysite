@@ -44,8 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM917 step 3 (f6bccc25) **a read that names a store obeys the store rule wherever
-- SM919 (PENDING) **a row's tick box and its Delete button no longer sit at
+- SM919 (98fccca0) **a row's tick box and its Delete button no longer sit at
   opposite ends of the data.** Reported from the live manager. A submissions table
   has one column per form field, so it scrolls sideways - and the tick box was the
   FIRST cell with Delete the LAST, every data column between them, so an operator
@@ -68,7 +67,7 @@ Naming the commit: AFTER it lands, never before
   show what a diff cannot. It has eight columns and two rows of test content now,
   one quarantined.
 
-- SM917 step 3 (PENDING) **a read that names a store obeys the store rule wherever
+- SM917 step 3 (f6bccc25) **a read that names a store obeys the store rule wherever
   it lives - and G2 was two readers, not twenty.** `t/lint/121` gains a check that
   asks about the PATH rather than the file: any read-open whose path names a store
   directory must report, in every file, not only in ones a modules list happens to
