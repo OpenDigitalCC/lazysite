@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM917 step 1 (PENDING) **two checks that reported a clean bill for a store they
+- SM917 step 1 (0fe5b190) **two checks that reported a clean bill for a store they
   could not open.** The first of five commits under SM917's ruling (widen and fix
   all, no baseline, `auth` first). **MCP's `audit_site`** reported ACL keys that
   match nothing at the docroot, and an unreadable `auth/acls.json` left that list
@@ -65,7 +65,7 @@ Naming the commit: AFTER it lands, never before
   ten caught - and two of them only after a first attempt failed to apply, which
   is why the scripts say so rather than reporting a pass.
 
-- SM918 (PENDING) **an agent can read the bell, through the same reader the manager
+- SM918 (0062449a) **an agent can read the bell, through the same reader the manager
   uses.** The notice store had a control-API read surface and no MCP twin, which
   `t/lint/23` carried as "undecided - an MCP twin wants per-notice addressing
   first". That addressing shipped with SM485, and the ruling was FULL PARITY WITH
@@ -84,20 +84,24 @@ Naming the commit: AFTER it lands, never before
   purpose: a per-principal read cursor exists for a human's unread badge, an agent
   has no badge, and a cursor per partner is the first half of an inbox - notices
   stay simple, and machine-to-machine is SM646's XMPP connectors.
-- SM917 (PENDING) **filed, not built: the store-reader lint cannot see the other
-  way to swallow a failed open.** `t/lint/121` refuses a reader that turns an
-  unopenable store into an empty answer, and has caught that three times - but its
-  matcher requires `or` on the open line, so `if ( open my $fh, '<', $path ) {
-  ... }` with no else is invisible to it. That is the exact shape SM918 found and
-  repaired in the notice reader while the lint was passing. Measured over the files
-  the lint scans: 120 read-opens it can see, 51 it cannot. Not all 51 are defects -
-  several read files that are not stores at all - but two are audit paths where an
-  empty answer reads as a clean bill. Filed with the measurement and a recommended
-  remedy (widen the matcher behind a shrinking ceiling, the idiom lints 118 and 157
-  already use here) rather than fixed, because it is a triage job across five
-  files and not a line in one.
-- Four rulings recorded (63e5348e) **taken 2026-09-29, each written into the thing
-- SM916 (PENDING) **the perf gate's work counter was measuring the clock, and it
+- SM917 (d556eca9) **filed, not built: the store-reader lint cannot see the other
+  way to swallow a failed open, and does not read half the files.** `t/lint/121`
+  refuses a reader that turns an unopenable store into an empty answer and has
+  caught that three times, and TWO gaps let the defect SM918 repaired sit in front
+  of it while it passed. **The idiom:** its matcher requires `or` on the open line,
+  so `if ( open my $fh, '<', $path ) { ... }` with no else is invisible - 14 such
+  read-opens against 42 it sees. **The modules list, which is the bigger one:**
+  subtest 2 reads a file only if a store NAMES it in a hand-kept `modules` list, so
+  20 (store, file) pairs are unread in any idiom, seven of them files that read
+  `auth`. SM768's own "a lint that names the stores it protects protects the stores
+  somebody remembered" applies one level down, and nobody had turned it there.
+  Closing both brings 96 read-opens into scope needing a decision, 38 of them in
+  the processor and 9 in the DAV path. FILED FIRST WITH THE WRONG NUMBERS, against
+  subtest 1's file set instead of subtest 2's, and corrected the same day in the
+  commit this row names - the correction made the finding larger, which is why it
+  is recorded rather than quietly edited. Ruled: widen and fix all of it with no
+  baseline, `auth` first, one store per commit.
+- SM916 (55a9e7fc) **the perf gate's work counter was measuring the clock, and it
   refused a release for it.** `bench.pl` reports `work_cold_log_bytes` - the bytes
   the stats ingest reads from a fixture of thirty days of visitor logs - and
   treats any change as WORK, on the stated grounds that "a count is
@@ -115,7 +119,7 @@ Naming the commit: AFTER it lands, never before
   traffic. Fixed with `int()`, not with a tolerance, because `work_*` is the half
   of the gate that is meant to be exact. `t/lint/159` pins both halves of the
   agreement so neither side can drift alone.
-- Four rulings recorded (PENDING) **taken 2026-09-29, each written into the thing
+- Four rulings recorded (63e5348e) **taken 2026-09-29, each written into the thing
   it decides rather than left in a conversation - and one of them did not survive
   its own condition.** **T3** (SM906): the control API gets a distinct *cannot
   tell* state, not an empty capability list, because the caller on that channel is
