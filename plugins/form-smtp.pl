@@ -442,7 +442,10 @@ sub _lz {
 }
 
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
-# forward_line, so `forward_diagnostics: true` covers this plugin's
+# forward_line, so this plugin's diagnostics are covered by the
+# forward_diagnostics DEFAULT of WARN and above (SM932) as well as by an
+# explicit setting - it needed `forward_diagnostics: true` before that, and
+# the docs promised syslog either way. The rest of this plugin's
 # diagnostics as the docs promise. The module tree is found by the bootstrap at
 # the top (the SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the

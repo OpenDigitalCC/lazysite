@@ -212,8 +212,9 @@ sub _json_str {
 }
 
 # Levelled logging to STDERR (text or json), honouring LAZYSITE_LOG_LEVEL and
-# LAZYSITE_LOG_FORMAT. Component comes from $COMPONENT. Emitted diagnostics
-# are also forwarded to syslog when forward_diagnostics is on (see below).
+# LAZYSITE_LOG_FORMAT. Component comes from $COMPONENT. Emitted diagnostics are
+# ALSO forwarded to syslog - at WARN and above unless forward_diagnostics says
+# otherwise, SM932 (see below). STDERR alone is not a sink this code can verify.
 sub log_event {
     my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
@@ -248,8 +249,8 @@ sub log_event {
 
 # --- External log forwarding (the 'Logging & forwarding' plugin, log.pl) ----
 #
-# forward_audit / forward_diagnostics / syslog_facility in lazysite.conf turn
-# on best-effort syslog copies of the two streams: audit-trail lines (the pipe
+# forward_audit / forward_diagnostics / syslog_facility in lazysite.conf control
+# best-effort syslog copies of the two streams: audit-trail lines (the pipe
 # format, at LOG_INFO) and log_event diagnostics (at their mapped priority).
 # Config resolution rides the same path as log_level: an env override wins
 # (LAZYSITE_FORWARD_AUDIT / LAZYSITE_FORWARD_DIAGNOSTICS /
@@ -258,18 +259,91 @@ sub log_event {
 # is cached, so a request pays at most one small-file read - and syslog is
 # only opened when a stream is actually enabled. Sys::Syslog is core Perl.
 #
+# SM932, ruled 2026-09-30: DIAGNOSTICS FORWARDING IS ON BY DEFAULT, at WARN and
+# above. Until this release log_event's only unconditional sink was
+# `print STDERR`, and on a stack where a FastCGI child's STDERR does not reach
+# the web server's error_log the engine had no reachable voice at all - an
+# operator debugging a live site grepped error_log through four failing
+# submissions and found nothing, while the same code from a terminal printed the
+# cause at once. One unverifiable sink was the whole of it. A second sink does
+# not make the first one work; it stops "nothing reached anybody" being the
+# default outcome.
+#
+# The THRESHOLD is WARN rather than everything, and that is measured rather than
+# preferred: cannot_read() logs at WARN, so WARN-and-above carries every repair
+# the four-state work of 0.15.0 and 0.15.1 produced, while forwarding nothing
+# new at INFO means no install's syslog volume changes on upgrade.
+#
+# forward_audit stays a boolean and stays OFF by default - it is a copy of an
+# access record, not a diagnostic, and nobody has been unable to read it.
+#
 # Forwarding failure NEVER propagates: everything is eval-guarded, with a
 # single WARN per process. Test seam (test-only): LAZYSITE_SYSLOG_DUMP=<file>
 # appends "<priority> <line>" to that file instead of calling syslog, so tests
 # can assert what would have been forwarded without a running syslogd.
 
-my %FWD;           # cached forwarding config (per process)
-my $fwd_warned;    # WARN once per process on forwarding failure
+my %FWD;                # cached forwarding config (per process)
+my $fwd_warned;         # WARN once per process on forwarding TRANSPORT failure
+my $fwd_conf_warned;    # WARN once per process on a bad/unreadable forwarding CONFIG
 my $syslog_open;
 
 sub _conf_bool {
     my $v = lc( $_[0] // '' );
     return $v =~ /^(?:1|on|yes|true|enabled)$/ ? 1 : 0;
+}
+
+# SM932: forward_diagnostics is a LEVEL, not a boolean, and absent means "WARN
+# and above" rather than "off". Returns two values:
+#   ( minimum rank to forward | undef to forward nothing, unrecognised value | undef )
+#
+#   absent              => 2   WARN and above - the default this release sets
+#   off / 0 / no / false => undef, forward nothing
+#   on / 1 / yes / true / all => 0, every level
+#   a level name        => that rank (debug info warn|warning error|err)
+#
+# on/true meaning EVERY level is deliberate and is the backward-compatibility
+# half of the change: an operator who switched forwarding on before this release
+# asked for the whole stream and still gets exactly it, so no configured install
+# changes behaviour. Only an install that never set the key moves, and it moves
+# from nothing to WARN and above.
+#
+# An unrecognised value returns the default AND the offending value, so the
+# caller can say so - a value the code silently ignores is the shape
+# feedback_a_declaration_the_code_ignores exists to refuse.
+sub _conf_diag_rank {
+    my $v = lc( $_[0] // '' );
+    $v =~ s/\A\s+//;
+    $v =~ s/\s+\z//;
+    return ( 2,     undef ) if $v eq '';
+    return ( undef, undef ) if $v =~ /\A(?:0|off|no|false|disabled)\z/;
+    return ( 0,     undef ) if $v =~ /\A(?:1|on|yes|true|enabled|all)\z/;
+    my %rank = ( debug => 0, info => 1, warn => 2, warning => 2, error => 3, err => 3 );
+    return ( $rank{$v}, undef ) if exists $rank{$v};
+    return ( 2,         $v );
+}
+
+# The inverse of log_event's level -> syslog priority map, so forward_line can
+# apply the diagnostics threshold to a line it only ever sees as a priority.
+#
+# An unknown priority ranks as err, not info: it is forwarded under every
+# setting except "off". The point of this filing is diagnostics that went
+# nowhere, so a line we cannot classify is one to pass on rather than drop.
+my %SYSLOG_RANK = ( debug => 0, info => 1, warning => 2, err => 3 );
+
+sub _syslog_rank { return $SYSLOG_RANK{ lc( $_[0] // '' ) } // 3 }
+
+# SM932: reported only AFTER %FWD is fully built - never during. log_event calls
+# forward_line calls _forward_conf, so warning mid-construction would forward
+# against half-set values; by the time this runs $FWD{loaded} short-circuits the
+# re-entry and every field has its value. Its own latch, separate from
+# $fwd_warned, so a transport failure cannot suppress a config complaint.
+sub _forward_conf_warn {
+    my ( $message, $path, $detail ) = @_;
+    return if $fwd_conf_warned++;
+    log_event( 'WARN', 'forwarding', $message,
+        file  => ( $path   // '' ),
+        error => ( $detail // '' ) );
+    return;
 }
 
 # Service killswitches (0.9.0): a network surface (MCP, OAuth, the control-API
@@ -298,25 +372,53 @@ sub _forward_conf {
         diag     => $ENV{LAZYSITE_FORWARD_DIAGNOSTICS},
         facility => $ENV{LAZYSITE_SYSLOG_FACILITY},
     );
+    my ( $conf_path, $conf_error );
     unless ( defined $want{audit} && defined $want{diag} && defined $want{facility} ) {
         my $dir =
             defined $Lazysite::Audit::LAZYSITE_DIR ? $Lazysite::Audit::LAZYSITE_DIR
             : defined $ENV{DOCUMENT_ROOT} ? Lazysite::Paths::lazysite_dir( $ENV{DOCUMENT_ROOT} )
             :                               undef;
-        if ( defined $dir && open my $fh, '<', "$dir/lazysite.conf" ) {
-            while ( my $l = <$fh> ) {
-                $want{audit}    //= $1 if $l =~ /^forward_audit\s*:\s*(\S+)/;
-                $want{diag}     //= $1 if $l =~ /^forward_diagnostics\s*:\s*(\S+)/;
-                $want{facility} //= $1 if $l =~ /^syslog_facility\s*:\s*(\S+)/;
+        if ( defined $dir ) {
+            $conf_path = "$dir/lazysite.conf";
+
+            # SM932: this read decides whether the engine has a second sink, so
+            # it may not fail in silence. It had no else branch at all, which is
+            # the four-state defect SM917 swept out of the store readers - and
+            # the one place it could not be fixed the same way, because
+            # cannot_read() logs through log_event and log_event arrives here.
+            # $! is captured immediately and reported at the end of the sub.
+            if ( open my $fh, '<', $conf_path ) {    # not a store - site config
+                while ( my $l = <$fh> ) {
+                    $want{audit}    //= $1 if $l =~ /^forward_audit\s*:\s*(\S+)/;
+                    $want{diag}     //= $1 if $l =~ /^forward_diagnostics\s*:\s*(\S+)/;
+                    $want{facility} //= $1 if $l =~ /^syslog_facility\s*:\s*(\S+)/;
+                }
+                close $fh;
             }
-            close $fh;
+            elsif ( !$!{ENOENT} ) {
+                $conf_error = "$!";
+            }
         }
     }
     $FWD{audit} = _conf_bool( $want{audit} );
-    $FWD{diag}  = _conf_bool( $want{diag} );
+    my ( $diag_rank, $diag_bad ) = _conf_diag_rank( $want{diag} );
+    $FWD{diag} = $diag_rank;
     my $fac = lc( $want{facility} // 'daemon' );
     $fac = 'daemon' unless $fac =~ /^(?:daemon|local[0-7])$/;
     $FWD{facility} = $fac;
+
+    # Both of these are reported through log_event, which re-enters this sub -
+    # safe only because %FWD is complete and $FWD{loaded} is already 1. They
+    # share one latch: an unreadable conf yields no value to be unrecognised, so
+    # the two cannot both be true from the file, and one complaint is enough.
+    _forward_conf_warn(
+        'cannot read the log forwarding config - forwarding falls back to its defaults',
+        $conf_path, $conf_error )
+        if defined $conf_error;
+    _forward_conf_warn(
+        'unrecognised forward_diagnostics value - forwarding WARN and above instead',
+        $conf_path, $diag_bad )
+        if defined $diag_bad;
     return \%FWD;
 }
 
@@ -334,7 +436,18 @@ sub _forward_warn {
 sub forward_line {
     my ( $stream, $priority, $line ) = @_;
     my $cfg = _forward_conf();
-    return unless $cfg->{ $stream eq 'audit' ? 'audit' : 'diag' };
+
+    # SM932: the audit stream stays a boolean; the diagnostics stream carries a
+    # THRESHOLD, applied here rather than in log_event because four plugins
+    # (audit, form-handler, form-smtp, payment-demo) carry their own log_event
+    # copy and call straight into this sub. One gate, five callers.
+    if ( $stream eq 'audit' ) {
+        return unless $cfg->{audit};
+    }
+    else {
+        return unless defined $cfg->{diag};
+        return if _syslog_rank($priority) < $cfg->{diag};
+    }
     if ( defined $ENV{LAZYSITE_SYSLOG_DUMP} && length $ENV{LAZYSITE_SYSLOG_DUMP} ) {
         my $ok = eval {
             open my $fh, '>>', $ENV{LAZYSITE_SYSLOG_DUMP} or die "$!\n";

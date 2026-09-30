@@ -45,12 +45,22 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                         . 'to syslog at INFO priority, tagged "lazysite".',
                 },
                 {
+                    # SM932: a LEVEL, not a boolean, and blank is not off - blank
+                    # forwards WARN and above, which is what an install that
+                    # never touches this field now does. NO `default` KEY: a
+                    # pre-filled value makes the form assert a setting the
+                    # operator never chose, which is the SM925 X2 trap (a
+                    # descriptor's `default => '5222'` overruled the SRV record
+                    # on every site whose operator left the field alone).
                     key     => 'forward_diagnostics',
                     label   => 'Forward diagnostics to syslog',
-                    type    => 'boolean',
-                    default => 'false',
+                    type    => 'select',
+                    options => [ '', 'off', 'error', 'warn', 'info', 'debug', 'on' ],
                     note    => 'Application log events are also sent to syslog at '
-                        . 'their mapped priority (DEBUG/INFO/WARNING/ERR).',
+                        . 'their mapped priority (DEBUG/INFO/WARNING/ERR). Leave '
+                        . 'BLANK for the default, which forwards WARN and above. '
+                        . 'A level forwards that level and above; "on" forwards '
+                        . 'every level; "off" forwards nothing.',
                 },
                 {
                     key     => 'syslog_facility',

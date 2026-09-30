@@ -4,17 +4,26 @@ title: "SM932: the engine writes its diagnostics to a sink it cannot verify, and
 subtitle: "An operator grepped Apache's error_log through four failing submissions and found nothing; the same code from a terminal printed the error immediately. `log_event` has exactly two sinks - an unconditional `print STDERR`, and a syslog copy that is off unless configured - so on a FastCGI stack where a child's STDERR does not reach error_log, the engine's entire diagnostic voice is unreachable by default. 0.15.0 and 0.15.1 were largely about making the engine say what went wrong."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-09-30
 raised-by: engine agent, verifying a related observation in the site agent's XMPP thread
 area: observability
-status-note: "RULED 2026-09-30, NOT BUILT. The release manager ruled TURN SYSLOG FORWARDING ON BY DEFAULT and fix _forward_conf's silent failure - the smallest change that gives the engine a second sink, using a mechanism already built, tested and documented rather than adding a store. RECOMMENDED THRESHOLD, measured and offered for acceptance rather than assumed: forward WARN and above by default, leaving INFO and DEBUG to the existing forward_diagnostics key. The census says WARN is where the work lives (cannot_read logs at WARN; 804 WARN and 234 ERROR call sites against 704 INFO) and a WARN-and-above default changes no install's INFO volume. Say the word and it forwards everything. _forward_conf CANNOT take a plain cannot_read branch - log_event calls it and would recurse; the file already solves the analogous case with the $fwd_warned++ once-per-process latch in _forward_warn, and that is the pattern to use. WHAT THIS RULING DOES NOT CLOSE, and it is deliberate: a site operator who is not the host operator still cannot read syslog, so the manager still shows nothing and an agent still cannot read diagnostics. The engine-owned log (option 1) is DEFERRED, not refused. OP-29 is the measurement that says whether it is still needed."
+status-note: "PARTIAL - the ruling is BUILT, the deferred half is not. SHIPPED (PENDING ref): forward_diagnostics becomes a LEVEL whose default is WARN and above, so every install has a second sink without any configured install changing behaviour (on/true still means every level); the threshold lives in forward_line so the four plugin log_event copies inherit it; _forward_conf's silent conf read now captures $! and reports after %FWD is built behind its own latch, which is the only way it can report at all since log_event arrives through it; an unrecognised value is named rather than coerced; the log.pl descriptor loses its `default` key (the SM925 X2 trap). Tests: t/unit/lib/56 (seven states), t/unit/forms/12 gains the no-key-still-forwards case and spells its `off` case explicitly. Seven sabotages, seven refusals. Docs: FEATURES, OPERATOR, starter configuration and ai-briefing-configuration, four plugin comments. NOT BUILT and deliberately so: (1) the engine-owned diagnostic log the manager and an agent could read - DEFERRED, not refused, because syslog is the HOST operator's log and a site operator still sees nothing; OP-29's fleet measurement should decide whether it is still wanted now two sinks exist. (2) the `lazysite check` reachability probe, which is worth MORE after this change than before it - two sinks means two things that can each fail quietly, and syslog fails the quieter of the two because _forward_warn reports at most once per process. Neither is scheduled. ORIGINAL RULING TEXT: RULED 2026-09-30, NOT BUILT. The release manager ruled TURN SYSLOG FORWARDING ON BY DEFAULT and fix _forward_conf's silent failure - the smallest change that gives the engine a second sink, using a mechanism already built, tested and documented rather than adding a store. RECOMMENDED THRESHOLD, measured and offered for acceptance rather than assumed: forward WARN and above by default, leaving INFO and DEBUG to the existing forward_diagnostics key. The census says WARN is where the work lives (cannot_read logs at WARN; 804 WARN and 234 ERROR call sites against 704 INFO) and a WARN-and-above default changes no install's INFO volume. Say the word and it forwards everything. _forward_conf CANNOT take a plain cannot_read branch - log_event calls it and would recurse; the file already solves the analogous case with the $fwd_warned++ once-per-process latch in _forward_warn, and that is the pattern to use. WHAT THIS RULING DOES NOT CLOSE, and it is deliberate: a site operator who is not the host operator still cannot read syslog, so the manager still shows nothing and an agent still cannot read diagnostics. The engine-owned log (option 1) is DEFERRED, not refused. OP-29 is the measurement that says whether it is still needed."
 ---
 
-# The ruling
+# The ruling, and it is built
 
 **RULED 2026-09-30: turn syslog forwarding on by default**, and fix
-`_forward_conf`'s silent failure at the same time.
+`_forward_conf`'s silent failure at the same time. **Both are built** - see the
+status-note for what shipped and what is deliberately still open. The two larger
+directions further down are unchanged and neither is scheduled.
+
+One thing the build settled that the ruling did not specify: `forward_diagnostics`
+had to stop being a boolean, because "on by default at WARN and above" is not a
+state a boolean can hold. It is now a level - blank for the default, `off`, a
+level name, or `on` for every level - and `on` keeping its old meaning of *every*
+level is what makes the change invisible to any site that had already configured
+it.
 
 The reasoning is that this is the smallest change that removes the single point of
 failure. `forward_diagnostics` is already built, already tested and already

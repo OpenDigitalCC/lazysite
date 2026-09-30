@@ -451,11 +451,29 @@ To also forward log streams to syslog for an external collector (the
 "Logging & forwarding" extension manages these keys):
 
     forward_audit: off        # audit-trail entries -> syslog, INFO priority
-    forward_diagnostics: off  # application log events -> mapped priority
+    forward_diagnostics:      # blank = WARN and above (the default)
     syslog_facility: daemon   # or local0..local7
 
 Forwarding is best-effort and never blocks the site; the files under
 `lazysite/logs/` remain the record.
+
+**Diagnostics are forwarded by default, at WARN and above.** The application's
+own log events go to STDERR, and whether STDERR reaches a log you can read is
+decided by the web server rather than by the site - on some FastCGI arrangements
+it reaches nothing at all. syslog is the second sink, so a warning the engine
+raises is not lost because of how the site is fronted.
+
+`forward_diagnostics` takes a level rather than a yes/no:
+
+| Value | Forwards |
+| --- | --- |
+| *blank or absent* | WARN and above - the default |
+| `off` | nothing |
+| `error` / `warn` / `info` / `debug` | that level and above |
+| `on` | every level |
+
+`forward_audit` is separate, is a plain on/off, and stays **off** by default: it
+copies an access record rather than a diagnostic.
 
 ## Layouts and themes
 

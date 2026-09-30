@@ -44,6 +44,60 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM932 (PENDING) **a diagnostic now reaches a second sink, because the first one
+  was never verifiable.** `log_event`'s only unconditional sink was
+  `print STDERR`, and whether a CGI's STDERR reaches a log anybody can read is
+  the web server's decision rather than the engine's. On an nginx -> Apache ->
+  `proxy_fcgi` install it reaches nothing: an operator debugging a live site
+  grepped `error_log` through four failing submissions and found no line, while
+  the same code from a terminal printed the cause immediately. An hour went into
+  eliminating six gates on the strength of an absence that meant nothing. That
+  lands on what 0.15.0 and 0.15.1 were largely about - SM906, SM907, SM917 and
+  SM918 all deliver through a WARN - so the diagnostic half of two releases was
+  being written to a place the operator might not have.
+
+  Ruled 2026-09-30: **`forward_diagnostics` is on by default, at WARN and above.**
+  It becomes a LEVEL rather than a boolean - blank (the default) forwards WARN and
+  above, `off` forwards nothing, a level name forwards that level and above, and
+  `on` forwards every level, which is exactly what an install that already set it
+  was getting. So no configured site changes behaviour; only a site that never
+  found the key moves, and it moves from nothing to WARN and above.
+
+  WARN is the threshold because it was measured rather than preferred:
+  `cannot_read` logs at WARN, so WARN-and-above carries every repair the
+  four-state work produced, and forwarding nothing new at INFO means no install's
+  syslog volume changes on upgrade. The threshold lives in `forward_line`, not in
+  `log_event`, because four plugins carry their own `log_event` copy and call
+  straight into it - one gate, five callers.
+
+  The second half is the defect in the forwarding path itself: `_forward_conf`
+  read `lazysite.conf` with no else branch, so a conf the process could not open
+  silently left forwarding off - the four-state shape SM917 swept out of the store
+  readers, in the one place it could not be fixed the same way, because
+  `cannot_read` reports through `log_event` and `log_event` arrives here. It now
+  captures `$!` and reports after `%FWD` is built, behind its own
+  once-per-process latch. An unrecognised value is named too, rather than
+  silently coerced.
+
+  The `forward_diagnostics` descriptor loses its `default` key: a pre-filled value
+  makes the form assert a setting the operator never chose, which is the SM925 X2
+  trap where `default => '5222'` overruled the SRV record on every site whose
+  operator left the field alone. `forward_audit` is untouched - a plain on/off,
+  still off by default, since it copies an access record rather than a diagnostic.
+
+  WHAT THIS DOES NOT DO, and it is deliberate: syslog is the host operator's log,
+  not the site's. The manager still shows nothing and an agent still cannot read
+  the engine's diagnostics, which was the actual gap. The engine-owned diagnostic
+  log is deferred rather than refused, and the fleet measurement (OP-29) is what
+  should decide whether it is still wanted now there are two sinks. A
+  `lazysite check` that verifies reachability is worth MORE after this, not less -
+  two sinks means two things that can each fail quietly - and is not built.
+
+  `t/unit/lib/56` pins all seven states, `t/unit/forms/12` gains the case where a
+  conf that says nothing still forwards a plugin's ERROR, and its old "forwarding
+  off" case now spells `off` explicitly instead of relying on absence. Seven
+  sabotages, seven refusals.
+
 ## 0.15.1 - EDGE: a file that will not open stops reading as one with nothing in it, and a row's controls stay with the row (2026-09-30)
 
 - SM919 (98fccca0) **a row's tick box and its Delete button no longer sit at

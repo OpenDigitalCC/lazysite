@@ -584,10 +584,14 @@ The writer is failure-loud: the log is created umask-proof at `0664` (so the CLI
 and the www-data CGI can always append to the same file via the setgid logs dir),
 an owned file that lost its group-write bit self-heals on the next append, and a
 write that still fails emits a WARN naming the lost action instead of vanishing.
-The **Logging & forwarding** plugin can additionally forward each audit entry
-(and, separately, application diagnostics) to syslog (`forward_audit` /
-`forward_diagnostics` / `syslog_facility`) for an external collector -
-best-effort, never blocking, with the on-disk log as the record.
+Application diagnostics are forwarded to syslog **at WARN and above by default**
+(SM932): `log_event`'s other sink is STDERR, and whether STDERR reaches a readable
+log is the web server's decision rather than the engine's - on some FastCGI
+arrangements it reaches nothing. `forward_diagnostics` takes a level (blank =
+WARN and above, `off`, a level name, or `on` for every level). The **Logging &
+forwarding** plugin manages that key and `syslog_facility`, and can separately
+forward each audit entry (`forward_audit`, a plain on/off, default **off**).
+All forwarding is best-effort, never blocking, with the on-disk log as the record.
 
 ---
 

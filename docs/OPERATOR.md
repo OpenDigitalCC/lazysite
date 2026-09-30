@@ -289,9 +289,17 @@ systemctl restart lazysited@<domain>
   per-user from each account's card. Shell user management is on the trail
   too (origin `cli`, attributed to the invoking system user);
   installs/upgrades appear as origin `install`.
-- Optional syslog forwarding of the audit trail and/or diagnostics for an
-  external collector: the **Logging & forwarding** plugin
-  (`forward_audit` / `forward_diagnostics` / `syslog_facility`).
+- **Diagnostics reach syslog by default, at WARN and above** (SM932). The other
+  sink is the CGI's STDERR, and whether that lands in the web server's error log
+  is decided by the front end: on an nginx -> Apache -> `proxy_fcgi` arrangement a
+  FastCGI child's STDERR may reach nothing, so an engine warning would otherwise
+  be unreadable. `forward_diagnostics` takes a level - blank for the default,
+  `off`, a level name, or `on` for every level. **If you are looking for a
+  warning the engine says it raised, look in syslog before concluding it never
+  happened.**
+- Optional syslog forwarding of the audit trail as well: `forward_audit`, a plain
+  on/off, default **off**. Both keys and `syslog_facility` are managed by the
+  **Logging & forwarding** plugin.
 - Apache logs: the vhost's usual access/error logs.
 
 ## Routine tasks

@@ -283,7 +283,7 @@ plugins:
 log_level: INFO        # ERROR, WARN, INFO, DEBUG
 log_format: text       # text or json
 forward_audit: off        # also send audit entries to syslog
-forward_diagnostics: off  # also send app log events to syslog
+forward_diagnostics:      # blank = WARN and above; off, a level, or on
 syslog_facility: daemon   # or local0..local7
 ```
 

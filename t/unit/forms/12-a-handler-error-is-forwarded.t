@@ -89,8 +89,41 @@ sub rig {
 }
 
 # --- forwarding OFF: nothing lands, and the submission is unaffected --------
+#
+# SM932 changed what "off" is spelled as. This block used to write a conf with no
+# forward_diagnostics key at all and call that off, which was true while absent
+# meant off. Absent now means WARN and above, so the key is written explicitly -
+# and the case immediately after it pins the new default, so this file still
+# carries a true AND a false example rather than only the negative one.
 {
     my ( $d, $dump ) = rig('off');
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: T\nforward_diagnostics: off\n";
+    close $cf;
+    my $body = 'form=no-such-form&name=x';
+    my $bf   = "$d/.body";
+    open my $b, '>', $bf or die $!;
+    print {$b} $body;
+    close $b;
+    local %ENV = ( env_passthrough(),
+        DOCUMENT_ROOT        => $d,
+        REQUEST_METHOD       => 'POST',
+        CONTENT_TYPE         => 'application/x-www-form-urlencoded',
+        CONTENT_LENGTH       => length $body,
+        REMOTE_ADDR          => '203.0.113.5',
+        LAZYSITE_SYSLOG_DUMP => $dump,
+    );
+    my $out = qx($^X \Q$root/plugins/form-handler.pl\E < \Q$bf\E 2>/dev/null);
+    like( $out, qr/"ok":0/, 'the refusal is still answered' );
+    ok( !-s $dump, 'and with forwarding explicitly off nothing is forwarded' );
+}
+
+# --- SM932: a conf that says NOTHING forwards the ERROR anyway ---------------
+# The whole point of the ruling: this plugin's ERROR used to reach only STDERR on
+# a site whose operator never found the forwarding key, and on a FastCGI stack
+# STDERR reaches nobody. Same rig as above with the key removed rather than set.
+{
+    my ( $d, $dump ) = rig('default');
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
     close $cf;
@@ -109,7 +142,8 @@ sub rig {
     );
     my $out = qx($^X \Q$root/plugins/form-handler.pl\E < \Q$bf\E 2>/dev/null);
     like( $out, qr/"ok":0/, 'the refusal is still answered' );
-    ok( !-s $dump, 'and with forwarding off nothing is forwarded' );
+    like( slurp($dump), qr/^err .*processing failed/m,
+        'SM932: with no forward_diagnostics key at all, the ERROR still reaches syslog' );
 }
 
 # --- payment-demo: its copy hands the line on too (pinned at source) --------
