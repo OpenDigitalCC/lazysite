@@ -52,9 +52,26 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = _lz($DOCROOT);
-my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
-my $COOKIE_NAME  = 'lazysite_payment_demo';
-my $COOKIE_MAX   = 3600;                      # 1 hour - demo payments expire
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
+my $AUTH_DIR    = "$LAZYSITE_DIR/auth";
+my $COOKIE_NAME = 'lazysite_payment_demo';
+my $COOKIE_MAX  = 3600;                      # 1 hour - demo payments expire
 
 # --- Main ---
 
@@ -98,7 +115,7 @@ sub handle_pay {
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
-    log_event( 'INFO', $page, 'demo payment created', ip => $ENV{REMOTE_ADDR} // '' );
+    log_event( 'INFO', $page, 'demo payment created', ip => _request_ip() );
 
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
@@ -134,7 +151,7 @@ sub handle_request {
                 if ( $uri eq $page ) {
                     $ENV{HTTP_X_PAYMENT_VERIFIED} = '1';
                     $ENV{HTTP_X_PAYMENT_PAYER}    = 'demo-wallet';
-                    log_event( 'INFO', $page, 'payment verified', ip => $ENV{REMOTE_ADDR} // '' );
+                    log_event( 'INFO', $page, 'payment verified', ip => _request_ip() );
                 }
             }
         }

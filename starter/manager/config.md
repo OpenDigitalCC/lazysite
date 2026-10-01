@@ -58,6 +58,15 @@ var SITE_SCHEMA = [
   { key: 'backup_retention', placeholder: '3', label: 'Backups to keep (per kind)', type: 'text',
     default: '3', group: 'Content',
     note: 'How many backups of each kind to keep - manual, pre-restore, theme and layout snapshots. The newest is never removed. 0 keeps every one.' },
+  // SM929: who the engine believes the visitor is. Behind a reverse proxy every
+  // address the engine records - a form submission's, the audit trail's, the login
+  // and form rate-limit buckets, the bad-URL auto-blocker's - was the PROXY's, one
+  // constant for every visitor the site will ever have. Naming the proxy here lets
+  // the engine read the forwarded header it sets, and ONLY then.
+  { key: 'trusted_proxies', placeholder: 'private ranges (10/8, 172.16/12, 192.168/16)',
+    label: 'Trusted proxy addresses', type: 'text', default: '',
+    group: 'Front end (reverse proxy)',
+    note: 'Addresses or ranges (comma separated, CIDR allowed) of the reverse proxy in front of this site. Only a request arriving FROM one of these is allowed to say who the visitor is via X-Forwarded-For; from anywhere else the connecting address is used and the header is ignored, so a visitor cannot choose what the site records about them. Empty means the private ranges 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16. If your front end runs on this machine, add its address - 127.0.0.1 is NOT trusted unless you name it. Enter none to ignore forwarded headers entirely.' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
     on: 'true', off: 'false', default: 'true' },
   { key: 'asset_max_age', placeholder: '0 - re-check every time', label: 'Asset cache lifetime (seconds)', type: 'text',

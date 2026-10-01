@@ -132,7 +132,24 @@ if ( grep { $_ eq '--pipe' } @ARGV ) {
 
 my $DOCROOT      = _docroot() or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = _lz($DOCROOT);
-my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
+my $FORMS_DIR = "$LAZYSITE_DIR/forms";
 
 eval {
     my $json = do { local $/; <STDIN> };
@@ -294,7 +311,7 @@ sub send_email {
     push @lines, "";
     push @lines, "-" x 40;
     push @lines, "Submitted: " . strftime( '%A, %d %B %Y at %H:%M:%S %Z', localtime );
-    push @lines, "IP:        " . ( $ENV{REMOTE_ADDR} // 'unknown' );
+    push @lines, "IP:        " . ( _request_ip() || 'unknown' );
 
     my $body = join( "\n", @lines ) . "\n";
 

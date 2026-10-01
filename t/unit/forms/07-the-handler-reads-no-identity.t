@@ -54,8 +54,14 @@ unlike( $code, qr/_audit_submission\([^)]*\$auth_user/,
 
 # The address is a fact that IS known, and must still be recorded - dropping the
 # actor should not quietly drop the provenance with it.
-like( $code, qr/_audit_submission\([^)]*REMOTE_ADDR/,
+#
+# SM929: it reads the REQUEST address now rather than REMOTE_ADDR, which behind a
+# front proxy was the proxy on every row. The claim this test makes is unchanged -
+# the address is still audited - so only the spelling of it moves.
+like( $code, qr/_audit_submission\([^)]*_request_ip/,
     'the submitting address is still audited' );
+unlike( $code, qr/_audit_submission\([^)]*REMOTE_ADDR/,
+    'and not the front proxy, which is what REMOTE_ADDR is behind one' );
 
 # The delivery targets skip _-prefixed keys. Asserted because it is the reason
 # `_auth_user` was harmless, and if it ever stopped being true a future

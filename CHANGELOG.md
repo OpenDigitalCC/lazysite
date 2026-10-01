@@ -154,6 +154,67 @@ Naming the commit: AFTER it lands, never before
   The filing's other half - a **section construct** for a long form - is still filed
   and still not built. A grammar rule is documented, tested and supported forever,
   and none of the three candidate shapes should be chosen on one report.
+- SM929 (PENDING) **one definition of the request address, and the one reader that
+  consulted the forwarded header stops believing it.** Behind a front proxy every
+  address the engine recorded was the PROXY's - the same value for every visitor a
+  site would ever have. That is how this was found: nine stored enquiries on a
+  customer site, from six unrelated spam campaigns and two organisations, every one
+  recording `10.2.30.177`.
+
+  **Forty-four reads across nine files**, surveyed rather than assumed: ten drove a
+  decision and thirty-three went on the record. The two rate limits (login, form)
+  shared one bucket between every visitor; the **bad-URL auto-blocker**, enabled by
+  default at ten bad URLs an hour, wrote that shared address into its block list,
+  after which it denied every request from everybody to that site. The daily
+  "distinct visitors" count hashed the proxy once a day however many people called.
+
+  **And `client_ip` was forgeable, which was measured before anything was built.** A
+  probe page on a live site rendered this caller's real public address on an ordinary
+  request - and `203.0.113.7` when the same request carried
+  `X-Forwarded-For: 203.0.113.7`. A visitor chose what the engine believed, so
+  unifying removed an untrusted read as well as adding a trusted one.
+
+  **THE FILING'S OWN RECOMMENDATION WAS CORRECTED BY THAT MEASUREMENT.** It asked for
+  the FIRST hop of `X-Forwarded-For`, which is right for a proxy that *replaces* the
+  header and wrong for one that *appends*: a caller-supplied value then arrives ahead
+  of the true one, and the first hop is the forged one. The rule built instead:
+  `REMOTE_ADDR` unless it is a trusted proxy, and then the **rightmost** hop that a
+  trusted peer did not contribute; a hop that will not parse ends the walk rather
+  than being stepped over, because stepping over it moves further into the part of
+  the chain the caller controls.
+
+  The trust basis is `trusted_proxies`, a named list in site settings on the Config
+  page - **not** `auth_proxy_trusted`, which was read before it was ruled out: that
+  is a boolean about `X-Remote-*` auth headers with no hop check at all ([[SM794]]),
+  and making it mean "and also believe this address" would put two unrelated trust
+  decisions behind one switch. Absent or empty means the private ranges, because the
+  field ships empty and pressing Save writes empty - reading that as "trust nothing"
+  would have disabled the feature for anyone who merely saved the page. `none` is the
+  way to say no. A `/0` range is refused: a trust set matching every caller is the
+  fault being fixed.
+
+  **With no forwarded header every one of the forty-four reads returns exactly what
+  it returned before**, which is what made a change in forty-four places safe to make
+  at once. Five reads deliberately stay on `REMOTE_ADDR` - the no-password account
+  gate and the four plaintext-transport gates - because they ask whether the PEER is
+  this machine, not who the visitor is; `t/lint/206` holds the ledger of all five
+  with the reason for each, and asserts the peer value is what the peer question is
+  asked of, after a sabotage showed that counting the reads alone let the DAV gate
+  change meaning unnoticed.
+
+  The shipped nginx proxy templates now send `X-Forwarded-For` (they set only `Host`
+  before, so a correctly-fronted site had nothing for the engine to read) and every
+  Hestia template's revision moves to `2026-10-01`, which is how the rollout table
+  reports a site that still needs its vhost rebuilt. `lazysite-check` names a
+  `trusted_proxies` entry it cannot parse. UPGRADE.md states both operator steps and
+  says plainly that a site behind a proxy will start recording real visitor
+  addresses where it recorded one private constant before.
+
+  ADR 0001 keeps the render path module-free, so the processor carries a pinned copy
+  and `t/lint/205` holds the two identical, clause by clause. `t/lint/39` caught the
+  first version of that copy: the private-range default was a file-scoped `our`
+  BELOW the main body, which is empty when a request is served - it is a sub in both.
+  Thirteen sabotages, thirteen refusals.
 
 - SM921 (PENDING) **a `tel` field validates something now, and a pattern a browser
   cannot compile is refused where an author will see it.** BEHAVIOUR CHANGE WORTH

@@ -1,4 +1,4 @@
-# lazysite-template-rev: 2026-09-11
+# lazysite-template-rev: 2026-10-01
 #=========================================================================#
 # lazysite-proxy Web Proxy Template (nginx in front of Apache)            #
 # Shipped by the lazysite-hestia package; copy to                         #
@@ -34,6 +34,19 @@ server {
     # front end's own configuration, which SM286 says a lazysite template must
     # not have, so it is stated here instead of assumed.
     proxy_set_header Host $host;
+
+    # SM929: TELL THE ENGINE WHO THE VISITOR IS. Without this the engine sees only
+    # this proxy, so every address it records - a form submission's, the audit
+    # trail's, the login and form rate-limit buckets, the bad-URL auto-blocker's -
+    # was one constant for every visitor the site would ever have.
+    #
+    # $proxy_add_x_forwarded_for APPENDS this connection's peer to whatever the
+    # caller sent, which is why the engine walks the chain FROM THE RIGHT: a caller
+    # who writes their own X-Forwarded-For puts a value ahead of ours, never after
+    # it. The engine ignores the header entirely unless the request arrives from an
+    # address named in `trusted_proxies` (default: the private ranges), so this line
+    # grants no trust by itself.
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
     # The observable. SM283 shipped for weeks with no way for an operator to
     # tell from outside whether the front end in front of them was the

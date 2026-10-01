@@ -11,9 +11,10 @@ use strict;
 use warnings;
 use Lazysite::Paths ();
 use POSIX           ();
+use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies);
 
 our $COMPONENT = 'lazysite';
 
@@ -266,6 +267,180 @@ sub request_host {
         unless $host =~ /\A [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )?
                          (?: \. [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )? )* \z/x;
     return $host;
+}
+
+# SM929, RULED 2026-10-01: ONE DEFINITION OF THE REQUEST ADDRESS, AND ITS TRUST
+# BASIS IS A NAMED LIST THAT DEFAULTS TO THE PRIVATE RANGES.
+#
+# Everything that asks "who is this request from" asked it differently. Forty-four
+# reads across nine files: ten drove a DECISION (the login and form rate limits,
+# the bad-URL auto-blocker, the DAV rate gate) and thirty-three went on the RECORD
+# (`_ip` on a submission, the audit trail's actor column, the notification email,
+# the daily visitor hash). Behind a front proxy every one of them saw the PROXY -
+# one constant for every visitor a site will ever have, which is how SM929 was
+# found: nine stored enquiries from six unrelated campaigns, all recording
+# 10.2.30.177. A rate limit keyed on a constant is one bucket for the world, and
+# the auto-blocker, whose threshold is ten bad URLs in an hour, blocks that
+# constant - which is every visitor to the site.
+#
+# AND THE ONE READER THAT DID CONSULT THE FORWARDED HEADER TRUSTED IT BLINDLY.
+# `client_ip` in the render path took the FIRST hop whenever the header was
+# present. MEASURED ON A LIVE SITE 2026-10-01: an ordinary request rendered this
+# caller's real public address, and the same request with
+# `X-Forwarded-For: 203.0.113.7` rendered 203.0.113.7. A visitor chose what the
+# engine believed, so unifying REMOVES an untrusted read as well as adding a
+# trusted one.
+#
+# WHY THE RIGHTMOST HOP AND NOT THE FIRST. The filing asked for the first address,
+# which is right for a proxy that REPLACES the header and wrong for one that
+# APPENDS: a caller-supplied value then arrives AHEAD of the true one, which is
+# exactly what that measurement shows. Walking from the right, every hop a trusted
+# peer contributed is itself trusted, so the first address that is NOT trusted is
+# the furthest one attributable to a peer we trust. A hop we cannot parse ENDS the
+# walk rather than being skipped: skipping it would step further left, into the
+# part of the chain the caller controls.
+#
+# THE TRUST BASIS IS THE PEER, WHICH NO CLIENT CAN SET. That is what makes this
+# different in kind from the SM794 header-trust shape: REMOTE_ADDR comes from the
+# server's own accept(), so there is no sentinel to forge and nothing for the trust
+# source to clear. `auth_proxy_trusted` was considered and is NOT reused - it is a
+# boolean about X-Remote-* AUTH headers with no hop check at all (SM794), so making
+# it mean "and also believe this address" would overload one switch with two
+# unrelated trust decisions.
+sub _trusted_proxy_default {
+    # A SUB, NOT A PACKAGE ARRAY: in the processor a file-scoped `our` below the
+    # main body is EMPTY when a request is served (t/lint/39 names exactly this),
+    # which would have left the render path trusting nothing and silently reading
+    # the peer. A sub is initialised at call time and cannot be too early.
+    return ( '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16' );
+}
+
+# The raw `trusted_proxies` line, or undef when the key is absent - which is NOT
+# the same as empty. Four states, and they differ:
+#   absent        -> undef -> the RFC1918 default above
+#   empty         -> ''    -> trust nothing (clearing the field is a decision)
+#   `none`        -> ''    -> trust nothing, said out loud
+#   a list        -> that list, and only that
+sub trusted_proxy_spec {
+    my ($lazysite_dir) = @_;
+    # Defined FIRST: form-handler.pl's $LAZYSITE_DIR is undef when the handler
+    # library is missing, and interpolating it to build the path would warn.
+    return undef unless defined $lazysite_dir && length $lazysite_dir;
+    my $conf = "$lazysite_dir/lazysite.conf";
+    return undef unless -f $conf;
+    open my $fh, '<:utf8', $conf or return undef;
+    my $spec;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^trusted_proxies\s*:\s*(.*?)\s*$/;
+        $spec = $1;
+        last;
+    }
+    close $fh;
+    return $spec;
+}
+
+# ($set, $rejected) - the parsed trust set, and every word that is not an address
+# or range. PURE, and silent by design: the processor carries a pinned copy of this
+# (ADR 0001) and a copy that logged would drift from one that could not. The
+# REPORTING lives where an operator looks - tools/lazysite-check.pl names a rejected
+# entry, because a trust list with a typo in it is a declaration the code ignores.
+sub parse_trusted_proxies {
+    my ($spec) = @_;
+    $spec = '' unless defined $spec;
+    $spec =~ s/\A\s+//;
+    $spec =~ s/\s+\z//;
+    my @words;
+    # ABSENT AND EMPTY ARE THE SAME ANSWER, deliberately, and `none` is how an
+    # operator says no. The Config page ships this field EMPTY and pressing Save
+    # writes an empty value - SM782 names the same shape for backup_retention - so
+    # reading empty as "trust nothing" would turn the feature off for any site
+    # whose operator merely saved the page, silently, and put the proxy's address
+    # back on every submission.
+    if    ( !length $spec )       { @words = _trusted_proxy_default() }
+    elsif ( lc($spec) eq 'none' ) { return ( [], [] ) }
+    else                          { @words = split /[\s,]+/, $spec }
+    my ( @set, @rejected );
+    for my $w (@words) {
+        my ( $addr, $bits ) = split m{/}, $w, 2;
+        my $packed = _packed_address( $addr // '' );
+        if ( !length $packed ) { push @rejected, $w; next }
+        my $width = length($packed) * 8;
+        $bits = $width if !defined $bits || !length $bits;
+        # A zero-length prefix would match every peer, which makes the trust check
+        # vacuous - the fault this whole change exists to remove. Refused, not
+        # honoured: an operator who means that can name the ranges.
+        if ( $bits !~ /\A[0-9]+\z/ || $bits + 0 > $width || $bits + 0 == 0 ) {
+            push @rejected, $w;
+            next;
+        }
+        push @set, [ $packed, $bits + 0 ];
+    }
+    return ( \@set, \@rejected );
+}
+
+# The address as bytes, or '' when it is not one. '' rather than undef so a caller
+# tests `length` in any context - a bare `return` in list context is the trap
+# feedback_bare_return_list_context names.
+sub _packed_address {
+    my ($text) = @_;
+    return '' unless defined $text && length $text;
+    return '' if $text =~ /[^0-9A-Fa-f:.]/;
+    my $family = ( index( $text, ':' ) >= 0 ) ? AF_INET6 : AF_INET;
+    my $packed = eval { inet_pton( $family, $text ) };
+    return ( defined $packed && length $packed ) ? $packed : '';
+}
+
+# One address, one spelling - the same reasoning as lowercasing the request host.
+sub _text_address {
+    my ($packed) = @_;
+    my $family   = length($packed) == 4 ? AF_INET : AF_INET6;
+    my $text     = eval { inet_ntop( $family, $packed ) };
+    return defined $text ? $text : '';
+}
+
+sub _address_in_set {
+    my ( $packed, $set ) = @_;
+    return 0 unless defined $packed && length $packed;
+    for my $entry ( @{$set} ) {
+        my ( $net, $bits ) = @{$entry};
+        # Same family only: an IPv4 range never contains an IPv6 address, and
+        # comparing their bytes would say otherwise.
+        next unless length($net) == length($packed);
+        my $whole = int( $bits / 8 );
+        my $rest  = $bits % 8;
+        next if $whole && substr( $packed, 0, $whole ) ne substr( $net, 0, $whole );
+        if ($rest) {
+            my $mask = 0xFF & ( 0xFF << ( 8 - $rest ) );
+            next
+                if ( ord( substr $packed, $whole, 1 ) & $mask )
+                != ( ord( substr $net, $whole, 1 ) & $mask );
+        }
+        return 1;
+    }
+    return 0;
+}
+
+# THE one answer to "who is this request from". Give it the `trusted_proxies` spec
+# (trusted_proxy_spec() reads it; the processor passes its own parsed value).
+#
+# With no forwarded header this returns exactly what every caller read before -
+# REMOTE_ADDR, verbatim, not canonicalised - so a directly-served site is
+# unaffected and that property is worth keeping rather than tidying.
+sub request_address {
+    my ($spec) = @_;
+    my $peer   = $ENV{REMOTE_ADDR} // '';
+    my ($set)  = parse_trusted_proxies($spec);
+    return $peer unless @{$set};
+    return $peer unless _address_in_set( _packed_address($peer), $set );
+    my @chain = split /,/, ( $ENV{HTTP_X_FORWARDED_FOR} // '' );
+    for my $hop ( reverse @chain ) {
+        $hop =~ s/\A\s+//;
+        $hop =~ s/\s+\z//;
+        my $packed = _packed_address($hop);
+        return $peer                  unless length $packed;
+        return _text_address($packed) unless _address_in_set( $packed, $set );
+    }
+    return $peer;
 }
 
 # The value an allowlisted ${VAR} expands to. Only SERVER_NAME is special, and it

@@ -771,6 +771,48 @@ sub run_checks {
         }
     }
 
+    # SM929: A TRUST LIST WITH A TYPO IN IT IS A DECLARATION THE CODE IGNORES.
+    #
+    # `trusted_proxies` decides whether the engine may believe X-Forwarded-For
+    # about who the visitor is. The parser skips any word that is not an address
+    # or range, because the alternative - dying inside a CGI on a config line -
+    # would take the site down. That makes this the only place a typo can be
+    # SEEN, and the consequence of not seeing it is quiet: every address the site
+    # records goes back to being the proxy's, which is what SM929 was raised
+    # about in the first place.
+    {
+        my $spec = conf_value( $conf, 'trusted_proxies' );
+        if ( defined $spec && length $spec ) {
+            require Lazysite::Util;
+            my ( $set, $bad ) = Lazysite::Util::parse_trusted_proxies($spec);
+            if ( @{$bad} ) {
+                report( 'WARN',
+                    'lazysite.conf trusted_proxies has '
+                        . scalar( @{$bad} )
+                        . ' entry/entries that are not an address or range, and they are '
+                        . 'ignored: ' . join( ', ', @{$bad} ),
+                    'correct or remove them in ' . "'$LZ/lazysite.conf'"
+                        . ' - an address (192.0.2.1), a CIDR range (10.0.0.0/8), or the '
+                        . 'word none. A range of /0 is refused because it would trust '
+                        . 'every caller, which is the same as having no check at all' );
+            }
+            if ( !@{$set} && lc($spec) ne 'none' ) {
+                report( 'WARN',
+                    'lazysite.conf trusted_proxies is set but resolves to NO trusted '
+                        . 'address, so forwarded headers are ignored and every address '
+                        . 'this site records is the connecting one',
+                    'name the reverse proxy in front of this site, or set it to none '
+                        . 'to say so deliberately' );
+            }
+            elsif ( @{$set} && !@{$bad} ) {
+                report( 'OK',
+                    'trusted_proxies names '
+                        . scalar( @{$set} )
+                        . ' trusted address/range(s) for the visitor address' );
+            }
+        }
+    }
+
     # --- 7. manager bootstrap (ties to setup-sysop) ------------------------------
     #
     # SM872: THE REMEDIES HERE NAMED `setup-manager`, WHICH SM659 DELETED WITH NO

@@ -189,11 +189,18 @@ in `lazysite.conf` can likewise be `url:` (fetched JSON usable via TT) or `scan:
 (directory scans). Allow-listed CGI environment variables interpolate into config
 (`${SERVER_NAME}` etc.; the untrusted `HTTP_HOST` is deliberately excluded). Query
 parameters declared by a page are exposed as `[% query.x %]` and make that response
-uncacheable. The visitor's own IP is available as `[% client_ip %]` - the first hop
-of `X-Forwarded-For` (the real client behind a reverse proxy) if present, else the
-direct peer `REMOTE_ADDR`, sanitised to IP characters; because it is per-request it
-is used on a `nocache: true` page (or a small `nocache` JSON endpoint fetched by
-client-side script so the display page stays cached) (SM135).
+uncacheable. The visitor's own IP is available as `[% client_ip %]` - the direct
+peer `REMOTE_ADDR` unless the request arrives from an address named in
+`trusted_proxies` (default: the private ranges), in which case it is the rightmost
+hop of `X-Forwarded-For` that a trusted peer did not contribute, sanitised to IP
+characters; because it is per-request it is used on a `nocache: true` page (or a
+small `nocache` JSON endpoint fetched by client-side script so the display page
+stays cached) (SM135, SM929). **One definition of the request address** serves every
+reader of it - the stored `_ip` on a form submission, the audit trail's actor
+column, the login and form rate limits, the bad-URL auto-blocker and the daily
+visitor hash - so a site behind a proxy counts, limits and blocks per visitor rather
+than once for the whole world, and a visitor cannot choose what is recorded about
+them (SM929).
 
 ## Multilingual language sets (SM179)
 

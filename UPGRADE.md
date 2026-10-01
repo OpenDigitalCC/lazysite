@@ -49,6 +49,37 @@ verbs name the units, and `upgrade --all` (root) restarts them itself.
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## The visitor's address, if this site is behind a reverse proxy (SM929)
+
+Nothing to do on a site served directly: the engine reads the connecting address,
+exactly as before.
+
+**A site behind a reverse proxy needs two things, and until both are present every
+address the engine records is the proxy's** - the `_ip` on a form submission, the
+audit trail's actor column, the login and form rate-limit buckets, the bad-URL
+auto-blocker and the daily visitor count:
+
+1. **The proxy must send the visitor's address.** The shipped nginx templates now
+   do (`X-Forwarded-For`, template revision `2026-10-01`). A template reaches a
+   site only when Hestia rebuilds that site's vhost, so the rollout table's VHOST
+   column reads `rebuild` until it has been - that column is how you tell which
+   sites are still on the old template.
+2. **The engine must be told the proxy is trustworthy.** `trusted_proxies` on the
+   Config page, or in `lazysite.conf`. Absent or empty means the private ranges
+   `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`, which covers a proxy on a
+   private address and needs no action. **If your front end is on this machine,
+   name it** - `127.0.0.1` is not trusted unless you say so. `trusted_proxies:
+   none` ignores forwarded headers entirely.
+
+`lazysite-check` reports an entry it could not parse, and says when the setting
+resolves to no trusted address at all.
+
+**One consequence worth knowing before you enable it.** Where a site previously
+recorded one private address on every submission, it will now record the
+visitor's real address - which is personal data where the proxy's address was
+not. The stats plugin's visitor log has always anonymised; the submission store
+keeps what it is given, as it did before this change.
+
 ## Upgrading to 0.13.13 from 0.13.12
 
 **This release breaks how form delivery is written, and converts it for you.**

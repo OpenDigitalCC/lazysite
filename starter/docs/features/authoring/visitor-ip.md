@@ -8,9 +8,10 @@ subtitle: A live [% client_ip %] variable and the nocache flag, cache-safely.
 A page can show a visitor their own IP address. Two things make this work:
 
 `[% client_ip %]`
-: a Template Toolkit variable holding the visitor's IP. It is the first hop of the
-  `X-Forwarded-For` header (the real client when the site is behind a reverse
-  proxy) if present, otherwise the direct connection address `REMOTE_ADDR`.
+: a Template Toolkit variable holding the visitor's IP - the address the connection
+  came from, unless that address is a reverse proxy you have named as trusted, in
+  which case it is the visitor the proxy reports. A visitor cannot choose this
+  value: see [Behind a reverse proxy](#behind-a-reverse-proxy) below.
 
 `nocache: true`
 : the IP is different for every visitor, so the page must render fresh each time.
@@ -55,10 +56,26 @@ The display page (or any theme/layout) fetches and renders it:
 
 ### Behind a reverse proxy
 
-`client_ip` prefers `X-Forwarded-For` so a proxied site reports the real visitor,
-not the proxy. That header is only trustworthy if your edge (Apache / nginx) sets
-it from the real connection and strips any client-supplied copy - the same
-requirement as the `X-Remote-*` trust headers. If the site is served directly (no
-proxy), `client_ip` is the connection address and needs no configuration. The value
-is sanitised to IP characters before rendering, so a spoofed header cannot inject
-markup into the page.
+`X-Forwarded-For` is written by whoever sends the request, so the engine reads it
+only when the request arrives **from an address you have named as a proxy** -
+`trusted_proxies` on the Config page, which defaults to the private ranges
+`10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`. From anywhere else the header is
+ignored completely and `client_ip` is the connection address.
+
+When the peer *is* trusted, the engine takes the **last** address in the chain that
+is not itself one of your trusted proxies. That is deliberate and it is what stops a
+visitor choosing their own: a proxy *appends* to the header rather than replacing
+it, so a caller who sends `X-Forwarded-For: 203.0.113.7` ends up with their own
+value in front of the one the proxy added, and the engine reads the proxy's.
+
+Three consequences worth knowing:
+
+- a site served **directly** needs no configuration, and a visitor who sends the
+  header gains nothing;
+- if your front end runs on the **same machine**, add its address - `127.0.0.1` is
+  not trusted unless you name it;
+- `trusted_proxies: none` ignores forwarded headers entirely.
+
+The value is also sanitised to IP characters before rendering, which is a second
+line rather than the first: it stops markup reaching the page, and the trust rule
+above is what makes the address itself worth printing.

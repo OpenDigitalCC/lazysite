@@ -30,6 +30,23 @@ use Lazysite::Auth::OAuth
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT} // '';
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);                     # SM293
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR       = $LAZYSITE_DIR;
 
@@ -181,7 +198,7 @@ if ( $action eq 'register' ) {
     my $total     = scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} };
     log_event( 'INFO', 'oauth', 'client registered',
         client_id => $client_id, redirect => $uris[0], total_clients => $total );
-    audit_log( '', 'oauth-register', $client_id, $ENV{REMOTE_ADDR} // '', 'ok', 'mcp',
+    audit_log( '', 'oauth-register', $client_id, _request_ip(), 'ok', 'mcp',
         $req->{client_name} // '' );
     respond_json( 201, {
             client_id                  => $client_id,
@@ -223,7 +240,7 @@ elsif ( $action eq 'authorize' ) {
     # POST: redeem the connect code -> partner, then mint the auth code.
     my $r = users_api( { action => 'redeem-connect-code', code => $p{connect_code} } );
     unless ( $r->{ok} ) {
-        audit_log( '', 'oauth-authorize', $p{client_id} // '', $ENV{REMOTE_ADDR} // '',
+        audit_log( '', 'oauth-authorize', $p{client_id} // '', _request_ip(),
             'fail', 'mcp', 'invalid-connect-code' );
         $p{client_name} = $client->{client_name};
         consent_page( \%p, 'That connect code is not valid (check it, or ask your sysop for a fresh one).' );
@@ -232,7 +249,7 @@ elsif ( $action eq 'authorize' ) {
     log_event( 'INFO', 'oauth', 'authorization code issued', partner => $r->{username} );
     # Material: the human approved this client to act as the partner (consent).
     audit_log( $r->{username}, 'oauth-authorize', $p{client_id} // '',
-        $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
+        _request_ip(), 'ok', 'mcp' );
     my $sep = ( index( $redirect_uri, '?' ) >= 0 ) ? '&' : '?';
     redirect( $redirect_uri . $sep . 'code=' . url_enc($code) . '&state=' . url_enc( $p{state} ) );
 }
@@ -246,7 +263,7 @@ elsif ( $action eq 'token' ) {
         log_event( 'INFO', 'oauth', 'access token issued', partner => $partner );
         # Material event: an AI assistant just authenticated this partner over
         # OAuth (the "connected" moment the operator wants to see).
-        audit_log( $partner, 'connect', 'oauth', $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
+        audit_log( $partner, 'connect', 'oauth', _request_ip(), 'ok', 'mcp' );
         respond_json( 200, {
                 access_token => $access, token_type    => 'Bearer',
                 expires_in   => $ttl,    refresh_token => $refresh, scope => 'mcp' } );
@@ -256,7 +273,7 @@ elsif ( $action eq 'token' ) {
         respond_json( 400, { error => 'invalid_grant' } ) unless defined $access;
         # Material: the connector renewed its access token (the "still active" beat).
         audit_log( validate_token($access) // '', 'oauth-refresh', '',
-            $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
+            _request_ip(), 'ok', 'mcp' );
         respond_json( 200, {
                 access_token => $access, token_type    => 'Bearer',
                 expires_in   => $ttl,    refresh_token => $refresh, scope => 'mcp' } );

@@ -20,7 +20,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util          qw(log_event);
+use Lazysite::Util          qw(log_event request_address);
 use Lazysite::Auth::Session qw(
     verify_session_cookie account_disabled load_user_groups
     SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
@@ -170,8 +170,28 @@ sub _audit_auth {
     my $host = lc( $ENV{HTTP_HOST} // '' );
     $host =~ s/:\d+\z//;          # strip port
     $host =~ s/[^a-z0-9.-]//g;    # keep it audit-safe
-    audit_log( $user, $act, $host, $ENV{REMOTE_ADDR} // '', $status,
+    audit_log( $user, $act, $host, _request_ip(), $status,
         $origin // 'ui', $detail );
+}
+
+# SM929: THE request address for this CGI - the visitor, not the front proxy.
+# Cached: every caller below asks the same question about the same request.
+#
+# It cannot use read_conf_key, which returns '' for a key that is ABSENT as well
+# as one that is EMPTY - and those are different states here. Absent means the
+# RFC1918 default; empty means trust nothing.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        my $spec;
+        for my $line ( @{ _conf_lines() } ) {
+            if ( $line =~ /^trusted_proxies\s*:\s*(.*?)\s*$/ ) { $spec = $1; last }
+        }
+        $request_ip = request_address($spec);
+        return $request_ip;
+    }
 }
 
 # SM128: the bad-URL auto-blocker enforcement. One pass over lazysite.conf for
@@ -185,7 +205,11 @@ sub _bad_url_guard {
         if ( $line =~ /^\s*(bad_url_\w+)\s*:\s*(.+?)\s*$/ ) { $c{$1} = $2 }
     }
     return if ( $c{bad_url_block} // 'enabled' ) eq 'disabled';
-    my $ip = $ENV{REMOTE_ADDR} // '';
+    # SM929: THE AVAILABILITY FAULT THIS CLOSES. Keyed on REMOTE_ADDR, ten bad URLs
+    # from anywhere in an hour wrote the front proxy's address into
+    # bad-url-blocked.json - and is_blocked then denied every request from every
+    # visitor to the site, because they all presented that same address.
+    my $ip = _request_ip();
     return unless length $ip;
 
     require Lazysite::BadUrl;
@@ -279,7 +303,9 @@ sub handle_login {
     my $next     = sanitise_next( $form{next} // '/' );
 
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
-    my $ip            = $ENV{REMOTE_ADDR} // '';
+    # SM929: per-VISITOR, not per-proxy. On REMOTE_ADDR this was one bucket shared
+    # by everyone behind the front end, so one visitor's failures locked out all.
+    my $ip = _request_ip();
 
     # H-3: per-IP rate limit before checking credentials (fail-closed on ok).
     unless ( check_login_rate($ip) ) {
@@ -307,7 +333,7 @@ sub handle_login {
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
-    log_event( 'INFO', $username, 'login success', ip => $ENV{REMOTE_ADDR} // '' );
+    log_event( 'INFO', $username, 'login success', ip => _request_ip() );
     _audit_auth( $username, 'login', 'ok', '' );
 
     # Manager-aware landing: a recognised manager who did not come from a specific
@@ -371,7 +397,13 @@ sub _verify_credential {
     }
 
     if ( !length $expected ) {
-        # No-password account: only allowed from localhost
+        # No-password account: only allowed from localhost.
+        #
+        # SM929 LEAVES THIS ON REMOTE_ADDR DELIBERATELY. It does not ask who the
+        # visitor is, it asks whether the PEER is this machine - and the answer
+        # must come from the connection, never from a header a proxy could carry
+        # or a visitor could write. docs/architecture/security.md says in those
+        # words that only the immediate remote address matters here.
         my $addr = $ENV{REMOTE_ADDR} // '';
         unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
             # SM798: ANSWER EXACTLY AS A WRONG PASSWORD DOES. This used to
@@ -526,7 +558,7 @@ sub handle_logout {
     # noise; and a genuine logout now records the actual username (not the empty
     # HTTP_X_REMOTE_USER it used to read on this direct call).
     if ( length $user ) {
-        log_event( 'INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '' );
+        log_event( 'INFO', $user, 'logout', ip => _request_ip() );
         _audit_auth( $user, 'logout', 'ok', '' );
 
         # SEC-2026-07 (M4): actually invalidate the session server-side, not just
@@ -570,11 +602,15 @@ sub handle_claim {
     $username = substr( $username, 0, 64 ) if length($username) > 64;
     my $claim = $form{claim} // '';
     $claim =~ s/[^a-zA-Z0-9_]//g;
-    my $password = $form{password}   // '';
-    my $ip       = $ENV{REMOTE_ADDR} // '';
+    my $password = $form{password} // '';
+    # SM929: two different questions, two values. _secure_transport asks whether
+    # the PEER is local (so plaintext is a dev loopback, not an exposed one); the
+    # rate limit asks who the VISITOR is.
+    my $peer = $ENV{REMOTE_ADDR} // '';
+    my $ip   = _request_ip();
 
     # HTTPS-only (setting a secret); localhost allowed for dev/CLI.
-    unless ( _secure_transport($ip) ) {
+    unless ( _secure_transport($peer) ) {
         log_event( 'WARN', $username, 'claim over plaintext refused', ip => $ip );
         redirect("/claim?u=$username&error=1");
         return;
@@ -699,9 +735,11 @@ sub handle_exchange {
     $username =~ s/[^a-zA-Z0-9_.-]//g;
     my $key = $form{pairing_key} // $form{key} // '';
     $key =~ s/[^a-zA-Z0-9_]//g;
-    my $ip = $ENV{REMOTE_ADDR} // '';
+    # SM929: the peer for the transport check, the visitor for the rate limit.
+    my $peer = $ENV{REMOTE_ADDR} // '';
+    my $ip   = _request_ip();
 
-    unless ( _secure_transport($ip) ) {
+    unless ( _secure_transport($peer) ) {
         json_response( { ok => 0, error => 'HTTPS required' }, 403 );
         return;
     }
@@ -729,8 +767,11 @@ sub handle_exchange {
 # SM072 Flow C: rotate the access token. The agent authenticates with its
 # CURRENT token (Basic auth) and receives a fresh {token, expires_at}.
 sub handle_rotate {
-    my $ip = $ENV{REMOTE_ADDR} // '';
-    unless ( _secure_transport($ip) ) {
+    # SM929: the PEER answers whether the transport is safe; the VISITOR is what
+    # the two log lines below are about.
+    my $peer = $ENV{REMOTE_ADDR} // '';
+    my $ip   = _request_ip();
+    unless ( _secure_transport($peer) ) {
         json_response( { ok => 0, error => 'HTTPS required' }, 403 );
         return;
     }
@@ -804,7 +845,7 @@ sub handle_forgot {
     my %form  = parse_post();
     my $ident = $form{identifier} // $form{username} // $form{email} // '';
     $ident =~ s/^\s+|\s+$//g;
-    my $ip            = $ENV{REMOTE_ADDR} // '';
+    my $ip            = _request_ip();    # SM929: per visitor, not per proxy
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
 
     if ( check_login_rate($ip) ) {
@@ -1151,7 +1192,7 @@ sub _session_register {
             sid  => $sid,
             user => $user,
             t    => $ts + 0,
-            ip   => _session_field( $ENV{REMOTE_ADDR},     45 ),
+            ip   => _session_field( _request_ip(),         45 ),
             ua   => _session_field( $ENV{HTTP_USER_AGENT}, 120 ),
     } ) . "\n";
 

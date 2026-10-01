@@ -15,9 +15,10 @@ use Encode qw(decode);
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
 use JSON::PP     qw(encode_json decode_json);
 use Digest::SHA  qw(hmac_sha256_hex sha256 sha256_hex);
-use MIME::Base64 qw(encode_base64);                       # SM352: CSP script hashes
+use MIME::Base64 qw(encode_base64);                           # SM352: CSP script hashes
 use POSIX        qw(strftime);
 use Fcntl        qw(O_WRONLY O_APPEND O_CREAT LOCK_EX LOCK_NB LOCK_UN);
+use Socket       qw(inet_pton inet_ntop AF_INET AF_INET6);    # SM929: the request address
 # SM140: first-party access log
 # SM389: one registry regenerator
 
@@ -4605,8 +4606,8 @@ sub _render_form {
             # dropped rather than passed through to an attribute nobody honours.
             elsif ( $r eq 'capture' )                       { $rules{capture} = '' }
             elsif ( $r =~ /^capture:(user|environment)\z/ ) { $rules{capture} = $1 }
-            elsif ( $r =~ /^select:(.+)/ ) { $rules{select}   = _form_options($1); }
-            elsif ( $r =~ /^radio:(.+)/ )  { $rules{radio}    = _form_options($1); }
+            elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = _form_options($1); }
+            elsif ( $r =~ /^radio:(.+)/ )  { $rules{radio}  = _form_options($1); }
             elsif ( $r =~ /^checklist-qty:(.+)/ ) {
                 $rules{checklist} = _form_options($1);
                 $rules{qty}       = 1;
@@ -6372,6 +6373,128 @@ sub _request_host {
     return $host;
 }
 
+# SM929: ONE DEFINITION OF THE REQUEST ADDRESS - the render path's PINNED COPY.
+#
+# ADR 0001 keeps this file module-free, so it cannot call Lazysite::Util's and
+# carries its own. That is the same trade t/lint/198 makes for `_cannot_read`, 202
+# for the env allowlist and 203 for the request host, and t/lint/205 is the brake:
+# the four subs below must say the same thing as the module's, line for line.
+#
+# WHY THE RENDER PATH NEEDS IT AT ALL. `client_ip` took the FIRST hop of
+# X-Forwarded-For whenever the header was present, with no trust check - measured
+# forgeable on a live site 2026-10-01, where `X-Forwarded-For: 203.0.113.7` made
+# the page say 203.0.113.7. The reasoning for the rightmost-hop walk and for
+# refusing a zero-length prefix is written once, in Lazysite::Util.
+#
+# The spec READER is deliberately NOT shared with resolve_site_vars: its
+# `^(\w+)\h*:\h*(.+)$` needs a value after the colon, so it cannot tell an EMPTY
+# `trusted_proxies:` (trust nothing) from an absent one (the default). Those are
+# different states and t/unit/processor/84 holds the two readers to the same four.
+sub _trusted_proxy_spec {
+    return undef unless -f $CONF_FILE;
+    open my $fh, '<:utf8', $CONF_FILE or return undef;
+    my $spec;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^trusted_proxies\s*:\s*(.*?)\s*$/;
+        $spec = $1;
+        last;
+    }
+    close $fh;
+    return $spec;
+}
+
+sub _trusted_proxy_default {
+    # A SUB, NOT A PACKAGE ARRAY: in the processor a file-scoped `our` below the
+    # main body is EMPTY when a request is served (t/lint/39 names exactly this),
+    # which would have left the render path trusting nothing and silently reading
+    # the peer. A sub is initialised at call time and cannot be too early.
+    return ( '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16' );
+}
+
+sub _parse_trusted_proxies {
+    my ($spec) = @_;
+    $spec = '' unless defined $spec;
+    $spec =~ s/\A\s+//;
+    $spec =~ s/\s+\z//;
+    my @words;
+    # ABSENT AND EMPTY ARE THE SAME ANSWER, deliberately, and `none` is how an
+    # operator says no. The Config page ships this field EMPTY and pressing Save
+    # writes an empty value - SM782 names the same shape for backup_retention - so
+    # reading empty as "trust nothing" would turn the feature off for any site
+    # whose operator merely saved the page, silently, and put the proxy's address
+    # back on every submission.
+    if    ( !length $spec )       { @words = _trusted_proxy_default() }
+    elsif ( lc($spec) eq 'none' ) { return ( [], [] ) }
+    else                          { @words = split /[\s,]+/, $spec }
+    my ( @set, @rejected );
+    for my $w (@words) {
+        my ( $addr, $bits ) = split m{/}, $w, 2;
+        my $packed = _packed_address( $addr // '' );
+        if ( !length $packed ) { push @rejected, $w; next }
+        my $width = length($packed) * 8;
+        $bits = $width if !defined $bits || !length $bits;
+        if ( $bits !~ /\A[0-9]+\z/ || $bits + 0 > $width || $bits + 0 == 0 ) {
+            push @rejected, $w;
+            next;
+        }
+        push @set, [ $packed, $bits + 0 ];
+    }
+    return ( \@set, \@rejected );
+}
+
+sub _packed_address {
+    my ($text) = @_;
+    return '' unless defined $text && length $text;
+    return '' if $text =~ /[^0-9A-Fa-f:.]/;
+    my $family = ( index( $text, ':' ) >= 0 ) ? AF_INET6 : AF_INET;
+    my $packed = eval { inet_pton( $family, $text ) };
+    return ( defined $packed && length $packed ) ? $packed : '';
+}
+
+sub _text_address {
+    my ($packed) = @_;
+    my $family   = length($packed) == 4 ? AF_INET : AF_INET6;
+    my $text     = eval { inet_ntop( $family, $packed ) };
+    return defined $text ? $text : '';
+}
+
+sub _address_in_set {
+    my ( $packed, $set ) = @_;
+    return 0 unless defined $packed && length $packed;
+    for my $entry ( @{$set} ) {
+        my ( $net, $bits ) = @{$entry};
+        next unless length($net) == length($packed);
+        my $whole = int( $bits / 8 );
+        my $rest  = $bits % 8;
+        next if $whole && substr( $packed, 0, $whole ) ne substr( $net, 0, $whole );
+        if ($rest) {
+            my $mask = 0xFF & ( 0xFF << ( 8 - $rest ) );
+            next
+                if ( ord( substr $packed, $whole, 1 ) & $mask )
+                != ( ord( substr $net, $whole, 1 ) & $mask );
+        }
+        return 1;
+    }
+    return 0;
+}
+
+sub _request_address {
+    my ($spec) = @_;
+    my $peer   = $ENV{REMOTE_ADDR} // '';
+    my ($set)  = _parse_trusted_proxies($spec);
+    return $peer unless @{$set};
+    return $peer unless _address_in_set( _packed_address($peer), $set );
+    my @chain = split /,/, ( $ENV{HTTP_X_FORWARDED_FOR} // '' );
+    for my $hop ( reverse @chain ) {
+        $hop =~ s/\A\s+//;
+        $hop =~ s/\s+\z//;
+        my $packed = _packed_address($hop);
+        return $peer                  unless length $packed;
+        return _text_address($packed) unless _address_in_set( $packed, $set );
+    }
+    return $peer;
+}
+
 # The nav file a request renders with: the alias host's nav_file override,
 # the site's, or lazysite/nav.conf. One definition, because try_serve_cache
 # (SM536) has to stat the SAME file resolve_site_vars parses - two spellings
@@ -7708,14 +7831,19 @@ sub render_content {
         # an invariant with one exception is not an invariant, and the next
         # reader of this block cannot tell the exception was considered.
         request_uri => _esc_html( $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '' ),
-        # The visitor's IP: the first hop of X-Forwarded-For (the original client
-        # behind a reverse proxy) if present, else the direct peer REMOTE_ADDR.
-        # Per-request, so only correct on a `nocache: true` page - a cached page
-        # would bake the first visitor's IP. Sanitised to IP characters only so a
-        # spoofed header cannot inject markup into the rendered output.
+        # The visitor's address, via SM929's one definition: the direct peer unless
+        # it is a trusted proxy, and then the rightmost hop of X-Forwarded-For that
+        # a trusted peer did not contribute. Per-request, so only correct on a
+        # `nocache: true` page - a cached page would bake the first visitor's.
+        #
+        # THIS USED TO TAKE THE FIRST HOP WHENEVER THE HEADER WAS PRESENT, with no
+        # trust check at all, and the sanitiser below was the only defence - which
+        # stopped markup reaching the page and did nothing about the address being
+        # invented. Measured on a live site 2026-10-01: a request carrying
+        # `X-Forwarded-For: 203.0.113.7` rendered 203.0.113.7. The sanitiser stays
+        # as depth, on a value that is now a parsed address rather than a string.
         client_ip => do {
-            my ($first) = split /\s*,\s*/, ( $ENV{HTTP_X_FORWARDED_FOR} // '' );
-            my $ip = ( defined $first && length $first ) ? $first : ( $ENV{REMOTE_ADDR} // '' );
+            my $ip = _request_address( _trusted_proxy_spec() );
             $ip =~ s/[^0-9A-Fa-f:.\[\]]//g;
             $ip;
         },
@@ -9377,7 +9505,7 @@ sub _ai_partner_doc {
             mcp      => ( $mcp      ? JSON::PP::true() : JSON::PP::false() ),
             exchange => ( $exchange ? JSON::PP::true() : JSON::PP::false() ),
         },
-        auth      => {
+        auth => {
             scheme       => 'basic',
             token_prefix => 'lzs_',
             note         =>
@@ -9399,7 +9527,7 @@ sub _ai_partner_doc {
             'The capabilities this site can grant a partner, not the capabilities YOU hold. '
             . 'Only whoami answers that. Comparing this list with your brief will show '
             . 'differences in both directions and means nothing.',
-        scope        => {
+        scope => {
             # SM910 WK3: the capability was wrong here, and three published
             # statements disagreed about one PUT. lazysite-dav.pl:1495 gates
             # lazysite/nav.conf on manage_nav, and a partner holding manage_nav
@@ -9756,7 +9884,10 @@ sub _access_conf {
 # and key on that instead.
 sub _visitor_key {
     my ($ymd) = @_;
-    my $ip = $ENV{REMOTE_ADDR} // '';
+    # SM929: the VISITOR, not the proxy. Keyed on REMOTE_ADDR, every visitor behind
+    # a front proxy hashed to one key per day, so "distinct daily visitors" counted
+    # the proxy once however many people called.
+    my $ip = _request_address( _trusted_proxy_spec() );
     return '' unless length $ip;
     my $secret = '';
     # SM917: the fallback below is BY DESIGN for a site with no secret, and was

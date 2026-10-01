@@ -52,9 +52,9 @@ use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Plugins     qw(action_form_submissions action_form_list);
 # SM918: the one notice reader, shared with the control API
 use Lazysite::Manager::Notices ();
-use Lazysite::Handlers ();                # SM842: handlers, bindings, the schedule
-use Lazysite::Lang                 qw(set_members);
-use Lazysite::Validate ();                # SM887 F2: the engine owns validation
+use Lazysite::Handlers         ();               # SM842: handlers, bindings, the schedule
+use Lazysite::Lang             qw(set_members);
+use Lazysite::Validate         ();               # SM887 F2: the engine owns validation
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -66,7 +66,24 @@ my $MAX_READ_BYTES = 512 * 1024;
 # tree for every module's confinement check.
 my $DOCROOT      = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // '' );
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);                        # SM293
-my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
+my $LOCK_DIR = "$LAZYSITE_DIR/manager/locks";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 # Set early so verify_bearer (which runs before setup_context) can audit a connect.
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -342,7 +359,7 @@ sub verify_bearer {
         # Audit the connector's first authentication with this credential (the
         # static-bearer "connected" moment - Claude Code / Desktop / a script).
         # Once per issuance, so it does not flood on every tool call.
-        audit_log( $user, 'connect', 'bearer', $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' )
+        audit_log( $user, 'connect', 'bearer', _request_ip(), 'ok', 'mcp' )
             if $v->{first_use};
         %AUTH_INFO = ( method => 'bearer',
             expires_at => ( $v->{settings} ? $v->{settings}{token_expires_at} : undef ) );
@@ -384,22 +401,22 @@ sub setup_context {
     $Lazysite::Manager::Themes::auth_user    = $user;
     $Lazysite::Manager::Themes::action       = 'mcp';
     # SM318: the shared nav implementation, same context as every other module.
-    $Lazysite::Manager::Nav::DOCROOT           = $DOCROOT;
-    $Lazysite::Manager::Nav::LAZYSITE_DIR      = $LAZYSITE_DIR;
-    $Lazysite::Manager::Nav::auth_user         = $user;
-    $Lazysite::Manager::Layouts::DOCROOT       = $DOCROOT;
-    $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
-    $Lazysite::Manager::Layouts::auth_user     = $user;
-    $Lazysite::Manager::Layouts::action        = 'mcp';
-    $Lazysite::Manager::Common::DOCROOT        = $DOCROOT;
-    $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
-    $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
-    $Lazysite::Manager::Plugins::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::Nav::DOCROOT          = $DOCROOT;
+    $Lazysite::Manager::Nav::LAZYSITE_DIR     = $LAZYSITE_DIR;
+    $Lazysite::Manager::Nav::auth_user        = $user;
+    $Lazysite::Manager::Layouts::DOCROOT      = $DOCROOT;
+    $Lazysite::Manager::Layouts::LAZYSITE_DIR = $LAZYSITE_DIR;
+    $Lazysite::Manager::Layouts::auth_user    = $user;
+    $Lazysite::Manager::Layouts::action       = 'mcp';
+    $Lazysite::Manager::Common::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::Domains::DOCROOT      = $DOCROOT;
+    $Lazysite::Manager::SitePackage::DOCROOT  = $DOCROOT;
+    $Lazysite::Manager::Plugins::DOCROOT      = $DOCROOT;
     # SM918: the shared notice reader
     $Lazysite::Manager::Notices::DOCROOT       = $DOCROOT;
     $Lazysite::Handlers::DOCROOT               = $DOCROOT;
     $Lazysite::Manager::Data::DOCROOT          = $DOCROOT;
-    $Lazysite::Manager::Data::auth_user        = $user;    # SM468: schema-history actor
+    $Lazysite::Manager::Data::auth_user        = $user;      # SM468: schema-history actor
     $Lazysite::Manager::Common::action         = 'mcp';
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Auth::Acl::DOCROOT              = $DOCROOT;
@@ -2806,8 +2823,8 @@ sub _submit_feedback {
         ts           => $iso,
         user         => $user,
         method       => ( $AUTH_INFO{method} // 'mcp' ),
-        ip           => ( $ENV{REMOTE_ADDR}  // '' ),
-        site         => ( $ENV{HTTP_HOST}    // '' ),
+        ip           => ( _request_ip() ),
+        site         => ( $ENV{HTTP_HOST} // '' ),
         version      => $VERSION,
         capabilities => \@caplist,
         rating       => ( defined $a->{rating} ? $a->{rating} + 0 : undef ),
@@ -3192,8 +3209,8 @@ my %ANNOTATE = (
     domain_set            => [ 0, 0, 1, 1 ],
     preview_public_page   => [ 1, 0, 0 ],
     preview_domain        => [ 1, 0, 0 ],
-    site_backup           => [ 0, 0, 0 ],  # writes an archive; changes nothing live
-    site_apply            => [ 0, 1, 1 ],  # overwrites the live content tree
+    site_backup           => [ 0, 0, 0 ],    # writes an archive; changes nothing live
+    site_apply            => [ 0, 1, 1 ],    # overwrites the live content tree
     delete_theme          => [ 0, 1, 1 ],
     read_form_submissions => [ 1, 0, 0 ],
     read_notices => [ 1, 0, 0 ], # SM918: reads the bell; writes nothing, not even a cursor
@@ -3209,15 +3226,15 @@ my %ANNOTATE = (
     restore_data_safety_export => [ 0, 0, 1 ],   # writes rows into a live table
     delete_brief               => [ 0, 1, 0 ],   # destroys a record; changes nothing live
 
-    list_files         => [ 1, 0, 0 ],
-    read_file          => [ 1, 0, 0 ],
-    search_files       => [ 1, 0, 0 ],
-    page_status        => [ 1, 0, 0 ],
-    preview_page       => [ 1, 0, 0 ],
-    list_pages         => [ 1, 0, 0 ],
-    read_page          => [ 1, 0, 0 ],
-    validate_page      => [ 1, 0, 0 ],
-    audit_site         => [ 1, 0, 0 ],
+    list_files      => [ 1, 0, 0 ],
+    read_file       => [ 1, 0, 0 ],
+    search_files    => [ 1, 0, 0 ],
+    page_status     => [ 1, 0, 0 ],
+    preview_page    => [ 1, 0, 0 ],
+    list_pages      => [ 1, 0, 0 ],
+    read_page       => [ 1, 0, 0 ],
+    validate_page   => [ 1, 0, 0 ],
+    audit_site      => [ 1, 0, 0 ],
     list_handlers   => [ 1, 0, 0 ],
     list_schedule   => [ 1, 0, 0 ],
     save_handler    => [ 0, 0, 1 ],    # a bound handler's destination is live delivery
@@ -3235,7 +3252,7 @@ my %ANNOTATE = (
     copy_file        => [ 0, 0, 1 ],
     create_page      => [ 0, 0, 1 ],
     read_nav         => [ 1, 0, 0 ],
-    set_nav            => [ 0, 0, 1 ],
+    set_nav          => [ 0, 0, 1 ],
     submit_feedback => [ 0, 0, 0 ], # writes a report, but changes nothing on the live site
     delete_page     => [ 0, 1, 1 ],
     rename_page     => [ 0, 0, 1 ],
@@ -3601,7 +3618,7 @@ elsif ( $method eq 'tools/call' ) {
     # contract the token path is capability-based. Introspection is exempt.
     if ( $caps->{manager_ui} && $caps->{ui} && !$INTROSPECTION_TOOLS{$name} ) {
         my $a = $params->{arguments} || {};
-        audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
+        audit_log( $user, $name, ( $a->{path} // '' ), _request_ip(),
             'fail', 'mcp', 'denied: interactive manager account on the mcp channel' );
         rpc_error( $id, -32002,
             "This account can use the interactive manager UI, which is interactive-only: "
@@ -3618,7 +3635,7 @@ elsif ( $method eq 'tools/call' ) {
     # lacks the channel, per the SM072 introspection contract.
     unless ( $caps->{mcp} || $INTROSPECTION_TOOLS{$name} ) {
         my $a = $params->{arguments} || {};
-        audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
+        audit_log( $user, $name, ( $a->{path} // '' ), _request_ip(),
             'fail', 'mcp', 'denied: mcp channel capability' );
         rpc_error( $id, -32002,
             "The 'mcp' capability is required to use this connector. Ask the "
@@ -3664,7 +3681,7 @@ elsif ( $method eq 'tools/call' ) {
         # Audit the denied attempt (a material security event - invisible before).
         my $a = $params->{arguments} || {};
         audit_log( $user, $name, ( $a->{path} // $a->{theme} // $a->{layout} // $a->{to} // '' ),
-            $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $need" );
+            _request_ip(), 'fail', 'mcp', "denied: needs $need" );
         # SM101: a missing capability is permanent - tell the agent to stop, not retry.
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $need). "
                 . "Do not retry; ask the sysop to grant it. Call describe_capabilities "
@@ -3698,7 +3715,7 @@ elsif ( $method eq 'tools/call' ) {
             my $refusal
                 = Lazysite::Manager::Common::carveout_refusal( $p, $w, $caps );
             next unless $refusal;
-            audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
+            audit_log( $user, $name, $p, _request_ip(),
                 'fail', 'mcp', 'denied: carve-out capability' );
             rpc_error( $id, -32002,
                 "$refusal Do not retry; ask the sysop to grant it." );
@@ -3723,7 +3740,7 @@ elsif ( $method eq 'tools/call' ) {
             next if $p =~ m{^/?lazysite/};
             next
                 unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
-            audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
+            audit_log( $user, $name, $p, _request_ip(),
                 'fail', 'mcp', 'denied: outside dav_scope' );
             my $names = join ', ',
                 map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;
@@ -3753,7 +3770,7 @@ elsif ( $method eq 'tools/call' ) {
         # SM750: the trail said `invalid arguments` and not which. validate_args
         # composes the sentence that names the argument and the shape it failed;
         # the trail gets the same sentence, on one line.
-        audit_log( $user, $name, ( $args->{path} // '' ), $ENV{REMOTE_ADDR} // '',
+        audit_log( $user, $name, ( $args->{path} // '' ), _request_ip(),
             'fail', 'mcp', "invalid arguments: $bad" );
         rpc_error( $id, -32602, $bad );
     }
@@ -3793,7 +3810,7 @@ elsif ( $method eq 'tools/call' ) {
             : ( ref $out eq 'HASH'
             ? ( $out->{audit_detail} || $out->{kind} || $out->{error} || '' )
             : '' );
-        audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
+        audit_log( $user, $act, $target, _request_ip(),
             ( $aok ? 'ok' : 'fail' ), 'mcp', $detail );
     }
 

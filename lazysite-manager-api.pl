@@ -88,6 +88,23 @@ $Lazysite::Manager::Domains::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Data::DOCROOT        = $DOCROOT;
 $Lazysite::Manager::SitePackage::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR    = $LAZYSITE_DIR;
@@ -810,12 +827,12 @@ if ( !$token_auth ) {
         'site-backup-download' => 'manage_domains', # SM193: token-client package download
         'site-export-primary' => 'manage_content', # SM185: package the DEFAULT site (no domains feature needed)
         'git-init'            => 'manage_config',
-        'config-set'     => 'manage_config', 'config-read' => 'manage_config',
-        'bad-url-blocks' => 'manage_config',
-        'domains-list'   => 'manage_domains', 'domain-add'    => 'manage_domains',
+        'config-set'       => 'manage_config', 'config-read' => 'manage_config',
+        'bad-url-blocks'   => 'manage_config',
+        'domains-list'     => 'manage_domains', 'domain-add' => 'manage_domains',
         'domain-alias-add' => 'manage_domains',
-        'domain-set'     => 'manage_domains', 'domain-remove' => 'manage_domains',
-        'remap-list'     => 'manage_domains', 'remap-save'    => 'manage_domains', # SM802
+        'domain-set' => 'manage_domains', 'domain-remove' => 'manage_domains',
+        'remap-list' => 'manage_domains', 'remap-save'    => 'manage_domains',    # SM802
         'audit-trail-set' => 'audit_switch',  # N13-04: AND manage_config, in the dispatch
         'domain-preview'  => 'manage_domains', 'domain-check' => 'manage_domains',
         'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
@@ -2279,7 +2296,7 @@ elsif ( $action eq 'audit' ) {
                 $scope = { map { $_ => 1 } @{ $sc->{users} || [] }, $auth_user };
             }
             else {
-                audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs audit' );
+                audit_log( $auth_user, 'audit', '', _request_ip(), 'fail', 'ui', 'denied: needs audit' );
                 $result = { ok => 0, kind => 'forbidden',
                     error => "The audit trail requires the 'Audit trail' permission. An "
                         . "administrator can grant it on the Groups page: give a group the "
@@ -2665,7 +2682,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
                 $skip_audit = 1;
             }
         }
-        audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
+        audit_log( $auth_user, $aud_action, $aud_target, _request_ip(),
             ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ),
             _audit_detail($detail) )
             unless $skip_audit;
@@ -2926,8 +2943,8 @@ sub _audit_trail_set {
     return { ok => 1, state => $was, changed => JSON::PP::false } if $was eq $state;
 
     my $origin = $token_auth ? 'api' : 'ui';
-    my $ip     = $ENV{REMOTE_ADDR} // '';
-    my $who    = $auth_user        // '-';
+    my $ip     = _request_ip();
+    my $who    = $auth_user // '-';
 
     if ( $state eq 'off' ) {
         # The edge FIRST, while the trail is still recording.
@@ -2962,7 +2979,7 @@ sub _audit_trail_set {
 sub _refuse {
     my ( $resp, $origin, $reason, $target ) = @_;
     audit_log( $auth_user, $action, ( defined $target ? $target : ( $path // '' ) ),
-        $ENV{REMOTE_ADDR} // '', 'fail', $origin, _audit_detail($reason) );
+        _request_ip(), 'fail', $origin, _audit_detail($reason) );
     respond($resp);
     exit 0;
 }
@@ -3999,7 +4016,7 @@ sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme layouts_repo nav_file webdav_enabled
         manager manager_path search_default update_channel canonical_ip
-        asset_max_age manager_style backup_retention
+        asset_max_age manager_style backup_retention trusted_proxies
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -4122,7 +4139,7 @@ sub action_config_set {
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
         update_channel canonical_ip manager manager_path asset_max_age
-        manager_style backup_retention
+        manager_style backup_retention trusted_proxies
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
 
     # SM612: settable, but NOT BY A TOKEN CLIENT. The operator toggles the
@@ -4628,7 +4645,7 @@ sub _audit_parse_line {
 # Append-only cache: parse only the audit lines appended since last call, keeping
 # the most recent CAP entries (chronological order). Rotation/truncation-aware.
 sub _audit_cached_entries {
-    my $file = "$LAZYSITE_DIR/logs/audit.log";
+    my $file       = "$LAZYSITE_DIR/logs/audit.log";
     my $CAP        = 5000;
     my $cache_dir  = "$LAZYSITE_DIR/cache";
     my $cache_file = "$cache_dir/audit-cache.json";

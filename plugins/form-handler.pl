@@ -50,7 +50,24 @@ my $HANDLERS_ERR = $HANDLERS_OK ? '' : ( $@ || 'unknown' );
 # out of the docroot keeps its form configs there. Without the modules nothing
 # below runs: the submission is refused before any of it is read.
 my $LAZYSITE_DIR = $HANDLERS_OK ? Lazysite::Paths::lazysite_dir($DOCROOT) : undef;
-my $FORMS_DIR    = defined $LAZYSITE_DIR ? "$LAZYSITE_DIR/forms"          : undef;
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
+my $FORMS_DIR = defined $LAZYSITE_DIR ? "$LAZYSITE_DIR/forms" : undef;
 {
     no warnings 'once';    # SM557: set at runtime, read by the module
     $Lazysite::Handlers::DOCROOT = $DOCROOT if $HANDLERS_OK;
@@ -210,7 +227,9 @@ eval {
         log_event( 'INFO', 'form', 'rate limit waived: verified session' );
     }
     else {
-        check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0', $conf->{rate_limit} );
+        # SM929: per VISITOR. Keyed on REMOTE_ADDR the bucket was "$proxy:$hour",
+        # so behind a front end one visitor's submissions spent everybody's quota.
+        check_rate_limit( _request_ip() || '0.0.0.0', $conf->{rate_limit} );
     }
 
     # Binary uploads: reject up front (before any handler runs) if the form does
@@ -252,8 +271,8 @@ eval {
             origin      => 'form',
             source      => "form:$name",
             store       => $name,
-            ip          => $ENV{REMOTE_ADDR} // '',
-            actor       => '',                        # SM402: no verified actor
+            ip          => _request_ip(),         # SM929: the visitor, not the proxy
+            actor       => '',                    # SM402: no verified actor
             files       => $form{_files},
             quarantined => $form{_quarantined},
             spam_reason => $form{_spam_reason},
@@ -272,7 +291,7 @@ eval {
     # submission was NOT saved. Fail loudly instead of showing a false "thank you".
     unless ($delivered) {
         log_event( 'ERROR', $name, 'form not delivered - no active target',
-            ip => $ENV{REMOTE_ADDR} // 'unknown' );
+            ip => ( _request_ip() || 'unknown' ) );
         # SM781: "no active delivery target" sent the OWNER to the binding
         # when a connector had refused the mode; the record already holds the
         # reason. Say what happened - nothing accepted it - and where to look.
@@ -282,8 +301,8 @@ eval {
                 . 'Please contact the site owner.' );
     }
 
-    log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
-    _audit_submission( $name, '', $ENV{REMOTE_ADDR} // '' );    # SM402: no verified actor
+    log_event( 'INFO', $name, 'form received', ip => ( _request_ip() || 'unknown' ) );
+    _audit_submission( $name, '', _request_ip() );    # SM402: no verified actor
         # SM216: a quarantined (suspect) submission is stored but does NOT ring the
         # bell - the sysop finds it under the Submissions Quarantine filter.
     _notify_submission( $name, $conf->{notify_mode}, \%form )
@@ -300,7 +319,7 @@ eval {
 if ($@) {
     my $err = $@;
     $err =~ s/\s+$//;
-    log_event( 'ERROR', $name, 'processing failed', error => $err, ip => $ENV{REMOTE_ADDR} // 'unknown' );
+    log_event( 'ERROR', $name, 'processing failed', error => $err, ip => ( _request_ip() || 'unknown' ) );
     # SM216-2: an anti-spam control blocked this POST - count it (per form, by
     # reason) so the report shows "controls stopped N", not silence. The code
     # comes from the control that fired, not from the message it printed.

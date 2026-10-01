@@ -57,6 +57,23 @@ our $REFUSAL_DETAIL; # SM750: the `kind: cause - remedy` line a 415 refusal leav
 our $DENY_DETAIL;    # SM750: the same, for a 403 whose rule composes one
 
 my $LAZYSITE_DIR = defined $DOCROOT ? Lazysite::Paths::lazysite_dir($DOCROOT) : undef; # SM293
+# SM929: THE request address for this request - the visitor, not the front proxy.
+# One reader, cached, because everything below asks the same question about one
+# request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
+# a site will ever have, so an address column held the infrastructure's identity
+# and anything keyed on it shared one bucket with the world.
+{
+    my $request_ip;
+
+    sub _request_ip {
+        return $request_ip if defined $request_ip;
+        require Lazysite::Util;
+        $request_ip = Lazysite::Util::request_address(
+            Lazysite::Util::trusted_proxy_spec($LAZYSITE_DIR) );
+        return $request_ip;
+    }
+}
+
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Acl::DOCROOT  = $DOCROOT;
 my $AUTH_DIR    = defined $DOCROOT ? "$LAZYSITE_DIR/auth"          : undef;
@@ -116,11 +133,11 @@ my %CONTENT_TYPE_MAP = (
 );
 
 my %REASON = (
-    200 => 'OK',                    201 => 'Created',     204 => 'No Content',
-    207 => 'Multi-Status',          400 => 'Bad Request', 401 => 'Unauthorized',
-    403 => 'Forbidden',             404 => 'Not Found',   405 => 'Method Not Allowed',
-    409 => 'Conflict',              412 => 'Precondition Failed',
-    413 => 'Payload Too Large',     415 => 'Unsupported Media Type',
+    200 => 'OK',                201 => 'Created',     204 => 'No Content',
+    207 => 'Multi-Status',      400 => 'Bad Request', 401 => 'Unauthorized',
+    403 => 'Forbidden',         404 => 'Not Found',   405 => 'Method Not Allowed',
+    409 => 'Conflict',          412 => 'Precondition Failed',
+    413 => 'Payload Too Large', 415 => 'Unsupported Media Type',
     422 => 'Unprocessable Entity',
     423 => 'Locked',                429 => 'Too Many Requests',
     500 => 'Internal Server Error', 502 => 'Bad Gateway',
@@ -142,7 +159,13 @@ exit 0;
 
 sub main {
     my $method = uc( $ENV{REQUEST_METHOD} // 'GET' );
-    my $ip     = $ENV{REMOTE_ADDR} // '';
+    # SM929: TWO QUESTIONS, TWO VALUES. The transport gate below asks whether the
+    # PEER is this machine (so plaintext is a dev loopback rather than an exposed
+    # one); the failed-attempt limiter inside _authenticate asks who the VISITOR
+    # is, and on REMOTE_ADDR it shared one bucket with everybody behind the front
+    # end - including the lockout.
+    my $peer = $ENV{REMOTE_ADDR} // '';
+    my $ip   = _request_ip();
 
     unless ( defined $DOCROOT && length $DOCROOT ) {
         return send_status( 500, body => "DOCUMENT_ROOT not set\n" );
@@ -156,7 +179,7 @@ sub main {
     }
 
     # 2. Transport gate - never accept Basic credentials over plaintext.
-    my $loopback = ( $ip eq '127.0.0.1' || $ip eq '::1' );
+    my $loopback = ( $peer eq '127.0.0.1' || $peer eq '::1' );
     unless ( $ENV{HTTPS} || $loopback || is_truthy( $conf->{dav_allow_insecure} ) ) {
         log_event( 'WARN', '-', 'dav over plaintext refused', ip => $ip );
         return send_status( 403, body => "HTTPS required\n" );

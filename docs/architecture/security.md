@@ -202,6 +202,21 @@ remote address matters. This means a reverse proxy that terminates
 on localhost still has to go through the real auth flow for non-
 proxy-origin users.
 
+**SM929 did not change this, deliberately.** The engine now has one
+definition of "the request address" that *can* read `X-Forwarded-For`
+from a trusted proxy, and this decision keeps reading `REMOTE_ADDR`
+instead - along with the plaintext-transport gates in
+`lazysite-auth.pl` and `lazysite-dav.pl`. Those ask whether the
+**peer** is this machine, which is a fact about the connection; the
+request address answers *who the visitor is*, which is a different
+question. A forwarded address that could unlock a passwordless login,
+or make the engine accept Basic credentials in clear, would be the
+worst place in the system to start trusting one.
+`t/lint/206-a-peer-question-is-not-a-visitor-question.t` holds the
+ledger of every remaining `REMOTE_ADDR` read and the reason for each,
+so neither a new bare read nor the "unification" of one of these
+passes unnoticed.
+
 ### Login rate limiting
 
 5 failed login attempts per IP per 5-minute window trigger a
@@ -713,6 +728,54 @@ partner cannot escalate even if the strip is misconfigured; but the *cookie*
 operator distinction still relies on the strip. If you front lazysite with
 anything other than the shipped templates, replicate the unset directives, and
 prefer a trusted-proxy IP allowlist over `auth_proxy_trusted: true`.
+
+## The request address (SM929)
+
+Separate from the trust headers above, and with its own mechanism: **who the
+engine believes the visitor is**.
+
+Everything that records or decides on a visitor's address - the `_ip` stored on a
+form submission, the audit trail's actor column, the login and form rate limits,
+the bad-URL auto-blocker, the daily visitor hash, and `[% client_ip %]` - goes
+through one definition, `Lazysite::Util::request_address` (and its pinned copy in
+the render path, which ADR 0001 keeps module-free; `t/lint/205` holds the two
+identical).
+
+The rule:
+
+1. if `REMOTE_ADDR` is **not** in `trusted_proxies`, that is the address, and
+   `X-Forwarded-For` is ignored entirely;
+2. if it **is**, walk the forwarded chain **from the right** and take the first
+   address that is not itself a trusted proxy;
+3. if that leaves nothing usable - including a hop that will not parse - fall back
+   to `REMOTE_ADDR`.
+
+`trusted_proxies` is a site setting (Config page, or `lazysite.conf`): addresses or
+CIDR ranges, comma separated. **Absent or empty means the private ranges**
+`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`; `none` ignores forwarded headers
+altogether. A `/0` range is refused, because a trust set matching every caller is
+the same as no check at all. Loopback is **not** in the default: a front end on the
+same machine must be named.
+
+**Why the right-hand walk rather than the first hop.** A proxy *appends* to
+`X-Forwarded-For` (`$proxy_add_x_forwarded_for` in the shipped nginx templates), so
+a caller who sends their own header has it preserved *in front of* the address the
+proxy adds. Reading the first hop therefore reads whatever the visitor chose -
+measured on a live site on 2026-10-01, where `X-Forwarded-For: 203.0.113.7` made
+`client_ip` render `203.0.113.7`. Reading from the right reads what the trusted
+proxy itself contributed.
+
+**Why this is not the `X-Remote-*` problem in another coat.** The trust basis is
+`REMOTE_ADDR`, which comes from the server's own `accept()`. There is no sentinel a
+client could forge and nothing for a trust source to clear, so the
+produce-or-clear requirement above does not apply to it.
+
+**A site behind a proxy needs the proxy to send the header.** The shipped nginx
+proxy templates do (`lazysite-proxy.tpl` / `.stpl`, template revision
+`2026-10-01`); an older installed template does not, and until it is reinstalled
+such a site keeps recording the proxy's address. `lazysite-check` reports a
+`trusted_proxies` entry it could not parse, because a trust list with a typo in it
+is a declaration the code ignores.
 
 ## Credential lifecycle and MFA (SM072)
 
