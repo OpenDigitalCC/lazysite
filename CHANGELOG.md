@@ -209,6 +209,51 @@ Naming the commit: AFTER it lands, never before
   know WHICH modules it needs - so removing `Net::DNS` left `Net::XMPP` and passed.
   The assertion that notices now sits in `t/unit/lib/61` beside the code that made
   the dependency load-bearing, and it refuses that sabotage.
+- SM926 (PENDING) **one definition of the host a request is for, so a page and a
+  notification cannot disagree about what host the site is on.** The ruling of
+  2026-10-01: the presented host is the host - a division of responsibility rather
+  than a trust level. The engine uses the hostname it was given, restricting what
+  may be presented is the front end's job, and a site that wants it fixed pins it.
+
+  There were TWO definitions. `_request_host()` read `HTTP_HOST` and chose which
+  alias host's config a request got; interpolation read whatever
+  `$ENV{SERVER_NAME}` held - which under Apache's `UseCanonicalName` default of
+  **Off** is the Host header and under **On** is the configured `ServerName`. So the
+  engine's own idea of its address was conditional on a vhost setting none of the
+  four shipped examples sets, and the two could differ on the same request.
+  `${SERVER_NAME}` now resolves through the request host in both copies, falling
+  back to `$ENV{SERVER_NAME}` only when no usable Host header was presented - a CLI
+  run, or a client that sent something that is not a hostname.
+
+  VALIDATION IS HYGIENE, NOT TRUST, and the distinction is the reason it stays: this
+  value reaches the per-host page cache's FILENAMES as well as URLs, so only a
+  lowercased, port-stripped, dot-stripped, DNS-shaped name of at most 253 bytes is
+  accepted and anything else reads as absent. `t/unit/lib/60` drives five malformed
+  hosts through it, including a traversal attempt, and asserts the configured name
+  stands in each case.
+
+  `env_interpolation_complete` had to move to the same resolver, which is a bug this
+  change would otherwise have introduced: with a Host header and no `SERVER_NAME`,
+  interpolation succeeds, so a completeness check reading `%ENV` directly would have
+  called it unresolvable and SM926's own "no request context" branch would have
+  fired on a request that had one - emitting a relative path where the absolute one
+  was available.
+
+  NO NEW CONFIG KEY, because the pin already existed: a literal
+  `site_url: https://example.com` has no `${...}` to expand and is left alone, which
+  `t/unit/lib/58` already asserted before this ruling was taken. What still does not
+  exist is pinning the HOST while leaving the scheme dynamic - a smaller question,
+  not assumed here. `UseCanonicalName On` was declined: it would fix `SERVER_NAME`
+  to the primary `ServerName`, so an alias host not overriding `site_url` would put
+  the PRIMARY host into its own links, breaking the multi-host and language-set
+  sites the alias mechanism exists for.
+
+  ADR 0001 keeps the render path module-free, so the processor carries its own copy
+  of both subs and `t/lint/203` pins them equivalent BODY FOR BODY, not merely
+  clause by clause - the arrangement lint 198 makes for `_cannot_read` and 202 for
+  the allowlist. Eight sabotages, eight refusals. SM110's whitelist of what a Host
+  header may select is unchanged: a security-relevant key still may not vary per
+  host.
 
 - SM932 (PENDING) **a diagnostic now reaches a second sink, because the first one
   was never verifiable.** `log_event`'s only unconditional sink was

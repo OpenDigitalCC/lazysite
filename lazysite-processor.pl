@@ -5593,11 +5593,31 @@ sub strip_tt_directives {
 # vars and their memo, the request host, nav, the lazysite.conf peeks and the
 # scan identity. The file ran 2,700 lines without a heading through here.
 
+# SM926, RULED 2026-10-01: SERVER_NAME resolves to the host PRESENTED.
+#
+# This is the processor's copy of Lazysite::Util::_env_value - ADR 0001 keeps the
+# render path module-free, so it cannot call the module's, and t/lint/203 pins the
+# two identical. The decision in it is one line: `${SERVER_NAME}` must mean the
+# host this request arrived on, which is what `_request_host` below has always
+# returned for alias-host selection, rather than whatever $ENV{SERVER_NAME} holds -
+# because that follows the Host header under Apache's `UseCanonicalName` default of
+# Off and the configured ServerName under On. The engine's answer should not depend
+# on a vhost setting none of the four shipped examples sets.
+#
+# The fallback to $ENV{SERVER_NAME} is for a request with no usable Host header: a
+# CLI run, or a client that sent something that is not a hostname.
+sub _env_value {
+    my ($name) = @_;
+    return $name eq 'SERVER_NAME'
+        ? ( _request_host() || $ENV{SERVER_NAME} )
+        : $ENV{$name};
+}
+
 sub interpolate_env {
     my ($val) = @_;
     # Only interpolate allowlisted environment variables (S5)
     $val =~ s{\$\{(\w+)\}}{
-        $ENV_ALLOWLIST{$1} ? ( defined $ENV{$1} ? $ENV{$1} : '' ) : "\${$1}"
+        $ENV_ALLOWLIST{$1} ? ( _env_value($1) // '' ) : "\${$1}"
     }ge;
     return $val;
 }

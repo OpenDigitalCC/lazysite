@@ -238,6 +238,48 @@ sub env_allowlist {
     return @names;
 }
 
+# SM926, RULED 2026-10-01: THE PRESENTED HOST IS THE HOST.
+#
+# One definition of "the host this request is for", shared by everything that
+# needs one. There were two: lazysite-processor.pl's `_request_host` read
+# HTTP_HOST to choose an alias host's config, and interpolation read whatever
+# $ENV{SERVER_NAME} happened to hold - which under Apache's `UseCanonicalName`
+# default of Off is the Host header, and under On is the configured ServerName.
+# So a page and a notification could disagree about what host the site is on,
+# conditional on a vhost setting none of the four shipped examples sets.
+#
+# The ruling settles it as a division of responsibility rather than a trust level:
+# the engine uses the hostname it was given, and restricting what may be presented
+# is the front end's job. A site that wants it fixed pins it - a literal
+# `site_url` has no ${...} to expand and is left alone.
+#
+# VALIDATION IS NOT TRUST, it is hygiene: the host reaches filenames (the per-host
+# page cache) and URLs, so only a DNS-shaped name of sane length is accepted and
+# anything else reads as absent. That is the same validation the processor's copy
+# has always done, and t/lint/203 pins the two identical.
+sub request_host {
+    my $host = lc( $ENV{HTTP_HOST} // q{} );
+    $host =~ s/:\d+\z//;    # strip port
+    $host =~ s/\.\z//;      # trailing dot (FQDN form)
+    return q{} if length $host > 253;
+    return q{}
+        unless $host =~ /\A [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )?
+                         (?: \. [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )? )* \z/x;
+    return $host;
+}
+
+# The value an allowlisted ${VAR} expands to. Only SERVER_NAME is special, and it
+# is the whole of SM926's build: it resolves to the host PRESENTED, falling back to
+# $ENV{SERVER_NAME} when there is no usable Host header - a CLI run, or a client
+# that sent something that is not a hostname. Everything else is read from %ENV as
+# before.
+sub _env_value {
+    my ($name) = @_;
+    return $name eq 'SERVER_NAME'
+        ? ( request_host() || $ENV{SERVER_NAME} )
+        : $ENV{$name};
+}
+
 # Expand only allowlisted ${VAR}s. An allowlisted variable that is not SET
 # expands to the empty string (the processor's behaviour, kept); one that is not
 # allowlisted is left verbatim, so an unexpected placeholder stays visible rather
@@ -246,7 +288,7 @@ sub interpolate_env {
     my ($val) = @_;
     return $val unless defined $val;
     $val =~ s{\$\{(\w+)\}}{
-        $ENV_ALLOWLIST{$1} ? ( defined $ENV{$1} ? $ENV{$1} : '' ) : "\${$1}"
+        $ENV_ALLOWLIST{$1} ? ( _env_value($1) // '' ) : "\${$1}"
     }ge;
     return $val;
 }
@@ -259,7 +301,11 @@ sub env_interpolation_complete {
     my ($val) = @_;
     return 1 unless defined $val && $val =~ /\$\{/;
     while ( $val =~ /\$\{(\w+)\}/g ) {
-        return 0 unless $ENV_ALLOWLIST{$1} && length( $ENV{$1} // '' );
+        # SM926: through the SAME resolver interpolate_env uses, or this would
+        # report `${SERVER_NAME}` as unresolvable on a request that has a Host
+        # header and no SERVER_NAME - and Notify would then emit a relative path
+        # on a site where the absolute one was perfectly available.
+        return 0 unless $ENV_ALLOWLIST{$1} && length( _env_value($1) // '' );
     }
     return 1;
 }
