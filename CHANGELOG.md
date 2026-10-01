@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM928 (PENDING) **a submission notice can carry the submission, and only if the
+- SM928 (4d270ff3) **a submission notice can carry the submission, and only if the
   form asks.** Defects 2 and 3, which closes the filing.
 
   Defect 2: the notifier received the form's NAME and nothing else, so the
@@ -96,7 +96,7 @@ Naming the commit: AFTER it lands, never before
   imprecise - `'' || join(...)` is a no-op, and removing `$type.$endpoint` while
   leaving `$type.$endpoint.full` removed nothing that was used. Both refused once
   corrected.
-- SM927 (PENDING) **the XMPP configuration can be tested before anything real
+- SM927 (555ac60e) **the XMPP configuration can be tested before anything real
   happens, and the test says which stage it reached.** `form-smtp` declares a
   `validate` action and the config page shows a "Validate SMTP connection" button.
   `notify-xmpp` declared no actions at all, so an operator who had just typed eight
@@ -156,7 +156,7 @@ Naming the commit: AFTER it lands, never before
   a test action, which would make the absence a lint - stays open, because the
   population has not been counted.
 
-- SM925 (PENDING) **X2: the XMPP endpoint comes from the domain's SRV record, which
+- SM925 (29c7432a) **X2: the XMPP endpoint comes from the domain's SRV record, which
   closes the filing.** An operator configured a valid account on a live site and
   could not connect: the port had defaulted to 5222 while the account's own domain
   answered `10 0 47594 xmpp.project.im.` - a different host AND a different port,
@@ -255,7 +255,7 @@ Naming the commit: AFTER it lands, never before
   header may select is unchanged: a security-relevant key still may not vary per
   host.
 
-- SM932 (PENDING) **a diagnostic now reaches a second sink, because the first one
+- SM932 (b1556284) **a diagnostic now reaches a second sink, because the first one
   was never verifiable.** `log_event`'s only unconditional sink was
   `print STDERR`, and whether a CGI's STDERR reaches a log anybody can read is
   the web server's decision rather than the engine's. On an nginx -> Apache ->
@@ -308,7 +308,7 @@ Naming the commit: AFTER it lands, never before
   conf that says nothing still forwards a plugin's ERROR, and its old "forwarding
   off" case now spells `off` explicitly instead of relying on absence. Seven
   sabotages, seven refusals.
-- SM915 (PENDING) **enabling one extension no longer writes a second list, and the
+- SM915 (64fd8795) **enabling one extension no longer writes a second list, and the
   manager nav stops hiding extensions that are enabled.** SM817 renamed this list
   from `plugins:` to `extensions:` and said in the comment that has stood ever
   since that both spellings open the SAME list, so "a site cannot end up with two
@@ -364,7 +364,7 @@ Naming the commit: AFTER it lands, never before
   every site using the newer spelling since SM817. The `Notify` half of that
   shipped in 0.15.1 under SM485, because the email endpoint could not be reached
   without it; this is the rest.
-- SM925 (PENDING) **X1 and X3: the notification path refuses to enable without the
+- SM925 (c32f96ed) **X1 and X3: the notification path refuses to enable without the
   module it needs, and says why it sent nothing.** An operator enabled
   `notify-xmpp` on a live site, configured eight fields including a password, and
   got nothing for four submissions. Three faults composed; two are fixed here and
@@ -415,7 +415,7 @@ Naming the commit: AFTER it lands, never before
   a resolver - and if it does not, `Net::DNS` is not core, so X2's own fix needs a
   dependency declaration, which is X1's mechanism. `t/unit/lib/57` and
   `t/unit/manager/…` cover what shipped; seven sabotages, seven refusals.
-- SM926 + SM928 (PENDING) **a notification's link is a link, and its body keeps its
+- SM926 + SM928 (924c520b) **a notification's link is a link, and its body keeps its
   newlines.** These land together because the link is built from the variable the
   other defect flattened.
 

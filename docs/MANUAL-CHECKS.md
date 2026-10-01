@@ -463,8 +463,12 @@ handler is invoked and what it is handed; it stops at the socket.
 
 Submit a real form on a site with an SMTP handler and confirm the mail arrives,
 including from a queue rather than only in the happy path. With `notify-xmpp`
-configured, confirm the chat notice arrives and carries **no submitted content** -
-that is the design, and a regression would leak content to a phone on a lock
+configured, confirm the chat notice arrives and carries **no submitted content
+unless that form asked for it** - SM928 made the content opt-in per form
+(`notify: full`), and the default is still the form's name and nothing from the
+submission. Check both: a form without the key must produce the same bare notice it
+always did, and one with it must produce the fields. The default is what a
+regression would break quietly, and it would leak content to a phone on a lock
 screen.
 
 For XMPP, press **Send a test notification** on the Extension Manager row FIRST
