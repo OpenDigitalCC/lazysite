@@ -418,6 +418,7 @@ effective set.
 | `audit` | The audit trail (its own capability, split from analytics) |
 | `notifications` | The manager notices bell - operator notifications such as form submissions and requests awaiting a response (SM136; seeded on `user-managers`) |
 | `read_submissions` | Least-privilege read of stored form submissions, without the broader `manage_forms` (SM187) |
+| `delete_submissions` | Delete **any** submission on the site, over the API. Off by default, and separate from `read_submissions` - a stored row records no author, so this cannot be narrowed to the rows a caller created (SM924) |
 | `feedback` | Agent feedback over MCP (`submit_feedback`); off by default (0.9.0) |
 | `create_sub_users` / `delegate_sub_user_creation` | Sub-account creation and onward delegation |
 

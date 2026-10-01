@@ -132,9 +132,9 @@ our %GATE = (
     # SM217: the same authority as domain-add, because it IS a domain-add -
     # one that reads the shared content root rather than being told it.
     'domain-alias-add' => [qw(manage_domains)],
-    'domain-set'      => [qw(manage_domains)],
-    'remap-list'      => [qw(manage_domains)],                 # SM802
-    'remap-save'      => [qw(manage_domains)],
+    'domain-set'       => [qw(manage_domains)],
+    'remap-list'       => [qw(manage_domains)],    # SM802
+    'remap-save'       => [qw(manage_domains)],
     'audit-trail-set' => [qw(audit_switch)],  # N13-04: AND manage_config, in the dispatch
     'domain-remove'   => [qw(manage_domains)],
     'domain-preview' => [qw(manage_domains)], # SM155: pre-DNS render
@@ -191,7 +191,21 @@ our %GATE = (
         # the sysop parity note that stood here no longer applies.
     'form-submissions' => [qw(read_submissions)],
     'form-list'        => [qw(read_submissions)],
-    'form-delete'      => [qw(manage_forms)],       # SM632: the inverse of bind_form
+    # SM924: DELETING a submission is reachable on this channel now, and only
+    # with a grant of its own. SM214 held it back - a destructive act on
+    # personal data, often on the only copy - and that reasoning is why the
+    # capability is OFF BY DEFAULT rather than why the door stays shut: a
+    # partner that could read every submission could delete none, so an agent's
+    # own test rows could be cleared only by a person.
+    #
+    # delete_submissions ALONE, not read_submissions as well. A caller that can
+    # delete without reading is a strange shape but a coherent one, and demanding
+    # a second grant the ruling did not ask for would be this file deciding
+    # policy. The capability's own text says what it permits: ANY submission on
+    # the site, because a stored row records no author to narrow it to.
+    'form-submission-delete'       => [qw(delete_submissions)],
+    'form-submissions-delete-bulk' => [qw(delete_submissions)],
+    'form-delete' => [qw(manage_forms)],    # SM632: the inverse of bind_form
         # SM842: handler CRUD on the token channel too, reversing SM799's
         # cookie-only rule - the release manager's ruling that the destination
         # decides, on every surface. See the cookie table for the door.

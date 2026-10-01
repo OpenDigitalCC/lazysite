@@ -456,6 +456,23 @@ handlers.
 If those actions are not offered to your account, the capability has not been
 granted rather than the feature being absent. Ask the operator.
 
+### Deleting a submission
+
+Deleting is a **separate** capability, `delete_submissions`, and it is off by
+default. Reading and deleting are different authorities: an agent that processes
+leads needs the first and usually not the second.
+
+**It permits deleting any submission on the site, not just the ones your own
+testing produced.** A stored submission records no author - deliberately, because
+an unauthenticated form cannot produce a trustworthy one - so there is nothing on
+the row to narrow the grant to. Grant it to an agent that tidies up after itself,
+and withhold it from one that only reads.
+
+`form-submission-delete` removes one row and `form-submissions-delete-bulk`
+removes a set. The manager's Submissions page deletes without this capability, as
+it always has: it is for a person who signed in, and this grant is for a client
+that did not.
+
 ## Forms as an intake mechanism
 
 A form is the supported way for an anonymous browser to send something to a

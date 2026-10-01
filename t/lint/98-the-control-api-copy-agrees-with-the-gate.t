@@ -74,19 +74,27 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     # it gets written down. Raise it only with the action named and the reason
     # given - a bump to make the suite green is the drift this test exists to
     # catch.
+    #   106 / 52, SM924 (0.15.2): form-submission-delete and
+    #        form-submissions-delete-bulk, gated delete_submissions - a capability
+    #        of their own, OFF BY DEFAULT, so no existing account gains them. They
+    #        were cookie-only under SM214, and that reasoning now sets the default
+    #        rather than closing the door: a partner that could read every
+    #        submission could delete none, so an agent's own test rows could only be
+    #        cleared by a person. Both numbers move, because this is the first
+    #        change that takes actions OUT of the cookie-only set.
     #   104, SM217 (0.15.1): domain-alias-add, gated manage_domains, the same
     #        capability domain-add needs - it IS a domain-add that reads the
     #        shared content root instead of being told it.
     #   103, SM905 U5 (0.15.1): form-uploads-save, gated manage_forms, the same
     #        capability its only writer form-targets-save already needed.
     my %caps = gate_caps($cgi);
-    is( scalar keys %caps, 104, '104 actions are reachable with a token' )
+    is( scalar keys %caps, 106, '106 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 
     my @cookie_only = grep { !defined $Lazysite::ControlApi::Actions::ACTION{$_}{caps} }
         keys %Lazysite::ControlApi::Actions::ACTION;
-    is( scalar @cookie_only, 54, '54 are cookie-only' );
+    is( scalar @cookie_only, 52, '52 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

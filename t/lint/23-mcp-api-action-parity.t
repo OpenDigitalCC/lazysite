@@ -240,6 +240,22 @@ for my $a ( sort keys %PAIR ) {
 
 # --- 3. one-sided actions, each with a recorded reason -----------------------
 my %API_ONLY = (
+    # SM924: the submission deletes are reachable on the control API, under a
+    # capability of their own that is off by default, and have NO MCP twin.
+    #
+    # That is a decision and not a gap. The ruling asked for a grant, not a new
+    # tool surface: an MCP tool is a second place to document, gate and test a
+    # destructive act on personal data, and no report has asked for one. The
+    # capability is what was missing - a partner that could read every submission
+    # could delete none, so an agent's own test rows could only be cleared by a
+    # person - and the capability is now there on the channel the agent already
+    # uses to read them.
+    'form-submission-delete' =>
+        'SM924: a grant was what was missing, not a tool. Deleting personal data '
+        . 'over MCP would be a second surface for it and nothing has asked',
+    'form-submissions-delete-bulk' =>
+        'SM924: as form-submission-delete, and more so - a bulk delete of personal '
+        . 'data gets one surface, not two',
     # SM579 phase 1: connectors are configured by an operator over the control
     # API and the (coming) manager page. Whether an AGENT may configure where
     # site data goes, or cause a call, is a phase-2 question to answer once

@@ -116,9 +116,9 @@ tone: medium
 `form-delete` | manage_forms | form (query_or_body), confirm (body)
 `form-list` | read_submissions |  
 `form-submission-confirm` | cookie only | file (query_or_body), id (body)
-`form-submission-delete` | cookie only | file (query_or_body), id (body)
+`form-submission-delete` | delete_submissions | file (query_or_body), id (body)
 `form-submissions` | read_submissions | form (query), file (query)
-`form-submissions-delete-bulk` | cookie only | file (query_or_body), ids (body)
+`form-submissions-delete-bulk` | delete_submissions | file (query_or_body), ids (body)
 `form-targets-read` | manage_forms / manage_data / manage_connectors | form (query)
 `form-targets-save` | manage_forms | form (query_or_body), handlers (body), targets (body)
 `form-uploads-save` | manage_forms | form (query_or_body), uploads (body), max_kb (body), max_files (body), accept (body)

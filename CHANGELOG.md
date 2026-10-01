@@ -106,6 +106,54 @@ Naming the commit: AFTER it lands, never before
   because a refusal that sends a caller back to the retired parameter is worse than
   no refusal. `layout-delete` is untouched: its pair has the opposite precedence and
   is its own question.
+- SM924 (PENDING) **deleting a submission is a grant of its own, off by default.** A
+  partner account could read every submission on a site and delete none of them:
+  submission delete was interactive-only, so the rows an agent's own test
+  submissions left behind could be cleared only by a person.
+
+  **The filing's own recommendation was measured false before anything was built.**
+  It said the row "already records enough to know" who created a submission. It does
+  not: a stored submission carries **no actor at all**, deliberately - a forged
+  `_auth_user` had been reaching the actor column of the audit trail - and `_ip` is
+  the front proxy's address, identical on every row of every site behind it
+  ([[SM929]]). So "delete rows the caller created" has nothing to key on.
+
+  `delete_submissions` therefore gates on the grant, and **is named for what it
+  permits: deleting ANY submission on the site.** The title, the grants line and the
+  Groups grid all say so, because an operator who grants it on the softer reading has
+  granted the harder thing. It is off by default - no group holds it after an
+  upgrade, and the interactive path is unchanged. SM214's argument against exposing
+  the delete now sets that default rather than closing the door.
+
+  No MCP twin, recorded as a decision rather than left as a gap: the ruling asked for
+  a grant, not a second surface for deleting personal data. The gate ledger moves
+  from 104/54 to 106/52 - the first change that takes actions **out** of the
+  cookie-only set.
+
+- SM923 (PENDING) **a 31-field form can reach a data table without abbreviating its
+  column names.** The table handler's field map was capped at 500 characters, the
+  generic bound every handler conf value carries. At 31 fields that is about sixteen
+  characters per `field=column` pair, so the column names had to be shortened until
+  they stopped matching the field names on the form - and whoever read the table
+  later had to hold the mapping in their head.
+
+  The cap is **per field** now (`max_len`, default 500) and the map's is 4,000, which
+  carries any realistic form while still bounding the conf value. The refusal names
+  the limit it actually applied; it said 500 while a different number was in force.
+
+  **THE RULING OF 2026-09-30 WAS AMENDED ON MEASUREMENT.** It was to default the map
+  to identity, which makes it optional. Measuring what reaches a handler showed why
+  that cannot be: `_visible_fields` strips only `_`-prefixed keys, so every other key
+  a visitor posts arrives - including keys the form never declared - and the map is
+  what drops them. Under an identity default, a posted key matching any column of the
+  bound table would write it. The schema note says in those words that the map is
+  "what keeps a visitor from choosing where their data goes", and that is literally
+  true, so the cap gave way instead. What the amendment does not deliver, plainly: a
+  short form's map is not empty, because the map is still required.
+
+  The filing's other half - a **section construct** for a long form - is still filed
+  and still not built. A grammar rule is documented, tested and supported forever,
+  and none of the three candidate shapes should be chosen on one report.
 
 - SM921 (PENDING) **a `tel` field validates something now, and a pattern a browser
   cannot compile is refused where an author will see it.** BEHAVIOUR CHANGE WORTH

@@ -563,6 +563,42 @@ my %ACTION_INFO = (
         grants => 'Read what visitors have submitted through forms - whatever each form collects, with the submitter\'s IP address. Read-only: it cannot change where submissions go.',
         unlocks => { api => [qw(form-submissions form-list)], mcp => [qw(read_form_submissions form_list)] },
     },
+    # SM924: DELETING A SUBMISSION, as a grant of its own.
+    #
+    # A partner account could READ submissions (read_submissions) and delete none of
+    # them: submission delete was interactive-only, so the test rows an agent's own
+    # work left behind could only be cleared by a person in the manager. SM214 held
+    # it back deliberately and the reason stands for the DEFAULT; what was missing
+    # was any way to say yes.
+    #
+    # THE NAME IS THE RULING. The filing's own recommendation was "delete rows the
+    # caller created", and that was measured FALSE before it could be recorded: a
+    # stored submission carries no actor at all (form-handler.pl records a public
+    # submission as having none, deliberately - a forged `_auth_user` had been
+    # reaching the audit trail's actor column), and `_ip` is the front proxy's
+    # address on every row of every site behind it (SM929). So there is no
+    # provenance to key on, and this capability permits deleting ANY submission on
+    # the site. It is named and described for that, because an operator who grants
+    # it on the softer reading has granted the harder thing.
+    #
+    # OFF BY DEFAULT: it appears in no seeded group, so a site that upgrades grants
+    # it to nobody and the interactive path is unchanged.
+    delete_submissions => {
+        section => 'Insight',
+        title => 'Delete ANY form submission on this site, over the API/MCP. Not "delete '
+            . 'your own" - a stored submission records no author, so this cannot be '
+            . 'narrowed to the rows a caller created. Off by default.',
+        grants => 'Delete any stored submission on this site, one at a time or in bulk. A '
+            . 'submission is often the only copy of what a visitor sent, and nothing on the '
+            . 'row says who submitted it, so this grant cannot be confined to an agent\'s '
+            . 'own test data: it is the authority to remove anybody\'s. Pair it with '
+            . 'read_submissions for an agent that clears up after itself, and withhold it '
+            . 'from one that only reads.',
+        unlocks => {
+            api => [qw(form-submission-delete form-submissions-delete-bulk)],
+            mcp => [],
+        },
+    },
     create_sub_users => {
         section => 'Accounts',
         title   => 'Create sub-accounts under your own account.',

@@ -239,6 +239,7 @@ var PERM_LABELS = {
   manage_users: 'Users & groups', analytics: 'Analytics', audit: 'Audit trail',
   notifications: 'Notifications', feedback: 'Agent feedback',
   read_submissions: 'Read submissions',
+  delete_submissions: 'Delete any submission',
   create_sub_users: 'Create sub-users', delegate_sub_user_creation: 'Delegate sub-users'
 };
 

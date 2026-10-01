@@ -104,7 +104,12 @@ subtest 'the channel gate and a cookie-only action are forbidden too' => sub {
 
     # POST, because it mutates: sent as GET it meets the "must be sent as POST"
     # gate first, and that refusal is a different question.
-    my ( $s2, $b2 ) = api( $agent, 'action=form-submission-delete', post => 1 );
+    #
+    # SM924 CHANGED THE EXAMPLE, not the rule. This was form-submission-delete,
+    # which is reachable now under a capability of its own - so the cookie-only
+    # case needs an action that is still cookie-only, and rotate-auth-secret is one
+    # with a recorded reason of its own.
+    my ( $s2, $b2 ) = api( $agent, 'action=rotate-auth-secret', post => 1 );
     is( $s2,         403,         'an action served only to the manager UI answers 403' );
     is( $b2->{kind}, 'forbidden', 'kind forbidden' );
     like( $b2->{error}, qr/only to the manager UI/, 'and says so' );

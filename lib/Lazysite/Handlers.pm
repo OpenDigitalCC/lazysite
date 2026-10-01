@@ -132,10 +132,18 @@ our %TYPES      = (
         cap    => 'manage_data',
         schema => [
             { key => 'table', label => 'Table', type => 'table', required => 1 },
+            # SM923: max_len 4000, not the generic 500. A pair is at most a
+            # 128-character field name plus a 64-character column name, so 4000
+            # carries any realistic form - the 31-field one that produced the
+            # report needs about 1,000 - while still bounding the conf value,
+            # which is what the cap is for. The map stays REQUIRED: it is the only
+            # thing standing between a posted key and a column.
             { key => 'fields', label => 'Field mapping', type => 'text', required => 1,
+                max_len => 4000,
                 note => 'field=column, comma separated. It is what keeps a visitor from '
                     . 'choosing where their data goes: a field nobody maps is dropped, so a '
-                    . 'form gaining a field cannot start writing a column.' },
+                    . 'form gaining a field cannot start writing a column - and neither can '
+                    . 'a visitor who posts a key the form never had.' },
             { key => 'keep_copy', label => 'Keep a submissions copy', type => 'boolean',
                 default => 'true',
                 note => 'Also keep each submission in lazysite/forms/submissions, so the '
@@ -750,8 +758,27 @@ sub validate_handler {
             elsif ( $f->{required} ) { return ( undef, "$k is required for a $type handler", $k ) }
             else                     { next }
         }
-        return ( undef, "$k must be one line",              $k ) if $v =~ /[\r\n]/;
-        return ( undef, "$k is longer than 500 characters", $k ) if length $v > 500;
+        return ( undef, "$k must be one line", $k ) if $v =~ /[\r\n]/;
+
+        # SM923: THE BOUND IS PER FIELD, because one of them was binding something
+        # worth binding. 500 characters is a sensible bound for a path, an address
+        # or a table name and was the wrong bound for a field MAP: at 31 fields it
+        # left about sixteen characters per `field=column` pair, so an operator
+        # building a long form had to abbreviate column names until they no longer
+        # matched the field names on their own form - and then hold the mapping in
+        # their head when reading the table.
+        #
+        # RULED 2026-10-01, amending the 2026-09-30 ruling on measurement: the map
+        # stays REQUIRED and the cap moves. The original ruling was to default the
+        # map to identity, which would have made it optional - and measuring what
+        # reaches a handler showed the map is also the FILTER. `_visible_fields`
+        # strips only `_`-prefixed keys, so every other key a visitor posts arrives
+        # here; with an explicit map an undeclared key is dropped, and under an
+        # identity default it would write a column of its own name. The schema note
+        # below says the map is "what keeps a visitor from choosing where their data
+        # goes", and that is literally true, so it is the cap that gives way.
+        my $max = $f->{max_len} // 500;
+        return ( undef, "$k is longer than $max characters", $k ) if length $v > $max;
         if    ( $f->{type} eq 'boolean' ) { $v = _bool($v) }
         elsif ( $f->{type} eq 'email' ) {
             return ( undef, "$k must be an email address", $k ) unless $v =~ /\A[^\s@]+@[^\s@]+\z/;

@@ -107,22 +107,40 @@ ok( !$na->{ok} && $na->{error} =~ /not available to token/i,
 # are the two an agent must not confuse. This is the third case: an action held
 # back deliberately reads exactly like one nobody got round to exposing, and a
 # site agent validating 0.10.7 duly recorded the submission deletes as a parity
-# gap to be closed. They are not a gap - SM214 keeps them interactive because
-# deleting a stored submission is a destructive operation on personal data,
-# often on the only copy.
+# gap to be closed.
+#
+# SM924 MOVED THE SUBMISSION DELETES OUT OF THIS CASE and the example moved with
+# them. They are reachable now, under `delete_submissions` - a capability of their
+# own that no group holds by default - so a token client without it meets the
+# CAPABILITY refusal below rather than "not available to token clients". SM214's
+# argument did not go away; it became the default rather than the door.
+#
+# rotate-auth-secret carries the remaining reasoned entry, so it is what the
+# "withheld on purpose, and here is why" case is asserted on.
 {
+    my $held = mapi( $d,
+        REQUEST_METHOD     => 'POST',
+        QUERY_STRING       => 'action=rotate-auth-secret',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    ok( !$held->{ok}, 'a token client cannot rotate the signing secret' );
+    like( $held->{error}, qr/not available to token/i,
+        'and is told it exists but is cookie-only' );
+    like( $held->{error}, qr/invalidates every live session/i,
+        'AND why - without which "held back" is indistinguishable from '
+            . '"not built", which is how the submission deletes got filed as a defect' );
+
+    # SM924: and the delete it used to be asserted on is refused for the OTHER
+    # reason now - a missing capability, which names what to ask the operator for.
     my $pii = mapi( $d,
         REQUEST_METHOD     => 'POST',
         QUERY_STRING       => 'action=form-submission-delete&file=x&id=1',
         HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
-    ok( !$pii->{ok}, 'a token client cannot delete a submission' );
-    like( $pii->{error}, qr/not available to token/i,
-        'and is told it exists but is cookie-only' );
-    like( $pii->{error}, qr/personal data/i,
-        'AND why - without which "held back" is indistinguishable from '
-            . '"not built", which is how it got filed as a defect' );
-    like( $pii->{error}, qr/reading submissions IS available/i,
-        'and what it CAN do instead, so the refusal is actionable' );
+    ok( !$pii->{ok}, 'a token client without delete_submissions still cannot delete' );
+    like( $pii->{error}, qr/capability/i,
+        'but the refusal is a CAPABILITY one now - an operator can grant it, which '
+            . 'is the whole of what SM924 changed' );
+    unlike( $pii->{error}, qr/not available to token/i,
+        'and it no longer reads as a door that does not exist' );
 
     # The control: an action that is cookie-only for no interesting reason gets
     # the plain sentence, so the explanation means something where it appears.

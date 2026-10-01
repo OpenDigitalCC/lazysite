@@ -1059,16 +1059,15 @@ if ($token_auth) {
     # is a decision and not just "the manager UI owns this screen". Only the
     # actions whose absence would otherwise read as an oversight need an entry;
     # the rest fall back to the generic sentence.
+    #
+    # SM924 REMOVED TWO ENTRIES FROM HERE, and the removal is the point: the two
+    # submission deletes are no longer cookie-only. They are gated on
+    # `delete_submissions`, a capability of their own that no group holds by
+    # default, so SM214's argument - a destructive act on personal data, often on
+    # the only copy - now sets the DEFAULT rather than closing the door. A reason
+    # left behind for an action that is reachable would be a sentence nothing can
+    # print, which is how a file comes to describe a system it no longer has.
     my %COOKIE_ONLY_REASON = (
-        'form-submission-delete' =>
-            'deleting a stored submission is a destructive operation on personal '
-            . 'data, and often on the only copy, so SM214 keeps it interactive: a '
-            . 'human confirms it in the manager. Reading submissions IS available '
-            . 'to this account with the right capability',
-        'form-submissions-delete-bulk' =>
-            'the same reason as form-submission-delete, and more so - a bulk '
-            . 'delete of personal data is not an operation to expose to an '
-            . 'automated caller',
         'rotate-auth-secret' =>
             'rotating the signing secret invalidates every live session, '
             . 'including the caller\'s own, so it is done by a human who can see '

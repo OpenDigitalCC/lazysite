@@ -864,7 +864,8 @@ sub run_checks {
                 manage_themes manage_layouts manage_domains manage_config
                 manage_services
                 manage_users analytics audit notifications feedback
-                read_submissions create_sub_users delegate_sub_user_creation
+                read_submissions delete_submissions
+                create_sub_users delegate_sub_user_creation
                 manage_data write_data manage_briefs run_jobs manage_connectors
                 housekeeping purge audit_switch);
 

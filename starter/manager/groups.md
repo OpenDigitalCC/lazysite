@@ -77,6 +77,10 @@ var ACTIONS = [
   ['notifications', 'Notifications (bell)'],
   ['feedback', 'Agent feedback (MCP submit_feedback)'],
   ['read_submissions', 'Read form submissions (agent, API/MCP)'],
+  // SM924: the label says ANY, because a stored submission records no author and
+  // this cannot be narrowed to the rows a caller created. An operator granting it
+  // on the softer reading would be granting the harder thing.
+  ['delete_submissions', 'Delete ANY form submission (agent, API/MCP)'],
   ['create_sub_users', 'Create sub-users'],
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];
