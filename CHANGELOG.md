@@ -209,7 +209,7 @@ Naming the commit: AFTER it lands, never before
   know WHICH modules it needs - so removing `Net::DNS` left `Net::XMPP` and passed.
   The assertion that notices now sits in `t/unit/lib/61` beside the code that made
   the dependency load-bearing, and it refuses that sabotage.
-- SM926 (PENDING) **one definition of the host a request is for, so a page and a
+- SM926 (a43cab2d) **one definition of the host a request is for, so a page and a
   notification cannot disagree about what host the site is on.** The ruling of
   2026-10-01: the presented host is the host - a division of responsibility rather
   than a trust level. The engine uses the hostname it was given, restricting what
