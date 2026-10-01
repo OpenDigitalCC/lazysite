@@ -53,16 +53,33 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     default => 'false',
                 },
                 {
+                    # SM925 X2: the note used to say "Defaults to the JID's
+                    # domain", which is the precise assumption SRV exists to
+                    # correct. Leave BOTH this and the port blank and the engine
+                    # asks the domain where its client endpoint is.
                     key   => 'host',
                     label => 'Server host (optional)',
                     type  => 'text',
-                    note  => 'Defaults to the JID\'s domain.',
+                    note  => 'Leave BLANK, with the port blank too, to use the '
+                        . 'domain\'s SRV record - which is how most servers '
+                        . 'publish a client endpoint that is not the JID\'s own '
+                        . 'domain. Set it only to override that.',
                 },
                 {
-                    key     => 'port',
-                    label   => 'Server port',
-                    type    => 'number',
-                    default => '5222',
+                    # SM925 X2: NO `default`. The form pre-filled 5222, so an
+                    # operator who never touched the field had silently asserted
+                    # a port - and asserted it wrongly for every server that
+                    # publishes something else. A live account's own domain
+                    # answered `10 0 47594 xmpp.project.im.` and the pre-filled
+                    # 5222 overruled it. A defaulted value that contradicts a
+                    # discoverable fact is worse than no value: it looks like a
+                    # decision somebody made, so nobody questions it.
+                    key   => 'port',
+                    label => 'Server port',
+                    type  => 'number',
+                    note  => 'Leave BLANK to use the SRV record (with the host '
+                        . 'blank too). Setting it means exactly this port, and '
+                        . 'nothing is looked up.',
                 },
                 {
                     key     => 'tls',
@@ -94,7 +111,12 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             # on its first run. t/lint/201 gates the derivable half instead: a
             # plugin whose own text names a module must declare it.
             owns => {
-                deps         => ['Net::XMPP'],
+                # SM925 X2 adds Net::DNS: the SRV lookup that finds a domain's
+                # client endpoint needs it, and it is not core. Declared HERE and
+                # not after the fact, because X2's own repair landing without its
+                # dependency declared would be X1 happening a second time in the
+                # same filing.
+                deps         => [ 'Net::XMPP', 'Net::DNS' ],
                 capabilities => [],
             },
         }

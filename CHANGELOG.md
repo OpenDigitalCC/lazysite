@@ -96,6 +96,59 @@ Naming the commit: AFTER it lands, never before
   imprecise - `'' || join(...)` is a no-op, and removing `$type.$endpoint` while
   leaving `$type.$endpoint.full` removed nothing that was used. Both refused once
   corrected.
+- SM925 (PENDING) **X2: the XMPP endpoint comes from the domain's SRV record, which
+  closes the filing.** An operator configured a valid account on a live site and
+  could not connect: the port had defaulted to 5222 while the account's own domain
+  answered `10 0 47594 xmpp.project.im.` - a different host AND a different port,
+  neither unusual, since SRV exists so a client endpoint need not be the JID's
+  domain. They ran that lookup by hand and transcribed two values the code could
+  have resolved itself.
+
+  IT IS A REGRESSION, NOT A MISSING FEATURE, which is why it is twenty lines rather
+  than a design. `notify-xmpp`'s own header says delivery is *"based on the xmpp-lite
+  connector"*. `XMPP::Lite` resolves SRV and tracks whether the port was explicit;
+  this flow was derived from it **without those two clauses**. Measured 2026-10-01
+  against the live record: `XMPP::Lite::_resolve_srv` returns
+  `xmpp.project.im 47594`, `dig` agrees, and the notification hook on this host has
+  been delivering through that path all along. The question the filing left open -
+  whether `Net::XMPP` resolves SRV itself - turned out not to need answering: the
+  behaviour already existed in this project's own library and had been dropped in
+  the copy.
+
+  THE RULE IS THE OPERATOR'S AND IT IS STRICTER THAN `XMPP::Lite`'s: *"either let SRV
+  do its job or specify"*. SRV is consulted only when NEITHER host nor port is
+  given; a conf naming either is obeyed exactly and nothing is looked up.
+  `XMPP::Lite` tracks only whether the PORT was explicit, so it will replace a host
+  the operator did set - and a host somebody typed is a specification. A blank or
+  non-numeric port is not one.
+
+  Two things this does that `XMPP::Lite` does not, both cheap: a **tight resolver
+  timeout**, because this runs in a CGI and the 15-second alarm around the send is
+  the whole budget for DNS and the connection - so the lookup sits INSIDE that
+  window rather than before it; and an SRV target of `.` is **refused**, because RFC
+  2782 says that means the service is decidedly not available at this domain, and
+  treating it as a hostname turns an explicit "no" into a connection attempt against
+  nonsense.
+
+  THE DESCRIPTOR LOSES `default => '5222'`. The form pre-filled it, so an operator
+  who never touched the field had silently asserted a port - and asserted it wrongly
+  for every server publishing something else. Both notes now say that blank means
+  "use the SRV record". `Net::DNS` is declared alongside `Net::XMPP`, because X2's
+  own repair landing without its dependency declared would be X1 happening a second
+  time inside the same filing.
+
+  THE ENDPOINT DECISION GOT A NAME, and the test is why. The first version of
+  `t/unit/lib/61` could only observe the choice by attempting a connection and
+  reading the host out of the failure message - which reached the real server and
+  failed at auth. A unit test making a live network call is a defect in the code's
+  shape, not the test's: `_xmpp_endpoint` exists now, and the test calls it with
+  `$SRV_RESOLVER` swapped, the way `$XMPP_SENDER` already was.
+
+  Seven sabotages. Six refused; the seventh exposed a real limit in `t/lint/201`,
+  which requires a plugin naming a Debian package to declare SOMETHING and cannot
+  know WHICH modules it needs - so removing `Net::DNS` left `Net::XMPP` and passed.
+  The assertion that notices now sits in `t/unit/lib/61` beside the code that made
+  the dependency load-bearing, and it refuses that sabotage.
 
 - SM932 (PENDING) **a diagnostic now reaches a second sink, because the first one
   was never verifiable.** `log_event`'s only unconditional sink was

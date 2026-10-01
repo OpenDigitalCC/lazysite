@@ -735,6 +735,89 @@ sub _plugin_enabled {
     return $found;
 }
 
+# SM925 X2: FIND THE ENDPOINT THE DOMAIN PUBLISHES.
+#
+# An operator configured a valid account on a live site and could not connect: the
+# port had defaulted to 5222 while `dig +short SRV _xmpp-client._tcp.project.im`
+# answered `10 0 47594 xmpp.project.im.` - a different host AND a different port,
+# neither unusual, since SRV exists so the client-facing endpoint need not be the
+# JID's domain. They had to run that lookup by hand and transcribe two values the
+# code could have resolved itself.
+#
+# THIS IS A REGRESSION RATHER THAN A MISSING FEATURE, which is why it is twenty
+# lines and not a design. notify-xmpp's own header says delivery is "based on the
+# xmpp-lite connector"; XMPP::Lite resolves SRV and tracks whether the port was
+# explicit, and this flow was derived from it WITHOUT those two clauses. Measured
+# 2026-10-01: XMPP::Lite::_resolve_srv returns xmpp.project.im 47594 for that
+# domain, and the notification hook on this host has been delivering through it.
+#
+# Two things it does that XMPP::Lite does not, both cheap:
+#   - a TIGHT resolver timeout, because this runs in a CGI request and the 15s
+#     alarm around the caller is the whole budget for DNS and the connection;
+#   - a target of "." is refused. RFC 2782 says that means the service is
+#     decidedly NOT available at this domain, and treating it as a hostname would
+#     turn an explicit "no" into a connection attempt against nonsense.
+#
+# Returns () when there is no usable record, so the caller keeps <domain>:5222 -
+# which is what a fallback is for. A failure to resolve is reported rather than
+# swallowed: silence on this path is what cost the operator an afternoon (X3).
+our $SRV_RESOLVER = \&_resolve_xmpp_srv;
+
+# WHICH HOST AND PORT THIS SEND WILL USE - a decision with a name, so it can be
+# tested without a network. It had no name, which is why the first version of
+# t/unit/lib/61 reached the real server: the only way to observe the choice was to
+# attempt the connection and read the host out of the failure message.
+#
+# THE RULE IS THE OPERATOR'S, and it is stricter than XMPP::Lite's: "either let SRV
+# do its job or specify". SRV is consulted only when NEITHER host nor port is
+# given; a conf naming either is obeyed exactly and nothing is looked up.
+# XMPP::Lite tracks only whether the PORT was explicit, so it will replace a host
+# the operator did set - and a host somebody typed is a specification.
+sub _xmpp_endpoint {
+    my ( $conf, $domain ) = @_;
+    my $host_named = length( $conf->{host} // '' )      ? 1             : 0;
+    my $port_named = ( $conf->{port} // '' ) =~ /^\d+$/ ? 1             : 0;
+    my $host       = $host_named                        ? $conf->{host} : $domain;
+    my $port       = $port_named                        ? $conf->{port} : 5222;
+
+    return ( $host, $port ) if $host_named || $port_named;
+
+    my ( $srv_host, $srv_port ) = $SRV_RESOLVER->($domain);
+    return ( $host, $port ) unless length( $srv_host // '' );
+
+    log_event( 'INFO', 'notify', 'xmpp endpoint resolved from the SRV record',
+        domain => $domain, host => $srv_host, port => $srv_port );
+    return ( $srv_host, $srv_port );
+}
+
+sub _resolve_xmpp_srv {
+    my ($domain) = @_;
+    my $name     = "_xmpp-client._tcp.$domain";
+    my @found    = eval {
+        require Net::DNS;
+        my $res = Net::DNS::Resolver->new(
+            udp_timeout => 3,
+            tcp_timeout => 3,
+            retry       => 1,
+        );
+        my $reply = $res->query( $name, 'SRV' );
+        return () unless $reply;
+        my @rr = sort { $a->priority <=> $b->priority || $b->weight <=> $a->weight }
+            grep { $_->type eq 'SRV' } $reply->answer;
+        return () unless @rr;
+        my $target = $rr[0]->target // '';
+        $target =~ s/\.\z//;    # the FQDN trailing dot
+        return () if $target eq '' || $rr[0]->target eq '.';
+        return ( $target, $rr[0]->port );
+    };
+    if ( !@found && length( $@ // '' ) ) {
+        log_event( 'WARN', 'notify',
+            'the xmpp SRV lookup failed, so the JID domain and port 5222 are used',
+            record => $name, error => "$@" );
+    }
+    return @found;
+}
+
 # One-shot XMPP send, based on the xmpp-lite connector's connect/send flow
 # (Net::XMPP::Client: Connect -> AuthSend -> chat MessageSend, or a MUC
 # presence-join then a groupchat send). Time-boxed with alarm so a CGI request
@@ -745,16 +828,27 @@ sub _xmpp_send {
 
     my ( $user, $domain ) = ( $conf->{jid} // '' ) =~ /^([^@]+)\@(.+)$/;
     die "notify-xmpp: jid must be user\@domain\n" unless defined $domain;
-    my $host = length( $conf->{host} // '' ) ? $conf->{host} : $domain;
-    my $port = ( $conf->{port} // '' )  =~ /^\d+$/             ? $conf->{port} : 5222;
-    my $tls  = ( $conf->{tls}  // '1' ) =~ /^(?:1|true|yes)$/i ? 1             : 0;
-    my $nick = length( $conf->{nick} // '' ) ? $conf->{nick}            : 'lazysite';
-    my $muc  = ( $conf->{muc}        // '' ) =~ /^(?:1|true|yes)$/i ? 1 : 0;
+    my $tls  = ( $conf->{tls}        // '1' ) =~ /^(?:1|true|yes)$/i ? 1 : 0;
+    my $nick = length( $conf->{nick} // '' ) ? $conf->{nick}             : 'lazysite';
+    my $muc  = ( $conf->{muc}        // '' ) =~ /^(?:1|true|yes)$/i ? 1  : 0;
 
+    # Declared here and ASSIGNED inside the alarm, because choosing them may cost
+    # a DNS round trip (SM925 X2) and that belongs inside the time budget. The
+    # connect-failure message below names both, which is the one thing this path
+    # did well before X2 and must keep doing: it is what let the operator spot the
+    # 5222-against-47594 mismatch.
+    my ( $host, $port );
     local $SIG{ALRM} = sub { die "notify-xmpp: timed out\n" };
     alarm 15;    # network-bound: the XMPP peer, not this process (t/lint/120)
     my $client = Net::XMPP::Client->new();
     my $ok     = eval {
+        # SM925 X2: the endpoint decision, and the SRV lookup in it, sit INSIDE
+        # the alarm window on purpose. The 15 seconds is the budget for reaching
+        # the chat server, and a resolver that cannot answer is part of not
+        # reaching it - a DNS wait outside the alarm would be an unbounded hang in
+        # a CGI by another name, which is what t/lint/120 and the comment above
+        # exist to prevent.
+        ( $host, $port ) = _xmpp_endpoint( $conf, $domain );
         defined $client->Connect(
             hostname      => $host,
             port          => $port,
