@@ -34,83 +34,78 @@ Vocabulary: [[SM817]] ruled that lazysite's bundled plugins are **extensions**.
 This filing says *extension* for the thing being built and keeps *plugin* only
 where it quotes a source.
 
-# The direction, 2026-10-01: Odoo as a headless ERP, and ONE way in
+# What this is for, and the work - RESTATED 2026-10-01
 
-Given when the packaging question was put back, and it reframes this filing rather
-than adding to it.
+This replaces a section I wrote earlier the same day. **I had it wrong, and the
+correction matters more than the error**: I read a description of future scope as a
+programme to build, and wrote SM747 up as a "headless ERP programme". It is not one.
 
-**The position.** Odoo is the headless ERP behind a set of functions; people reach
-their part of it through lazysite interfaces customised to their role, and **the core
-Odoo data stays the authority**. Named as likely in scope: invoicing, sales, quotes,
-timesheets, expenses, stock movement, manufacturing and visitor registrations, "and
-many other functions". The same construct is to serve projects that are not lazysite
-at all.
+**What the release manager actually said, and what follows from it:**
 
-**What is explicitly NOT wanted: lots of bespoke Odoo connectors.** One way it is
-done. That is the constraint that matters most here, because it is the one a
-succession of small reasonable decisions would quietly break.
+- The functions named - invoicing, sales, quotes, timesheets, expenses, stock
+  movement, manufacturing, visitor registrations - are **future scope, shown to
+  convey where this leads. They are not a build.** Whether any of them exists is an
+  outcome a lazysite app might or might not implement.
+- **The apps are the site agent's work, guided by demand on the day.** Not planned
+  here, not sized here, and not this filing's business.
+- **What is needed here is a general-purpose Odoo interface, as originally
+  described, that apps can be built WITH.** A facility, not an application.
 
-## What that makes of this filing
+So this filing's scope is unchanged from its original shape. What changed is that the
+reason for it is now evidenced rather than asserted.
 
-SM747 is titled *a site app reads live facts from Odoo*, and it is sized and scoped
-as one read-first slice: the CRM live facts for the stock-corrections portal, with a
-scoped proxy and a general mode. **What is described above is an order of magnitude
-larger** - role-scoped READ AND WRITE across most of an ERP, consumed by several
-projects. It is a programme, and this filing is its first slice.
+## Why a facility, from three attempts that each stopped short
 
-**That structural question is open and is the release manager's**: whether SM747 is
-re-scoped as the programme, or a parent filing holds the programme with SM747 as
-slice one. Nothing is renamed here on an assumption.
+| Attempt | What it proved |
+| --- | --- |
+| **jpm stock correction** - Claude read the lazysite database and transferred to Odoo by hand | The agent WAS the API. It works once and does not scale: every correction needs a person-shaped process, and nothing a visitor does can reach Odoo at all |
+| **The agent CRM for opendigital** - Claude talks to Odoo through OOM | Better: one way of speaking to Odoo, with scope and audit. Still agent-driven, so **still no real-time UI** - a person waits for an agent rather than using a page |
+| **Pocket portal** - built to bridge exactly that gap | A bridge works and is **heavy to adapt**. One per app is the bespoke-connector sprawl in another form |
 
-## The rule that makes "one way" structural rather than aspirational
+The pattern is the same each time: the capability exists, and **the engine offers no
+way for an ordinary page to use it**, so every app improvises a bridge. That is the
+hole this filing fills - and it is why the measure of success is "an app could be
+built on this without inventing a transport", not "Odoo is integrated".
 
-The filed specification already puts the function knowledge in the right place, and
-it is worth stating as a rule rather than leaving it as a happy accident:
+## The rule that keeps it general-purpose
 
 > **Lazysite holds no Odoo knowledge.** Model names, field names, domains,
 > `execute_kw`, RPC shapes and the ERP's semantics live in OOM's operation packs.
 > Lazysite names an operation, binds its parameters, renders the descriptors it is
 > handed, and presents a plan for confirmation.
 
-Every new function is then **a new `Odoo::Ops::*` pack plus a lazysite interface that
-names its operations** - never a new connector, and never a second place that knows
-what an invoice is. Nine functions do not mean nine integrations; they mean nine
-operation packs behind one door.
+This is what makes it a facility rather than a connector: an app that needs invoices
+needs an operation pack, not engine work. It is **checkable** - a lint refusing any
+Odoo model name, `execute_kw` or Odoo RPC endpoint in lazysite code - and the gate
+lands with the first code, since there is nothing to check today.
 
-This is the difference between a rule and a hope: **it is checkable.** A lint
-refusing any Odoo model name, `execute_kw`, or Odoo RPC endpoint in lazysite code
-makes the boundary enforced rather than remembered. There is nothing to check today -
-zero lines of Odoo code exist here - so the gate lands WITH the first code rather
-than before it, and this paragraph is the record of why it exists when it does.
+And the rule already in *Scope control* becomes more load-bearing as apps multiply:
+a lazysite interface narrows **what is asked for**, never what came back. Odoo's own
+ACLs are the bound, under the user's own credential (X4-b). A page that filters is a
+page that can be wrong in the direction nobody notices.
 
-## And the role-scoping rule gets MORE load-bearing, not less
+# The plan
 
-Scope control already says: do not reimplement Odoo's access model, and do not filter
-results lazysite believes the user should not see - Odoo already did that. With one
-read-only CRM view that rule is easy. With timesheets, expenses and stock movements
-in front of contractors, suppliers and warehouse staff, **every one of those
-interfaces will present an opportunity to filter in the wrong place**, and a page
-that filters is a page that can be wrong in the direction nobody notices. The
-credential on the wire is the user's own (X4-b), so Odoo's own ACLs are the bound. A
-lazysite interface narrows what is ASKED FOR; it never narrows what came back.
+Five stages. **Each one ends somewhere an app could be built**, which is the test of
+whether a stage is worth cutting at. Sizes are mine; the ordering is forced by the
+dependencies, not chosen.
 
-## What it changes about the remaining gate
+| # | Stage | What an app can do after it | Depends on |
+| --- | --- | --- | --- |
+| **0** | **Decide how OOM is delivered, and make it reachable.** Not a build. Deb, versioned tarball, internal service or something else - the decision belongs to all of OOM's consumers, not to this engine | nothing yet - but nothing below runs without it | OOM's own testing settling; OP-25 |
+| **1** | **The named-operation proxy, scoped mode, site-level Odoo account.** An Odoo endpoint configured like a connector; operations invoked by name with bound parameters; the Guard's scope enforced in OOM; invocation modes through `Lazysite::Egress`; audit on both sides | **Read live Odoo facts, and write through named operations with a plan to confirm.** No per-user credential, so Odoo's ACLs bound the site's own account. This is the stage that ends the hand-carrying | stage 0 |
+| **2** | **The page surface.** A TT surface (Part 7) rendering an operation's result, and the plan's buckets presented for confirmation | **A real-time UI over Odoo with no agent in the loop** - the thing pocket portal was built to bridge | stage 1 |
+| **3** | **Per-user identity.** The credential cookie (Parts 2 and 3), the signed identity context (Part 4), and **the session transport OOM does not have** - `/web/session/authenticate` + `/web/dataset/call_kw`, where OOM's `Credential` refuses `session` and `cookie` by name | **A person acts as themselves in Odoo**, so Odoo's per-user ACLs are the bound and general mode becomes available | stage 1; the transport is new work the spec exposed |
+| **4** | **The MCP surface** (Part 6, OM1-3): an agent uses the same named operations under **its own** Odoo account, never a human's | An agent and a page do the same things the same way - which retires "the agent is the API" by making the page path the normal one | stages 1 and 3 |
+| **5** | **The boundary lint and the docs.** The no-Odoo-knowledge gate, and the documentation obligation the spec created: a record written this way can differ from one a person creates in Odoo's UI | nothing new - it protects what the earlier stages built | stage 1 |
 
-OB7 said OOM is consumed as a versioned package, never a copy, settled 2026-09-03.
-The "never a copy" half stands and is not in question. **The SHAPE of the delivery is
-reopened**: OOM is still under test and will have consumers beyond this engine, so
-how it reaches them is a decision for all of them rather than a packaging chore for
-this one - deb, versioned tarball, an internal service, or something else.
+**Stages 1 and 2 are the ones that pay for themselves**, because together they are
+the smallest thing that lets an app read and write Odoo from a page. Stage 3 is what
+makes it per-user correct, and it carries the only genuinely unknown piece of work in
+the filing. Stage 4 is where the agent stops being a special case.
 
-**I had written the opposite.** The sequencing row and OP-25 both said a 0.02 deb was
-the prerequisite, which was me settling a question that is not mine. Both are
-corrected. The measured gap stands on its own terms - whatever is delivered must
-carry the `Odoo::Ops::*` layer, or there is no scoped mode - but that is a
-requirement on the content, not an argument for a format.
-
-**Nothing is blocked meanwhile.** Engine work can proceed against the OOM tree on a
-library path, which is not a copy and ships nothing; what may not happen is a release
-that depends on an arrangement nobody has decided.
+**What is NOT in the plan:** any of the functions named at the top. They are what
+apps do with this, built by the site agent when somebody asks.
 
 # Why this is worth building properly (release manager, P2)
 
