@@ -77,8 +77,15 @@ resolves to no trusted address at all.
 **One consequence worth knowing before you enable it.** Where a site previously
 recorded one private address on every submission, it will now record the
 visitor's real address - which is personal data where the proxy's address was
-not. The stats plugin's visitor log has always anonymised; the submission store
-keeps what it is given, as it did before this change.
+not.
+
+**That is a decision, not an oversight** (ruled 2026-10-01): the address is kept
+in full because it is what abuse handling needs - an operator who wants to block
+or report a source has nothing to act on without it, and the nine submissions
+that produced this filing were indistinguishable from each other precisely
+because the address identified nobody. Truncating it the way the visitor log does
+would reproduce that problem one octet higher up. The two stores differ on
+purpose: counting distinct visitors needs no identity, and handling abuse does.
 
 ## Upgrading to 0.13.13 from 0.13.12
 
