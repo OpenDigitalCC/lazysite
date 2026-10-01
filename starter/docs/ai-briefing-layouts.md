@@ -486,8 +486,8 @@ yourself** over the control API.
    web-served at `/lazysite/layouts/<new>/themes/<theme>/main.css`, so
    reference that for preview; the canonical mirror
    `/lazysite-assets/<new>/<theme>/main.css` is `404` until activation.
-4. **Activate it yourself.** `POST` `action=layout-activate&path=<new>` then
-   `action=theme-activate&path=<theme>` to the control API (needs
+4. **Activate it yourself.** `POST` `action=layout-activate&layout=<new>` then
+   `action=theme-activate&theme=<theme>` to the control API (needs
    `manage_layouts` / `manage_themes`); each sets the pointer in
    `lazysite.conf` AND clears the cache atomically - no operator step. Then
    **remove the per-page `layout:` preview overrides**: they are a preview

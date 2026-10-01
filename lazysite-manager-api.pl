@@ -2021,24 +2021,30 @@ elsif ( $action eq 'bad-url-unblock' ) {
 elsif ( $action eq 'theme-list' )      { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' ) { $result = action_themes_list_all() }
 
-# SM261: these two take the theme/layout NAME in a parameter called `path`,
-# which is the file-ish parameter everywhere else on this surface - so a caller
-# building from the action reference sends `theme=` or `layout=`, which is what
-# everyone tries first. SM247 made that survivable (an empty name is now an
-# error naming `path` rather than a silent deactivation), but only for someone
-# who has already made the call and read the error. Accept the obvious spelling
-# as an alias so the trap stops being reachable.
+# SM920: ONE NAME FOR THE THING BEING ACTIVATED - `theme=` and `layout=`.
 #
-# NB: `path` DEFAULTS to '/', so "absent" here means empty or '/' - testing
-# length($path) alone would never reach the alias, which is the same defaulting
-# that made SM247 read a missing parameter as an instruction.
+# SM261 added the specific spelling because `path` is the file-ish parameter
+# everywhere else on this surface, so a caller building from the action reference
+# sends `theme=` or `layout=`; it kept `path` as well, and the pair has been
+# residue rather than a design ever since. It had a cost: `path` TOOK PRECEDENCE,
+# so a caller sending both - which is the natural thing to do when a reference
+# lists both - had the more specific one DROPPED IN SILENCE. A live site sent
+# `path=odcc&theme=odcc-b`, was answered ok:true, and went on serving the old
+# theme, because `path` named the directory and `theme` named the theme.
+#
+# RULED 2026-09-30, on the prior question rather than on any of the three shapes
+# the filing offered: "why do we have the option of both?" There was no reason.
+# `path` is retired here rather than deprecated, which is what SM903 did for
+# theme-rename four days earlier and what SM261 itself did - and the channel
+# ladder is the mitigation: this lands on edge with a beta and a stable gate in
+# front of it.
+#
+# Our own Appearance page was a `path=` caller and changes with this.
 elsif ( $action eq 'theme-activate' ) {
-    my $name = ( length($path) && $path ne '/' ) ? $path : ( $params{theme} // '' );
-    $result = action_theme_activate( $name, \%params );
+    $result = action_theme_activate( $params{theme} // '', \%params );
 }
 elsif ( $action eq 'layout-activate' ) {
-    my $name = ( length($path) && $path ne '/' ) ? $path : ( $params{layout} // '' );
-    $result = action_layout_activate( $name, \%params );
+    $result = action_layout_activate( $params{layout} // '', \%params );
 }
 elsif ( $action eq 'theme-delete' ) {
     # SM262: a token client may remove a theme it created; a cookie session (a

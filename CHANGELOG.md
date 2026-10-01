@@ -44,6 +44,69 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM922 (PENDING) **the link audit reports links, and stops reading its own report.**
+  An operator ran it on a live site and got ten broken internal links. Two were
+  real. Every other entry traced to a fault in the audit, and the count moved
+  10 -> 8 -> 10 -> 7 across four runs **with no change to the site** - because each
+  run read the previous run's report, which the plugin had written into the docroot
+  as a page.
+
+  Measured before and after on the shipped docs corpus plus the shapes the filing
+  names: **eleven broken links became zero**, with the one gated target reported in
+  its own section. A deliberately dead prose link added afterwards is still
+  reported, which is the check that matters on a change like this - a quieter audit
+  and a blind one look identical from the count.
+
+  Six faults, each a different kind of mistake:
+
+  - **extraction now reads prose.** Fenced blocks, `<script>`, `<style>`, indented
+    examples and inline code spans come out before anything is matched. The docs the
+    engine ships into every docroot are precisely the pages full of example markup,
+    so `body.innerHTML = BUILD[listId](key);` was being reported as a broken link to
+    `/key` on every site that ran the plugin.
+  - **a relative link resolves against the page it is on.** `key` on
+    `/manager/handlers` is `manager/key`, not `/key` - a path nobody ever wrote.
+  - **a system page goes through the fallback chain.** `/login` is not broken when
+    the engine default exists; the shipped check asserts it answers 200, and the
+    audit was contradicting it on the same site at the same moment.
+  - **withheld is its own state, not a broken link** (ruled 2026-09-30). A target
+    found in the private store is reported separately, and the section says the audit
+    **declined to judge** it. The audit stays anonymous deliberately: resolving as
+    the operator would put the paths of pages a reader cannot see into a report that
+    reader can fetch.
+  - **the report is a store, not a page.** `lazysite/audit/link-report.json`, under
+    the directory the page walks already skip, so the audit cannot find it however
+    the extractor changes. The findings come back in the action's own result.
+  - **and it opens in a modal with a Refresh**, replacing a static card that was
+    filled by fetching a URL and had no way to re-run the audit from where you were
+    reading it. The page every site already has is deleted on the next run.
+
+  Also fixed: the two genuinely dead `/docs/views` links the filing found in shipped
+  documentation, and the third in `views.md`'s own see-also list that the audit did
+  not report. One of them read "Layouts and themes" and pointed somewhere else
+  entirely.
+
+- SM920 (PENDING) **one name for the thing being activated.** `theme-activate` and
+  `layout-activate` each declared two parameters for the same argument, and `path`
+  **took precedence over** `theme`/`layout`. A live site sent
+  `path=odcc&theme=odcc-b`, was answered `ok:true`, and went on serving the old
+  theme - because the generic parameter named the directory and the specific one
+  named the theme. Sending both is the natural thing to do when a reference lists
+  both.
+
+  Ruled 2026-09-30 on the prior question - *"why do we have the option of both?"* -
+  and there was no reason: SM261 added the specific spelling and never retired the
+  generic one, so the pair was residue. **`path` is retired for these two actions**,
+  with no deprecation window, as SM903 did for `theme-rename` four days earlier; the
+  channel ladder is the mitigation. Breaking for a token client that sends `path=`.
+
+  Everything in the measured scope moved with it, including **our own Appearance
+  page**, which was a `path=` caller in three places. The SM247 refusal for an empty
+  name said *"the theme name goes in the `path` parameter"* - it names `theme` now,
+  because a refusal that sends a caller back to the retired parameter is worse than
+  no refusal. `layout-delete` is untouched: its pair has the opposite precedence and
+  is its own question.
+
 - SM921 (PENDING) **a `tel` field validates something now, and a pattern a browser
   cannot compile is refused where an author will see it.** BEHAVIOUR CHANGE WORTH
   READING BEFORE UPGRADING: the shipped default pattern for a `tel` field becomes

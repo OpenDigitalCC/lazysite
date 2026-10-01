@@ -285,7 +285,9 @@ function activateLayout(name) {
   mgConfirm('Activate layout "' + name + '"? Its default theme is used; cached pages clear.',
     { ok: 'Activate' }).then(function(ok) {
     if (!ok) return;
-    fetch(API + '?action=layout-activate&path=' + encodeURIComponent(name), { method: 'POST' })
+    // SM920: `layout=`, the one spelling this action takes now. It was `path=`,
+    // which took precedence over `layout=` and silently won when both were sent.
+    fetch(API + '?action=layout-activate&layout=' + encodeURIComponent(name), { method: 'POST' })
       .then(function(r){ return r.json(); }).then(function(d) {
         if (!d.ok) { showStatus(d.error, true); return; }
         showStatus('Layout "' + name + '" activated.'); loadAll();
@@ -312,7 +314,8 @@ function deleteLayout(name, themeCount) {
 }
 
 function activateThemeOnly(name) {
-  fetch(API + '?action=theme-activate&path=' + encodeURIComponent(name), { method: 'POST' })
+  // SM920: `theme=`, the one spelling this action takes now.
+  fetch(API + '?action=theme-activate&theme=' + encodeURIComponent(name), { method: 'POST' })
     .then(function(r){ return r.json(); }).then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
       showStatus('Theme "' + name + '" activated.'); loadAll();
@@ -322,9 +325,10 @@ function activateThemeOnly(name) {
 function deactivateTheme() {
   mgConfirm('Deactivate theme and use the built-in fallback?', { ok: 'Deactivate' }).then(function(ok) {
     if (!ok) return;
-    // SM247: deactivation is now explicit - an empty path alone is an error,
-    // because it is what a mistyped parameter looks like.
-    fetch(API + '?action=theme-activate&path=&deactivate=1', { method: 'POST' })
+    // SM247: deactivation is now explicit - an empty name alone is an error,
+    // because it is what a mistyped parameter looks like. SM920: the empty
+    // parameter is `theme=` now, since `path=` is retired for this action.
+    fetch(API + '?action=theme-activate&theme=&deactivate=1', { method: 'POST' })
       .then(function(r){ return r.json(); }).then(function(d) {
         if (!d.ok) { showStatus(d.error, true); return; }
         showStatus('Theme deactivated.'); loadAll();

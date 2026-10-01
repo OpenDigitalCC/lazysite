@@ -331,7 +331,7 @@ An older pipe-separated format is also accepted:
 ### nav TT variable structure
 
 `nav` is an array of hashrefs. Each item has `label`, `url`, and
-`children` keys. See [Views](/docs/views) for looping examples.
+`children` keys. See [Views](/docs/features/configuration/views) for looping examples.
 
 If `nav.conf` is missing, `nav` is an empty array and the template
 renders without navigation.
@@ -491,7 +491,7 @@ A theme must declare the active layout in its `theme.json`'s
 `layouts[]` array; mismatched themes render layout-only with a
 warning.
 
-See [Layouts and themes](/docs/views) for installation and
+See [Layouts and themes](/docs/ai-briefing-layouts) for installation and
 authoring.
 
 ## Page scan

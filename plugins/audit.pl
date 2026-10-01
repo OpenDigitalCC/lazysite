@@ -43,6 +43,30 @@ my %IGNORE_EXT = map { $_ => 1 } qw(
     mp4 mp3 ogg webm
 );
 
+# SM922 fault 4: the system pages, resolved the way the engine resolves them - a
+# site copy under the content root, else the protected engine default under
+# lazysite/templates/system/ (lazysite-processor.pl:149). A link to one of these is
+# only broken when NEITHER exists. The shipped check asserts /login answers 200
+# while the audit reported it broken, on the same site at the same moment.
+#
+# UP HERE, ABOVE THE MAIN BODY, and that position is the whole of whether it works.
+# This table was first written next to the sub that reads it - which is below the
+# main body in this file - so at the moment collect_audit_results ran it was still
+# EMPTY and the check silently did nothing. Measured, not reasoned: the before/after
+# sweep still reported /login broken and that is what exposed it.
+my %SYSTEM_PAGE = map { $_ => 1 } qw(login claim logout forgot 402 403 404);
+
+# The page this plugin used to write its report into. Every site that has ever run
+# the audit has one, and until the next scan removes it, it is sitting in the
+# docroot full of last run's findings written as links.
+#
+# TWO USES, ONE SPELLING: the walks IGNORE it so no run reports it, and a scan
+# DELETES it. The ignore is what makes the count stable on the very first run after
+# an upgrade - the removal happens after the walk, so without this the first run
+# would still report the stale page once and the operator would see the instability
+# this filing is about one last time, on the run that was supposed to fix it.
+my $LEGACY_REPORT_REL = 'manager/audit-report.md';
+
 # --- Parse arguments ---
 
 my %exclude;
@@ -118,6 +142,7 @@ sub collect_audit_results {
             my $rel = _rel_of($File::Find::name);
             return if $rel =~ m{^lazysite/};
             return if $rel =~ m{(^|/)\.};
+            return if $rel eq $LEGACY_REPORT_REL;    # SM922: not content
             my $canon = canonical($rel);
             $pages{$canon}   = 1;
             $sources{$canon} = $rel;
@@ -130,6 +155,7 @@ sub collect_audit_results {
             my $rel = _rel_of($File::Find::name);
             return if $rel =~ m{^lazysite/};
             return if $rel =~ m{(^|/)\.};
+            return if $rel eq $LEGACY_REPORT_REL;    # SM922: not content
             extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
             extract_scan_refs( $File::Find::name, $rel, \%inbound );
     }, $DOCROOT );
@@ -159,8 +185,23 @@ sub collect_audit_results {
         push @orphans, $canon unless $inbound{$canon};
     }
 
+    # SM922 fault 5, and the 2026-09-30 ruling: WITHHELD IS NOT ABSENT.
+    #
+    # The audit resolves as an anonymous visitor and keeps doing so - resolving as
+    # the operator was declined, because this report is read by whoever can open it
+    # and naming the paths of pages a reader cannot see would be a disclosure this
+    # work would have created. But a page that EXISTS and is gated is not a broken
+    # link, and reporting it as one is the four-state fault: a draft section made
+    # every link into it look dead to the only audience that can see it.
+    #
+    # The private store is where gated content lives (SM286), so a target found
+    # there is reported as its own state. What this does NOT do - and the ruling
+    # says so plainly - is confirm the link resolves: it says the audit declined to
+    # judge it.
+    my %withheld_page = %{ _private_pages() };
+
     my %seen_broken;
-    my @broken;
+    my ( @broken, @withheld );
     for my $source ( sort keys %outbound ) {
         for my $target ( @{ $outbound{$source} } ) {
             next if $pages{$target};
@@ -170,7 +211,18 @@ sub collect_audit_results {
             # already stripped to `index`) is the ROOT page - the same mapping
             # canonical() applies to index.md, whose key is the empty string.
             next if $target eq 'index' && $pages{''};
+
+            # SM922 fault 4: a system page answers through the fallback chain, so
+            # it is not missing just because no file sits in the docroot. The
+            # shipped check asserts /login resolves 200 while the audit reported it
+            # broken, on the same site at the same moment - and the check was right.
+            next if _system_page_resolves($target);
+
             next if $seen_broken{"$source->$target"}++;
+            if ( $withheld_page{$target} || $withheld_page{$with_index} ) {
+                push @withheld, { source => $source, target => $target };
+                next;
+            }
             push @broken, { source => $source, target => $target };
         }
     }
@@ -179,146 +231,123 @@ sub collect_audit_results {
         pages    => \%pages,
         sources  => \%sources,
         broken   => \@broken,
+        withheld => \@withheld,
         orphaned => \@orphans,
     };
 }
 
+sub _system_page_resolves {
+    my ($target) = @_;
+    return 0 unless $SYSTEM_PAGE{$target};
+    return 1 if -f "$DOCROOT/$target.md" || -f "$DOCROOT/$target.html";
+    return 1 if -f ( _lz($DOCROOT) . "/templates/system/$target.md" );
+    return 0;
+}
+
+# Pages in the private store, as canonical keys. Standalone plugin: the store's
+# name is composed here rather than through Lazysite::Private, which is the same
+# arrangement the alias-cache sweep in run_scan already uses - and the one place
+# this file would have to change if that naming ever moves.
+sub _private_pages {
+    my %found;
+    my $root = dirname($DOCROOT) . '/' . basename($DOCROOT) . '-lazysite-private';
+    return \%found unless -d $root;
+    find( sub {
+            return unless -f && /\.(?:md|url)$/;    # non-capturing: perlcritic sev-3
+            ( my $rel = $File::Find::name ) =~ s{^\Q$root\E/}{};
+            return if $rel =~ m{(^|/)\.};
+            $found{ canonical($rel) } = 1;
+    }, $root );
+    return \%found;
+}
+
 # --- Scan mode ---
 
+# SM922 fault 6 AND the two things that share its root: THE REPORT STOPS BEING A
+# PAGE IN THE DOCROOT.
+#
+# It was written to manager/audit-report.md, which caused three separate symptoms
+# the filing and the release manager found independently:
+#
+#   - the audit SCANNED ITS OWN LAST REPORT, so each run re-reported the previous
+#     run's findings as broken links on that page. The count moved 10 -> 8 -> 10 ->
+#     7 with no change to the site, which is what made it untrustworthy;
+#   - the result was displayed by FETCHING A URL into a static card, with no way to
+#     re-run it from where you were reading it;
+#   - and it is why resolving as the operator was declined: a report in the docroot
+#     is fetchable by whoever can open it, so naming gated paths in it would have
+#     been a disclosure.
+#
+# The report is now a STORE under lazysite/, which the page walks already skip by
+# path, so the audit cannot find it however the extractor changes. The action
+# returns the findings in its own result, so the manager renders them directly.
+#
+# THE OLD PAGE IS DELETED ON RUN. Every site that has run this plugin has one in its
+# docroot; leaving it would leave a stale report readable at a URL that nothing
+# updates, which is worse than removing it.
 sub run_scan {
     my ($results) = @_;
 
-    my $report_dir = "$DOCROOT/manager";
-    make_path($report_dir) unless -d $report_dir;
+    my $store_dir = _lz($DOCROOT) . "/audit";
+    make_path($store_dir) unless -d $store_dir;
+    my $store_path = "$store_dir/link-report.json";
 
-    my $report_path = "$report_dir/audit-report.md";
-    my $report_url  = '/manager/audit-report';
+    require JSON::PP;
+    my %report = (
+        generated     => POSIX::strftime( '%Y-%m-%dT%H:%M:%S', localtime ),
+        generated_ymd => POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime ),
+        broken        => $results->{broken}   // [],
+        withheld      => $results->{withheld} // [],
+        orphaned      => [ map { { page => $_ } } @{ $results->{orphaned} // [] } ],
+        pages         => scalar keys %{ $results->{pages} },
+    );
 
-    write_audit_report( $report_path, $results );
-    log_event( 'INFO', $DOCROOT, 'report written', path => $report_path );
+    if ( open my $fh, '>:utf8', $store_path ) {
+        print {$fh} JSON::PP->new->canonical->pretty->encode( \%report );
+        close $fh;
+        log_event( 'INFO', $DOCROOT, 'report written', path => $store_path );
+    }
+    else {
+        # The findings still go back to the caller: a store this process cannot
+        # write is worth saying out loud and is not a reason to answer nothing.
+        log_event( 'WARN', $DOCROOT, 'cannot write the audit report store',
+            path => $store_path, error => "$!" );
+    }
 
-    my $cache = "$report_dir/audit-report.html";
-    unlink $cache if -f $cache;
-    # SM110: drop any per-alias-host copies of the report render too
-    # (standalone plugin - inline rather than the Lazysite::Util helper).
+    _remove_legacy_report_page();
+
+    print JSON::PP::encode_json( {
+            ok       => 1,
+            report   => \%report,
+            broken   => scalar @{ $results->{broken} },
+            withheld => scalar @{ $results->{withheld} // [] },
+            orphaned => scalar @{ $results->{orphaned} },
+    } );
+}
+
+# The page this plugin used to write, and its renders. Every site that ran the
+# audit before 0.15.2 has one.
+sub _remove_legacy_report_page {
+    my @gone;
+    ( my $html = $LEGACY_REPORT_REL ) =~ s/\.md\z/.html/;
+    for my $f ( "$DOCROOT/$LEGACY_REPORT_REL", "$DOCROOT/$html" ) {
+        push @gone, $f if -f $f && unlink $f;
+    }
+    # SM110: the per-alias-host copies of the render too (standalone plugin -
+    # inline rather than the Lazysite::Util helper).
     my $hosts_dir = _lz($DOCROOT) . "/cache/hosts";
     if ( opendir( my $hd, $hosts_dir ) ) {
         for my $h ( readdir $hd ) {
             next if $h =~ /^\./;
             my $copy = "$hosts_dir/$h/manager/audit-report.html";
-            unlink $copy if -f $copy;
+            push @gone, $copy if -f $copy && unlink $copy;
         }
         closedir $hd;
     }
-
-    require JSON::PP;
-    print JSON::PP::encode_json( {
-            ok         => 1,
-            report_url => $report_url,
-            broken     => scalar @{ $results->{broken} },
-            orphaned   => scalar @{ $results->{orphaned} },
-    } );
-}
-
-sub _h {
-    my $s = shift;
-    $s = '' unless defined $s;
-    $s =~ s/&/&amp;/g;
-    $s =~ s/</&lt;/g;
-    $s =~ s/>/&gt;/g;
-    $s =~ s/"/&quot;/g;
-    return $s;
-}
-
-sub write_audit_report {
-    my ( $path, $results ) = @_;
-
-    my $now     = POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime );
-    my $now_iso = POSIX::strftime( '%Y-%m-%dT%H:%M:%S', localtime );
-
-    my $broken   = $results->{broken}   // [];
-    my $orphaned = $results->{orphaned} // [];
-    my $b_count  = scalar @$broken;
-    my $o_count  = scalar @$orphaned;
-
-    my $md = "---\ntitle: Link Audit Report\nsubtitle: $now\ndate: $now_iso\n";
-    $md .= "auth: required\nauth_groups:\n  - lazysite-admins\nsearch: false\n---\n\n";
-
-    # Wrap the whole report in an mg-card so the standalone
-    # /manager/audit-report page matches the visual weight of other
-    # manager sections. markdown="1" on the outer and body divs tells
-    # Text::MultiMarkdown to keep parsing headings, lists and tables
-    # inside as Markdown (block-HTML content is otherwise left raw).
-    $md .= qq(<div class="mg-card" markdown="1">\n);
-    $md .= qq(<div class="mg-card-header">\n);
-    $md .= qq(<span class="mg-card-title">Link Audit Report</span>\n);
-    $md .= qq(<span class="mg-card-subtitle">$now</span>\n);
-    $md .= qq(</div>\n);
-    # Pure HTML body (no markdown="1") so the mg-table markup below renders
-    # verbatim and matches the Stats / Users pages.
-    $md .= qq(<div class="mg-card-body">\n\n);
-
-    # Summary tiles - same shape as the stats page (mg-stat-tiles).
-    my $b_label = 'Broken link' .   ( $b_count == 1 ? '' : 's' );
-    my $o_label = 'Orphaned page' . ( $o_count == 1 ? '' : 's' );
-    $md .= qq(<div class="mg-stat-tiles">\n);
-    $md .= qq(  <div class="mg-stat-tile"><div class="mg-stat-value">$b_count</div>)
-        . qq(<div class="mg-stat-label">$b_label</div></div>\n);
-    $md .= qq(  <div class="mg-stat-tile"><div class="mg-stat-value">$o_count</div>)
-        . qq(<div class="mg-stat-label">$o_label</div></div>\n);
-    $md .= qq(</div>\n\n);
-
-    if ( $b_count == 0 && $o_count == 0 ) {
-        $md .= qq(<p class="mg-empty">&#10003; No broken links or orphaned pages found.</p>\n);
-    }
-
-    if ( $b_count > 0 ) {
-        $md .= qq(<div class="mg-sec">Broken internal links</div>\n);
-        $md .= qq(<table class="mg-table">\n)
-            . qq(<thead><tr><th>Page</th><th>Broken link</th><th></th></tr></thead>\n<tbody>\n);
-        for my $item (@$broken) {
-            my $page_md = $item->{source};
-            $page_md =~ s{^/}{};
-            $page_md .= '.md' unless $page_md =~ /\.\w+$/;
-            my $edit_url = _edit_url($page_md);
-
-            # Display text keeps the file path (with .md) so the table reads like
-            # what the author sees in the editor; the link target is the live URL.
-            my $page_url = $item->{source};
-            $page_url = "/$page_url" unless $page_url =~ m{^/};
-            $page_url =~ s/\.md$//;
-            $page_url =~ s{/index$}{/};
-            $page_url = '/' if $page_url eq '';
-
-            $md .= qq(<tr><td><a href=") . _h($page_url) . qq(">) . _h($page_md) . qq(</a></td>)
-                . qq(<td><code>/) . _h( $item->{target} ) . qq(</code></td>)
-                . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
-        }
-        $md .= qq(</tbody>\n</table>\n\n);
-    }
-
-    if ( $o_count > 0 ) {
-        $md .= qq(<div class="mg-sec">Orphaned pages</div>\n);
-        $md .= qq(<p class="mg-hint">Pages that exist but are not linked from any other page.</p>\n);
-        $md .= qq(<table class="mg-table">\n)
-            . qq(<thead><tr><th>Page</th><th></th></tr></thead>\n<tbody>\n);
-        for my $page (@$orphaned) {
-            my $page_md = $page;
-            $page_md .= '.md' unless $page_md =~ /\.\w+$/;
-            my $edit_url = _edit_url($page_md);
-            # Orphaned $page is already the URL form (canonical); link it to itself.
-            $md .= qq(<tr><td><a href="/) . _h($page) . qq(">/) . _h($page) . qq(</a></td>)
-                . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
-        }
-        $md .= qq(</tbody>\n</table>\n\n);
-    }
-
-    # Close mg-card-body and mg-card
-    $md .= qq(</div>\n</div>\n);
-
-    open my $fh, '>:utf8', $path or die "Cannot write report: $!\n";
-    print $fh $md;
-    close $fh;
+    log_event( 'INFO', $DOCROOT, 'removed the report page this plugin used to write',
+        files => join( ', ', @gone ) )
+        if @gone;
+    return;
 }
 
 # --- CLI report ---
@@ -349,10 +378,26 @@ sub print_report {
     }
     else { print "  None found.\n"; }
 
+    # SM922: its own section, not mixed into the broken list. `withheld` is not
+    # `absent`, and the difference is the difference between "fix this" and
+    # "nothing to do here".
+    my $withheld = $results->{withheld} // [];
+    print "\nWITHHELD TARGETS (" . scalar(@$withheld) . ")\n";
+    print "Pages that exist but are not visible to an anonymous visitor, so this\n"
+        . "audit declined to judge the link. NOT reported as broken, and NOT\n"
+        . "confirmed as resolving either.\n\n";
+    if (@$withheld) {
+        for my $w ( sort { $a->{source} cmp $b->{source} } @$withheld ) {
+            printf "  %-40s  -> /%s\n", $w->{source}, $w->{target};
+        }
+    }
+    else { print "  None found.\n"; }
+
     print "\nSUMMARY\n";
     printf "  Source pages:    %d\n", scalar keys %$pages;
     printf "  Orphaned:        %d\n", scalar @$orphaned;
     printf "  Broken links:    %d\n", scalar @$broken;
+    printf "  Withheld:        %d\n", scalar @$withheld;
     print "\n";
 }
 
@@ -367,14 +412,16 @@ sub print_describe {
             version       => '1.0',
             config_file   => '',
             config_schema => [],
-            actions       => [
+            # SM922: NO `on_complete => open_url` any more. The report was a page in
+            # the docroot and the result was a URL to fetch into a static card;
+            # it is a store now and the findings come back IN this action's result,
+            # so the manager opens them in a modal it can refresh from.
+            actions => [
                 {
                     id    => 'run',
                     label => 'Run audit',
                     confirm => 'This will scan all pages and may take a moment on large sites.',
-                    endpoint    => 'plugin-action',
-                    on_complete => 'open_url',
-                    result_key  => 'report_url',
+                    endpoint => 'plugin-action',
                 }
             ],
     } );
@@ -400,12 +447,103 @@ sub canonical {
     return $rel;
 }
 
+# SM922 fault 1 and 2: A LINK IS SOMETHING IN PROSE.
+#
+# The extractor read the whole file, so `body.innerHTML = BUILD[listId](key);`
+# inside a `<script>` block matched the markdown-link pattern and `key` was
+# reported as a broken link. So did `![](img/...)` and `[Book a visit](/visit)`
+# inside fenced examples. THE CORPUS GUARANTEES THIS: the docs the engine ships
+# into every docroot are precisely the pages that contain example markup and
+# embedded scripts, so every operator who ran the audit saw it.
+#
+# Removed before extraction, in this order: fenced blocks (``` and ~~~, any
+# indent, any info string), `<script>` and `<style>` elements, markdown indented
+# code blocks, and inline code spans. The replacement keeps the NEWLINES of what
+# it removes, so nothing downstream that counts lines is thrown out - the report
+# does not cite lines today, and a blanking that silently renumbered them would be
+# a trap for whoever adds that.
+sub prose_only {
+    my ($content) = @_;
+    return '' unless defined $content;
+
+    my $blank = sub { my $s = shift; $s =~ s/[^\n]//g; return $s };
+
+    # Fenced blocks first: a fence can contain anything, including a `<script>`
+    # open with no close, so taking them out before the element passes keeps a
+    # malformed example from eating the rest of the page.
+    $content =~ s/^([ \t]*)(`{3,}|~{3,})[^\n]*\n(.*?)(?:^[ \t]*\2[^\n]*\n|\z)/$blank->($&)/gmse;
+
+    $content =~ s{<script\b.*?</script\s*>}{$blank->($&)}gise;
+    $content =~ s{<style\b.*?</style\s*>}{$blank->($&)}gise;
+
+    # An indented code block: four spaces or a tab, after a blank line. The
+    # blank-line condition is what keeps a wrapped list item from being read as
+    # code - a continuation line is indented too, and the docs are full of them.
+    my @out;
+    my $prev_blank = 1;
+    for my $line ( split /\n/, $content, -1 ) {
+        if ( $prev_blank && $line =~ /^(?: {4,}|\t)\S/ ) {
+            push @out, '';
+            next;    # stays blank; $prev_blank is false, so the block continues
+        }
+        if ( @out && $out[-1] eq '' && $line =~ /^(?: {4,}|\t)/ && $line =~ /\S/ ) {
+            push @out, '';
+            next;
+        }
+        push @out, $line;
+        $prev_blank = ( $line =~ /\S/ ) ? 0 : 1;
+    }
+    $content = join "\n", @out;
+
+    # Inline code spans last, so a `[link](x)` written as an example inside
+    # backticks is not a link either.
+    $content =~ s/(`+)(?:(?!\1).)*?\1/ /gs;
+
+    return $content;
+}
+
+# SM922 fault 3: A RELATIVE LINK IS RELATIVE TO THE PAGE IT IS ON.
+#
+# `s{^/}{}` treated every link as absolute, so `key` on /manager/handlers was
+# recorded as `key` and reported as `/key` - a path that does not exist and was
+# never written. The site resolves it against the page's own directory, and so does
+# this now, including `../`.
+sub resolve_link_target {
+    my ( $link, $source_rel ) = @_;
+
+    my $abs;
+    if ( $link =~ m{^/} ) {
+        ( $abs = $link ) =~ s{^/+}{};
+    }
+    else {
+        my $dir = $source_rel;
+        $dir =~ s{[^/]*\z}{};    # keep the trailing slash, or empty at the root
+        $abs = $dir . $link;
+    }
+
+    # Collapse . and .. the way a browser does, so a link that climbs out of the
+    # docroot is dropped rather than becoming a path with `..` still in it.
+    my @parts;
+    for my $seg ( split m{/}, $abs, -1 ) {
+        next if $seg eq '' || $seg eq '.';
+        if ( $seg eq '..' ) {
+            return undef unless @parts;
+            pop @parts;
+            next;
+        }
+        push @parts, $seg;
+    }
+    return join '/', @parts;
+}
+
 sub extract_links {
     my ( $path, $label, $inbound, $outbound ) = @_;
 
     open( my $fh, '<:utf8', $path ) or return;
     my $content = do { local $/; <$fh> };
     close $fh;
+
+    $content = prose_only($content);
 
     my @raw_links;
     while ( $content =~ /\[(?:[^\]]*)\]\(([^)]+)\)/g ) {
@@ -430,15 +568,18 @@ sub extract_links {
             next if $IGNORE_EXT{ lc($1) };
         }
 
-        $link =~ s{^/}{};
-        next if $link =~ m{^assets/};
+        # The page this link is ON, as a directory - a .url or .tt label resolves
+        # the same way its rendered page does.
+        my $target = resolve_link_target( $link, $label );
+        next unless defined $target && length $target;
+        next if $target =~ m{^assets/};
 
-        $link =~ s/\.(html|md|url)$//;
-        $link =~ s{/$}{};
-        next unless length $link;
+        $target =~ s/\.(html|md|url)$//;
+        $target =~ s{/$}{};
+        next unless length $target;
 
-        push @{ $inbound->{$link} },   $label;
-        push @{ $outbound->{$label} }, $link;
+        push @{ $inbound->{$target} }, $label;
+        push @{ $outbound->{$label} }, $target;
     }
 }
 
@@ -511,11 +652,6 @@ sub resolve_scan_for_audit {
 }
 
 # The manager's edit link for a source file.
-sub _edit_url {
-    my ($page_md) = @_;
-    return '/manager/edit?path=' . uri_encode("/$page_md");
-}
-
 sub uri_encode {
     my ($str) = @_;
     $str =~ s/([^a-zA-Z0-9_.~-])/sprintf('%%%02X', ord($1))/ge;

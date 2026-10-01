@@ -343,7 +343,7 @@ unlike( $av->{error} // '', qr/manager|interactive/i,
 
 # --- CSRF exemption: token POST needs no CSRF token ----------------------
 my $pa = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING       => 'action=theme-activate&path=live',
+    QUERY_STRING       => 'action=theme-activate&theme=live',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
 unlike( $pa->{error} // '', qr/CSRF/i, 'token POST is exempt from CSRF' );
 

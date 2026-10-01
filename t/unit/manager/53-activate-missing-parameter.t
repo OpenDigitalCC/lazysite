@@ -45,7 +45,10 @@ write_conf("site_name: T\nlayout: base\ntheme: house\n");
     my $r = Lazysite::Manager::Themes::action_theme_activate( '/', {} );
     ok( !$r->{ok}, 'an empty theme name is an ERROR, not a silent deactivation' );
     is( $r->{kind}, 'missing-parameter', 'reported as a missing parameter' );
-    like( $r->{error}, qr/\bpath\b/,     'the message names the right parameter' );
+    # SM920: `theme`, not `path`. The refusal has to name the parameter that
+    # EXISTS - it named the one that has since been retired, which would have sent
+    # a caller who hit this error straight back to the cause of it.
+    like( $r->{error}, qr/\btheme\b/,    'the message names the right parameter' );
     like( $r->{error}, qr/deactivate=1/, 'and names how to deactivate on purpose' );
     like( conf(), qr/^theme: house$/m,
         'and the site theme is UNTOUCHED - the whole point' );

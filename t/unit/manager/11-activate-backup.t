@@ -77,7 +77,7 @@ sub backups { grep { /^live-backup-/ } map { s{.*/}{}r } glob("$d/lazysite/layou
 
 # --- validation gate: invalid candidate is refused --------------------
 my $bad = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=theme-activate&path=broken', HTTP_AUTHORIZATION => $auth );
+    QUERY_STRING => 'action=theme-activate&theme=broken', HTTP_AUTHORIZATION => $auth );
 ok( !$bad->{ok} && $bad->{error} =~ /invalid/i, 'invalid theme refused' );
 is( active_theme(), 'live', 'active theme unchanged after invalid activate' );
 
@@ -87,7 +87,7 @@ open my $lf, '>', "$d/lazysite/manager/locks/lazysite:layouts:base:themes:new.lo
 print $lf encode_json({ user => 'someoneelse', at => time(), origin => 'dav', timeout => 300 });
 close $lf;
 my $locked = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=theme-activate&path=new', HTTP_AUTHORIZATION => $auth );
+    QUERY_STRING => 'action=theme-activate&theme=new', HTTP_AUTHORIZATION => $auth );
 ok( !$locked->{ok} && $locked->{locked}, 'held lock blocks activation' );
 unlink "$d/lazysite/manager/locks/lazysite:layouts:base:themes:new.lock";
 
@@ -96,13 +96,13 @@ my $man = mapi( $d, QUERY_STRING => 'action=artifact-manifest&layout=base&theme=
     HTTP_AUTHORIZATION => $auth );
 ok( $man->{digest}, 'artifact-manifest returns a digest' );
 my $conflict = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=theme-activate&path=new&base=deadbeef', HTTP_AUTHORIZATION => $auth );
+    QUERY_STRING => 'action=theme-activate&theme=new&base=deadbeef', HTTP_AUTHORIZATION => $auth );
 ok( !$conflict->{ok} && $conflict->{conflict}, 'wrong base manifest -> conflict' );
 is( active_theme(), 'live', 'active theme unchanged after conflict' );
 
 # --- successful activate with correct base + backup -------------------
 my $ok = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => "action=theme-activate&path=new&base=$man->{digest}",
+    QUERY_STRING => "action=theme-activate&theme=new&base=$man->{digest}",
     HTTP_AUTHORIZATION => $auth );
 ok( $ok->{ok}, 'activate with correct base succeeds' );
 is( active_theme(), 'new', 'pointer flipped to new' );

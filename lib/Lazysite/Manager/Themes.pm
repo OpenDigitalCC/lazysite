@@ -510,19 +510,23 @@ sub action_theme_activate {
     $theme_name =~ s/[^a-zA-Z0-9_-]//g;
 
     # SM247: deactivation must be ASKED FOR, never inferred from a missing
-    # parameter. The control API defaults `path` to '/', which this sanitiser
-    # reduces to '', so calling theme-activate with the name in the wrong
-    # parameter (theme= instead of path=) used to strip the site's theme and
-    # return ok:1. A site agent did exactly that to a live site and only caught
-    # it by checking theme-list afterwards; an agent trusting ok:1 would have
-    # walked away leaving the site unstyled.
+    # parameter. The control API used to default this name to '/', which this
+    # sanitiser reduces to '', so calling theme-activate with the name in the wrong
+    # parameter used to strip the site's theme and return ok:1. A site agent did
+    # exactly that to a live site and only caught it by checking theme-list
+    # afterwards; an agent trusting ok:1 would have walked away leaving the site
+    # unstyled.
     #
     # An empty name is now an error. A caller that means it passes
     # deactivate => 1, which is a thing you can only do on purpose.
+    #
+    # SM920: the refusal names `theme`, which is the ONE parameter this action
+    # takes now. It said `path` - the spelling that has been retired - so a caller
+    # who reached this error was being sent back to the parameter that caused it.
     if ( $theme_name eq '' ) {
         return _set_theme_pointer('') if $params->{deactivate};
         return { ok => 0, kind => 'missing-parameter',
-            error => 'No theme name given. The theme name goes in the `path` '
+            error => 'No theme name given. The theme name goes in the `theme` '
                 . 'parameter for this action. To deliberately remove the site\'s '
                 . 'theme, pass deactivate=1 - an absent name is treated as a '
                 . 'mistake, not as an instruction to de-theme the site.' };

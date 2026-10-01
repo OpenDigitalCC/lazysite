@@ -72,7 +72,7 @@ sub audit_lines {
 
 post('action=notices');
 post('action=layouts-manifest');
-post('action=theme-activate&path=sky');    # a real write, as the control
+post('action=theme-activate&theme=sky');    # a real write, as the control
 
 my @l = audit_lines();
 ok( ( grep { /\| theme-activate \| sky \|/ } @l ),

@@ -455,7 +455,9 @@ our %ACTION = (
     'key-revoke'      => { params => [] },
     'keys-list'       => { params => [] },
     'lang-status'     => { params => [ { name => 'group', in => 'query' } ] },
-    'layout-activate' => { params => [ { name => 'path', in => 'query' }, { name => 'layout', in => 'query' } ] },
+    # SM920: `layout` ALONE. `path` was the generic spelling and took precedence
+    # over it, so a caller sending both had the specific one dropped in silence.
+    'layout-activate' => { params => [ { name => 'layout', in => 'query', required => 1 } ] },
     # SM911 LD2: `layout` is the spelling its siblings take and the one a partner
     # tries; `path` is what the dispatcher had always passed, and stays.
     'layout-delete' => { params => [ { name => 'layout', in => 'query' }, { name => 'path', in => 'query' } ] },
@@ -508,7 +510,8 @@ our %ACTION = (
     'site-backup-inspect' => { params => [ { name => 'name', in => 'query' }, { name => 'host', in => 'query' } ] },
     'site-backup-upload'  => { params => [] },
     'site-export-primary' => { params => [ { name => 'data_tables', in => 'body' } ] },
-    'theme-activate' => { params => [ { name => 'path', in => 'query' }, { name => 'theme', in => 'query' } ] },
+    # SM920: `theme` ALONE, for the same reason layout-activate takes `layout`.
+    'theme-activate' => { params => [ { name => 'theme', in => 'query', required => 1 } ] },
     'theme-copy' => { params => [ { name => 'path', in => 'query', required => 1 }, { name => 'new_name', in => 'body', required => 1 }, { name => 'layout', in => 'body' } ] },
     'theme-delete'      => { params => [ { name => 'path', in => 'query' } ] },
     'theme-list'        => { params => [] },

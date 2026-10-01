@@ -80,14 +80,14 @@ my $vg = mapi( $d, QUERY_STRING => 'action=artifact-validate&layout=alt', HTTP_A
 ok( $vg->{valid}, 'artifact-validate: good layout valid' );
 
 # --- layout-activate refuses an uncompilable layout ------------------
-my $ab = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=layout-activate&path=bad',
+my $ab = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=layout-activate&layout=bad',
     HTTP_AUTHORIZATION => $auth );
 ok( !$ab->{ok} && $ab->{error} =~ /compile|invalid/i, 'activate refuses uncompilable layout' );
 
 # --- EXPLICITLY-named incompatible theme is still refused -------------
 # (baseonly declares only 'base', not 'alt'). Naming it stays a hard error.
 my $inc = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=layout-activate&path=alt&theme=baseonly',
+    QUERY_STRING => 'action=layout-activate&layout=alt&theme=baseonly',
     HTTP_AUTHORIZATION => $auth );
 ok( !$inc->{ok} && $inc->{incompatible}, 'explicitly-named incompatible theme refused' );
 is( ( active() )[0], 'base', 'layout unchanged after refused activate' );
@@ -102,7 +102,7 @@ open my $cp, '>', "$d/partials/note.html" or die $!; print $cp '<p>author partia
 
 # --- compatible: name a theme that declares the new layout -----------
 my $okr = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=layout-activate&path=alt&theme=shared',
+    QUERY_STRING => 'action=layout-activate&layout=alt&theme=shared',
     HTTP_AUTHORIZATION => $auth );
 ok( $okr->{ok}, 'activate with a compatible theme succeeds' );
 ok( !-f "$d/about.html",         'activation cleared the generated cache (.html with a .md source)' );
@@ -118,9 +118,9 @@ ok( @lbk >= 1, 'outgoing layout snapshotted' );
 # is not declared for 'alt', so it must fall back to alt's compatible default
 # ('shared') instead of refusing the switch.
 mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=layout-activate&path=base&theme=baseonly', HTTP_AUTHORIZATION => $auth );
+    QUERY_STRING => 'action=layout-activate&layout=base&theme=baseonly', HTTP_AUTHORIZATION => $auth );
 my $fb = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=layout-activate&path=alt', HTTP_AUTHORIZATION => $auth );
+    QUERY_STRING => 'action=layout-activate&layout=alt', HTTP_AUTHORIZATION => $auth );
 ok( $fb->{ok}, 'no-theme layout switch falls back (not refused)' );
 my ( $fl, $ft ) = active();
 is( $fl, 'alt',    'fallback switch landed on the new layout' );

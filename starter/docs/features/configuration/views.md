@@ -65,5 +65,5 @@ All variables from `lazysite.conf`, plus:
   found
 - Download ready-to-use themes from
   [lazysite-views](https://github.com/OpenDigitalCC/lazysite-views)
-- [Views and Themes guide](/docs/views) - full documentation
+- [Views and Themes guide](/docs/ai-briefing-layouts) - full documentation
 - [Themes](/docs/features/configuration/themes) - theme resolution

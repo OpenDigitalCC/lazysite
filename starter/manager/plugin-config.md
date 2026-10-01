@@ -6,15 +6,11 @@ search: false
 
 <div id="plugin-list">Loading...</div>
 
-<div class="mg-card" id="audit-report-card" style="display:none">
-  <div class="mg-card-header">
-    <span class="mg-card-title">Audit Report</span>
-    <span class="mg-card-subtitle" id="audit-timestamp"></span>
-  </div>
-  <div class="mg-card-body" id="audit-report">
-    <!-- report renders here -->
-  </div>
-</div>
+<!-- SM922: the link audit's static report card is GONE. It was filled by fetching
+     /manager/audit-report - a page the plugin wrote into the docroot, which is why
+     the audit could scan its own last report and why the result could not be
+     re-run from where it was being read. The findings come back in the action's
+     own result now and open in a modal with a Refresh. -->
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
@@ -484,11 +480,11 @@ function runAction_go(plugin, action, params) {
     status.textContent = msg;
     if (data.message) mgShowWarning(msg, false);
 
-    // Link Audit: render the report inline in the audit-report card
-    // rather than opening it in a new tab. Other plugins keep the
-    // existing open_url behaviour unchanged.
-    if (plugin.id === 'audit' && action.id === 'run' && data.report_url) {
-      renderAuditReport(data.report_url);
+    // SM922: Link Audit - the findings arrive IN this result, so they open in a
+    // modal that can re-run the audit. They used to be a URL fetched into a static
+    // card, which is the same root as the audit scanning its own report.
+    if (plugin.id === 'audit' && action.id === 'run' && data.report) {
+      renderAuditReport(plugin, action, data.report);
     }
     else if (action.on_complete === 'open_url' && data[action.result_key]) {
       window.open(data[action.result_key], '_blank');
@@ -571,50 +567,112 @@ function clearActionChoice(pluginId) {
   if (box) { box.innerHTML = ''; box.style.display = 'none'; }
 }
 
-function renderAuditReport(url) {
-  var card = document.getElementById('audit-report-card');
-  var body = document.getElementById('audit-report');
-  var ts   = document.getElementById('audit-timestamp');
-  if (!card || !body) return;
+// SM922: THE REPORT IS DATA NOW, AND IT OPENS WHERE IT CAN BE RE-RUN.
+//
+// It used to be a page: the plugin wrote /manager/audit-report.md into the docroot,
+// this function fetched that URL, parsed the HTML and lifted its <main> into a
+// static card. Three things followed from that one choice, and the ruling of
+// 2026-09-30 treated them as one piece of work: the audit could scan its own last
+// report (so the count moved between runs with no change to the site), there was no
+// way to re-run it from where you were reading it, and a report sitting in the
+// docroot is why the audit may not resolve as the operator - it would put the paths
+// of pages a reader cannot see into something that reader can fetch.
+//
+// WITHHELD IS ITS OWN SECTION. A target that exists but is not visible to an
+// anonymous visitor is not a broken link and is not confirmed either: the audit
+// declined to judge it, and the panel says so rather than implying a verdict.
+function renderAuditReport(plugin, action, report) {
+  var body = mgPluginModal('Link Audit Report');
+  if (!body) return;
+  body.innerHTML = auditReportHtml(plugin, report);
+}
 
-  body.textContent = 'Loading report...';
-  card.style.display = '';
+function auditReportHtml(plugin, report) {
+  var broken   = report.broken   || [];
+  var withheld = report.withheld || [];
+  var orphaned = report.orphaned || [];
 
-  fetch(url, { credentials: 'same-origin' })
-    .then(function(r) { return r.text(); })
-    .then(function(html) {
-      // The report is a full HTML page rendered by the processor.
-      // Extract just the <main> content so the surrounding chrome
-      // (nav, footer) from the report's own view.tt doesn't duplicate
-      // the manager layout.
-      var parser = new DOMParser();
-      var doc    = parser.parseFromString(html, 'text/html');
-      var main   = doc.querySelector('main') || doc.body;
-      body.innerHTML = '';
-      if (main) {
-        // Copy children rather than re-assigning innerHTML so scripts
-        // inside the report don't execute.
-        Array.prototype.forEach.call(main.childNodes, function(n) {
-          body.appendChild(document.importNode(n, true));
-        });
-      }
+  var h = '<div class="mg-stat-tiles">'
+        + auditTile(broken.length,   'Broken link')
+        + auditTile(withheld.length, 'Withheld target')
+        + auditTile(orphaned.length, 'Orphaned page')
+        + '</div>';
+  h += '<p class="mg-muted">' + esc(report.generated_ymd || '') + ' &middot; '
+     + esc(String(report.pages || 0)) + ' pages scanned</p>';
+  h += '<div class="mg-wizard-actions">'
+     + '<button class="mg-btn mg-btn-sm" onclick="rerunAudit(\'' + esc(plugin.id) + '\')">'
+     + 'Refresh</button></div>';
 
-      // Prefer the <time datetime> emitted in the starter theme footer,
-      // otherwise fall back to the page's <h1>/subtitle, otherwise now.
-      var stamp = '';
-      var t = body.querySelector('time[datetime]');
-      if (t) stamp = t.getAttribute('datetime') || t.textContent || '';
-      if (!stamp) {
-        var sub = doc.querySelector('main > p');
-        if (sub) stamp = sub.textContent || '';
-      }
-      if (!stamp) stamp = new Date().toISOString().replace('T',' ').replace(/\..*$/,'');
-      if (ts) ts.textContent = stamp;
-    })
-    .catch(function(e) {
-      body.textContent = 'Failed to load report: ' + e.message;
-      if (ts) ts.textContent = '';
+  if (!broken.length && !withheld.length && !orphaned.length) {
+    h += '<p class="mg-empty">No broken links, withheld targets or orphaned pages.</p>';
+    return h;
+  }
+
+  if (broken.length) {
+    h += '<div class="mg-sec">Broken internal links</div>'
+       + auditLinkTable(broken);
+  }
+  if (withheld.length) {
+    h += '<div class="mg-sec">Withheld targets</div>'
+       + '<p class="mg-muted">These pages exist but are not visible to an anonymous '
+       + 'visitor, so the audit declined to judge the link. Not broken - and not '
+       + 'confirmed as resolving either.</p>'
+       + auditLinkTable(withheld);
+  }
+  if (orphaned.length) {
+    h += '<div class="mg-sec">Orphaned pages</div>'
+       + '<p class="mg-muted">Pages that exist but are not linked from any other '
+       + 'page.</p><table class="mg-table"><thead><tr><th>Page</th><th></th></tr>'
+       + '</thead><tbody>';
+    orphaned.forEach(function(o) {
+      var p = o.page || '';
+      h += '<tr><td><a href="/' + esc(p) + '">/' + esc(p) + '</a></td>'
+         + '<td>' + auditEditButton(p) + '</td></tr>';
     });
+    h += '</tbody></table>';
+  }
+  return h;
+}
+
+function auditTile(n, label) {
+  return '<div class="mg-stat-tile"><div class="mg-stat-value">' + esc(String(n))
+       + '</div><div class="mg-stat-label">' + esc(label + (n === 1 ? '' : 's'))
+       + '</div></div>';
+}
+
+function auditLinkTable(rows) {
+  var h = '<table class="mg-table"><thead><tr><th>Page</th><th>Link</th><th></th>'
+        + '</tr></thead><tbody>';
+  rows.forEach(function(r) {
+    var src = r.source || '';
+    h += '<tr><td><a href="/' + esc(src) + '">/' + esc(src) + '</a></td>'
+       + '<td><code>/' + esc(r.target || '') + '</code></td>'
+       + '<td>' + auditEditButton(src) + '</td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+// The editor link for a source page. The audit reports canonical paths, so the
+// source file is that path plus .md unless it already names an extension.
+function auditEditButton(page) {
+  var md = String(page).replace(/^\//, '');
+  if (!/\.\w+$/.test(md)) md += '.md';
+  return '<a class="mg-btn mg-btn-sm" href="/manager/edit?path='
+       + encodeURIComponent('/' + md) + '">Edit</a>';
+}
+
+// Refresh: the same action, run again, landing back in this modal. The confirm on
+// the action is deliberately skipped here - the operator pressed Refresh on a panel
+// that says what it is, and asking twice for the same thing trains people to click
+// through dialogs.
+function rerunAudit(pluginId) {
+  var p = window._plugins.find(function(x) { return x.id === pluginId; });
+  if (!p) return;
+  var a = (p.actions || []).find(function(x) { return x.id === 'run'; });
+  if (!a) return;
+  var body = document.getElementById('plugin-modal-body');
+  if (body) body.textContent = 'Running the audit...';
+  runAction_go(p, a);
 }
 
 // --- Blocked addresses (SM128, moved here by SM703) ---
