@@ -44,8 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM922 (018b634f) **the link audit reports links, and stops reading its own report.**
-- SM931 (PENDING) **a protected code span in a loop no longer publishes the engine's
+- SM931 (e1f7cf73) **a protected code span in a loop no longer publishes the engine's
   own placeholder.** A page rendering 27 rows from a `json:` file published the
   literal string `CODEBLOCK_0_END` in 22 customer-facing cells. Code is protected
   from Template Toolkit before the render - correctly, so a documented example is
@@ -74,7 +73,7 @@ Naming the commit: AFTER it lands, never before
   `[%`-in-`<script>` traps in the field-practice notes, which share its root.
   `json:` was also missing from the `tt_page_var` sources in FEATURES.
 
-- SM930 (PENDING) **a sender on the site's own domain is a forgery signal, off by
+- SM930 (e1f7cf73) **a sender on the site's own domain is a forgery signal, off by
   default.** The site owner noticed what the agent had not: of six spam submissions
   to their site, one gave its sender address as someone@<that site's own domain>.
   Nobody outside an organisation legitimately fills in its public enquiry form as
@@ -102,7 +101,7 @@ Naming the commit: AFTER it lands, never before
   neighbours; a site on a subdomain therefore does not flag the bare domain, a miss
   chosen over that class of false positive.
 
-- SM922 (PENDING) **the link audit reports links, and stops reading its own report.**
+- SM922 (018b634f) **the link audit reports links, and stops reading its own report.**
   An operator ran it on a live site and got ten broken internal links. Two were
   real. Every other entry traced to a fault in the audit, and the count moved
   10 -> 8 -> 10 -> 7 across four runs **with no change to the site** - because each
