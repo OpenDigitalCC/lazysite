@@ -43,16 +43,32 @@ is_deeply( \@processor, \@util,
         . "  the other means a page and a notification disagree about what may be\n"
         . "  interpolated into a URL - which is the shape SM926 is about.\n" );
 
-# HTTP_HOST is excluded from BOTH, and the reason is worth keeping next to the
-# assertion. It is request-supplied. So, on a default Apache, is SERVER_NAME:
-# `UseCanonicalName` defaults to Off, under which SERVER_NAME is taken from the
-# Host header, and NONE of the four shipped vhost examples
-# (installers/apache/vhost*.conf.example) sets it On. So excluding one while
-# permitting the other is not the guarantee the processor's comment claims. That
-# is recorded in SM926 as an open question rather than changed here, because the
-# fix is a vhost default or a policy decision, not a lint.
-ok( !( grep { $_ eq 'HTTP_HOST' } @util ), 'HTTP_HOST is not interpolable' );
-ok( ( grep { $_ eq 'SERVER_NAME' } @util ), 'SERVER_NAME is - see the note above' );
+# HTTP_HOST is excluded from BOTH, and these two assertions are a RECORD OF THE
+# PRESENT STATE rather than a guarantee - which is the opposite of what the
+# processor's comment claims, so read this before changing either.
+#
+# The comment says HTTP_HOST is excluded because it is request-supplied and
+# SERVER_NAME should be used instead. On a default Apache SERVER_NAME is ALSO
+# request-supplied: `UseCanonicalName` defaults to Off, under which it is taken
+# from the Host header, and none of the four shipped vhost examples
+# (installers/apache/vhost*.conf.example) sets it On. And `_request_host()` in the
+# processor reads HTTP_HOST directly to decide which alias host's config a request
+# gets, on the main render path.
+#
+# RULED 2026-10-01 (SM926): THE PRESENTED HOST IS THE HOST. It is a division of
+# responsibility, not a trust level - the engine uses the hostname it was given,
+# restricting what may be presented is the front end's job, and a site that wants
+# it fixed pins it (a literal site_url, which interpolation leaves alone). The
+# consequence not yet built is ONE definition of the request host, shared by alias
+# selection and interpolation, so the answer stops depending on a vhost setting
+# nobody sets. `UseCanonicalName On` was declined: it would fix SERVER_NAME to the
+# primary ServerName and put the primary host into an alias host's own links.
+#
+# So when that lands, these two assertions change WITH it, deliberately. They are
+# not the boundary; SM110's whitelist of what a Host header may select is.
+ok( !( grep { $_ eq 'HTTP_HOST' } @util ),
+    'HTTP_HOST is not interpolable TODAY - see the ruling above' );
+ok( ( grep { $_ eq 'SERVER_NAME' } @util ), 'SERVER_NAME is' );
 
 # And Notify must not grow a fourth copy: it may read the allowlist, never define
 # one. The defect was a private reader; a private allowlist would be the same

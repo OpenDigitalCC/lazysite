@@ -8,7 +8,7 @@ status: partial
 raised: 2026-09-30
 raised-by: site agent, from a live site (0.15.0), after the delivery path was proved end to end
 area: notifications
-status-note: "PARTIAL - the defect is FIXED (PENDING ref); the consolidation of the THIRD reader is deliberately not done. SHIPPED: the allowlist moves to Lazysite::Util, Notify interpolates through it, and t/lint/202 pins the processor's own copy identical variable-for-variable (the render path is module-free per ADR 0001, so it keeps a copy - the arrangement lint 198 makes for _cannot_read). A case neither other reader has: NO REQUEST CONTEXT AT ALL - a cron- or CLI-driven notice has no SERVER_NAME, interpolation would correctly yield `://`, and emitting that is worse than emitting nothing because it looks like a link; so an incomplete expansion yields EMPTY and the template's `[% base %]/path` degrades to an absolute path. Also fixed: _conf_value no longer collapses an absent lazysite.conf and one that will not open into ''. NOT DONE, and this is the interesting half: tools/lazysite-users.pl::_site_base_url still hand-rolls its own two variables. THIS FILING'S OWN OPEN QUESTION WAS ADVANCED AND IS WORSE THAN IT SUPPOSED. Half settled: _claim_url IS reachable from a CGI-invoked `--api` action (account-approve; users_tool_api uses open2 and inherits %ENV), so a claim URL can be built with CGI env present. The other half: the processor's comment excludes HTTP_HOST as 'request-supplied and untrusted' and directs callers to SERVER_NAME - but Apache's UseCanonicalName defaults to OFF, under which SERVER_NAME is TAKEN FROM THE HOST HEADER, and none of the four shipped vhost examples (installers/apache/vhost*.conf.example) sets it On. So on a default install the exclusion buys nothing, and consolidating the third reader would bake that assumption in harder. Needs a ruling - a vhost default, or a policy about which host variable the engine trusts - before _site_base_url moves. Recorded in t/lint/202 beside the assertion so it is read by whoever changes it. Seven sabotages, seven refusals."
+status-note: "PARTIAL - the defect is FIXED (PENDING ref); the consolidation of the THIRD reader is deliberately not done. SHIPPED: the allowlist moves to Lazysite::Util, Notify interpolates through it, and t/lint/202 pins the processor's own copy identical variable-for-variable (the render path is module-free per ADR 0001, so it keeps a copy - the arrangement lint 198 makes for _cannot_read). A case neither other reader has: NO REQUEST CONTEXT AT ALL - a cron- or CLI-driven notice has no SERVER_NAME, interpolation would correctly yield `://`, and emitting that is worse than emitting nothing because it looks like a link; so an incomplete expansion yields EMPTY and the template's `[% base %]/path` degrades to an absolute path. Also fixed: _conf_value no longer collapses an absent lazysite.conf and one that will not open into ''. NOT DONE, and this is the interesting half: tools/lazysite-users.pl::_site_base_url still hand-rolls its own two variables. THIS FILING'S OWN OPEN QUESTION WAS ADVANCED AND IS WORSE THAN IT SUPPOSED. Half settled: _claim_url IS reachable from a CGI-invoked `--api` action (account-approve; users_tool_api uses open2 and inherits %ENV), so a claim URL can be built with CGI env present. The other half: the processor's comment excludes HTTP_HOST as 'request-supplied and untrusted' and directs callers to SERVER_NAME - but Apache's UseCanonicalName defaults to OFF, under which SERVER_NAME is TAKEN FROM THE HOST HEADER, and none of the four shipped vhost examples (installers/apache/vhost*.conf.example) sets it On. So on a default install the exclusion buys nothing, and consolidating the third reader would bake that assumption in harder. RULED 2026-10-01: THE PRESENTED HOST IS THE HOST. Not a trust level but a division of responsibility - the engine uses the hostname it was given, restricting what may be presented is the front end's job, and a site that wants it fixed pins it. CONSEQUENCES: (a) ONE definition of the request host - interpolation must use the same host _request_host() already routes alias config on, which also makes the answer independent of UseCanonicalName instead of quietly conditional on a vhost setting none of the four shipped examples sets; (b) the PIN ALREADY EXISTS and needs no key - a literal site_url is untouched by interpolation, which t/unit/lib/58 already asserts; what does not exist is pinning the HOST while leaving the scheme dynamic, a smaller question not assumed here; (c) UseCanonicalName On is NOT shipped - it was the only option that would have made the old comment true and is the wrong direction, because it would fix SERVER_NAME to the primary ServerName and an alias host not overriding site_url would put the PRIMARY host in its own links, breaking the multi-host and language-set sites the alias mechanism exists for; (d) SM110's whitelist is unchanged - a security-relevant key still may not vary per host. The comment that treated SERVER_NAME-vs-HTTP_HOST as a boundary the engine maintains is wrong in its reasoning as well as its facts, and _request_host() reading HTTP_HOST to pick an alias host has said so on the main render path all along. NOT YET BUILT. Recorded in t/lint/202 beside the assertion so it is read by whoever changes it. Seven sabotages, seven refusals."
 ---
 
 # What arrived
@@ -125,14 +125,66 @@ request-supplied and untrusted. Use SERVER_NAME for host-based URL
 construction"* - rests on a premise the engine's own vhosts do not establish. On a
 default install, excluding one and permitting the other buys nothing.
 
-**That is a ruling rather than a repair**, which is why nothing was changed: the
-options are to ship `UseCanonicalName On` in the vhost templates (an operator-
-visible change that lands on regeneration), to stop trusting `SERVER_NAME` in the
-allowlist, or to accept it and say so where the comment currently claims safety.
-Consolidating the three readers first would bake the unexamined assumption in
-harder, so `_site_base_url` keeps its own copy until this is decided. The reasoning
-is recorded in `t/lint/202` beside the assertion, so whoever changes the allowlist
-reads it there rather than here.
+# RULED 2026-10-01: the presented host is the host
+
+The three options I put up were all framed as "which host variable do we trust",
+and the release manager rejected the framing rather than picking one. In their
+words:
+
+> *"What I want is that the hostname provided to Lazysite is the one that is used
+> which then prevents any pre-configuration. Subdomains require a matching name,
+> but anything presented will run. Therefore its up to the user to have a proxy or
+> webserver to ensure that it behaves as desired. It may be useful to have a site
+> config feature that allows the servername to be set, based on what is dynamic, so
+> that it can be pinned if user reqiests it, and that may be useful in some
+> situations, but default is that it is variable. then for the forms etc that rely
+> on the variable, it is populated with whatever was used at the request, unless it
+> is pinned."*
+
+So the position is not a trust level, it is a **division of responsibility**. The
+engine uses the host it was given; restricting what may be presented is the front
+end's job, not the engine's. A site that wants the host fixed pins it; the default
+is that it varies with the request.
+
+That makes the processor's comment wrong in its reasoning as well as its facts. It
+treats the choice between `SERVER_NAME` and `HTTP_HOST` as a security boundary the
+engine maintains. The engine does not maintain one there - and `_request_host()`,
+which reads `HTTP_HOST` and decides which alias host's config a request gets, has
+said so on the main render path all along. SM110's comment already states the real
+rule: the Host header may select **presentation-only** keys, and the safety is in
+limiting *what* it may select. `site_url` is presentation.
+
+## What follows, and what does not
+
+**ONE definition of "the host this request is for".** Today there are two -
+`_request_host()` for alias selection, and whatever `SERVER_NAME` happens to hold
+for interpolation - and they can disagree depending on `UseCanonicalName`, a vhost
+setting none of the four shipped examples sets. Under the ruling they must be the
+same thing, which also makes the answer independent of that setting instead of
+quietly conditional on it.
+
+**THE PIN ALREADY EXISTS and does not need building.** A literal `site_url` -
+`site_url: https://example.com` - is pinned, today, with no new key: interpolation
+leaves a value with no `${...}` in it untouched, which
+`t/unit/lib/58`'s "a literal site_url still works without any CGI environment"
+subtest already asserts. The templated form
+`${REQUEST_SCHEME}://${SERVER_NAME}` is the variable default the ruling describes.
+What does NOT exist is pinning the HOST while leaving the scheme dynamic; whether
+that case is worth a key of its own is a smaller question than the ruling and is
+not assumed here.
+
+**`UseCanonicalName On` is not shipped.** It was the only option that would have
+made the old comment true, and it is the wrong direction under this ruling: it
+would fix `SERVER_NAME` to the primary `ServerName`, so an alias host that does not
+override `site_url` would put the PRIMARY host into its own links, sitemap and
+notices - breaking exactly the multi-host and language-set sites the alias
+mechanism exists for.
+
+**What is unchanged:** SM110's whitelist. A security-relevant key still may not vary
+per host. The ruling widens nothing there - it says only that the host itself is
+taken as presented, which the alias path already did.
+
+# The question as it was put, kept for the record
 
 # The original question, kept for the record
 
