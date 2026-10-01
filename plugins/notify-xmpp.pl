@@ -12,6 +12,19 @@
 use strict;
 use warnings;
 
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place, tar
+    # and Hestia installs), falling back to the system @INC (package installs).
+    # Nothing is loaded here: --describe must answer even where the tree is not
+    # found, because the Plugin Manager calls it before anything is configured.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
     print JSON::PP::encode_json(
@@ -119,10 +132,47 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 deps         => [ 'Net::XMPP', 'Net::DNS' ],
                 capabilities => [],
             },
+
+            # SM927: THE BUTTON ITS SIBLING ALREADY HAD. form-smtp declares
+            # `validate` and the config page shows "Validate SMTP connection";
+            # this declared no actions at all, so eight fields including a
+            # password could only be tested by waiting for a real event - and
+            # this plugin's failure mode is that a real event tells you nothing,
+            # because a notice that never arrives looks like a quiet site.
+            #
+            # `needs` is the existing gate (git-sync's test connection uses it):
+            # no test against nothing. jid, because without the account there is
+            # nothing to sign in as - and the test names the other two missing
+            # keys itself rather than guessing which one to gate on.
+            actions => [
+                { id => 'test',
+                    label => 'Send a test notification',
+                    needs => 'jid',
+                },
+            ],
         }
     );
     exit 0;
 }
 
-print "usage: notify-xmpp.pl --describe\n";
+# --- Test mode (the "Send a test notification" button) -----------------------
+#
+# Invoked by the manager's plugin-action as `--scan --docroot DIR`, the same shape
+# form-smtp's validate uses. The staging lives in Lazysite::Notify, with the
+# delivery it is testing: this plugin is a descriptor, and a copy of the flow here
+# would be a second definition that agrees with delivery until it does not.
+
+if ( grep { $_ eq '--scan' } @ARGV ) {
+    my $docroot = '';
+    for my $i ( 0 .. $#ARGV ) {
+        $docroot = $ARGV[ $i + 1 ] // '' if $ARGV[$i] eq '--docroot';
+    }
+    $docroot ||= $ENV{DOCUMENT_ROOT} || '.';
+    require JSON::PP;
+    require Lazysite::Notify;
+    print JSON::PP::encode_json( Lazysite::Notify::test_xmpp($docroot) );
+    exit 0;
+}
+
+print "usage: notify-xmpp.pl --describe | --scan --docroot DIR\n";
 exit 0;

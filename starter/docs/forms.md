@@ -398,18 +398,41 @@ page, or the `extensions:` list in `lazysite.conf`) and a client config at
 jid: site-bot@example.com      # required - the account the site sends AS
 password: secret               # required
 to: you@example.com            # required - an individual JID, or a room
-host: xmpp.example.com         # optional - defaults to the jid's domain
-port: 5222                     # optional - defaults to 5222
+host: xmpp.example.com         # optional - leave BLANK to use the SRV record
+port: 5222                     # optional - leave BLANK to use the SRV record
 tls: 1                         # optional - defaults to on
 muc: 0                         # set 1 when `to` is a group chat room
 nick: My-Site                  # optional - defaults to the site name
 ```
 
-All three of `jid`, `password` and `to` must be present or delivery is skipped
-silently. One client and one recipient per site; use a room (`muc: 1`) when
-several people should see the notices.
+All three of `jid`, `password` and `to` must be present or delivery is skipped -
+and the reason is logged, naming which key is missing.
 
-The connector needs `Net::XMPP` - on Debian, the `libnet-xmpp-perl` package.
+**Leave `host` and `port` both blank unless you know better.** With neither set,
+the engine asks the account's own domain where its client endpoint is
+(`_xmpp-client._tcp.<domain>`, the SRV record), which is how most servers publish
+an endpoint that is not the JID's domain and not port 5222. Setting *either* one
+means exactly that: nothing is looked up, and the other takes its usual default.
+
+One client and one recipient per site; use a room (`muc: 1`) when several people
+should see the notices.
+
+The connector needs `Net::XMPP` and `Net::DNS` - on Debian, `libnet-xmpp-perl`
+and `libnet-dns-perl`.
+
+### Testing it before anything happens
+
+The Extension Manager row for XMPP notifications carries **Send a test
+notification**. It signs in and sends one message that says it is a test, then
+reports every stage it reached - the client library, the endpoint it chose and
+where that came from, the connection, the sign-in, and the send - along with the
+message body exactly as it went out.
+
+Read the body as well as the verdict: it is rendered by the same templates a real
+notice uses, so a link that comes out wrong on this site comes out wrong here,
+where you can see it. A group chat join is reported as *sent, not confirmed* -
+nothing answers a join on this path, so a room that refuses one shows up as the
+message never arriving.
 
 ## Reading what a form collected
 

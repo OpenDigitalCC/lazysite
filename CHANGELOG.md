@@ -96,6 +96,66 @@ Naming the commit: AFTER it lands, never before
   imprecise - `'' || join(...)` is a no-op, and removing `$type.$endpoint` while
   leaving `$type.$endpoint.full` removed nothing that was used. Both refused once
   corrected.
+- SM927 (PENDING) **the XMPP configuration can be tested before anything real
+  happens, and the test says which stage it reached.** `form-smtp` declares a
+  `validate` action and the config page shows a "Validate SMTP connection" button.
+  `notify-xmpp` declared no actions at all, so an operator who had just typed eight
+  fields including a password had no way to learn whether any of it worked until an
+  event fired - and this plugin's whole failure mode is that when one does fire,
+  nothing tells them: a chat notice that never arrives looks exactly like a site
+  where nothing has happened. On the site this was found on, nine enquiries
+  accumulated over sixteen days with no delivery configured at all.
+
+  THE STEP-BY-STEP IS THE POINT, not the pass/fail. The staging lives in
+  `Lazysite::Notify` with the delivery it tests - `_xmpp_send` takes an optional
+  collector and records `library`, `jid`, `endpoint`, `connect`, `auth`, `join` and
+  `send` as it passes each - so the test exercises the delivery path itself rather
+  than a second implementation that agrees with it until the release where it stops.
+  A bare failure sends an operator back through all eight fields; a named stage
+  sends them to one of them.
+
+  THE THREE DEFECTS FILED ON 2026-09-30 ARE EACH NOW ONE PRESS. [[SM925]] X1
+  (`Net::XMPP` not installed) is a `library` stage naming the Debian package rather
+  than Perl's `@INC` paragraph. X2 (port 5222 asserted over an SRV record giving
+  47594) is an `endpoint` stage that says WHERE the endpoint came from: *as
+  configured*, *from the domain's SRV record*, or *nothing else was published* for a
+  defaulted 5222 - the distinction the operator could not see. [[SM926]] (a body
+  carrying `${REQUEST_SCHEME}://${SERVER_NAME}`) because the rendered body is
+  returned and SHOWN, through the same template path a real notice uses, so a site's
+  own `default.xmpp` override is tested too. That defect was invisible for a whole
+  afternoon and became obvious the moment a human read a payload.
+
+  WHAT THE TEST DOES NOT DO: write a bell row. The reporter's only available test was
+  a real form submission, which left a stored row only a person can delete
+  ([[SM924]]) and only exercised this path at all if it escaped the spam quarantine
+  ([[SM216]]). The body announces itself as a **test** and says nothing needs doing,
+  because the recipient is often a room a team shares and a test that reads like an
+  alert teaches people to ignore alerts. A group chat join is reported as *sent, not
+  confirmed*: this path sends a join presence and reads nothing back, so a room that
+  refuses one answers nowhere this code looks, and calling that a success would be
+  the four-state fault in miniature.
+
+  X3's four config states now reach the OPERATOR as well as the log. `_xmpp_conf`
+  became `_xmpp_conf_or_why`, returning the config and the reason there is none -
+  renamed deliberately, because `return ( undef, $why )` in scalar context yields
+  the reason, which is true, so a call site left un-updated would have sent with it;
+  a rename makes that a compile failure instead.
+
+  Also fixed here, found while building: X2's SRV lookup had made
+  `t/unit/lib/26` issue five REAL DNS queries per run from the unit suite. The
+  resolver is stubbed there now - which also makes "the port defaults to 5222" a fact
+  about this code rather than about the public DNS - and a new case asserts the
+  resolved endpoint reaches `Connect`, not only `_xmpp_endpoint`. Twelve sabotages,
+  twelve refusals.
+
+  Docs: `starter/docs/forms.md` gains the test section and corrects the `port`
+  line X2 made wrong (blank now means the SRV record, not 5222);
+  `docs/MANUAL-CHECKS.md` puts the button before the submission pass in the delivery
+  check; `docs/FEATURES.md` names the action. The filing's wider question - whether
+  ANY plugin holding credentials for a remote endpoint should be REQUIRED to declare
+  a test action, which would make the absence a lint - stays open, because the
+  population has not been counted.
+
 - SM925 (PENDING) **X2: the XMPP endpoint comes from the domain's SRV record, which
   closes the filing.** An operator configured a valid account on a live site and
   could not connect: the port had defaulted to 5222 while the account's own domain

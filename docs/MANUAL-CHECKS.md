@@ -467,6 +467,14 @@ configured, confirm the chat notice arrives and carries **no submitted content**
 that is the design, and a regression would leak content to a phone on a lock
 screen.
 
+For XMPP, press **Send a test notification** on the Extension Manager row FIRST
+(SM927). It reaches the socket without a submission, so a configuration fault is
+separated from a delivery fault before a real notice is involved - and the stage
+report names which of them you have. Then do the submission pass above, which is
+still the only thing that proves the notice a real event produces. Confirm the
+test message reads as a test: it goes to the same room the real notices do, and one
+that reads like an alert teaches people to ignore alerts.
+
 # Installer and permissions
 
 ## Why it is out of reach

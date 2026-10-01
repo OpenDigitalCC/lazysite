@@ -32,7 +32,7 @@ package Lazysite::Notify;
 
 use strict;
 use warnings;
-use JSON::PP       ();
+use JSON::PP        ();
 use Fcntl           qw(:flock);
 use Lazysite::Util  qw(log_event cannot_read interpolate_env);
 use Lazysite::Paths ();
@@ -389,7 +389,7 @@ sub notify {
     }
 
     if ( $route->{xmpp} ) {
-        my $xconf = _xmpp_conf($docroot);
+        my ($xconf) = _xmpp_conf_or_why($docroot);    # the reason is logged there
         if ($xconf) {
             my ( $body, $from_file )
                 = _template( $docroot, $type, 'xmpp', length $vars{fields_text} );
@@ -611,7 +611,18 @@ sub _mail_send {
 # The notify-xmpp client config, or undef when the plugin is disabled or not
 # configured. Enabled = listed in the lazysite.conf `plugins:` block (the same
 # registry the manager's Plugins page toggles).
-sub _xmpp_conf {
+#
+# SM927: AND THE REASON, AS THE SECOND RETURN VALUE. X3 made these four states say
+# which one they were - into the server error log, where the operator configuring
+# the site cannot see it. The test action has to put the same sentence in front of
+# them, so one reader answers both: the config, or why there is none.
+#
+# RENAMED FROM `_xmpp_conf` ON PURPOSE. `return ( undef, $why )` in SCALAR context
+# yields $why, which is a non-empty string and therefore true - so a call site left
+# un-updated would have treated the reason as a config and gone on to send with it.
+# A rename makes every such call site a compile-time failure instead. There were
+# two (notify() and t/unit/lib/57).
+sub _xmpp_conf_or_why {
     my ($docroot) = @_;
 
     # SM925 X3: FOUR DISTINCT CAUSES returned undef here, none of them saying
@@ -621,7 +632,8 @@ sub _xmpp_conf {
     # which. Only the first is a deliberate state; the other three are faults and
     # now say so. The four-state rule SM906, SM907 and SM917 applied to the stores,
     # arriving on the notification path.
-    return undef unless _plugin_enabled( $docroot, 'notify-xmpp.pl' );
+    return ( undef, 'XMPP notifications are switched off for this site.' )
+        unless _plugin_enabled( $docroot, 'notify-xmpp.pl' );
 
     my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-xmpp.conf";
     my $fh;
@@ -630,11 +642,12 @@ sub _xmpp_conf {
             log_event( 'WARN', 'notify',
                 'xmpp delivery is enabled and not configured, so nothing is sent',
                 file => $path );
+            return ( undef, 'There is no XMPP configuration yet - fill the '
+                    . 'settings in and Save, then test.' );
         }
-        else {
-            cannot_read( 'the xmpp client config', $path );
-        }
-        return undef;
+        cannot_read( 'the xmpp client config', $path );
+        return ( undef, "The XMPP configuration cannot be read ($path) - check "
+                . 'its ownership and permissions.' );
     }
     my %c;
     while ( my $l = <$fh> ) {
@@ -648,7 +661,8 @@ sub _xmpp_conf {
                 . 'so nothing is sent',
             file    => $path,
             missing => join( ', ', @missing ) );
-        return undef;
+        return ( undef, 'The XMPP configuration is incomplete: no '
+                . join( ', ', @missing ) . '.' );
     }
 
     # Default the sender nickname to the site name, sanitised to nick-safe
@@ -659,7 +673,7 @@ sub _xmpp_conf {
         $name =~ s/^-+|-+$//g;
         $c{nick} = length $name ? $name : 'lazysite';
     }
-    return \%c;
+    return ( \%c, '' );
 }
 
 sub _conf_value {
@@ -773,6 +787,11 @@ our $SRV_RESOLVER = \&_resolve_xmpp_srv;
 # given; a conf naming either is obeyed exactly and nothing is looked up.
 # XMPP::Lite tracks only whether the PORT was explicit, so it will replace a host
 # the operator did set - and a host somebody typed is a specification.
+#
+# SM927: the third return value is WHERE the endpoint came from - conf, srv or
+# default. The test action shows it, because "5222" and "5222 because nothing
+# published anything else" send an operator to different places, and the whole of
+# X2 was an operator who could not tell which of those they were looking at.
 sub _xmpp_endpoint {
     my ( $conf, $domain ) = @_;
     my $host_named = length( $conf->{host} // '' )      ? 1             : 0;
@@ -780,15 +799,22 @@ sub _xmpp_endpoint {
     my $host       = $host_named                        ? $conf->{host} : $domain;
     my $port       = $port_named                        ? $conf->{port} : 5222;
 
-    return ( $host, $port ) if $host_named || $port_named;
+    return ( $host, $port, 'conf' ) if $host_named || $port_named;
 
     my ( $srv_host, $srv_port ) = $SRV_RESOLVER->($domain);
-    return ( $host, $port ) unless length( $srv_host // '' );
+    return ( $host, $port, 'default' ) unless length( $srv_host // '' );
 
     log_event( 'INFO', 'notify', 'xmpp endpoint resolved from the SRV record',
         domain => $domain, host => $srv_host, port => $srv_port );
-    return ( $srv_host, $srv_port );
+    return ( $srv_host, $srv_port, 'srv' );
 }
+
+# How the endpoint was chosen, in words an operator reads on the test result.
+my %ENDPOINT_SOURCE = (
+    conf    => 'as configured',
+    srv     => "from the domain's SRV record",
+    default => 'the JID domain and the standard port - nothing else was published',
+);
 
 sub _resolve_xmpp_srv {
     my ($domain) = @_;
@@ -822,12 +848,40 @@ sub _resolve_xmpp_srv {
 # (Net::XMPP::Client: Connect -> AuthSend -> chat MessageSend, or a MUC
 # presence-join then a groupchat send). Time-boxed with alarm so a CGI request
 # cannot hang on an unreachable chat server.
+#
+# SM927: AND IT RECORDS WHICH STAGE IT REACHED, when the caller hands it somewhere
+# to record into. The test action is the caller that does; a notification does not,
+# and the `if ref $steps` in $note is the whole of the difference. One flow, so what
+# the test exercises is the delivery path itself rather than a parallel imitation of
+# it - the thing that would otherwise agree with delivery right up to the release
+# where it stopped agreeing.
 sub _xmpp_send {
-    my ( $conf, $text ) = @_;
-    require Net::XMPP;
+    my ( $conf, $text, $steps ) = @_;
+
+    # Each stage says what happened as it happens, because the staging is only
+    # useful if the record survives the die - "authenticated, then the send failed"
+    # and "could not connect" send an operator to different settings.
+    my $note = sub {
+        push @{$steps}, { step => $_[0], ok => ( $_[1] ? 1 : 0 ), detail => $_[2] // '' }
+            if ref $steps eq 'ARRAY';
+        return;
+    };
+
+    # X1's fault, reported as a stage rather than as Perl's @INC paragraph: the
+    # module is declared in the descriptor, so the enable path refuses without it -
+    # but a site that lost the package after enabling still arrives here.
+    unless ( eval { require Net::XMPP; 1 } ) {
+        $note->( 'library', 0, 'Net::XMPP is not installed' );
+        die "notify-xmpp: the XMPP client library is not installed "
+            . "(Net::XMPP - on Debian, libnet-xmpp-perl)\n";
+    }
+    $note->( 'library', 1, 'Net::XMPP is installed' );
 
     my ( $user, $domain ) = ( $conf->{jid} // '' ) =~ /^([^@]+)\@(.+)$/;
-    die "notify-xmpp: jid must be user\@domain\n" unless defined $domain;
+    if ( !defined $domain ) {
+        $note->( 'jid', 0, 'the client JID is not user@domain' );
+        die "notify-xmpp: jid must be user\@domain\n";
+    }
     my $tls  = ( $conf->{tls}        // '1' ) =~ /^(?:1|true|yes)$/i ? 1 : 0;
     my $nick = length( $conf->{nick} // '' ) ? $conf->{nick}             : 'lazysite';
     my $muc  = ( $conf->{muc}        // '' ) =~ /^(?:1|true|yes)$/i ? 1  : 0;
@@ -848,20 +902,35 @@ sub _xmpp_send {
         # reaching it - a DNS wait outside the alarm would be an unbounded hang in
         # a CGI by another name, which is what t/lint/120 and the comment above
         # exist to prevent.
-        ( $host, $port ) = _xmpp_endpoint( $conf, $domain );
-        defined $client->Connect(
-            hostname      => $host,
-            port          => $port,
-            tls           => $tls,
-            componentname => $domain,
-        ) or die "notify-xmpp: connect to $host:$port failed\n";
+        my $source;
+        ( $host, $port, $source ) = _xmpp_endpoint( $conf, $domain );
+        $note->( 'endpoint', 1,
+            "$host:$port - " . ( $ENDPOINT_SOURCE{ $source // '' } // 'chosen' ) );
+
+        unless (
+            defined $client->Connect(
+                hostname      => $host,
+                port          => $port,
+                tls           => $tls,
+                componentname => $domain,
+            )
+            )
+        {
+            $note->( 'connect', 0, "nothing answered at $host:$port" );
+            die "notify-xmpp: connect to $host:$port failed\n";
+        }
+        $note->( 'connect', 1, "connected to $host:$port" . ( $tls ? ' with TLS' : '' ) );
+
         my @auth = $client->AuthSend(
             username => $user,
             password => $conf->{password},
             resource => $nick,
         );
-        die "notify-xmpp: auth failed: $auth[0]\n"
-            unless ( $auth[0] // '' ) eq 'ok';
+        if ( ( $auth[0] // '' ) ne 'ok' ) {
+            $note->( 'auth', 0, "the server refused the account: $auth[0]" );
+            die "notify-xmpp: auth failed: $auth[0]\n";
+        }
+        $note->( 'auth', 1, "signed in as $user as resource $nick" );
 
         if ($muc) {
             # Join the room (bare names get no default domain here - configure the
@@ -870,10 +939,26 @@ sub _xmpp_send {
             $p->SetTo("$conf->{to}/$nick");
             $p->InsertRawXML('<x xmlns="http://jabber.org/protocol/muc"/>');
             $client->Send($p);
+
+            # UNCONFIRMED, AND SAID SO. This path sends the join presence and reads
+            # nothing back, so a room that refuses the join - members-only, wrong
+            # password, no such room - is indistinguishable here from one that
+            # accepted it. The filing hoped this stage would separate "authenticated
+            # but the room said no" from "could not connect"; it separates them as
+            # far as the protocol flow allows and no further, and claiming a join
+            # succeeded because a packet left is the four-state fault in miniature.
+            $note->( 'join', 1,
+                "join sent to $conf->{to} as $nick - a room that refuses a join "
+                    . 'does not answer this path, so a refusal shows up as the '
+                    . 'message never arriving' );
+            $steps->[-1]{unconfirmed} = 1 if ref $steps eq 'ARRAY';
+
             $client->MessageSend( to => $conf->{to}, body => $text, type => 'groupchat' );
+            $note->( 'send', 1, "sent to the room $conf->{to} as groupchat" );
         }
         else {
             $client->MessageSend( to => $conf->{to}, body => $text, type => 'chat' );
+            $note->( 'send', 1, "sent to $conf->{to} as a chat message" );
         }
         1;
     };
@@ -882,6 +967,114 @@ sub _xmpp_send {
     alarm 0;
     die $err unless $ok;
     return 1;
+}
+
+# --- SM927: the test an operator can run before anything real happens ---------
+#
+# form-smtp declares a `validate` action and the config page shows a button for
+# it. notify-xmpp declared no actions at all, so an operator who had just typed
+# eight fields including a password had no way to learn whether any of it worked
+# until an event fired - and the whole shape of this plugin's failure is that when
+# one does fire, nothing tells them: an XMPP notice that never arrives looks
+# exactly like a site where nothing has happened.
+#
+# THE DAY'S OWN RECORD IS THE ARGUMENT. Three defects were filed on 2026-09-30 from
+# one afternoon, and this button answers each in one press: X1 (Net::XMPP not
+# installed) as a `library` stage, X2 (port 5222 asserted over an SRV record giving
+# 47594) as an `endpoint` stage naming where the endpoint came from, and SM926 (a
+# body carrying `${REQUEST_SCHEME}://${SERVER_NAME}`) because the rendered message
+# is SHOWN rather than summarised. That last one was invisible for the whole
+# afternoon and became obvious the moment a human read what had been sent.
+#
+# WHAT IT IS NOT: a notify() call. No bell row is written, because the reporter's
+# only available test WAS a real submission - which left a stored row only a person
+# can delete (SM924), and only exercised this path at all if it escaped the spam
+# quarantine (SM216). A test that leaves evidence behind, and can fail for a reason
+# that has nothing to do with what is being tested, is not a test.
+
+# The body the test sends, through the SAME template machinery a notice uses - so a
+# site that overrode default.xmpp has its own template tested, and an operator sees
+# the link a real notice would carry on this site rather than a promise about it.
+#
+# IT HAS TO READ AS A TEST. The recipient is often a room a team shares, and a test
+# that reads like a real alert teaches people to ignore real alerts.
+sub _test_body {
+    my ($docroot) = @_;
+    my $conf      = _notify_conf($docroot);
+    my %vars      = (
+        message => 'TEST - this is the XMPP delivery test from the Lazysite '
+            . 'manager, sent by hand at '
+            . scalar( localtime time ) . '. Nothing needs doing.',
+        type   => 'test',
+        target => '',
+        to     => '',
+        url    => '/manager/plugins',
+        site   => _site_name($docroot),
+        base   => ( $conf->{base_url} // _site_url($docroot) ),
+    );
+    $vars{base} =~ s{/+$}{} if defined $vars{base};
+    my ( $body, $from_file ) = _template( $docroot, 'test', 'xmpp' );
+    return _render( $body, $from_file, \%vars );
+}
+
+# Run the test and report every stage it reached. Returns the plugin action's
+# result: ok, the stage it stopped at, the steps, the body as sent, and either a
+# one-line verdict or the reason it failed.
+#
+# THE STEP-BY-STEP IS THE POINT, not the pass/fail. A bare failure sends an
+# operator back through all eight fields; a named stage sends them to one of them.
+sub test_xmpp {
+    my ($docroot) = @_;
+    my @steps;
+
+    my ( $conf, $why ) = _xmpp_conf_or_why($docroot);
+    return { ok => 0, stage => 'config', steps => \@steps, error => $why }
+        unless $conf;
+    push @steps, {
+        step   => 'config',
+        ok     => 1,
+        detail => "sending as $conf->{jid} to $conf->{to}"
+            . ( ( $conf->{muc} // '' ) =~ /^(?:1|true|yes)$/i ? ' (a group chat room)' : '' ),
+    };
+
+    my $text = _test_body($docroot);
+
+    # Through $XMPP_SENDER, which is the hook notify() delivers through, so this
+    # tests the path in use and not a second one that resembles it.
+    my $ok  = eval { $XMPP_SENDER->( $conf, $text, \@steps ); 1 };
+    my $err = $@ // '';
+    $err =~ s/\A\s*notify-xmpp:\s*//;
+    $err =~ s/\s+\z//;
+
+    if ($ok) {
+        my ($endpoint) = grep { $_->{step} eq 'endpoint' } @steps;
+        return {
+            ok      => 1,
+            stage   => 'ok',
+            steps   => \@steps,
+            sent    => $text,
+            message => "Test message sent to $conf->{to}"
+                . ( $endpoint ? ' via ' . $endpoint->{detail} : '' )
+                . '. Check that it arrived - a server can accept a message it '
+                . 'then declines to deliver.',
+        };
+    }
+
+    # A stage that died rather than returning a failure recorded nothing, so the
+    # step it died in is named here. Without this the result would report the last
+    # stage that SUCCEEDED as the place it stopped, which is the opposite of true.
+    push @steps, { step => 'send', ok => 0, detail => $err }
+        unless grep { !$_->{ok} } @steps;
+    my ($failed) = grep { !$_->{ok} } @steps;
+
+    return {
+        ok    => 0,
+        stage => $failed->{step},
+        steps => \@steps,
+        sent  => $text,
+        error => "The test stopped at '$failed->{step}': "
+            . ( length $err ? $err : $failed->{detail} ),
+    };
 }
 
 1;

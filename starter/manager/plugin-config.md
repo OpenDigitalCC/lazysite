@@ -285,6 +285,16 @@ function renderPluginCard(plugin) {
   // SM085: an action result may ask for a choice (needs_choice) - the
   // conflict list + choice buttons render here.
   html += '<div id="choice-' + esc(plugin.id) + '" style="display:none"></div>';
+  // SM927: a staged action's report - one line per step, and the message a
+  // delivery test actually sent. Separate from the choice box, which is a
+  // question, and from the status line, which holds one sentence.
+  //
+  // The `hidden` ATTRIBUTE, not an inline display:none like its neighbour above.
+  // t/lint/108 keeps a ratcheting ceiling of inline styles per page and is right
+  // that a new one is debt; the attribute needs no rule in three stylesheets to
+  // work. (That lint counts the text, so this comment may not spell the thing it
+  // is avoiding.)
+  html += '<div id="report-' + esc(plugin.id) + '" hidden></div>';
   html += '<div class="mg-status" id="status-' + esc(plugin.id) + '"></div>';
   html += '</div>';
   return html;
@@ -446,6 +456,11 @@ function runAction_go(plugin, action, params) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
+    // SM927: BEFORE the ok/not-ok split, because a staged action's steps matter
+    // MOST when it failed - "authenticated, then the room refused" and "nothing
+    // answered at all" send an operator to different settings, and a bare failure
+    // sends them back through every field.
+    renderActionReport(plugin.id, data);
     if (!data.ok) {
       mgShowWarning(data.error || 'Action failed', true);
       status.textContent = '';
@@ -492,6 +507,33 @@ function runAction_go(plugin, action, params) {
     mgShowWarning('Error: ' + e.message, true);
     status.textContent = '';
   });
+}
+
+// SM927: the staged report. `steps` is one line per stage with a tick or a cross;
+// `sent` is the body a delivery test handed to the server, shown VERBATIM - SM926
+// put `${REQUEST_SCHEME}://${SERVER_NAME}` into every notification a site sent for
+// an afternoon, and it became obvious the moment a human read the payload rather
+// than a verdict about it. Monospace via mg-code-box, which is the furniture this
+// manager already has for a value you are meant to read character by character.
+function renderActionReport(pluginId, data) {
+  var box = document.getElementById('report-' + pluginId);
+  if (!box) return;
+  var html = '';
+  if (data && data.steps && data.steps.length) {
+    html += '<div class="mg-code-box">';
+    data.steps.forEach(function(s) {
+      html += '<div>' + (s.ok ? '✓' : '✗') + ' ' + esc(s.step)
+            + (s.unconfirmed ? ' (sent, not confirmed)' : '')
+            + (s.detail ? ' - ' + esc(s.detail) : '') + '</div>';
+    });
+    html += '</div>';
+  }
+  if (data && data.sent) {
+    html += '<div class="mg-plugin-desc">The message as sent:</div>';
+    html += '<div class="mg-code-box"><div>' + esc(data.sent) + '</div></div>';
+  }
+  box.innerHTML = html;
+  box.hidden = !html;
 }
 
 // SM085: the needs_choice panel - the plain-language report, the list of

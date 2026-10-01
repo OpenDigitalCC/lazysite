@@ -55,6 +55,20 @@ our %BEHAVIOUR;
 }
 $INC{'Net/XMPP.pm'} = 'stubbed-by-test';
 
+# NO DNS. SM925 X2 put an SRV lookup inside _xmpp_send, and this file - written
+# before it - drives the no-host-no-port case repeatedly, so it began issuing real
+# `_xmpp-client._tcp.chat.example` queries from the unit suite. Measured on
+# 2026-10-01 with tmp/does-t26-hit-dns.pl: five queries per run against whatever
+# resolver the host has. They answer NXDOMAIN fast on a developer's machine, which
+# is exactly why it went unnoticed - on a host with no resolver each one waits out
+# the 3-second timeout, and the assertions below would then be passing because the
+# public DNS happens not to carry a record for a reserved name.
+#
+# The default resolver answers NOTHING here, so "the port defaults to 5222" is a
+# fact about this code rather than a fact about .example. The SRV case below swaps
+# in an answer deliberately.
+$Lazysite::Notify::SRV_RESOLVER = sub { return () };
+
 sub run {
     my ( $conf, $text, %b ) = @_;
     @CALLS     = ();
@@ -105,6 +119,19 @@ my %BASE = ( jid => 'bot@chat.example', password => 'pw', to => 'ops@chat.exampl
         'an explicit host, port and tls:no override the defaults' );
     my ($a) = grep { $_->[0] eq 'AuthSend' } @CALLS;
     is( $a->[2], 'my-site', 'and nick becomes the resource' );
+}
+
+# SM925 X2 reaches the SOCKET, not only _xmpp_endpoint. t/unit/lib/61 proves the
+# endpoint decision in isolation; this proves the chosen endpoint is what Connect is
+# actually given, which is the half an operator experiences.
+{
+    local $Lazysite::Notify::SRV_RESOLVER = sub { return ( 'xmpp.relay.example', 47594 ) };
+    run( {%BASE}, 'x' );
+    my ($c) = grep { $_->[0] eq 'Connect' } @CALLS;
+    is_deeply( [ @{$c}[ 1, 2 ] ], [ 'xmpp.relay.example', 47594 ],
+        'the SRV target and port are what the connection is made to' );
+    is( $c->[4], 'chat.example',
+        'while componentname stays the JID domain - the server name, not the host' );
 }
 
 # A non-numeric port must not be passed through to the socket layer.

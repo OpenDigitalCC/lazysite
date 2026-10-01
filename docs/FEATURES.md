@@ -908,7 +908,12 @@ every notice is appended to the manager bell store and - when the **notify-xmpp*
 plugin is enabled - also delivered over **XMPP**, with one client config per site
 like SMTP (sender JID + password + a recipient JID, an individual or a group-chat
 room; best-effort and time-boxed, so delivery can never block or fail the
-triggering action). The manager-header **bell** is gated by the `notifications`
+triggering action). The endpoint comes from the account domain's **SRV record**
+when neither `host` nor `port` is set, and the extension declares a **test action**
+(SM927) that signs in, sends one message announcing itself as a test, and reports
+each stage it reached together with the body as sent - so eight fields including a
+password can be checked at configuration time rather than at the first real event.
+The manager-header **bell** is gated by the `notifications`
 capability (seeded on the `user-managers` group): the notices actions refuse
 without it and the bell hides itself; it renders greyscale when nothing is unread
 and coloured with an unread badge otherwise. Notices cover the
