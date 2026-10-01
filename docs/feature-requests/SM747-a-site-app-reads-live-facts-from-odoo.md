@@ -5,7 +5,7 @@ subtitle: "One filing for the whole Odoo extension: per-user authentication carr
 brand: plain
 standard-margins: true
 status: candidate
-status-note: "CONSOLIDATED 2026-09-26 at the release manager's direction: this filing is the authority for the Odoo extension. It absorbs the 2026-09-03 odoo-bridge draft (named queries, OOM as a package), the 2026-09-26 briefing (authentication, identity context, proxy transport - Parts 1 to 7, required outcomes 1 to 13, scope control), the same-day follow-up correcting the egress assumption, and the engine's egress audit. X4 RULED 2026-09-28, as recommended, all three questions together: the proxy does its own HTTP as mode 2 INSIDE SM579's policy rather than beside it (X4); no plain `http://` to an RFC1918 Odoo, `https://` to a private hostname being enough (X4-a); and general mode does supersede the original 'no raw passthrough, ever' when the credential on the wire is the user's own, the rule standing for a service account (X4-b). The register row is deleted, which is what the register asks for. The ruling has a consequence that is a PREREQUISITE rather than part of this filing: SM579's three invocation modes are connector-private today (`$MODES` and `may_call` in Lazysite::Manager::Connectors), so the policy has to become shared before a proxy can declare itself mode 2 inside it. STILL OPEN before building: the object-mapper specification, which is not in the tree at all, and OOM being installed on a host this engine can reach (OB7; tracked as OP-25). One piece of work came OFF the build on 2026-09-28: OOM's transport is already hardened, so no injected transport is needed."
+status-note: "CONSOLIDATED 2026-09-26 at the release manager's direction: this filing is the authority for the Odoo extension. It absorbs the 2026-09-03 odoo-bridge draft (named queries, OOM as a package), the 2026-09-26 briefing (authentication, identity context, proxy transport - Parts 1 to 7, required outcomes 1 to 13, scope control), the same-day follow-up correcting the egress assumption, and the engine's egress audit. X4 RULED 2026-09-28, as recommended, all three questions together: the proxy does its own HTTP as mode 2 INSIDE SM579's policy rather than beside it (X4); no plain `http://` to an RFC1918 Odoo, `https://` to a private hostname being enough (X4-a); and general mode does supersede the original 'no raw passthrough, ever' when the credential on the wire is the user's own, the rule standing for a service account (X4-b). The register row is deleted, which is what the register asks for. THE PREREQUISITE THE RULING CREATED IS DONE AND RELEASED: SM579's invocation modes had to stop being connector-private before a proxy could declare itself mode 2 inside them, and `lib/Lazysite/Egress.pm` landed in 0.15.1 (`@MODES`, `may_invoke`, proved equivalent over 960 combinations; its comments already name `proxy` as a caller). THE MAPPER SPECIFICATION IS FILED 2026-10-01, at the release manager's direction, with its source path and sha256 recorded and t/lint/207 comparing the two whenever the OOM tree is readable - because this filing had by then gone stale against reality twice, and a second copy of a document still being edited elsewhere is how that happens. FILING IT CLOSED THREE SEAMS, LEFT TWO OPEN AND FOUND ONE NEW PIECE OF WORK. Closed: the proxy's request-shaping layer is `Odoo::Ops::Guard` and general mode is its absence, which is the division X4-b already ruled; onchange is never invoked, so a record created this way can differ from one a person creates in Odoo's UI and the extension's docs must say so; and the credential strategies are known. Open: whether Odoo field descriptors and the data extension's table descriptors can share a rendering layer (the shape is tested, the comparison is not made), and WHICH of the 12 CRM and 2 Comms operations become MCP tools - the spec settles the vocabulary, not the selection. NEW WORK: the per-user credential cookie needs `/web/session/authenticate` + `/web/dataset/call_kw`, a transport OOM does not have, and its `Credential` strategy REFUSES `session` and `cookie` by name - so Parts 2 and 3 carry a transport to build, which was invisible before the spec was filed. ONLY ONE GATE IS LEFT AND IT IS NOT ENGINEERING'S: OOM installed where this engine can reach it (OB7, OP-25). MEASURED 2026-10-01: the packaged `libodoo-oom-perl_0.01_all.deb` carries 8 modules, the MAPPER LAYER ONLY, against 41 in the tree - the 33 missing are the whole `Odoo::Ops::*` layer including the Guard, so installing it would give the engine general mode and no scoped mode at all. A 0.02 carrying both layers is a prerequisite of OP-25 rather than a later tidy, and nobody owns it. Zero lines of Odoo code exist in lazysite. One piece of work came OFF the build on 2026-09-28: OOM's transport is already hardened, so no injected transport is needed."
 ---
 
 # Provenance, and what this filing now is
@@ -89,7 +89,7 @@ scheduled and closed by reference.
 | OB4 | Caller gating is lazysite's: the proxy is reached by a lazysite session on an app page (mode 2 of [[SM579]]), and the call carries the Odoo credential from the cookie. No scheduled and no public mode for the per-user proxy. |
 | OB5 | A per-call timeout (`odoo_timeout`); a rate cap per identity; Odoo faults mapped to lazysite's `{ ok: 0, error, kind }` shape with **distinct kinds** for session-expired, invalid-credential, odoo-access-refused and transport-failure. The fault's own text is logged, never returned verbatim (three leaks in three passes taught this - [[SM713]], [[SM738]], [[SM739]]; `t/lint/112` checks the source). |
 | OB6 | Transport discipline, the connector's reused as behaviour: no redirect following - a 3xx is a named refusal, because the credential would travel with it; a response size cap sized for Odoo reads and configurable; TLS peer verification on; `https://` to any host and `http://` only to loopback. **X4-a settled this 2026-09-28: no plain `http://` to an RFC1918 Odoo** - `https://` to a private hostname, which the connector rule already permits, is what "internal network" means here. |
-| OB7 | OOM is delivered as a versioned package (`libodoo-oom-perl`); the extension declares a minimum version in `owns.deps` and never carries a copy of the code. Settled by the release manager 2026-09-03. |
+| OB7 | OOM is delivered as a versioned package (`libodoo-oom-perl`); the extension declares a minimum version in `owns.deps` and never carries a copy of the code. Settled by the release manager 2026-09-03. **MEASURED 2026-10-01: THE PACKAGE THAT EXISTS CANNOT SATISFY THIS.** `/srv/projects/packages/libodoo-oom-perl_0.01_all.deb` (2026-09-03, 26,972 bytes) carries **8 modules - the mapper layer only**: Client, Commands, Error, Model, Record, RecordSet and the two transports. The OOM tree has **41**, and the 33 it is missing are the whole `Odoo::Ops::*` layer the specification's layer table says the extension consumes - including `Odoo::Ops::Guard`, **which IS the scoped mode.** Installing 0.01 would therefore give the engine a mapper with no scope guard: general mode only, which X4-b permits solely with the user's own credential, so the named-query mode this filing is built around would be unavailable. `Odoo/Transport.pm` itself is also absent. A **0.02 carrying both layers is a prerequisite of OP-25**, not a later tidy. |
 | OB8 | One audit record per proxied call on the lazysite side: actor (lazysite account if any), Odoo login, model, method, mode, outcome state (answered / unanswered / refused / odoo-fault), never the payload and never the credential. Written the way connectors write theirs. |
 | OB9 | Recorded in SECURITY.md as a new outbound interface (threat delta, controls, residual risk, verdict), as SM136 was for XMPP; named in FEATURES.md as the third egress kind after the guarded GET and the connector: *a per-user proxy to an operator-configured upstream*. |
 
@@ -370,33 +370,179 @@ today (constant host, slug validated); noted, not this filing's to fix.
   credential is not re-sent; an answer over the cap is refused by name; the
   audit record for a call carries no payload field and no credential.
 
-# Merging the mapper spec (P2 - seams held open)
+# The mapper specification, FILED 2026-10-01
 
-The object-mapper specification is folded into this filing when it arrives. The
-seams left for it:
+The seam this filing held open is closed. The specification was written in the OOM
+tree from what has been built and exercised against Odoo rather than in advance of
+it, and the release manager directed on 2026-10-01 that it be filed here.
 
-- the proxy's request-shaping layer (OB2, OB3) is where the mapper sits;
-- field introspection output is a field descriptor in the same sense as the data
-  extension's table descriptors - check whether the two shapes can share a
-  rendering layer (widget per type, generated forms) before either hardens, and
-  report the finding;
-- the MCP tool set (OM2) is settled by the mapper's surface;
-- onchange and x2many command handling are mapper decisions and are not
-  pre-empted here - but a write path that never invokes onchange produces
-  records Odoo's own UI would not have created, and whatever the spec decides
-  the docs must be explicit about it;
-- which strategies ride on OOM (see *Engine notes*).
+**Provenance, and the reason it is recorded rather than trusted:**
+
+| | |
+| --- | --- |
+| Source | `/srv/projects/odoo/oom/docs/MAPPER-SPEC.md` |
+| Written | 2026-09-28, status DRAFT, "growing with use" |
+| sha256 at filing | `d6e8c731b19654e972d7c520dd1ccd4bc62cb549e91c3ef2ff0606ad6929ed7c` |
+| Living copy | stays in the OOM tree - that project owns it |
+| Drift gate | `t/lint/207-the-filed-mapper-spec-matches-its-source.t` |
+
+A second copy of a document that is still being edited elsewhere is how two
+descriptions of one thing come to disagree, and this filing has already been stale
+twice (see *Sequencing*). So the hash is recorded and a lint compares it whenever
+the OOM tree is readable, skipping where it is not - the shape `t/lint/89` uses for
+the field-practice briefing, for the same reason.
+
+**Every claim in the spec says what it rests on**, and that grading is the most
+useful thing in it: **tested** (offline suite against a fake Odoo), **source** (read
+from the Odoo 16.0 source), **live** (verified against a named instance and series),
+or **design** (decided, not yet exercised).
+
+## 1. Layers
+
+| Layer | Modules | Responsibility |
+| --- | --- | --- |
+| Mapper | `Odoo::Client`, `Model`, `Record(Set)`, `Commands`, `Transport::*`, `Error` | RPC, introspection, read/write, x2many grammar, fault classes |
+| Operations | `Odoo::Ops::*` | named operations, scope guard, profiles, plan/apply/journal/revert, audit |
+| Function packs | `Odoo::Ops::CRM::*`, `Odoo::Ops::Comms::*` | the business operations |
+
+The extension consumes the mapper **and the operations layer** as the
+`libodoo-oom-perl` package (OB7), never a copy. **That is a requirement on the
+package, and the package that exists does not meet it** - see OB7 below.
+
+## 2. Transport discipline (OB6) - tested
+
+- No redirect is followed; a 3xx dies as kind `refused` (code `redirect`) naming the
+  target. HTTP::Tiny follows a 303 even on POST by default; switched off.
+- `max_response_bytes` caps an answer; over it dies `refused` (`oversize`), not
+  retried.
+- TLS verification on. Only kind `transport` is retried.
+
+This is OB6 satisfied in the layer below the engine, which is why OB6's engine-side
+work came off the build on 2026-09-28.
+
+## 3. Fault kinds (OB5) - tested, wire shapes from source
+
+`Odoo::Error->fault_category`: `access` (AccessError), `credential` (AccessDenied),
+`session` (SessionExpiredException), `validation` (ValidationError, UserError),
+`missing` (MissingError), `other`. JSON-RPC carries the class in `error.data.name`;
+**XML-RPC only in the traceback, from which it is recovered.** Plus kinds
+`transport`, `refused`, `config`, `usage`.
+
+## 4. Named operations and scope (OB2, OM2) - tested
+
+An operation declares `op_name`, `params` (typed, validated, unknown names
+refused), and `read_scope` / `write_scope` as `{model => [methods]}`.
+`Odoo::Ops::Guard` wraps the transport and refuses any `execute_kw` outside the
+running operation's scope **before it leaves**. Base scope is `common.*`,
+`fields_get` on any model, `res.users.read`.
+
+**This is SM747's scoped mode, and it already exists.** A named query is an
+operation with a declared scope and bound params. General mode (OB3) is the
+*absence* of the guard, and applies only with the user's own credential - which is
+exactly the division X4-b ruled.
+
+## 5. Plan / apply - tested
+
+Write operations only plan. A plan is JSON: changes (create, write, unlink, call,
+custom, skip, hold) each in a named bucket with the before-image it saw; buckets sum
+to the input; sealed by fingerprint; bound to an instance; `applied: 0`. Apply
+refuses read-only configs, other instances, edited plans, re-applies and stale
+before-images; reads every write back; journals each change as it happens;
+`applied: 1`. Revert is itself a plan.
+
+**A lazysite app presents the plan's buckets as the preview and calls apply on
+confirm** - so the preview-then-confirm shape the briefing asked for is the mapper's
+own, not something the engine has to invent.
+
+## 6. Audit (OB8) - tested
+
+One record per RPC call, fixed fields only: `ts actor login service model method op
+outcome fault_category ms`. **The sink refuses any other key**, so a payload or a
+credential cannot be added by accident. OM3's lazysite-side audit sits beside this,
+not instead of it.
+
+## 7. Credential strategies (OA1) - design, and ONE PIECE OF NEW WORK
+
+`Odoo::Ops::Credential->resolve($config)` returns what the client needs. `file` (an
+API key file, mode 600 enforced) ships. **`session` and `cookie` are reserved names
+that REFUSE** - left for the extension to implement.
+
+**The consequence for Parts 2 and 3 of the briefing, which is new:** OOM speaks
+`common.authenticate` + `execute_kw`. The per-user credential cookie needs
+`/web/session/authenticate` + `/web/dataset/call_kw` - **a transport OOM does not
+have.** So the engine's own work includes that transport, or OOM gains it first. It
+is not a line of configuration, and it was not visible before the spec was filed.
+
+## 8. Field descriptors - tested in shape, live pending
+
+`Profile->descriptor($model, $field)` returns the server's metadata under the
+logical name: `type string help required readonly store relation relation_field
+selection`, plus `name` (physical).
+
+The seam this filing asked about is **still open and now precisely stated**:
+comparison with lazysite's data-extension table descriptors has not been done, so
+whether the two can share a rendering layer (widget per type, generated forms) is
+unanswered. The spec says so itself rather than implying a shape.
+
+## 9. Series - tested in mechanism, live pending
+
+Logical-to-physical profiles per pack and series, validated against live
+`fields_get`; nearest-lower fallback with a warning. Behaviour beyond names (for
+instance sending mail) dispatches per series and **refuses on an unprobed one** -
+which is the four-state discipline arriving from another project.
+
+| Behaviour | 16 | 17 | 18 | 19 | 20 |
+| --- | --- | --- | --- | --- | --- |
+| crm profile | live 2026-09-28 (16.0-20250909): 42/42 fields, restricted CRM user | - | - | - | - |
+| `read_group` row count key `<field>_count` | live (crm.inspect) | - | - | - | - |
+| API key minted over the web session (make_key, identitycheck, run_check), then password spent | live 2026-09-28 | - | - | - | - |
+| send via composer (mass_mail on one lead) | source | - | - | - | - |
+
+**Only series 16 is probed at all**, and only on one instance. Every other column is
+empty, and the mechanism refuses rather than guesses - so an 0.15.x extension is a
+16-series extension until somebody probes another.
+
+## 10. Onchange and x2many
+
+Writes **never invoke onchange** (a mapper decision, recorded in OOM's
+`docs/USAGE.md`): the tools set only the stored fields they name, so **a created
+lead is what the API creates, not what a form would.** x2many values go through
+`Odoo::Commands`; operations add tags by `(4, id)` and never replace a set unless
+told to (`on_match: overwrite`).
+
+This filing's seam said that whatever the spec decided, **the docs must be explicit
+about it.** That obligation is now concrete and belongs in the extension's own
+documentation: a record created through this path can differ from one a person
+creates in Odoo's UI, and an operator who does not know that will eventually find it
+out from a workflow that did not fire.
+
+# What filing the spec closed, and what it did not
+
+| Seam this filing held open | State |
+| --- | --- |
+| The proxy's request-shaping layer (OB2, OB3) | **CLOSED.** Section 4: the Guard is the scoped mode and its absence is general mode, which is the division X4-b already ruled |
+| Onchange and x2many (OM2's write behaviour) | **CLOSED**, section 10 - with a documentation obligation attached rather than a free choice |
+| Which strategies ride on OOM | **CLOSED, and it found work**: `file` ships, `session`/`cookie` refuse, and the session transport does not exist (section 7) |
+| Field descriptors sharing a rendering layer with the data extension | **STILL OPEN.** The descriptor shape is tested; the comparison has not been made |
+| The MCP tool set (OM2) | **PARTLY.** The spec settles the *vocabulary* - a tool is a named operation with a declared scope - and the function packs name 12 CRM operations and 2 Comms ones. WHICH of them become MCP tools is a selection this filing still owes, and OM1's agent-own-account rule bounds it |
+
+**The spec's own open list, carried here rather than left in another tree:**
+
+1. live verification on the v16 CRM account (pending);
+2. the session transport for OA2 - which is the new work in section 7;
+3. descriptor comparison with the data extension.
 
 # Sequencing
 
 Scheduled 2026-09-28 at the release manager's direction, after the egress policy
-it sits inside. Three gates stood in front of it and one is now down:
+it sits inside. Four gates stood in front of it; three are down, and the last is not
+engineering's.
 
 | Gate | State |
 | --- | --- |
 | X4 and its sub-questions ruled | **DONE 2026-09-28**, as recommended |
-| SM579's invocation-mode policy becomes shared, so the proxy can be mode 2 *inside* it | the consequence of the ruling, and the piece being built first |
-| The mapper specification filed and merged here | **NOT IN THE TREE.** The largest remaining unknown, and design work rather than typing |
-| OOM installed on a host this engine can reach (OB7) | built as a package, installed nowhere reachable; OP-25 |
+| SM579's invocation-mode policy becomes shared, so the proxy can be mode 2 *inside* it | **DONE, AND RELEASED.** `lib/Lazysite/Egress.pm` landed in 0.15.1 - `@MODES` and `may_invoke`, proved equivalent over 960 combinations, and its own comments already name `proxy` as a caller. This row said "the piece being built first" for three days after it was built, which is why the drift gate above now exists |
+| The mapper specification filed and merged here | **DONE 2026-10-01.** Filed above with its source hash. It closed three seams, left two open and **found one new piece of work** - the session transport OOM does not have (section 7) |
+| OOM installed on a host this engine can reach (OB7) | **STILL OPEN, and it is the only gate left.** OP-25. `perl -MOdoo::Client -e1` fails on this host, and the packaged 0.01 carries the mapper layer only - a **0.02 with the `Odoo::Ops::*` layer has to be built before installing anything helps.** Nobody owns that task |
 
 The first scoped app is the stock-corrections portal's live facts (P1).

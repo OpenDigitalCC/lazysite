@@ -209,7 +209,7 @@ Nothing here is blocked on engineering.
 | Source | Cx | The question | Where it sits |
 | --- | --- | --- | --- |
 | [[SM857]] | L | Five questions on row-level access: the anonymous case, a table with no `created_by`, the cache cost, whether a handler declares the policy it writes, and whether `manage_data` carries the stronger right | Register rows SM857 (b) (c) (d) (f) (g) |
-| [[SM747]] | XL | Which egress policy the Odoo extension's per-user proxy sits under, plus plain `http://` to a private host and whether general mode supersedes the no-passthrough rule | Register row X4 |
+| [[SM747]] | XL | ~~Which egress policy the Odoo extension's per-user proxy sits under~~ - **RULED 2026-09-28 and the register row deleted.** Not waiting on you: the egress prerequisite shipped in 0.15.1 and the mapper spec was filed 2026-10-01. The one gate left is OP-25, OOM installed where this engine can reach it, which needs a 0.02 deb built first | nothing from you |
 | [[SM663]] | S | Keep the work counter zero-tolerance, give it a tolerance, or re-point it | Register row `bench` |
 | [[SM707]] | M | Never accept an uploaded pandoc template, mint a capability for it, or allow a vetted subset | not yet on the register |
 | [[SM414]] | M | How a per-query search page is cached, and whether it gates beta | not yet on the register |
