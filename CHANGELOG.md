@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM922 (PENDING) **the link audit reports links, and stops reading its own report.**
+- SM922 (018b634f) **the link audit reports links, and stops reading its own report.**
   An operator ran it on a live site and got ten broken internal links. Two were
   real. Every other entry traced to a fault in the audit, and the count moved
   10 -> 8 -> 10 -> 7 across four runs **with no change to the site** - because each
@@ -86,7 +86,7 @@ Naming the commit: AFTER it lands, never before
   not report. One of them read "Layouts and themes" and pointed somewhere else
   entirely.
 
-- SM920 (PENDING) **one name for the thing being activated.** `theme-activate` and
+- SM920 (018b634f) **one name for the thing being activated.** `theme-activate` and
   `layout-activate` each declared two parameters for the same argument, and `path`
   **took precedence over** `theme`/`layout`. A live site sent
   `path=odcc&theme=odcc-b`, was answered `ok:true`, and went on serving the old
@@ -106,7 +106,7 @@ Naming the commit: AFTER it lands, never before
   because a refusal that sends a caller back to the retired parameter is worse than
   no refusal. `layout-delete` is untouched: its pair has the opposite precedence and
   is its own question.
-- SM924 (PENDING) **deleting a submission is a grant of its own, off by default.** A
+- SM924 (80cec083) **deleting a submission is a grant of its own, off by default.** A
   partner account could read every submission on a site and delete none of them:
   submission delete was interactive-only, so the rows an agent's own test
   submissions left behind could be cleared only by a person.
@@ -130,7 +130,7 @@ Naming the commit: AFTER it lands, never before
   from 104/54 to 106/52 - the first change that takes actions **out** of the
   cookie-only set.
 
-- SM923 (PENDING) **a 31-field form can reach a data table without abbreviating its
+- SM923 (80cec083) **a 31-field form can reach a data table without abbreviating its
   column names.** The table handler's field map was capped at 500 characters, the
   generic bound every handler conf value carries. At 31 fields that is about sixteen
   characters per `field=column` pair, so the column names had to be shortened until
@@ -154,7 +154,7 @@ Naming the commit: AFTER it lands, never before
   The filing's other half - a **section construct** for a long form - is still filed
   and still not built. A grammar rule is documented, tested and supported forever,
   and none of the three candidate shapes should be chosen on one report.
-- SM929 (PENDING) **one definition of the request address, and the one reader that
+- SM929 (d9339046) **one definition of the request address, and the one reader that
   consulted the forwarded header stops believing it.** Behind a front proxy every
   address the engine recorded was the PROXY's - the same value for every visitor a
   site would ever have. That is how this was found: nine stored enquiries on a
@@ -216,7 +216,7 @@ Naming the commit: AFTER it lands, never before
   BELOW the main body, which is empty when a request is served - it is a sub in both.
   Thirteen sabotages, thirteen refusals.
 
-- SM921 (PENDING) **a `tel` field validates something now, and a pattern a browser
+- SM921 (28a90671) **a `tel` field validates something now, and a pattern a browser
   cannot compile is refused where an author will see it.** BEHAVIOUR CHANGE WORTH
   READING BEFORE UPGRADING: the shipped default pattern for a `tel` field becomes
   `[0-9\s\(\)\+\.\-]{6,30}`, and on a site whose visitors have been typing free text
