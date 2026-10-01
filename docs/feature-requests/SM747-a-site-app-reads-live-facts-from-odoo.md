@@ -34,6 +34,84 @@ Vocabulary: [[SM817]] ruled that lazysite's bundled plugins are **extensions**.
 This filing says *extension* for the thing being built and keeps *plugin* only
 where it quotes a source.
 
+# The direction, 2026-10-01: Odoo as a headless ERP, and ONE way in
+
+Given when the packaging question was put back, and it reframes this filing rather
+than adding to it.
+
+**The position.** Odoo is the headless ERP behind a set of functions; people reach
+their part of it through lazysite interfaces customised to their role, and **the core
+Odoo data stays the authority**. Named as likely in scope: invoicing, sales, quotes,
+timesheets, expenses, stock movement, manufacturing and visitor registrations, "and
+many other functions". The same construct is to serve projects that are not lazysite
+at all.
+
+**What is explicitly NOT wanted: lots of bespoke Odoo connectors.** One way it is
+done. That is the constraint that matters most here, because it is the one a
+succession of small reasonable decisions would quietly break.
+
+## What that makes of this filing
+
+SM747 is titled *a site app reads live facts from Odoo*, and it is sized and scoped
+as one read-first slice: the CRM live facts for the stock-corrections portal, with a
+scoped proxy and a general mode. **What is described above is an order of magnitude
+larger** - role-scoped READ AND WRITE across most of an ERP, consumed by several
+projects. It is a programme, and this filing is its first slice.
+
+**That structural question is open and is the release manager's**: whether SM747 is
+re-scoped as the programme, or a parent filing holds the programme with SM747 as
+slice one. Nothing is renamed here on an assumption.
+
+## The rule that makes "one way" structural rather than aspirational
+
+The filed specification already puts the function knowledge in the right place, and
+it is worth stating as a rule rather than leaving it as a happy accident:
+
+> **Lazysite holds no Odoo knowledge.** Model names, field names, domains,
+> `execute_kw`, RPC shapes and the ERP's semantics live in OOM's operation packs.
+> Lazysite names an operation, binds its parameters, renders the descriptors it is
+> handed, and presents a plan for confirmation.
+
+Every new function is then **a new `Odoo::Ops::*` pack plus a lazysite interface that
+names its operations** - never a new connector, and never a second place that knows
+what an invoice is. Nine functions do not mean nine integrations; they mean nine
+operation packs behind one door.
+
+This is the difference between a rule and a hope: **it is checkable.** A lint
+refusing any Odoo model name, `execute_kw`, or Odoo RPC endpoint in lazysite code
+makes the boundary enforced rather than remembered. There is nothing to check today -
+zero lines of Odoo code exist here - so the gate lands WITH the first code rather
+than before it, and this paragraph is the record of why it exists when it does.
+
+## And the role-scoping rule gets MORE load-bearing, not less
+
+Scope control already says: do not reimplement Odoo's access model, and do not filter
+results lazysite believes the user should not see - Odoo already did that. With one
+read-only CRM view that rule is easy. With timesheets, expenses and stock movements
+in front of contractors, suppliers and warehouse staff, **every one of those
+interfaces will present an opportunity to filter in the wrong place**, and a page
+that filters is a page that can be wrong in the direction nobody notices. The
+credential on the wire is the user's own (X4-b), so Odoo's own ACLs are the bound. A
+lazysite interface narrows what is ASKED FOR; it never narrows what came back.
+
+## What it changes about the remaining gate
+
+OB7 said OOM is consumed as a versioned package, never a copy, settled 2026-09-03.
+The "never a copy" half stands and is not in question. **The SHAPE of the delivery is
+reopened**: OOM is still under test and will have consumers beyond this engine, so
+how it reaches them is a decision for all of them rather than a packaging chore for
+this one - deb, versioned tarball, an internal service, or something else.
+
+**I had written the opposite.** The sequencing row and OP-25 both said a 0.02 deb was
+the prerequisite, which was me settling a question that is not mine. Both are
+corrected. The measured gap stands on its own terms - whatever is delivered must
+carry the `Odoo::Ops::*` layer, or there is no scoped mode - but that is a
+requirement on the content, not an argument for a format.
+
+**Nothing is blocked meanwhile.** Engine work can proceed against the OOM tree on a
+library path, which is not a copy and ships nothing; what may not happen is a release
+that depends on an arrangement nobody has decided.
+
 # Why this is worth building properly (release manager, P2)
 
 The immediate driver is helper apps, but the destination is larger: a
@@ -543,6 +621,6 @@ engineering's.
 | X4 and its sub-questions ruled | **DONE 2026-09-28**, as recommended |
 | SM579's invocation-mode policy becomes shared, so the proxy can be mode 2 *inside* it | **DONE, AND RELEASED.** `lib/Lazysite/Egress.pm` landed in 0.15.1 - `@MODES` and `may_invoke`, proved equivalent over 960 combinations, and its own comments already name `proxy` as a caller. This row said "the piece being built first" for three days after it was built, which is why the drift gate above now exists |
 | The mapper specification filed and merged here | **DONE 2026-10-01.** Filed above with its source hash. It closed three seams, left two open and **found one new piece of work** - the session transport OOM does not have (section 7) |
-| OOM installed on a host this engine can reach (OB7) | **STILL OPEN, and it is the only gate left.** OP-25. `perl -MOdoo::Client -e1` fails on this host, and the packaged 0.01 carries the mapper layer only - a **0.02 with the `Odoo::Ops::*` layer has to be built before installing anything helps.** Nobody owns that task |
+| OOM reachable by this engine (OB7) | **STILL OPEN, and it is the only gate left - but it is a DECISION, not a packaging task.** `perl -MOdoo::Client -e1` fails on this host. This row first said a 0.02 deb had to be built; the release manager's direction of 2026-10-01 corrects that - OOM is under test and will have consumers beyond lazysite, so its delivery shape belongs to all of them. What survives is the requirement on CONTENT: whatever is delivered carries the `Odoo::Ops::*` layer, or there is no scoped mode. See *The direction, 2026-10-01*. OP-25 |
 
 The first scoped app is the stock-corrections portal's live facts (P1).
