@@ -45,6 +45,64 @@ Naming the commit: AFTER it lands, never before
 ## Unreleased
 
 - SM922 (018b634f) **the link audit reports links, and stops reading its own report.**
+- SM931 (PENDING) **a protected code span in a loop no longer publishes the engine's
+  own placeholder.** A page rendering 27 rows from a `json:` file published the
+  literal string `CODEBLOCK_0_END` in 22 customer-facing cells. Code is protected
+  from Template Toolkit before the render - correctly, so a documented example is
+  never executed as a template - but the body is protected ONCE and TT then
+  multiplies the placeholder per iteration, while the restore was a substitution
+  without `/g`. Exactly one copy came back; the other 22 were internal.
+
+  **The repair is not the one the report proposed.** `/g` fixes the leak and
+  corrupts a case the present code survives: each iteration rescans text earlier
+  iterations inserted, so a protected block whose own text contains a later
+  placeholder - realistically, this project's own documentation of this mechanism -
+  gets that text substituted too. One pass with a callback fixes both, because the
+  regex engine resumes after inserted text rather than over it. A placeholder with
+  no block is left alone rather than replaced with the empty string, so an author
+  who writes the marker in prose keeps it and a genuine leak stays visible.
+
+  **And the engine now says when it happens.** A WARN names the block and the number
+  of copies, because the alternative is finding it by reading rendered HTML, which
+  is how it was found the first time ([[SM932]] forwards WARN to syslog by default,
+  so the line has a sink that does not depend on where a CGI's STDERR goes).
+
+  What this does NOT fix, and the honest position: inside a loop a code span cannot
+  be both protected from TT and expanded by it. Protecting it is the right default,
+  so the author now sees their own unrendered `[% ... %]` - which they can act on -
+  and the engine's internals never reach the page. Documented beside the two
+  `[%`-in-`<script>` traps in the field-practice notes, which share its root.
+  `json:` was also missing from the `tt_page_var` sources in FEATURES.
+
+- SM930 (PENDING) **a sender on the site's own domain is a forgery signal, off by
+  default.** The site owner noticed what the agent had not: of six spam submissions
+  to their site, one gave its sender address as someone@<that site's own domain>.
+  Nobody outside an organisation legitimately fills in its public enquiry form as
+  one of its own people. Simulated against the nine stored submissions before being
+  proposed: 6 of 6 junk quarantined, 3 of 3 genuine delivered, and this was the only
+  signal that caught number four on its own.
+
+  `spam_own_domain` sits beside the other three quarantine heuristics and is **off
+  by default**, which the other three are not: they are about what a message says,
+  this one is about who it claims to be from, and a form that genuinely IS for
+  internal use would start quarantining its real traffic on upgrade. The filing
+  conditioned the rule on the submission being unauthenticated and **the engine
+  cannot tell** - a stored submission carries no actor at all, deliberately (SM402,
+  re-measured by SM924) - so it also catches a staff member testing the form from
+  their own desk, which is a second reason the default is off. Quarantine, never
+  refusal.
+
+  **Two false positives it refuses to cause.** It matches the WHOLE field value, not
+  an address mentioned inside one: "I wrote to info@<this site> and heard nothing" is
+  a genuine enquiry and the shape a frustrated customer writes. And it matches on a
+  label boundary, so `notexample.com` is not `example.com` - the trap
+  [[feedback_substring_matching_false_positives]] exists for. It never strips beyond
+  `www.`, because the registrable domain needs a public-suffix list this engine does
+  not ship and a naive strip would make every site on `github.io` match its
+  neighbours; a site on a subdomain therefore does not flag the bare domain, a miss
+  chosen over that class of false positive.
+
+- SM922 (PENDING) **the link audit reports links, and stops reading its own report.**
   An operator ran it on a live site and got ten broken internal links. Two were
   real. Every other entry traced to a fault in the audit, and the count moved
   10 -> 8 -> 10 -> 7 across four runs **with no change to the site** - because each

@@ -442,6 +442,12 @@ sub load_form_conf {
     my ($q)  = $text =~ /^\s*quarantine\s*:\s*(\S+)/m;
     my ($kw) = $text =~ /^\s*spam_keywords\s*:\s*(.+?)\s*$/m;
     my ($ut) = $text =~ /^\s*spam_url_threshold\s*:\s*(\d+)/m;
+    # SM930: OFF BY DEFAULT, unlike the other three. They are content heuristics
+    # about what a message says; this one is about WHO IT CLAIMS TO BE FROM, and a
+    # form that genuinely is for internal use would start quarantining its real
+    # traffic the day it was upgraded. The engine does not change what a site
+    # already does without being asked.
+    my ($od) = $text =~ /^\s*spam_own_domain\s*:\s*(\S+)/m;
 
     return {
         targets            => \@targets,
@@ -450,6 +456,7 @@ sub load_form_conf {
         quarantine         => ( defined $q  ? $q      : 'on' ),
         spam_keywords      => ( defined $kw ? $kw     : '' ),
         spam_url_threshold => ( defined $ut ? $ut + 0 : 2 ),
+        spam_own_domain    => ( defined $od ? $od     : 'off' ),    # SM930
         rate_limit         => $rate_limit,    # SM401; undef = default
         timestamp_window   => $ts_window,     # SM501; undef = default, 0 = off
     };
@@ -492,9 +499,110 @@ sub _spam_assessment {
     }
 
     if ( my $host = _disguised_link($text) ) { push @reasons, "a link written as '$host'" }
-    if ( my $why = _one_value_everywhere($form) ) { push @reasons, $why }
+    if ( my $why = _one_value_everywhere($form) )       { push @reasons, $why }
+    if ( my $why = _own_domain_sender( $form, $conf ) ) { push @reasons, $why }
 
     return @reasons ? ( 1, join( ' + ', @reasons ) ) : ( 0, '' );
+}
+
+# SM930, RULED 2026-10-01: A SENDER ON THE SITE'S OWN DOMAIN IS A FORGERY SIGNAL,
+# shipped as a heuristic and OFF BY DEFAULT behind `spam_own_domain`.
+#
+# A public enquiry form is for people outside the organisation. Somebody inside it
+# has a mailbox, a phone and a colleague; they do not write to themselves through
+# the website. The site owner found this one: of six spam submissions to their site,
+# one gave its sender address as someone@<that site's own domain>, and simulating
+# the rule against the nine stored submissions quarantined 6 of 6 junk and delivered
+# 3 of 3 genuine - it was the only signal that caught number four on its own.
+#
+# THE FILING CONDITIONED THIS ON THE SUBMISSION BEING UNAUTHENTICATED AND THE ENGINE
+# CANNOT TELL. A stored submission carries no actor at all, deliberately: SM402
+# removed `_auth_user` because it was forgeable and was reaching the audit trail's
+# actor column, and SM924 re-measured and confirmed it. So there is no authenticated
+# case to exempt, the rule applies to every submission including a staff member
+# testing the form from their own desk, and that is the second reason the default is
+# off. Quarantine, never refusal: the message is stored and recoverable from the
+# Submissions page, so a wrong guess costs nobody the message.
+#
+# TWO THINGS THIS DELIBERATELY DOES NOT DO.
+#
+# (1) IT MATCHES THE WHOLE FIELD VALUE, not an address mentioned inside one. "I
+# wrote to info@<this site> last week and heard nothing" is a GENUINE enquiry, and
+# it is the shape a frustrated customer writes - quarantining it would be the one
+# false positive this heuristic cannot afford, because the sender would never know.
+#
+# (2) IT NEVER STRIPS BEYOND `www.`. The filing asks for the registrable domain and
+# getting that right needs a public-suffix list, which this engine does not ship. A
+# naive strip of one label would make a site at `mysite.github.io` match every other
+# site on `github.io`, and `example.co.uk` match the whole of `.co.uk` - the same
+# class of error as a substring match, which is what
+# feedback_substring_matching_false_positives names. So the candidates are the host
+# itself and the host without a leading `www.`, and a SUBDOMAIN of either matches
+# (on a label boundary - `notexample.com` does not match `example.com`). A site on
+# `shop.example.com` therefore does not flag `someone@example.com`: a miss, chosen
+# over a class of false positive that would quarantine strangers' real mail.
+sub _own_domain_sender {
+    my ( $form, $conf ) = @_;
+    # `// ''` and not `// 'off'`: _load_form_conf is the ONE place that says what
+    # the default is, and it always sets this key. A second 'off' here would be a
+    # second statement of the same default - and a sabotage proved it was already
+    # unreachable, so flipping it changed nothing a test could see. An absent value
+    # is simply not in the on-list, which fails safe without claiming to be the
+    # default.
+    return ''
+        unless lc( $conf->{spam_own_domain} // '' ) =~ /^(?:1|on|yes|true|enabled)$/;
+    my @own = _site_own_domains();
+    return '' unless @own;
+
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;
+        my $v = $form->{$k};
+        next if !defined $v || ref $v;
+        $v             =~ s/\A\s+//;
+        $v             =~ s/\s+\z//;
+        next unless $v =~ /\A[^\s\@]+\@([A-Za-z0-9.-]+)\z/;
+        my $domain = lc $1;
+        $domain =~ s/\.\z//;
+        for my $own (@own) {
+            next unless $domain eq $own || $domain =~ /\.\Q$own\E\z/;
+            return "sender claims an address at this site's own domain";
+        }
+    }
+    return '';
+}
+
+# The domains this site answers as. BOTH sources, because they can disagree and
+# either one being right is enough for this purpose: the host the request actually
+# arrived on (SM926 ruled that the presented host IS the host) and `site_url` from
+# the site config, interpolated because it ships as
+# `${REQUEST_SCHEME}://${SERVER_NAME}` and that resolves through the same request
+# host. A bare label with no dot is not a domain and is dropped, so a dev site on
+# `localhost` contributes nothing rather than matching oddly.
+sub _site_own_domains {
+    require Lazysite::Util;
+    my @hosts = ( Lazysite::Util::request_host() );
+    if ( defined $LAZYSITE_DIR && open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^site_url\s*:\s*(\S+)/;
+            my $url = Lazysite::Util::interpolate_env($1);
+            push @hosts, $1 if $url =~ m{^[A-Za-z][A-Za-z0-9+.-]*://([^/:]+)};
+            last;
+        }
+        close $fh;
+    }
+
+    my ( %seen, @own );
+    for my $h (@hosts) {
+        next unless defined $h && length $h;
+        my $host = lc $h;
+        $host =~ s/:\d+\z//;
+        $host =~ s/\.\z//;
+        for my $cand ( $host, ( $host =~ s/\Awww\.//r ) ) {
+            next unless length $cand && $cand =~ /\./;
+            push @own, $cand unless $seen{$cand}++;
+        }
+    }
+    return @own;
 }
 
 # SM913 S1: COUNT THE LINKS SOMEBODY WROTE, not the ones written with a scheme.

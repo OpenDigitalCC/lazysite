@@ -388,6 +388,20 @@ visitor, no tracker, nothing sent anywhere. It holds a submission back when:
 The reason is stored with the submission and shown on the quarantine filter, so
 you can see which control held it and tune the threshold rather than guess.
 
+**One control you have to ask for: `spam_own_domain: on`.** With it, a submission
+whose sender field holds an address at **this site's own domain** is quarantined -
+nobody outside an organisation fills in its public enquiry form as one of its own
+people, so the address is either forged or a member of staff testing the form, and
+neither needs announcing. It is **off unless you turn it on**, unlike the controls
+above, because a form that genuinely is for internal use would otherwise start
+holding back its real traffic.
+
+It reads the field's whole value, so a customer who merely *mentions* one of your
+addresses in their message is unaffected, and it matches your domain and its
+subdomains - not a domain that merely ends with yours. The site's own domain comes
+from `site_url` and from the host the request arrived on; if your site is on a
+subdomain (`shop.example.com`), only that name and its subdomains count.
+
 ### Configuring chat delivery
 
 Chat delivery needs the `notify-xmpp` extension enabled (the Extension Manager

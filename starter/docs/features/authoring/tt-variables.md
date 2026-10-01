@@ -26,6 +26,7 @@ Per-page variables (from front matter `tt_page_var:`):
     tt_page_var:
       features: scan:/docs/features/*.md sort=title asc
       version: url:https://example.com/version.txt
+      partners: json:/data/partners.json
       label: Custom Label
     ---
 
@@ -79,6 +80,12 @@ Directory scan:
 - Code blocks (`<pre><code>` and inline `<code>`) are protected from
   TT processing - TT directives inside code blocks are preserved as
   literal text
+- **That protection applies inside a loop too, so a code span cannot
+  carry a loop variable.** `<code>[% p.token %]</code>` inside a
+  `FOREACH` publishes the literal `[% p.token %]` in every row: the
+  span is protected before TT runs, so it is never expanded. The
+  combination is unsupported rather than broken - put the value
+  outside the span, or accept the loss of monospacing (SM931)
 - TT directives in front matter scalar values (`title:`, `subtitle:`,
   etc.) are stripped for security - `[%` and `%]` sequences are removed
 - The content TT pass uses `ABSOLUTE => 0` to prevent file access

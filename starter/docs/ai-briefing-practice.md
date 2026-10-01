@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.15.1
-     imported: 2026-09-29
+     engine-version: 0.15.2
+     imported: 2026-10-01
      agent: the lazysite site agent (Claude Code)
-     source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=e6493f4a4d56310b3d14877b33be7596972507edaf28e3a53cd9503b3241de98 modified=2026-09-09
+     source: /srv/projects/lazysite/docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
      source: /srv/projects/lazysite/docs/practice/app-practice.md sha256=79a3068e9597c73f7cea535d660862446335da198793f1e7623eefca17632e9f modified=2026-09-15
-     body-sha256: 93628a4d0096ea70202668520f2c2e91ea7ae62ca602cb55f2d35d385e3a505f
+     body-sha256: 7ba13ab2566c8045ec9019b5c0675562913b357d441c723356b591b558de1536
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.15.1**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.15.2**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -117,6 +117,27 @@ apostrophe comes back intact. Bare `[% auth_name %]` in the attribute, no filter
 
 This is why an app renders identity onto the page, never into a script string -
 see `/srv/projects/lazysite-apps/APP-PRACTICE.md`, *Identity*.
+
+**A code span inside a loop cannot also be a template variable.** Same root as the
+two traps above - protection and substitution happen in a fixed order around the
+render. Code is protected from TT *before* it runs, so
+
+```html
+[% FOREACH p IN rows %]<td><code>[% p.token %]</code></td>[% END %]
+```
+
+publishes the literal text `[% p.token %]` in every cell. The engine protects the
+span so that a documented code example is never executed as a template, which is the
+right default - and it means the combination is **unsupported**, not broken. Reaching
+for backticks or `<code>` around a `json:` value is the natural thing to do, so this
+is where an author meets it.
+
+The workaround is to drop the code markup and lose the monospacing, or to put the
+value outside the span. From SM931 the engine logs a WARN naming the block when a
+render multiplies a protected one, so it is diagnosable from the log rather than by
+reading rendered HTML. Before SM931 it was worse than unsupported: the restore
+replaced only the FIRST copy, so the remaining cells published the engine's own
+internal placeholder - 22 of them, on a live customer-facing page.
 
 ### Components
 
@@ -1627,11 +1648,11 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-09-29** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-10-01** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |
-| `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-09-09 |
+| `/srv/projects/lazysite/docs/practice/authoring-practice.md` | sites and content | 2026-10-01 |
 | `/srv/projects/lazysite/docs/practice/app-practice.md` | apps and data | 2026-09-15 |
 
 Those paths are on the site agent's own machine and are **not** part of this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.

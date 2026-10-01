@@ -96,6 +96,27 @@ apostrophe comes back intact. Bare `[% auth_name %]` in the attribute, no filter
 This is why an app renders identity onto the page, never into a script string -
 see `/srv/projects/lazysite-apps/APP-PRACTICE.md`, *Identity*.
 
+**A code span inside a loop cannot also be a template variable.** Same root as the
+two traps above - protection and substitution happen in a fixed order around the
+render. Code is protected from TT *before* it runs, so
+
+```html
+[% FOREACH p IN rows %]<td><code>[% p.token %]</code></td>[% END %]
+```
+
+publishes the literal text `[% p.token %]` in every cell. The engine protects the
+span so that a documented code example is never executed as a template, which is the
+right default - and it means the combination is **unsupported**, not broken. Reaching
+for backticks or `<code>` around a `json:` value is the natural thing to do, so this
+is where an author meets it.
+
+The workaround is to drop the code markup and lose the monospacing, or to put the
+value outside the span. From SM931 the engine logs a WARN naming the block when a
+render multiplies a protected one, so it is diagnosable from the log rather than by
+reading rendered HTML. Before SM931 it was worse than unsupported: the restore
+replaced only the FIRST copy, so the remaining cells published the engine's own
+internal placeholder - 22 of them, on a live customer-facing page.
+
 ### Components
 
 A `::: name key="value"` fence renders through `components/name.tt`, where:

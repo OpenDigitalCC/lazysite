@@ -7944,9 +7944,58 @@ sub render_content {
         $processed_body = $protected_body;
         };
 
-    # Restore protected code blocks
-    for my $i ( 0 .. $#code_blocks ) {
-        $processed_body =~ s/CODEBLOCK_${i}_END/$code_blocks[$i]/;
+    # SM931, RULED 2026-10-01: RESTORE IN ONE PASS, NOT ONE SUBSTITUTION PER BLOCK.
+    #
+    # MEASURED ON A LIVE PAGE: 27 rows rendered from a `json:` file, each carrying a
+    # token in an inline code span, published the literal string `CODEBLOCK_0_END` in
+    # 22 customer-facing cells. The body is protected ONCE, before TT; TT then
+    # duplicated the placeholder - once per loop iteration - and a substitution
+    # without /g gave exactly one copy back. The other 22 were the engine's own
+    # internal placeholder, on a page that was otherwise completely correct, so
+    # nothing about the output invited suspicion except the cells themselves.
+    #
+    # THE REPORTED FIX WAS `/g` AND IT IS THE WRONG ONE. The loop is the problem,
+    # not the missing flag: each iteration rescans text that earlier iterations
+    # inserted, so a protected block whose own text CONTAINS a later placeholder -
+    # the realistic instance being this project's own documentation of this
+    # mechanism - gets that text substituted too. One pass with a callback fixes the
+    # leak AND removes the ordering hazard, because the regex engine resumes
+    # scanning after inserted text rather than over it.
+    #
+    # A PLACEHOLDER WITH NO BLOCK IS LEFT ALONE, never replaced with the empty
+    # string: an author who writes CODEBLOCK_7_END in their own prose keeps it, and
+    # a genuine internal leak stays visible to the check below rather than being
+    # quietly swallowed.
+    $processed_body =~ s{CODEBLOCK_(\d+)_END}
+                        { defined $code_blocks[$1] ? $code_blocks[$1] : "CODEBLOCK_$1_END" }gse;
+
+    # SM931 item 2: SAY SO WHEN THE RENDER MULTIPLIED PROTECTED CONTENT.
+    #
+    # One pass stops the engine's placeholder reaching the page, and it cannot make
+    # the author's code span interpolate: inside a loop a span cannot be both
+    # protected from TT and expanded by it, protecting it is the right default, and
+    # the honest position is that the combination is unsupported. So the author now
+    # sees their own `[% ... %]` repeated, which they can act on - but only if
+    # somebody tells them where it came from. This is the difference between a
+    # five-minute diagnosis and finding it by reading rendered HTML, which is how it
+    # was found. SM932 forwards WARN and above to syslog by default, so this has a
+    # sink that does not depend on where a CGI's STDERR goes.
+    if (@code_blocks) {
+        for my $i ( 0 .. $#code_blocks ) {
+            my $count = () = $processed_body =~ /\Q$code_blocks[$i]\E/g;
+            next if $count <= 1;
+            log_event(
+                'WARN',
+                $ENV{REDIRECT_URL} // '-',
+                'the render multiplied a protected code block, so its template '
+                    . 'directives are published unrendered - a code span inside a '
+                    . 'loop cannot be both protected from the template and expanded '
+                    . 'by it',
+                block  => $i,
+                copies => $count,
+            );
+            last;
+        }
     }
 
     return ( $processed_body, $vars );
