@@ -36,7 +36,9 @@ The name must be alphanumeric with hyphens and underscores. Without
 - `required` - field must be filled in, adds `required` attribute
 - `optional` - field is optional (default)
 - `email` - renders as `type="email"` input
-- `tel` - telephone input; gets a default validation pattern (override with `pattern:`)
+- `tel` - telephone input; gets a default validation pattern of
+  `[0-9\s\(\)\+\.\-]{6,30}` - digits, spaces, brackets, `+`, `.` and `-`, six to
+  thirty characters (override with `pattern:`)
 - `date` / `time` - date / time picker (`type="date"` / `type="time"`)
 - `number` - numeric input; `min:N` / `max:N` set the value bounds
 - `url` - URL input (`type="url"`)
@@ -55,7 +57,18 @@ The name must be alphanumeric with hyphens and underscores. Without
   only needed for a label containing a **comma** - spaces and brackets have
   always worked unquoted. Put any of these list rules LAST among a field's
   rules, since each takes the rest of the line
-- `pattern:REGEX` - HTML5 validation pattern. Example: `phone | Phone | tel pattern:[0-9+()-]{7,20}`
+- `pattern:REGEX` - HTML5 validation pattern. It takes the **rest of the line**, as
+  the list rules do, so put it LAST among a field's rules (or quote it - see below).
+  Example: `phone | Phone | tel pattern:[0-9 ()+.-]{6,30}`
+
+  **Escape the punctuation inside a character class.** A browser compiles this
+  attribute with the regular-expression `v` flag, under which `(`, `)`, `{`, `}`,
+  `[`, `]`, `/`, `|` and a hyphen at either end of a class must be written with a
+  backslash - so `[0-9 ()+.-]{6,30}` is a syntax error and
+  `[0-9\s\(\)\+\.\-]{6,30}` is not. **A pattern that will not compile is ignored
+  entirely**, which means the field validates *nothing* and no browser says so. Run
+  `lazysite-validate.pl` on the page (or `validate_page` over MCP) and it names the
+  field and the character; `lazysite check` reports the ones already published.
 - `placeholder:TEXT` - greyed-out hint text inside the field
 - `max:N` - maxlength for text inputs (default 1000); the max **value** for `number`
 - `min:N` - the min **value** for `number`
@@ -65,9 +78,11 @@ The name must be alphanumeric with hyphens and underscores. Without
   `accept:.png,.pdf`). The form automatically switches to
   `enctype="multipart/form-data"` when it contains a file field.
 
-Rules are whitespace-separated. A value that needs **spaces** (a placeholder, or a
-pattern with a literal space) is quoted: `placeholder:"Your full name"` or
-`pattern:"[0-9 +()-]{7,20}"`.
+Rules are whitespace-separated, so a value that needs **spaces** is either last on
+the line (`select:`, `radio:`, `checklist:` and `pattern:` each take the rest of it)
+or quoted: `placeholder:"Your full name"`, `pattern:"[0-9\s\(\)\+\.\-]{6,30}"`. The
+quoted form is what to use when a pattern cannot go last - a rule written after an
+unquoted pattern becomes part of the pattern.
 
 Validation is enforced in the browser (HTML5 attributes); the handler accepts the
 submitted fields.

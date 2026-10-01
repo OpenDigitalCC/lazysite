@@ -136,6 +136,10 @@ MultiMarkdown puts around top-level block HTML (`<p><section>…`) are stripped.
   grammar. Field types: text, `email`, `tel`, `date`, `time`, `number` (with
   `min`/`max`), `url`, `password`, `textarea`, and `select:a,b,c` (multi-word options
   supported); plus `required`/`optional`, `max:N`, `pattern:"…"`, `placeholder:"…"`.
+  `pattern:` takes the rest of the line (or is quoted) and its punctuation must be
+  escaped for the `v` flag browsers compile it with - an uncompilable pattern is
+  ignored in full, so `validate_page` refuses one and `lazysite check` reports the
+  ones already published (SM921).
   Each form carries an HMAC time-token, a honeypot field, and an inline `fetch`-based
   submit handler that swaps to a success message - wired to a delivery handler (see
   Forms).

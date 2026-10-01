@@ -87,6 +87,48 @@ subtest 'a file that cannot be read is an issue, not a die' => sub {
     is( $r->{issues}[0]{file}, '/nonexistent/definitely/not/here.md', 'by name' );
 };
 
+# SM921: a pattern a browser cannot compile is REFUSED here - at the moment the
+# author is writing the page - and only WARNED by `lazysite check`, which finds the
+# ones already published. The render path is untouched on purpose: a render-time
+# refusal would put an error where a form used to be, on upgrade, on exactly the
+# sites that already have a bad pattern.
+subtest 'an uncompilable form pattern makes the page invalid' => sub {
+    my $page = "---\ntitle: T\nform: contact\n---\n\n:::form\n"
+        . "phone | Phone | tel pattern:[0-9 ()+.-]{6,30}\n:::\n";
+    my $r = validate_content( content => $page );
+    ok( !$r->{valid}, 'the page is refused' );
+    my ($issue) = grep { $_->{kind} eq 'uncompilable-pattern' } @{ $r->{issues} };
+    ok( $issue, 'with its own kind, not lumped in with an unknown rule' );
+    like( $issue->{message}, qr/\bphone\b/, 'naming the field' );
+    like( $issue->{message}, qr/validates nothing/,
+        'and the consequence, which is the part an author cannot see: a broken '
+            . 'pattern is IGNORED, so the field accepts anything' );
+};
+
+subtest 'a pattern that compiles is left alone' => sub {
+    for my $pat ( '[0-9\s\(\)\+\.\-]{6,30}', '.{2,}', '[A-Z]{2}[0-9]{4}' ) {
+        my $page = "---\ntitle: T\nform: contact\n---\n\n:::form\n"
+            . "ref | Reference | pattern:$pat\n:::\n";
+        my $r = validate_content( content => $page );
+        my ($issue) = grep { $_->{kind} eq 'uncompilable-pattern' } @{ $r->{issues} };
+        ok( !$issue, "accepted: $pat" )
+            or diag( 'A false refusal rejects a page that renders correctly, and '
+                . 'the author has no way to tell they were refused for nothing.' );
+    }
+};
+
+subtest 'the pattern is read to the end of the line, as the renderer reads it' => sub {
+    # The space in this pattern is the whole point: if this check tokenised on
+    # whitespace it would see `[0-9` - which compiles - and pass a page the browser
+    # will refuse. A checker that reads a different page from the one that renders
+    # is worse than no checker.
+    my $page = "---\ntitle: T\nform: contact\n---\n\n:::form\n"
+        . "phone | Phone | tel pattern:[0-9 ()+.\\-]{6,30}\n:::\n";
+    my $r = validate_content( content => $page );
+    my ($issue) = grep { $_->{kind} eq 'uncompilable-pattern' } @{ $r->{issues} };
+    ok( $issue, 'the parentheses after the space are seen' );
+};
+
 subtest 'the MCP surface and this module give the same answer' => sub {
     # There is ONE implementation now. If lazysite-mcp.pl grew its own copy of a
     # check again, this is the assertion that would notice.

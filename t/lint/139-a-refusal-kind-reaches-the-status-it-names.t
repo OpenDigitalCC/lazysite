@@ -49,7 +49,8 @@ my $root = repo_root();
 # which is more than SM872's low-risk scope - recorded here so the next reader
 # inherits the question rather than the appearance of an answer.
 my %DELIBERATE_400 = map { $_ => 1 } qw(
-    invalid invalid-path invalid-form-rule validation constraint incomplete
+    invalid invalid-path invalid-form-rule uncompilable-pattern
+    validation constraint incomplete
     extra type value name missing-parameter missing_deps missing_module
     misrouted-argument unknown-principals
     unnamed unbound domain descriptor data manager service
@@ -67,6 +68,12 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     form-binding-unchecked no-content unreadable
 );
 
+# SM921: `uncompilable-pattern` is GROUP 2 for the same reason `invalid-form-rule`
+# beside it is - both are Lazysite::Validate issues about a form field, reported to
+# whoever asked whether the page is all right. The ruling that created it put the
+# refusal in validate_page and a WARNING in `lazysite check`, and kept it OFF the
+# render path deliberately, so there is no HTTP surface that can produce it.
+#
 # SM887 F2: the three above are GROUP 2, and they are group 2 by construction
 # rather than by inspection - Lazysite::Validate is a REPORTER. It answers a
 # caller that asked "is this page all right", over MCP, from a test, or from

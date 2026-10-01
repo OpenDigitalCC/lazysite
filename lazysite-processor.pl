@@ -4509,6 +4509,32 @@ sub _render_form {
             if ( $rs =~ s/^((?:select|radio|checklist|checklist-qty):.*)\z//s ) {
                 push @rule_tokens, $1;
             }
+
+            # SM921: `pattern:` TAKES THE REST OF THE LINE TOO, for the same reason
+            # the option lists do - its value may contain a space, and a regex is
+            # where a space is most likely to be meant literally.
+            #
+            # It did not, and the result was silent: `pattern:[0-9 ()+.-]{6,30}`
+            # rendered `pattern="[0-9"`, which IS a valid regex, so nothing was
+            # ignored and nothing was reported - the field simply refused almost
+            # every value. Under-rejecting is at least visible to whoever tests the
+            # form; over-rejecting a valid phone number looks like the visitor's
+            # fault.
+            #
+            # MEASURED BEFORE CHANGING IT, because taking the rest of the line
+            # swallows anything written after it - a `required` after a pattern
+            # would become part of the pattern and the field would quietly stop
+            # being required. Of the 16 form-field lines carrying a `pattern:` rule
+            # in the shipped tree and the live sites repo, exactly ZERO have another
+            # rule after it (tmp/pattern-population.pl); every author who has met
+            # this already puts the pattern last, which is also what the option
+            # lists document. The quoted form `pattern:"..."` is untouched and is
+            # handled below, so a pattern that must be followed by another rule has
+            # a spelling that still works.
+            elsif ( $rs =~ s/^(pattern:(?!")\S.*)\z//s ) {
+                ( my $tok = $1 ) =~ s/\s+\z//;
+                push @rule_tokens, $tok;
+            }
             # SM871: THE QUOTED FORM UNDERSTANDS AN ESCAPED QUOTE.
             #
             # This was `"([^"]*)"`, which cannot contain a quote at all - so
@@ -4769,9 +4795,25 @@ sub _render_form {
             else {
                 $attrs .= qq( maxlength="$max");
             }
-            # tel gets a sensible default validation pattern unless overridden.
+            # tel gets a default validation pattern unless overridden.
+            #
+            # SM921: ESCAPED, AND THE BOUND WIDENED, because the previous default
+            # did not compile and therefore validated nothing. A browser compiles
+            # `pattern` with the `v` flag, under which `(`, `)` and a hyphen at the
+            # end of a character class are syntax errors - and the specification's
+            # answer to an uncompilable pattern is to ignore the attribute in full.
+            # So `[\d\s()+.-]{6,20}` was not a loose pattern, it was no pattern: an
+            # owner typed the single letter S into their phone field and was
+            # allowed. Re-measured here against node v20.19.2's own `v` flag rather
+            # than trusted from the filing (tmp/measure-v-flag-patterns.js): the
+            # shipped default is uncompilable, this one compiles and rejects "S".
+            #
+            # {6,30} because `+33 (0) 1 89 48 00 40` is 21 characters - a French
+            # number written the way France writes it failed the old bound even
+            # once the pattern compiled, which would have turned a silent fault
+            # into a visible one for every caller in that country.
             my $pat = $rules{pattern};
-            $pat = '[\\d\\s()+.-]{6,20}' if !defined $pat && $type eq 'tel';
+            $pat = '[0-9\\s\\(\\)\\+\\.\\-]{6,30}' if !defined $pat && $type eq 'tel';
             if ( defined $pat ) {
                 $pat = _esc_attr($pat);
                 $attrs .= qq( pattern="$pat");

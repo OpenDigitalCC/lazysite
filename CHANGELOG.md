@@ -44,6 +44,48 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM921 (PENDING) **a `tel` field validates something now, and a pattern a browser
+  cannot compile is refused where an author will see it.** BEHAVIOUR CHANGE WORTH
+  READING BEFORE UPGRADING: the shipped default pattern for a `tel` field becomes
+  `[0-9\s\(\)\+\.\-]{6,30}`, and on a site whose visitors have been typing free text
+  into a phone field that field will start rejecting letters. That is the intent -
+  the previous default rejected nothing at all - but it is a change on a live form
+  rather than purely a silent repair, so it is named here rather than left to be
+  discovered.
+
+  An owner typed the single letter **S** into their phone field and was allowed.
+  `[\d\s()+.-]{6,20}` is a valid Perl regex and an invalid HTML pattern: a browser
+  compiles the attribute as `new RegExp("^(?:"+pattern+")$","v")`, and under the `v`
+  flag a bare `(`, `)` or a hyphen at the end of a character class is a syntax error.
+  The specification's answer to a pattern that will not compile is to **ignore the
+  attribute in full** - so the field was not loosely validated, it was unvalidated,
+  and nothing reached the author to say so. Re-measured here against node 20's own
+  `v` flag rather than taken from the report: the old default is uncompilable, the
+  new one compiles, rejects "S" and accepts `+33 (0) 1 89 48 00 40` - 21 characters,
+  which is also why the bound moved from 20 to 30.
+
+  **An author's own `pattern:` now takes the rest of the line**, as `select:`,
+  `radio:` and `checklist:` do, so put it last among a field's rules. It was
+  tokenised on whitespace, so `pattern:[0-9 ()+.-]{6,30}` rendered `pattern="[0-9"` -
+  a valid regex, so nothing was ignored and nothing was reported, and the field
+  refused almost every value. Measured before changing it: of the 16 form-field lines
+  carrying a `pattern:` rule in the shipped tree and the live sites repo, none has
+  another rule after it. The quoted form `pattern:"…"` is unchanged and is what to
+  use when a pattern cannot go last.
+
+  **An uncompilable pattern is now refused where somebody is looking.**
+  `Lazysite::Validate::html_pattern_problem` is the one definition of which shapes
+  the `v` flag refuses; `validate_page` turns it into an ISSUE, so a page carrying
+  one is invalid while the author is writing it, and `lazysite check` reports the
+  ones already published - which includes every site with a `tel` field, since the
+  engine's own default was one of them. `t/lint/204` holds the character list to a
+  single file and asserts both callers reach it; `t/unit/lib/63` cross-checks all 43
+  verdicts against node where node is present, because the list cannot be derived by
+  reading the specification carefully enough - the filing's own list missed `/` and
+  `|`, and `~ ! # &` look equally reserved and compile fine. **The render path is
+  unchanged**, deliberately: a render-time refusal would put an error where a form
+  used to be, on upgrade, on exactly the sites this is about.
+
 - SM928 (4d270ff3) **a submission notice can carry the submission, and only if the
   form asks.** Defects 2 and 3, which closes the filing.
 

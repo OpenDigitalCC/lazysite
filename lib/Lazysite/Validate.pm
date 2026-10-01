@@ -35,6 +35,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     validate_content validate_file
     split_front_matter parse_front_matter
+    html_pattern_problem
 );
 
 use Lazysite::Manager::Common ();
@@ -44,6 +45,124 @@ use Lazysite::Manager::Common ();
 # naming before publish.
 my %FORM_FLAGS = map { $_ => 1 }
     qw(required optional email tel date time number url password textarea);
+
+# --- SM921: a `pattern` a browser cannot compile validates NOTHING -----------
+#
+# An HTML `pattern` attribute is compiled as `new RegExp("^(?:"+pattern+")$","v")`
+# - the `v` (unicodeSets) flag - and the specification's answer to a pattern that
+# will not compile is to IGNORE THE ATTRIBUTE IN FULL. So a pattern with a syntax
+# error does not over-reject or under-reject: it is not there, no console message
+# reaches the author, and the field accepts anything. The engine's own shipped
+# default for `tel` was in exactly that state, and an owner found it by typing the
+# single letter S into their phone field and being allowed.
+#
+# THE LIST IS MEASURED, NOT REASONED. Perl cannot run that compiler, so this is the
+# enumerable subset - but the subset was established by running every shape through
+# node's `v` flag, which is the same engine (tmp/measure-v-flag-shapes.js, node
+# v20.19.2, 2026-10-01):
+#
+#   ( ) { } [ ] / |   bare inside a character class  -> uncompilable
+#   a hyphen at the start or end of a class          -> uncompilable
+#   !! or ##          inside a class                 -> uncompilable (set operation)
+#   ~ ! # & ^         bare inside a class            -> COMPILE, and are not flagged
+#   anything outside a class                         -> unaffected
+#
+# The filing's list named ( ) - [ ] { } and missed `/` and `|`, both of which fail.
+# `~ ! # &` would have been plausible additions and compile fine, which is why the
+# list is measured: this drives a REFUSAL at validate time, so a shape flagged
+# wrongly rejects a page that works.
+#
+# UNDER-FLAGGING IS THE SAFE DIRECTION and is deliberate. A mid-class hyphen that
+# is not a range (`[a.-z]`) is not flagged; the browser's behaviour for anything
+# missed is what it is today, which is the state this check improves on rather than
+# a new hazard.
+my %CLASS_RESERVED = map { $_ => 1 } qw< ( ) { } [ ] / | >;
+
+# Returns one sentence naming the problem, or '' when nothing is found. Shared by
+# validate_content (which REFUSES) and tools/lazysite-check.pl (which WARNS) -
+# t/lint/204 holds it to one definition, because two copies of this judgement is
+# the arrangement ADR 0001 only tolerates where a module cannot be loaded.
+sub html_pattern_problem {
+    my ($pattern) = @_;
+    return '' unless defined $pattern && length $pattern;
+
+    my $in_class = 0;
+    my @chars    = split //, $pattern;
+
+    # A C-STYLE LOOP, because the escape below SKIPS a character. `for my $i (
+    # 0 .. $#chars )` aliases $i to each element of a temporary list, so
+    # incrementing it inside the body is discarded on the next iteration - and the
+    # failure mode is the worst available one here: `[\(]` would read the `(` as
+    # unescaped and REFUSE a page whose pattern is correct.
+    for ( my $i = 0; $i <= $#chars; $i++ ) {
+        my $c = $chars[$i];
+
+        # An escape covers the next character wherever we are.
+        if ( $c eq '\\' ) { $i++; next }
+
+        if ( !$in_class ) {
+            $in_class = 1 if $c eq '[';
+            next;
+        }
+
+        # Inside a class. The close bracket is the one reserved character that
+        # ends it rather than breaking it.
+        if ( $c eq ']' ) { $in_class = 0; next }
+
+        if ( $CLASS_RESERVED{$c} ) {
+            return "the character class contains an unescaped $c - a browser "
+                . "compiles `pattern` with the `v` flag, under which $c must be "
+                . "written \\$c inside [ ]. An uncompilable pattern is ignored "
+                . 'in full, so the field validates nothing.';
+        }
+        if ( $c eq '!' && ( $chars[ $i + 1 ] // '' ) eq '!' ) {
+            return 'the character class contains `!!`, which the `v` flag reads '
+                . 'as a set operation. Write \\!\\! - an uncompilable pattern is '
+                . 'ignored in full, so the field validates nothing.';
+        }
+        if ( $c eq '#' && ( $chars[ $i + 1 ] // '' ) eq '#' ) {
+            return 'the character class contains `##`, which the `v` flag reads '
+                . 'as a set operation. Write \\#\\# - an uncompilable pattern is '
+                . 'ignored in full, so the field validates nothing.';
+        }
+    }
+
+    # A hyphen at either end of a class is a literal in older syntax and a syntax
+    # error under `v`. This is the one that cost the reporter an hour: removing the
+    # parentheses from the shipped default is not enough, because the `-` before
+    # `]` fails on its own.
+    return 'a character class begins or ends with an unescaped hyphen, which the '
+        . '`v` flag refuses - write \\- . An uncompilable pattern is ignored in '
+        . 'full, so the field validates nothing.'
+        if _class_has_edge_hyphen($pattern);
+
+    return '';
+}
+
+# The hyphen check, kept apart because it reads the classes rather than the
+# characters: a `-` BETWEEN two members is a range and legal, and only one at the
+# very start or the very end of a class is not.
+sub _class_has_edge_hyphen {
+    my ($pattern) = @_;
+    my @body;
+    my ( $in_class, $buf ) = ( 0, '' );
+    my @chars = split //, $pattern;
+    for ( my $i = 0; $i <= $#chars; $i++ ) {
+        my $c = $chars[$i];
+        if ( $c eq '\\' ) { $buf .= $c . ( $chars[ $i + 1 ] // '' ) if $in_class; $i++; next }
+        if ( !$in_class ) { ( $in_class, $buf ) = ( 1, '' ) if $c eq '['; next }
+        if ( $c eq ']' )  { push @body, $buf; $in_class = 0; next }
+        $buf .= $c;
+    }
+    push @body, $buf if $in_class;    # an unclosed class, read as far as it goes
+
+    for my $b (@body) {
+        $b =~ s/\A\^//;               # a negated class: ^ is not a member
+        next unless length $b;
+        return 1 if $b =~ /\A-/ || $b =~ /(?<!\\)-\z/;
+    }
+    return 0;
+}
 
 # --- front matter ------------------------------------------------------------
 #
@@ -234,9 +353,25 @@ sub _check_form_rules {
             next unless length $line;
             my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
             next if !defined $name || $name eq 'submit' || !defined $rules;
-            # select: takes the rest of the line (its options are not rules and may
-            # contain spaces) - drop it before checking the remaining rule tokens.
+            # SM921: THE PATTERN IS READ BEFORE THE TOKENS, and it takes the rest of
+            # the line exactly as the processor now does - the two have to agree
+            # about where a pattern ends or this checks a different page from the
+            # one that renders. A quoted pattern keeps its own value.
+            my $pat;
             ( my $check = $rules ) =~ s/\bselect:.*$//s;
+            if    ( $check =~ s/\bpattern:"((?:[^"\\]|\\.)*)"// ) { $pat = $1 }
+            elsif ( $check =~ s/\bpattern:(\S.*)\z//s )           { $pat = $1 }
+            if    ( defined $pat ) {
+                $pat =~ s/\s+\z//;
+                if ( my $why = html_pattern_problem($pat) ) {
+                    push @$issues, { kind => 'uncompilable-pattern',
+                        message => "the pattern on field '$name' will not compile: $why" };
+                }
+            }
+
+            # select: takes the rest of the line (its options are not rules and may
+            # contain spaces) - dropped above before the remaining rule tokens are
+            # checked, as the pattern now is.
             for my $tok ( split /\s+/, $check ) {
                 next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/; # known flag or key:value
                 next if $tok                      !~ /^[a-z]+$/; # only flag plain words

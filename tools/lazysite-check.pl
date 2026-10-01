@@ -1136,6 +1136,7 @@ sub run_checks {
 
     # --- 8h. templates written for 0.12's raw db values (SM844) ------------------
     report_double_escaped_db_templates();
+    report_uncompilable_form_patterns();
     report_unconverted_delivery();
     report_retired_conf_keys();
     report_shared_manager_account();    # N141D (SM864)
@@ -1867,6 +1868,88 @@ sub _probe_exts { return qw(png pdf txt css gz dat) }
 # `| html` inside [% %]. That catches the page-body case. A layout that applies
 # `| html` to a db: variable cannot be tied to a binding from here, and the
 # message says so rather than implying the list is complete.
+# SM921: a form field whose `pattern` a browser cannot compile validates NOTHING -
+# the specification's answer to an uncompilable pattern is to ignore the attribute
+# in full, so the field accepts anything and nothing says so. The engine's own
+# shipped `tel` default was in that state until 0.15.2, which means the sites that
+# already have one are the population this looks for.
+#
+# WARN, not refuse, and NOT at render time. Ruled 2026-09-30: validate_page refuses
+# a new bad pattern while the author is writing it, this finds the ones already
+# published, and the render path is unchanged - a render-time refusal would show an
+# error where a form used to be, on upgrade, on exactly these sites.
+#
+# THE JUDGEMENT IS NOT RESTATED HERE. Lazysite::Validate::html_pattern_problem is
+# the one definition of which shapes the `v` flag refuses, and t/lint/204 holds both
+# callers to it; a second copy would be two answers to one question, drifting. If
+# the module cannot be loaded this says SO rather than reporting a clean sweep it
+# never made.
+sub report_uncompilable_form_patterns {
+    my $d = $opt{docroot};
+    unless ( eval { require Lazysite::Validate; 1 } ) {
+        report( 'WARN', 'cannot check form patterns: Lazysite::Validate did not load',
+            'this check needs the engine module tree; the pattern rules in page '
+                . 'content were NOT examined' );
+        return;
+    }
+
+    my @roots = ($d);
+    if ( eval { require Lazysite::Private; 1 } ) {
+        my $store = Lazysite::Private::private_root($d);
+        push @roots, $store if $store && -d $store;
+    }
+
+    my @hits;
+    for my $root (@roots) {
+        File::Find::find(
+            { no_chdir => 1, wanted => sub {
+                    my $p = $File::Find::name;
+                    if ( -d $p ) {
+                        $File::Find::prune = 1 if $p eq Lazysite::Paths::internal_lazysite_dir($d);
+                        return;
+                    }
+                    return unless $p =~ /\.md\z/;
+                    open my $fh, '<', $p or return;
+                    my $text = do { local $/; <$fh> };
+                    close $fh;
+                    return unless $text =~ /:::\s*form\b/;
+                    for my $block ( $text =~ /:::\s*form\b(.*?):::/gs ) {
+                        for my $line ( split /\n/, $block ) {
+                            next unless $line =~ /\|/;
+                            my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
+                            next unless defined $rules;
+                            my $pat;
+                            if ( $rules =~ /\bpattern:"((?:[^"\\]|\\.)*)"/ ) { $pat = $1 }
+                            elsif ( $rules =~ /\bpattern:(\S.*?)\s*\z/ )     { $pat = $1 }
+                            next unless defined $pat;
+                            next unless Lazysite::Validate::html_pattern_problem($pat);
+                            ( my $rel = $p ) =~ s{\A\Q$root\E/}{};
+                            push @hits, "$rel ($name)";
+                        }
+                    }
+            } }, $root );
+    }
+
+    if (@hits) {
+        my @show = sort @hits;
+        my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
+        splice @show, 8 if @show > 8;
+        report( 'WARN',
+            scalar(@hits) . ' form field(s) carry a pattern no browser can compile: '
+                . join( ', ', @show ) . $more
+                . ' - an uncompilable pattern is ignored in full, so those fields '
+                . 'validate nothing at all',
+            'escape the reserved characters inside the character class - ( ) { } [ ] '
+                . '/ | and a hyphen at either end all need a backslash under the `v` '
+                . 'flag browsers compile with; `lazysite-validate.pl <page.md>` names '
+                . 'the field and the character' );
+    }
+    else {
+        report( 'OK', 'every form pattern in page content can be compiled' );
+    }
+    return;
+}
+
 sub report_double_escaped_db_templates {
     my $d     = $opt{docroot};
     my @roots = ($d);
