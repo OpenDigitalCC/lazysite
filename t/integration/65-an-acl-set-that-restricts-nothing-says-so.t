@@ -166,4 +166,37 @@ subtest 'A RULE THAT RESTRICTS NO READS SAYS SO' => sub {
         'and it is not filed as a warning' );
 };
 
+subtest 'SM937: A DRAFT RULE DOES RESTRICT READS, AND IS NOT CALLED OPEN' => sub {
+    # The caveat above is right about an owner-only rule and WAS WRONG about this
+    # one. `draft: true` 404s the pages to the public - a stronger restriction
+    # than gating, not a weaker one - and the reply still said
+    # `reads_unrestricted: 1` with "anyone may still fetch these pages" about
+    # pages nobody could fetch.
+    #
+    # The sites agent named the shape: the defect that makes a CORRECT operator
+    # do the wrong thing. A reader either adds a read list the rule does not need,
+    # or concludes the draft did not take and goes looking for a fault that is not
+    # there.
+    #
+    # The cause was two rules for one question: this reply tested the read LIST,
+    # while _acl_gates_public - which already counted draft, with the reasoning
+    # written beside it - answered the read OUTCOME. It now asks that one.
+    my $d = api( 'action=acl-set&path=/probe',
+        { owner => 'setup-sysop', '--user', 'sjm', draft => JSON::PP::true() } );
+    ok( $d->{ok}, 'the rule is accepted' ) or diag( $d->{error} // '' );
+
+    my $stored = api('action=acl-get&path=/probe');
+    ok( $stored->{acl} && $stored->{acl}{draft},
+        'draft really was stored - otherwise the assertion below passes for the '
+            . 'wrong reason' );
+
+    ok( !$d->{reads_unrestricted},
+        'and the reply does NOT claim reads are unrestricted' )
+        or diag( 'A draft section 404s to the public. Telling the operator '
+            . '"anyone may still fetch these pages" about pages that 404 is the '
+            . 'reported defect.' );
+    ok( !defined $d->{reads_unrestricted_note},
+        'and carries no note saying anyone may fetch them' );
+};
+
 done_testing();

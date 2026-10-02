@@ -95,7 +95,12 @@ like( $src, qr/sub check_rate_limit \{\s*my \( \$ip, \$limit \) = \@_;/,
 like( $src, qr/\$limit = defined \$limit \? \$limit : 5;/,
     'defaulting to the shipped 5 when the form does not set one' );
 like( $src, qr/return if \$limit <= 0;/, 'and 0 / off removes it' );
-like( $src, qr/\$count >= \$limit/,      'the comparison uses the configured value' );
+# SM935 changed what is counted - submission TIMES inside a rolling hour, rather
+# than a per-calendar-hour tally - so the comparison is now against the list. The
+# assertion's intent is unchanged and is the reason it is kept: whatever the
+# counter holds, it is compared against the CONFIGURED ceiling and not a literal.
+like( $src, qr/\@stamps >= \$limit/, 'the comparison uses the configured value' );
+unlike( $src, qr/>= 5\b/, 'and never against a hard-coded 5' );
 
 # The header-based exemption that was ASKED for is deliberately absent: this
 # handler is not behind the auth wrapper, so HTTP_X_REMOTE_USER arrives exactly

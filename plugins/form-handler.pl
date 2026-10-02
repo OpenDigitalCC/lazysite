@@ -1157,22 +1157,56 @@ sub check_rate_limit {
     my %db;
     tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db",
         O_RDWR | O_CREAT, 0o600, $DB_HASH ) or return;
-    my $hour  = int( time() / 3600 );
-    my $key   = "$ip:$hour";
-    my $count = $db{$key} || 0;
-    if ( $count >= $limit ) { untie %db; reject( 'Rate limit exceeded', 'rate' ); }
-    $db{$key} = $count + 1;
+    # SM935: A ROLLING HOUR, NOT A CALENDAR HOUR.
+    #
+    # The counter used to bucket on int(time/3600) with the key "$ip:$hour", so
+    # the window reset on the clock rather than on the submitter. Five at
+    # 10:59:59 and five at 11:00:00 is ten submissions in one second, inside the
+    # rules - and a limit of five that permits ten is not the limit the operator
+    # set. Measured rather than reasoned: the default is 5, and the boundary is
+    # reachable by anyone who notices the clock.
+    #
+    # So the value is the submission TIMES, not a count, and the window is the
+    # hour before now. The key is the address ALONE, which also removes an
+    # ambiguity the old scheme carried: "$ip:$hour" put a colon-separated
+    # timestamp after an IPv6 address that already contains colons, and the purge
+    # had to parse it back out.
+    my $now    = time();
+    my $window = 3600;
+    my @stamps = grep { /\A\d+\z/ && $_ > $now - $window }
+        split /,/, ( $db{$ip} // '' );
 
-    # Purge the stale hours ONCE PER HOUR, not once per submission. The keys
-    # deleted are a function of $hour alone, so a second pass within the same
-    # hour can only find what the first already removed - and this walks every
-    # key in the DB, which is the one unbounded thing on the submission path.
-    # The marker carries no colon, so it can never look like an "ip:hour" key.
-    if ( ( $db{_purged_hour} // -1 ) != $hour ) {
+    if ( @stamps >= $limit ) { untie %db; reject( 'Rate limit exceeded', 'rate' ); }
+
+    push @stamps, $now;
+
+    # Bounded by the limit: a decision only ever needs to know whether there are
+    # $limit stamps inside the window, so older ones carry no information. Without
+    # this an address submitting under the limit for a year would grow one row
+    # without bound, which is the shape of defect the old purge existed to avoid.
+    shift @stamps while @stamps > $limit;
+    $db{$ip} = join ',', @stamps;
+
+    # Purge ONCE PER CLOCK HOUR, not once per submission: this walks every key in
+    # the DB, which is the one unbounded thing on the submission path. The marker
+    # is not an address, so it can never be mistaken for one - and it is skipped
+    # explicitly rather than by pattern, because an address has no shape this file
+    # should be asserting.
+    #
+    # An entry left by the OLD scheme ("ip:hour" => a count) is removed here on
+    # the first pass: a bare count is not a timestamp inside the window, so the
+    # filter empties it. The one visible consequence of the upgrade is that
+    # counters start from zero, which is the safe direction.
+    my $clock_hour = int( $now / 3600 );
+    if ( ( $db{_purged_hour} // -1 ) != $clock_hour ) {
         for my $k ( keys %db ) {
-            delete $db{$k} if $k =~ /:(\d+)$/ && $1 < $hour - 1;
+            next if $k eq '_purged_hour';
+            my @keep = grep { /\A\d+\z/ && $_ > $now - $window }
+                split /,/, ( $db{$k} // '' );
+            if (@keep) { $db{$k} = join ',', @keep }
+            else       { delete $db{$k} }
         }
-        $db{_purged_hour} = $hour;
+        $db{_purged_hour} = $clock_hour;
     }
     untie %db;
 }

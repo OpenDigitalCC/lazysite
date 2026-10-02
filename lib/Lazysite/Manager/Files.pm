@@ -2278,7 +2278,20 @@ sub action_acl_set {
     # - nothing went wrong, and a caller filtering warnings for failures should
     # not find this there. It is the same reasoning content_moved_note is
     # written under, two paragraphs up.
-    my $reads_open = !( ref $rec{read} eq 'ARRAY' && @{ $rec{read} } );
+    # SM937: THE READ LIST IS NOT THE READ OUTCOME, and this line used to confuse
+    # them. It tested the read list alone, so a rule carrying `draft: true` - which
+    # 404s the pages to the public, a STRONGER restriction than gating - answered
+    # `reads_unrestricted: 1` and told the operator "anyone may still fetch these
+    # pages" about pages nobody could fetch.
+    #
+    # The sites agent named the shape exactly: the defect that makes a correct
+    # operator do the wrong thing. Someone reading that reply adds a read list it
+    # does not need, or worse, concludes the draft did not take.
+    #
+    # `_acl_gates_public` is the definition that already answers this, SM286's, and
+    # it already counts draft - with the reasoning written beside it. Asking it is
+    # the fix; a second rule in a second place is how the two came apart.
+    my $reads_open = !_acl_gates_public( \%rec );
 
     # SM650: A HALF-APPLIED ACL IS NOT ok:true.
     #

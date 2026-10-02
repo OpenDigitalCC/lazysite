@@ -44,6 +44,38 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM935 (PENDING) **the form rate limit is a rolling hour, so a limit of five no
+  longer permits ten.** The counter bucketed on `int(time/3600)` with the key
+  `"$ip:$hour"`, so the window reset on the clock rather than on the submitter:
+  five submissions at 10:59:59 and five at 11:00:00 is ten in one second, inside
+  the rules, and reachable by anyone who notices the clock.
+
+  The stored value is now the submission TIMES and the window is the hour before
+  now. The row stays bounded at the limit, because a decision only needs to know
+  whether there are that many inside the window.
+
+  The key is the address ALONE, which removes an ambiguity the old scheme carried:
+  `"$ip:$hour"` put a colon-separated number after an IPv6 address that already
+  contains colons, and the purge had to parse it back out.
+
+  **Counters start from zero on upgrade.** A row left by the old scheme is a bare
+  count, which is not a timestamp inside the window, so the first purge clears it.
+  That is the safe direction and it is asserted.
+
+- SM937 (PENDING) **`acl-set` stops calling a draft rule unrestricted.** A rule
+  carrying `draft: true` 404s its pages to the public - a stronger restriction than
+  gating, not a weaker one - and the reply said `reads_unrestricted: 1` with "anyone
+  may still fetch these pages" about pages nobody could fetch.
+
+  The sites agent named the shape: the defect that makes a correct operator do the
+  wrong thing. A reader either adds a read list the rule does not need, or concludes
+  the draft never took and goes looking for a fault that is not there.
+
+  The cause was two rules for one question. This reply tested the read LIST;
+  `_acl_gates_public` - SM286's definition - answers the read OUTCOME and already
+  counted draft, with the reasoning written beside it. It now asks that one, and the
+  caveat still fires on the owner-only rule it was written for.
+
 - SM940 (PENDING) **a quoted scalar in a block sequence under `sections:` is a
   string again.** `- 'https://github.com/x'` parsed to
   `{ "'https" => "//github.com/x'" }`: the sequence branch strips the `- ` and
