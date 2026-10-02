@@ -148,7 +148,7 @@ subtest 'the durable record measures it, not just the window' => sub {
     my $r   = eval { decode_json($out) };
     ok( $r && $r->{ok}, 'the export ran' ) or return;
 
-    is( $r->{totals}{human_visits}, 1,
+    is( $r->{totals}{pageviews}, 1,
         'one page view, not five - the window view' );
 
     my $today = strftime( '%Y-%m-%d', localtime );
@@ -179,18 +179,20 @@ subtest 'the exclusion is auditable, not silent' => sub {
 
 subtest 'every view reports every class (SM330)' => sub {
     # The index enumerated human/ai/bot/noise and omitted `scanner` - the
-    # LARGEST class on a public site, 71.7% of events on edge against 17.2%
-    # human. The front page therefore showed a breakdown summing to a small
+    # LARGEST class on a public site, 71.7% of events on edge against 17.2% in
+    # the residual class (SM941 renamed that one to `unattributed`; the shape of
+    # this test is unchanged, and it caught the rename, which is the point). The front page therefore showed a breakdown summing to a small
     # fraction of the traffic, with nothing to say a part was missing.
     #
     # The full-day view already reported all five: two hand-maintained lists of
     # one fact, and the shorter one was the one people saw first.
-    like( $src, qr/our \@CLASSES = qw\(human ai bot noise scanner\)/,
+    like( $src, qr/our \@CLASSES = qw\(unattributed no_agent ai bot noise scanner\)/,
         'there is one canonical class list' );
 
     # No view may enumerate the classes by hand any more, or the next class added
     # gets left out of whichever list nobody remembered.
-    my @handwritten = $src =~ /qw\(\s*human\s+ai\s+bot\s+noise\s+scanner\s*\)/g;
+    my @handwritten =
+        $src =~ /qw\(\s*unattributed\s+no_agent\s+ai\s+bot\s+noise\s+scanner\s*\)/g;
     is( scalar @handwritten, 1,
         'and it is written out exactly once - the declaration itself' )
         or diag( 'A second hand-written copy is how scanner went missing from '
@@ -205,7 +207,7 @@ subtest 'every view reports every class (SM330)' => sub {
     ok( $idx, 'the index row was found' ) or return;
     like( $idx, qr/\@CLASSES/,
         'the index derives its classes rather than listing them' );
-    unlike( $idx, qr/human\s*=>.*bot\s*=>/s,
+    unlike( $idx, qr/unattributed\s*=>.*bot\s*=>/s,
         'and no longer enumerates a subset by hand' );
 };
 

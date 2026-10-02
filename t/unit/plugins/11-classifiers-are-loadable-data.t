@@ -77,7 +77,7 @@ subtest 'with no ruleset, the built-ins apply and say so' => sub {
     is( $base->{classifier_version}, 'built-in', 'the output names the ruleset' )
         or diag( '"the numbers changed" and "the rules changed" are different '
             . 'answers, and a reader cannot tell them apart without this.' );
-    is( $base->{traffic_classes}{human}{visits}, 2,
+    is( $base->{traffic_classes}{unattributed}{visits}, 2,
         'an unknown client counts as human' )
         or diag( 'If this is not 2 the fixture UA is already matched by a '
             . 'built-in, and the override below would prove nothing.' );
@@ -93,7 +93,7 @@ subtest 'a ruleset adds a signature with no code change' => sub {
             . 'an operator adding one crawler silently loses curl, wget and '
             . 'the rest - and the loss shows up as a quiet rise in the human '
             . 'count rather than as an error.' );
-    is( $r->{traffic_classes}{human}{visits}, 1, 'and the browser still does not' )
+    is( $r->{traffic_classes}{unattributed}{visits}, 1, 'and the browser still does not' )
         or diag( 'An override that catches everything is worse than one that '
             . 'catches nothing: it empties the class an operator reads.' );
 };
@@ -102,7 +102,7 @@ subtest 'a broken ruleset falls back rather than disarming' => sub {
     ruleset('not json at all');
     my $r = export_now();
     is( $r->{classifier_version}, 'built-in', 'it reverts to the built-ins' );
-    is( $r->{traffic_classes}{human}{visits}, 2,
+    is( $r->{traffic_classes}{unattributed}{visits}, 2,
         'and classifies exactly as it did with no file' );
     is( $r->{traffic_classes}{bot}{visits}, 1,
         'the BUILT-IN rules are still applying - curl is still a bot' )

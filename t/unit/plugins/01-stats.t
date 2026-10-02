@@ -38,7 +38,13 @@ sub scan {
 my $s = scan( "window_days: 30\nanonymise_ip: true\nexclude_bots: true\n",
     access_log => "$d/access.log" );
 ok( $s->{ok}, 'scan ok' ) or diag( $s->{error} );
-is( $s->{hits},                            3,    'bot row excluded (3 of 4)' );
+# SM941 AV2: TWO, not three. The log has four rows: two successful page views
+# from a browser, one Googlebot row (excluded as a bot, which this asserted all
+# along) and one 404 from a browser. The 404 used to be in `hits` - nobody read
+# a page, so it is now in `error_hits`, and both are asserted so the split is
+# visible rather than just the smaller number.
+is( $s->{hits},                            2,    'bot row and the 404 both out of the headline' );
+is( $s->{error_hits},                      1,    'and the 404 is counted as a not-found' );
 is( $s->{unique_visitors},                 1,    'anonymised IPs collapse to one' );
 is( $s->{top_pages}[0]{key},               '/a', 'top page is /a' );
 is( $s->{top_pages}[0]{count},             2,    '/a hit twice' );
@@ -50,7 +56,13 @@ is( scalar @{ $s->{referrers}{external} }, 1,    'one external referrer' );
 # re-run with it present ON PURPOSE - an existing site's conf will still have
 # the line, and the engine must ignore it rather than fail on it.
 my $s2 = scan( "anonymise_ip: false\n", access_log => "$d/access.log" );
-is( $s2->{classes}{human}{hits}, 3, 'human headline excludes the bot' );
+# The CLASS still counts three: a 404 is unattributed traffic, it is just not a
+# page view. That is the identity the report now publishes - page views plus
+# assets plus errors equals the class - and it is worth asserting here, because
+# the easy wrong fix for the line above would have been to drop the 404 from the
+# class as well and lose the request entirely.
+is( $s2->{classes}{unattributed}{hits}, 3,
+    'the class counts the 404; only the page-view headline excludes it' );
 is( $s2->{classes}{bot}{hits},   1, 'the Googlebot row is classed as a bot' );
 is( $s2->{unique_visitors}, 1,
     'the retired setting has no effect - addresses are always anonymised' )

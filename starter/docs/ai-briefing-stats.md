@@ -28,17 +28,52 @@ The response has these fields:
 
 ```
 window           { days, from, to }            the period covered
-totals           { human_visits, unique_visitors, pageviews }
-traffic_classes  { human|ai|bot|noise: { visits, share } }
-by_day           [ { date, human, ai, bot, noise } ]   the trend, one row per day
-top_pages        [ { key: "/path", count } ]   most-visited pages (people only)
+schema_version   "3"                            the shape of this reply
+counting_basis   4                              HOW these were counted
+counting_basis_in_window  [ 4 ]                 more than one = a mixed window
+totals           { pageviews, asset_hits, error_hits, unique_visitors }
+traffic_classes  { unattributed|no_agent|ai|bot|noise|scanner:
+                   { visits, share, visitors } }
+by_day           [ { date, unattributed, no_agent, ai, ... } ]  one row per day
+window_scoped    { by_day: true, months: false, ... }  which fields the window governs
+top_pages        [ { key: "/path", count } ]   most-visited pages
 referrers        { direct, internal, external: [ { key: host, count } ] }
-status_codes     { "200": n, "404": n, ... }   people's responses
+status_codes     { "200": n, "404": n, ... }
 not_found        { plausible: [...], junk_count: n }   missing pages vs scanner noise
 auth_refused     [ { key: "/path", count } ]   turned away, NOT missing
 events           [ { t, class, path, status, visitor } ]   recent requests
 events_capped    true if the event stream hit its size limit
 ```
+
+### The three counters in `totals` add up
+
+```
+pageviews + asset_hits + error_hits == traffic_classes.unattributed.visits
+```
+
+`pageviews` is a successful page, `asset_hits` a successful image or file, and
+`error_hits` anything that returned 400 or more. Check that identity when you
+read a report: it holds by construction, and if it does not, say so rather than
+reporting either number.
+
+`unique_visitors` counts the `unattributed` class alone - the same group
+`pageviews` counts, so the two are comparable. Per-class visitor counts are in
+`traffic_classes[].visitors`.
+
+### `counting_basis` - before you compare two reports
+
+A day's numbers only mean anything beside another day's if both were counted the
+same way, and the way has changed over time. The current basis is **4**.
+
+`counting_basis_in_window` lists every basis the window actually contains. **If
+it holds more than one entry, the totals add together days counted differently**
+and a step in `by_day` is the upgrade, not the traffic. Say so; do not report the
+step as a trend.
+
+Basis 4 (lazysite 0.15.2) was a large correction: requests with no user-agent,
+responses of 400 or more, and socket endpoints all left the visit count. **Counts
+fell sharply** on upgrade. A report comparing before and after must name the
+basis change or it is describing an engine change as a loss of audience.
 
 A day rollup (`day=YYYY-MM-DD`) additionally carries:
 
@@ -50,7 +85,7 @@ registry_by      { "sitemap.xml": n, ... }       which one, and how often
 These are the engine's generated files - the sitemap and the feeds - fetched
 mostly by crawlers. They are counted **beside** `pageviews` and never inside it:
 a sitemap fetch is not a page view, and folding it in would inflate the one
-figure an operator reads as "people". Read them as interest from search engines
+figure an operator reads as their audience. Read them as interest from search engines
 and AI crawlers rather than as traffic.
 
 ### auth_refused
@@ -78,10 +113,23 @@ is a Unix timestamp.
 
 ## The traffic taxonomy
 
-Every request is classified by a log-only heuristic (user-agent + path + status):
+Every request is classified by a log-only heuristic (user-agent + path + status).
+**The classification works by exclusion**: each rule can recognise a kind of
+automation, and what no rule recognises falls into the residual class. Nothing
+here identifies a person, and no field claims to.
 
-human
-: a real person's browser. This is the audience figure - use it for "visits".
+unattributed
+: no rule could attribute this request to automation. **This is an upper bound on
+  real people, not a count of them.** Anything a person did is in here - and so
+  is any automation that declared nothing in its user-agent and behaved like a
+  browser. It is the closest thing to an audience figure the data supports, and
+  it must be reported as a ceiling: "at most N", never "N people".
+
+no_agent
+: the request sent **no user-agent at all**. Counted separately because an absent
+  user-agent is a fact worth reporting rather than a residual - and because a
+  browser always sends one, so these are not people. On one measured site this
+  was 4,227 requests in a day, previously all counted as human.
 
 ai
 : an AI assistant or model fetcher (GPTBot, ClaudeBot, PerplexityBot, ...).
@@ -92,11 +140,25 @@ bot
 
 noise
 : vulnerability scanners and probes (`/wp-login.php`, `/.env`, `*.php` on a
-  Markdown site). Background abuse, not audience - usually report it only if it
-  spikes.
+  Markdown site), and socket/live-reload endpoints this engine never serves.
+  Background abuse, not audience - usually report it only if it spikes.
 
-When the operator asks about "traffic" or "visitors", they almost always mean the
-**human** class. Call out the AI share separately when it is interesting.
+scanner
+: a visitor promoted to this class by its **behaviour** over a whole day - a
+  sweep of many distinct missing paths - rather than by what it called itself.
+  Often the largest class on a public site.
+
+When the operator asks about "traffic" or "visitors", they mean the
+**unattributed** class. Give them that number with its ceiling stated. Call out
+the AI share separately when it is interesting.
+
+### If you identify as an agent, say so
+
+Send a user-agent containing `lazysite-agent/<partner-id>` (or `lzs-fetch`) when
+you fetch pages from a site you are working on. Your requests are then recorded
+as agent traffic and stay out of the visitor counts, where a sysop can still see
+what your tooling did. An agent that does not declare itself lands in
+`unattributed` and inflates the one figure the operator reads as their audience.
 
 ## Trails: the order people went in
 
@@ -134,8 +196,9 @@ must NOT claim" apply to them with more force rather than less.
 
 ## What you can report on
 
-- Trend over the window: is human traffic rising or falling? Quantify it from
-  `by_day`.
+- Trend over the window: is `unattributed` traffic rising or falling? Quantify it
+  from `by_day` - and check `counting_basis_in_window` first, because a basis
+  change inside the window produces a step that is not a trend.
 - Top and rising/falling content: which pages draw people; which grew or dropped
   versus earlier in the window.
 - Referrer mix: how much is direct vs internal vs which external sources, and

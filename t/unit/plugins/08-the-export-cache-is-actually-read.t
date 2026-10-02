@@ -57,7 +57,15 @@ sub log_event {
             p => $path,
             s => $status,
             b => 100,
-            u => 'Mozilla/5.0 Chrome/120',
+            # SM941: `ua`, NOT `u`. This said `u` and the ingester has always
+            # read `ua` - the key the processor's own writer emits - so every
+            # line this fixture wrote reached classify() with an EMPTY
+            # user-agent. The old `return 'human'` fall-through swallowed that
+            # silently and the test passed, asserting a class it was not
+            # exercising: nothing here tested the first-party UA path at all.
+            # Renaming the class is what made it visible, because an empty
+            # user-agent now has a name of its own.
+            ua => 'Mozilla/5.0 Chrome/120',
             v => $visitor,
             r => ( $ref // '-' ),
     } ) . "\n";
@@ -115,7 +123,7 @@ subtest 'a stored offset actually governs what is read' => sub {
     log_event( $d, $now + $_, '/article', 200, "visitor-$_" ) for 1 .. 5;
 
     my $first = export($d);
-    is( $first->{totals}{human_visits}, 5, 'five requests, five human visits' );
+    is( $first->{totals}{pageviews}, 5, 'five requests, five human visits' );
 
     my $c = read_cache($d);
     ok( $c && ( $c->{v} // 0 ) == 2, 'the first-party cache was written, at v2' )
@@ -129,7 +137,7 @@ subtest 'a stored offset actually governs what is read' => sub {
     write_cache( $d, $c );
 
     my $second = export($d);
-    is( $second->{totals}{human_visits}, 0,
+    is( $second->{totals}{pageviews}, 0,
         'the stored offset was honoured and the log was not re-read' )
         or diag( 'Five means the cache was discarded and the whole log '
             . 're-ingested, which is the defect: the offsets are the entire '
@@ -179,8 +187,8 @@ subtest 'a promotion reaches back to what an earlier batch already counted'
     # change. While the cache was discarded every call, a probe arriving late
     # always reclassified that visitor's earlier requests - by brute force,
     # because the whole log was re-read. With the cache honoured those events
-    # are already counted under `human` and the promoting batch has to reach
-    # back for them.
+    # are already counted under `unattributed` and the promoting batch has to
+    # reach back for them.
     #
     # It matters because the scanner's homepage hit is precisely what SM213
     # classifies per visitor to remove, and SM332 needs five distinct 404s that
@@ -193,8 +201,16 @@ subtest 'a promotion reaches back to what an earlier batch already counted'
     log_event( $d, $now + 10, '/wp-json/batch/v1',    404, 'sweeper' );
     log_event( $d, $now + 20, '/wp/wp-json/batch/v1', 404, 'sweeper' );
     my $one = export($d);
-    is( $one->{totals}{human_visits}, 3,
-        'two probes is under the threshold, so nothing is promoted yet' );
+    # SM941 AV2: ONE page view and TWO not-founds, where this used to read 3.
+    # The probes are 404s - nobody read a page - so they are counted in
+    # `error_hits` and are no longer part of the headline. Asserting both halves
+    # rather than just the smaller number, because the point of the split is
+    # that the requests are still counted somewhere: a test that only checked
+    # `pageviews` fell would pass if they had been dropped on the floor.
+    is( $one->{totals}{pageviews}, 1,
+        'the homepage hit is a page view, and nothing is promoted yet' );
+    is( $one->{totals}{error_hits}, 2,
+        'and the two probes are counted as not-founds, not as visits' );
 
     # Batch two: three more distinct probes. The threshold is crossed HERE.
     log_event( $d, $now + 60, '/blog/wp-json/batch/v1', 404, 'sweeper' );
@@ -202,9 +218,9 @@ subtest 'a promotion reaches back to what an earlier batch already counted'
     log_event( $d, $now + 80, '/test/wp-json/batch/v1', 404, 'sweeper' );
     my $two = export($d);
 
-    is( $two->{totals}{human_visits}, 0,
-        'the homepage hit from the FIRST batch is no longer counted human' )
-        or diag( 'Three means the reach-back did not happen: those events were '
+    is( $two->{totals}{pageviews}, 0,
+        'the homepage hit from the FIRST batch is no longer unattributed' )
+        or diag( 'One means the reach-back did not happen: those events were '
             . 'tallied before the promotion and stayed where they were put. '
             . 'That is the scanner homepage hit SM213 exists to remove, and '
             . 'it would be the top journey on the site.' );
@@ -235,7 +251,7 @@ subtest 'reversal cannot drive a count below nothing' => sub {
     export($d);    # a second call must not reconcile the same events again
     my $r = export($d);
 
-    cmp_ok( $r->{totals}{human_visits}, '>=', 0, 'human visits is not negative' );
+    cmp_ok( $r->{totals}{pageviews}, '>=', 0, 'human visits is not negative' );
     for my $c ( sort keys %{ $r->{traffic_classes} || {} } ) {
         cmp_ok( $r->{traffic_classes}{$c}{visits}, '>=', 0,
             "the $c class is not negative" );

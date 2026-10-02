@@ -58,7 +58,15 @@ sub log_event {
     open my $fh, '>>', "$d/lazysite/logs/access-$day.jsonl" or die $!;
     print $fh encode_json( {
             t => $when, p => $path, s => 200, b => 100,
-            u => 'Mozilla/5.0 Chrome/120', v => 'reader', r => '-',
+            # SM941: `ua`, NOT `u`. This said `u` and the ingester has always
+            # read `ua` - the key the processor's own writer emits - so every
+            # line this fixture wrote reached classify() with an EMPTY
+            # user-agent. The old `return 'human'` fall-through swallowed that
+            # silently and the test passed, asserting a class it was not
+            # exercising: nothing here tested the first-party UA path at all.
+            # Renaming the class is what made it visible, because an empty
+            # user-agent now has a name of its own.
+            ua => 'Mozilla/5.0 Chrome/120', v => 'reader', r => '-',
     } ) . "\n";
     close $fh;
 }

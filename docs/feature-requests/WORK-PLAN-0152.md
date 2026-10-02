@@ -161,11 +161,11 @@ for another.
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
 | H0 | ~~Measure the gap~~ **WITHDRAWN**: R4 is discharged and the diagnostic was never needed - the split was in the source. Kept as a row so the plan records that an instrument was scheduled and then not built |  | done |
-| H1 | [[SM941]] AV1 - the invariant test. **R5 held it so it would land GREEN beside the fixes**, which is now possible | S | H2, H3 |
-| H2 | [[SM941]] AV2 - **ANSWERED**: publish `asset_hits`, stop counting 404s as visits, and name each counter's population. The gap was requests-with-assets against requests-without-successful-assets, and neither figure was page views (7,956 on xisl, against a reported 15,979) | M | nothing |
-| H3 | [[SM941]] AV3/AV4/AV5 - `unique_visitors` reads `cls_ips` as the manager page already does; the duplicate `human_visits`/`pageviews` scalar; `window_scoped` on `months` | S+S+S | nothing |
-| H6 | [[SM941]] AV6-AV9 (**R8-R12**) - `human` renamed to `unattributed` with the upper-bound explanation, the positive browser test plus `no_agent`, the self-declaration tokens and `lzs-fetch`, and `/websocket` counted outside | M | nothing |
-| H7 | [[SM941]] AV10 - **counting basis 4 and schema_version 3**, with the ladder entry. Ships WITH H6 or H6 does not ship | S | H6 |
+| H1 | **BUILT** (n232). The invariant test, `t/unit/plugins/46-one-report-does-not-contradict-itself.t`, GREEN. Writing it found a row that was not in the plan: `status_codes` counts ONE class and the report named that nowhere, so every counter now declares its population | S | H2, H3 |
+| H2 | **BUILT** (n232). Three-way split in `_apply_event` - `error_hits`, `asset_hits`, `hits` - all three published, and they sum to the class by construction. An asset 404 used to reach `hits`, because the old branch needed `$st < 400` to get to `asset_hits` at all | M | nothing |
+| H3 | **BUILT** (n232). `unique_visitors` reads `cls_ips{unattributed}`; `traffic_classes[].visitors` added so nothing is lost; `totals.human_visits` REMOVED (one scalar, one name); `window_scoped` enumerated per field, with `events` deliberately absent from it | S+S+S | nothing |
+| H6 | **BUILT** (n232). Renamed, with the upper-bound explanation in `notes`, the manager tiles and the agent briefing. `no_agent` returns BEFORE the visit split. The cache is MIGRATED on load - a comment I wrote claiming schema 3 would discard it was measured false, and without the migration that traffic would have left every breakdown while staying in `hits` | M | nothing |
+| H7 | **BUILT** (n232), with H6 in one commit as required. Basis 4, schema 3, the ladder entry - and `counting_basis` + `counting_basis_in_window` **published in the report**, which they never were: the instrument SM338 built could not be read from the output that raises the question | S | H6 |
 | H4 | [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
 | H5 | [[SM942]] FO3 (R6) - `feed_items` capping at 50 by default, plus `lastBuildDate`. Same template and the same sort as H4, so it goes with it | S | H4 |
 

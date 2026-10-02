@@ -88,59 +88,87 @@ function renderStats(d) {
     return;
   }
   var h = '';
-  // Headline = genuine human audience only.
+  // SM941: NO TILE ON THIS PAGE CLAIMS TO COUNT PEOPLE ANY MORE.
+  //
+  // It said "human" in four places, and the engine never measured that. The
+  // class was a fall-through reached when no automation rule matched - it did
+  // not even consult the browser test it had already computed - so a request
+  // with NO user-agent at all was counted here as a person. On one measured day
+  // of a live log that was 4,227 requests, the largest single "human" agent on
+  // the site, and 43% of the class was empty-UA or self-declared automation
+  // including our own page fetcher.
+  //
+  // The release manager's instruction was to stop calling it something it is
+  // not: we cannot know a request came from a person, we can know when it did
+  // not, so whatever is human is somewhere inside this group. The group is
+  // therefore an UPPER BOUND and the tiles say so. An operator seeing a smaller
+  // honest number is the point of the change, not a cost of it.
   //
   // SM329: 'Page views' says what the number is. It used to count every image
   // and stylesheet on the page, so it fell sharply the day that was fixed - and
   // a headline number that drops without explanation reads as lost traffic. The
   // assets are shown beside it rather than dropped silently, so the subtraction
   // is visible on the page an operator actually reads.
-  // SM888 S3: AND IT NOW SAYS WHAT IT IS A COUNT OF. SM329 put the assets
-  // beside it so the subtraction was visible, and left the tile itself
-  // unqualified - so the number a sysop quotes as "our traffic" did not say it
-  // was human-only, which is the pairing with People that makes both tiles
-  // consistent (N141B-F).
+  //
+  // SM941 DOES THE SAME THING FOR 404s, FOR THE SAME REASON. Page views used to
+  // include every request that missed, and on the measured site that was 8,023
+  // of 15,979 - so this release roughly halves the headline. 'Not found' is the
+  // tile that accounts for the drop, beside 'Images and files' which accounts
+  // for SM329's. Both subtractions are visible on the page rather than only in
+  // a changelog the person reading the tile will never see.
   h += '<div class="mg-stat-tiles">'
      + tile('Page views', fmtNum(d.hits),
-            'Pages fetched by human visitors in this window. Images and files '
-          + 'are the tile beside this one; every other kind of caller is in '
-          + 'Who’s calling below.')
-  // N141B-F: "Unique visitors" COUNTED PEOPLE ONLY, and did not say so.
+            'Pages successfully fetched in this window, by callers we could '
+          + 'not attribute to automation. Images and files, and requests that '
+          + 'found nothing, are the two tiles beside this one; every other '
+          + 'kind of caller is in Who’s calling below.')
+  // N141B-F: "Unique visitors" COUNTED ONE CLASS ONLY, and did not say so.
   //
   // The tile showed 48 where totals.unique_visitors was 153, so the same field
-  // name meant two different measurements on two surfaces. The VALUE is
-  // deliberate and correct - stats.pl counts the human class here on purpose,
-  // because this tile sits beside Page views, which is also human-only, and
-  // summing every IP would put scanners in the headline. What was wrong was
-  // the label claiming all visitors.
+  // name meant two different measurements on two surfaces. The VALUE was always
+  // right - stats.pl counts one class here on purpose, because this tile sits
+  // beside Page views, which counts the same class, and summing every IP would
+  // put scanners in the headline. What was wrong was the label.
   //
-  // Relabelled rather than recomputed: changing the number would break the
-  // deliberate pairing with Page views, and the other classes are now counted
-  // in full in Who's calling below, which is where somebody asking about
-  // scanners should be looking.
-     + tile('People' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors),
-            'Unique human visitors. Every other kind of caller is counted in '
-          + 'Who’s calling below.')
+  // SM941 AV3 settled the other half: the EXPORT was the surface summing every
+  // class, which is how it came to publish more unique visitors than visits -
+  // 4,359 across 4,241 on one live site, which a unique visitor cannot do. Both
+  // surfaces now read the same field, so the two answers agree (SM335).
+     + tile('Unattributed' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors),
+            'Addresses we could not attribute to automation. This is the MOST '
+          + 'this could be in people - anything a person did is in here, and so '
+          + 'is any automation that declared nothing and behaved like a '
+          + 'browser. Every caller we could name is in Who’s calling below.')
      + tile('Images and files', fmtNum(d.asset_hits || 0),
-            'Images, stylesheets and downloads fetched successfully by human '
-          + 'visitors in this window.')
-  // SM888 S3: AND THE ONE THAT IS NOT HUMAN-ONLY SAYS SO.
+            'Images, stylesheets and downloads fetched successfully in this '
+          + 'window by the same group of callers as Page views.')
+  // SM941 AV2: THE 404s, WHERE THE OPERATOR CAN SEE THEM.
+  //
+  // These were inside Page views. Nobody read a page, so they are not visits -
+  // but they are not nothing either: a steady count here is either a broken
+  // link somebody is following or a path the site used to serve, and the
+  // 'Pages that were not found' block further down this page names them.
+     + tile('Not found', fmtNum(d.error_hits || 0),
+            'Requests in this window that got an error rather than a page - '
+          + 'mostly 404s. These used to be counted in Page views, which is why '
+          + 'that number falls when this release is installed. The paths are '
+          + 'listed under Pages that were not found.')
+  // SM888 S3: AND THE ONE THAT COUNTS EVERYONE SAYS SO.
   //
   // Measured in stats.pl, not assumed from the row it sits in: `bytes` is
-  // added for EVERY caller, before the human filter that Page views, People
-  // and Images and files all sit behind. So three tiles in this row count
-  // people and the fourth counts everyone, and nothing said which was which -
-  // an operator comparing Data served against Page views is dividing by the
-  // wrong population, and on a scanned site the difference is large.
+  // added for EVERY caller, before the class filter the other tiles sit
+  // behind. So four tiles in this row count one group and the fifth counts
+  // everyone, and nothing said which was which - an operator comparing Data
+  // served against Page views is dividing by the wrong population, and on a
+  // scanned site the difference is large.
   //
   // Stated rather than recomputed, for N141B-F's reason: the number is not
-  // wrong, and making it human-only would quietly change what a sysop has
-  // been reading. If it should become human-only that is a decision, not a
-  // label fix.
+  // wrong, and narrowing it would quietly change what a sysop has been
+  // reading. If it should be narrowed that is a decision, not a label fix.
      + tile('Data served', fmtBytes(d.bytes),
             'Total bytes sent to EVERY caller in this window - people, AI, '
-          + 'bots and scanners alike. The other tiles in this row count '
-          + 'people only.')
+          + 'bots and scanners alike. The other tiles in this row count one '
+          + 'group of callers; this one counts the lot.')
      + tile('Window', d.window_days + ' days')
      + '</div>';
 
@@ -163,11 +191,22 @@ function renderStats(d) {
     // A class with no entry below is still drawn, under its own key. An
     // unlabelled class on the page is a small untidiness; a class missing from
     // a total is a wrong number.
-    var LABELS = { human: 'People', logged_in: 'Logged-in', ai: 'AI assistants',
+    //
+    // SM941: `human` became `unattributed` and `no_agent` arrived beside it.
+    // ON AN EXISTING SITE THIS PAGE IS NOT REPLACED BY AN UPGRADE - it installs
+    // under the `seed` bucket - so the two new classes will draw under their raw
+    // keys in grey until the operator takes the new page. That is the property
+    // the comment above was written for and it holds: the classes still appear
+    // and the percentages are still true, which is why this is a labelling lag
+    // and not a wrong number.
+    var LABELS = { unattributed: 'Unattributed', no_agent: 'No user-agent',
+                   logged_in: 'Logged-in', ai: 'AI assistants',
                    bot: 'Bots', noise: 'Noise / probes', scanner: 'Scanners' };
-    var COLOURS = { human: '#2e8b57', logged_in: '#3a7bd5', ai: '#8e44ad',
+    var COLOURS = { unattributed: '#2e8b57', no_agent: '#7a8b2e',
+                    logged_in: '#3a7bd5', ai: '#8e44ad',
                     bot: '#d98a1f', noise: '#b03a3a', scanner: '#6b6b6b' };
-    var ORDER = ['human', 'logged_in', 'ai', 'bot', 'scanner', 'noise'];
+    var ORDER = ['unattributed', 'no_agent', 'logged_in', 'ai', 'bot',
+                 'scanner', 'noise'];
     var keys = Object.keys(d.classes).sort(function (a, b) {
       var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
       if (ia < 0) ia = ORDER.length;
@@ -276,11 +315,14 @@ function renderStats(d) {
     // SM888 S3: WHAT THESE NUMBERS COUNT, stated in the block rather than in a
     // title attribute. A tile is a glance and a tooltip suits it; an opened
     // block is being read, and "mobile: 412" with no denominator invites the
-    // reader to assume visitors or sessions. They are PAGE VIEWS, human only,
-    // over the same window - assets are excluded on purpose (SM336 item 6),
+    // reader to assume visitors or sessions. They are PAGE VIEWS, and from the
+    // same group of callers as the Page views tile (SM941: `unattributed`, not
+    // "human" - the engine never measured that), over the same window. Assets
+    // are excluded on purpose (SM336 item 6),
     // because counting a stylesheet would report the device that fetched it
     // once per file the layout happens to load.
-    var dev = '<p class="mg-muted">Human page views in this window, by device. '
+    var dev = '<p class="mg-muted">Page views in this window, by device, from '
+            + 'the same callers as the Page views tile. '
             + 'Images and files are not counted.</p>'
             + '<div class="mg-checks">';
     Object.keys(d.devices).sort(function (a, b) { return d.devices[b] - d.devices[a]; })
@@ -389,9 +431,9 @@ function loadMonthly() {
 
 // N141B-F: an optional NOTE on the label.
 //
-// Several tiles measure something narrower than their label suggests - People
-// counts humans only, beside a Page views that does the same - and the page had
-// nowhere to say so. The agent's report of four unnamed denominators on one
+// Several tiles measure something narrower than their label suggests - the
+// visitor tile counts one class, beside a Page views that counts the same one -
+// and the page had nowhere to say so. The agent's report of four unnamed denominators on one
 // screen is this: the numbers were right and nothing said what each was of.
 //
 // A title attribute, not body text: the tiles are a glance, and a sentence

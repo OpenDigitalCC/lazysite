@@ -78,8 +78,8 @@ my $r    = eval { decode_json($json) };
 ok( $r && $r->{ok}, 'scan ok' ) or diag $json;
 
 my $c = $r->{classes};
-is( $c->{human}{hits}, 5, 'human hits (+ 200 manifest.json + binance-referrer hit; SM192)' );
-is( $c->{human}{visitors}, 3,
+is( $c->{unattributed}{hits}, 5, 'human hits (+ 200 manifest.json + binance-referrer hit; SM192)' );
+is( $c->{unattributed}{visitors}, 3,
     'human visitors are per-/24 now, not per-address (SM335)' );
 is( $c->{ai}{hits}, 2, 'ai hits (UA + connector endpoint; secrets.json+GPTBot is now noise, SM192)' );
 is( $c->{bot}{hits}, 4, 'bot hits (Googlebot + HeadlessChrome + 2 self-identified agents)' );

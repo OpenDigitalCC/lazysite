@@ -100,7 +100,21 @@ my $NOISE_RE = qr{
     (?: wp-login\.php | wp-admin | wp-includes | wp-content | xmlrpc\.php
       | phpmyadmin | \bpma\b | \.env | \.git | \.aws | \.ssh
       | vendor/ | boaform | eval-stdin | HNAP1 | setup\.cgi
-      | owa/ | autodiscover | actuator | console/ )
+      | owa/ | autodiscover | actuator | console/
+    # SM941 R11: SOCKET AND LIVE-RELOAD ENDPOINTS. lazysite serves no websocket, so
+    # a request to one is not a page view whatever its user-agent says.
+    #
+    # Found on a live site: `/websocket`, 5,418 requests in 30 days, every one a
+    # 404, all of them counted as human. The release manager identified the cause -
+    # the domain REPLACED a site that used websockets, so a browser somewhere is
+    # still reconnecting - and ruled it counted outside the group. It is not this
+    # engine's defect and it is not a visit either: 5,418 retries to a path that
+    # has never resolved here.
+    #
+    # A path rule rather than a behavioural one, deliberately. "Has never resolved"
+    # needs history this classifier does not have, and these endpoints are never
+    # lazysite pages, so naming them is both sufficient and honest.
+      | websocket | socket\.io | sockjs-node | \bws\b )
 }xi;
 
 # SM330: the canonical class list, in one place.
@@ -109,7 +123,25 @@ my $NOISE_RE = qr{
 # one that mattered most - the index. Every view that reports a breakdown now
 # derives it from here, so a class added later cannot be silently omitted from
 # some of them.
-our @CLASSES = qw(human ai bot noise scanner);
+# SM941 R8/R9/R12 (2026-10-02): `human` IS GONE, AND IT WAS NEVER A MEASUREMENT.
+#
+# classify() ended `return 'human'` - the fall-through, reached when no automation
+# rule matched. It asserted nothing about a person, and `_is_browser` was computed
+# and never consulted on that path, so a request with NO user-agent at all landed
+# there. Measured on one day of a live log: 4,227 empty-UA requests were counted as
+# human, and 43% of the class was empty-UA or self-declared automation - including
+# `lzs-fetch`, which is OUR OWN page fetcher.
+#
+# The release manager's framing, and the reason this is a rename rather than a
+# tightening: "we can't know it is human, but we can know when it isn't, so
+# whatever is human exists in this group." So the group is an UPPER BOUND on human
+# traffic and is named for what the engine actually did - failed to attribute it.
+# `notes` says so in those terms, where a site owner reads it.
+#
+# `no_agent` is its own class because an absent user-agent is a FACT worth
+# reporting rather than a residual: the 4,227 become visible and separable instead
+# of silently inflating the headline, and the buckets still sum.
+our @CLASSES = qw(unattributed no_agent ai bot noise scanner);
 
 # SM338: the COUNTING BASIS. A day's numbers are only comparable with another
 # day's if both were counted the same way, and this release changes the way:
@@ -135,9 +167,18 @@ our @CLASSES = qw(human ai bot noise scanner);
 #       traffic under basis 3 - that is the fix, not drift. unique_visitors is
 #       untouched: counting stays on the token (SM392's rule - one person with
 #       two browsers must not become two visitors).
+#   4 - `human` becomes `unattributed`, and THREE THINGS LEAVE THE VISIT COUNT
+#       (SM941, from 0.15.2): requests with no user-agent (their own class,
+#       `no_agent`), responses >= 400 (their own counter, `error_hits`), and
+#       socket/live-reload endpoints (`noise`). On the measured instance that
+#       is 8,023 404s and 4,227 empty-UA requests out of 15,979 reported
+#       "human visits", so COUNTS DROP SHARPLY - that is the correction, not
+#       drift, and this is the integer that lets an operator tell the two
+#       apart. `unattributed` is an upper bound on people; it was never a
+#       measurement of them.
 #
 # A day-bucket carrying no basis at all predates the field, which is basis 1.
-our $COUNTING_BASIS = 3;
+our $COUNTING_BASIS = 4;
 
 # SM342: WHAT THE OPERATION ACTUALLY DID, counted rather than timed.
 #
@@ -270,13 +311,28 @@ my $BOT_RE = qr{
   | go-http | libwww | httpclient | scrapy | java/ | okhttp | axios
   | phantomjs | selenium | puppeteer | playwright | cypress | lighthouse | node-fetch
   | nuclei | nikto | masscan | zgrab | censys | nmap
+    # SM941 R10: MATCH SELF-DECLARATION, NOT A VENDOR LIST. Each of these was
+    # measured in the residual class on one live day, saying what it is in its own
+    # name: WP-Safe-Scanner (154 requests), SeltzSitemapFetcher (86),
+    # GeedoShopProductFinder (325) and WordPress/6.4.3 (341) - a WordPress client
+    # on a site with no WordPress. A list of those four names would have needed
+    # extending the next time, which is how the gap formed; a token catches the
+    # next tool of the same shape before anyone notices it.
+    #
+    # `scan` is NOT used on its own: masscan and zgrab above are already named, and
+    # a bare `scan` would also match a browser mentioning a scanner extension.
+  | scanner | fetcher | finder | WordPress/
 }xi;
 
 # Self-identifying lazysite tooling: an operator's / partner's own agent doing
 # screenshots, QA sweeps or previews - NOT a visitor. The documented opt-out
 # convention: set the browser/fetch UA to include `lazysite-agent/<partner-id>`
 # (or the legacy `claude-code-agent`) and this traffic is kept out of `human`.
-my $AGENT_RE = qr{ lazysite-agent | claude-code-agent }xi;
+# SM941 R10: `lzs-fetch` is OURS and was being counted as a visitor - 123 requests
+# on the measured day. The pattern caught `lazysite-agent/` and missed the project's
+# own read-only page fetcher, which is a defect rather than a judgement call: our
+# tooling has no business in a site owner's visitor numbers.
+my $AGENT_RE = qr{ lazysite-agent | claude-code-agent | lzs-fetch }xi;
 
 # Infrastructure / crawler fetches that are not a person browsing pages. Counting
 # these as `human` inflates the audience (favicon rides along with every real
@@ -937,7 +993,9 @@ sub _is_browser {
     return $ua =~ /Mozilla|Chrome|Safari|Firefox|Edge|Opera|Gecko/i ? 1 : 0;
 }
 
-# Returns one of: noise, ai, bot, logged_in, human. First match wins.
+# Returns one of: noise, ai, bot, logged_in, no_agent, unattributed. First match
+# wins, and the last two are the residual - see @CLASSES for why it is not called
+# `human`.
 sub classify {
     my ( $path, $ua, $extra_ai, $extra_noise, $status ) = @_;
 
@@ -975,7 +1033,21 @@ sub classify {
     # from a real browser, i.e. the manager UI's own fetch calls).
     return 'logged_in' if $is_mgr || ( $is_auto_ep && $browser );
 
-    return 'human';
+    # SM941 R9: AN ABSENT USER-AGENT IS ITS OWN ANSWER, not the residual.
+    #
+    # This is the one place `$browser` now decides the outcome rather than merely
+    # qualifying an earlier branch. An empty UA matches no bot pattern, so it used
+    # to fall through to `human` - 4,227 requests on one measured day, the largest
+    # single "human" agent on the site.
+    return 'no_agent' unless length $ua && $ua =~ /\S/;
+
+    # Everything else that reached here is UNATTRIBUTED: no rule could tie it to a
+    # known agent, so by R8 it is where any human traffic is - together with
+    # anything the rules failed to exclude. Deliberately NOT gated on $browser:
+    # after R10's tokens, every non-empty non-browser agent in the measured sample
+    # is caught above, and a UA shape nobody has seen yet is exactly what an upper
+    # bound is supposed to keep rather than quietly discard.
+    return 'unattributed';
 }
 
 sub _split_csv {
@@ -1094,6 +1166,8 @@ sub _page_view_from_buckets {
     my ( %entry,    %exit_, %depth );    # SM363: the journey fields the page shows
     my $sessions = 0;
     my ( $hits, $bytes, $assets, $ref_internal, $ref_direct ) = ( 0, 0, 0, 0, 0 );
+    # SM941 AV2
+    my $error_hits = 0;
 
     for my $day (@in_window) {
         my $b = $days->{$day};
@@ -1101,17 +1175,22 @@ sub _page_view_from_buckets {
         for my $c ( keys %{ $b->{cls_ips} || {} } ) {
             $cls_vis{$c}{$_} = 1 for keys %{ $b->{cls_ips}{$c} };
         }
-        # HUMAN visitors only. The headline tile sits beside `Page views`, which
-        # is human-only, and the old reader counted this after its
-        # `next unless $class eq 'human'`. Summing $b->{ips} instead would put
-        # scanners in the headline - 71.7% of traffic on the instrument - which
-        # is the opposite of what this whole filing is about.
-        $vis{$_} = 1 for keys %{ $b->{cls_ips}{human} || {} };
+        # `unattributed` visitors only. The headline tile sits beside `Page
+        # views`, which is drawn from the same class, and the old reader counted
+        # this after its `next unless $class eq 'human'`. Summing $b->{ips}
+        # instead would put scanners in the headline - 71.7% of traffic on the
+        # instrument - which is the opposite of what this whole filing is about.
+        #
+        # SM941 AV3: this is why the visitor count TRACKS the visit count. The
+        # RM read that as suspicious; it is the same population counted two
+        # ways, and the OTHER reader (_report) summed all six classes instead -
+        # which is the bug, not this.
+        $vis{$_} = 1 for keys %{ $b->{cls_ips}{unattributed} || {} };
 
         # SM336: the page shows what the day files record, or an operator who
         # turns the search-terms switch on sees nothing happen and reasonably
-        # concludes it does not work. Both are already human-page-view only in
-        # the bucket, so no class filter is needed here.
+        # concludes it does not work. Both are already page-view only, and
+        # already one class, in the bucket - so no class filter is needed here.
         $devices{$_} += $b->{device}{$_} for keys %{ $b->{device} || {} };
         $terms{$_}   += $b->{sq}{$_}     for keys %{ $b->{sq}     || {} };
 
@@ -1127,6 +1206,7 @@ sub _page_view_from_buckets {
         $hits         += ( $b->{hits}         // 0 );
         $bytes        += ( $b->{bytes}        // 0 );
         $assets       += ( $b->{asset_hits}   // 0 );
+        $error_hits   += ( $b->{error_hits}   // 0 );
         $ref_internal += ( $b->{ref_internal} // 0 );
         $ref_direct   += ( $b->{ref_direct}   // 0 );
         $pages{$_}    += $b->{pages}{$_}   for keys %{ $b->{pages}   || {} };
@@ -1153,9 +1233,19 @@ sub _page_view_from_buckets {
         log_configured  => JSON::PP::true,
         errors          => _error_surface($cfg),
         classes         => \%classes,
-        hits            => $hits,                      # human only, as before
+        # SM941 AV2: three counters, one population, and they SUM.
+        #
+        #   hits + asset_hits + error_hits == classes.unattributed.hits
+        #
+        # A reader can check that from the output. Before this, `asset_hits` was
+        # published and `error_hits` did not exist, so the two reported totals
+        # differed by the asset count with nothing to reconcile them - 2,870 on
+        # the measured site, which read as an engine fault rather than as two
+        # different questions.
+        hits            => $hits,                      # successful PAGE views
         asset_hits      => $assets,                    # SM329
-        unique_visitors => scalar keys %vis,
+        error_hits      => $error_hits,                # >= 400, NOT a visit
+        unique_visitors => scalar keys %vis,           # `unattributed` only
         bytes           => $bytes,
         top_pages       => _topn( \%pages, $top_n ),
         referrers       => {
@@ -1378,7 +1468,59 @@ sub _load_export_cache {
     close $fh;
     my $c = eval { JSON::PP::decode_json($j) };
     return undef unless ref $c eq 'HASH';
-    return _known_cache_shape( $c->{v} ) ? $c : undef;
+    return undef unless _known_cache_shape( $c->{v} );
+    # SM941 AV10
+    _migrate_human_class($c);
+    return $c;
+}
+
+# SM941 AV10: THE RENAME HAS TO REACH THE CACHE, AND I NEARLY SHIPPED A COMMENT
+# SAYING IT DID NOT HAVE TO.
+#
+# I wrote - and committed to a comment in _apply_event - that an entry carrying
+# the literal string `human` could not survive, because schema_version 3 would
+# discard the cache. THAT WAS FALSE, and it was an assertion rather than a
+# measurement: the cache gate is `v`, which distinguishes the SERVER-LOG shape
+# from the FIRST-PARTY shape (1 and 2) and knows nothing about the class names or
+# the counting basis. schema_version is a field in the OUTPUT. Nothing would have
+# dropped the cache, and nothing would have errored either.
+#
+# What would have happened is worse than an error. Every day bucket already in
+# the cache holds `cls{human}` and `cls_ips{human}`; every breakdown is derived
+# from @CLASSES (SM330), which no longer lists `human`. So that traffic would have
+# been dropped from `traffic_classes` and `by_day` while remaining inside `hits` -
+# the report would have published a sum that does not add up, in the very release
+# whose purpose is a report whose sums add up.
+#
+# A RENAME, NOT A DISCARD. The old buckets are honest under their own basis: a
+# basis-3 `human` count IS the group this release calls `unattributed`, just drawn
+# wider (404s and empty-UA requests are inside its `hits`). Dropping them would
+# throw away history that `counting_basis` already explains. ADDED rather than
+# assigned, in case both keys exist - which cannot happen today, and costs one
+# character to survive if it ever does.
+#
+# Day FILES are not touched: a closed day is immutable and carries its own
+# `counting_basis`, so it keeps the name it was counted under. That is SM338
+# working, not an omission - and `--recount --apply` is the operator's route to
+# rewriting the days the logs still cover under basis 4.
+sub _migrate_human_class {
+    my ($c) = @_;
+    return unless ref $c eq 'HASH';
+    for my $b ( values %{ $c->{days} || {} } ) {
+        next unless ref $b eq 'HASH';
+        if ( defined $b->{cls}{human} ) {
+            $b->{cls}{unattributed} += delete $b->{cls}{human};
+        }
+        if ( ref $b->{cls_ips}{human} eq 'HASH' ) {
+            my $old = delete $b->{cls_ips}{human};
+            $b->{cls_ips}{unattributed}{$_} = 1 for keys %$old;
+        }
+    }
+    for my $e ( @{ $c->{events} || [] } ) {
+        next unless ref $e eq 'HASH';
+        $e->{class} = 'unattributed' if ( $e->{class} // '' ) eq 'human';
+    }
+    return;
 }
 
 sub _save_export_cache {
@@ -1987,7 +2129,7 @@ sub _apply_event {
     $b->{scanner_inferred} += $sign if $cls eq 'scanner' && $inferred;
 
     if ( $st == 404 ) {
-        if ( $cls eq 'human' ) {
+        if ( $cls eq 'unattributed' ) {
             # The cap governs GROWTH only. A reversal must always be allowed
             # through, or a capped map could never shrink and the map would
             # keep a path whose count had gone to nothing.
@@ -2000,12 +2142,35 @@ sub _apply_event {
         else { $b->{nf_junk} += $sign }
     }
 
-    return unless $cls eq 'human';
+    return unless $cls eq 'unattributed';
 
+    # SM941 AV2: THREE OUTCOMES, AND THEY SUM TO THE CLASS.
+    #
+    # This used to be two: successful assets to `asset_hits`, EVERYTHING ELSE to
+    # `hits` - which put every 404 in the visit count. Measured on a live site:
+    # 8,023 of 15,979 reported "human visits" were 404s, so half the headline was
+    # requests for pages that do not exist. And an asset 404 went to `hits` too,
+    # because the old branch required `$st < 400` to reach asset_hits at all.
+    #
+    #   error_hits  anything >= 400. Not a visit: nobody read a page.
+    #   asset_hits  a successful asset fetch. A real request, not a page view -
+    #               counting it made the two reported totals differ by 2,870 with
+    #               no field in the report to reconcile them.
+    #   hits        a successful PAGE view. What a site owner means by a visit.
+    #
+    # cls{unattributed} == hits + asset_hits + error_hits, by construction, and
+    # the report publishes all three so the identity is checkable from the output
+    # rather than taken on trust. That is the whole of what was missing.
+    #
+    # NOTE `no_agent` NEVER REACHES HERE - the return above sees to it - so the
+    # 4,227 empty-UA requests leave the visit counters by construction rather than
+    # by a second rule that subtracts them.
+    #
     # PLO-5: the caller may already have asked, for the same path string.
     $is_asset = _is_asset( $r->{path} ) unless defined $is_asset;
-    if   ( $is_asset && $st < 400 ) { $b->{asset_hits} += $sign }
-    else                            { $b->{hits}       += $sign }
+    if    ( $st >= 400 ) { $b->{error_hits} += $sign }
+    elsif ($is_asset)    { $b->{asset_hits} += $sign }
+    else                 { $b->{hits}       += $sign }
 
     # SM336 item 6: device, on PAGE views only. Counting an asset would report
     # the device that fetched a stylesheet, which is the same device that
@@ -2468,7 +2633,13 @@ sub _tally_batch {
             next unless length $tok && $promoted{$tok};
             next if ( $e->{class} // '' ) eq 'scanner';
             my $b   = $cache->{days}{ $e->{day} // '' } or next;
-            my $was = $e->{class} // 'human';
+            # SM941 AV10: `unattributed` is the fallback because it is the
+            # fall-through class, as `human` was. An entry carrying the LITERAL
+            # string `human` cannot reach here because _migrate_human_class
+            # renames it on load - NOT because the cache is discarded, which is
+            # what I first wrote here and measured false. See the note on that
+            # sub: the cache gate knows nothing about class names.
+            my $was = $e->{class} // 'unattributed';
             _apply_event( $b, $e, $was, -1, $site_host, 0, $NF_CAP );
             _apply_event( $b, $e, 'scanner', 1, $site_host,
                 ( ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour' ), $NF_CAP );
@@ -2495,22 +2666,22 @@ sub _tally_batch {
         # PLO-5: the session gate below and _apply_event both ask whether this
         # path is an asset, for the same string. Asked once, and only for the
         # class either of them acts on - _apply_event returns before its own
-        # test for anything that is not human.
-        my $is_asset = $cls eq 'human' ? _is_asset( $r->{path} ) : undef;
+        # test for anything that is not `unattributed`.
+        my $is_asset = $cls eq 'unattributed' ? _is_asset( $r->{path} ) : undef;
         $b->{basis}{$COUNTING_BASIS} = 1;    # SM338
         $b->{ips}{$tok}              = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
 
         # SM335: bytes and per-class visitors, for the page that used to count
         # them itself. Capped exactly as the visitor set above is, so a scanner
         # arriving under many tokens cannot grow the cache without bound.
-        # SM336: SEQUENCE, for human page views only.
+        # SM336: SEQUENCE, for `unattributed` page views only.
         #
         # A scanner has no journey worth modelling - and until SM332 the top
         # journey on the site would have been a WordPress sweep, which is what
         # made classification quality a prerequisite for this rather than an
         # adjacent concern. An asset is not a step either: it is not an entry
         # page, not an exit page and not a transition (SM329).
-        if ( $cls eq 'human'
+        if ( $cls eq 'unattributed'
             && length $tok
             && ( $r->{status} // 0 ) < 400
             && !$is_asset
@@ -2560,10 +2731,11 @@ sub _tally_batch {
             $NF_CAP, $is_asset );
 
         # SM223: refusals are counted per PATH, for every class rather than
-        # humans only. The case this exists to catch is an asset that became
-        # protected by accident when the ACL's read list started governing the
-        # public path as well as the authoring channels - and an asset is fetched
-        # by whatever the page embeds it in, which is often not classified human.
+        # the `unattributed` group alone. The case this exists to catch is an
+        # asset that became protected by accident when the ACL's read list
+        # started governing the public path as well as the authoring channels -
+        # and an asset is fetched by whatever the page embeds it in, which is
+        # often classified as a bot rather than as a visitor.
         # Capped like the 404 map so a scanner cannot grow the file without bound.
         $b->{auth_refused}{ $r->{path} }++
             if $r->{auth_refused} && keys %{ $b->{auth_refused} || {} } < $NF_CAP;
@@ -3026,16 +3198,37 @@ sub _export_assemble {
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
     my $cutoff_ep = time() - $window * 86400;
     my ( %cls, %uips, %pages, %status, %ref_ext, %nf_pl, %forms, @by_day );
+    my %cls_vis;                      # SM941 AV3: visitors PER CLASS
+    my %bases;                        # SM941 AV10: every basis in the window
     my ( %devices, %terms );          # SM336 items 6 and 7
     my %auth_ref;                     # SM223: paths a visitor was turned away from
     my ( $hits, $ref_internal, $ref_direct, $nf_junk ) = ( 0, 0, 0, 0 );
+    my ( $assets, $error_hits ) = ( 0, 0 );    # SM941 AV2
 
     for my $day ( sort keys %{ $cache->{days} } ) {
         next if $day lt $from_day;
         my $b = $cache->{days}{$day};
         _forms_fold( \%forms, $b->{forms} );    # SM216-2
         $cls{$_} += $b->{cls}{$_} for keys %{ $b->{cls} };
-        $uips{$_} = 1 for keys %{ $b->{ips} };
+
+        # SM941 AV3: ONE POPULATION PER COUNTER, and this one had two.
+        #
+        # This summed $b->{ips} - EVERY class - and sat in the same `totals`
+        # hash as $hits, which is one class. On opendigital.cc that published
+        # 4,359 unique visitors across 4,241 visits: a unique visitor cannot
+        # visit less than once, so the report contradicted itself in two
+        # adjacent fields. The manager page's reader already read cls_ips and
+        # its comment already said why; this is the same read, so the two
+        # projections now answer the question the same way (SM335).
+        #
+        # The whole visitor set is still counted - per class, in
+        # `traffic_classes[].visitors` below, which this change adds for the
+        # purpose. Nothing is lost; it is just no longer added up across six
+        # populations and labelled with the name of one of them.
+        $uips{$_} = 1 for keys %{ $b->{cls_ips}{unattributed} || {} };
+        for my $c ( keys %{ $b->{cls_ips} || {} } ) {
+            $cls_vis{$c}{$_} = 1 for keys %{ $b->{cls_ips}{$c} };
+        }
 
         # SM336 items 6 and 7. Both projections carry them, or an agent reading
         # the export and a sysop reading the page would answer the same
@@ -3047,7 +3240,10 @@ sub _export_assemble {
         $ref_ext{$_}  += $b->{ref_ext}{$_} for keys %{ $b->{ref_ext} };
         $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
+        $bases{$_} = 1 for keys %{ $b->{basis} || {} };    # SM941 AV10
         $hits         += $b->{hits}         // 0;
+        $assets       += $b->{asset_hits}   // 0;
+        $error_hits   += $b->{error_hits}   // 0;
         $ref_internal += $b->{ref_internal} // 0;
         $ref_direct   += $b->{ref_direct}   // 0;
         $nf_junk      += $b->{nf_junk}      // 0;
@@ -3063,6 +3259,13 @@ sub _export_assemble {
         $class_out{$c} = {
             visits => $v,
             share  => ( $total_cls ? sprintf( '%.3f', $v / $total_cls ) + 0 : 0 ),
+
+            # SM941 AV3: the per-class visitor count the retired
+            # `totals.unique_visitors`-over-all-classes was standing in for.
+            # The manager page's projection has carried this since SM335; the
+            # export did not, which is why summing `ips` looked like the only
+            # way to say anything about visitors here.
+            visitors => scalar keys %{ $cls_vis{$c} || {} },
         };
     }
 
@@ -3117,7 +3320,12 @@ sub _export_assemble {
 
     return {
         ok             => JSON::PP::true,
-        schema_version => '2',
+        # SM941 AV10: 3, because `totals.human_visits` is GONE, `months` and
+        # `traffic_classes` gained fields, and the classes are named
+        # differently. One bump for all of it - the rename, the new class and
+        # the moved traffic are ONE schema change, not four, and shipping them
+        # apart would mean three releases each of which contradicts the last.
+        schema_version => '3',
 
         # SM907 AT6: WHICH LOGS WOULD NOT OPEN. Absent when every read was clean,
         # so a caller that finds it knows the counts below are short by an unknown
@@ -3128,21 +3336,129 @@ sub _export_assemble {
         # SM391: which ruleset classified these. Beside schema_version because
         # it answers the same kind of question about the same numbers.
         classifier_version => $CLASSIFIER_VERSION,
-        source             => $source,
+
+        # SM941 AV10: THE BASIS, AND WHETHER THIS WINDOW SPANS A CHANGE OF IT.
+        #
+        # The day files have carried `counting_basis` since SM338, and the day
+        # rollup publishes it - but THIS report, the one an operator and an
+        # agent actually read, published neither. So the instrument that exists
+        # to answer "did the numbers change or did the counting change" could
+        # not be consulted from the output that raises the question.
+        #
+        # `counting_basis_in_window` is a LIST because a window can legitimately
+        # straddle an upgrade. More than one entry means the totals below add
+        # together days counted differently, and the step in the series is the
+        # upgrade rather than the traffic. Basis 4 drops counts sharply (SM941),
+        # so this release is exactly the case that needs saying.
+        counting_basis           => $COUNTING_BASIS,
+        counting_basis_in_window => [ sort { $a <=> $b } keys %bases ],
+        source                   => $source,
         generated          => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         window    => { days => $window, from => $from_day, to => _day_str( time() ) },
         data_from => ( @all_days ? $all_days[0] : undef ),
-        totals => { human_visits => $hits, unique_visitors => scalar keys %uips, pageviews => $hits },
+        # SM941 AV2/AV3/AV4: FOUR COUNTERS, EACH NAMING ITS OWN POPULATION.
+        #
+        # `human_visits` is GONE. It was the same scalar as `pageviews` - one
+        # name read as "people" and the other as "requests", and an operator
+        # comparing them was comparing a number with itself. AV4 ruled that one
+        # name goes rather than both being filled from different counters,
+        # because there was only ever one counter.
+        #
+        #   pageviews + asset_hits + error_hits == traffic_classes.unattributed.visits
+        #
+        # checkable from this output, which is the closing condition SM941 asked
+        # for. `unique_visitors` is now ONE class, matching `pageviews` beside it.
+        totals => {
+            pageviews       => $hits,
+            asset_hits      => $assets,
+            error_hits      => $error_hits,
+            unique_visitors => scalar keys %uips,
+        },
         traffic_classes => \%class_out,
         by_day          => \@by_day,
         months          => \@months,
-        top_pages       => _topn( \%pages, $top_n ),
+
+        # SM941 AV5: WHICH FIELDS THE WINDOW GOVERNS.
+        #
+        # `months` is not window-scoped, and that is deliberate - a 7-day window
+        # showing one month of history would make the field useless. But the
+        # report said so NOWHERE, so a reader comparing `by_day` (which IS
+        # scoped) against `months` found more traffic in the months than the
+        # window admits and reasonably read it as a leak. This is the one SM941
+        # finding that was correct behaviour reading as broken.
+        #
+        # Enumerated per field rather than marked on the two that prompted the
+        # question, because the next reader will ask it about a third. Stated as
+        # data, not reshaped into the fields themselves - a consumer reading
+        # `months` as a list still reads it as a list.
+        window_scoped => {
+            by_day          => JSON::PP::true,
+            totals          => JSON::PP::true,
+            traffic_classes => JSON::PP::true,
+            top_pages       => JSON::PP::true,
+            referrers       => JSON::PP::true,
+            status_codes    => JSON::PP::true,
+            devices         => JSON::PP::true,
+            search_terms    => JSON::PP::true,
+            not_found       => JSON::PP::true,
+            auth_refused    => JSON::PP::true,
+            form_delivery   => JSON::PP::true,
+            months          => JSON::PP::false,    # ALL months on record
+            data_from       => JSON::PP::false,    # the durable horizon
+        },
+
+        # SM941 AV2: WHICH CALLERS EACH FIELD COUNTS.
+        #
+        # The third invariant AV1 asked for was "status_codes sums to a
+        # population the report names", and writing that test is what found
+        # this: `status_codes` counts the `unattributed` class ONLY - the
+        # increment sits below _apply_event's early return - and the report
+        # said so nowhere. Nine requests in a fixture produced six statuses
+        # with nothing to explain the other three.
+        #
+        # That is the right BEHAVIOUR, kept deliberately: a scanner sweep would
+        # otherwise bury a site's real 404s under thousands of probe misses,
+        # and `not_found.junk_count` already reports those separately. What was
+        # missing was the denominator, and an unnamed denominator is the whole
+        # of SM888 S3 - four figures on one screen, each a count of something
+        # different, none of them saying which.
+        #
+        # So every published counter names its population here, in one place a
+        # reader can check, rather than in prose next to each field. The ones
+        # that count EVERYBODY need it most: a reader dividing `auth_refused`
+        # by `pageviews` is dividing across two populations.
+        populations => {
+            pageviews       => 'unattributed',
+            asset_hits      => 'unattributed',
+            error_hits      => 'unattributed',
+            unique_visitors => 'unattributed',
+            top_pages       => 'unattributed',
+            status_codes    => 'unattributed',
+            referrers       => 'unattributed',
+            devices         => 'unattributed',
+            search_terms    => 'unattributed',
+            not_found       => 'unattributed',
+            by_day          => 'all classes, broken down',
+            traffic_classes => 'all classes, broken down',
+            months          => 'unattributed',
+            auth_refused    => 'all callers',
+            events          => 'all callers',
+        },
+
+        # `events` is ABSENT from the window map on purpose. It is filtered to the
+        # window AND bounded by the ring cap, so neither value is true: `true`
+        # would claim it covers the window and `false` would claim it ignores
+        # it. `sample` and `events_capped` below answer it properly, which is
+        # why a third boolean here would be the wrong instrument.
+        top_pages => _topn( \%pages, $top_n ),
         referrers => { direct => $ref_direct, internal => $ref_internal, external => _topn( \%ref_ext, $top_n ) },
         status_codes => { map { ( $_ => $status{$_} ) } keys %status },
         devices      => {%devices},                                        # SM336 item 6
         ( %terms ? ( search_terms => _topn( \%terms, $top_n ) ) : () ),    # SM336 item 7
         not_found => {
-            plausible  => _topn( \%nf_pl, $top_n ),    # a human hit a missing page
+            # SM941: `unattributed` hit a missing page - the group that may
+            # contain people, as opposed to the scanner chorus below it.
+            plausible  => _topn( \%nf_pl, $top_n ),
             junk_count => $nf_junk,                    # scanner-chorus 404s (count only)
         },
         # SM223: paths a visitor was TURNED AWAY from, as opposed to paths that
@@ -3164,7 +3480,26 @@ sub _export_assemble {
         # SM342: the work this call did, so a regression in EFFORT is visible
         # without a stopwatch and without a fast disk to hide it.
         work  => {%WORK},
+        # SM941 AV6/R8: WHAT `unattributed` MEANS, where the person reading the
+        # numbers will see it.
+        #
+        # The old text said the aggregates were "complete" while publishing two
+        # different totals for the same thing, which is how the report came to
+        # assert its own correctness and be wrong. It now says which fields the
+        # window governs (see `window_scoped`), that the counters sum, and - the
+        # part that matters - that `unattributed` is an UPPER BOUND on people
+        # rather than a count of them.
+        #
+        # This is the honest form of what used to be called `human`. We cannot
+        # know a request came from a person; we can know when it did not. So the
+        # class is everything left after the exclusions, it is named for that,
+        # and the note says so instead of the field name making a promise the
+        # code never checked.
         notes =>
-            'Aggregated, IP-anonymised, no filesystem paths. The aggregates (totals/by_day/months/top_pages) are complete over data_from..window.to; "events"/"sample" is a bounded recent SAMPLE, not the dataset.',
+            'Aggregated, IP-anonymised, no filesystem paths. '
+            . '"unattributed" is traffic no rule could attribute to automation - an UPPER BOUND on real people, not a count of them: anything a person did is in here, and so is any automation that declared nothing and behaved like a browser. Requests with no user-agent are "no_agent" and are counted OUTSIDE it. '
+            . 'totals.pageviews + totals.asset_hits + totals.error_hits == traffic_classes.unattributed.visits, and totals.unique_visitors counts the "unattributed" class alone (per-class counts are in traffic_classes). '
+            . 'See "window_scoped" for which fields the window governs; "events"/"sample" is a bounded recent SAMPLE, not the dataset. '
+            . 'counting_basis 4 (SM941): counts here are NOT comparable with a day recorded under an earlier basis.',
     };
 }

@@ -65,13 +65,13 @@ subtest 'a late promotion takes the device with it' => sub {
     my ( $d, $log ) = site(undef);
     append( $log, line( '10.0.0.1', '/', 200 ) );
     my $first = day_rollup( $d, $log );
-    is( $first->{classes}{human} // 0, 1, 'batch 1: one human visit' );
+    is( $first->{classes}{unattributed} // 0, 1, 'batch 1: one human visit' );
     is( $first->{devices}{desktop} // 0, 1, 'batch 1: on a desktop' );
 
     # The same visitor, same client, now sweeps: promoted, reached back.
     append( $log, line( '10.0.0.1', '/wp-login.php', 404 ) );
     my $second = day_rollup( $d, $log );
-    is( $second->{classes}{human} // 0, 0, 'batch 2: the human visit is reversed' );
+    is( $second->{classes}{unattributed} // 0, 0, 'batch 2: the human visit is reversed' );
     ok( $second->{classes}{scanner}, 'batch 2: and counted as scanner' );
     is( $second->{devices}{desktop} // 0, 0,
         'batch 2: the desktop count is reversed with it' )

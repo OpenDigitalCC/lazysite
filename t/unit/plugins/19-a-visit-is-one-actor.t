@@ -96,8 +96,13 @@ subtest 'unique visitors stays ONE - counting keeps the bare token' => sub {
     is( $doc->{unique_visitors}, 1,
         'one address is one visitor, however many actors it carries' );
     is( $doc->{sessions}, 2, 'and two sessions, one per actor' );
-    is( $doc->{counting_basis}, 3,
-        'the day SAYS it counts the new way (SM338 basis 3) - the visit-count '
+    # SM941 bumped this to 4. The assertion is on the CURRENT basis rather than
+    # a literal 3 because that is what the field means - "counted the way this
+    # release counts" - and pinning the number here would make every future
+    # basis change look like a failure of SM417's rule, which is a different
+    # thing entirely.
+    is( $doc->{counting_basis}, 4,
+        'the day SAYS it counts the new way (SM338 basis 4) - the visit-count '
             . 'step is attributable to rules, not traffic' );
 };
 

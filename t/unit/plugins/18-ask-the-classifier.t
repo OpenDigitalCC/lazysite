@@ -45,7 +45,7 @@ subtest 'each class is reachable by construction' => sub {
     is( ask( '--path', '/about', '--ua', 'GPTBot/1.0' )->{class},
         'ai', 'a known AI UA is ai' );
     is( ask( '--path', '/about', '--ua', $BROWSER )->{class},
-        'human', 'a browser on a page is human' );
+        'unattributed', 'a browser on a page is human' );
     is( ask( '--path', '/manager/', '--ua', $BROWSER )->{class},
         'logged_in', 'a browser on the manager surface is operator activity' );
 };

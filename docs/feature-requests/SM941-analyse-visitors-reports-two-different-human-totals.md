@@ -306,6 +306,97 @@ The two sit in the same JSON with no field saying their scopes differ, and the f
 reading of "months sums to 2.6x the total" is that something is broken. A
 `window_scoped: false` on the block, or month rows clipped to the window, settles it.
 
+# BUILT 2026-10-02 (PENDING): AV1-AV10, counting basis 4, schema 3
+
+All ten rows are in, as one change - AV10 required it, and the three sabotage
+cases below show why splitting them would have published a report contradicting
+the last one.
+
+| Ref | State |
+| --- | --- |
+| AV1 | `t/unit/plugins/46-one-report-does-not-contradict-itself.t`, GREEN. Six invariants over ONE call, on a fixture that reaches every counter |
+| AV2 | Three-way split in `_apply_event`: `error_hits` for >= 400, `asset_hits` for a successful asset, `hits` for a successful page. All three published; they sum to the class |
+| AV3 | `unique_visitors` reads `cls_ips{unattributed}`; `traffic_classes[].visitors` added, so the per-class counts the old sum stood in for are still there |
+| AV4 | `totals.human_visits` **removed**. It was the same scalar as `pageviews`; one name goes, because there was only ever one counter |
+| AV5 | `window_scoped`, enumerated per field rather than marked on the two that prompted the question. `events` is ABSENT from it on purpose - neither boolean is true of a field that is window-filtered AND ring-capped |
+| AV6 | `unattributed`, with the upper-bound explanation in `notes` where an operator reads it |
+| AV7 | `no_agent` as its own class, returning BEFORE the visit split |
+| AV8 | `$BOT_RE` += `scanner|fetcher|finder|WordPress/`; `$AGENT_RE` += `lzs-fetch` |
+| AV9 | `$NOISE_RE` += `websocket|socket.io|sockjs-node|\bws\b` |
+| AV10 | `$COUNTING_BASIS = 4`, `schema_version` '3', the ladder entry - and `counting_basis` + `counting_basis_in_window` **published in the report**, which they never were |
+
+**And one row that was not in the plan.** Writing AV1's third invariant found
+that `status_codes` counts the `unattributed` class alone - the increment sits
+below `_apply_event`'s early return - and the report named that population
+nowhere: nine fixture requests produced six statuses with nothing to account for
+the other three. The behaviour is right and is kept (a scanner sweep would
+otherwise bury a site's real 404s). What was missing was the denominator, so
+every published counter now names its population in a `populations` map. That is
+SM888 S3 in the export rather than on the screen, and it was found by writing the
+test the reporter asked for rather than by reading the code again.
+
+## Two things I got wrong in this build, both measured false
+
+**The parked rename.** The first draft of this filing parked AV6 on the claim
+that renaming `human` would break every reader, dashboard and layout. That was an
+assertion, not a measurement. Measured: 8 usages in ONE file, none in `lib/`,
+`tools/`, templates or the front end. Retracted in the body below rather than
+quietly corrected, and recorded as R12.
+
+**The cache.** I wrote a comment in `_apply_event` saying an entry carrying the
+literal string `human` could not survive because `schema_version` 3 would discard
+the cache. It would not. The cache gate is `v`, which distinguishes the
+server-log shape from the first-party shape and knows nothing about class names
+or the counting basis; `schema_version` is a field in the OUTPUT. Nothing would
+have dropped the cache and nothing would have errored - every existing day bucket
+would have kept `cls{human}`, every breakdown is derived from `@CLASSES` which no
+longer lists it, and that traffic would have **vanished from `traffic_classes`
+and `by_day` while remaining inside `hits`**: a sum that does not add up, in the
+release whose purpose is sums that add up. `_migrate_human_class` renames the key
+on load instead. A rename and not a discard, because a basis-3 `human` count IS
+this release's `unattributed` group drawn wider, and `counting_basis` already
+explains the difference. Day FILES are untouched: a closed day is immutable and
+carries its own basis, which is SM338 working rather than an omission.
+
+## The fixtures were lying, and the rename is what exposed it
+
+Three fixtures in `t/unit/plugins/` wrote the visitor log's user-agent as `u`.
+The ingester reads `ua` - the key the processor's own writer emits. So every line
+those fixtures produced reached `classify()` with an **empty user-agent**, the old
+`return 'human'` fall-through swallowed it silently, and the tests passed while
+asserting a class they were not exercising. Nothing in them tested the
+first-party UA path at all. Renaming the class is what made it visible, because
+an empty user-agent now has a name of its own.
+
+`t/unit/manager/159` had the same shape of fault: its fixture payload named
+`human`, and it kept passing after the rename because the draw list comes from
+the payload's own keys - so it was asserting that the page draws whatever it is
+given. Its own header says the page "held its own copy of the list - which is how
+it fell a release behind"; so did the test. It now reads `@CLASSES` from the
+plugin.
+
+## Sabotage, five cases, exact-replacement
+
+| Sabotage | Subtest that fails |
+| --- | --- |
+| 404s go back into the visit count | `every counter the invariants cover has something in it` |
+| `unique_visitors` sums every class again | `unique visitors cannot outnumber their own visits` |
+| an empty user-agent falls through again | `every counter the invariants cover has something in it` |
+| `months` loses its `window_scoped` marker | `the report states its own basis and scope` |
+| `human_visits` comes back beside `pageviews` | `nothing in the report claims to have measured a person` |
+
+**The first attempt proved nothing on four of the five.** It used
+`perl -0pi -e` with `\Q..\E` anchors; three regexes matched nothing, the file
+was unchanged, and the suite passed. Redone in Python as exact string
+replacement, asserting one occurrence BEFORE the run and the byte count after.
+Same mistake as SM824's first attempt, one batch later.
+
+**Worth recording about case 1:** the sum identity STILL HOLDS with 404s inside
+`hits` - `hits` + `asset_hits` equals the class either way, because the split
+moved which counter they are in and not how many there are. The detector is the
+"every counter has something in it" guard, which exists to catch a fixture that
+has stopped exercising a case. It is load-bearing here, not decoration.
+
 # What would close this
 
 The reporter names it, and it is a test rather than a fix:

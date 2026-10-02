@@ -108,7 +108,7 @@ subtest 'the field sweep, replayed' => sub {
             . 'homepage hit stays human the journey metric still reports the '
             . 'scan as the site\'s most popular path.' );
 
-    is( $r->{traffic_classes}{human}{visits}, 0,
+    is( $r->{traffic_classes}{unattributed}{visits}, 0,
         'nothing in this log is a human visit' );
 
     my $today = strftime( '%Y-%m-%d', localtime );
@@ -137,8 +137,8 @@ subtest 'a reader following stale bookmarks stays human' => sub {
             [ '198.51.100.4', '/about',         200, 60 ],
         ] );
 
-    is( class_of( $r, '/old-news' ), 'human', 'three missing pages is not a sweep' );
-    is( class_of( $r, '/about' ),    'human', 'and the page they did find counts' );
+    is( class_of( $r, '/old-news' ), 'unattributed', 'three missing pages is not a sweep' );
+    is( class_of( $r, '/about' ),    'unattributed', 'and the page they did find counts' );
     cmp_ok( scalar @{ $r->{not_found}{plausible} }, '>=', 3,
         'the missing pages are still reported as plausible 404s' )
         or diag( 'SM213 keeps these BY PATH because they tell the site owner '
@@ -152,7 +152,7 @@ subtest 'the same missing path, over and over, is not a sweep' => sub {
     # the whole discriminator, so this is the case that proves it is applied.
     my @req = map { [ '198.51.100.7', '/gone', 404, $_ * 5 ] } 0 .. 11;
     my $r   = export_log( requests => \@req );
-    is( class_of( $r, '/gone' ), 'human',
+    is( class_of( $r, '/gone' ), 'unattributed',
         'twelve requests for one missing path stay human' )
         or diag( 'Counting requests rather than distinct paths turns every '
             . 'stuck client into a scanner.' );
@@ -173,7 +173,7 @@ subtest 'the window is a window' => sub {
     my $j     = 0;
     my $loose = export_log(
         requests => [ map { [ '198.51.100.21', $_, 404, $j++ * 600 ] } @paths ] );
-    is( class_of( $loose, '/missing-1' ), 'human',
+    is( class_of( $loose, '/missing-1' ), 'unattributed',
         'the same eight spread ten minutes apart are not' )
         or diag( 'Without the window this is "eight 404s in a day", which is a '
             . 'site with eight dead links, not a scanner.' );

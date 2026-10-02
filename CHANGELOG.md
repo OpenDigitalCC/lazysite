@@ -44,6 +44,67 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM941 (PENDING) **a visitor report whose numbers agree with each other - and
+  no field that claims to have counted people** (ruled 2026-10-02, R8-R12).
+  **COUNTING BASIS 4, `schema_version` 3: counts DROP SHARPLY on upgrade.**
+
+  Four defects, established from source plus one day of live user-agent data the
+  release manager supplied, all visible in a single call's output:
+
+  1. the two published totals differed by exactly `asset_hits`, which **no
+     projection published** - so there was nothing in the report to reconcile
+     them with (15,979 against 18,849 on the instrument);
+  2. `human_visits` counted 404s as visits - **8,023 of 15,979**, so half the
+     headline was requests for pages that do not exist;
+  3. `unique_visitors` summed EVERY class while sitting beside a one-class
+     figure, publishing 4,359 unique visitors across 4,241 visits - which a
+     unique visitor cannot do;
+  4. `classify()` ended `return 'human'` and **never consulted the
+     `_is_browser` it had computed**, so 4,227 requests with no user-agent were
+     counted as people; 43% of the sampled class was empty-UA or self-declared
+     automation, including our own `lzs-fetch`.
+
+  **`human` becomes `unattributed`**, because it was never a measurement. We
+  cannot know a request came from a person; we can know when it did not. The
+  class is what no rule could exclude, it is named for that, and `notes` says
+  where an operator reads it that the group is an **upper bound** on people. An
+  absent user-agent is its own class, `no_agent`, counted outside the visit
+  counters by construction - it returns before the split rather than being
+  subtracted by a second rule.
+
+  **The counters sum, and the report publishes all three** so the identity is
+  checkable from the output rather than taken on trust:
+
+      pageviews + asset_hits + error_hits == traffic_classes.unattributed.visits
+
+  `unique_visitors` reads the same class `pageviews` does, as the manager page
+  already did. Every counter **names its population** in a `populations` map -
+  writing the invariant test found that `status_codes` counts one class and the
+  report said so nowhere - and `window_scoped` says which fields the window
+  governs. The month series is not window-scoped on purpose and now declares it:
+  the one reported finding that was correct behaviour reading as broken.
+
+  **Also measured false and retracted.** The first draft of the filing parked the
+  rename on the claim that it would break every reader, dashboard and layout.
+  That was an assertion: it is 8 usages in ONE file, none in `lib/`, `tools/`,
+  templates or the front end. And a comment written during this build claimed
+  `schema_version` 3 would discard the stale cache - the cache gate knows nothing
+  about class names, so the old buckets are **migrated** on load instead; without
+  that, their traffic would have vanished from every breakdown while staying
+  inside `hits`, in the release whose purpose is sums that add up.
+
+  **The invariant test found a defect in three fixtures of its own.** They wrote
+  the user-agent as `u` where the ingester reads `ua`, so every line they
+  produced reached the classifier with an EMPTY user-agent and the old `human`
+  fall-through swallowed it: those tests asserted a class they were not
+  exercising. Fixed, and the manager stats-bar test now derives its class list
+  from `@CLASSES` rather than holding a copy, which is the mistake its own header
+  warns about.
+
+  The manager Stats page stops saying "human" in four places, and gains a **Not
+  found** tile so the halved headline has its subtraction visible on the page -
+  SM329's precedent, applied to the same kind of drop.
+
 - SM824 (PENDING) **a layout can emit JSON-LD from front matter that already
   exists** (ruled 2026-10-02: expose a raw copy and ship a filter, rather than
   walk-and-escape `sections`).

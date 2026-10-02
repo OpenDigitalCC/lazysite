@@ -40,19 +40,47 @@ my ($block) = $src =~ /(var LABELS = \{.*?var defs = keys\.map\([^\n]*\);)/s;
 ok( $block, 'the page carries the class-list builder' )
     or do { done_testing(); exit };
 
+# SM941: THE PAYLOAD'S CLASS LIST IS READ FROM @CLASSES, not written here.
+#
+# It was written here, and the rename caught it: `human` became `unattributed`
+# and `no_agent` arrived, and this test went on passing - because the draw list
+# comes from the payload's own keys, so a fixture naming a class the engine no
+# longer sends still produces a bar that sums correctly. It was asserting the
+# page draws whatever it is given, which is true and is not what the file says
+# it checks. The header above says the page "held its own copy of the list -
+# which is how it fell a release behind"; so did this test.
+#
+# Read from the plugin, so the next class to arrive appears here the day it is
+# declared and this stays a test of the PAGE rather than of a list typed twice.
+my $plugin = repo_root() . '/plugins/stats.pl';
+my ($cls_decl) = do {
+    open my $pf, '<', $plugin or die $!;
+    local $/;
+    <$pf> =~ /our \@CLASSES = qw\(([^)]+)\)/;
+};
+ok( $cls_decl, 'the canonical class list was found in plugins/stats.pl' )
+    or do { done_testing(); exit };
+my @classes = split ' ', $cls_decl;
+cmp_ok( scalar @classes, '>=', 4, 'and it is a plausible list' );
+
+# `scanner` keeps the largest count, because its absence being a WRONG TOTAL
+# rather than a visible gap is the whole reason this test exists. Everything
+# else gets a distinct non-zero count so no class can pass by being zero.
+my %hits = ( scanner => 8714 );
+my $n    = 0;
+for my $c ( @classes, 'logged_in' ) {
+    $hits{$c} = 100 + 137 * ++$n unless exists $hits{$c};
+}
+my $payload = join ",\n  ",
+    map { sprintf '%s: { hits: %d, visitors: %d }', $_, $hits{$_}, 3 + $_ =~ tr/a-z// }
+    ( @classes, 'logged_in' );
+
 my $dir = tempdir( CLEANUP => 1 );
 open my $js, '>', "$dir/classes.js" or die $!;
 print {$js} <<"JS";
 // The payload shape stats.pl sends: every class in \@CLASSES plus logged_in.
-// The numbers are the proportions from the field report - scanner is the
-// largest, which is what made its absence a wrong total rather than a gap.
 var d = { classes: {
-  human:     { hits: 4000, visitors: 48 },
-  logged_in: { hits:  100, visitors:  3 },
-  ai:        { hits:  200, visitors:  7 },
-  bot:       { hits:  900, visitors: 20 },
-  noise:     { hits:  950, visitors: 25 },
-  scanner:   { hits: 8714, visitors: 61 }
+  $payload
 } };
 $block
 var mix = defs.map(function (p) { return [p[0], COLOURS[p[0]] || '#8a8a8a']; });
@@ -75,7 +103,7 @@ my $got = eval {
 ok( $got, 'the class-list builder ran' ) or do { done_testing(); exit };
 
 # --- every class the engine sent is drawn ------------------------------------
-for my $c (qw(human logged_in ai bot noise scanner)) {
+for my $c ( @classes, 'logged_in' ) {
     ok( ( grep { $_ eq $c } @{ $got->{keys} } ), "the '$c' class is drawn" );
 }
 
@@ -128,11 +156,25 @@ ok( ( grep { $_ eq 'newcomer' } @{ $un->{labels} } ),
 ( my $code = $src ) =~ s{^\s*//.*$}{}mg;
 
 unlike( $code, qr/tile\('Unique visitors'/,
-    'the human-only figure is not labelled "Unique visitors"' )
+    'the single-class figure is not labelled "Unique visitors"' )
     or diag( 'It showed 48 where totals.unique_visitors was 153 - the same '
         . 'field name meaning two different measurements on two surfaces. The '
-        . 'VALUE is deliberate (it pairs with a human-only Page views); the '
-        . 'label was the wrong half.' );
+        . 'VALUE is deliberate (it pairs with a Page views drawn from the same '
+        . 'class); the label was the wrong half.' );
+
+# SM941: AND NO TILE CLAIMS TO COUNT PEOPLE.
+#
+# The engine never measured that - the class was a fall-through that did not
+# consult the browser test it had computed, so a request with no user-agent was
+# counted as a person. The release manager's instruction was to stop calling it
+# something it is not, so a tile labelled 'People' is now a wrong label in the
+# same way 'Unique visitors' was.
+unlike( $code, qr/tile\('People'/,
+    'no tile is labelled "People" - nothing here counts people' )
+    or diag( 'classify() ended `return \'human\'` and reached that line '
+        . 'whenever no automation rule matched, including for an empty '
+        . 'user-agent: 4,227 such requests on one measured day. The group is '
+        . 'an upper bound on people, and the tile says so.' );
 
 # --- and the panel does not report a scan it never made ----------------------
 unlike( $code, qr/log lines scanned/,

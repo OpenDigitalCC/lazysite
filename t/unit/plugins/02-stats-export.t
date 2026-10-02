@@ -44,8 +44,11 @@ sub run_export {
 
 my $r = run_export();
 ok( $r->{ok}, 'export ok' );
-is( $r->{schema_version},       '2', 'schema_version bumped to 2 (SM213)' );
-is( $r->{totals}{human_visits}, 2, 'two human visits (the AI + scanner are not human)' );
+# SM941 AV10: 3. The rename, the new class and the moved traffic are ONE schema
+# change - `totals.human_visits` is gone, `traffic_classes` gained `visitors`,
+# and the class names differ - so they bump it once between them.
+is( $r->{schema_version},       '3', 'schema_version bumped to 3 (SM941)' );
+is( $r->{totals}{pageviews}, 2, 'two page views (the AI + scanner are elsewhere)' );
 is( $r->{traffic_classes}{ai}{visits}, 1, 'one AI-assistant hit (ClaudeBot)' );
 # SM213: visitor-level scanner classification - the wp-login probe marks its
 # visitor a scanner, so it lands in the scanner class, not noise.
@@ -70,7 +73,7 @@ open my $ap, '>>', $LOG or die $!;
 print $ap line( '7.7.7.7', '/docs', 200, '-', 'Mozilla/5.0 Chrome/120' );
 close $ap;
 my $r2 = run_export();
-is( $r2->{totals}{human_visits}, 3, 'incremental: appended human line counted' );
+is( $r2->{totals}{pageviews}, 3, 'incremental: appended human line counted' );
 is( scalar @{ $r2->{events} },   5, 'incremental: appended event added' );
 
 open my $ch, '<', "$d/lazysite/cache/stats-export.json" or die $!;
@@ -89,9 +92,17 @@ print $ap2 line( '5.5.5.5', '/secrets.json', 404, '-',       'Mozilla/5.0 Chrome
 print $ap2 line( '6.6.6.6', '/moved-page',   404, '-',       'Mozilla/5.0 Safari/16' );
 close $ap2;
 my $r3 = run_export();
-# Would be 5 if the spoofer's homepage counted (3 + spoofer / + the 6.6.6.6 human
-# 404); it is 4, so the spoofer's homepage was pulled out (the +1 is the real 404).
-is( $r3->{totals}{human_visits}, 4, 'spoofer homepage hit is NOT counted as human' );
+# Would be 4 if the spoofer's homepage counted; it is 3, so the spoofer's
+# homepage was pulled out.
+#
+# SM941 AV2: AND THE 404 IS NO LONGER THE +1. This read 4 because the 6.6.6.6
+# browser 404 was counted as a page view - it is a not-found now, so `pageviews`
+# is the three real pages and `error_hits` holds the misses. The 404 is still
+# counted, and still appears in not_found.plausible below, which is the
+# assertion that keeps this honest: the request moved, it was not dropped.
+is( $r3->{totals}{pageviews}, 3, 'spoofer homepage hit is NOT counted as a visit' );
+cmp_ok( $r3->{totals}{error_hits}, '>=', 1,
+    'and the browser 404 is counted as a not-found instead' );
 ok( ( !grep { $_->{key} =~ /reddit/ } @{ $r3->{referrers}{external} } ),
     'spoofed reddit referrer is excluded (its visitor is a scanner)' );
 ok( ( grep { $_->{key} eq '/moved-page' } @{ $r3->{not_found}{plausible} } ),
@@ -117,7 +128,11 @@ ok( -f "$d/lazysite/stats/index.json",             'SM213: durable index written
 
 my $day = decode_json( do { open my $f, '<', "$d/lazysite/stats/daily/$today.json" or die $!; local $/; <$f> } );
 is( $day->{date},      $today, 'day file is dated' );
-is( $day->{pageviews}, 4,      'day rollup counts the human hits (incl. the human 404)' );
+# SM941 AV2: 3, and no longer "incl. the 404" - the day rollup reads the same
+# `hits` counter the window view does, so the correction reaches the durable
+# file too. A day written before this release keeps its own number and says so
+# in its `counting_basis`.
+is( $day->{pageviews}, 3,      'day rollup counts page views, not the 404' );
 ok( exists $day->{top_pages} && exists $day->{classes}, 'day rollup carries aggregates' );
 # Privacy: a durable day file holds aggregates only - no per-visitor list, no IP.
 my $day_json = encode_json($day);

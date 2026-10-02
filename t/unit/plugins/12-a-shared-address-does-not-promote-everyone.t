@@ -71,7 +71,7 @@ subtest 'and it does not take the address with it' => sub {
         or diag( 'This is the control from the field report. A search crawler '
             . 'classified as a scanner means the user-agent was never '
             . 'consulted - the address had already decided.' );
-    is( $tc->{human}{visits}, 1,
+    is( $tc->{unattributed}{visits}, 1,
         'and the person behind the same address is still human' )
         or diag( 'On a corporate NAT or a carrier CGNAT this is every visitor '
             . 'behind one sweep.' );

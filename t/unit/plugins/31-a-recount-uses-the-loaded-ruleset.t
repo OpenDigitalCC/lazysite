@@ -56,7 +56,7 @@ my $e = run('--export');
 is( $e->{classifier_version}, 'test-1', 'the export names the loaded ruleset' );
 my $before = day_file();
 is( $before->{classes}{bot}   // 0, 1, 'Zephyrus is a bot under the loaded rules' );
-is( $before->{classes}{human} // 0, 0, 'and not a human' );
+is( $before->{classes}{unattributed} // 0, 0, 'and not a human' );
 
 my $r = run( '--recount', '--apply' );
 ok( $r->{ok}, 'the recount ran' ) or diag explain $r;
@@ -65,6 +65,6 @@ is( $after->{classifier_version}, 'test-1',
     'the recount classified under the loaded ruleset, and says so' )
     or diag explain $after;
 is( $after->{classes}{bot}   // 0, 1, 'Zephyrus is still a bot' );
-is( $after->{classes}{human} // 0, 0, 'the recount did not invent a human' );
+is( $after->{classes}{unattributed} // 0, 0, 'the recount did not invent a human' );
 
 done_testing();

@@ -57,7 +57,7 @@ sub day_file {
 my $scan = run('--scan');
 ok( $scan->{ok}, 'the page refresh ran' ) or diag explain $scan;
 my $after_scan = day_file();
-is( $after_scan->{classes}{human} // 0, 1, 'the page refresh wrote the day file' );
+is( $after_scan->{classes}{unattributed} // 0, 1, 'the page refresh wrote the day file' );
 is( $after_scan->{forms}{contact}{stored} // 0, 1,
     'and the day file carries the stored submission' )
     or diag explain $after_scan->{forms};

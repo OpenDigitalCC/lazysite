@@ -1078,6 +1078,47 @@ a token that probes a non-existent path is marked a `scanner` and its whole sess
 the probe; 404s split into plausible missing pages (kept by path) vs a junk
 scanner-chorus count.
 
+**A visitor report whose numbers agree with each other** (SM941, 0.15.2): the
+report no longer publishes two different totals for the same thing, and no field
+in it claims to have counted people.
+
+The class that used to be called `human` is **`unattributed`**. It was never a
+measurement: `classify()` reached it as a fall-through whenever no automation
+rule matched, and never consulted the browser test it had already computed - so a
+request with **no user-agent at all** was counted as a person, 4,227 of them on
+one measured day. We cannot know a request came from a person; we can know when
+it did not. So the class is named for what the engine actually did, and the
+report's `notes` say in plain terms that the group is an **upper bound** on
+people rather than a count of them. Requests with no user-agent are their own
+class, `no_agent`, counted outside it. Socket and live-reload endpoints this
+engine never serves are `noise`, and the self-declaration tokens an automated
+client puts in its own user-agent are matched rather than a vendor list - our own
+page fetcher among them.
+
+**404s are no longer visits.** On the measured site 8,023 of 15,979 reported
+"human visits" were requests for pages that do not exist, so half the headline
+was misses. They have their own counter, `error_hits`, and the three counters
+**sum to their class**:
+
+    pageviews + asset_hits + error_hits == traffic_classes.unattributed.visits
+
+checkable from the output, which is what was missing: the two published figures
+differed by exactly `asset_hits` and no projection published that field, so there
+was nothing to reconcile them with. `unique_visitors` reads the same class
+`pageviews` does - it summed every class while sitting beside a one-class figure,
+which is how a report came to publish 4,359 unique visitors across 4,241 visits.
+Every published counter now **names its population**, including the ones that
+count everybody, and `window_scoped` says which fields the window governs (the
+month series deliberately does not, and said so nowhere).
+
+**Counts drop sharply on upgrade, and the report says why.** This is counting
+basis **4** and `schema_version` 3; `counting_basis_in_window` lists every basis
+the window contains, so a window straddling the upgrade declares that its totals
+add together days counted differently. A smaller honest number is the point of
+the change rather than a cost of it, and the manager Stats page shows the
+subtraction - 'Not found' beside 'Images and files' - rather than letting a
+halved headline read as lost traffic.
+
 **Visitor trails** (SM393): the aggregates above answer *how many* took each step
 but cannot answer *in what order* - and order is the one fact that cannot be
 recomputed later, because once the bounded event ring rolls it is gone for good.
