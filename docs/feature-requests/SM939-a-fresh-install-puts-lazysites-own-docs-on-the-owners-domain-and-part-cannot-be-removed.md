@@ -59,6 +59,37 @@ undo something the install did on purpose, and it does not fully work.
 
 The natural default stays as it is; the flag is opt-in.
 
+# MEASURED 2026-10-02 (plan E1), WITH SM933: SAME CAUSE, AND THE PREMISE NEEDS CORRECTING
+
+It was right to measure these together - SM933's A1 answers this filing's second
+fault outright - but the mechanism is **not** the one stated here.
+
+**These directories are NOT created non-writable.** Measured on a fresh provision
+into a fixture, `docs`, `docs/features`, `docs/features/authoring` and
+`docs/integrations` all come out **mode 2775: group-writable, with setgid**, in
+both of SM933's runs. The mode is right and always was.
+
+What is wrong is the **group**. `install.pl` never sets a group on anything it
+writes, so every created path takes whatever the kernel gives it - the docroot's
+group under a setgid docroot, the installing process's primary group otherwise.
+On the live site that group is not the server's, so the server cannot write to a
+directory that is, in every other respect, writable.
+
+The two runs separate it cleanly: with the fixture's docroot group set to the
+serving group, the same directories come out in the serving group and the health
+check passes; with it not set, the same directories come out group-writable by a
+group the server is not in.
+
+**So the obvious remedy here would have changed nothing.** Making these
+directories writable is not the fix, because they already are. E1 is closed by
+whatever closes SM933's PR2, and nothing separate needs building for it - which
+is the opposite of the conclusion a fix driven by this filing's wording would
+have reached.
+
+The first fault - that the install ships ~70 pages of lazysite's own
+documentation onto the owner's domain at all - is untouched by this and remains
+exactly as filed. It is a content decision, not a permissions one.
+
 # Why this should be measured with SM933 rather than beside it
 
 [[SM933]] is the same class: provision wrote a tree the engine could not use and

@@ -108,6 +108,114 @@ The line says what the mode became and not what it was. The evidence of what was
 wrong is gone the moment it is fixed, which is why this filing can measure the
 outcome and not the cause. A repair line should carry the prior value.
 
+# MEASURED 2026-10-02 (PR0 / plan A1): THE MECHANISM IS CANDIDATE 2
+
+Two provisions into a fixture whose docroot carries a group that is **not** the
+invoking user's primary group - which is the shape the field case had -
+recording owner, group and mode of all 202 paths each run creates.
+
+**To reproduce** (no root needed; any group the invoking user is a member of will
+do, and the point is only that it differs from their primary group):
+
+    mkdir -p /tmp/a1/site/public_html /tmp/a1/site/cgi-bin
+    chgrp users /tmp/a1/site/public_html     # a SECONDARY group of yours
+    chmod 0755  /tmp/a1/site/public_html     # run A; use 2775 for run B
+    perl install.pl --mode provision \
+      --docroot /tmp/a1/site/public_html \
+      --cgibin  /tmp/a1/site/cgi-bin \
+      --serving-group users
+    find /tmp/a1/site/public_html -printf '%g %m\n' | sort | uniq -c
+
+The last line is the whole measurement: it buckets every path by group and mode,
+so one run answers which group the install actually produced. Run A here gives
+
+          2 claude 2770
+         25 claude 2775
+          3 claude 640
+        169 claude 644
+          3 claude 664
+          1 users 755
+
+- 202 paths in the primary group, and the single `users` entry is the docroot
+itself, which the fixture set and provision did not touch.
+
+| | docroot | group of every created path |
+| --- | --- | --- |
+| run A | 0755, group `users` | `claude` - the **process's primary group**, all 202 |
+| run B | 2775, group `users` | `users` - the **docroot's** group, all 202 |
+
+**Candidate 1 is refuted.** If the code inherited the parent's group, run A would
+have produced `users`. It produced `claude` on all 202 paths, starting with
+`.well-known`, whose parent *is* the docroot.
+
+**Candidate 3 is refuted.** Ordering would show a transition. Run A is uniformly
+the primary group from the first created directory to the 202nd, with no boundary
+anywhere in creation order.
+
+**Candidate 2 is confirmed, and it is wider than this filing supposed.** It is not
+"a directory made by `make_path` without a following `secure_write_perms`". It is
+that `install.pl` **never sets a group on anything it writes**. `install_file`
+copies and then `chmod mode_for($dest)`; `make_declared_path` creates with a
+declared mode. Neither calls `secure_write_perms`, which is the helper that exists
+for exactly this and which SM215 wrote the group-inheritance rule into. So the
+group of everything provision produces is whatever the kernel hands it: the
+parent's group under a setgid directory, the process's primary group otherwise.
+
+**The helper works - it is simply not called.** Measured separately, because
+"called and failing silently" and "not called" are different faults and the
+helper's own comment calls the non-root chown "best-effort": pointed at a file
+and a directory under a parent whose group is not ours,
+`Lazysite::Util::secure_write_perms` chgrps both to the parent's group as
+non-root. One line to confirm on any host:
+
+    perl -Ilib -MLazysite::Util -e 'Lazysite::Util::secure_write_perms($ARGV[0], 0664)' <path>
+
+The capability is present and unused.
+
+## The path this leaves broken is the private store, and setgid cannot save it
+
+Run B is the field shape - the real docroot was 2775 - and it still fails one
+check:
+
+    [ FAIL ] the private store exists but the engine cannot write to it
+             (<docroot>-lazysite-private, owner claude:claude, mode 2770)
+
+In **both** runs the private store is `claude:claude` while the docroot is
+`claude:users`. It is created **beside** the docroot, so the docroot's setgid bit
+never reaches it and it takes the group of the **site root** instead. On a Hestia
+domain the site root is `<user>:<user>` and the serving group is `www-data`, so
+this path is wrong on every such host, and nothing in the install said so until
+PR1 wired the health check in.
+
+This is the sharpest available statement of what PR2 has to fix, and it is not
+what the incident's own diagnosis pointed at.
+
+## A3/PR3's premise needs re-measuring before it is built
+
+**Every directory provision creates already carries setgid** - 0 without it, in
+both runs, 27 directories each. So the field report's "five directories left
+without setgid" cannot be describing directories provision had just created in
+that state. Either they pre-dated the install, or something reset them afterwards
+(the vhost-rebuild hazard PR5 now names). A3 should not be built against a
+premise this measurement contradicts; what it needs first is the five paths from
+the field report by name.
+
+## What this hands the release manager to rule
+
+`secure_write_perms` inherits the group **from the parent directory**, and for the
+private store the parent is the site root - which is the wrong source. So "call
+the helper that already exists" fixes the paths inside the docroot and gets the
+private store wrong for the same reason it is wrong now. The choice is therefore:
+
+- **(a) inherit from the DOCROOT**, not from the immediate parent, for anything
+  provision creates outside it; or
+- **(b) chgrp to `--serving-group`**, the value the health check is already
+  comparing against, and treat the docroot's own group as advisory.
+
+(b) is narrower and says out loud which group the site is for; (a) keeps one rule
+("the site tree's group") and needs no new argument on the command line to be
+correct. Not decided here.
+
 # What is NOT established, and must be measured first
 
 **Why the engine tree carried a group the CGI is not in.** Three candidates, and

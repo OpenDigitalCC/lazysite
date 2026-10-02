@@ -74,9 +74,9 @@ nobody has met, from a silent 500 into a named line at install time.
 
 | Ref | PR | The work | Cx | Blocked on |
 | --- | --- | --- | --- | --- |
-| A1 | PR0 | **Measure first**: provision into a fixture and record owner, group and mode of every path it creates. Three candidate mechanisms are on the table and the filing refuses to assume between them | S | nothing |
-| A2 | PR2 | Provision leaves the tree reachable by the CGI, or refuses naming the path it could not place | M | A1 - the remedy depends on which mechanism it is |
-| A3 | PR3 | Setgid on the directories provision creates, so the model it declares is the model it produces | S | A1 |
+| A1 | PR0 | **MEASURED** (n233). Candidate 2, and wider than the filing supposed: `install.pl` never sets a group on anything - the kernel decides. Candidates 1 and 3 refuted (run A gave the PRIMARY group on all 202 paths, uniformly, from the first created directory). `secure_write_perms` works and is **never called** from the install path | S | nothing |
+| A2 | PR2 | Provision leaves the tree reachable by the CGI, or refuses naming the path it could not place. **A1 names the path: the PRIVATE STORE**, created beside the docroot, so setgid never reaches it - it takes the SITE ROOT's group in both runs. **NEEDS A RULING** before building: `secure_write_perms` inherits from the immediate parent, which for this path is the wrong source. Inherit from the docroot, or chgrp to `--serving-group`? | M | a ruling, not A1 |
+| A3 | PR3 | **PREMISE CONTRADICTED** by A1: every directory provision creates already carries setgid (0 without it, 27 directories, both runs). The field report's five cannot be paths provision had just made that way - they pre-dated it or were reset later (PR5's hazard). **Do not build until the five are named from the field**; a fix against this premise would change nothing and read as closed | S | the five paths, by name |
 | A4 | PR1 | **Provision ends by running the check it already ships with**, and prints the result. A fresh install either says healthy or names its own fault | S/M | nothing |
 | A5 | PR4 | `--fix` may correct modes on paths the install state declares - the engine's own output, not somebody's choice (R3) | S | nothing |
 | A6 | PR5 | Next steps names the rebuild hazard: any vhost rebuild can reset modes, so re-run the check after one | S | nothing |
@@ -135,7 +135,7 @@ underlying problem: notification is invisible from the manager."
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| E1 | [[SM939]] - a fresh install ships lazysite's own demo and ~70 docs pages **on the owner's domain**, and `docs/features/` (plus three subdirectories) and `docs/integrations/` are created non-writable by the server, so that content **cannot be removed through any token surface**. Three of four sitemap pages on a named live site cannot be taken out of it | M | **likely shares A1's cause** - measure once, fix both |
+| E1 | [[SM939]] - **MEASURED with A1 (n233), and the premise was wrong**: those directories are created **2775, group-writable with setgid**. The mode was never the fault - the GROUP is, and it is A1's cause exactly. E1's permissions half therefore needs NO separate build; it closes when A2 closes. Making them writable would have changed nothing. The content half (~70 docs pages on the owner's domain) is untouched and stands as filed | M | A2, for the permissions half. The content half needs a ruling |
 | E2 | [[SM939]] SC3 - an install flag for no starter content. The reporter's own priority: "Low priority next to item 1" | S | E1 |
 
 E1's permissions half is a defect and is almost certainly the same mechanism as
