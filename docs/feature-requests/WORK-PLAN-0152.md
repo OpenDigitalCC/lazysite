@@ -111,6 +111,19 @@ E1's permissions half is a defect and is almost certainly the same mechanism as
 fixture measurement should cover `docs/` as well as `lazysite/`, so one measurement
 answers both.
 
+# Group G - the front-matter parser
+
+| Ref | The work | Cx | Blocked on |
+| --- | --- | --- | --- |
+| G1 | [[SM940]] - a quoted scalar in a block sequence under `sections:` is read as a mapping, so `- 'https://x'` becomes `{ "'https" => "//x'" }`. Silent: the layout gets maps where it expected strings and the page merely renders wrong. **Reported against 0.14.4 and reproduced here against 0.15.1** | S | nothing |
+
+G1 is an ordering change in one sub with one definition and no pinned copy, so ADR
+0001 does not apply. The filing records why the obvious spelling of the fix is wrong:
+a line that merely starts and ends with a quote also describes `'a': 'b'`, a
+legitimate quoted-key mapping, so the test must be that the opening quote CLOSES at
+the end of the line. That case has to be in the tests or the fix trades one defect
+for another.
+
 # Group F - held, and one of them asks a question
 
 | Ref | What | Why held |
@@ -128,11 +141,17 @@ answers both.
 
 # What this plan is honest about
 
-**All seven inbox reports are now filed** - [[SM934]], [[SM935]], [[SM936]],
+**All eight inbox reports are now filed** - [[SM934]], [[SM935]], [[SM936]],
 [[SM937]], [[SM938]] (two reports, merged because the second says they are one
-problem) and [[SM939]], with the JSON-LD measurements folded into [[SM824]] because
-the report that carried them asked for that rather than a filing of its own. The
-reports have moved to `inbox/archive/`.
+problem), [[SM939]] and [[SM940]], with the JSON-LD measurements folded into
+[[SM824]] because the report that carried them asked for that rather than a filing of
+its own. The reports have moved to `inbox/archive/`.
+
+The eighth arrived after the other seven were filed and is the same class as the
+JSON-LD measurements it follows: **quoting loses.** It was reported against 0.14.4,
+and the thing worth carrying is that it reproduces against the current tree - a
+report against a released version is checked before it is scheduled, because the
+answer is sometimes "already fixed", and here it is not.
 
 One of them closed a question on the way past: D1 is answered rather than scheduled.
 
