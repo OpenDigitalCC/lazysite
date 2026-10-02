@@ -62,6 +62,37 @@ is the only thing that says whether the emitted block is understood.
 2026-09-10. The doc cites this as "the existing D011 discoverability scope,
 promoted"; D011 has no filing in this tree, so this is its first.
 
+# Three measurements a layout needs before it can emit this, 2026-10-02
+
+Offered by the sites agent as input to this filing rather than as a separate ask -
+"not a duplicate ask... so SM824 can be scoped against measurements rather than
+estimates". **Self-graded B: measured locally against the engine source and TT 2.27,
+no live site involved.**
+
+| # | Measured | Consequence for this filing |
+| --- | --- | --- |
+| 1 | The head meta variables reach a layout **already HTML-escaped** - `_esc_html` is applied in stash assembly over `page_meta_title`, `page_meta_desc`, `page_title`, `page_subtitle`, `page_author` and `page_<key>` - and there is no inverse | A layout cannot recover the author's text to put it in JSON. Escaped entities inside a JSON string are wrong rather than merely ugly |
+| 2 | **There is no `json` filter reachable from a layout.** The `%tt_opts` `FILTERS` block ships `markdown` and no JSON encoder | Even with the raw text, a layout cannot encode it safely. Hand-rolled quoting in a template is the thing this would exist to avoid |
+| 3 | `sections` reaches the layout **raw** (`sections => $meta->{sections} || []`), against the stated single-escape-point invariant | The invariant already has an exception, which is why item 3 is a decision and not a defect report |
+
+**The decision it asks for**, in the reporter's words: *"If the engine would rather
+hold the line at one escape point, a walked-and-escaped `sections` would do it
+instead - but then it must expose a raw copy, or item 2 has nothing left to escape...
+One of the two. Not neither, and not both silently."*
+
+So the choice is:
+
+- **expose a raw copy** of the meta values and ship a `json` filter - the single
+  escape point gains a documented exception, and a layout can emit correct JSON; or
+- **walk and escape `sections`** so the invariant holds everywhere - and then accept
+  that JSON-LD from front matter is not reachable from a layout at all.
+
+**The report de-rates its own security angle, and that matters for sizing:** it notes
+that an XSS-shaped payload in front matter renders through the shipped `bio-modest`
+components, and then says plainly, *"Grading this honestly: it is not an escalation.
+Only the page author can write front matter, and that same author can already put raw
+HTML in the page body."* Nothing is reachable that was not reachable before.
+
 # EXTENSION OR CORE, researched 2026-09-10: extension, and it is blocked on a hook
 
 The release manager asked which this should be, with extension preferred. The

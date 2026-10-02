@@ -60,8 +60,8 @@ answering its questions.
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| B1 | **Declared field rules enforced server-side, a breach refused with the field and the rule named** (R1). To file first - there is no filing for it yet | M | nothing. **Carries a hazard, below** |
-| B2 | The form rate limit buckets on a **calendar hour** (`"$ip:$hour"`, `$hour = int(time/3600)`), so five submissions at 10:59:59 and five at 11:00:00 is ten in one second within the rules. A rolling window, or the boundary stated as deliberate | S | nothing |
+| B1 | [[SM934]] - declared field rules enforced server-side, a breach refused with the field and the rule named (R1) | M | nothing. **Carries a hazard, below** |
+| B2 | [[SM935]] - the form rate limit buckets on a **calendar hour** (`"$ip:$hour"`, `$hour = int(time/3600)`), so five submissions at 10:59:59 and five at 11:00:00 is ten in one second within the rules. A rolling window, or the boundary stated as deliberate | S | nothing |
 | B3 | The SQLi report's five candidate detection signatures. **Not ruled, and offered as signatures rather than a request.** Two of the five are already covered: the own-domain sender ([[SM930]]) and "a value in a field declared `email` that does not parse" (B1) | - | a ruling, if ever |
 
 **B1's hazard, which must be designed for rather than discovered.** Refusing on a
@@ -82,8 +82,8 @@ browser gives up:
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| C1 | **A deleted page's ACL outlives it** and is inherited by the next page written at that path. Observed failing safe (draft, so a 404) - *the direction of the accident is not a property of the mechanism*: a `read:` list on a reused path grants a read nobody granted, as silently. Two fixes: a content delete takes the path's rule with it or says it has not; a create at a path carrying a rule reports it. Also worth checking for `data-table-acl-set` on a dropped table, and for `rename_page`/`move_file` | M | nothing |
-| C2 | `acl_set` with `draft: true` answers `reads_unrestricted: 1` and "anyone may still fetch these pages" while the pages 404 to the public. The note measures the read **list** and reports it as the read **outcome** | S | nothing |
+| C1 | [[SM936]] - a deleted page's ACL outlives it and is inherited by the next page written at that path. Observed failing safe (draft, so a 404) - *the direction of the accident is not a property of the mechanism*: a `read:` list on a reused path grants a read nobody granted, as silently. Two fixes: a content delete takes the path's rule with it or says it has not; a create at a path carrying a rule reports it. Also worth checking for `data-table-acl-set` on a dropped table, and for `rename_page`/`move_file` | M | nothing |
+| C2 | [[SM937]] - `acl_set` with `draft: true` answers `reads_unrestricted: 1` and "anyone may still fetch these pages" while the pages 404 to the public. The note measures the read **list** and reports it as the read **outcome** | S | nothing |
 
 C1 is the one with a security direction. C2 is the shape the reporter named well:
 "the shape of defect that makes a correct operator do the wrong thing."
@@ -95,16 +95,16 @@ underlying problem: notification is invisible from the manager."
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| D1 | **Answer the question first**: what a `submission` notice's `url` resolves to on a current build. The report asks explicitly - "If that is already true in 0.15.1, the answer to the operator is an upgrade rather than a change… please say so explicitly" - and SM928 defect 4 may already have closed it | S | nothing |
-| D2 | Whether a submission reaches XMPP is decided in three places and only one has any UI, so an operator cannot confirm or diagnose it. The reporter's own ranking puts "the smallest change" first | M | D1 |
-| D3 | Bell read state is implicit and whole-list: opening the panel marks everything seen, with no per-notice mark or dismiss. The report calls this "a design gap, not a bug" and ranks three asks | M | D1 |
+| D1 | **ANSWERED 2026-10-02, in [[SM938]]**: a submission notice carries `url => '/manager/handlers'` today. On 0.14.4 the operator saw `/manager/plugins`; SM928 defect 4 moved it. So an upgrade improves it and does NOT close it - both are a manager section, and nothing addresses a single submission, so the rest is an addressable view rather than a changed string | - | done |
+| D2 | [[SM938]] - whether a submission reaches XMPP is decided in three places and only one has any UI. The reporter's own ranking puts "the smallest change" first | M | nothing now D1 is answered |
+| D3 | [[SM938]] - bell read state is implicit and whole-list: opening the panel marks everything seen. The report calls this "a design gap, not a bug" and ranks three asks | M | nothing |
 
 # Group E - what a fresh install puts on somebody's domain
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| E1 | A fresh install ships lazysite's own demo and ~70 docs pages **on the owner's domain**, and `docs/features/` (plus three subdirectories) and `docs/integrations/` are created non-writable by the server, so that content **cannot be removed through any token surface**. Three of four sitemap pages on a named live site cannot be taken out of it | M | **likely shares A1's cause** - measure once, fix both |
-| E2 | An install flag for no starter content. The reporter's own priority: "Low priority next to item 1" | S | E1 |
+| E1 | [[SM939]] - a fresh install ships lazysite's own demo and ~70 docs pages **on the owner's domain**, and `docs/features/` (plus three subdirectories) and `docs/integrations/` are created non-writable by the server, so that content **cannot be removed through any token surface**. Three of four sitemap pages on a named live site cannot be taken out of it | M | **likely shares A1's cause** - measure once, fix both |
+| E2 | [[SM939]] SC3 - an install flag for no starter content. The reporter's own priority: "Low priority next to item 1" | S | E1 |
 
 E1's permissions half is a defect and is almost certainly the same mechanism as
 [[SM933]]: directories created with a group or mode the server cannot write. A1's
@@ -115,7 +115,7 @@ answers both.
 
 | Ref | What | Why held |
 | --- | --- | --- |
-| F1 | Three measured obstacles to a layout emitting JSON-LD: head meta vars are HTML-escaped with no inverse, there is no `json` filter reachable from a layout, and `sections` reaches the layout raw against the single-escape-point invariant. Input to [[SM824]], self-graded B, measured locally | **Asks a ruling**: expose a raw copy plus a `json` filter, or walk-and-escape `sections`. The reporter's words: "One of the two. Not neither, and not both silently." Park until SM824 is picked |
+| F1 | **FOLDED INTO [[SM824]] 2026-10-02** - three measured obstacles to a layout emitting JSON-LD: head meta vars are HTML-escaped with no inverse, there is no `json` filter reachable from a layout, and `sections` reaches the layout raw against the single-escape-point invariant. Input to [[SM824]], self-graded B, measured locally | **Asks a ruling**: expose a raw copy plus a `json` filter, or walk-and-escape `sections`. The reporter's words: "One of the two. Not neither, and not both silently." Park until SM824 is picked |
 
 # Not in 0.15.2
 
@@ -128,10 +128,13 @@ answers both.
 
 # What this plan is honest about
 
-**Five of the seven inbox reports have no filing yet.** They are dispositioned here
-and that is not the same as filed; B1, B2, C1, C2, D1-D3, E1 and E2 each need a
-filing before they are built, and the reports they come from stay in the inbox until
-they have one.
+**All seven inbox reports are now filed** - [[SM934]], [[SM935]], [[SM936]],
+[[SM937]], [[SM938]] (two reports, merged because the second says they are one
+problem) and [[SM939]], with the JSON-LD measurements folded into [[SM824]] because
+the report that carried them asked for that rather than a filing of its own. The
+reports have moved to `inbox/archive/`.
+
+One of them closed a question on the way past: D1 is answered rather than scheduled.
 
 **Two reports were explicit about what they do not claim**, and the sizes above
 respect it: the bell report is "not reproduced on a test instance" and says part of
