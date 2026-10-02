@@ -70,6 +70,80 @@ engine.
 | FV4 | The refusal is a user-facing one in the handler's existing voice (`reject_user`), not a 500 and not a silent store |
 | FV5 | A test per rule, and one that a form carrying an uncompilable pattern still accepts an ordinary submission - the SM921 case, asserted from the server side this time |
 
+# BUILT 2026-10-02 (PENDING): FV1-FV5, and the contract's home was a ruling
+
+| Ref | State |
+| --- | --- |
+| FV1 | `validate_fields` in the handler, called on the submission path after the blank check and before scoring and delivery. Every refusal names the field and the rule |
+| FV2 | A `pattern` the BROWSER could not compile is treated as absent - `Lazysite::Validate::html_pattern_problem` asked by name, per lint 204. A pattern that is not compilable as Perl either is also absent |
+| FV3 | `required` binds only on fields the sidecar lists, which is the list of declarations - so a visitor can never be refused for a field they were not shown |
+| FV4 | `reject_invalid`, in the handler's existing voice. Not a 500, not a silent store - and NOT the anti-spam `blocked` counter (below) |
+| FV5 | `t/unit/forms/31`, one case per rule plus the SM921 case asserted from the server side. Nine sabotages |
+
+## The part that needed a ruling, and the measurement that forced it
+
+FV1 could not be built as written. **A form's field rules were not available to
+the handler at all** - they live in the page's `:::form` block, and the handler's
+own comment says the `.conf` "carries targets and upload limits, not fields". So
+the rules had to be given a route to the submission, and `_page` is not one:
+measured, it is visitor-supplied and validated only as a same-site path, tied to
+nothing. A submitter could have named a page with no rules and bypassed the lot.
+
+The release manager ruled a **render-time sidecar** over the two alternatives:
+
+| Option | Why not |
+| --- | --- |
+| rules in the `.conf` | a hand-edited `:::form` block drifts from the conf, and the server then enforces a rule the browser never showed - SM921's hazard in its original direction |
+| handler parses the page named in the `.conf` | sound, but a second implementation of the form grammar, or an extraction of the processor's parser - M becomes L |
+| **render-time sidecar** | what the server enforces is what the visitor was served. Drift is impossible by construction |
+
+It lives beside the form's conf rather than in the cache, so a cache clear does
+not leave a form enforcing nothing until its page is fetched again.
+
+## What the build found that the filing did not anticipate
+
+**A validation refusal is not an anti-spam block, and the first version made it
+one.** Every `reject_user` with a reason code feeds the `blocked` tally, which the
+report publishes as "controls stopped N". A visitor who mistyped their email met
+no control. `t/unit/forms/16` caught it - its roll-call demands that every refusal
+code be driven by a counted case - and the fix is a separate outcome with its own
+counter (`invalid`, by rule), folded and published beside `blocked`. Conflating
+them would have been the two-populations-in-one-counter fault SM941 spent the same
+release removing from the visitor report.
+
+**And that gate was then blind to the channel it had just forced into existence.**
+Its roll-call enumerates `reject` / `reject_user`; the new codes are raised through
+`reject_invalid`, so once they moved, the file passed again without checking any of
+them. A gate whose purpose is "an uncounted control is invisible to the sysop" was
+itself blind to a new control. It now follows the channel rather than the spelling,
+and asserts the codes are namespaced so a reader can tell the two kinds apart.
+
+## Sabotage: nine cases, exact replacement
+
+| Sabotage | Subtest that fails |
+| --- | --- |
+| nothing is enforced at all | `the submission path calls it, in the right place` |
+| an uncompilable-in-HTML pattern is enforced anyway | `FV2: a pattern the browser would IGNORE is ignored here too` |
+| the pattern match is unanchored | `pattern is enforced, ANCHORED as the browser anchors it` |
+| every blank declared field is refused | `an optional declared field may be empty` |
+| a number field records a length bound | `max is a LENGTH on text and a VALUE on a number` |
+| the sidecar is never written | `rendering the form wrote its rules sidecar` |
+| the tel default pattern is left out | `the sidecar records what the browser was told` |
+| a validation refusal is also counted as a block | `a declared-rule breach is counted as invalid, NOT as a block` |
+| a validation refusal is not counted at all | same |
+
+**Two of them found holes in my own test rather than confirming it.** Deleting the
+call from the submission path left the whole file passing, because the lifted sub
+is invoked directly and nothing exercised the call SITE - a validator nobody calls
+is this filing's own subject. And the test had no case for an empty OPTIONAL
+declared field, so "refuse every blank field" passed too. Both are now asserted.
+
+**And the non-vacuity guard earned its place.** Introducing `reject_invalid` left
+the lifted `validate_fields` calling an undefined sub: it died inside the eval,
+recorded no refusals, and every assertion in the file would have passed vacuously.
+The guard - one refusal must happen at all - caught it, and both subs are lifted
+now rather than one being stubbed.
+
 # What this filing does not claim
 
 - **Not** that the storage path is injectable. The evidence says the opposite.

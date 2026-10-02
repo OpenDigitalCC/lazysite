@@ -75,6 +75,9 @@ sub submit {
     my $tk = defined $o{tk} ? $o{tk} : hmac_sha256_hex( $ts, $SECRET );
     my %f = ( _form => ( defined $o{form} ? $o{form} : 'contact' ),
         name => 'x', _hp => ( defined $o{hp} ? $o{hp} : '' ), _ts => $ts, _tk => $tk );
+    # SM934: extra visible fields, for the cases that need a value to be wrong
+    # about. Merged last so a case can override `name` too.
+    %f = ( %f, %{ $o{fields} } ) if ref $o{fields} eq 'HASH';
     my $body = join '&', map { "$_=$f{$_}" } sort keys %f;
     my $bf = "$docroot/.body";
     open my $b, '>', $bf or die $!;
@@ -175,6 +178,50 @@ subtest 'rate: the limit blocks and is counted under its own reason' => sub {
     is( $blocked[0] ? $blocked[0]{reason} : '(none)', 'rate', "under 'rate'" );
 };
 
+# --- SM934: the second refusal channel, and it must not land in `blocked` ----
+#
+# THIS SECTION EXISTS BECAUSE THE ROLL-CALL BELOW DID NOT CATCH IT. SM934 added
+# seven refusal codes for declared-rule breaches, and this file went on passing -
+# its regex looks for `reject` / `reject_user` and the new ones are raised through
+# `reject_invalid`. A gate whose whole purpose is "an uncounted control is
+# invisible to the sysop" was itself blind to a new channel, which is the same
+# shape as the defect it guards.
+#
+# The codes are counted, under their OWN outcome. `blocked` means an anti-spam
+# control fired and the report publishes it as "controls stopped N"; a visitor
+# who mistyped their email met no control. Folding the two together would be the
+# two-populations-in-one-counter fault SM941 spent the same release removing from
+# the visitor report.
+#
+# THE SIDECAR HERE IS HAND-WRITTEN, which is only safe because
+# t/unit/forms/31 renders a real form and asserts the schema this file assumes.
+# That pairing is deliberate: one file pins what the engine WRITES, this one pins
+# what the handler DOES with it. Neither is sound alone.
+subtest 'a declared-rule breach is counted as invalid, NOT as a block' => sub {
+    my $docroot = site();
+    open my $rf, '>', "$docroot/lazysite/forms/contact.rules" or die $!;
+    print {$rf} '{"form":"contact","version":1,"fields":['
+        . '{"name":"email","type":"email","bound":"length","max":1000}]}';
+    close $rf;
+
+    my $out = submit( $docroot, fields => { email => 'not-an-address' } );
+    unlike( $out, qr/"ok":1/, 'the submission was refused' ) or diag($out);
+    like( $out, qr/email/, 'and the message names the field' );
+
+    my @ev = events($docroot);
+    my @blocked = grep { ( $_->{outcome} // '' ) eq 'blocked' } @ev;
+    my @invalid = grep { ( $_->{outcome} // '' ) eq 'invalid' } @ev;
+
+    is( scalar @blocked, 0, 'nothing was counted as a blocked submission' )
+        or diag( 'A mistyped email counted as a spam block would tell the sysop '
+            . 'their controls stopped something. No control fired.' );
+    is( scalar @invalid, 1, 'and it was counted as invalid' )
+        or diag( 'Not counting it at all would hide a form whose rule is wrong, '
+            . 'or a field nobody understands - both worth seeing.' );
+    is( $invalid[0] ? $invalid[0]{reason} : '(none)', 'field_email',
+        'under the rule that refused it' );
+};
+
 # --- and what must NOT be counted -------------------------------------------
 
 subtest 'a refusal that is not an anti-spam control is not counted' => sub {
@@ -243,6 +290,28 @@ subtest 'every anti-spam control in the source declares a reason code' => sub {
         ok( $declared{$code}, "'$code' is still raised by the source" )
             or diag( 'This file drives a code the handler no longer produces, '
                 . 'so its case above is testing nothing.' );
+    }
+
+    # SM934: THE SECOND CHANNEL IS ROLL-CALLED TOO.
+    #
+    # The loop above reads `reject` / `reject_user`. `reject_invalid` is a third
+    # spelling, and when it arrived this file passed without noticing seven new
+    # codes - so the enumeration has to follow the channel rather than the name
+    # it happened to be written with. Every one of them must be a code the
+    # `invalid` subtest above can reach, because a code nobody drives is a
+    # counter nobody has seen work.
+    my %invalid_declared;
+    while ( $src =~ /reject_invalid\(\s*(?:"[^"]*"|'[^']*')(?:\s*\.\s*(?:"[^"]*"|'[^']*'))*\s*,\s*'([a-z_]+)'\s*\)/g ) {
+        $invalid_declared{$1}++;
+    }
+    cmp_ok( scalar keys %invalid_declared, '>=', 4,
+        'the validation channel was parsed (four or more codes found)' )
+        or diag( 'If this drops to zero the call shape changed and the check '
+            . 'below passes by comparing two empty sets - which is exactly how '
+            . 'the roll-call missed this channel when it was added.' );
+    for my $code ( sort keys %invalid_declared ) {
+        like( $code, qr/^field_/,
+            "'$code' is namespaced, so a reader can tell it from a spam block" );
     }
 };
 

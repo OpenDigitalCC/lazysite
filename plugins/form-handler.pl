@@ -84,6 +84,20 @@ our ( $REDIRECT_PAGE, $REDIRECT_FORM ) = ( '', '' );
 # silent empty value. The reasoning for the mechanism is with those subs.
 our $BLOCK_REASON = '';
 
+# SM934 FV4: A VALIDATION REFUSAL IS NOT AN ANTI-SPAM BLOCK.
+#
+# $BLOCK_REASON feeds the `blocked` counter, and that counter's own comment says
+# what it means: "an anti-spam control blocked this POST - count it so the report
+# shows `controls stopped N`". A visitor who mistyped their email address did not
+# meet a control, and folding the two together would tell an operator their spam
+# defences stopped twenty things when twenty people made a typo - two populations
+# in one number, which is the fault SM941 spent a release removing from the
+# visitor report.
+#
+# So validation refusals travel on their own channel and are counted under their
+# own outcome. Nothing is lost and nothing is conflated.
+our $INVALID_REASON = '';
+
 # SM579: THE SENTENCES A SUCCESSFUL SUBMISSION MAY BE TOLD, keyed by the outcome
 # token that selects one. Declared HERE for the third time for the same
 # file-order reason as the two above - the main flow chooses a sentence long
@@ -252,6 +266,9 @@ eval {
     }
     reject_user('Please fill in the form before submitting.') unless $has_content;
 
+    # SM934 FV1: the declared field rules, enforced. See validate_fields.
+    validate_fields( $name, \%form );
+
     # SM216: score the (valid) submission; a suspect one is STORED but flagged so
     # it stays out of the notification bell and lands under the Quarantine filter.
     my ( $quarantined, $spam_reason ) = _spam_assessment( \%form, $conf );
@@ -324,6 +341,11 @@ if ($@) {
     # reason) so the report shows "controls stopped N", not silence. The code
     # comes from the control that fired, not from the message it printed.
     if ( length $BLOCK_REASON ) { _record_form_event( $name, 'blocked', $BLOCK_REASON ); }
+    # SM934: and a declared-rule breach, under its OWN outcome - see
+    # $INVALID_REASON for why it is not counted as a block.
+    if ( length $INVALID_REASON ) {
+        _record_form_event( $name, 'invalid', $INVALID_REASON );
+    }
     # USER: messages (e.g. upload too large / wrong type) are safe to show the
     # submitter; everything else gets a generic message.
     if ( $err =~ /^USER:(.*)/s ) { respond_error($1); }
@@ -906,6 +928,141 @@ sub _notify_submission {
     open my $fh, '>>', "$logdir/notices.jsonl" or return;
     print {$fh} "$line\n";
     close $fh;
+    return;
+}
+
+# SM934 FV1: ENFORCE THE RULES THE PAGE DECLARED.
+#
+# Before this, the handler performed exactly two content checks - uploads, and
+# "not entirely blank" - and nothing else. `required`, `email`, `max:N` and
+# `pattern:` were rendered into the HTML and enforced by the browser alone, so
+# they held for a visitor using a form and not at all for a direct POST, which is
+# the traffic that needs them. A scanner put `' OR '1'='1'-- -` in a field
+# declared `email` and it was stored: not an injection (the storage path escapes
+# correctly) but a declaration the engine ignored.
+#
+# THE RULES ARRIVE FROM THE RENDER, not from the submission. `_page` is
+# visitor-supplied, so a submitter who could name the page holding the rules could
+# name one with none; the sidecar is keyed on the same `_form` that already
+# selects the conf. See _write_form_rules in the processor for why it is derived
+# at render rather than stored in the conf.
+#
+# NO FILE MEANS NO RULES, AND THAT IS DELIBERATE (FV2's answer, applied to the
+# whole set): a form whose page has not been rendered since the upgrade enforces
+# nothing rather than refusing everybody. Upgrading a live site must not take its
+# forms off the air.
+# A declared-rule breach: the submitter's message, and a reason code that lands
+# in `invalid` rather than in the anti-spam `blocked` tally.
+sub reject_invalid {
+    my ( $message, $code ) = @_;
+    $INVALID_REASON = defined $code ? $code : '';
+    reject_user($message);
+    return;
+}
+
+sub validate_fields {
+    my ( $form_name, $form ) = @_;
+    return unless defined $FORMS_DIR;
+    my $path = "$FORMS_DIR/$form_name.rules";
+    return unless -f $path;
+
+    open my $fh, '<:utf8', $path or return;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $spec = eval { JSON::PP::decode_json($raw) };
+    return unless ref $spec eq 'HASH' && ref $spec->{fields} eq 'ARRAY';
+
+    for my $f ( @{ $spec->{fields} } ) {
+        next unless ref $f eq 'HASH';
+        my $name = $f->{name};
+        next unless defined $name && length $name;
+
+        # A file field's value is a file, and validate_uploads already owns it.
+        next if $f->{file};
+
+        my $v = $form->{$name};
+        $v = '' unless defined $v && !ref $v;
+
+        # FV3: `required` BINDS ONLY ON A FIELD THE FORM DECLARES, and the
+        # sidecar is the list of declarations - so a visitor can never be
+        # refused for a field they were not shown. A declared field missing
+        # from the post entirely is the same case as one posted empty.
+        if ( $f->{required} && $v !~ /\S/ ) {
+            reject_invalid( "The '$name' field is required.", 'field_required' );
+        }
+
+        # Everything below is a check on a VALUE, so an empty optional field
+        # passes - which is also what the browser does: it applies `pattern`,
+        # `type` and `maxlength` to a value and leaves emptiness to `required`.
+        next unless length $v;
+
+        if ( ( $f->{type} // '' ) eq 'email' ) {
+            # Deliberately the shape a browser checks, not RFC 5322. `type=email`
+            # requires one `@`, a non-empty local part and a dot-bearing domain;
+            # matching that keeps the server and the page agreeing, and this is
+            # the field the scanner's payload went into.
+            reject_invalid( "The '$name' field needs an email address.", 'field_email' )
+                unless $v =~ /\A[^\s\@]+\@[^\s\@.]+(?:\.[^\s\@.]+)+\z/;
+        }
+        elsif ( ( $f->{type} // '' ) eq 'url' ) {
+            reject_invalid( "The '$name' field needs a web address.", 'field_url' )
+                unless $v =~ m{\Ahttps?://\S+\z}i;
+        }
+        elsif ( ( $f->{type} // '' ) eq 'number' ) {
+            reject_invalid( "The '$name' field needs a number.", 'field_number' )
+                unless $v =~ /\A-?\d+(?:\.\d+)?\z/;
+        }
+
+        if ( ( $f->{bound} // '' ) eq 'length' ) {
+            reject_invalid( "The '$name' field is too long (limit $f->{max}).",
+                'field_max' )
+                if defined $f->{max} && length($v) > $f->{max};
+        }
+        elsif ( ( $f->{bound} // '' ) eq 'value' && $v =~ /\A-?\d/ ) {
+            reject_invalid( "The '$name' field must be $f->{max} or less.", 'field_max' )
+                if defined $f->{max} && $v > $f->{max};
+            reject_invalid( "The '$name' field must be $f->{min} or more.", 'field_min' )
+                if defined $f->{min} && $v < $f->{min};
+        }
+
+        next unless defined $f->{pattern};
+
+        # FV2: A PATTERN THE BROWSER WOULD IGNORE IS IGNORED HERE TOO.
+        #
+        # This is the hazard SM934 was ruled around, and it is SM921 inverted. A
+        # browser compiles `pattern` as new RegExp("^(?:"+p+")$", "v") and the
+        # specification's answer to one that will not compile is to IGNORE THE
+        # ATTRIBUTE IN FULL - which is how a shipped `tel` pattern validated
+        # nothing and said nothing. If the server compiled that same string as a
+        # Perl regex and refused on it, the visitor would be refused for a rule
+        # their browser accepted; worse, treating "cannot compile" as "nothing
+        # matches" would turn a form from accepting everything into accepting
+        # nobody, on one bad character.
+        #
+        # So the browser's own judgement is asked, BY NAME, from the one place it
+        # lives. lint 204 holds that Lazysite::Validate::html_pattern_problem is
+        # the only copy of it and that every caller reaches it this way; a second
+        # copy here is exactly what that lint forbids. A module that will not load
+        # means no judgement available, which means no enforcement - the same safe
+        # direction as a missing file.
+        my $browser_problem = eval {
+            require Lazysite::Validate;
+            Lazysite::Validate::html_pattern_problem( $f->{pattern} );
+        };
+        next unless defined $browser_problem;
+        next if length $browser_problem;
+
+        # ANCHORED, because the browser anchors: ^(?:...)$ around the whole
+        # value. An unanchored match here would accept a value that merely
+        # CONTAINS something the pattern describes, which is looser than the page
+        # and would let the payload this filing came from through a `pattern`
+        # intended to exclude it.
+        my $re = eval { qr/\A(?:$f->{pattern})\z/ };
+        next unless $re;    # not compilable as Perl either: absent, as above
+        reject_invalid( "The '$name' field is not in the expected format.",
+            'field_pattern' )
+            unless $v =~ $re;
+    }
     return;
 }
 

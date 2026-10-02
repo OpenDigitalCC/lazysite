@@ -44,6 +44,63 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM934 (PENDING) **a form's declared field rules are enforced on the server, and
+  a breach is refused naming the field and the rule** (ruled 2026-10-02, R1; the
+  contract's home ruled 2026-10-02).
+
+  `required`, `email`, `max:N` and `pattern:` were rendered as HTML attributes and
+  checked by the browser **alone**. Measured in the handler: it performed exactly
+  two content checks - uploads, and "not entirely blank" - and nothing between
+  them. So the rules held for a visitor using a form and not at all for a direct
+  POST, which is the traffic that needs them. A scanner put `' OR '1'='1'-- -`
+  into a field declared `email` and it was stored; not an injection (the storage
+  path escapes correctly) but **a declaration the engine ignored**.
+
+  **The rules arrive from the render, not from the submission.** A form's fields
+  live in the page's `:::form` block and the handler had never seen them - the
+  form's `.conf` carries targets and upload limits, not fields. Three ways to
+  close that were weighed and the hazard decided it:
+
+  - storing the rules in the `.conf` lets a hand-edited block **drift** from it,
+    so the server would enforce a rule the browser never showed - SM921's hazard
+    in its original direction;
+  - having the handler parse the page named by `_page` is **bypassable**: that
+    field is visitor-supplied and tied to nothing, so a submitter could name a
+    page with no rules;
+  - so the rules are **derived at render** into a sidecar beside the form's conf,
+    keyed on the same `_form` that already selects it. What the server enforces is
+    what the visitor was served, and drift is impossible by construction.
+
+  **A form not rendered since the upgrade enforces nothing**, which is the safe
+  direction and the same answer FV2 gives for an uncompilable pattern. Refusing
+  until a render happened would take working forms off live sites.
+
+  **A pattern the browser would ignore is ignored here too.** A browser compiles
+  `pattern` as `^(?:p)$` with the `v` flag and the specification's answer to one
+  that will not compile is to ignore the attribute **in full**. The browser's own
+  judgement is asked by name, from `Lazysite::Validate::html_pattern_problem` -
+  lint 204 holds that it exists exactly once - so a rule the page never applied
+  cannot refuse a visitor, and "cannot compile" never becomes "nothing matches",
+  which would turn a form from accepting everything into accepting nobody on one
+  bad character. The match is **anchored**, as the browser anchors it.
+
+  **`max` carries its meaning, not just its number**: the render gives a number
+  field `max=` (a value bound) and everything else `maxlength=` (a length bound),
+  so the sidecar records which - and an undeclared max records the 1000 the render
+  applies, because that is what the browser was told.
+
+  **A VALIDATION REFUSAL IS NOT AN ANTI-SPAM BLOCK.** It gets its own outcome and
+  its own counter (`invalid`, by rule, beside `blocked`). `blocked` is published as
+  "controls stopped N"; a visitor who mistyped their address met no control, and
+  folding the two together would be the two-populations-in-one-counter fault
+  SM941 removed from the visitor report in this same release.
+
+  An existing gate caught that conflation - and then caught something worse: the
+  roll-call in `t/unit/forms/16`, whose whole purpose is "an uncounted control is
+  invisible to the sysop", was **blind to the new channel**, because it enumerated
+  `reject` / `reject_user` and the new codes are raised through `reject_invalid`.
+  It now follows the channel rather than the spelling.
+
 - SM941 (PENDING) **a visitor report whose numbers agree with each other - and
   no field that claims to have counted people** (ruled 2026-10-02, R8-R12).
   **COUNTING BASIS 4, `schema_version` 3: counts DROP SHARPLY on upgrade.**

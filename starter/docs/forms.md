@@ -79,9 +79,27 @@ label as button text.
 
 ## Field rules
 
+**These rules are enforced by the server as well as the browser.** Until 0.15.2
+they were rendered as HTML attributes and checked by the browser alone, so a
+submission posted directly - which is most automated traffic - was held to none of
+them. A breach is now refused with a message naming **the field and the rule**.
+
+Two consequences worth knowing as an author:
+
+- the server holds a submission to **what was rendered**, so a rule you change
+  takes effect when the page next renders, exactly as the visible form does;
+- a `pattern:` a browser cannot compile is ignored at submission too, because
+  that is what the browser does with it. `validate_page` refuses such a pattern
+  and `lazysite check` reports ones already published, so you find out at
+  authoring time rather than from a form that quietly accepts anything.
+
+A refusal for breaking one of these rules is counted separately from the spam
+controls, so "controls stopped N" on the Stats page still means spam.
+
 `required`
 : Field must be filled in. Adds HTML `required` attribute and shows
-  an asterisk after the label.
+  an asterisk after the label. Enforced at submission on the fields the form
+  declares - never on a field a visitor was not shown.
 
 `optional`
 : Field is optional. This is the default if no rule is specified.
@@ -110,7 +128,9 @@ Spaces and brackets need no quoting. A list rule takes the rest of the line, so
 put it last among a field's rules.
 
 `max:N`
-: Sets `maxlength` attribute. Default is 1000 if not specified.
+: On a text field, sets the `maxlength` attribute - a **length** limit. On a
+  `number` field, `min`/`max` are **value** bounds instead. Default is 1000
+  characters if not specified.
 
 `value:"TEXT"`
 : A default the field opens with. The visitor can change it; it is an

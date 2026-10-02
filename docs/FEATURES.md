@@ -140,6 +140,23 @@ MultiMarkdown puts around top-level block HTML (`<p><section>…`) are stripped.
   escaped for the `v` flag browsers compile it with - an uncompilable pattern is
   ignored in full, so `validate_page` refuses one and `lazysite check` reports the
   ones already published (SM921).
+
+  **The rules are enforced on the server, not only in the browser** (SM934,
+  0.15.2). They used to reach the rendered HTML and stop there, so a direct POST
+  was checked against nothing: a scanner put an SQL-injection string into a field
+  declared `email` and it was stored. The rules are now **derived at render** into
+  a sidecar beside the form's conf and enforced at submission, so what the server
+  holds a submission to is exactly what the visitor was served - a hand-edited
+  block cannot drift from it, and the rules cannot be located by anything the
+  submitter controls. A breach is refused naming **the field and the rule**.
+
+  A `pattern` the BROWSER could not compile is ignored at submission too, because
+  ignoring it is what the browser does: enforcing it would refuse a visitor for a
+  rule their page never applied, and treating "cannot compile" as "nothing
+  matches" would turn a form from accepting everything into accepting nobody. A
+  form whose page has not been rendered since the upgrade enforces nothing, which
+  keeps working forms on the air. A declared-rule refusal is counted under its own
+  outcome, **not** in the anti-spam "controls stopped N" figure.
   Each form carries an HMAC time-token, a honeypot field, and an inline `fetch`-based
   submit handler that swaps to a success message - wired to a delivery handler (see
   Forms).

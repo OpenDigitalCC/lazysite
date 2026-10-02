@@ -3159,13 +3159,40 @@ sub _ingest_form_events {
             # form-only day (blocks but no page traffic) is still safe for the
             # window loop and rollups.
             my $b = $cache->{days}{$day} ||= _new_day_bucket();
-            my $fb = $b->{forms}{$form} ||= { stored => 0, quarantined => 0, blocked => {} };
+            my $fb = $b->{forms}{$form}   ||= {
+                stored      => 0,
+                quarantined => 0,
+                blocked     => {},
+                invalid     => {},    # SM934
+            };
             my $out = $r->{outcome} // '';
             if ( $out eq 'blocked' ) {
                 my $reason = lc( $r->{reason} // 'other' );
                 $reason =~ s/[^a-z_]//g;
                 $reason ||= 'other';
                 $fb->{blocked}{$reason}++;
+            }
+
+            # SM934: A DECLARED-RULE BREACH IS ITS OWN OUTCOME, not a block.
+            #
+            # `blocked` means an anti-spam control fired - its own comment in the
+            # handler says so, and the report publishes it as "controls stopped
+            # N". A visitor who mistyped their email met no control. Counting
+            # both in one number would tell an operator their defences stopped
+            # twenty things when twenty people made a typo, which is the
+            # two-populations-in-one-counter fault SM941 spent a release
+            # removing from the visitor report - repeating it here, in the same
+            # release, would be hard to explain.
+            #
+            # Its own bucket rather than no bucket, because the count is useful:
+            # a form refusing many submissions on one rule is either a rule
+            # written wrong or a field nobody understands, and both are things
+            # an owner should be able to see.
+            elsif ( $out eq 'invalid' ) {
+                my $reason = lc( $r->{reason} // 'other' );
+                $reason =~ s/[^a-z_]//g;
+                $reason ||= 'other';
+                $fb->{invalid}{$reason}++;
             }
             elsif ( $out eq 'quarantined' ) { $fb->{quarantined}++; }
             elsif ( $out eq 'stored' )      { $fb->{stored}++; }
@@ -3310,11 +3337,19 @@ sub _export_assemble {
         my $bl = $fb->{blocked} || {};
         my $bt = 0;
         $bt += $_ for values %$bl;
+        my $iv = $fb->{invalid} || {};    # SM934
+        my $it = 0;
+        $it += $_ for values %$iv;
         { form => $_,
             stored        => ( $fb->{stored}      // 0 ),
             quarantined   => ( $fb->{quarantined} // 0 ),
             blocked_total => $bt,
             blocked       => $bl,
+
+            # SM934: refused for breaching a rule the form DECLARES, by rule.
+            # Deliberately beside `blocked` and not inside it - see the fold.
+            invalid_total => $it,
+            invalid       => $iv,
         };
     } sort keys %forms;
 

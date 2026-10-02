@@ -4480,6 +4480,70 @@ sub convert_fenced_form {
     return $text;
 }
 
+# SM934 FV1: THE RULES THE SERVER WILL ENFORCE, WRITTEN WHERE THE FORM WAS
+# RENDERED.
+#
+# The ruling (2026-10-02) chose a RENDER-TIME SIDECAR over the two alternatives,
+# and the reason is the hazard rather than convenience. A form's field rules live
+# in the page's `:::form` block; the handler has never seen them - the form's
+# .conf carries targets and upload limits, not fields - so a direct POST was
+# checked against nothing. Giving the handler the rules needs them to arrive by a
+# path the submitter cannot choose, and there were three:
+#
+#   - store them in the .conf: a hand-edited `:::form` block then DRIFTS from the
+#     conf, and the server enforces a rule the browser never showed - which is
+#     SM921's hazard in its original direction;
+#   - have the handler parse the page: `_page` is visitor-supplied (it is
+#     validated as a same-site path and tied to nothing), so a submitter could
+#     name a page with no rules and bypass the lot. Reading the page named in the
+#     .conf avoids that and costs a second implementation of the form grammar;
+#   - THIS: the rules are derived at render, so what the server enforces is
+#     exactly what the visitor was served. Drift is impossible by construction.
+#
+# IT LIVES BESIDE THE FORM'S CONF, NOT IN THE CACHE. The cache is clearable, and
+# a cleared cache would leave a form enforcing nothing until its page was fetched
+# again. `lazysite/forms/` is already denied to every grant and is where the
+# handler looks, so the file survives a cache clear and an upgrade.
+#
+# A FORM NEVER RENDERED SINCE THE UPGRADE HAS NO FILE, AND THEN NOTHING IS
+# ENFORCED. That is the safe direction and it is the same answer FV2 gives for an
+# uncompilable pattern: absent means absent. The alternative - refuse everything
+# until a page is rendered - would take working forms off live sites on upgrade.
+#
+# DERIVED, NEVER AUTHORED. It is rewritten on every render of the block, so an
+# edit here is lost; the header in the file says so, because a file in
+# `lazysite/forms/` otherwise looks exactly like one an operator maintains.
+#
+# Failure is silent BY DESIGN: a form that cannot write its sidecar must still
+# render. A page that would not display because its validation metadata could not
+# be saved is a worse failure than the one this closes.
+sub _write_form_rules {
+    my ( $form_name, $rules ) = @_;
+    return unless defined $form_name && $form_name =~ /\A[A-Za-z0-9_-]+\z/;
+    my $dir = "$LAZYSITE_DIR/forms";
+    return unless -d $dir && -w $dir;
+    my $path = "$dir/$form_name.rules";
+    my $tmp  = "$path.$$";
+    my $json = eval {
+        encode_json( {
+                note => 'DERIVED at render by lazysite-processor.pl (SM934)'
+                    . ' - rewritten on every render, do not edit',
+                form    => $form_name,
+                version => 1,
+                fields  => $rules,
+        } );
+    };
+    return unless defined $json;
+    open my $fh, '>', $tmp or return;
+    binmode $fh;
+    my $ok = print {$fh} $json;
+    $ok &&= close $fh;
+    if ( !$ok ) { unlink $tmp; return }
+    chmod 0640, $tmp;
+    rename $tmp, $path or unlink $tmp;
+    return;
+}
+
 sub _render_form {
     my ( $body, $meta ) = @_;
 
@@ -4508,6 +4572,7 @@ sub _render_form {
     # form into wizard steps. Fields accumulate into the current step; without any
     # delimiter there is a single step = the classic single-page form (unchanged).
     my @steps = ( { title => '', fields => [] } );
+    my @server_rules;    # SM934 FV1: what the handler will hold a submission to
     for my $line ( split /\n/, $body ) {
         if ( $line =~ /^\s*-{3,}\s*step\b\s*:?\s*(.*?)\s*-{3,}\s*$/i ) {
             push @steps, { title => $1, fields => [] };
@@ -4730,6 +4795,62 @@ sub _render_form {
         my $req_mark = $rules{required}
             ? ' <span class="required">*</span>' : '';
 
+        # SM934 FV1: THE EFFECTIVE PATTERN, COMPUTED ONCE.
+        #
+        # Hoisted out of the text-input branch below because the submit-time
+        # sidecar needs the same value the browser is given, and the tel default
+        # is part of that value. Two expressions for "which pattern is in force"
+        # would be two answers the day one of them changed - and the whole point
+        # of the sidecar is that the server enforces exactly what was rendered.
+        my $eff_pat = $rules{pattern};
+        $eff_pat = '[0-9\\s\\(\\)\\+\\.\\-]{6,30}'
+            if !defined $eff_pat && ( $rules{type} // '' ) eq 'tel';
+
+        # SM934 FV1: the rules this field will be held to at submission.
+        #
+        # DECLARED VALUES ONLY - no judgement is made here. Whether a `pattern`
+        # is one a browser would actually compile is decided by
+        # Lazysite::Validate::html_pattern_problem, which lint 204 holds must
+        # exist exactly once and be called by name; the render path cannot load
+        # a module (ADR 0001), so the handler makes that call instead. Copying
+        # the character list here is precisely what that lint forbids.
+        #
+        # `max` carries its MEANING, not just its number: on a number field the
+        # browser gets `max=` (a value bound) and everywhere else `maxlength=`
+        # (a length bound). Recording 1000 against a text field with no declared
+        # max is deliberate - that IS what the browser was told, and a server
+        # that enforced nothing there would be looser than the page.
+        # IT MIRRORS THE RENDER BRANCH BY BRANCH, because an entry that does not
+        # is a server stricter or looser than the page. A chooser gets `required`
+        # and nothing else - there is no maxlength or pattern on a `<select>` to
+        # be parity with - and a multi-box checklist gets nothing, because the
+        # render deliberately withholds `required` from a group of more than one
+        # (SM888 A5: marking them all required would demand every option).
+        my $chooser = $rules{select} || $rules{radio} || $rules{checklist};
+        if ($chooser) {
+            my $marked =
+                $rules{checklist}
+                ? ( $rules{required} && @{ $rules{checklist} } == 1 )
+                : $rules{required};
+            push @server_rules, { name => $name, required => 1 } if $marked;
+        }
+        else {
+            push @server_rules, {
+                name => $name,
+                ( $rules{required} ? ( required => 1 )            : () ),
+                ( $rules{file}     ? ( file     => 1 )            : () ),
+                ( $rules{type}     ? ( type     => $rules{type} ) : () ),
+                ( defined $eff_pat ? ( pattern  => $eff_pat )     : () ),
+                ( ( $rules{type} // '' ) eq 'number'
+                    ? ( ( defined $rules{max} ? ( max => $rules{max} ) : () ),
+                        ( defined $rules{min} ? ( min => $rules{min} ) : () ),
+                        bound => 'value',
+                        )
+                    : ( max => $max, bound => 'length' )
+                ),
+            };
+        }
+
         my $field_html;
         if ( $rules{file} ) {
             my $acc = '';
@@ -4853,8 +4974,9 @@ sub _render_form {
             # number written the way France writes it failed the old bound even
             # once the pattern compiled, which would have turned a silent fault
             # into a visible one for every caller in that country.
-            my $pat = $rules{pattern};
-            $pat = '[0-9\\s\\(\\)\\+\\.\\-]{6,30}' if !defined $pat && $type eq 'tel';
+            # SM934: $eff_pat, computed above, so the attribute the browser gets
+            # and the rule the handler enforces are the same expression.
+            my $pat = $eff_pat;
             if ( defined $pat ) {
                 $pat = _esc_attr($pat);
                 $attrs .= qq( pattern="$pat");
@@ -4868,6 +4990,8 @@ sub _render_form {
             . $field_html
             . qq(  </div>\n);
     }
+
+    _write_form_rules( $form_name, \@server_rules );    # SM934 FV1
 
     # Drop steps that ended up with no fields (e.g. a leading delimiter).
     @steps = grep { @{ $_->{fields} } } @steps;

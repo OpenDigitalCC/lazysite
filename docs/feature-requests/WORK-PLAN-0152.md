@@ -92,7 +92,7 @@ answering its questions.
 
 | Ref | The work | Cx | Blocked on |
 | --- | --- | --- | --- |
-| B1 | [[SM934]] - declared field rules enforced server-side, a breach refused with the field and the rule named (R1) | M | nothing. **Carries a hazard, below** |
+| B1 | **BUILT** (n233). Enforced from a RENDER-TIME SIDECAR, which was a ruling: the rules were not available to the handler at all, and `_page` is visitor-supplied so it could not locate them. The hazard is closed properly - a pattern the browser could not compile is asked about by name (lint 204's helper) rather than judged again. A validation refusal is counted under its OWN outcome, not as an anti-spam block | M | nothing |
 | B2 | [[SM935]] - the form rate limit buckets on a **calendar hour** (`"$ip:$hour"`, `$hour = int(time/3600)`), so five submissions at 10:59:59 and five at 11:00:00 is ten in one second within the rules. A rolling window, or the boundary stated as deliberate | S | nothing |
 | B3 | The SQLi report's five candidate detection signatures. **Not ruled, and offered as signatures rather than a request.** Two of the five are already covered: the own-domain sender ([[SM930]]) and "a value in a field declared `email` that does not parse" (B1) | - | a ruling, if ever |
 
