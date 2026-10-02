@@ -84,28 +84,118 @@ a lazysite interface narrows **what is asked for**, never what came back. Odoo's
 ACLs are the bound, under the user's own credential (X4-b). A page that filters is a
 page that can be wrong in the direction nobody notices.
 
-# The plan
+# The plan, SIZED 2026-10-02 against the machinery it would reuse
 
 Five stages. **Each one ends somewhere an app could be built**, which is the test of
-whether a stage is worth cutting at. Sizes are mine; the ordering is forced by the
-dependencies, not chosen.
+whether a stage is worth cutting at. Sizes are mine, calibrated on SM929 from
+2026-10-01 - one definition adopted at 44 call sites, two lints, three tests and docs
+came to 34 files and about 1,540 lines, which is one working session.
 
-| # | Stage | What an app can do after it | Depends on |
+## First, a correction: the slices cannot be ordered the way I first wrote them
+
+An earlier version of this section proposed starting with a **site-level Odoo
+account**, so that a read-only page could be built before the per-user credential
+work. **This filing's own required outcomes forbid it**, and I had not read them
+against my own plan:
+
+- **outcome 2**: every operation is attributed in Odoo to *that user*, **not to a
+  shared integration account**;
+- **outcome 4**: no Odoo credential is stored anywhere on the lazysite server, in any
+  file, table, log or cache;
+- **OB1**: no shared service account for the user-facing path - a service account is
+  permitted only for the MCP surface (OM1), on the mode-600 convention.
+
+So **there is no cheap read-first slice.** The same pass found a second invention of
+mine: I described stage 2 as "a page surface rendering an operation's result", but the
+TT surface this filing asks for (OT1, OT2) is **identity exposure for presentation**.
+"Render an operation's result in a page" is not a requirement row at all.
+
+## And the real blocker is a ruling, not a build
+
+OA2 is the session strategy. OA3's *preferred* form uses the API key **once** to
+obtain a session and discards it. Both need `/web/session/authenticate` +
+`/web/dataset/call_kw` - **the transport OOM does not have**, whose `Credential`
+refuses `session` and `cookie` by name (see the filed specification, section 7).
+
+OA3's stated fallback is to carry the key in the cookie, and OA3 says in its own words
+that this "is a materially different risk and must not be silently adopted".
+
+> **Everything per-user waits on one answer: carry the key with the risk documented,
+> or wait for OOM to gain the session transport.** That is a ruling, and until it is
+> taken, slices B, C and D below cannot start.
+
+And the transport belongs in **OOM**, not here: endpoint paths and payload shapes are
+Odoo knowledge, which *What this is for* puts in the operation packs. The
+specification says "for the extension to implement"; that would put Odoo RPC knowledge
+in lazysite and contradict the rule. **Resolving that is part of stage 0.**
+
+## What the existing machinery actually gives, measured
+
+| Need | What exists | Cost |
+| --- | --- | --- |
+| OB4 mode gating | `Lazysite::Egress` (187 lines); `may_invoke` is called from exactly one site, `Connectors::may_call`, and `call()` invokes it **before anything is sent** so all three of its callers are gated whether they remember or not. Its comments already name `proxy` | **nil** - and copy the placement, not just the call |
+| OA5 CSRF on the lazysite leg | `Auth::Session::generate_csrf_token` / `verify_csrf_token`, with manager-api's token endpoint and its three accepted carriers | **wiring only** |
+| OI5 cache safety | `nocache` is peeked by `_peek_md` and bypasses `try_serve_cache` entirely; `query_params` already skips the cache read when a declared param is present; a `url:`-backed page is marked live in its `.deps` record | **S** - the "fail closed on an identity binding" half is another key in the same peek, not new machinery |
+| Outcome 8's two-session proof | `t/lib/ManagerSession.pm` (180 lines): `add_user`, `cookie_for`, `csrf_for`, `call` | **nil** |
+| Plan-then-confirm (when writes arrive) | Three precedents, the best being `Data::Tables::import_rows` - validate-and-diff then commit **through one function selected by `apply`**, so "the preview and the action cannot disagree". Also `data-migrate-plan`/`data-migrate`, and `group-reset` where the dry run's diff *is* the confirmation | **nil as design** |
+| OB1 config and the store shape | `Manager::Connectors` (979 lines): secrets in a separate 0600 file never returned, `has_secret` as a three-state answer, modes, callers, a per-call JSONL log, age pruning | **copy the pattern** |
+
+**Two rows I first called free and are not:**
+
+- **The HTTP client.** `Lazysite::Fetch` (103 lines) cannot serve Odoo: GET only, no
+  headers, no body, no credential, returns the decoded body or nothing - and its SSRF
+  guard **refuses private ranges**, which is where an internal Odoo lives. The
+  connector already met this and builds its own agent inline in `call()`, deliberately
+  not running `is_safe_url` and saying why. So OB6's "the connector's transport
+  discipline, reused as behaviour" means **extracting that agent from a 979-line
+  module that 53 test files mention** - M to L, not free. Neither client *asserts* TLS
+  verification; both inherit LWP's default, which an environment variable can change,
+  so the extension should assert it rather than inherit it.
+- **The rate cap.** `Egress::within_caps` exists for this shape and **the connector
+  does not use it**: it recomputes a rolling hour by scanning `calls.jsonl` on every
+  call, and refuses if the log is unreadable. OB5 wants a cap **per identity**, which
+  is a different key and a per-request file scan on a page-rate surface. A design
+  question, not a copy.
+
+**And the extension point is not where I assumed.** A connector has **no `type`
+field**; `format` is `json|slack` in a regex with four touch points. The real registry
+is handler types - `@TYPE_ORDER = qw(smtp file table connector)`, each with its own
+schema. An Odoo endpoint is naturally **a new handler type**, not a connector format.
+
+## The slices
+
+| Slice | What it is | Size | State |
 | --- | --- | --- | --- |
-| **0** | **Decide how OOM is delivered, and make it reachable.** Not a build. Deb, versioned tarball, internal service or something else - the decision belongs to all of OOM's consumers, not to this engine | nothing yet - but nothing below runs without it | OOM's own testing settling; OP-25 |
-| **1** | **The named-operation proxy, scoped mode, site-level Odoo account.** An Odoo endpoint configured like a connector; operations invoked by name with bound parameters; the Guard's scope enforced in OOM; invocation modes through `Lazysite::Egress`; audit on both sides | **Read live Odoo facts, and write through named operations with a plan to confirm.** No per-user credential, so Odoo's ACLs bound the site's own account. This is the stage that ends the hand-carrying | stage 0 |
-| **2** | **The page surface.** A TT surface (Part 7) rendering an operation's result, and the plan's buckets presented for confirmation | **A real-time UI over Odoo with no agent in the loop** - the thing pocket portal was built to bridge | stage 1 |
-| **3** | **Per-user identity.** The credential cookie (Parts 2 and 3), the signed identity context (Part 4), and **the session transport OOM does not have** - `/web/session/authenticate` + `/web/dataset/call_kw`, where OOM's `Credential` refuses `session` and `cookie` by name | **A person acts as themselves in Odoo**, so Odoo's per-user ACLs are the bound and general mode becomes available | stage 1; the transport is new work the spec exposed |
-| **4** | **The MCP surface** (Part 6, OM1-3): an agent uses the same named operations under **its own** Odoo account, never a human's | An agent and a page do the same things the same way - which retires "the agent is the API" by making the page path the normal one | stages 1 and 3 |
-| **5** | **The boundary lint and the docs.** The no-Odoo-knowledge gate, and the documentation obligation the spec created: a record written this way can differ from one a person creates in Odoo's UI | nothing new - it protects what the earlier stages built | stage 1 |
+| **A** | Endpoint config, proxy skeleton, fault kinds (OB5's distinct kinds), the OB8 audit record, mode gating through `Egress` | **M**, or **L** if OB6 is read as sharing the connector's agent rather than a second client | buildable now; demonstrates only refusals, so it is not worth cutting a release for on its own |
+| **B** | One credential strategy end to end: acquire, carry, replay, clear, and outcome 10's re-authentication prompt | **M** | **blocked on the ruling above** |
+| **C** | Identity cookie (OI1-OI3), signed and TTL'd, the TT exposure (OT1, OT2), and the cache fail-closed | **M** | after B |
+| **D** | The shared browser data module (OA6), CSRF wiring, the re-auth prompt in the UI | **M** | after B |
+| **E** | The MCP surface: an agent uses named operations under **its own** Odoo account (OM1-3, outcome 12) | **M** | **independent of B** - needs no cookie, no identity context, no CSRF, no cache work |
+| **F** | SECURITY.md and FEATURES.md entries (OB9), and the boundary lint from *What this is for* | **S** | last |
 
-**Stages 1 and 2 are the ones that pay for themselves**, because together they are
-the smallest thing that lets an app read and write Odoo from a page. Stage 3 is what
-makes it per-user correct, and it carries the only genuinely unknown piece of work in
-the filing. Stage 4 is where the agent stops being a special case.
+**The first demonstrable page capability is A + B + C + D** - four M slices, not the
+two an earlier version of this section implied. The filing stays XL, and that is
+consistent: the proxy was never the expensive part. The credential, identity and
+browser legs are.
 
-**What is NOT in the plan:** any of the functions named at the top. They are what
-apps do with this, built by the site agent when somebody asks.
+**E alone is the only unblocked slice that delivers something**, and it is honest about
+how much: it would move an agent's existing OOM access behind the engine's door, with
+lazysite-side audit and per-site scope. It gives no page UI, so it does not answer the
+problem *What this is for* describes.
+
+## Two findings from the measurement, neither urgent
+
+- **Two retention numbers for one fact.** `connector_call_retention_days` (default 90)
+  prunes the call log on every append, while `$KEEP_CALLS_DAYS = 30` is used only by
+  `sweep()`. One of them is wrong about how long a call record lives.
+- **OB8's record does not exist in any form yet.** `audit_log` is never called from
+  `Manager::Connectors`; the audit trail records at *delivery* level - `act='deliver'`,
+  naming the handler rather than the connector or the `call_id`. One record per proxied
+  call naming model, method and mode is new work, and `audit_log`'s seven positional
+  fields have no obvious room for it.
+
+**What is NOT in the plan:** any of the ERP functions named earlier. They are what apps
+do with this, built by the site agent when somebody asks.
 
 # Why this is worth building properly (release manager, P2)
 
