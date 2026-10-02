@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-10-02
 raised-by: the sites agent (xisl.com, opendigital.cc), answering a site owner's question
 area: analytics
-status-note: "CANDIDATE, MEASURED IN FULL, AND AV2 IS ANSWERED - R4 is discharged and the diagnostic it scheduled (H0) is WITHDRAWN rather than built, because the split was in the source all along: cls{human} counts every human request and hits excludes successful asset fetches, so the gap is exactly asset_hits, which no projection of the report publishes. Four defects are now established from source plus one day of live user-agent data: (1) that asset split; (2) human_visits counts 404s as visits - 8,023 of 15,979, so real page views are 7,956; (3) unique_visitors sums ips (ALL classes) while the manager page deliberately sums cls_ips{human} and its comment says why; (4) classify() ends `return 'human'` and never consults the _is_browser it computed, so 4,227 requests with NO user-agent are counted as human - and 43% of the sampled human class is empty-UA or self-identifying automation, including our own lzs-fetch. RULED R8-R11: explain the group as an upper bound (the KEY IS NOT RENAMED - that is deliberately still open), a positive browser test plus a no_agent class, self-declaration tokens rather than a vendor list, and /websocket counted outside. CARRIES A MANDATORY CONSEQUENCE: counts DROP, so this is counting basis 4 and schema_version 3, or it recreates the exact unanswerable question SM338 exists to prevent. Grade A: measured on two live sites, reproduced across two window sizes, with the raw reports kept. NOT YET REPRODUCED HERE against a fixture - the numbers come from live first-party logs this tree cannot see, and the arithmetic contradictions are self-evident from the output rather than needing a repro. THREE FINDINGS, DELIBERATELY NOT MERGED: one is a hard contradiction (unique > visits), one is a split between two counters (two human totals), one is probably CORRECT behaviour that reads as broken (months not window-scoped). They are in one filing because they share a cause at the level that matters - nothing asserts that this report's numbers agree with each other - and the reporter says so: 'the arithmetic in this report is not being checked anywhere'. The report also names its own closing condition, which is a test rather than a fix: one call, three invariants."
+status-note: "CANDIDATE, MEASURED IN FULL, AND AV2 IS ANSWERED - R4 is discharged and the diagnostic it scheduled (H0) is WITHDRAWN rather than built, because the split was in the source all along: cls{human} counts every human request and hits excludes successful asset fetches, so the gap is exactly asset_hits, which no projection of the report publishes. Four defects are now established from source plus one day of live user-agent data: (1) that asset split; (2) human_visits counts 404s as visits - 8,023 of 15,979, so real page views are 7,956; (3) unique_visitors sums ips (ALL classes) while the manager page deliberately sums cls_ips{human} and its comment says why; (4) classify() ends `return 'human'` and never consults the _is_browser it computed, so 4,227 requests with NO user-agent are counted as human - and 43% of the sampled human class is empty-UA or self-identifying automation, including our own lzs-fetch. RULED R8-R12: `human` BECOMES `unattributed` and the report explains the group as an upper bound. The first draft of this filing PARKED the rename on a false claim - that it would break every reader, dashboard and layout - which was an assertion, not a measurement: it is 8 usages in ONE file, none in lib/, tools/, templates or the front end. Retracted in the body rather than quietly corrected. Also a positive browser test plus a no_agent class, self-declaration tokens rather than a vendor list, and /websocket counted outside. CARRIES A MANDATORY CONSEQUENCE: counts DROP, so this is counting basis 4 and schema_version 3, or it recreates the exact unanswerable question SM338 exists to prevent. Grade A: measured on two live sites, reproduced across two window sizes, with the raw reports kept. NOT YET REPRODUCED HERE against a fixture - the numbers come from live first-party logs this tree cannot see, and the arithmetic contradictions are self-evident from the output rather than needing a repro. THREE FINDINGS, DELIBERATELY NOT MERGED: one is a hard contradiction (unique > visits), one is a split between two counters (two human totals), one is probably CORRECT behaviour that reads as broken (months not window-scoped). They are in one filing because they share a cause at the level that matters - nothing asserts that this report's numbers agree with each other - and the reporter says so: 'the arithmetic in this report is not being checked anywhere'. The report also names its own closing condition, which is a test rather than a fix: one call, three invariants."
 ---
 
 # MEASURED 2026-10-02, and AV2 is answered without a new instrument
@@ -146,8 +146,8 @@ was scheduled to characterise it is withdrawn rather than built.
 
 # Rulings, later the same day, on what the measurement found
 
-**R8 - THE REPORT MUST EXPLAIN WHAT THE GROUP IS, and the name stays open.** Put to
-the release manager as a rename; the answer was neither of the offered names:
+**R8 - THE REPORT MUST EXPLAIN WHAT THE GROUP IS.** Put to the release manager as a
+rename; the answer was neither of the offered names:
 
 > "this does need an explanation to the user, to say that we can't know it is human,
 > but we can know when it isn't, so whatever is human exists in this group."
@@ -155,10 +155,51 @@ the release manager as a rename; the answer was neither of the offered names:
 So the requirement is **epistemic, not cosmetic**. The group is an UPPER BOUND on
 human traffic: the engine cannot verify a person, it can only recognise automation, so
 every human visit is in this group together with everything it failed to exclude. The
-report says that, in those terms, where a site owner reads it. **The key is not
-renamed in this release** - that decision is deliberately still open, and a rename is
-a breaking change for every reader, dashboard and layout, so it should not ride along
-with an arithmetic fix.
+report says that, in those terms, where a site owner reads it.
+
+**R12 - AND THE KEY IS RENAMED TO `unattributed`, IN THIS RELEASE.**
+
+# A WRONG REASON I GAVE, RETRACTED - recorded because the next reader would inherit it
+
+R8 was first written here with the key NOT renamed, on this reasoning: *"a rename is a
+breaking change for every reader, dashboard and layout, so it should not ride along
+with an arithmetic fix."*
+
+**That was an assertion, not a measurement, and it is false.** The release manager
+asked what purpose the parking served. Measured:
+
+| Where | `human` as a class key |
+| --- | --- |
+| `plugins/stats.pl` | **8 usages**, plus `@CLASSES` at line 112 |
+| `lib/` | none |
+| `tools/` | none |
+| any `.tt` template | none |
+| any front-end file | none |
+
+One file. No dashboard, no layout, no template. The sweep that produced the original
+claim matched the WORD "human" in prose and in unrelated code, and I did not narrow it
+before drawing a conclusion from it - the same failure this filing spends four sections
+correcting in other people's reports.
+
+**And the positive case runs the other way:**
+
+- **This is the one release where consumers must look anyway.** `schema_version` goes
+  2 -> 3, the counting basis goes 3 -> 4, and a class is added. Renaming later means a
+  SECOND breaking change and a SECOND schema bump for the same defect.
+- **Parking it would make R8's explanation a COMPENSATION for a key we know is wrong.**
+  The note would exist to excuse the name. Rename the key and the same sentence becomes
+  a plain description instead of an apology - and compensations compound.
+- **`@CLASSES` is the single source and SM330 built it for this**: "a class added later
+  cannot be silently omitted from some of them." The rename reaches `traffic_classes`,
+  `by_day` and every projection by construction.
+
+The real blast radius is the eight usages above plus external JSON consumers - who are
+exactly the readers already obliged to adapt to schema 3.
+
+**So `human` becomes `unattributed`**: what the engine actually did is fail to
+attribute the traffic to a known agent. The report states the containment property in
+the release manager's own terms - any human traffic is in this group, because the
+engine can only recognise what is not a person.
 
 **R9 - THE FALL-THROUGH GAINS A POSITIVE BROWSER TEST, AND AN EMPTY USER-AGENT GETS
 ITS OWN CLASS.** A request with no user-agent is a fact worth reporting rather than a
@@ -287,11 +328,17 @@ right" is a question with no referee.
 | AV3 | `unique_visitors` reads `cls_ips{<group>}`, as the manager page already does, instead of `ips` | S | nothing |
 | AV4 | `human_visits` and `pageviews` are **the same scalar** (`stats.pl:3135`): one name goes, or each is filled from the counter it claims | S | AV2 |
 | AV5 | `months`: a `window_scoped` field, or clip the rows. Presentation, not arithmetic | S | nothing |
-| AV6 | **R8**: the report explains that the group is an upper bound on human traffic - we cannot know a request is a person, only when it is not | S | nothing |
+| AV6 | **R8 + R12**: `human` becomes `unattributed` (8 usages, one file), and the report explains that the group is an upper bound - we cannot know a request is a person, only when it is not | S | nothing |
 | AV7 | **R9**: a positive browser test on the fall-through, and `no_agent` as its own class | M | nothing |
 | AV8 | **R10**: self-declaration tokens in `$BOT_RE`, and `lzs-fetch` in `$AGENT_RE` | S | nothing |
 | AV9 | **R11**: a persistent reconnect to a path that has never resolved counts outside the group | M | nothing |
-| AV10 | **Basis 4 and schema 3**, with the ladder entry. Ships WITH AV7-AV9 or not at all | S | AV7, AV8, AV9 |
+| AV10 | **Basis 4 and schema 3**, with the ladder entry. Ships WITH AV6-AV9 or not at all - the renamed key, the new class and the moved traffic are one schema change, not four | S | AV6, AV7, AV8, AV9 |
+
+**One thing to get right while renaming:** `no_agent` events must NOT reach the
+`hits` / `asset_hits` split. Those branches sit behind `return unless $cls eq 'human'`
+(becoming `unattributed`), so an empty-UA request stops contributing to the visit
+counters by construction rather than by a second rule - which is how the 4,227 leave
+the headline without anything being subtracted anywhere.
 
 # Related
 

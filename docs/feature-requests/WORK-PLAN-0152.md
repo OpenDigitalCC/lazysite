@@ -20,7 +20,7 @@ out to hold seven reports, two of which ask questions only this side can answer.
 reused (SM064), so the next cut is **0.15.2**. The field-practice briefing is already
 stamped for it.
 
-# The eleven rulings taken 2026-10-02
+# The twelve rulings taken 2026-10-02
 
 | Ref | Question | Ruling |
 | --- | --- | --- |
@@ -33,7 +33,8 @@ stamped for it.
 | **R6** | [[SM942]] FO3: a feed emits every dated page on every poll. Cap it? | **CAP AT 50, CONFIGURABLE.** The conventional shape, plus `lastBuildDate`. 50 costs no current site anything - xisl.com's 59 loses its 9 oldest from the FEED, not from the site |
 | **R7** | [[SM824]] F1: the head meta variables reach a layout already HTML-escaped with no inverse and there is no `json` filter, so JSON-LD from front matter is unreachable. Expose a raw copy and ship a filter, or walk-and-escape `sections` and foreclose it? | **EXPOSE A RAW COPY AND SHIP A `json` FILTER.** The single-escape-point invariant gains a documented exception - it already has an undocumented one, because `sections` reaches layouts raw today |
 
-| **R8** | [[SM941]]: `human` is the fall-through of `classify()` and means "no automation rule matched" - 43% of it is empty-UA or self-declared automation. Rename it? | **NEITHER OFFERED NAME. EXPLAIN IT INSTEAD**, in the release manager's words: "we can't know it is human, but we can know when it isn't, so whatever is human exists in this group." The group is an UPPER BOUND and the report says so. **The key is NOT renamed** - still open, and a rename is a breaking change that must not ride along with an arithmetic fix |
+| **R8** | [[SM941]]: `human` is the fall-through of `classify()` and means "no automation rule matched" - 43% of it is empty-UA or self-declared automation. Rename it? | **NEITHER OFFERED NAME. EXPLAIN IT INSTEAD**, in the release manager's words: "we can't know it is human, but we can know when it isn't, so whatever is human exists in this group." The group is an UPPER BOUND and the report says so. See **R12** |
+| **R12** | Does parking the rename serve any purpose? | **NO - IT WAS A MISTAKE, AND `human` BECOMES `unattributed` IN THIS RELEASE.** The parking rested on a claim I never measured ("breaks every reader, dashboard and layout"): it is 8 usages in ONE file, none in `lib/`, `tools/`, any template or the front end. And this is the one release where consumers must look anyway - schema 2 -> 3, basis 3 -> 4, a class added. Renaming later would be a second breaking change for the same defect, and parking it would have made R8's explanation a compensation for a key we knew was wrong |
 | **R9** | 4,227 requests with NO user-agent are counted as human, because the `human` return never consults the `_is_browser` that `classify()` computed | **A POSITIVE BROWSER TEST, AND `no_agent` AS ITS OWN CLASS.** An absent user-agent is a fact worth reporting, not a residual - the 4,227 become visible and separable. Buckets still sum |
 | **R10** | `WP-Safe-Scanner`, `WordPress/6.4.3`, `UnifiedPaths`, `SeltzSitemapFetcher`, `GeedoShopProductFinder` and **our own `lzs-fetch`** all land in the human group | **MATCH SELF-DECLARATION, NOT A VENDOR LIST**: scanner, fetcher, crawler, spider, -finder, `WordPress/`, `curl/`, `wget/`, python-requests - so the next tool of this shape is caught before anyone notices it. `lzs-fetch` joins `$AGENT_RE` |
 | **R11** | `/websocket`, 5,418 requests, all 404 | **COUNTED OUTSIDE THE GROUP.** Cause identified by the release manager: the domain replaced a site that used websockets and a browser is still reconnecting. Not this engine's defect, and not a visit - a persistent reconnect to a path that has never resolved is automation by behaviour whatever its UA says |
@@ -163,7 +164,7 @@ for another.
 | H1 | [[SM941]] AV1 - the invariant test. **R5 held it so it would land GREEN beside the fixes**, which is now possible | S | H2, H3 |
 | H2 | [[SM941]] AV2 - **ANSWERED**: publish `asset_hits`, stop counting 404s as visits, and name each counter's population. The gap was requests-with-assets against requests-without-successful-assets, and neither figure was page views (7,956 on xisl, against a reported 15,979) | M | nothing |
 | H3 | [[SM941]] AV3/AV4/AV5 - `unique_visitors` reads `cls_ips` as the manager page already does; the duplicate `human_visits`/`pageviews` scalar; `window_scoped` on `months` | S+S+S | nothing |
-| H6 | [[SM941]] AV6-AV9 (**R8-R11**) - the upper-bound explanation, the positive browser test plus `no_agent`, the self-declaration tokens and `lzs-fetch`, and `/websocket` counted outside | M | nothing |
+| H6 | [[SM941]] AV6-AV9 (**R8-R12**) - `human` renamed to `unattributed` with the upper-bound explanation, the positive browser test plus `no_agent`, the self-declaration tokens and `lzs-fetch`, and `/websocket` counted outside | M | nothing |
 | H7 | [[SM941]] AV10 - **counting basis 4 and schema_version 3**, with the ladder entry. Ships WITH H6 or H6 does not ship | S | H6 |
 | H4 | [[SM942]] FO1/FO2 - feeds sorted newest-first **in the engine, on the raw ISO date**. Not in the template (bucket `seed` - an upgrade never replaces it, so a template fix reaches no existing site) and not on `page.date` (already RFC 822 by then, so the sort would order by weekday name) | S | nothing |
 | H5 | [[SM942]] FO3 (R6) - `feed_items` capping at 50 by default, plus `lastBuildDate`. Same template and the same sort as H4, so it goes with it | S | H4 |
@@ -173,10 +174,12 @@ measurement; H4 + H5 are one piece of work (the sort and the cap are the same te
 and the same pass, settled by R6); and H1 lands last, green, which is what R5 held it
 for.
 
-**H6 and H7 are the ones to read carefully.** They change what every site's numbers
-say, downwards, and the basis bump is what keeps that honest. They are also the rows a
-site owner will notice, so they want the CHANGELOG entry written for a reader rather
-than for us.
+**H6 and H7 are one schema change, not several.** The renamed key, the new class, the
+tightened rules and the moved traffic all land together with basis 4 and schema 3 -
+because a consumer should adapt once. The release manager's position on the numbers
+falling is that operators seeing facts instead of fantasy is the point; the basis
+marker stays for the engineering reason only, which is that a day counted one way is
+not comparable with a day counted another.
 
 # Group F - held, and one of them asks a question
 
@@ -206,7 +209,7 @@ Nothing becomes reachable that was not reachable before.
 | The OOM delivery shape | Left open by the release manager while OOM is under test; it is a decision for all of OOM's consumers |
 | [[SM923]] limit 1, the section construct | Waiting for a second long form to ask |
 | B3's detection signatures | Not ruled, and offered as signatures rather than a request |
-| Renaming the `human` key | **R8 deliberately left it open.** The report will explain the group rather than relabel it, because a rename breaks every reader, dashboard and layout and must not ride along with an arithmetic fix |
+| *(nothing - the rename came off this list under R12)* | |
 
 # What this plan is honest about
 
