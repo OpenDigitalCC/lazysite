@@ -62,6 +62,29 @@ is the only thing that says whether the emitted block is understood.
 2026-09-10. The doc cites this as "the existing D011 discoverability scope,
 promoted"; D011 has no filing in this tree, so this is its first.
 
+# BUILT 2026-10-02 (PENDING): I1, I2 and I3 are in
+
+- **I1** - `page_title_raw`, `page_subtitle_raw`, `page_meta_title_raw`,
+  `page_meta_desc_raw`, `page_author_raw`, beside the escaped names. The fallbacks
+  mirror the escaped pairs exactly, so a layout reading the raw name gets the same
+  VALUE it would have got escaped rather than a different one.
+- **I2** - a `json` filter, in BOTH `%tt_opts` blocks (the page render and the
+  component render - a filter in one is a filter a component cannot use). Scalars
+  only: a reference becomes `""` rather than a guess about how an object encodes in
+  a filter that cannot report a failure. **It escapes `<`, `>` and `&`** as well as
+  the JSON control characters, because a `</script>` inside the block would end the
+  script element.
+- **I3** - the exception documented where the invariant is stated, with the contract
+  a layout author needs: a `_raw` value is NOT safe in HTML; the escaped name is for
+  markup and the raw name only for `| json`.
+
+**SABOTAGE-VERIFIED BOTH WAYS.** Escape the raw twins (the state before this change)
+and three subtests fail, including the JSON double-escaping the reporter described.
+Remove the `<`/`>`/`&` escaping from the filter and the close-script subtest fails.
+The first attempt at the first sabotage did not apply - a regex that silently matched
+nothing, so the suite passed and proved nothing - and was redone as an exact
+replacement.
+
 # RULED 2026-10-02 (R7): a raw copy, and a `json` filter
 
 The decision the measurements below ask for is taken. **Expose a raw copy of the head

@@ -44,6 +44,36 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM824 (PENDING) **a layout can emit JSON-LD from front matter that already
+  exists** (ruled 2026-10-02: expose a raw copy and ship a filter, rather than
+  walk-and-escape `sections`).
+
+  Three obstacles, measured by the sites agent and offered as input to this filing
+  rather than as a defect report: the head meta variables reach a layout already
+  HTML-escaped by a single escape point **with no inverse**, so a layout could not
+  recover the author's text; there was no `json` filter reachable from a layout, so
+  the alternative was hand-rolled quoting in a template; and `sections` already
+  reached the layout raw, against the stated invariant.
+
+  Each escaped value gains a `_raw` twin, and `| json` encodes one. **The exception
+  is documented where the invariant is stated** rather than only in a plan - and it
+  names an exception that already existed rather than introducing one.
+
+  **The filter escapes `<`, `>` and `&` as well as the JSON control characters**,
+  because a `</script>` inside a JSON-LD block ends the script element and
+  everything after it is parsed as markup. Valid JSON that cannot break out of the
+  element it sits in; asserted by round-tripping a close-script payload through a
+  real render.
+
+  Registered in BOTH `%tt_opts` blocks - the page render and the component render -
+  because a filter present in one is a filter a component cannot use.
+
+  **A `_raw` value is not safe in HTML**, and that contract is written beside the
+  code and in FEATURES: the escaped name is for markup, the raw name only for
+  `| json`. Not an escalation, and the reporter graded it so first - only the page
+  author can write front matter, and that same author can already put raw HTML in
+  the page body.
+
 - SM935 (PENDING) **the form rate limit is a rolling hour, so a limit of five no
   longer permits ten.** The counter bucketed on `int(time/3600)` with the key
   `"$ip:$hour"`, so the window reset on the clock rather than on the submitter:

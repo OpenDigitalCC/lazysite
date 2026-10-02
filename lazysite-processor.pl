@@ -5197,7 +5197,7 @@ sub _render_component {
         # Layout components win; built-in components (lazysite/templates) are the
         # fallback so ::: qr resolves on any layout.
         INCLUDE_PATH => [ grep { defined } ( $layout_dir, "$LAZYSITE_DIR/templates" ) ],
-        FILTERS      => { markdown => \&_markdown_filter },
+        FILTERS      => { markdown => \&_markdown_filter, json => \&_json_filter },
     );
     my $rendered = '';
     $tt->process( "components/$name.tt",
@@ -5505,6 +5505,48 @@ sub _markdown_filter {
         $html = $1;    # inline: drop the single enclosing paragraph
     }
     return $html;
+}
+
+# SM824 I2 (ruled R7, 2026-10-02): encode a value as JSON, for a layout emitting
+# JSON-LD.
+#
+# `%tt_opts` shipped `markdown` and no JSON encoder, so a layout wanting
+# structured data had to hand-roll quoting in a template - which is the thing
+# this exists to avoid. A missed backslash or control character does not produce
+# a visible error; it produces JSON no consumer will parse, on a page that
+# renders fine.
+#
+# SCALARS ONLY, DELIBERATELY. A layout emits one value at a time into JSON it is
+# writing itself, and that is the whole use the filing asks for. Handing a
+# reference to a TT filter would mean deciding how a blessed object or a cycle
+# encodes, in a filter that cannot report a failure - so a reference becomes the
+# empty string rather than a guess.
+#
+# WHY NOT JSON::PP->encode DIRECTLY: it would wrap the string in quotes, which is
+# right, but it also escapes `/` inconsistently across versions and does not
+# escape `<` at all. A `</script>` inside a JSON-LD block ENDS THE SCRIPT ELEMENT,
+# so the three HTML-significant characters are escaped as \uXXXX here - valid JSON
+# that cannot break out of the element it sits in.
+sub _json_filter {
+    my ($text) = @_;
+    return '""' unless defined $text;
+    return '""' if ref $text;
+    my $s = "$text";
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\x08/\\b/g;
+    $s =~ s/\f/\\f/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    # Remaining C0 controls are not legal raw in a JSON string.
+    $s =~ s/([\x00-\x1f])/sprintf '\\u%04x', ord $1/ge;
+    # The three that matter inside <script>: an author's `</script>` must not end
+    # the element, and `<`/`>`/`&` are cheap to neutralise.
+    $s =~ s/</\\u003c/g;
+    $s =~ s/>/\\u003e/g;
+    $s =~ s/&/\\u0026/g;
+    return '"' . $s . '"';
 }
 
 sub convert_dt_links {
@@ -7869,6 +7911,34 @@ sub render_content {
         page_title    => _esc_html( $meta->{title} ),
         page_subtitle => _esc_html( $meta->{subtitle} ),
 
+        # SM824 I1/I3 (ruled R7, 2026-10-02): THE DOCUMENTED EXCEPTION.
+        #
+        # The escaping above has no inverse, and a layout that wants to emit
+        # JSON-LD needs the author's TEXT - `&amp;` inside a JSON string is wrong
+        # rather than merely ugly, and entity-decoding in a template is the thing
+        # the single escape point exists to avoid. So each escaped value gains a
+        # `_raw` twin, and `| json` (below, in FILTERS) is how a layout encodes
+        # one safely.
+        #
+        # THIS NAMES AN EXCEPTION THAT ALREADY EXISTED rather than introducing
+        # one: `sections` has always reached the layout raw, three lines of this
+        # same hash below. The ruling chose to document and bound that rather
+        # than walk-and-escape `sections` - which would have held the invariant
+        # everywhere and made JSON-LD from front matter unreachable, which is
+        # what the reporter said it would do.
+        #
+        # THE RULE FOR A LAYOUT AUTHOR, and it is the whole contract: a `_raw`
+        # value is NOT safe in HTML. Use the escaped name in markup, and the raw
+        # name only inside `| json`. A `_raw` interpolated into a page body is an
+        # XSS hole the author opened deliberately - which is why the plain names
+        # keep the escaping and remain what every shipped layout uses.
+        #
+        # NOT an escalation, and the reporter graded it so first: only the page
+        # author can write front matter, and that same author can already put raw
+        # HTML in the page body.
+        page_title_raw    => ( $meta->{title}    // '' ),
+        page_subtitle_raw => ( $meta->{subtitle} // '' ),
+
         # SM459: the page's OWN custom front-matter, as page_<key>.
         #
         # A custom key was readable by every page EXCEPT the one that declared
@@ -7910,6 +7980,14 @@ sub render_content {
             _esc_html( $meta->{meta_desc} // $meta->{subtitle} ),
         page_meta_title   => _esc_html( $meta->{meta_title} // $meta->{title} ),
         page_author       => _esc_html( $meta->{author} ),
+
+        # SM824 I1: the raw twins, under the contract documented above. The
+        # fallbacks mirror the escaped pairs exactly - meta_desc falls back to
+        # subtitle, meta_title to title - so a layout reading the raw name gets
+        # the same VALUE it would have got escaped, never a different one.
+        page_meta_desc_raw  => ( $meta->{meta_desc}  // $meta->{subtitle} // '' ),
+        page_meta_title_raw => ( $meta->{meta_title} // $meta->{title}    // '' ),
+        page_author_raw     => ( $meta->{author}     // '' ),
         page_modified     => $meta->{page_modified}     || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
         # SM796: escaped, like every other client-influenced value entering
@@ -8606,7 +8684,7 @@ sub render_template {
         ENCODING     => 'utf8',
         EVAL_PERL    => 0,                                 # L-2: no embedded Perl
         INCLUDE_PATH => $component_dir,                    # D035: layout-local components
-        FILTERS      => { markdown => \&_markdown_filter },
+        FILTERS      => { markdown => \&_markdown_filter, json => \&_json_filter },
         COMPILE_DIR  => $TT_COMPILE_DIR,                   # P-4
         COMPILE_EXT  => '.ttc',                            # P-4
     );

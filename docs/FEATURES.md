@@ -177,6 +177,23 @@ template (`templates/registries/NAME.tt`) rendered to an output file  -
 recursive page scan collects registered pages; regeneration is TTL-gated (4h) and
 only happens on a real render.
 
+**JSON-LD from front matter** (SM824). The head meta variables reach a layout
+HTML-escaped at a single escape point, and that escaping has no inverse - so each
+carries a `_raw` twin (`page_title_raw`, `page_subtitle_raw`, `page_meta_title_raw`,
+`page_meta_desc_raw`, `page_author_raw`) and a `json` filter encodes one safely:
+
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"Person",
+     "name":[% page_title_raw | json %]}
+    </script>
+
+**A `_raw` value is not safe in HTML.** Use the escaped name in markup and the raw
+name only inside `| json`; the filter escapes `<`, `>` and `&` as well as the JSON
+control characters, so an author's `</script>` cannot end the element it sits in. It
+takes scalars only - a reference becomes `""` rather than a guess about how an object
+encodes. This is a **documented exception** to the single-escape-point rule rather
+than a new one: `sections` has always reached layouts raw.
+
 **The two feeds are ordered and bounded by the engine, not by their templates**
 (SM942). Items come out **newest first**, sorted on the raw `date:` before it is
 formatted - a template-side sort would order by weekday name, and would reach only
